@@ -95,6 +95,25 @@ exec:
         - 'model_providers.tale.env_key="OPENAI_API_KEY"'
         - '-c'
         - 'model_providers.tale.wire_api="responses"'
+    # Broker OAuth uses ChatGPT's Codex Responses endpoint and the selected
+    # ChatGPT account header. The token stays in the exec env; CODEX_ACCESS_TOKEN
+    # instead selects Agent Identity auth and cannot import this OAuth token.
+    # Keep the managed bridge config above, overriding only the model provider.
+    - subscriptionArgs:
+        - '-c'
+        - 'model_provider="tale-subscription"'
+        - '-c'
+        - 'model_providers.tale-subscription.name="ChatGPT"'
+        - '-c'
+        - 'model_providers.tale-subscription.base_url=${subscription.baseUrlToml}'
+        - '-c'
+        - 'model_providers.tale-subscription.env_key="TALE_SUBSCRIPTION_TOKEN"'
+        - '-c'
+        - 'model_providers.tale-subscription.env_http_headers={"ChatGPT-Account-ID"="TALE_SUBSCRIPTION_ACCOUNT_ID"}'
+        - '-c'
+        - 'model_providers.tale-subscription.wire_api="responses"'
+        - '-c'
+        - 'model_providers.tale-subscription.requires_openai_auth=false'
     # The instructions addendum rides the `developer_instructions` config
     # key — Codex injects it as a developer message ahead of the user turn
     # (the text lands verbatim in the request's developer message). Never
@@ -129,3 +148,8 @@ exec:
       CODEX_HOME: /agent/.runtime/home/.codex
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
+subscription:
+  kind: env
+  tokenVar: TALE_SUBSCRIPTION_TOKEN
+  accountIdVar: TALE_SUBSCRIPTION_ACCOUNT_ID
+  clearEnv: [OPENAI_API_KEY, CODEX_API_KEY, CODEX_ACCESS_TOKEN]

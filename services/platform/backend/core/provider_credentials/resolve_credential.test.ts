@@ -15,7 +15,9 @@ import { safeFetch } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../lib/ctx';
 import { encryptSecret } from '../lib/secret_box';
+import type { BrokerSelectionResult } from './broker_pool';
 import { resolveProviderCredential } from './resolve_credential';
+import { hashBrokerAccount, hashBrokerToken } from './token_hash';
 
 vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => {
   const original =
@@ -39,7 +41,7 @@ function brokerDocument(endpoint: string) {
 }
 
 /** A ctx whose default-credential read serves one broker row. */
-function ctxServingBroker(endpoint: string): ActionCtx {
+function ctxServingBroker(endpoint: string) {
   const row = {
     _id: 'cred-1',
     organizationId: ORG,
@@ -49,7 +51,19 @@ function ctxServingBroker(endpoint: string): ActionCtx {
     encryptedData: encryptSecret(JSON.stringify(brokerDocument(endpoint))),
     status: 'active',
   };
-  return { runQuery: vi.fn(async () => row) } as unknown as ActionCtx;
+  const runMutation = vi.fn(
+    async (
+      _ref: unknown,
+      args: { candidates: { hash: string }[] },
+    ): Promise<BrokerSelectionResult> => ({
+      hash: args.candidates[0]?.hash ?? null,
+      fellBack: false,
+    }),
+  );
+  return Object.assign(
+    { runQuery: vi.fn(async () => row), runMutation } as unknown as ActionCtx,
+    { mockRunMutation: runMutation },
+  );
 }
 
 function poolResponse() {
@@ -82,6 +96,98 @@ beforeEach(() => {
   vi.stubEnv('ENCRYPTION_SECRET_HEX', 'test-key-material');
   vi.stubEnv('TALE_ALLOW_PRIVATE_PROVIDER_HOSTS', '');
   mockedFetch.mockReset();
+});
+
+describe('broker account selection boundary', () => {
+  it('hands only scoped hashes to durable selection and preserves vendor metadata', async () => {
+    mockedFetch.mockResolvedValue({
+      ...poolResponse(),
+      body: JSON.stringify({
+        tokens: [
+          { id: 'gateway-a', account_id: 'vendor-a', access_token: 'token-a' },
+          { id: 'gateway-b', account_id: 'vendor-b', access_token: 'token-b' },
+        ],
+      }),
+    });
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    const firstHash = hashBrokerAccount('cred-1', {
+      id: 'gateway-a',
+      token: 'previous-token-a',
+    });
+    const secondHash = hashBrokerAccount('cred-1', {
+      id: 'gateway-b',
+      token: 'token-b',
+    });
+    ctx.mockRunMutation.mockResolvedValue({
+      hash: secondHash,
+      fellBack: false,
+    });
+    const result = await resolveProviderCredential(ctx, {
+      organizationId: ORG,
+      providerSlug: 'anthropic',
+      excludeBrokerTokenHashes: [firstHash, hashBrokerToken('token-b')],
+    });
+    expect(result).toMatchObject({
+      token: 'token-b',
+      accountId: 'vendor-b',
+      brokerTokenHash: secondHash,
+    });
+    expect(ctx.mockRunMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: ORG,
+      credentialId: 'cred-1',
+      selection: 'first',
+      candidates: [
+        { hash: firstHash, excluded: true },
+        { hash: secondHash, excluded: true },
+      ],
+    });
+    expect(JSON.stringify(ctx.mockRunMutation.mock.calls)).not.toContain(
+      'token-a',
+    );
+  });
+
+  it('never sends quota-exhausted or explicitly excluded tokens to the selector', async () => {
+    mockedFetch.mockResolvedValue({
+      ...poolResponse(),
+      body: JSON.stringify({
+        tokens: [
+          { access_token: 'quota-exhausted', available: false },
+          { access_token: 'already-tried' },
+          { access_token: 'healthy' },
+        ],
+      }),
+    });
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    const result = await resolveProviderCredential(ctx, {
+      organizationId: ORG,
+      providerSlug: 'anthropic',
+      excludeBrokerTokens: ['already-tried'],
+    });
+    expect(result).toMatchObject({ token: 'healthy' });
+    expect(ctx.mockRunMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        candidates: [{ hash: hashBrokerToken('healthy'), excluded: false }],
+      }),
+    );
+  });
+
+  it('refuses the pool during shared cooldown without undoing the hard exclusion', async () => {
+    mockedFetch.mockResolvedValue(poolResponse());
+    const ctx = ctxServingBroker('https://broker.example/pool');
+    ctx.mockRunMutation.mockResolvedValue({
+      hash: null,
+      fellBack: false,
+      retryAtMs: Date.now() + 60_000,
+    });
+    await expect(
+      resolveProviderCredential(ctx, {
+        organizationId: ORG,
+        providerSlug: 'anthropic',
+        excludeBrokerTokenHashes: [hashBrokerToken('tok-a')],
+      }),
+    ).rejects.toThrow(/cooling down/);
+  });
 });
 
 afterEach(() => {

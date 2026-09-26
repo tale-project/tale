@@ -190,16 +190,18 @@ export interface HarnessRunSpec {
    */
   readonly execId?: string;
   /**
-   * A subscription-key credential (coding-plan secret) for harnesses whose
-   * YAML declares a `subscription` delivery: the interpreter injects
+   * A subscription key or broker token for harnesses whose YAML declares a
+   * `subscription` delivery: the interpreter injects
    * `secret` under the declared env var or stages it as the declared file,
    * and `baseUrl` (when the delivery names a base-URL var) points the CLI at
-   * the subscription endpoint. Declarative wiring only for now — the
-   * runtime consumer arrives with the chat rebuild.
+   * the subscription endpoint. Broker delivery preserves its configured
+   * token channel and the selected vendor account identity.
    */
   readonly subscription?: {
     readonly secret: string;
     readonly baseUrl?: string;
+    readonly targetEnvVar?: string;
+    readonly accountId?: string;
   };
 }
 

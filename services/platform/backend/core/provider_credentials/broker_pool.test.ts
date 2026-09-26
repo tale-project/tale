@@ -7,7 +7,6 @@ import {
   describeEmptyPool,
   diagnoseTokenMapping,
   parseExpiryMs,
-  pickToken,
 } from './broker_pool';
 
 const NOW = Date.UTC(2026, 6, 21, 12, 0, 0);
@@ -146,9 +145,155 @@ describe('diagnoseTokenMapping', () => {
       'tok-a',
     ]);
   });
+
+  it('retains stable account identity and vendor account metadata across refresh', () => {
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        {
+          id: 'account-a',
+          account_id: 'chatgpt-a',
+          access_token: 'new-token',
+          status: 'active',
+        },
+        {
+          id: 'account-a',
+          account_id: 'chatgpt-a',
+          access_token: 'old-token',
+          status: 'active',
+        },
+        { access_token: 'legacy-token', status: 'active' },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+    );
+    expect(diagnostics.usableAccounts).toEqual([
+      { id: 'account-a', accountId: 'chatgpt-a', token: 'new-token' },
+      { token: 'legacy-token' },
+    ]);
+    expect(diagnostics.usableTokens).toEqual(['new-token', 'legacy-token']);
+  });
+
+  it('honors quota unavailability until reset without disabling unknown usage', () => {
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        {
+          access_token: 'spent',
+          status: 'active',
+          available: false,
+          available_at: NOW + 60_000,
+        },
+        { access_token: 'unknown-reset', status: 'active', available: false },
+        {
+          access_token: 'reset',
+          status: 'active',
+          available: false,
+          available_at: NOW,
+        },
+        { access_token: 'unknown-usage', status: 'active' },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+    );
+    expect(diagnostics.usableTokens).toEqual(['reset', 'unknown-usage']);
+    expect(diagnostics.unavailableCount).toBe(2);
+  });
+
+  it('keeps legacy SQLite integer account ids compatible and stable', () => {
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        { id: 42, access_token: 'token-a', status: 'active' },
+        { id: 42, access_token: 'older-token-a', status: 'active' },
+        { id: 43, access_token: 'token-b', status: 'active' },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+    );
+    expect(diagnostics.usableAccounts).toEqual([
+      { id: '42', token: 'token-a' },
+      { id: '43', token: 'token-b' },
+    ]);
+  });
+
+  it('rejects malformed metadata and invalid explicit expiries', () => {
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        {
+          access_token: 'invalid-expiry',
+          status: 'active',
+          expires_at: 'later',
+        },
+        {
+          access_token: 'invalid-availability',
+          status: 'active',
+          available: 'false',
+        },
+        {
+          access_token: 'unsafe-header',
+          status: 'active',
+          account_id: 'a\r\nb',
+        },
+        { access_token: 'undated', status: 'active', expires_at: null },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+    );
+    expect(diagnostics.usableTokens).toEqual(['undated']);
+    expect(diagnostics.invalidMetadataCount).toBe(3);
+  });
+
+  it('does not give OpenAI a token explicitly marked for Anthropic', () => {
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        {
+          access_token: 'wrong-provider',
+          status: 'active',
+          provider: 'anthropic',
+        },
+        {
+          access_token: 'correct-provider',
+          status: 'active',
+          provider: 'openai',
+        },
+        { access_token: 'legacy-provider', status: 'active' },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+      'openai',
+    );
+    expect(diagnostics.usableTokens).toEqual([
+      'correct-provider',
+      'legacy-provider',
+    ]);
+    expect(diagnostics.providerMismatchCount).toBe(1);
+  });
 });
 
 describe('describeEmptyPool', () => {
+  it('explains missing vendor account identity without dropping healthy peers', () => {
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        { access_token: 'no-account', status: 'active' },
+        {
+          access_token: 'has-account',
+          status: 'active',
+          account_id: 'vendor-a',
+        },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+      'openai',
+      true,
+    );
+    expect(diagnostics.usableTokens).toEqual(['has-account']);
+    expect(diagnostics.missingAccountIdCount).toBe(1);
+    expect(describeEmptyPool(diagnostics, MAPPING)).toContain('account_id');
+  });
   it('names the missed path', () => {
     const diagnostics = diagnoseTokenMapping({}, MAPPING, NOW, SKEW);
     expect(describeEmptyPool(diagnostics, MAPPING)).toContain('$.tokens');
@@ -176,27 +321,5 @@ describe('describeEmptyPool', () => {
     expect(message).toContain('access_token');
     expect(message).toContain('statusField');
     expect(message).toContain('expiry skew');
-  });
-});
-
-describe('pickToken', () => {
-  const TOKENS = ['tok-a', 'tok-b', 'tok-c'] as const;
-
-  it('first and round-robin pick the first non-excluded token', () => {
-    expect(pickToken(TOKENS, new Set(), 'first')).toBe('tok-a');
-    expect(pickToken(TOKENS, new Set(['tok-a']), 'round-robin')).toBe('tok-b');
-  });
-
-  it('random picks per the injected random source', () => {
-    expect(pickToken(TOKENS, new Set(), 'random', () => 0)).toBe('tok-a');
-    expect(pickToken(TOKENS, new Set(), 'random', () => 0.99)).toBe('tok-c');
-    expect(pickToken(TOKENS, new Set(['tok-c']), 'random', () => 0.99)).toBe(
-      'tok-b',
-    );
-  });
-
-  it('returns null when every token is excluded', () => {
-    expect(pickToken(TOKENS, new Set(TOKENS), 'random')).toBeNull();
-    expect(pickToken([], new Set(), 'first')).toBeNull();
   });
 });

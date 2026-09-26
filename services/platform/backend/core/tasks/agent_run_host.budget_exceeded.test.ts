@@ -100,6 +100,7 @@ const { driveTaskAgentTurnImpl } = await import('./agent_run_host');
 interface RunState {
   status: string;
   execId: string;
+  brokerTokenHash?: string;
 }
 
 interface Call {
@@ -184,6 +185,7 @@ const REFUSAL =
   'API Error: 402 Model-level budget exceeded (virtual key scope): Model:AllModels:virtual_key:vk-1 budget exceeded: 1.5618 >= 1.5100 dollars';
 
 beforeEach(() => {
+  vi.clearAllMocks();
   io.stdout = ndjson([
     { type: 'system', subtype: 'init', session_id: 'conv-402' },
     {
@@ -228,4 +230,59 @@ describe('a task agent turn the gateway refused with 402', () => {
     ]);
     expect(isAutoRetryableFailure('budget_exceeded')).toBe(false);
   });
+});
+
+describe('a brokered task agent reaching a vendor rate limit', () => {
+  it.each(['claude-code', 'codex'])(
+    '%s cools down the selected account before scheduling a retry',
+    async (harness) => {
+      io.stdout = ndjson(
+        harness === 'codex'
+          ? [
+              { type: 'thread.started', thread_id: 'conv-429' },
+              {
+                type: 'turn.failed',
+                error: {
+                  message: "You've hit your usage limit. Try again later.",
+                },
+              },
+            ]
+          : [
+              { type: 'system', subtype: 'init', session_id: 'conv-429' },
+              {
+                type: 'result',
+                subtype: 'error_during_execution',
+                is_error: true,
+                api_error_status: 429,
+                result: 'Rate limited',
+                session_id: 'conv-429',
+              },
+            ],
+      );
+      const { ctx, mutations } = makeCtx({
+        status: 'running',
+        execId: 'exec-1',
+        brokerTokenHash: 'stable-selected-account-hash',
+      });
+
+      await driveTaskAgentTurnImpl(ctx, { ...KEYS, harness });
+
+      const cooldown = mutations.findIndex(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      );
+      const retry = mutations.findIndex(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      );
+      expect(cooldown).toBeGreaterThanOrEqual(0);
+      expect(cooldown).toBeLessThan(retry);
+      expect(mutations[cooldown]?.args).toEqual({
+        organizationId: 'org-1',
+        brokerTokenHash: 'stable-selected-account-hash',
+        apiErrorStatus: 429,
+      });
+      expect(failedMarks(mutations)[0]?.args.apiErrorStatus).toBe(429);
+    },
+  );
 });

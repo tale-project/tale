@@ -102,6 +102,22 @@ describe('createFileAccountStore', () => {
     expect(await store.getAccount('account-1')).toEqual(account());
   });
 
+  it.each([undefined, null, false, true])(
+    'preserves usage limit flags across a restart, including legacy omission: %s',
+    async (limited) => {
+      const row = account({
+        usage: {
+          windows: [],
+          checkedAt: '2026-09-21T10:00:00.000Z',
+          ...(limited !== undefined ? { limited } : {}),
+        },
+      });
+      await store.putAccount(row);
+      const restarted = createFileAccountStore({ dataDir: dir });
+      expect((await restarted.getAccount(row.id))?.usage).toEqual(row.usage);
+    },
+  );
+
   it('replaces an account rather than appending a second row', async () => {
     await store.putAccount(account());
     await store.putAccount(account({ label: 'renamed' }));

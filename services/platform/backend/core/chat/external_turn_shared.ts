@@ -122,9 +122,21 @@ export type ExternalTurnServing =
       secret: string;
       /** The vendor API base the CLI calls — overrides the gateway base var. */
       baseUrl: string;
+      /** Broker-selected CLI token channel and vendor account metadata. */
+      targetEnvVar?: string;
+      accountId?: string;
       /** Session token for the capability bridge (never a gateway VK). */
       bridgeToken: string;
     };
+
+/** Filter broker pools before selection when this CLI needs vendor account
+ * metadata: custom provider aliases using the same harness get the same gate. */
+export function harnessRequiresSubscriptionAccountId(harness: string): boolean {
+  const delivery = loadHarnesses().find(
+    (fact) => fact.slug === harness,
+  )?.subscription;
+  return delivery?.kind === 'env' && delivery.accountIdVar !== undefined;
+}
 
 /** The person a session op acts for, as the attribution read answers it —
  * '' when none resolves, the subject its spend cap is evaluated for then. */
@@ -278,6 +290,12 @@ export function buildExternalTurnExec(args: {
           subscription: {
             secret: args.serving.secret,
             baseUrl: args.serving.baseUrl,
+            ...(args.serving.targetEnvVar !== undefined
+              ? { targetEnvVar: args.serving.targetEnvVar }
+              : {}),
+            ...(args.serving.accountId !== undefined
+              ? { accountId: args.serving.accountId }
+              : {}),
           },
         }
       : {}),

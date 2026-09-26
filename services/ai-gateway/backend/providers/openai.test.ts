@@ -210,6 +210,23 @@ describe('exchangeCode', () => {
 });
 
 describe('fetchUsage', () => {
+  it.each([
+    { allowed: false },
+    { limit_reached: true },
+    { allowed: false, limit_reached: false },
+    { allowed: true, limit_reached: true },
+  ])(
+    'preserves an explicit exhausted state without requiring utilization: %j',
+    async (rateLimit) => {
+      const { fetchImpl } = stubFetch(() => json({ rate_limit: rateLimit }));
+      const reading = await createOpenAiProvider({ fetchImpl }).fetchUsage({
+        accessToken: 'access-1',
+        accountId: 'account-1',
+      });
+      expect(reading).toMatchObject({ limited: true, windows: [] });
+    },
+  );
+
   it('carries the account handle the backend keys the plan by', async () => {
     const { fetchImpl, calls } = stubFetch(() =>
       json({
@@ -245,7 +262,9 @@ describe('fetchUsage', () => {
   });
 
   it('answers no plan when the reading names none', async () => {
-    const { fetchImpl } = stubFetch(() => json({}));
+    const { fetchImpl } = stubFetch(() =>
+      json({ rate_limit: { primary_window: null, secondary_window: null } }),
+    );
     const reading = await createOpenAiProvider({ fetchImpl }).fetchUsage({
       accessToken: 'access-1',
       accountId: null,
@@ -254,13 +273,33 @@ describe('fetchUsage', () => {
   });
 
   it('omits the header when no handle is known yet', async () => {
-    const { fetchImpl, calls } = stubFetch(() => json({}));
+    const { fetchImpl, calls } = stubFetch(() =>
+      json({ rate_limit: { primary_window: null, secondary_window: null } }),
+    );
     await createOpenAiProvider({ fetchImpl }).fetchUsage({
       accessToken: 'access-1',
       accountId: null,
     });
     expect(calls[0]?.headers.has('chatgpt-account-id')).toBe(false);
   });
+
+  it.each([
+    {},
+    { error: { code: 'rate_limit_error' } },
+    { rate_limit: null },
+    { rate_limit: {} },
+  ])(
+    'refuses a successful response without a usage reading: %j',
+    async (body) => {
+      const { fetchImpl } = stubFetch(() => json(body));
+      await expect(
+        createOpenAiProvider({ fetchImpl }).fetchUsage({
+          accessToken: 'access-1',
+          accountId: null,
+        }),
+      ).rejects.toMatchObject({ code: 'usage_failed' });
+    },
+  );
 });
 
 describe('identityFromIdToken', () => {
@@ -388,9 +427,22 @@ describe('parseOpenAiUsage', () => {
 });
 
 describe('cliCommand', () => {
-  it('exports the token Codex reads', () => {
-    expect(createOpenAiProvider().cliCommand('access-1')).toBe(
-      'CODEX_ACCESS_TOKEN=access-1 codex',
+  it('uses Codex Responses with the ChatGPT bearer and account header', () => {
+    const command = createOpenAiProvider().cliCommand('access-1', 'account-1');
+    expect(command).toContain("TALE_SUBSCRIPTION_TOKEN='access-1'");
+    expect(command).toContain("TALE_SUBSCRIPTION_ACCOUNT_ID='account-1'");
+    expect(command).toContain('https://chatgpt.com/backend-api/codex');
+    expect(command).toContain(
+      'env_http_headers={"ChatGPT-Account-ID"="TALE_SUBSCRIPTION_ACCOUNT_ID"}',
+    );
+    expect(command).toContain('wire_api="responses"');
+    expect(command).toContain('requires_openai_auth=false');
+    expect(command).toContain('-u CODEX_ACCESS_TOKEN');
+  });
+
+  it('refuses to create an ambiguous command without the vendor account identity', () => {
+    expect(() => createOpenAiProvider().cliCommand('access-1', null)).toThrow(
+      ProviderError,
     );
   });
 });

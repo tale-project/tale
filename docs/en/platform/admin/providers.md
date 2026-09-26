@@ -19,7 +19,7 @@ Connect an AI provider before asking Tale to run chats or agents. Under **Settin
 4. Review **Model allowlist**. For a provider with a catalog, leaving it empty allows the credential to use that catalog. Providers without a catalog need explicit model IDs.
 5. Select **Add credential**. Check the new row and make it the default for that provider when ordinary requests should use it.
 
-Open a chat and check the model picker. A model must be available through an enabled credential and permitted by the organization's model-access rules. Saving a credential alone does not prove the provider will accept requests; send a small test message with the intended model.
+For **API key** or **Environment variable** credentials, open a chat and send a short test message with the intended model. A model must be available through an enabled credential and permitted by the organization's model-access rules. Verify subscription credentials with a task or automation agent, as described below. Saving a credential alone does not prove the provider will accept requests.
 
 ## Choose an authentication method
 
@@ -32,7 +32,28 @@ Open a chat and check the model picker. A model must be available through an ena
 
 Only methods supported by the selected provider appear. An environment reference does not create the variable: ask the operator to provision it using the [provider configuration guide](/self-hosted/configuration/providers).
 
-For a subscription broker, configure how Tale authenticates to the broker, where its response contains the token array and token value, and which target environment variable receives the token. Choose a selection strategy and review the timeout, response-size, expiry, and active-status controls under **Advanced**. Obtain these values from the broker's actual response contract; they are not interchangeable with a provider API key.
+## Connect a subscription broker
+
+Subscription brokers support Anthropic subscriptions through Claude Code and OpenAI ChatGPT subscriptions through Codex. These credentials serve task and automation agents; chats require direct API credentials.
+
+| Provider and runtime | Target variable |
+| --- | --- |
+| Anthropic · Claude Code | `CLAUDE_CODE_OAUTH_TOKEN` |
+| OpenAI · Codex | `TALE_SUBSCRIPTION_TOKEN` |
+
+When adding the credential, choose **Subscription broker** and obtain the endpoint and authentication details from your operator. Use an endpoint that serves only the selected provider. For Tale AI gateway, that is `/api/tokens/anthropic` or `/api/tokens/openai`.
+
+Set **Token array path** to `$.tokens`, **Token field** to `access_token`, and **Target environment variable** to the value above. Under **Advanced**, use `status` for **Status field**, `active` for **Active status value**, and `expires_at` for **Expiry field**. Other brokers may use different paths. OpenAI pools must also supply the vendor's `account_id` for every usable token; the broker's own `id` is a separate account identifier.
+
+For OpenAI, restrict **Model allowlist** to model IDs your ChatGPT plan supports. The OpenAI API catalog can include models that the subscription cannot use.
+
+Choose **Token selection** according to how you want to distribute new agent turns:
+
+- **Random**, the initial choice, picks uniformly from the usable accounts for each selection.
+- **First usable** always takes the first usable account in the broker's order. Use it for an ordered preference, not to spread work.
+- **Round-robin** picks the usable account that was selected least recently. All backend processes share the selection history for this organization and credential, including concurrent requests. Reordered responses and backend restarts preserve that history; stable broker account IDs also preserve it across token refreshes. This distributes selections; it does not promise equal token usage or equal numbers of running agents.
+
+Save the credential, then run a short task or automation with the matching provider and agent runtime. Check that the agent completes a reply. If no account is usable, ask the operator to check account authorization, token expiry and reported quota. The [broker configuration reference](/self-hosted/configuration/providers#connect-a-subscription-broker) explains the optional account metadata, defaults and recovery.
 
 ## Configure Azure or another custom endpoint
 

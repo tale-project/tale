@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { filterBrokerTokensByHash, hashBrokerToken } from './token_hash';
+import { hashBrokerAccount, hashBrokerToken } from './token_hash';
 
 describe('hashBrokerToken', () => {
   it('is deterministic 64-char sha256 hex', () => {
@@ -11,39 +11,25 @@ describe('hashBrokerToken', () => {
   });
 });
 
-describe('filterBrokerTokensByHash', () => {
-  const POOL = ['tok-a', 'tok-b', 'tok-c'];
-
-  it('passes the pool through untouched with no exclusions', () => {
-    expect(filterBrokerTokensByHash(POOL, new Set())).toEqual({
-      candidates: POOL,
-      fellBack: false,
-    });
+describe('hashBrokerAccount', () => {
+  it('falls back to the legacy token hash when no stable id is supplied', () => {
+    expect(hashBrokerAccount('cred-a', { token: 'synthetic-token' })).toBe(
+      hashBrokerToken('synthetic-token'),
+    );
   });
 
-  it('drops exactly the tokens whose hash is excluded', () => {
-    const excluded = new Set([hashBrokerToken('tok-b')]);
-    expect(filterBrokerTokensByHash(POOL, excluded)).toEqual({
-      candidates: ['tok-a', 'tok-c'],
-      fellBack: false,
-    });
-  });
-
-  it('falls back to the FULL pool when every token is excluded', () => {
-    // A one-account deployment must retry on its only account rather than
-    // starve on its own bookkeeping.
-    const excluded = new Set(POOL.map((token) => hashBrokerToken(token)));
-    expect(filterBrokerTokensByHash(POOL, excluded)).toEqual({
-      candidates: POOL,
-      fellBack: true,
-    });
-  });
-
-  it('an unknown hash excludes nothing', () => {
-    const excluded = new Set([hashBrokerToken('tok-not-in-pool')]);
-    expect(filterBrokerTokensByHash(POOL, excluded)).toEqual({
-      candidates: POOL,
-      fellBack: false,
-    });
+  it('keeps the same identity after refresh, scoped to the broker credential', () => {
+    const account = { id: 'account-a', token: 'old-token' };
+    const hash = hashBrokerAccount('cred-a', account);
+    expect(
+      hashBrokerAccount('cred-a', { ...account, token: 'new-token' }),
+    ).toBe(hash);
+    expect(hashBrokerAccount('cred-b', account)).not.toBe(hash);
+    expect(
+      hashBrokerAccount('cred-a', { ...account, id: 'account-b' }),
+    ).not.toBe(hash);
+    expect(hashBrokerAccount('a:b', { id: 'c', token: 't' })).not.toBe(
+      hashBrokerAccount('a', { id: 'b:c', token: 't' }),
+    );
   });
 });

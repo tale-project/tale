@@ -6044,9 +6044,9 @@ settings:
       removeModel: Remove {model}
     broker:
       explainer:
-        A subscription broker serves rotating OAuth tokens, e.g. for a Claude
-        subscription. Broker credentials run sandboxed on their provider's
-        harness.
+        A subscription broker supplies rotating OAuth tokens for Claude or
+        ChatGPT subscriptions. Use them for task and automation agents running
+        in the provider's sandbox runtime.
       invalid: 'Invalid broker configuration: {error}'
       endpoint: Broker endpoint
       httpMethod: HTTP method
@@ -6058,12 +6058,15 @@ settings:
       authSecret: Broker secret
       authSecretHelp: Sent to the broker as the bearer or header value. Stored encrypted.
       secretEnv: Secret from environment variable
-      secretEnvHelp: 'Optional, ops-managed: read the broker secret from this
-        deployment variable instead — the prefix is fixed.'
+      secretEnvHelp:
+        Optional. Used when Broker secret is empty. Setting this reference
+        while replacing a configuration switches to the environment source.
       tokensPath: Token array path
       tokenField: Token field
       targetEnvVar: Target environment variable
-      targetEnvVarHelp: The sandbox variable the picked token is injected into.
+      targetEnvVarHelp:
+        Use CLAUDE_CODE_OAUTH_TOKEN for Claude Code or TALE_SUBSCRIPTION_TOKEN
+        for Codex. OpenAI broker responses also require account_id.
       selection: Token selection
       selectionRandom: Random
       selectionFirst: First usable

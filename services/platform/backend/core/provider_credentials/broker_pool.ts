@@ -1,21 +1,17 @@
 /**
- * Pure token-pool mapping + selection — the testable core of the
+ * Pure token-pool mapping — the testable core of the
  * subscription-broker credential path. No `'use node'`, no Convex imports,
  * so it unit-tests without the node action module; the thin fetch wrapper
  * lives in `resolve_credential.ts`.
  *
- * Semantics preserved from the retired token-source rotation engine so
- * migrated broker credentials behave identically: config-driven response
- * mapping (JSONPath to the array + per-item field names), active-status and
- * expiry-skew filtering, de-duplication, and `random`/`first` selection with
- * `round-robin` behaving as `first` (no cross-run cursor; an exclude set
- * advances it within a turn).
+ * Config-driven mapping remains compatible with legacy token-only brokers.
+ * Optional account metadata enables refresh-stable rotation and quota
+ * filtering. Selection itself is serialized in the credential SQL domain.
  */
 
 import type {
   BrokerAuth,
   BrokerResponseMapping,
-  BrokerSelection,
 } from '@tale/shared/schemas/providers';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -102,7 +98,8 @@ export function parseExpiryMs(raw: unknown): number | undefined {
  * Per-item outcome counts of running a mapping over a broker response — the
  * data behind the runtime pool (`usableTokens`) and the empty-pool diagnosis,
  * which explains WHY items were dropped instead of yielding a bare "no
- * tokens". Carries no response data beyond the token strings.
+ * tokens". The usable accounts carry secret tokens and optional identity;
+ * callers must never log that runtime pool.
  */
 export interface TokenMappingDiagnostics {
   /** Whether `tokensPath` resolved to an array at all. */
@@ -111,14 +108,44 @@ export interface TokenMappingDiagnostics {
   itemCount: number;
   /** De-duplicated tokens that survived every filter, in response order. */
   usableTokens: string[];
+  usableAccounts: BrokerPoolAccount[];
   /** Items with no non-empty string at `tokenField` (or not objects). */
   missingTokenField: number;
   /** Items dropped by the `statusField`/`activeValue` filter. */
   inactiveCount: number;
   /** Items dropped because they expire within `skewMs` of `nowMs`. */
   expiredCount: number;
+  unavailableCount: number;
+  invalidMetadataCount: number;
+  providerMismatchCount: number;
+  missingAccountIdCount: number;
   /** Soonest parseable expiry among the usable tokens, epoch ms. */
   nextExpiryMs?: number;
+}
+
+export interface BrokerPoolAccount {
+  token: string;
+  /** Stable identity inside this broker, distinct from the vendor account. */
+  id?: string;
+  /** Vendor account identity, required by ChatGPT's inference protocol. */
+  accountId?: string;
+}
+
+export interface BrokerSelectionResult {
+  hash: string | null;
+  fellBack: boolean;
+  retryAtMs?: number;
+}
+
+function validOptionalIdentity(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'string' &&
+      value.trim().length > 0 &&
+      value.length <= 512 &&
+      !/[\r\n\0]/.test(value))
+  );
 }
 
 /**
@@ -126,13 +153,15 @@ export interface TokenMappingDiagnostics {
  * the array at `tokensPath`, take `tokenField` off each item, drop items not
  * matching `activeValue` or expiring within `skewMs` of `nowMs` — counting
  * each drop reason. The single source of truth for the mapping walk — the
- * resolver reads `usableTokens` off the result.
+ * resolver reads `usableAccounts` off the result.
  */
 export function diagnoseTokenMapping(
   json: unknown,
   mapping: BrokerResponseMapping,
   nowMs: number,
   skewMs: number,
+  expectedProvider?: string,
+  requireAccountId = false,
 ): TokenMappingDiagnostics {
   const arr = readJsonPath(json, mapping.tokensPath);
   if (!Array.isArray(arr)) {
@@ -140,20 +169,69 @@ export function diagnoseTokenMapping(
       pathFound: false,
       itemCount: 0,
       usableTokens: [],
+      usableAccounts: [],
       missingTokenField: 0,
       inactiveCount: 0,
       expiredCount: 0,
+      unavailableCount: 0,
+      invalidMetadataCount: 0,
+      providerMismatchCount: 0,
+      missingAccountIdCount: 0,
     };
   }
-  const usable: string[] = [];
+  const usableAccounts: BrokerPoolAccount[] = [];
+  const seenTokens = new Set<string>();
+  const seenIds = new Set<string>();
   let missingTokenField = 0;
   let inactiveCount = 0;
   let expiredCount = 0;
+  let unavailableCount = 0;
+  let invalidMetadataCount = 0;
+  let providerMismatchCount = 0;
+  let missingAccountIdCount = 0;
   let nextExpiryMs: number | undefined;
   for (const item of arr) {
     const token = isRecord(item) ? item[mapping.tokenField] : undefined;
-    if (!isRecord(item) || typeof token !== 'string' || token.length === 0) {
+    if (
+      !isRecord(item) ||
+      typeof token !== 'string' ||
+      token.trim().length === 0 ||
+      /[\r\n\0]/.test(token)
+    ) {
       missingTokenField += 1;
+      continue;
+    }
+    const availableAt = parseExpiryMs(item.available_at);
+    if (
+      !(
+        validOptionalIdentity(item.id) ||
+        (typeof item.id === 'number' && Number.isSafeInteger(item.id))
+      ) ||
+      !validOptionalIdentity(item.account_id) ||
+      !validOptionalIdentity(item.provider) ||
+      (item.available !== undefined && typeof item.available !== 'boolean') ||
+      (item.available_at != null && availableAt === undefined)
+    ) {
+      invalidMetadataCount += 1;
+      continue;
+    }
+    if (
+      expectedProvider !== undefined &&
+      typeof item.provider === 'string' &&
+      item.provider !== expectedProvider
+    ) {
+      providerMismatchCount += 1;
+      continue;
+    }
+    if (requireAccountId && typeof item.account_id !== 'string') {
+      missingAccountIdCount += 1;
+      continue;
+    }
+    if (
+      item.available === false &&
+      (availableAt === undefined || availableAt > nowMs)
+    ) {
+      unavailableCount += 1;
       continue;
     }
     if (
@@ -166,6 +244,10 @@ export function diagnoseTokenMapping(
     }
     if (mapping.expiresField !== undefined) {
       const expiryMs = parseExpiryMs(item[mapping.expiresField]);
+      if (item[mapping.expiresField] != null && expiryMs === undefined) {
+        invalidMetadataCount += 1;
+        continue;
+      }
       if (expiryMs !== undefined && expiryMs <= nowMs + skewMs) {
         expiredCount += 1;
         continue;
@@ -177,15 +259,34 @@ export function diagnoseTokenMapping(
         nextExpiryMs = expiryMs;
       }
     }
-    usable.push(token);
+    const id =
+      typeof item.id === 'string' || typeof item.id === 'number'
+        ? String(item.id)
+        : undefined;
+    if (seenTokens.has(token) || (id !== undefined && seenIds.has(id)))
+      continue;
+    seenTokens.add(token);
+    if (id !== undefined) seenIds.add(id);
+    usableAccounts.push({
+      token,
+      ...(id !== undefined && { id }),
+      ...(typeof item.account_id === 'string' && {
+        accountId: item.account_id,
+      }),
+    });
   }
   return {
     pathFound: true,
     itemCount: arr.length,
-    usableTokens: [...new Set(usable)],
+    usableTokens: usableAccounts.map((account) => account.token),
+    usableAccounts,
     missingTokenField,
     inactiveCount,
     expiredCount,
+    unavailableCount,
+    invalidMetadataCount,
+    providerMismatchCount,
+    missingAccountIdCount,
     ...(nextExpiryMs !== undefined && { nextExpiryMs }),
   };
 }
@@ -221,37 +322,25 @@ export function describeEmptyPool(
       `${diagnostics.expiredCount} item(s) expire within the configured expiry skew`,
     );
   }
+  if (diagnostics.unavailableCount > 0)
+    parts.push(
+      `${diagnostics.unavailableCount} account(s) are temporarily unavailable because their quota is exhausted`,
+    );
+  if (diagnostics.invalidMetadataCount > 0)
+    parts.push(
+      `${diagnostics.invalidMetadataCount} item(s) carry invalid account metadata or expiry`,
+    );
+  if (diagnostics.providerMismatchCount > 0)
+    parts.push(
+      `${diagnostics.providerMismatchCount} item(s) belong to a different provider — use the broker's provider-specific endpoint`,
+    );
+  if (diagnostics.missingAccountIdCount > 0)
+    parts.push(
+      `${diagnostics.missingAccountIdCount} item(s) lack the account_id required by this provider's subscription runtime`,
+    );
   const detail =
     parts.length > 0
       ? parts.join('; ')
       : `all ${diagnostics.itemCount} item(s) were filtered out`;
   return `${detail} — fix the response mapping, or wait for the broker to serve fresh tokens.`;
-}
-
-/**
- * Pick one token from the pool, excluding any already tried this turn (so a
- * failover always advances to a fresh credential). `random` picks uniformly;
- * `first` is deterministic; `round-robin` keeps no cross-run cursor and
- * behaves as `first` (the exclude set advances it within a turn). Returns
- * null when every token is excluded. `randomFn` is injectable for tests.
- */
-export function pickToken(
-  tokens: readonly string[],
-  exclude: ReadonlySet<string>,
-  selection: BrokerSelection,
-  randomFn: () => number = Math.random,
-): string | null {
-  const candidates = tokens.filter((t) => !exclude.has(t));
-  if (candidates.length === 0) return null;
-  switch (selection) {
-    case 'first':
-    case 'round-robin':
-      return candidates[0];
-    case 'random':
-      return candidates[Math.floor(randomFn() * candidates.length)] ?? null;
-    default: {
-      const _exhaustive: never = selection;
-      return _exhaustive;
-    }
-  }
 }

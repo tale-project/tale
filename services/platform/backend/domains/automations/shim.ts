@@ -388,7 +388,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         nodeId: string;
         execId: string;
         launchedAt: number;
-        brokerTokenHash?: string;
+        brokerTokenHash?: string | null;
       };
       return sql.begin(async (tx) => {
         const rows = await tx<{ status: string; checkpoints: unknown }[]>`
@@ -408,7 +408,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
                 nodes?: Record<string, unknown>;
                 cursor?: {
                   node?: string;
-                  agent?: { execId?: string; result?: unknown };
+                  agent?: {
+                    execId?: string;
+                    result?: unknown;
+                    brokerTokenHash?: string;
+                  };
                 };
                 executions?: number;
               })
@@ -423,6 +427,8 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         ) {
           return { stamped: false };
         }
+        const { brokerTokenHash: _previousBrokerTokenHash, ...previousAgent } =
+          cursor.agent;
         await tx`
           UPDATE app.automation_runs SET
             checkpoints = ${tx.json(
@@ -431,9 +437,9 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
                 cursor: {
                   ...cursor,
                   agent: {
-                    ...cursor.agent,
+                    ...previousAgent,
                     launchedAt: args.launchedAt,
-                    ...(args.brokerTokenHash !== undefined
+                    ...(args.brokerTokenHash != null
                       ? { brokerTokenHash: args.brokerTokenHash }
                       : {}),
                   },

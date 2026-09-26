@@ -31,6 +31,7 @@ import {
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
   drainHarnessWindow,
@@ -75,7 +76,6 @@ import {
 } from '../node_only/sandbox/turn_budget';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
-import { hashBrokerToken } from '../provider_credentials/token_hash';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   grantedToolsGuidance,
@@ -459,7 +459,7 @@ interface PreparedServing {
   /** The serving model cannot see images: the harness polyfills its own
    * image and PDF reads through `visionModelRef` (text-only serving). */
   visionPolyfillReads?: boolean;
-  /** sha256 of the vended broker pool token (subscription-broker only) —
+  /** Opaque broker-scoped selected-account hash (subscription-broker only) —
    * stamped on the run row so a retry's vend can exclude it. */
   brokerTokenHash?: string;
 }
@@ -483,6 +483,7 @@ async function mintTurnServing(
     sessionId: string;
     /** The exec the minted key serves — the reservation's op row. */
     execId: string;
+    harness: string;
     /** Broker-token hashes the failure streak already burned — the vend
      * advances past them (`resolveProviderCredential`). */
     excludeBrokerTokenHashes?: string[];
@@ -566,6 +567,7 @@ async function mintTurnServing(
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
     providerSlug: resolved.providerSlug,
+    requireBrokerAccountId: harnessRequiresSubscriptionAccountId(args.harness),
     ...(args.excludeBrokerTokenHashes !== undefined &&
     args.excludeBrokerTokenHashes.length > 0
       ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
@@ -589,8 +591,19 @@ async function mintTurnServing(
     serving: {
       kind: 'subscription',
       secret,
-      baseUrl: resolved.apiBaseUrl,
+      baseUrl:
+        (credential.authMethod === 'subscription-broker'
+          ? credential.endpointUrl
+          : undefined) ?? resolved.apiBaseUrl,
       bridgeToken,
+      ...(credential.authMethod === 'subscription-broker'
+        ? {
+            targetEnvVar: credential.targetEnvVar,
+            ...(credential.accountId !== undefined
+              ? { accountId: credential.accountId }
+              : {}),
+          }
+        : {}),
     },
     execModel: resolved.modelId,
     modelRef: `${resolved.providerSlug}/${resolved.modelId}`,
@@ -598,7 +611,7 @@ async function mintTurnServing(
     allowedModels: [],
     budgetCents: 0,
     ...(credential.authMethod === 'subscription-broker'
-      ? { brokerTokenHash: hashBrokerToken(credential.token) }
+      ? { brokerTokenHash: credential.brokerTokenHash }
       : {}),
   };
 }
@@ -857,18 +870,16 @@ export async function startTaskAgentTurnImpl(
           : '';
 
       const prepared = await mintTurnServing(ctx, args, resolved);
-      if (prepared.brokerTokenHash !== undefined) {
-        // Right after the vend: which pool account serves this turn, so a
-        // failure streak's retry can exclude it. Fenced on THIS exec.
-        await ctx.runMutation(
-          internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
-          {
-            runId: args.runId,
-            execId: args.execId,
-            brokerTokenHash: prepared.brokerTokenHash,
-          },
-        );
-      }
+      // Clear a predecessor's account when this launch uses another lane.
+      // Fenced on THIS exec, like the selected-account stamp itself.
+      await ctx.runMutation(
+        internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
+        {
+          runId: args.runId,
+          execId: args.execId,
+          brokerTokenHash: prepared.brokerTokenHash ?? null,
+        },
+      );
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1601,6 +1612,16 @@ async function settleTaskAgentTurn(
   }
 
   if (result.errored) {
+    if (result.apiErrorStatus === 429 && current.brokerTokenHash) {
+      await ctx.runMutation(
+        internal.provider_credentials.mutations.recordBrokerFailureInternal,
+        {
+          organizationId: args.organizationId,
+          brokerTokenHash: current.brokerTokenHash,
+          apiErrorStatus: result.apiErrorStatus,
+        },
+      );
+    }
     await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
       runId: args.runId,
       error: result.reason ?? 'the agent run failed',
@@ -1956,19 +1977,16 @@ export async function steerTaskAgentTurnImpl(
     );
     // The reservation belongs to the ROTATED exec, like every stamp below.
     const prepared = await mintTurnServing(ctx, { ...args, execId }, resolved);
-    if (prepared.brokerTokenHash !== undefined) {
-      // Same stamp as the fresh start — but fenced on the ROTATED execId:
-      // rotateTaskAgentRunExec already moved the run off args.execId, so
-      // the old id would make this stamp a silent no-op.
-      await ctx.runMutation(
-        internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
-        {
-          runId: args.runId,
-          execId,
-          brokerTokenHash: prepared.brokerTokenHash,
-        },
-      );
-    }
+    // Stamp or clear under the ROTATED execId: the old id would silently
+    // retain a predecessor's account and blame it for the new lane's 429.
+    await ctx.runMutation(
+      internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
+      {
+        runId: args.runId,
+        execId,
+        brokerTokenHash: prepared.brokerTokenHash ?? null,
+      },
+    );
     await ctx.runMutation(
       internal.sandbox.session_mutations.insertSessionToken,
       {

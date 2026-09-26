@@ -111,6 +111,7 @@ function provider(id: 'anthropic' | 'openai'): Provider {
     refresh: () => Promise.reject(new Error('not needed here')),
     fetchUsage: () =>
       Promise.resolve({
+        limited: true,
         windows: [
           {
             kind: 'weekly',

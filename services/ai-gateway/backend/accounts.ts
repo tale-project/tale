@@ -45,6 +45,9 @@ const IDENTITY_MAX_AGE_MS = 6 * 60 * 60 * 1000;
  */
 const REFRESH_RETRY_PAUSE_MS = 60 * 1000;
 
+/** A failed metrics endpoint must not strand an account on an old quota. */
+const USAGE_AVAILABILITY_MAX_AGE_MS = 15 * 60 * 1000;
+
 /**
  * Why an authorization could not go on. The codes are the panel's to
  * translate; `expired` and `denied` end a flow that finished without it (a
@@ -113,10 +116,61 @@ export interface TokenHandout {
   provider: ProviderId;
   label: string;
   accountEmail: string | null;
+  /** Vendor identity, distinct from the gateway's stable pool entry `id`. */
+  accountId: string | null;
   status: StoredAccount['status'];
   accessToken: string;
   expiresAt: string | null;
   scopes: string | null;
+  usage: StoredAccount['usage'];
+  /** Quota eligibility only; status and token expiry are separate checks. */
+  available: boolean;
+  /** Latest exhausted general window's reset, when every reset is known. */
+  availableAt: string | null;
+}
+
+function quotaAvailability(
+  usage: StoredAccount['usage'],
+  nowMs: number,
+): Pick<TokenHandout, 'available' | 'availableAt'> {
+  const checkedAt = usage ? Date.parse(usage.checkedAt) : Number.NaN;
+  if (
+    !usage ||
+    !Number.isFinite(checkedAt) ||
+    checkedAt > nowMs ||
+    nowMs - checkedAt >= USAGE_AVAILABILITY_MAX_AGE_MS
+  ) {
+    return { available: true, availableAt: null };
+  }
+  const full = usage.windows.filter(
+    (window) =>
+      window.kind !== 'scoped' &&
+      window.utilization !== null &&
+      Number.isFinite(window.utilization) &&
+      window.utilization >= 100,
+  );
+  const exhausted = full.filter((window) => {
+    const resetsAt = window.resetsAt ? Date.parse(window.resetsAt) : Number.NaN;
+    return !Number.isFinite(resetsAt) || resetsAt > nowMs;
+  });
+  if (exhausted.length === 0) {
+    // An explicit flag can be authoritative even when percentages are
+    // rounded or absent. Only a previously full window's reset establishes
+    // recovery; an unrelated sub-100 window cannot tell when it clears.
+    return {
+      available: usage.limited !== true || full.length > 0,
+      availableAt: null,
+    };
+  }
+  const resets = exhausted.map((window) =>
+    window.resetsAt ? Date.parse(window.resetsAt) : Number.NaN,
+  );
+  return {
+    available: false,
+    availableAt: resets.every(Number.isFinite)
+      ? new Date(Math.max(...resets)).toISOString()
+      : null,
+  };
 }
 
 export interface AccountServiceOptions {
@@ -231,6 +285,8 @@ export function createAccountService(
 
   /** Refreshes in flight, by account: one grant is never spent twice at once. */
   const refreshing = new Map<string, Promise<StoredAccount>>();
+  /** Panel, token hand-outs and the timer share each account's metrics call. */
+  const readingUsage = new Map<string, Promise<StoredAccount>>();
   /** When each account's last refresh failed for a reason that passes. */
   const refreshFailedAt = new Map<string, number>();
 
@@ -291,6 +347,9 @@ export function createAccountService(
       );
       refreshFailedAt.delete(account.id);
       const updated = await store.updateAccount(account.id, (row) => {
+        // Reauthorization may have replaced this grant while the vendor was
+        // answering. Never rotate the old grant over the replacement.
+        if (row.refreshToken !== account.refreshToken) return;
         row.accessToken = cipher.seal(exchange.tokens.accessToken);
         if (exchange.tokens.refreshToken) {
           row.refreshToken = cipher.seal(exchange.tokens.refreshToken);
@@ -309,12 +368,13 @@ export function createAccountService(
       const refused =
         (error instanceof ProviderError && error.code === 'refresh_rejected') ||
         error instanceof CipherError;
-      if (!refused) refreshFailedAt.set(account.id, now().getTime());
       console.warn(
         `[ai-gateway] refresh ${refused ? 'refused' : 'failed'} for ${account.provider} account ${account.id}:`,
         error instanceof Error ? error.message : error,
       );
       const updated = await store.updateAccount(account.id, (row) => {
+        if (row.refreshToken !== account.refreshToken) return;
+        if (!refused) refreshFailedAt.set(account.id, now().getTime());
         row.status = refused ? 'expired' : 'error';
       });
       return updated ?? account;
@@ -358,6 +418,7 @@ export function createAccountService(
       return account;
     }
     const updated = await store.updateAccount(account.id, (row) => {
+      if (row.accessToken !== account.accessToken) return;
       applyIdentity(row, identity);
       row.identityCheckedAt = now().toISOString();
       if (row.label === row.provider && row.accountEmail) {
@@ -380,12 +441,37 @@ export function createAccountService(
    * ago pass for current: weekly figures only climb during a week, so a
    * frozen one reads as simply wrong.
    */
-  async function refreshUsage(
+  function refreshUsage(
     account: StoredAccount,
     { force = false } = {},
   ): Promise<StoredAccount> {
-    let current = await ensureFresh(account);
+    const inFlight = readingUsage.get(account.id);
+    if (inFlight) {
+      return force
+        ? inFlight.then(() => refreshUsage(account, { force: true }))
+        : inFlight;
+    }
+    const run = refreshStoredUsage(account, force).finally(() => {
+      readingUsage.delete(account.id);
+    });
+    readingUsage.set(account.id, run);
+    return run;
+  }
+
+  async function refreshStoredUsage(
+    account: StoredAccount,
+    force: boolean,
+  ): Promise<StoredAccount> {
+    const stored = await store.getAccount(account.id);
+    if (!stored) return account;
+    const current = await ensureFresh(stored);
     if (current.status === 'expired') return current;
+    if (
+      current.status === 'error' &&
+      current.expiresAt &&
+      Date.parse(current.expiresAt) <= now().getTime()
+    )
+      return current;
 
     if (!force) {
       const last = current.usageAttemptedAt ?? current.usage?.checkedAt;
@@ -398,18 +484,27 @@ export function createAccountService(
       }
     }
 
-    // Inside the floor rather than ahead of it: a profile endpoint that keeps
-    // failing is then retried once per usage read, not on every panel poll.
-    current = await ensureIdentity(current);
-
     try {
-      const reading = await providerFor(current).fetchUsage({
-        accessToken: cipher.open(current.accessToken),
-        accountId: current.accountId,
-      });
+      const accessToken = cipher.open(current.accessToken);
+      // Neither provider needs a separate profile lookup to authenticate its
+      // usage call. Run both reads together so a slow profile does not add a
+      // second network timeout to every token hand-out. The polling floor
+      // above applies to both, including failed profile attempts.
+      const [, reading] = await Promise.all([
+        ensureIdentity(current),
+        providerFor(current).fetchUsage({
+          accessToken,
+          accountId: current.accountId,
+        }),
+      ]);
       const updated = await store.updateAccount(current.id, (row) => {
+        if (row.accessToken !== current.accessToken) return;
         const at = now().toISOString();
-        row.usage = { windows: reading.windows, checkedAt: at };
+        row.usage = {
+          windows: reading.windows,
+          checkedAt: at,
+          limited: reading.limited ?? null,
+        };
         row.usageAttemptedAt = at;
         // The freshest word on the plan, where the usage answer carries one.
         if (reading.subscription) row.subscription = reading.subscription;
@@ -420,16 +515,18 @@ export function createAccountService(
       });
       return updated ?? current;
     } catch (error) {
-      // A usage failure says the credential does not work for inference right
-      // now, not that the refresh token is spent — hence `error`, not
-      // `expired`: the account stays in the pool and keeps being retried.
+      // Metrics have their own rate limit and availability. A failed reading
+      // does not prove that inference is broken, so preserve lifecycle state
+      // and the last real reading. A corrupt local token is different: only
+      // signing in again can repair it.
       console.warn(
         `[ai-gateway] usage read failed for ${current.provider} account ${current.id}:`,
         error instanceof Error ? error.message : error,
       );
       const updated = await store.updateAccount(current.id, (row) => {
+        if (row.accessToken !== current.accessToken) return;
         row.usageAttemptedAt = now().toISOString();
-        if (row.status !== 'expired') row.status = 'error';
+        if (error instanceof CipherError) row.status = 'expired';
       });
       return updated ?? current;
     }
@@ -448,12 +545,26 @@ export function createAccountService(
     const timestamp = now().toISOString();
     const named = label?.trim() || null;
     const grant = (row: StoredAccount) => {
+      if (row.provider !== pending.provider) {
+        throw new AccountError(
+          'unknown_account',
+          'That account does not exist for this provider.',
+        );
+      }
       row.accessToken = cipher.seal(exchange.tokens.accessToken);
       row.refreshToken = cipher.seal(exchange.tokens.refreshToken);
       row.expiresAt = exchange.tokens.expiresAt;
       row.scopes = exchange.tokens.scopes;
       row.status = 'active';
       row.lastRefreshedAt = timestamp;
+      // Reauthorization may select another vendor account. Only the new
+      // grant can say whose identity and quota belong to these credentials.
+      row.accountEmail = null;
+      row.accountId = null;
+      row.subscription = null;
+      row.identityCheckedAt = null;
+      row.usage = null;
+      row.usageAttemptedAt = null;
       applyIdentity(row, exchange.identity);
       if (named) row.label = named;
     };
@@ -651,10 +762,9 @@ export function createAccountService(
   return {
     async list() {
       const accounts = await store.listAccounts();
-      const refreshed = [];
-      for (const account of accounts) {
-        refreshed.push(await refreshUsage(account));
-      }
+      const refreshed = await Promise.all(
+        accounts.map((account) => refreshUsage(account)),
+      );
       return refreshed.map(toAccountView);
     },
 
@@ -665,10 +775,11 @@ export function createAccountService(
       loopbackOrigin = null,
       preferBrowser = false,
     }) {
-      if (accountId && !(await store.getAccount(accountId))) {
+      const target = accountId ? await store.getAccount(accountId) : null;
+      if (accountId && (!target || target.provider !== providerId)) {
         throw new AccountError(
           'unknown_account',
-          'That account no longer exists.',
+          'That account does not exist for this provider.',
         );
       }
       const state = generateState();
@@ -826,33 +937,73 @@ export function createAccountService(
       const account = await store.getAccount(id);
       if (!account) return null;
       const fresh = await ensureFresh(account);
-      return providerFor(fresh).cliCommand(cipher.open(fresh.accessToken));
+      try {
+        return providerFor(fresh).cliCommand(
+          cipher.open(fresh.accessToken),
+          fresh.accountId,
+        );
+      } catch (error) {
+        if (!(error instanceof ProviderError)) throw error;
+        throw new AccountError('unavailable', error.message, { cause: error });
+      }
     },
 
     async refreshAll() {
       await store.prunePending(PENDING_AUTHORIZATION_TTL_MS, now());
-      for (const account of await store.listAccounts()) {
-        await refreshUsage(account);
-      }
+      await Promise.all(
+        (await store.listAccounts()).map((account) => refreshUsage(account)),
+      );
     },
 
     async handOutTokens(provider) {
-      const handouts: TokenHandout[] = [];
-      for (const account of await store.listAccounts()) {
-        if (provider !== undefined && account.provider !== provider) continue;
-        const fresh = await ensureFresh(account);
-        handouts.push({
-          id: fresh.id,
-          provider: fresh.provider,
-          label: fresh.label,
-          accountEmail: fresh.accountEmail,
-          status: fresh.status,
-          accessToken: cipher.open(fresh.accessToken),
-          expiresAt: fresh.expiresAt,
-          scopes: fresh.scopes,
-        });
-      }
-      return handouts;
+      const accounts = (await store.listAccounts()).filter(
+        (account) => provider === undefined || account.provider === provider,
+      );
+      const handouts = await Promise.all(
+        accounts.map(async (account): Promise<TokenHandout | null> => {
+          // Keep token rotation independent of an already-running usage read.
+          // Once it finishes, use the stored row so neither an old token nor a
+          // concurrently removed account can escape from a held snapshot.
+          await ensureFresh(account);
+          await refreshUsage(account);
+          const fresh = await store.getAccount(account.id);
+          if (!fresh) return null;
+          let accessToken: string;
+          try {
+            accessToken = cipher.open(fresh.accessToken);
+          } catch (error) {
+            if (!(error instanceof CipherError)) throw error;
+            await store.updateAccount(fresh.id, (row) => {
+              row.status = 'expired';
+            });
+            console.warn(
+              `[ai-gateway] unreadable credential for ${fresh.provider} account ${fresh.id}`,
+            );
+            return null;
+          }
+          const { available, availableAt } = quotaAvailability(
+            fresh.usage,
+            now().getTime(),
+          );
+          return {
+            id: fresh.id,
+            provider: fresh.provider,
+            label: fresh.label,
+            accountEmail: fresh.accountEmail,
+            accountId: fresh.accountId,
+            status: fresh.status,
+            accessToken,
+            expiresAt: fresh.expiresAt,
+            scopes: fresh.scopes,
+            usage: fresh.usage,
+            available,
+            availableAt,
+          };
+        }),
+      );
+      return handouts.filter(
+        (handout): handout is TokenHandout => handout !== null,
+      );
     },
   };
 }

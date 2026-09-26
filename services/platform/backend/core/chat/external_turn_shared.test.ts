@@ -436,7 +436,7 @@ describe('classifyHarnessEnd', () => {
 
   it('adds up the output tokens a window’s usage reports carry', async () => {
     // Codex reports a reasoning-only turn as a raw item plus the turn's
-    // usage — no text, no tool call, no totals on its end.
+    // usage — no text or tool call, but still real model output.
     transport.stdout = ndjson([
       { type: 'thread.started', thread_id: 'codex-thread' },
       { type: 'turn.started' },
@@ -466,7 +466,10 @@ describe('classifyHarnessEnd', () => {
     expect(result.kind).toBe('terminal');
     if (result.kind === 'terminal') {
       expect(result.timeline).toEqual([]);
-      expect(result.ended?.usageTotals).toBeUndefined();
+      expect(result.ended?.usageTotals).toEqual({
+        inputTokens: 900,
+        outputTokens: 12,
+      });
       expect(result.outputTokens).toBe(12);
       expect(classifyHarnessEnd(result).errored).toBe(false);
     }

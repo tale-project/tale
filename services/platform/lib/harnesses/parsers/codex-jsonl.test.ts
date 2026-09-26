@@ -43,6 +43,9 @@ describe('codex-jsonl parser', () => {
         status: 'completed',
         sessionId: '019f3b0c-4531-7313-877c-fd1078c809a4',
         finalText: 'Done: printed hello-from-codex.',
+        // Settlement books the terminal totals on vendor-direct subscriptions.
+        // Codex input_tokens already includes its cached_input_tokens.
+        usageTotals: { inputTokens: 320, outputTokens: 37 },
       },
     ]);
   });
@@ -145,6 +148,38 @@ describe('codex-jsonl parser', () => {
     // Braces that are not a refusal body pass through untouched.
     expect(describeTurnFailure('bad config {model}')).toEqual({
       message: 'bad config {model}',
+    });
+  });
+
+  it.each([
+    ['unexpected status 429 Too Many Requests: retry later', 429],
+    ['unexpected status 401 Unauthorized: invalid token', 401],
+    [
+      "You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Jan 1st, 2100 1:00 AM.",
+      429,
+    ],
+  ])(
+    'preserves the pinned CLI vendor failure status: %s',
+    (message, status) => {
+      expect(describeTurnFailure(message)).toEqual({
+        message,
+        apiErrorStatus: status,
+      });
+      const events = collectEvents(
+        createParser('codex'),
+        `${JSON.stringify({ type: 'turn.failed', error: { message } })}\n`,
+      );
+      expect(events.at(-1)).toMatchObject({
+        type: 'turn-ended',
+        isError: true,
+        apiErrorStatus: status,
+      });
+    },
+  );
+
+  it('does not turn incidental status numbers into a vendor error', () => {
+    expect(describeTurnFailure('The tool exited with code 429')).toEqual({
+      message: 'The tool exited with code 429',
     });
   });
 

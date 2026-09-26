@@ -224,6 +224,7 @@ const providerAuthMethodSchema = z.discriminatedUnion('method', [
   z
     .object({
       method: z.literal('subscription-broker'),
+      baseUrl: providerBaseUrlSchema.optional(),
       imageInputs: subscriptionImageInputsSchema.optional(),
       constraints: executionConstraintsSchema,
     })
@@ -688,12 +689,12 @@ export type BrokerAuth = z.infer<typeof brokerAuthSchema>;
 
 /**
  * Pool selection strategy. `random` picks uniformly per resolution; `first`
- * is deterministic; `round-robin` keeps no cross-run cursor and behaves as
- * `first` (an exclude set advances it within a turn) — the retired
- * token-source semantics, preserved so migrated configs behave identically.
+ * follows response order; `round-robin` persists the least recently selected
+ * eligible account across workers. These balance selections, not token spend
+ * or the number of turns still running. Retry exclusions never bypass quota
+ * unavailability or a shared rate-limit cooldown.
  */
 export const brokerSelectionSchema = z.enum(['random', 'first', 'round-robin']);
-export type BrokerSelection = z.infer<typeof brokerSelectionSchema>;
 
 /**
  * The data of one `subscription-broker` provider credential: an external
@@ -782,6 +783,7 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 //   ${vision.polyfill}  '1' when the harness must polyfill the serving
 //                       model's own image reads (text-only), else ''
 //   ${bridgeUrl}        the capability-dispatch bridge base URL
+//   ${subscription.baseUrlToml} the subscription API base as a TOML string
 //
 // Substitution is SINGLE-PASS and closed over that set: replacement values
 // are never rescanned (a prompt containing `${gateway.token}` stays those
@@ -917,13 +919,15 @@ const docFragmentsSchema = z.array(docFragmentSchema).min(1);
 /**
  * One ordered argv slot. The list IS the argv assembly order (after `bin`),
  * so per-harness flag ordering is data, not code. Literal-chunk slots
- * (`args`/`managedArgs`/`byoArgs`) may repeat; every semantic slot appears
+ * (`args`/`managedArgs`/`byoArgs`/`subscriptionArgs`) may repeat; every semantic slot appears
  * at most once (refined below).
  *
  *  - `args`: unconditional literal chunk.
  *  - `managedArgs` / `byoArgs`: chunk only for that credential mode (codex
  *    carries its gateway/OpenAI provider config and its managed native
  *    web-search disable here).
+ *  - `subscriptionArgs`: chunk only for a subscription turn, after the
+ *    managed shell's provider configuration when it replaces that provider.
  *  - `posture`: the plan/act chunk pair — plan is the read-only exploration
  *    posture; only a `capabilities.planMode` harness declares this.
  *  - `maxTurns`: flag + the fixed `DEFAULT_MAX_TURNS` backstop.
@@ -960,6 +964,7 @@ const argvSlotSchema = z.union([
   z.object({ args: argvChunkSchema }).strict(),
   z.object({ managedArgs: argvChunkSchema }).strict(),
   z.object({ byoArgs: argvChunkSchema }).strict(),
+  z.object({ subscriptionArgs: argvChunkSchema }).strict(),
   z
     .object({
       posture: z
@@ -1137,11 +1142,10 @@ const harnessExecSchema = z
 export type HarnessExecFacts = z.infer<typeof harnessExecSchema>;
 
 /**
- * How a subscription-key secret (a coding-plan credential resolved by the
- * platform) reaches the CLI. Declarative only — the interpreter applies it
- * when a spec carries `subscription`; the runtime consumer arrives with the
- * chat rebuild. `env` injects the secret under `tokenVar` (and the
- * subscription's base URL under `baseUrlVar`, when both are present) after
+ * How a subscription key or broker token reaches the CLI. The interpreter
+ * applies it when a spec carries `subscription`. `env` injects the secret under
+ * `tokenVar` (or an explicitly allowed broker override) and the
+ * subscription's base URL under `baseUrlVar`, when both are present, after
  * the credential env, so it overrides the same-named auth var. `staged-file`
  * writes the secret verbatim as the session-relative file the CLI reads its
  * subscription state from (gemini's `~/.gemini/oauth_creds.json`).
@@ -1151,7 +1155,13 @@ export const harnessSubscriptionSchema = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('env'),
       tokenVar: envKeyNameSchema,
+      /** Other token channels this CLI understands, selected by a broker. */
+      tokenVarOverrides: z.array(envKeyNameSchema).min(1).max(16).optional(),
+      /** Blanked before delivery, including inherited per-session values. */
+      clearEnv: z.array(envKeyNameSchema).min(1).max(16).optional(),
       baseUrlVar: envKeyNameSchema.optional(),
+      /** Required vendor account identity (distinct from the broker row id). */
+      accountIdVar: envKeyNameSchema.optional(),
     })
     .strict(),
   z
@@ -1370,6 +1380,9 @@ export const harnessDefinitionSchema = z
     }
     if ((counts.get('byoArgs') ?? 0) > 0 && !provider.credentialPolicy.byo) {
       issue('byoArgs requires credentialPolicy.byo true');
+    }
+    if ((counts.get('subscriptionArgs') ?? 0) > 0 && !provider.subscription) {
+      issue('subscriptionArgs requires a subscription delivery');
     }
 
     // Instructions have at most ONE delivery channel.

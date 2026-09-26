@@ -209,10 +209,12 @@ exec:
   steering:
     env:
       TALE_STEER_DIR: '/agent/.runtime/tale/steer/${execId}'
-# A subscription-key credential (Claude coding plan) reaches the CLI as the
-# bearer-token env pair — the same vars the managed gateway uses, so the
-# subscription overrides them when present.
+# Coding plans use the bearer channel; OAuth brokers explicitly select the
+# CLI's OAuth channel. Clear competing credentials, including session env,
+# so a stale managed bearer can never shadow a freshly brokered OAuth token.
 subscription:
   kind: env
   tokenVar: ANTHROPIC_AUTH_TOKEN
+  tokenVarOverrides: [CLAUDE_CODE_OAUTH_TOKEN]
+  clearEnv: [ANTHROPIC_AUTH_TOKEN, ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN]
   baseUrlVar: ANTHROPIC_BASE_URL

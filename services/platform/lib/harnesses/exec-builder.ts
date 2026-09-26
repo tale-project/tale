@@ -211,7 +211,7 @@ interface Substitutions {
  * byte-identically (several CLIs resolve their own `${VAR}`/`{env:VAR}`/
  * `$VAR` templates from staged config). */
 const PLACEHOLDER_PATTERN =
-  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
+  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|subscription\.baseUrlToml|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
 
 /** `${model.contextWindow}`: the spec's window as a whole, positive token
  * count — below the exec's declared gate, when it declares one — else ''. */
@@ -328,6 +328,30 @@ export function buildHarnessExec(
   const managed = spec.credential.mode === 'managed';
   const gateway = managed ? spec.credential.gateway : undefined;
 
+  const delivery = fact.subscription;
+  if (spec.subscription && delivery === undefined) {
+    throw new Error(`${fact.displayName} has no subscription delivery.`);
+  }
+  const subscriptionTokenVar =
+    delivery?.kind === 'env'
+      ? (spec.subscription?.targetEnvVar ?? delivery.tokenVar)
+      : undefined;
+  if (spec.subscription && delivery?.kind === 'env') {
+    if (
+      subscriptionTokenVar !== delivery.tokenVar &&
+      !delivery.tokenVarOverrides?.includes(subscriptionTokenVar ?? '')
+    ) {
+      throw new Error(
+        `${fact.displayName} does not support the configured subscription environment variable.`,
+      );
+    }
+    if (delivery.accountIdVar && !spec.subscription.accountId?.trim()) {
+      throw new Error(
+        `${fact.displayName} subscription account identity is required.`,
+      );
+    }
+  }
+
   if (spec.credential.mode === 'byo' && !fact.credentialPolicy.byo) {
     // Managed-only harnesses (opencode) reject a byo credential outright; a
     // managed spec against a byo-only harness (cursor) builds inert instead
@@ -381,6 +405,10 @@ export function buildHarnessExec(
           ? '1'
           : '',
     bridgeUrl: spec.mcp?.bridgeUrl,
+    'subscription.baseUrlToml':
+      spec.subscription?.baseUrl === undefined
+        ? undefined
+        : JSON.stringify(spec.subscription.baseUrl),
   };
 
   // Staged instructions path — computed up front so instructionsRef doc
@@ -486,6 +514,10 @@ export function buildHarnessExec(
     } else if ('byoArgs' in slot) {
       if (spec.credential.mode === 'byo') {
         argv.push(...slot.byoArgs.map((a) => substitute(a, subs)));
+      }
+    } else if ('subscriptionArgs' in slot) {
+      if (spec.subscription) {
+        argv.push(...slot.subscriptionArgs.map((a) => substitute(a, subs)));
       }
     } else if ('posture' in slot) {
       const chunk =
@@ -696,17 +728,21 @@ export function buildHarnessExec(
       content: spec.instructions,
     });
   }
-  if (spec.subscription && fact.subscription) {
-    if (fact.subscription.kind === 'env') {
-      // Applied after the credential env so the subscription secret
-      // overrides a same-named auth var (claude's ANTHROPIC_AUTH_TOKEN).
-      env[fact.subscription.tokenVar] = spec.subscription.secret;
-      if (fact.subscription.baseUrlVar && spec.subscription.baseUrl) {
-        env[fact.subscription.baseUrlVar] = spec.subscription.baseUrl;
+  if (spec.subscription && delivery) {
+    if (delivery.kind === 'env' && subscriptionTokenVar !== undefined) {
+      // Empty overrides also clear credentials inherited from the session.
+      // Deleting an entry would leave the inherited value in effect.
+      for (const key of delivery.clearEnv ?? []) env[key] = '';
+      env[subscriptionTokenVar] = spec.subscription.secret;
+      if (delivery.baseUrlVar && spec.subscription.baseUrl) {
+        env[delivery.baseUrlVar] = spec.subscription.baseUrl;
       }
-    } else {
+      if (delivery.accountIdVar && spec.subscription.accountId) {
+        env[delivery.accountIdVar] = spec.subscription.accountId;
+      }
+    } else if (delivery.kind === 'staged-file') {
       stagedFiles.push({
-        path: fact.subscription.path,
+        path: delivery.path,
         content: spec.subscription.secret,
       });
     }

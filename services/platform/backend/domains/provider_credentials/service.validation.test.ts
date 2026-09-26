@@ -11,11 +11,13 @@
 import type { TransactionSql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { encryptSecret } from '../../core/lib/secret_box.ts';
 import {
   assertCredentialEndpointUrl,
   createCredential,
   CredentialAdminError,
   parseBrokerConfigDocument,
+  replaceBrokerConfigDocument,
   updateCredential,
 } from './service.ts';
 
@@ -127,6 +129,64 @@ describe('parseBrokerConfigDocument', () => {
         JSON.stringify({ ...VALID_BROKER, endpoint: 'http://10.0.0.5/pool' }),
       ).endpoint,
     ).toBe('http://10.0.0.5/pool');
+  });
+});
+
+describe('broker secret replacement', () => {
+  const next = { ...VALID_BROKER, auth: { method: 'bearer' } };
+  const previous = () =>
+    encryptSecret(JSON.stringify({ ...next, authSecret: 'previous-secret' }));
+
+  it('preserves the stored broker secret when left blank', () => {
+    expect(
+      JSON.parse(replaceBrokerConfigDocument(JSON.stringify(next), previous()))
+        .authSecret,
+    ).toBe('previous-secret');
+  });
+
+  it('switches to an explicit environment source without retaining the old secret', () => {
+    const replacement = {
+      ...next,
+      auth: { method: 'bearer', secretEnv: 'TALE_TOKEN_SOURCE_POOL' },
+    };
+    expect(
+      JSON.parse(
+        replaceBrokerConfigDocument(JSON.stringify(replacement), previous()),
+      ),
+    ).not.toHaveProperty('authSecret');
+  });
+
+  it('uses a replacement secret and clears it when authentication is disabled', () => {
+    expect(
+      JSON.parse(
+        replaceBrokerConfigDocument(
+          JSON.stringify({ ...next, authSecret: 'new-secret' }),
+          previous(),
+        ),
+      ).authSecret,
+    ).toBe('new-secret');
+    expect(
+      JSON.parse(
+        replaceBrokerConfigDocument(
+          JSON.stringify({ ...VALID_BROKER, authSecret: 'unused' }),
+          previous(),
+        ),
+      ),
+    ).not.toHaveProperty('authSecret');
+  });
+
+  it('requires reentry after key rotation, but accepts an explicit replacement', () => {
+    const encrypted = previous();
+    vi.stubEnv('ENCRYPTION_SECRET_HEX', 'different-key');
+    expect(() =>
+      replaceBrokerConfigDocument(JSON.stringify(next), encrypted),
+    ).toThrow(/re-enter/);
+    expect(() =>
+      replaceBrokerConfigDocument(
+        JSON.stringify({ ...next, authSecret: 'new-secret' }),
+        encrypted,
+      ),
+    ).not.toThrow();
   });
 });
 

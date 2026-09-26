@@ -16,9 +16,11 @@
 
 import {
   expiresAtFrom,
+  fetchWithTimeout,
   generatePkce,
   isRecord,
   parseAuthorizationCallback,
+  quoteShellValue,
   readJsonRecord,
   readObject,
   readString,
@@ -76,7 +78,7 @@ export function createAnthropicProvider(
 ): Provider {
   const clientId = options.clientId ?? DEFAULT_ANTHROPIC_CLIENT_ID;
   const claudeCodeVersion = options.claudeCodeVersion ?? '1.0.0';
-  const doFetch = options.fetchImpl ?? fetch;
+  const doFetch = fetchWithTimeout(options.fetchImpl ?? fetch);
 
   function headers(accessToken: string): Record<string, string> {
     return {
@@ -152,7 +154,7 @@ export function createAnthropicProvider(
   return {
     id: 'anthropic',
     cliCommand(accessToken) {
-      return `ANTHROPIC_AUTH_TOKEN=${accessToken} claude`;
+      return `env -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN=${quoteShellValue(accessToken)} claude`;
     },
 
     /**

@@ -101,13 +101,14 @@ in the pool**, so they run before the removals.
 - [ ] `ACCT-21` · **`curl localhost:3004/api/tokens/anthropic -H
   "Authorization: Bearer $AI_GATEWAY_API_KEY"`** → only the Claude row comes
   back, carrying cc-gateway's own field names — `id`, `label`,
-  `account_email`, `status`, `access_token`, `expires_at`, `scopes` — and no
-  `provider`. The ChatGPT token appears nowhere in the body.
-- [ ] `ACCT-22` · **Run `ANTHROPIC_AUTH_TOKEN=<access_token> claude` with the
-  `access_token` that answer carried** → Claude Code starts on that account
+  `account_email`, `status`, `access_token`, `expires_at`, `scopes` — plus
+  `provider: "anthropic"`, identity and quota metadata. The ChatGPT token
+  appears nowhere in the body.
+- [ ] `ACCT-22` · **Use that response's `access_token` in the Claude command
+  under the service README's "Use the tokens"** → Claude Code starts on that account
   without asking for a login. The endpoint's token is the CLI's token.
-- [ ] `ACCT-23` · **The same two steps against `/api/tokens/openai`, then
-  `CODEX_ACCESS_TOKEN=<access_token> codex`** → only the ChatGPT row, and
+- [ ] `ACCT-23` · **The same two steps against `/api/tokens/openai`, using
+  its `access_token` and `account_id` in the README's Codex command** → only the ChatGPT row, and
   Codex starts on it.
 
 ### Finding an account

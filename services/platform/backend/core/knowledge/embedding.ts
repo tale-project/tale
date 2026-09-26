@@ -16,8 +16,9 @@
  *
  * **The credential comes from the one credential path.** Secrets are resolved
  * by `resolveProviderCredential`, the same seam chat and the sandbox use, so
- * API keys, deployment env references, and broker tokens all behave identically
- * here and there is no second place where a stored secret is decrypted.
+ * API keys and deployment env references need no second decryption path.
+ * Subscription credentials are limited to vendor harnesses and are refused
+ * before this direct embeddings client receives any secret.
  *
  * The resolved key stays inside this module: it is passed to the SDK and never
  * returned, logged, or attached to an error.
@@ -44,6 +45,8 @@ import { logger } from '../../../lib/knowledge/logger';
 import type { QueryEmbedder } from '../../../lib/knowledge/retrieve';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
 import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import { directActiveCredential } from '../lib/providers/direct_credential';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { assertVectorWidth } from './dimensions';
@@ -308,6 +311,16 @@ export class EmbeddingNotConfigured extends Error {
       `Organization "${orgSlug}" has no embedding model configured, so its knowledge cannot be indexed or searched. Configure one — provider, model, and the exact vector width — before using knowledge.`,
     );
     this.name = 'EmbeddingNotConfigured';
+  }
+}
+
+/** A harness-bound subscription cannot authorize a direct embeddings call. */
+class EmbeddingCredentialUnsupported extends Error {
+  constructor() {
+    super(
+      'Embeddings require an active API key or deployment environment credential. Subscription credentials are limited to vendor harnesses.',
+    );
+    this.name = 'EmbeddingCredentialUnsupported';
   }
 }
 
@@ -600,7 +613,8 @@ export class Embedder implements QueryEmbedder {
  *
  * Throws {@link EmbeddingNotConfigured} when no model is configured — knowledge
  * is unusable for that organization until one is, and saying so is better than
- * writing vectors nobody can search.
+ * writing vectors nobody can search. Harness-only credentials are refused
+ * before broker resolution and before the embeddings client is constructed.
  */
 export async function embedderForOrg(
   ctx: ActionCtx,
@@ -612,6 +626,34 @@ export async function embedderForOrg(
 ): Promise<Embedder> {
   if (args.config === null) throw new EmbeddingNotConfigured(args.orgSlug);
 
+  // Check metadata before resolution: allocating a broker account for a call
+  // no subscription can serve would advance the pool's shared rotation. The
+  // resolver still owns missing-row, tenant and provider validation.
+  const configured: unknown =
+    args.config.credentialId === undefined
+      ? await ctx.runQuery(
+          internal.provider_credentials.queries.getDefaultCredentialInternal,
+          {
+            organizationId: args.organizationId,
+            providerSlug: args.config.providerSlug,
+          },
+        )
+      : await ctx.runQuery(
+          internal.provider_credentials.queries.getCredentialInternal,
+          { credentialId: args.config.credentialId },
+        );
+  if (
+    configured !== null &&
+    typeof configured === 'object' &&
+    'organizationId' in configured &&
+    configured.organizationId === args.organizationId &&
+    'providerSlug' in configured &&
+    configured.providerSlug === args.config.providerSlug &&
+    directActiveCredential(configured) === null
+  ) {
+    throw new EmbeddingCredentialUnsupported();
+  }
+
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
     providerSlug: args.config.providerSlug,
@@ -620,17 +662,18 @@ export async function embedderForOrg(
     }),
   });
 
-  const secret = 'secret' in credential ? credential.secret : credential.token;
+  // Settings can change between the metadata read and secret resolution.
+  if (credential.authMethod !== 'api-key' && credential.authMethod !== 'env') {
+    throw new EmbeddingCredentialUnsupported();
+  }
   // A per-credential endpoint (an Azure-style deployment) wins over the config's
   // base URL: the credential is what the endpoint belongs to. When neither
   // names one, fall back to the provider CONNECTOR's own base URL — the
   // settings form leaves the endpoint optional (few admins know a provider's
   // API origin by heart), and without this fallback a config without one
   // would silently send its key to the OpenAI SDK's default host.
-  const endpoint =
-    'endpointUrl' in credential ? credential.endpointUrl : undefined;
   const baseUrl =
-    endpoint ??
+    credential.endpointUrl ??
     args.config.baseUrl ??
     (await connectorBaseUrl(
       ctx,
@@ -651,7 +694,7 @@ export async function embedderForOrg(
         minTokensPerSecond: args.config.minTokensPerSecond,
       }),
     },
-    secret,
+    credential.secret,
     { organizationId: args.organizationId },
   );
 }
@@ -723,17 +766,17 @@ function isCredentialRefusal(err: unknown): boolean {
 }
 
 /** How an embedding call failed: `credit` — the provider refused the account
- * (balance, plan, billing); `credential` — it rejected the key or refused
- * it the model; `upstream` — anything else (a rate limit, a 5xx, unreachable,
- * a timeout), worth a later retry. */
+ * (balance, plan, billing); `credential` — the configured credential cannot
+ * serve direct embeddings, or the provider rejected it; `upstream` — anything
+ * else (a rate limit, a 5xx, unreachable, a timeout), worth a later retry. */
 export type EmbeddingFailure = 'credit' | 'credential' | 'upstream';
 
-/** Classify an error from the provider call for the callers that turn it
- * into a stable platform code. Null when the error did not come from the
- * provider call at all. */
+/** Classify a credential refusal or provider error for the callers that turn
+ * it into a stable platform code. Null for unrelated local failures. */
 export function classifyEmbeddingFailure(
   err: unknown,
 ): EmbeddingFailure | null {
+  if (err instanceof EmbeddingCredentialUnsupported) return 'credential';
   if (!(err instanceof OpenAI.APIError)) return null;
   if (isCreditRefusal(err)) return 'credit';
   if (isCredentialRefusal(err)) return 'credential';

@@ -9,6 +9,32 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
+import type { FetchLike } from './types';
+
+/** One token refresh plus parallel profile/usage reads fits a broker's 10s budget. */
+const PROVIDER_REQUEST_TIMEOUT_MS = 4_000;
+
+/** The fetch signal bounds both the response headers and its body. */
+export function fetchWithTimeout(
+  fetchImpl: FetchLike,
+  timeoutMs = PROVIDER_REQUEST_TIMEOUT_MS,
+): FetchLike {
+  return (input, init) => {
+    const deadline = AbortSignal.timeout(timeoutMs);
+    const caller =
+      init?.signal ?? (input instanceof Request ? input.signal : null);
+    return fetchImpl(input, {
+      ...init,
+      signal: caller ? AbortSignal.any([caller, deadline]) : deadline,
+    });
+  };
+}
+
+/** A value copied into a POSIX shell command must remain a literal value. */
+export function quoteShellValue(value: string): string {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
 function base64Url(bytes: Buffer): string {
   return bytes.toString('base64url');
 }

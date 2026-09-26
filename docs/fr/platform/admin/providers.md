@@ -19,7 +19,7 @@ Connecte un fournisseur IA avant de lancer des chats ou des agents dans Tale. Da
 4. Vérifie la liste **Modèles autorisés**. Pour un fournisseur avec catalogue, une liste vide autorise les modèles du catalogue. Sans catalogue, tu dois préciser les identifiants des modèles.
 5. Sélectionne **Ajouter**. Vérifie la ligne créée et définis-la par défaut pour ce fournisseur si les requêtes habituelles doivent l’utiliser.
 
-Ouvre un chat et examine le sélecteur de modèle. Le modèle doit être disponible via des identifiants actifs et autorisé par les règles de l’organisation. Enregistrer des identifiants ne prouve pas que le fournisseur acceptera les requêtes : envoie un court message de test avec le modèle prévu.
+Pour des identifiants de type **Clé API** ou **Variable d'environnement**, envoie un court message de test dans un chat avec le modèle prévu. Le modèle doit être disponible via des identifiants actifs et autorisé par les règles de l’organisation. Vérifie les identifiants d’abonnement avec un agent de tâche ou d’automatisation, comme indiqué ci-dessous. Enregistrer des identifiants ne prouve pas que le fournisseur acceptera les requêtes.
 
 ## Choisir la méthode d’authentification
 
@@ -32,7 +32,28 @@ Ouvre un chat et examine le sélecteur de modèle. Le modèle doit être disponi
 
 Seules les méthodes du fournisseur sélectionné apparaissent. Référencer une variable ne la crée pas : demande à l’opérateur de la fournir selon le [guide de configuration des fournisseurs](/fr/self-hosted/configuration/providers).
 
-Pour un courtier d’abonnement, précise l’authentification de Tale auprès du courtier, le chemin de la liste de tokens et de leur valeur dans la réponse, ainsi que la variable cible qui reçoit le token. Choisis la stratégie de sélection et vérifie délai, taille de réponse, expiration et statut actif sous **Avancé**. Ces valeurs doivent correspondre au format réel de la réponse du courtier ; une clé API de fournisseur ne les remplace pas.
+## Connecter un courtier d’abonnement
+
+Les courtiers d’abonnement prennent en charge les abonnements Anthropic via Claude Code et les abonnements OpenAI ChatGPT via Codex. Ces identifiants servent aux agents de tâche et d’automatisation ; les chats nécessitent des identifiants d’accès direct à l’API.
+
+| Fournisseur et agent | Variable cible |
+| --- | --- |
+| Anthropic · Claude Code | `CLAUDE_CODE_OAUTH_TOKEN` |
+| OpenAI · Codex | `TALE_SUBSCRIPTION_TOKEN` |
+
+À l’ajout des identifiants, choisis **Courtier d'abonnement** et demande à ton opérateur l’adresse du courtier et les paramètres d’authentification. Utilise une adresse qui ne fournit que les jetons du fournisseur choisi. Avec Tale AI Gateway, il s’agit de `/api/tokens/anthropic` ou de `/api/tokens/openai`.
+
+Renseigne `$.tokens` dans **Chemin du tableau de jetons**, `access_token` dans **Champ du jeton** et la valeur du tableau ci-dessus dans **Variable d'environnement cible**. Sous **Avancé**, utilise `status` pour **Champ de statut**, `active` pour **Valeur de statut actif** et `expires_at` pour **Champ d'expiration**. Les chemins peuvent différer avec un autre courtier. Un pool OpenAI doit aussi fournir l’`account_id` du fournisseur pour chaque jeton utilisable ; l’`id` propre au courtier est un identifiant de compte distinct.
+
+Pour OpenAI, limite **Modèles autorisés** aux identifiants de modèles pris en charge par ton abonnement ChatGPT. Le catalogue de l’API OpenAI peut inclure des modèles auxquels cet abonnement ne donne pas accès.
+
+Choisis **Sélection du jeton** selon la répartition souhaitée pour les nouveaux tours d’agent :
+
+- **Aléatoire**, le choix initial, donne à chaque compte utilisable la même probabilité à chaque sélection.
+- **Premier utilisable** prend toujours le premier compte utilisable dans l’ordre du courtier. Ce choix établit un ordre de préférence, sans répartir le travail.
+- **Round-robin** choisit le compte utilisable dont la dernière sélection est la plus ancienne. Tous les processus backend partagent cet historique pour l’organisation et les identifiants concernés, y compris lors de requêtes simultanées. L’ordre des réponses et les redémarrages du backend conservent cet historique ; des identifiants de compte stables chez le courtier le préservent aussi lors des changements de jetons. Cela répartit les sélections, sans garantir une consommation de jetons ou un nombre d’agents en cours identiques.
+
+Enregistre les identifiants, puis lance une courte tâche ou automatisation avec le fournisseur et l’environnement d’agent correspondants. Vérifie que l’agent termine sa réponse. Si aucun compte n’est utilisable, demande à l’opérateur de vérifier l’autorisation des comptes, l’expiration des jetons et les quotas signalés. La [référence de configuration du courtier](/fr/self-hosted/configuration/providers#connecter-un-courtier-dabonnement) décrit les métadonnées facultatives, les valeurs par défaut et les solutions aux erreurs.
 
 ## Configurer Azure ou une adresse propre au compte
 

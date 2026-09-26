@@ -96,10 +96,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           execId: string;
           sessionId: string;
           organizationId: string;
+          brokerTokenHash: string | null;
         }[]
       >`
         SELECT status, exec_id AS "execId", session_id AS "sessionId",
-               org_id AS "organizationId"
+               org_id AS "organizationId", broker_token_hash AS "brokerTokenHash"
         FROM app.project_agent_runs WHERE id = ${args.runId} LIMIT 1
       `;
       return rows[0] ?? null;
@@ -119,7 +120,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as {
         runId: string;
         execId: string;
-        brokerTokenHash: string;
+        brokerTokenHash: string | null;
       };
       await sql`
         UPDATE app.project_agent_runs SET

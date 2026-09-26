@@ -19,7 +19,7 @@ Verbinde einen KI-Anbieter, bevor Tale Chats oder Agenten ausführen soll. Unter
 4. Prüfe die Liste **Erlaubte Modelle**. Hat der Anbieter einen Katalog, erlaubt eine leere Liste dessen Modelle. Ohne Katalog sind ausdrückliche Modell-IDs erforderlich.
 5. Wähle **Hinzufügen**. Prüfe den neuen Eintrag und setze ihn als Standard für den Anbieter, wenn gewöhnliche Anfragen ihn verwenden sollen.
 
-Öffne einen Chat und prüfe die Modellauswahl. Ein Modell muss über aktive Zugangsdaten erreichbar und durch die Modellzugriffsregeln der Organisation erlaubt sein. Gespeicherte Zugangsdaten allein belegen noch keinen funktionierenden Aufruf. Sende eine kurze Testnachricht mit dem gewünschten Modell.
+Teste Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** mit einer kurzen Chatnachricht an das gewünschte Modell. Das Modell muss über aktive Zugangsdaten erreichbar und durch die Modellzugriffsregeln der Organisation erlaubt sein. Abonnement-Zugangsdaten prüfst du wie unten beschrieben mit einem Aufgaben- oder Automatisierungsagenten. Gespeicherte Zugangsdaten allein belegen noch keinen funktionierenden Aufruf.
 
 ## Die Anmeldemethode wählen
 
@@ -32,7 +32,28 @@ Verbinde einen KI-Anbieter, bevor Tale Chats oder Agenten ausführen soll. Unter
 
 Es erscheinen nur Methoden, die der ausgewählte Anbieter unterstützt. Ein Variablenverweis legt die Variable nicht an. Der Betreiber muss sie gemäß der [Anbieterkonfiguration](/de/self-hosted/configuration/providers) bereitstellen.
 
-Bei einem Abonnement-Broker legst du fest, wie Tale sich dort anmeldet, wo die Antwort die Token-Liste und den Token-Wert enthält und welche Zielvariable den Token erhält. Wähle die Auswahlstrategie und prüfe Zeitlimit, Antwortgröße, Ablauf und Aktivstatus unter **Erweitert**. Verwende Werte aus dem tatsächlichen Antwortformat des Brokers. Sie sind nicht durch einen Anbieter-API-Schlüssel ersetzbar.
+## Einen Abo-Broker verbinden
+
+Abo-Broker unterstützen Anthropic-Abonnements über Claude Code und OpenAI-ChatGPT-Abonnements über Codex. Diese Zugangsdaten dienen Agenten für Aufgaben und Automatisierungen. Chats benötigen Zugangsdaten für den direkten API-Zugriff.
+
+| Anbieter und Laufzeit | Zielvariable |
+| --- | --- |
+| Anthropic · Claude Code | `CLAUDE_CODE_OAUTH_TOKEN` |
+| OpenAI · Codex | `TALE_SUBSCRIPTION_TOKEN` |
+
+Wähle beim Hinzufügen der Zugangsdaten **Abo-Broker** und lass dir Endpunkt und Anmeldeangaben vom Betreiber geben. Der Endpunkt muss ausschließlich Tokens des gewählten Anbieters liefern. Beim Tale AI Gateway ist das `/api/tokens/anthropic` oder `/api/tokens/openai`.
+
+Trage unter **Pfad zum Token-Array** den Wert `$.tokens` ein, unter **Token-Feld** den Wert `access_token` und unter **Ziel-Umgebungsvariable** den Wert aus der Tabelle. Verwende unter **Erweitert** das **Status-Feld** `status`, den **Wert für aktiv** `active` und das **Ablauf-Feld** `expires_at`. Bei anderen Brokern können die Pfade abweichen. OpenAI-Pools müssen zusätzlich für jedes nutzbare Token die `account_id` des Anbieters liefern. Die brokerinterne `id` ist eine separate Kontokennung.
+
+Begrenze bei OpenAI **Erlaubte Modelle** auf Modell-IDs, die dein ChatGPT-Abonnement unterstützt. Der OpenAI-API-Katalog kann Modelle enthalten, die dieses Abonnement nicht nutzen kann.
+
+Mit **Token-Auswahl** bestimmst du, wie neue Agentendurchläufe verteilt werden:
+
+- **Zufällig** ist vorausgewählt. Bei jeder Auswahl haben alle nutzbaren Konten die gleiche Wahrscheinlichkeit.
+- **Erstes nutzbares** nimmt immer das erste nutzbare Konto in der Reihenfolge des Brokers. Damit legst du eine bevorzugte Reihenfolge fest; die Arbeit wird dadurch nicht verteilt.
+- **Round-Robin** wählt das nutzbare Konto, dessen letzte Auswahl am längsten zurückliegt. Alle Backend-Prozesse teilen sich den Auswahlverlauf für diese Organisation und diese Zugangsdaten, auch bei gleichzeitigen Anfragen. Eine andere Antwortreihenfolge und Backend-Neustarts erhalten diesen Verlauf. Stabile Kontokennungen des Brokers erhalten ihn auch bei Tokenwechseln. So werden Auswahlen verteilt, nicht zwingend der Tokenverbrauch oder die Anzahl laufender Agenten.
+
+Speichere die Zugangsdaten und starte eine kurze Aufgabe oder Automatisierung mit dem passenden Anbieter und der passenden Agent-Laufzeit. Prüfe, ob der Agent eine Antwort abschließt. Ist kein Konto nutzbar, sollte der Betreiber Autorisierung, Token-Ablauf und gemeldetes Kontingent prüfen. Die [Broker-Konfigurationsreferenz](/de/self-hosted/configuration/providers#einen-abo-broker-verbinden) erklärt optionale Kontometadaten, Standardwerte und Abhilfe.
 
 ## Azure oder einen eigenen Endpunkt einrichten
 

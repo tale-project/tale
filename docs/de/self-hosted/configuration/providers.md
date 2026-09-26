@@ -142,9 +142,74 @@ Das reservierte Präfix verhindert, dass Zugangsdaten auf fremde Geheimnisse wie
 
 Erstelle nach dem Hinzufügen oder Rotieren des Werts sowohl `backend-api` als auch `backend-worker` mit der aktualisierten Umgebung neu. Ein Compose-Neustart behält alte Werte. Leerraum am Anfang und Ende wird vor der Verwendung entfernt. Prüfe nach dem Ausrollen eine echte Anfrage.
 
+## Einen Abo-Broker verbinden
+
+Ein Abo-Broker liefert einen Pool von OAuth-Zugriffstokens. Tale wählt daraus für jeden Agentendurchlauf ein nutzbares Konto. Mitgeliefert sind die Anbindungen für Anthropic mit Claude Code und OpenAI ChatGPT mit Codex, jeweils für Aufgaben- und Automatisierungsagenten. Chats und andere direkte Modellaufrufe benötigen weiterhin API-Zugangsdaten. Ein OAuth-Token ist kein Anbieter-API-Schlüssel.
+
+Verwende für jeden Anbieter einen eigenen Endpunkt. Das Tale AI Gateway stellt `/api/tokens/anthropic` und `/api/tokens/openai` bereit. Zur Anmeldung dient sein API-Schlüssel als Bearer-Token. Der gemeinsame Endpunkt `/api/tokens` eignet sich nicht als Quelle für Zugangsdaten eines einzelnen Anbieters. Das Backend muss den Broker unter derselben Host-Richtlinie erreichen können, die oben für Anbieter-Endpunkte beschrieben ist.
+
+Das folgende Beispiel zeigt das Broker-Dokument, das das [Formular für KI-Anbieter](/de/platform/admin/providers#einen-abo-broker-verbinden) erstellt. Es ist keine Anbieter-Definitionsdatei. Ersetze den Hostnamen durch deinen Broker und stelle dessen API-Schlüssel in beiden Backend-Prozessen als `TALE_TOKEN_SOURCE_AI_GATEWAY` bereit. Die zugeordneten Feldnamen passen zum Tale AI Gateway; bei einem anderen Broker musst du sie an dessen Antwort anpassen.
+
+```json
+{
+  "endpoint": "https://broker.example.com/api/tokens/anthropic",
+  "httpMethod": "GET",
+  "auth": {
+    "method": "bearer",
+    "secretEnv": "TALE_TOKEN_SOURCE_AI_GATEWAY"
+  },
+  "responseMapping": {
+    "tokensPath": "$.tokens",
+    "tokenField": "access_token",
+    "statusField": "status",
+    "activeValue": "active",
+    "expiresField": "expires_at"
+  },
+  "targetEnvVar": "CLAUDE_CODE_OAUTH_TOKEN",
+  "selection": "round-robin"
+}
+```
+
+Ändere für OpenAI das Ende des Endpunkts auf `/api/tokens/openai` und `targetEnvVar` auf `TALE_SUBSCRIPTION_TOKEN`. Jeder nutzbare OpenAI-Eintrag muss außerdem die `account_id` des Anbieters enthalten. Tale übergibt sie neben dem Token als `TALE_SUBSCRIPTION_ACCOUNT_ID` an die ChatGPT-Anbindung von Codex. Verwende dafür weder die `id` des Gateways noch `CODEX_ACCESS_TOKEN`. Beschränke die erlaubten Modelle der Zugangsdaten auf Modell-IDs, die das ChatGPT-Abonnement unterstützt. Der OpenAI-API-Katalog kann Modelle enthalten, die mit Abonnements nicht nutzbar sind.
+
+Verwende für Anthropic OAuth die Variable `CLAUDE_CODE_OAUTH_TOKEN`. Das bisherige Ziel `ANTHROPIC_AUTH_TOKEN` bleibt bei ausdrücklicher Konfiguration unterstützt und nutzt die allgemeine Bearer-Authentifizierung von Claude Code. Tale entfernt konkurrierende Anbieter-Zugangsdaten aus der Umgebung, bevor es das ausgewählte Token übergibt. Eine Zielvariable, die die gewählte Laufzeit nicht unterstützt, wird abgelehnt.
+
+### Kontoidentität und Kontingent
+
+Neben den zugeordneten Token-, Status- und Ablauffeldern kann jeder Token-Eintrag die folgenden Standardfelder enthalten. Die Feldnamen sind festgelegt; eine zusätzliche Zuordnung ist nicht nötig.
+
+| Feld | Zweck |
+| --- | --- |
+| `id` | Broker-Kontokennung |
+| `provider` | Anbieterkennung |
+| `account_id` | Anbieter-Kontokennung |
+| `available` | Verfügbares Kontingent |
+| `available_at` | Erneuerungszeitpunkt |
+| `usage` | Nutzungsstand |
+
+Die `id` muss bei einem Tokenwechsel gleich bleiben, damit Tale das Konto bei Wiederholungsversuchen erkennt. Sie ist unabhängig von der `account_id` des Anbieters, die OpenAI benötigt. Nennt `provider` einen anderen Anbieter als den der Zugangsdaten, wird der Eintrag ausgeschlossen.
+
+`available: false` schließt das Konto bis zum ISO-Zeitstempel in `available_at` aus. Ist kein Zeitpunkt bekannt, lasse das Feld weg oder verwende `null`. Das Konto bleibt dann ausgeschlossen, bis der Broker es wieder als verfügbar meldet. Status und Token-Ablauf werden separat geprüft. Das Tale AI Gateway berechnet die Verfügbarkeit aus dem Nutzungsstand `usage` mit `checked_at` und `windows`. Jedes Zeitfenster enthält Art, Auslastung und Erneuerungszeitpunkt.
+
+Ältere Broker können die optionalen Metadaten weglassen. Ohne `id` verwendet Tale bei Wiederholungsversuchen einen Hash des Tokens. Nach einem Tokenwechsel lässt sich das Konto damit nicht wiedererkennen. Fehlen Kontingentdaten, bleibt das Konto auswählbar. Daraus folgt nicht, dass es noch freies Kontingent hat.
+
+Das Tale AI Gateway schließt ein Konto aus, wenn ein aktueller Nutzungsstand ein globales Sitzungs- oder Wochenfenster mit 100 % Auslastung meldet und dessen Erneuerungszeitpunkt noch nicht erreicht ist. Meldet der Anbieter ausdrücklich eine erreichte Grenze (`usage.limited: true`), ist das Konto ebenfalls nicht verfügbar, auch wenn der angezeigte Auslastungswert niedriger ist oder fehlt. Modellspezifische Grenzen sperren nicht das ganze Konto. Nach 15 Minuten gilt ein Nutzungsstand als veraltet. Unbekannte oder veraltete Werte lassen das Konto daher auswählbar; ein ausgeschöpftes Fenster ohne Erneuerungszeitpunkt sperrt es nur, solange die Meldung aktuell ist. Die nächste Token-Anfrage aktualisiert veraltete Nutzungsdaten, soweit der Anbieter das unterstützt. Nach der betreffenden Kontingent-Erneuerung kann das Konto wieder in den Pool aufgenommen werden. Zwischen den Aktualisierungen kann der Anbieter weiterhin eine Anfrage ablehnen.
+
+### Auswahl und Fehlerbehebung
+
+`random` ist im Formular vorausgewählt; `first` folgt der Reihenfolge des Brokers. `round-robin` wählt das nutzbare Konto, dessen letzte Auswahl am längsten zurückliegt, und speichert den Verlauf je Organisation und Zugangsdaten-Eintrag. Gleichzeitige Anfragen verschiedener Backend-Prozesse aktualisieren ihn atomar. Eine andere Antwortreihenfolge und Backend-Neustarts setzen ihn nicht zurück. Damit der Verlauf eines Kontos auch nach einem Tokenwechsel erhalten bleibt, braucht es eine stabile `id`. Diese Verfahren verteilen Kontoauswahlen, nicht den Tokenverbrauch oder die Kapazität laufender Agenten. Bestehende Zugangsdaten behalten ihre gespeicherte Strategie.
+
+Antwortet ein Konto mit HTTP 429, schließt Tale es für diese Organisation und diese Zugangsdaten 60 Sekunden lang von neuen Auswahlen aus. Bei Wiederholungsversuchen werden Konten bevorzugt, die während der aktuellen Fehlerfolge des Durchlaufs noch nicht versucht wurden. Wurden alle ansonsten nutzbaren Konten versucht, darf ein Konto erneut gewählt werden. Kontingentsperren und die Wartezeit gelten weiterhin.
+
+Ohne andere Vorgabe beträgt das Zeitlimit einer Pool-Anfrage 10 Sekunden, die maximale Antwortgröße 262.144 Bytes. Ein zugeordnetes Ablaufdatum muss mehr als fünf Minuten in der Zukunft liegen. Behalte beim Tale AI Gateway die Status- und Ablaufzuordnung bei, damit inaktive oder bald ablaufende Tokens übersprungen werden. Ablaufwerte dürfen ISO-Zeitstempel oder Unix-Zeitstempel in Sekunden oder Millisekunden sein.
+
+Ist kein Konto nutzbar, prüfe Broker-Anmeldung, Kontostatus, Ablaufzeiten, Kontingent-Erneuerungen und die Feldzuordnung. Erneuere gegebenenfalls die Kontoautorisierung oder warte auf freies Kontingent. Prüfe anschließend eine abgeschlossene Aufgaben- oder Automatisierungsantwort mit dem vorgesehenen Anbieter und der passenden Laufzeit. Eine erfolgreiche Broker-Anfrage allein prüft die Verbindung zum Anbieter nicht.
+
 ## Broker-Geheimnisse aus der Umgebung
 
-Zugangsdaten vom Typ **Abo-Broker** können das Broker-Geheimnis ebenfalls aus der Bereitstellungsumgebung lesen. Verwende im Feld **Secret aus Umgebungsvariable** das eigene Präfix `TALE_TOKEN_SOURCE_`. Andere Namen werden abgelehnt. Bleibt das Feld leer, wird das Geheimnis verschlüsselt mit den Zugangsdaten gespeichert. Erstelle die verwendenden Prozesse nach der Rotation eines Umgebungswerts neu.
+Zugangsdaten vom Typ **Abo-Broker** können das Broker-Geheimnis aus der Bereitstellungsumgebung lesen. Verwende im Feld **Secret aus Umgebungsvariable** das eigene Präfix `TALE_TOKEN_SOURCE_` und lasse **Broker-Secret** leer. Andere Namen werden abgelehnt. Gibst du beides an, hat das gespeicherte Broker-Geheimnis Vorrang. Erstelle die verwendenden Prozesse nach der Rotation eines Umgebungswerts neu.
+
+Wenn die neue Broker-Konfiguration weiterhin eine Authentifizierung nutzt und du beide Geheimnisfelder leer lässt, bleibt das bisher gespeicherte Geheimnis erhalten. Ein Umgebungsverweis ohne neues Broker-Geheimnis stellt auf die Umgebungsquelle um. Wählst du bei der Broker-Authentifizierung **Keine**, wird das gespeicherte Geheimnis aus der ersetzenden Konfiguration entfernt.
 
 ## Organisationseinstellungen bei der Organisation verwalten
 

@@ -221,7 +221,8 @@ export function subscriptionApiBaseUrl(
   );
   return (
     (authEntry !== undefined &&
-    authEntry.method === 'subscription-key' &&
+    (authEntry.method === 'subscription-key' ||
+      authEntry.method === 'subscription-broker') &&
     authEntry.baseUrl !== undefined
       ? authEntry.baseUrl
       : undefined) ?? provider.baseUrl

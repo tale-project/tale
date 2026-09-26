@@ -1,14 +1,14 @@
 'use node';
 
 /**
- * The ONE hash for subscription-broker token accounting. The turn host stamps
- * `hashBrokerToken(credential.token)` on the run row; the broker resolution
- * excludes pool tokens whose hash matches a stamped one. Both sides MUST use
- * this function — a second implementation that diverges by a byte makes the
- * exclusion silently never match.
+ * Account accounting stays stable across token refresh when the broker
+ * supplies an id. Legacy pools and in-flight runs still use token hashes.
+ * Neither identity nor plaintext credential is persisted in selection state.
  */
 
 import { createHash } from 'node:crypto';
+
+import type { BrokerPoolAccount } from './broker_pool';
 
 /** sha256 hex (64 chars) of a broker pool token. Accounting only — the
  * plaintext token never persists anywhere. */
@@ -17,19 +17,16 @@ export function hashBrokerToken(token: string): string {
 }
 
 /**
- * Drop the pool tokens whose hash a failure streak already burned. Advisory
- * by design: when the exclusions would empty the pool, fall back to the FULL
- * pool (`fellBack: true`) — a one-account deployment must retry on its only
- * account, not starve itself on its own bookkeeping.
+ * The broker's account id is local to the selected credential. A length-safe
+ * tuple prevents delimiter collisions; vendor ids and token bytes can change
+ * independently without resetting rotation or failure exclusions.
  */
-export function filterBrokerTokensByHash(
-  tokens: readonly string[],
-  excludedHashes: ReadonlySet<string>,
-): { candidates: readonly string[]; fellBack: boolean } {
-  if (excludedHashes.size === 0) return { candidates: tokens, fellBack: false };
-  const remaining = tokens.filter(
-    (token) => !excludedHashes.has(hashBrokerToken(token)),
-  );
-  if (remaining.length === 0) return { candidates: tokens, fellBack: true };
-  return { candidates: remaining, fellBack: false };
+export function hashBrokerAccount(
+  credentialId: string,
+  account: BrokerPoolAccount,
+): string {
+  if (account.id === undefined) return hashBrokerToken(account.token);
+  return createHash('sha256')
+    .update(JSON.stringify(['broker-account-v1', credentialId, account.id]))
+    .digest('hex');
 }

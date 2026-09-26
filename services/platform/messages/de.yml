@@ -5947,9 +5947,10 @@ settings:
       allowlistFreeTextPlaceholder: gpt-4o, o4-mini
       removeModel: '{model} entfernen'
     broker:
-      explainer: Ein Abo-Broker liefert rotierende OAuth-Tokens, z. B. für ein
-        Claude-Abo. Broker-Zugangsdaten laufen in der Sandbox auf dem Harness
-        ihres Anbieters.
+      explainer:
+        Ein Abo-Broker liefert wechselnde OAuth-Tokens für Claude- oder
+        ChatGPT-Abonnements. Damit nutzen Aufgaben- und Automatisierungsagenten
+        die Sandbox-Laufzeit des Anbieters.
       invalid: 'Ungültige Broker-Konfiguration: {error}'
       endpoint: Broker-Endpunkt
       httpMethod: HTTP-Methode
@@ -5963,12 +5964,16 @@ settings:
         Verschlüsselt gespeichert.
       secretEnv: Secret aus Umgebungsvariable
       secretEnvHelp:
-        'Optional, von Ops verwaltet: Das Broker-Secret stattdessen aus
-        dieser Deployment-Variable lesen — das Präfix ist fest.'
+        Optional. Wird verwendet, wenn Broker-Secret leer ist. Setzt du diesen
+        Verweis beim Ersetzen der Konfiguration, wird auf die Umgebungsquelle
+        umgestellt.
       tokensPath: Pfad zum Token-Array
       tokenField: Token-Feld
       targetEnvVar: Ziel-Umgebungsvariable
-      targetEnvVarHelp: Die Sandbox-Variable, in die das gewählte Token injiziert wird.
+      targetEnvVarHelp:
+        Verwende CLAUDE_CODE_OAUTH_TOKEN für Claude Code oder
+        TALE_SUBSCRIPTION_TOKEN für Codex. OpenAI-Broker-Antworten benötigen
+        zusätzlich account_id.
       selection: Token-Auswahl
       selectionRandom: Zufällig
       selectionFirst: Erstes nutzbares

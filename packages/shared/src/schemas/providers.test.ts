@@ -843,6 +843,46 @@ describe('harnessDefinitionSchema', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('validates subscription argv and credential-delivery environment names', () => {
+    const withSubscription = {
+      ...VALID_HARNESS,
+      exec: {
+        ...VALID_HARNESS.exec,
+        argv: [
+          ...VALID_HARNESS.exec.argv,
+          { subscriptionArgs: ['-c', 'model_provider="subscription"'] },
+        ],
+      },
+      subscription: {
+        kind: 'env',
+        tokenVar: 'TOKEN',
+        tokenVarOverrides: ['OAUTH_TOKEN'],
+        clearEnv: ['API_KEY'],
+        accountIdVar: 'ACCOUNT_ID',
+      },
+    };
+    expect(harnessDefinitionSchema.safeParse(withSubscription).success).toBe(
+      true,
+    );
+    expect(
+      harnessDefinitionSchema.safeParse({
+        ...withSubscription,
+        subscription: undefined,
+      }).success,
+    ).toBe(false);
+    for (const field of ['tokenVarOverrides', 'clearEnv', 'accountIdVar']) {
+      expect(
+        harnessDefinitionSchema.safeParse({
+          ...withSubscription,
+          subscription: {
+            ...withSubscription.subscription,
+            [field]: field === 'accountIdVar' ? 'not-an-env' : ['not-an-env'],
+          },
+        }).success,
+      ).toBe(false);
+    }
+  });
 });
 
 describe('harness environment variants', () => {

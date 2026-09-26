@@ -75,7 +75,13 @@ const accountSchema = z.object({
    * never a timestamp that makes an old reading look current.
    */
   usage: z
-    .object({ windows: z.array(usageWindowSchema), checkedAt: z.string() })
+    .object({
+      windows: z.array(usageWindowSchema),
+      checkedAt: z.string(),
+      // Optional for documents written before explicit vendor limit flags
+      // were kept alongside utilization. Older readers ignore this field.
+      limited: z.boolean().nullable().optional(),
+    })
     .nullable(),
   /**
    * When a usage read was last attempted, succeeded or not — what the polling

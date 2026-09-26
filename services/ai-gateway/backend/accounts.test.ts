@@ -286,11 +286,246 @@ describe('createAccountService', () => {
     ).rejects.toBeInstanceOf(AccountError);
   });
 
+  it('refuses to put another vendor credential on an existing account', async () => {
+    const account = await connect();
+    await expect(
+      service.beginAuthorization({ provider: 'openai', accountId: account.id }),
+    ).rejects.toMatchObject({ code: 'unknown_account' });
+    expect((await store.getAccount(account.id))?.provider).toBe('anthropic');
+  });
+
+  it('clears the former account identity and quota when reauthorizing', async () => {
+    const account = await connectFor('openai');
+    await store.updateAccount(account.id, (row) => {
+      row.accountId = 'former-chatgpt-account';
+      row.usage = {
+        checkedAt: now.toISOString(),
+        windows: [
+          {
+            kind: 'weekly',
+            label: null,
+            utilization: 100,
+            resetsAt: null,
+            windowSeconds: 604_800,
+          },
+        ],
+      };
+    });
+    openai.refusals.usage = true;
+    const { state } = await service.beginAuthorization({
+      provider: 'openai',
+      accountId: account.id,
+    });
+    await service.completeAuthorization({ state, pasted: 'new-grant' });
+    const updated = await store.getAccount(account.id);
+    expect(updated?.accountId).toBeNull();
+    expect(updated?.usage).toBeNull();
+  });
+
+  it.each([undefined, 'rejected', 'failed'] as const)(
+    'does not let a late refresh (%s) overwrite a newly authorized grant',
+    async (refusal) => {
+      const account = await connect();
+      now = new Date('2026-09-21T10:56:00.000Z');
+      const held = gate();
+      anthropic.gates.refresh = held.wait;
+      anthropic.refusals.refresh = refusal;
+      const handouts = service.handOutTokens();
+      await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
+      vi.spyOn(anthropic, 'exchangeCode').mockResolvedValue({
+        tokens: {
+          accessToken: 'new-access',
+          refreshToken: 'new-refresh',
+          expiresAt: '2026-09-21T12:00:00.000Z',
+          scopes: 'scope',
+        },
+        identity: null,
+      });
+      const { state } = await service.beginAuthorization({
+        provider: 'anthropic',
+        accountId: account.id,
+      });
+      await service.completeAuthorization({ state, pasted: 'new-grant' });
+      held.open();
+      await handouts;
+      expect(
+        cipher.open((await store.getAccount(account.id))!.refreshToken),
+      ).toBe('new-refresh');
+      expect((await store.getAccount(account.id))!.status).toBe('active');
+    },
+  );
+
   it('hands out a decrypted token', async () => {
     await connect();
     const [handout] = await service.handOutTokens();
     expect(handout?.accessToken).toBe('access-1');
     expect(handout?.provider).toBe('anthropic');
+  });
+
+  it('keeps the gateway account id and vendor identity through a token rotation', async () => {
+    const account = await connectFor('openai');
+    await store.updateAccount(account.id, (row) => {
+      row.accountId = 'chatgpt-account-1';
+    });
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const [handout] = await service.handOutTokens('openai');
+    expect(handout).toMatchObject({
+      id: account.id,
+      accountId: 'chatgpt-account-1',
+      accessToken: 'access-2',
+      available: true,
+      availableAt: null,
+      usage: { checkedAt: now.toISOString() },
+    });
+  });
+
+  it('reports a fresh exhausted general window without retiring the account', async () => {
+    anthropic.usage = [
+      {
+        kind: 'session',
+        label: null,
+        utilization: 100,
+        resetsAt: '2026-09-21T10:05:00.000Z',
+        windowSeconds: 18_000,
+      },
+      {
+        kind: 'weekly',
+        label: null,
+        utilization: 100,
+        resetsAt: '2026-09-23T10:00:00.000Z',
+        windowSeconds: 604_800,
+      },
+    ];
+    await connect();
+    const [handout] = await service.handOutTokens('anthropic');
+    expect(handout).toMatchObject({
+      status: 'active',
+      available: false,
+      availableAt: '2026-09-23T10:00:00.000Z',
+      usage: { checkedAt: now.toISOString(), windows: anthropic.usage },
+    });
+  });
+
+  it('does not block the whole account for a model-specific cap', async () => {
+    anthropic.usage = [
+      {
+        kind: 'scoped',
+        label: 'Model A',
+        utilization: 100,
+        resetsAt: '2026-09-23T10:00:00.000Z',
+        windowSeconds: 604_800,
+      },
+    ];
+    await connect();
+    const [handout] = await service.handOutTokens();
+    expect(handout?.available).toBe(true);
+    expect(handout?.availableAt).toBeNull();
+  });
+
+  it.each([
+    { windows: [] },
+    {
+      windows: [
+        {
+          kind: 'session',
+          label: null,
+          utilization: 99.9,
+          resetsAt: '2026-09-21T11:00:00.000Z',
+          windowSeconds: 18_000,
+        },
+      ],
+    },
+  ] satisfies { windows: UsageWindow[] }[])(
+    'honors an explicit quota limit without fabricating full windows: %j',
+    async ({ windows }) => {
+      const account = await connectFor('openai');
+      await store.updateAccount(account.id, (row) => {
+        row.usage = { checkedAt: now.toISOString(), windows, limited: true };
+      });
+      expect((await service.handOutTokens('openai'))[0]).toMatchObject({
+        available: false,
+        availableAt: null,
+      });
+    },
+  );
+
+  it('ignores an old explicit quota limit after the observed full window resets', async () => {
+    const account = await connectFor('openai');
+    await store.updateAccount(account.id, (row) => {
+      row.usage = {
+        checkedAt: now.toISOString(),
+        windows: [
+          {
+            kind: 'session',
+            label: null,
+            utilization: 100,
+            resetsAt: '2026-09-21T10:01:00.000Z',
+            windowSeconds: 18_000,
+          },
+        ],
+        limited: true,
+      };
+    });
+    now = new Date('2026-09-21T10:01:00.000Z');
+    expect((await service.handOutTokens('openai'))[0]?.available).toBe(true);
+  });
+
+  it('releases an exhausted account when its window resets inside the usage polling floor', async () => {
+    anthropic.usage = [
+      {
+        kind: 'session',
+        label: null,
+        utilization: 100,
+        resetsAt: '2026-09-21T10:01:00.000Z',
+        windowSeconds: 18_000,
+      },
+    ];
+    await connect();
+    expect((await service.handOutTokens())[0]?.available).toBe(false);
+    now = new Date('2026-09-21T10:01:00.000Z');
+    expect((await service.handOutTokens())[0]?.available).toBe(true);
+    expect(anthropic.usageCount).toBe(1);
+  });
+
+  it('does not let stale or future usage timestamps block an account', async () => {
+    anthropic.usage = [
+      {
+        kind: 'weekly',
+        label: null,
+        utilization: 100,
+        resetsAt: '2026-09-23T10:00:00.000Z',
+        windowSeconds: 604_800,
+      },
+    ];
+    const account = await connect();
+    anthropic.refusals.usage = true;
+    now = new Date('2026-09-21T10:15:00.000Z');
+    expect((await service.handOutTokens())[0]?.available).toBe(true);
+    await store.updateAccount(account.id, (row) => {
+      if (row.usage) row.usage.checkedAt = '2026-09-21T11:00:00.000Z';
+    });
+    expect((await service.handOutTokens())[0]?.available).toBe(true);
+  });
+
+  it('treats an exhausted window with no reset as unavailable only while the reading is fresh', async () => {
+    anthropic.usage[0].utilization = 100;
+    await connect();
+    expect((await service.handOutTokens())[0]).toMatchObject({
+      available: false,
+      availableAt: null,
+    });
+    anthropic.refusals.usage = true;
+    now = new Date('2026-09-21T10:15:00.000Z');
+    expect((await service.handOutTokens())[0]?.available).toBe(true);
+  });
+
+  it('rereads usage on hand-out after the polling floor', async () => {
+    await connect();
+    anthropic.usage[0].utilization = 100;
+    now = new Date('2026-09-21T10:04:00.000Z');
+    const [handout] = await service.handOutTokens();
+    expect(anthropic.usageCount).toBe(2);
+    expect(handout?.available).toBe(false);
   });
 
   it('narrows the pool to one vendor when asked for one', async () => {
@@ -408,6 +643,65 @@ describe('createAccountService', () => {
     expect(third[0]?.accessToken).toBe('access-2');
   });
 
+  it('shares one usage read between hand-outs, panel polls and the background pass', async () => {
+    await connect();
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const held = gate();
+    anthropic.gates.usage = held.wait;
+    const calls = Promise.all([
+      service.handOutTokens(),
+      service.list(),
+      service.refreshAll(),
+      service.handOutTokens(),
+    ]);
+    await vi.waitFor(() => expect(anthropic.usageCount).toBeGreaterThan(1));
+    held.open();
+    await calls;
+    expect(anthropic.usageCount).toBe(2);
+  });
+
+  it('refreshes different accounts concurrently while preserving pool order', async () => {
+    await connectFor('anthropic');
+    await connectFor('openai');
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const held = gate();
+    anthropic.gates.refresh = held.wait;
+    const handouts = service.handOutTokens();
+    try {
+      await vi.waitFor(() => expect(openai.refreshCount).toBe(1));
+    } finally {
+      held.open();
+    }
+    expect((await handouts).map((row) => row.provider)).toEqual([
+      'anthropic',
+      'openai',
+    ]);
+  });
+
+  it('keeps serving other accounts when one stored access token is unreadable', async () => {
+    const broken = await connect();
+    const healthy = await connectFor('openai');
+    await store.updateAccount(broken.id, (row) => {
+      row.accessToken = createTokenCipher(randomBytes(32)).seal('access-1');
+    });
+    expect((await service.handOutTokens()).map((row) => row.id)).toEqual([
+      healthy.id,
+    ]);
+    expect((await store.getAccount(broken.id))?.status).toBe('expired');
+  });
+
+  it('does not hand out an account removed during a refresh', async () => {
+    const account = await connect();
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const held = gate();
+    anthropic.gates.refresh = held.wait;
+    const handouts = service.handOutTokens();
+    await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
+    await service.remove(account.id);
+    held.open();
+    expect(await handouts).toEqual([]);
+  });
+
   it('keeps a refresh token rotated while a usage read was in flight', async () => {
     const account = await connect();
     // A read starts from the row as it stood — refresh-1 — and hangs.
@@ -419,11 +713,10 @@ describe('createAccountService', () => {
 
     // Meanwhile the token nears its expiry and a hand-out refreshes it.
     now = new Date('2026-09-21T10:56:00.000Z');
-    await service.handOutTokens();
-    expect(anthropic.refreshCount).toBe(1);
-
+    const handouts = service.handOutTokens();
+    await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
     held.open();
-    await reading;
+    await Promise.all([reading, handouts]);
     // The read wrote its own fields only; the rotated grant survives it.
     const stored = await store.getAccount(account.id);
     expect(cipher.open(stored?.refreshToken ?? '')).toBe('refresh-2');
@@ -435,7 +728,7 @@ describe('createAccountService', () => {
     anthropic.refusals.usage = true;
     now = new Date('2026-09-21T10:10:00.000Z');
     const [row] = await service.list();
-    expect(row?.status).toBe('error');
+    expect(row?.status).toBe('active');
     expect(row?.usage?.windows).toHaveLength(1);
     // The figures are from 10:00, and the row still says so.
     expect(row?.usage?.checkedAt).toBe('2026-09-21T10:00:00.000Z');
@@ -463,12 +756,12 @@ describe('createAccountService', () => {
     expect(await service.list()).toEqual([]);
   });
 
-  it('marks an account errored — not expired — when only the usage call fails', async () => {
+  it('keeps valid credentials eligible when only the usage call fails', async () => {
     await connect();
     anthropic.refusals.usage = true;
     now = new Date('2026-09-21T10:10:00.000Z');
     const [account] = await service.list();
-    expect(account?.status).toBe('error');
+    expect(account?.status).toBe('active');
   });
 
   it('serves a cached usage reading inside the polling floor', async () => {

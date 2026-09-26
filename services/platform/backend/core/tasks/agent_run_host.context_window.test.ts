@@ -12,13 +12,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { resolveModel } from '../lib/providers/resolve_model';
+import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
-  starts: [] as Array<{ execId: string; env: Record<string, string> }>,
+  starts: [] as Array<{
+    execId: string;
+    argv: string[];
+    env: Record<string, string>;
+  }>,
   builds: [] as Array<{ execId: string; contextWindow?: number }>,
   /** The windows the drain answers, in order; `running` once they run out. */
   windows: [] as unknown[],
+  subscription: undefined as
+    | undefined
+    | { providerSlug: string; modelId: string; apiBaseUrl: string },
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -40,10 +48,14 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     },
     drainHarnessWindow: async (args: {
       execId: string;
-      start?: { env: Record<string, string> };
+      start?: { argv: string[]; env: Record<string, string> };
     }) => {
       if (args.start !== undefined) {
-        io.starts.push({ execId: args.execId, env: args.start.env });
+        io.starts.push({
+          execId: args.execId,
+          argv: args.start.argv,
+          env: args.start.env,
+        });
       }
       return io.windows.shift() ?? { kind: 'running', text: '', timeline: [] };
     },
@@ -77,11 +89,21 @@ vi.mock('../node_only/sandbox/agent_session', () => ({
   ensureAgentSession: async () => ({ liveCreatedAt: 1000 }),
 }));
 vi.mock('./task_serving', () => ({
-  resolveTaskServing: async () => ({
-    lane: 'gateway',
-    providerSlug: 'local-inference',
-    modelId: 'qwen3-32b',
-  }),
+  resolveTaskServing: async () =>
+    io.subscription === undefined
+      ? {
+          lane: 'gateway',
+          providerSlug: 'local-inference',
+          modelId: 'qwen3-32b',
+        }
+      : {
+          lane: 'subscription',
+          ...io.subscription,
+          vision: { readable: true },
+        },
+}));
+vi.mock('../provider_credentials/resolve_credential', () => ({
+  resolveProviderCredential: vi.fn(),
 }));
 vi.mock('../lib/providers/resolve_model', () => ({
   resolveModel: vi.fn(),
@@ -125,6 +147,7 @@ interface RunState {
 
 function makeCtx(run: RunState, contextCap: number | null = null) {
   const queries: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
   const ctx = {
     runQuery: async (ref: unknown, args: Record<string, unknown>) => {
       const name = functionRefName(ref);
@@ -164,8 +187,9 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       }
       throw new Error(`unexpected query ${name}`);
     },
-    runMutation: async (ref: unknown) => {
+    runMutation: async (ref: unknown, args: Record<string, unknown>) => {
       const name = functionRefName(ref);
+      mutations.push({ name, args });
       if (name === 'tasks/agent_runs:setTaskAgentRunRunning') {
         run.status = 'running';
         return true;
@@ -186,7 +210,7 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       cancel: async () => undefined,
     },
   };
-  return { ctx: ctx as never, queries };
+  return { ctx: ctx as never, queries, mutations };
 }
 
 const KEYS = {
@@ -207,23 +231,117 @@ const KEYS = {
 };
 
 beforeEach(() => {
+  vi.clearAllMocks();
   io.starts = [];
   io.instructions = [];
   io.builds = [];
   io.windows = [];
+  io.subscription = undefined;
+  vi.mocked(resolveProviderCredential).mockReset();
   vi.mocked(resolveModel).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 describe('a task agent start', () => {
+  it.each(
+    [
+      {
+        providerSlug: 'anthropic',
+        harness: 'claude-code',
+        modelId: 'claude-sonnet-4-6',
+        apiBaseUrl: 'https://api.anthropic.com',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      },
+      {
+        providerSlug: 'openai',
+        harness: 'codex',
+        modelId: 'gpt-5.4',
+        apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+        targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
+      },
+    ].flatMap((provider) =>
+      [undefined, 'https://subscription-proxy.example.com/vendor'].map(
+        (endpointUrl) => Object.assign({}, provider, { endpointUrl }),
+      ),
+    ),
+  )(
+    'delivers the $providerSlug broker channel and endpoint override $endpointUrl',
+    async ({
+      providerSlug,
+      harness,
+      modelId,
+      apiBaseUrl,
+      targetEnvVar,
+      endpointUrl,
+    }) => {
+      io.subscription = { providerSlug, modelId, apiBaseUrl };
+      vi.mocked(resolveProviderCredential).mockResolvedValue({
+        authMethod: 'subscription-broker',
+        credentialId: 'credential-1',
+        name: 'Synthetic broker',
+        token: 'synthetic-oauth-token',
+        targetEnvVar,
+        accountId: 'synthetic-account',
+        brokerTokenHash: 'stable-selected-account-hash',
+        ...(endpointUrl !== undefined ? { endpointUrl } : {}),
+      } as never);
+      const { ctx, mutations } = makeCtx({
+        status: 'queued',
+        execId: 'exec-1',
+      });
+
+      await startTaskAgentTurnImpl(ctx, {
+        ...KEYS,
+        harness,
+        model: modelId,
+        modelProvider: providerSlug,
+        sweep: true,
+      } as never);
+
+      expect(console.error).not.toHaveBeenCalled();
+      expect(io.starts).toHaveLength(1);
+      expect(io.starts[0]?.env[targetEnvVar]).toBe('synthetic-oauth-token');
+      expect(resolveProviderCredential).toHaveBeenCalledWith(
+        ctx,
+        expect.objectContaining({
+          requireBrokerAccountId: harness === 'codex',
+        }),
+      );
+      if (providerSlug === 'openai') {
+        expect(io.starts[0]?.env.TALE_SUBSCRIPTION_ACCOUNT_ID).toBe(
+          'synthetic-account',
+        );
+        expect(io.starts[0]?.argv).toContain(
+          `model_providers.tale-subscription.base_url="${endpointUrl ?? apiBaseUrl}"`,
+        );
+      } else {
+        expect(io.starts[0]?.env.ANTHROPIC_BASE_URL).toBe(
+          endpointUrl ?? apiBaseUrl,
+        );
+      }
+      expect(
+        mutations.find((m) => m.args.brokerTokenHash !== undefined)?.args
+          .brokerTokenHash,
+      ).toBe('stable-selected-account-hash');
+    },
+  );
+
   it('hands Claude Code the serving model’s window', async () => {
     servesWindow(32_768);
-    const { ctx, queries } = makeCtx({ status: 'queued', execId: 'exec-1' });
+    const { ctx, queries, mutations } = makeCtx({
+      status: 'queued',
+      execId: 'exec-1',
+    });
 
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
 
     expect(io.starts).toHaveLength(1);
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:stampTaskAgentRunBrokerToken',
+      )?.args.brokerTokenHash,
+    ).toBeNull();
     expect(io.instructions[0]).toContain(
       'default agent language is French (fr)',
     );
