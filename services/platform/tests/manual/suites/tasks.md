@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 39 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -26,7 +26,7 @@ The backlog **tab** was retired — Backlog is a status lane on the board/list
 again (TASK-F1 asserts the redirect). On the board a task deep-links via
 `?task={taskId}` (the target of notification rows) and opens in the task
 dialog; Home opens a task on its own page, `/dashboard/{org}/tasks/{taskId}`,
-which carries the same fields in a different frame (TASK-F20–TASK-F25).
+which carries the same fields in a different frame (TASK-F20–TASK-F27).
 
 ## Preconditions
 
@@ -213,13 +213,14 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   Home panel, one header: the **Hide sidebar** toggle (`home.panel.hide`),
   the task's status glyph, its title (click it, type, Enter — the new title
   survives a reload), and under it the project · key · status line (plus
-  **Archived** for an archived task); at the right a **Board** button
+  **Archived** for an archived task); at the right **Copy link**
+  (`tasks.detail.copyLink`, TASK-F26), a **Board** button
   (`tasks.detail.openBoard`, icon only on a phone) and the details toggle
   (`tasks.detail.hideDetails` / `tasks.detail.showDetails`). A card with the
   brief — description, attachments, subtasks — leads the column, the
   conversation follows, and the composer sits at the foot; the page opens
-  scrolled to the newest end. The browser tab's title starts with **Task**
-  (`metadata.task.title`).
+  scrolled to the newest end. The browser tab reads the task's title, then
+  the organization's name (NAV-F40).
 - [ ] `TASK-F21` · **The task's conversation** — On a task with a few comments,
   a status change, an assignment and an agent run spread over several days →
   Under **Conversation** (`tasks.detail.conversation`) the comments and what
@@ -262,6 +263,24 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   conversation — no docked panel; Escape or a swipe down closes it and focus
   returns to the **Show details** button; the header's back arrow
   (`common.aria.back`) returns to `/dashboard/{org}/home`.
+- [ ] `TASK-F26` · **Copy the task's link or its key** — On the page of a task
+  whose project has a key, press **Copy link** (`tasks.detail.copyLink`)
+  beside **Board** and paste into a new tab; then click the key in the line
+  under the title (tooltip **Copy {key}**, `tasks.detail.copyKey`) and paste
+  → The toast reads **Link copied** (`tasks.detail.linkCopied`) and the link
+  is exactly `{origin}/dashboard/{org}/tasks/{taskId}` — no query — opening
+  the same task; the key copies bare (e.g. `WEB-2`), with the toast **WEB-2
+  copied** (`tasks.detail.keyCopied`). Both are buttons Tab reaches with a
+  focus ring, named **Copy link** and **Copy WEB-2**; a task in a project
+  without a key has no key to copy.
+- [ ] `TASK-F27` · **A comment draft stays with its task** — Type a comment on
+  a task page without sending, open another task from Home, then come back;
+  press **Board** and open the same task in the board's dialog; reload; then
+  send the comment and reload again → The unsent text is back each time — on
+  the page, in the board dialog, after the reload — and only on its own task
+  (the other task's composer is empty); sending clears it, and the reload
+  after sending shows an empty composer. Local storage keeps it under
+  `task-comment-draft-{userId}-{orgId}-{taskId}` until it is sent.
 
 ## Boundary & error tests
 

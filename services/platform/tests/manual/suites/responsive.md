@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 19 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 20 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -122,6 +122,19 @@ if you want to keep a write.
   `/dashboard/{org}/home`; none of them shows the desktop **Hide sidebar**
   toggle (`home.panel.hide`). At ≥ 768 px the back arrow is gone and the toggle
   takes its place.
+- [ ] `RESP-F12` · **A thread page has one header** — At 390 px open a chat, a
+  fresh composer, a task page and a conversation from the Home list; then the
+  Home list itself, a project and `/dashboard/{org}/settings/account`; last,
+  hard-reload a chat with the network throttled → Each of the first four shows
+  ONE header row — the back arrow (`common.aria.back`), the title, its
+  actions (the fresh composer: the back arrow alone) — with no shell bar
+  above it and no account button (**Manage account**,
+  `auth.userButton.manageAccount`); on a notched iPhone that header still
+  clears the notch. The task's line under its title reads key ·
+  status (no project name), the conversation's contact · time (no email, no
+  source). The Home list, the project and Settings keep the shell bar with the
+  account button. The throttled reload's loading screen draws no bar
+  stand-in either (`<html>` carries the class `boot-thread-page`).
 
 ## Boundary & error tests
 

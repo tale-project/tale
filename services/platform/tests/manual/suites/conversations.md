@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 50 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 51 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -415,7 +415,8 @@ subject.
   The projects and the mixed list give way to the inbox's own tools: the
   status menu (`home.inbox.statusLabel`) with **New email**
   (`home.inbox.compose`) beside it, the search box and the icon-only
-  **Filter** button (`common.labels.filter`); below them that status's
+  **Filter** button (`common.labels.filter`), both 32 px tall with their top
+  and bottom edges in line; below them that status's
   conversations in Home's time bands (`home.groups.*`), each row the
   contact's initials, the subject, contact · last-message preview and its age,
   bold with a blue **Unread** dot (`home.row.unread`) while unread. Scrolling
@@ -441,12 +442,14 @@ subject.
   (`common.aria.back`) to `/dashboard/{org}/home` on a phone; the contact's
   initials as a button (**Contact info**, `conversations.header.contactInfo`)
   that opens the contact card; the subject as the title; under it the
-  contact's name (which opens the card too) · their email (desktop only) ·
-  the last message's relative time · the source (**{mailbox} · {address}**,
-  or the API source); then the assignee picker (**Assign**,
-  `conversations.header.assign`, while unassigned) and **More actions**
-  (`conversations.header.moreActions`). The reply box under the thread wears
-  the chat composer's frame (placeholder `conversations.messagePlaceholder`).
+  contact's name (which opens the card too) · their email · the last
+  message's relative time · the source (**{mailbox} · {address}**, or the API
+  source) — at 390 px only the name and the time; then **Copy link**
+  (`conversations.header.copyLink`, CONV-F31), the assignee picker
+  (**Assign**, `conversations.header.assign`, while unassigned) and **More
+  actions** (`conversations.header.moreActions`). The reply box under the
+  thread wears the chat composer's frame (placeholder
+  `conversations.messagePlaceholder`).
 - [ ] `CONV-F30` · **The phone's Inbox** — At 390 px, in an org with an inbox,
   open `/dashboard/{org}/conversations/open`; then go back and pick **Inbox**
   in the Home list's switcher → The Inbox page shows its own list while no
@@ -458,6 +461,14 @@ subject.
   `/dashboard/{org}/home`. The Home list's Inbox view offers the same status
   menu, search and facets as the desktop panel (CONV-F27) and opens the same
   conversation pages.
+- [ ] `CONV-F31` · **Copy a conversation's link** — Open a conversation from
+  the Inbox view, press **Copy link** (`conversations.header.copyLink`) ahead
+  of **Assign**, and open the pasted link in a private window signed in as
+  another admin → The toast reads **Link copied**
+  (`conversations.header.linkCopied`); the link is
+  `{origin}/dashboard/{org}/conversations/{status}?conversation={id}` with
+  nothing else in its query, and the other admin lands on that same
+  conversation, open in the reading pane.
 
 ## Boundary & error tests
 

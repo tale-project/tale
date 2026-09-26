@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 37 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -270,6 +270,20 @@ projects-list row ⋯ menu.
   (`chat.pinProject`) lifts it to the top of the section with a pin mark and
   survives a reload, and **Unpin project** (`chat.unpinProject`) puts it back
   in A→Z order.
+- [ ] `PROJ-F27` · **The Chats tab lists chats the way Home does** — Open a
+  project's **Chats** tab (`projects.navigation.threads`,
+  `/dashboard/{org}/projects/{projectId}/threads`) holding chats of yours and
+  one another member shared with the project; click a row beside its title,
+  then flip a row's **Share with project** switch
+  (`projects.threads.shareToggle`) → Under **Your chats**
+  (`projects.threads.yourChats`) each row shows the speech-bubble glyph, its
+  title — **Untitled chat** (`home.row.untitledChat`) for one without, never
+  its id — and how long ago it last moved; under **Shared with project**
+  (`projects.threads.sharedWithProject`) the row adds its author's name. A
+  click anywhere on a row opens `/dashboard/{org}/chat/{threadId}`, while the
+  switch changes the sharing without opening the chat; **New chat**
+  (`projects.overview.newChatCta`) carries the pencil Home's **New chat**
+  wears.
 
 ## Boundary & error tests
 

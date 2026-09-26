@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 47 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 57 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -298,7 +298,8 @@ loaded, and reads **No teams** for an account in none.
   `/dashboard/{org}/conversations/{status}?conversation={id}`. Whatever needs
   you (a chat with a reply you have not read, a task waiting for your review,
   an unread conversation) shows a bold title and a blue dot named **Unread**
-  (`home.row.unread`) in the same place on every kind.
+  (`home.row.unread`) in the same place on every kind. A title too long for
+  the panel ends in an ellipsis, and hovering it shows the whole title.
 - [ ] `NAV-F29` · **The open item stays in sight** — Paste the URL of a chat, a
   task page and a conversation that sit far down the list, one after another;
   then press **New chat** (`home.newChat`) → Each time the panel scrolls the
@@ -307,12 +308,17 @@ loaded, and reads **No teams** for an account in none.
   `home.row.draft`) at the top of the list, marked current, which gives way to
   the real chat row under **Today** once the first message is sent.
 - [ ] `NAV-F30` · **Empty views** — In a fresh org with no chats, no task
-  assigned to you and an inbox with no conversations, pick each view → **All**
-  reads **Nothing here yet** (`home.empty.all.title`) with its hint
-  (`home.empty.all.hint`); **Chats**, **Tasks** and **Inbox** read their own
-  title and hint (`home.empty.chats.*`, `home.empty.tasks.*`,
-  `home.empty.inbox.*`) under an icon; no view is left blank or on an endless
-  skeleton.
+  assigned to you and an inbox with no conversations, open
+  `/dashboard/{org}/conversations/open` (a fresh composer fills **All** and
+  **Chats** with its draft row instead), pick each view and press the button
+  it offers → **All** reads **Nothing here yet** (`home.empty.all.title`)
+  with its hint (`home.empty.all.hint`); **Chats**, **Tasks** and **Inbox**
+  read their own title and hint (`home.empty.chats.*`, `home.empty.tasks.*`,
+  `home.empty.inbox.*`) under an icon. **All** and **Chats** offer **New
+  chat** (`home.newChat`, with the pencil), which opens
+  `/dashboard/{org}/chat?new=true`; **Tasks** offers **All projects**
+  (`home.projects.allProjects`), which opens `/dashboard/{org}/projects`;
+  **Inbox** offers none. No view is left blank or on an endless skeleton.
 - [ ] `NAV-F31` · **Hide and show the panel** — On a chat, a task page and an
   open conversation, press **Hide sidebar** (`home.panel.hide`), the first
   control of the header; reload; open another chat; press **Show sidebar**
@@ -335,6 +341,86 @@ loaded, and reads **No teams** for an account in none.
   (e.g. **Websites**), not "Knowledge", and the page fades in while the panel
   stays put. Below 768 px there is no panel: the same five pages sit as a tab
   strip under the header.
+- [ ] `NAV-F33` · **One highlight glides through Home's lists** — At ≥ 768 px
+  open a chat from the Home panel, then another chat, a task and a
+  conversation from the stream; open a project from **Projects**; go back to
+  a chat; in the **Inbox** view open two conversations in turn; last, drag a
+  chat row a little and drop it back → The open row's fill is ONE highlight
+  that glides from the row you left to the row you opened, across bands too,
+  as the rail's pill and the Knowledge panel's highlight do. Opening the
+  project fades the stream's highlight out where it stood and fades one in on
+  the project row; going back to the chat does the same in reverse — no
+  highlight ever slides in from a corner of its list. While the chat is
+  dragged the highlight steps away, and it lands back on the open row after
+  the drop.
+- [ ] `NAV-F34` · **New rows drop into place** — On the **All** view, send the
+  first message of a fresh chat; from a second session assign you a task;
+  let a conversation arrive (or seed one, conversations.md Preconditions);
+  then reload, and switch to
+  **Chats** and back → Each row that joins the list while it is on screen
+  drops into its band with a short slide and fade while the rows around it
+  make room; the reload and each switch of view paint the whole list with a
+  fade only — no row slides in.
+- [ ] `NAV-F35` · **Opening in place fades** — Open a chat, then another chat
+  from the panel; a task page, then another task; a conversation, then
+  another; then move chat → task → project → another project → conversation;
+  last, send the first message of a fresh composer → Each item opening where
+  the last one stood fades in from faint (opacity only: nothing slides, the
+  header and composer stay put, the transcript lands where it would without
+  the fade); each change of kind of page, and each change of project, fades
+  the page beside the panel while the panel stays still; the chat born from
+  its first message does NOT fade — the composer and the sent message stay as
+  they are while the URL gains the chat's id.
+- [ ] `NAV-F36` · **Fold the panel from the keyboard** — On a chat, a task
+  page and an open conversation press ⌘\ (Ctrl+\ off a Mac) twice and hover
+  the **Hide sidebar** toggle (`home.panel.hide`); then press it on a project
+  page and on `/dashboard/{org}/conversations/open` → The first press folds
+  the panel exactly as the toggle does (NAV-F31: its name flips to **Show
+  sidebar**, `home.panel.show`, and the fold survives a reload), the second
+  brings it back; the toggle's tooltip names the shortcut (⌘ \ on a Mac,
+  Ctrl + \ elsewhere); on the project page and the inbox list the keys do
+  nothing and the panel stays.
+- [ ] `NAV-F37` · **Step through your work with ⌥↓ / ⌥↑** — With a chat open
+  midway down the **All** view, click the transcript (so no text field holds
+  focus) and press ⌥↓ (Alt+↓) a few times, then ⌥↑; repeat with the panel
+  folded (NAV-F36), and in the **Inbox** view with a conversation open; then
+  press ⌥↓ and ⌥↑ on a project page; last, press ⌥↓ with the caret in the
+  composer → Each press
+  opens the next (or previous) chat, task or conversation of the list on
+  screen — the stream, or the Inbox view's conversations — in its order,
+  marked current, also while the panel is folded; at the list's last row ⌥↓
+  does nothing; on the project page, where nothing of the list is open, ⌥↓
+  opens its first item and ⌥↑ its last — never a project row; in the composer
+  the keys keep their text-editing meaning and open nothing.
+- [ ] `NAV-F38` · **Unsent work is marked** — Type a message into a chat's
+  composer, a comment into a task page's composer (TASK-F27) and a reply into
+  a conversation, leaving each unsent and opening something else after each;
+  reload; then go back to one, send it, and open something else → Each of the
+  three rows reads **Draft** (`home.row.draft`) with a pencil at the start of
+  its second line, also after the reload; the row of the item you have open
+  never shows it, even while its composer holds text; once sent (or emptied)
+  the mark is gone when you move on.
+- [ ] `NAV-F39` · **Palette rows wear their Home glyphs** — Press ⌘K on
+  **Everything** (`dialogs.search.scopeEverything`) and search in turn for a
+  task without a description, a task by words of its description, a chat, a
+  project with a key and a description, a contact and a document →
+  Each task row carries its status glyph, the same one its Home row wears;
+  the chat a speech bubble, the project a folder, the contact a person, the
+  document the file glyph. The task without a description reads its status
+  under its title (e.g. **In review**, `tasks.status.in_review`), never its
+  title a second time; the other task reads the matching text. The project's
+  title leads with its key and the line under it holds only the description.
+- [ ] `NAV-F40` · **The tab names what is open** — Open a chat, a task page
+  and a conversation from Home, rename the chat, open Settings, go Back
+  twice and start a new chat; last, with a chat open, go offline, open
+  Settings, go Back to the chat and come back online (NAV-B5) → The browser
+  tab reads the open item's own title, then the organization's name
+  ("Review the launch checklist - {org}"), and follows each item opened in
+  place and the rename; Settings and the fresh composer read their page's
+  title (`metadata.settings.title`, `metadata.chat.title`), never the last
+  item's; Back brings each item's title back. While the offline notice is up
+  the tab reads **Reconnecting** (`connectivity.tabTitle`), also once you are
+  back on the chat, and the chat's title returns with the connection.
 
 ## Boundary & error tests
 
@@ -359,10 +445,11 @@ loaded, and reads **No teams** for an account in none.
   `/dashboard/changelog?from=zzz&to=000` → Handled gracefully — heading
   **What's new** still renders; no blank screen, no console/page error.
 - [ ] `NAV-B5` · **Offline gate** — Mode A via network emulation: on any
-  dashboard page, set the browser **offline**; later, restore the network.
-  Backend-stale variant: keep the device online but **stop the local backend**
-  → After the websocket goes stale past a **~3 s grace** (both variants — a
-  brief blip does not trigger it), a full-screen overlay
+  dashboard page, set the browser **offline** and open another page (the gate
+  answers a request that fails, not the switch itself); later, restore the
+  network. Backend-stale variant: keep the device online but **stop the local
+  backend** → After the backend stays unreachable past a **~3 s grace** (both
+  variants — a brief blip does not trigger it), a full-screen overlay
   (`role="alertdialog"`) shows **You're offline** (`connectivity.deviceTitle`)
   + its description (`connectivity.deviceDescription`). Restoring the network
   clears the overlay **without a reload** — the page underneath stays mounted
@@ -420,6 +507,19 @@ loaded, and reads **No teams** for an account in none.
   `home.projects.actions`) and each menu button is visible, with a focus ring,
   while it holds focus — not only on hover. Folded (NAV-F31), the panel leaves
   the tab order entirely.
+- [ ] `NAV-A6` · **Home holds still under reduced motion** — Emulate
+  `prefers-reduced-motion: reduce` (DevTools → Rendering) and walk NAV-F33,
+  NAV-F34, NAV-F35 and NAV-F36 again → Nothing moves: the highlight appears on
+  the open row without gliding, new rows appear in place without dropping in,
+  a switched view and an item opening in place repaint without a fade, and
+  the panel folds without sliding; the open row is still the marked one.
+- [ ] `NAV-A7` · **Arrow keys between rows** — Tab onto a row of the stream
+  and press ↓, ↑, End and Home, then Enter; do the same in **Projects** and in
+  the **Inbox** view → Focus moves one row at a time with its focus ring,
+  across bands; End and Home jump to the last and first row of that list; the
+  arrows never carry focus out of the list they started in (Projects stays in
+  Projects); Enter opens the focused row; Tab still reaches a row's menu
+  (NAV-A5).
 
 ## Performance
 

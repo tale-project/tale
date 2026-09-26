@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 73 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -544,6 +544,17 @@ any toggled setting after the run.
   **Settings**, which the panel's own header already says; Branding's **Save**
   / **Discard** cluster sits in that same page header; each switch fades the
   new page in while the panel stays put, its scroll untouched.
+- [ ] `SET-F47` · **A page never prints its own name twice** — Desktop, as
+  owner: open **Teams**, **Members** and **Notifications** in the Settings
+  panel → Under the header **Teams** (`navigation.teams`) the page opens on
+  its section's description (`settings.teams.sectionDescription`) and the
+  table, with no second visible **Teams** heading; **Members**
+  (`navigation.members`) likewise opens on
+  `settings.organization.membersDescription`; the accessibility tree still
+  holds each section's `h2` (**Teams**, **Members**). On **Notifications**,
+  whose first section is **Email delivery**
+  (`notificationPreferences.deliveryTitle`), the second section keeps its
+  visible **Notifications** title (`notificationPreferences.title`).
 
 ## Boundary & error tests
 
