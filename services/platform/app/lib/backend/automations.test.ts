@@ -60,6 +60,24 @@ describe('saveAutomation adapter', () => {
     });
   });
 
+  it('forwards the version the draft started from', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(201, { name: 'ops/greet', version: 7 }));
+
+    await automationWriteAdapters['automations/mutations:saveAutomation']?.run(
+      {
+        organizationId: 'org-1',
+        automation: { version: 1, name: 'ops/greet', nodes: [] },
+        baseVersion: 6,
+      },
+      {},
+    );
+
+    const [, init] = fetchSpy.mock.calls[0] ?? [];
+    expect(jsonBody(init)).toMatchObject({ baseVersion: 6 });
+  });
+
   it('omits create when the save is a plain version append', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')

@@ -81,10 +81,16 @@ nationalIds:
   - id: sa-national-id
     name: Saudi National ID
     pattern: \b[12]\d{9}\b
+    checksum: luhn
     replacement: '[SA_ID]'
   - id: eg-national-id
     name: Egyptian National ID
     pattern: \b[23]\d{13}\b
+    contextKeywords:
+      - الرقم القومي
+      - رقم قومي
+      - رقم البطاقة
+      - national id
     replacement: '[EG_ID]'
 dateOfBirth:
   monthsLong:

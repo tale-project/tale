@@ -1643,12 +1643,24 @@ function validateProjectAgentFields(args: {
  * unattended at the first task start; unknown skills and connectors were
  * stored verbatim.
  */
+/**
+ * Refuse a model or equipment the project cannot use. On an update only the
+ * equipment the save ADDS is checked against what the project can see: a
+ * skill that was equipped and later unshared from the scope stays a stored
+ * fact the dialog shows as unavailable and lets the author untick — refusing
+ * the whole save over it blocked every other edit of the agent (its model,
+ * its instructions) until the skill was recreated under the same slug
+ * (2026-09-26 evaluation, C-09).
+ */
 async function assertAgentEquipment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   projectId: string,
   fields: ProjectAgentFields,
+  stored?: { skills: readonly string[]; connectors: readonly string[] },
 ): Promise<void> {
+  const added = (next: readonly string[], previous: readonly string[]) =>
+    next.filter((slug) => !previous.includes(slug));
   const refusal =
     (await agentModelRefusal(tx, {
       organizationId: auth.organizationId,
@@ -1663,12 +1675,38 @@ async function assertAgentEquipment(
       organizationId: auth.organizationId,
       userId: auth.userId,
       projectId,
-      skills: fields.skills,
-      connectors: fields.connectors,
+      skills: stored ? added(fields.skills, stored.skills) : fields.skills,
+      connectors: stored
+        ? added(fields.connectors, stored.connectors)
+        : fields.connectors,
     }));
   if (refusal !== null) {
     throw new ProjectError(refusal.code, refusal.message);
   }
+}
+
+/**
+ * Unequip a deleted skill from every agent of the organization that carried
+ * it — the delete's own transaction, so no agent is left naming a bundle
+ * that is gone (its runs failed to start and its dialog could not be saved).
+ * Answers the agents it touched, so the door can say so and the audit row
+ * can name them.
+ */
+export async function detachSkillFromAgents(
+  tx: TransactionSql,
+  organizationId: string,
+  slug: string,
+): Promise<{ id: string; name: string; projectId: string }[]> {
+  const detached = await tx<{ id: string; name: string; projectId: string }[]>`
+    UPDATE app.project_agents
+    SET skills = array_remove(skills, ${slug}), updated_at_ms = ${Date.now()}
+    WHERE org_id = ${organizationId} AND ${slug} = ANY(skills)
+    RETURNING id, name, project_id AS "projectId"
+  `;
+  for (const projectId of new Set(detached.map((agent) => agent.projectId))) {
+    await hintProject(tx, organizationId, projectId);
+  }
+  return detached;
 }
 
 /** What a save does with a referenced secret name the organization does
@@ -1916,7 +1954,10 @@ export async function updateProjectAgent(
   const project = await loadProjectOrThrow(tx, agent.projectId);
   assertAgentWritable(project, auth);
   const fields = validateProjectAgentFields(args);
-  await assertAgentEquipment(tx, auth, agent.projectId, fields);
+  await assertAgentEquipment(tx, auth, agent.projectId, fields, {
+    skills: agent.skills,
+    connectors: agent.connectors,
+  });
   // Resolve BEFORE the gate: a set that only lost a deleted secret is not a
   // privileged change, so an editor's unrelated save must not be refused.
   fields.secrets = await resolveSecretGrants(

@@ -1,13 +1,8 @@
-import { transactSerializable } from '@tale/shared/db/serializable';
 import { DEFAULT_TWO_FACTOR_POLICY } from '@tale/shared/schemas/governance';
 import { symmetricDecrypt } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { mergeStrictestTwoFactorPolicy } from '../../core/governance/helpers.ts';
-import {
-  splitEmailForAudit,
-  splitIpForAudit,
-} from '../../core/lib/helpers/pii_hash.ts';
 import {
   computeLockedUntil,
   DEFAULT_LOGIN_POLICY,
@@ -15,6 +10,10 @@ import {
 } from '../../core/login_attempts/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  recordUserScopedSecurityEvent,
+  userOrgIds,
+} from '../audit_logs/user-scoped.ts';
 
 /**
  * Two-factor enforcement — the 0.5 twin of `convex/two_factor/*`:
@@ -34,13 +33,6 @@ import { createAuditLog } from '../audit_logs/service.ts';
  */
 
 type Db = Sql | TransactionSql;
-
-async function userOrgIds(db: Db, userId: string): Promise<string[]> {
-  const rows = await db<{ organizationId: string }[]>`
-    SELECT "organizationId" FROM "member" WHERE "userId" = ${userId}
-  `;
-  return rows.map((row) => row.organizationId);
-}
 
 async function strictestLoginPolicy(db: Db, userId: string) {
   const orgIds = await userOrgIds(db, userId);
@@ -153,7 +145,8 @@ export type TwoFactorLifecycleAction =
  * Org-scoped like every other security event: one row per org the user
  * belongs to, PII split into plaintext + peppered hash by the reused
  * helpers, all inside ONE serializable transaction so a user in several orgs
- * gets all their rows or none.
+ * gets all their rows or none (`recordUserScopedSecurityEvent`, which the
+ * API-key lifecycle shares).
  */
 export async function recordTwoFactorLifecycleEvent(
   sql: Sql,
@@ -166,36 +159,15 @@ export async function recordTwoFactorLifecycleEvent(
     metadata?: Record<string, unknown>;
   },
 ): Promise<void> {
-  const emailParts =
-    args.actorEmail !== undefined
-      ? await splitEmailForAudit(args.actorEmail)
-      : {};
-  const ipParts = args.ip !== undefined ? await splitIpForAudit(args.ip) : {};
-  await transactSerializable(sql, async (tx) => {
-    for (const organizationId of await userOrgIds(tx, args.userId)) {
-      await createAuditLog(tx, {
-        organizationId,
-        actorId: args.userId,
-        ...(emailParts.plaintext !== undefined
-          ? { actorEmail: emailParts.plaintext }
-          : {}),
-        ...(emailParts.hash !== undefined
-          ? { actorEmailHash: emailParts.hash }
-          : {}),
-        actorType: 'user',
-        action: args.action,
-        category: 'security',
-        resourceType: 'twoFactorAuth',
-        resourceId: args.userId,
-        ...(ipParts.plaintext !== undefined
-          ? { ipAddress: ipParts.plaintext }
-          : {}),
-        ...(ipParts.hash !== undefined ? { actorIpHash: ipParts.hash } : {}),
-        ...(args.userAgent !== undefined ? { userAgent: args.userAgent } : {}),
-        status: 'success',
-        ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
-      });
-    }
+  await recordUserScopedSecurityEvent(sql, {
+    userId: args.userId,
+    action: args.action,
+    resourceType: 'twoFactorAuth',
+    resourceId: args.userId,
+    ...(args.actorEmail !== undefined ? { actorEmail: args.actorEmail } : {}),
+    ...(args.ip !== undefined ? { ip: args.ip } : {}),
+    ...(args.userAgent !== undefined ? { userAgent: args.userAgent } : {}),
+    ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
   });
 }
 

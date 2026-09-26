@@ -23,6 +23,7 @@ import { readFixture } from '../../../lib/harnesses/test-helpers';
 
 const transport = vi.hoisted(() => ({
   stdout: '' as string,
+  stderr: '' as string,
   cancelled: [] as string[],
   exitAfterStdout: false,
 }));
@@ -38,9 +39,13 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     _sessionId: string,
     _body: unknown,
     signal: AbortSignal,
-    callbacks: { onStdout?: (chunk: string) => void },
+    callbacks: {
+      onStdout?: (chunk: string) => void;
+      onStderr?: (chunk: string) => void;
+    },
   ) => {
     callbacks.onStdout?.(transport.stdout);
+    if (transport.stderr !== '') callbacks.onStderr?.(transport.stderr);
     if (transport.exitAfterStdout) return { exitCode: 0 };
     // A live exec: the drain only ends when the window (or the cut) aborts.
     await new Promise<never>((_resolve, reject) => {
@@ -55,6 +60,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
 const {
   drainHarnessWindow,
   classifyHarnessEnd,
+  harnessOutputTail,
   isSpendRefusal,
   spendRefusalReason,
 } = await import('./external_turn_shared');
@@ -112,9 +118,36 @@ const CLAUDE_TASK_SETTLED = {
 describe('drainHarnessWindow end-of-turn rules', () => {
   beforeEach(() => {
     transport.stdout = '';
+    transport.stderr = '';
     transport.cancelled = [];
     transport.exitAfterStdout = false;
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  it('carries the harness’s stderr tail on a window that exited without a turn', async () => {
+    // A CLI that refuses to start writes its reason to stderr and exits:
+    // no event, no JSON — the tail is the only lead the crash leaves.
+    transport.stdout = '';
+    transport.stderr =
+      '\u001b[31mError finding codex home\u001b[0m: CODEX_HOME points to "/agent/.runtime/home/.codex", but that path does not exist\n';
+    transport.exitAfterStdout = true;
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'codex-dead',
+      harness: 'codex',
+      windowMs: 50,
+    });
+
+    expect(result.kind).toBe('terminal');
+    if (result.kind === 'terminal') {
+      expect(result.stderrTail).toBe(
+        'Error finding codex home: CODEX_HOME points to "/agent/.runtime/home/.codex", but that path does not exist',
+      );
+      expect(classifyHarnessEnd(result).reason).toContain(
+        'Last output: Error finding codex home',
+      );
+    }
   });
 
   it('keeps a pi turn running when the window elapses mid-tool', async () => {
@@ -255,6 +288,29 @@ function cleanEnd(overrides: Partial<TerminalWindow> = {}): TerminalWindow {
   };
 }
 
+describe('harnessOutputTail', () => {
+  it('strips terminal escapes and control characters, folds whitespace, keeps the tail', () => {
+    expect(
+      harnessOutputTail(
+        '\u001b[31mError:\u001b[0m\tconfig\r\n  refused\u0007\n',
+      ),
+    ).toBe('Error: config refused');
+    const long = `${'x'.repeat(700)} the end`;
+    const tail = harnessOutputTail(long);
+    expect(tail.startsWith('…')).toBe(true);
+    expect(tail.endsWith(' the end')).toBe(true);
+    expect(tail.length).toBe(601);
+  });
+
+  it('redacts anything shaped like a key a CLI might echo from its config', () => {
+    expect(
+      harnessOutputTail(
+        'auth failed for Bearer sk-abcdefghijklmnop1234 with key-ZZZZZZZZZZZZ',
+      ),
+    ).toBe('auth failed for [redacted] with [redacted]');
+  });
+});
+
 describe('classifyHarnessEnd', () => {
   beforeEach(() => {
     transport.stdout = '';
@@ -281,6 +337,56 @@ describe('classifyHarnessEnd', () => {
     }
     return result;
   }
+
+  it('names the failure the harness reported as the reason (a Codex turn the provider refused)', async () => {
+    // As captured 2026-09-26: Codex narrates, runs a tool, and the gateway's
+    // second call draws DeepSeek's 400; the CLI hands the body back verbatim
+    // on `turn.failed`. The reason is that sentence — never the narration.
+    const refusal = JSON.stringify({
+      is_bifrost_error: false,
+      status_code: 400,
+      error: {
+        type: 'invalid_request_error',
+        message:
+          'The `reasoning_content` in the thinking mode must be passed back to the API.',
+      },
+    });
+    transport.stdout = `${[
+      { type: 'thread.started', thread_id: 'thr-1' },
+      { type: 'turn.started' },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'item_1',
+          type: 'agent_message',
+          text: "I'll start by inspecting the workspace.",
+        },
+      },
+      { type: 'error', message: refusal },
+      { type: 'turn.failed', error: { message: refusal } },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join('\n')}\n`;
+    transport.exitAfterStdout = true;
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'exec-codex-refused',
+      harness: 'codex',
+      windowMs: 10_000,
+    });
+    if (result.kind !== 'terminal') {
+      throw new Error(`expected a terminal window, got ${result.kind}`);
+    }
+
+    expect(result.text).toContain("I'll start by inspecting the workspace.");
+    expect(result.ended).toMatchObject({ isError: true, apiErrorStatus: 400 });
+    expect(classifyHarnessEnd(result)).toEqual({
+      errored: true,
+      reason:
+        'The `reasoning_content` in the thinking mode must be passed back to the API. (API status 400)',
+      emptyAnswer: false,
+    });
+  });
 
   it('fails a turn whose model answered nothing (the live empty 200)', async () => {
     // As it ran: the held-stdin CLI lingers after its result, so the turn
@@ -364,6 +470,34 @@ describe('classifyHarnessEnd', () => {
       expect(result.outputTokens).toBe(12);
       expect(classifyHarnessEnd(result).errored).toBe(false);
     }
+  });
+
+  it('quotes the harness’s last stderr lines when it exited without ending the turn', () => {
+    // A CLI that refuses to start says why on stderr and nowhere else;
+    // the run used to read "exit code 1" with nothing to act on.
+    expect(
+      classifyHarnessEnd(
+        cleanEnd({
+          ended: undefined,
+          exited: true,
+          execResult: {
+            status: 'completed',
+            exitCode: 1,
+            durationMs: 120,
+            stdoutBase64: '',
+            stderrBase64: '',
+            truncated: { stdout: false, stderr: false },
+          },
+          stderrTail:
+            'Error finding codex home: CODEX_HOME points to "/agent/.runtime/home/.codex", but that path does not exist',
+        }),
+      ),
+    ).toEqual({
+      errored: true,
+      emptyAnswer: false,
+      reason:
+        'The harness exited unexpectedly (exit code 1) without completing the turn. Last output: Error finding codex home: CODEX_HOME points to "/agent/.runtime/home/.codex", but that path does not exist',
+    });
   });
 
   it('fails a clean end that saw nothing at all', () => {

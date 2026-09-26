@@ -686,13 +686,32 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  // The share names the lineage ROOT; `leafThreadId` is the sibling on
+  // screen (the version of each edited / regenerated turn the owner sees),
+  // which the snapshot is frozen to. Absent, the stored selection map is
+  // walked server-side. The body is optional: an older tab posts none.
   app.post('/threads/:threadId/share', async (c) => {
+    const raw = await c.req.text();
+    let parsed: unknown = {};
+    if (raw.trim().length > 0) {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (error) {
+        console.warn('[chat] share body is not JSON', error);
+        return c.json({ error: 'invalid body' }, 400);
+      }
+    }
+    const body = z
+      .object({ leafThreadId: z.string().min(1).max(128).optional() })
+      .safeParse(parsed);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const share = await shareThread(
       deps.sql,
       organizationId,
       userId,
       c.req.param('threadId'),
+      body.data.leafThreadId,
     );
     if (share === null) return c.json({ error: 'thread not found' }, 404);
     await hintThread(c, c.req.param('threadId'));
@@ -753,18 +772,21 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       userId,
     });
     if (refused !== null) return refused;
-    const branchId = await branchForEdit(
+    // The answer names the fork POINT beside the sibling: the server may hang
+    // the fork off an ancestor of the thread on screen (another version of
+    // the same turn), and the client keys its selection on that parent.
+    const fork = await branchForEdit(
       deps.sql,
       organizationId,
       userId,
       c.req.param('threadId'),
       body.data.editedMessageId,
     );
-    if (branchId === null) {
+    if (fork === null) {
       return c.json({ error: 'thread or message not found' }, 404);
     }
-    await hintThread(c, branchId);
-    return c.json({ id: branchId }, 201);
+    await hintThread(c, fork.id);
+    return c.json(fork, 201);
   });
 
   app.post('/threads/:threadId/branch-regenerate', async (c) => {
@@ -779,18 +801,18 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       userId,
     });
     if (refused !== null) return refused;
-    const branchId = await branchForRegenerate(
+    const fork = await branchForRegenerate(
       deps.sql,
       organizationId,
       userId,
       c.req.param('threadId'),
       body.data.assistantMessageId,
     );
-    if (branchId === null) {
+    if (fork === null) {
       return c.json({ error: 'thread or message not found' }, 404);
     }
-    await hintThread(c, branchId);
-    return c.json({ id: branchId }, 201);
+    await hintThread(c, fork.id);
+    return c.json(fork, 201);
   });
 
   app.get('/threads/:threadId/branches', async (c) => {
@@ -805,12 +827,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     );
   });
 
+  // One flip, one write: a chosen version may need several keys (every
+  // ancestor's key at that sequence on a lineage written before forks were
+  // flattened), and they land together. The single-key shape stays for an
+  // older tab.
   app.post('/threads/:threadId/branch-selection', async (c) => {
+    const entry = z.object({
+      forkKey: z.string().min(1).max(256),
+      selectedThreadId: z.string().min(1).max(128),
+    });
     const body = z
-      .object({
-        forkKey: z.string().min(1).max(256),
-        selectedThreadId: z.string().min(1).max(128),
-      })
+      .union([entry, z.object({ selections: z.array(entry).min(1).max(50) })])
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
@@ -819,8 +846,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       organizationId,
       userId,
       c.req.param('threadId'),
-      body.data.forkKey,
-      body.data.selectedThreadId,
+      'selections' in body.data ? body.data.selections : [body.data],
     );
     await hintThread(c, c.req.param('threadId'));
     return c.json({ ok: true });

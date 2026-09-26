@@ -15,7 +15,7 @@ import { memo } from 'react';
 
 import { Image } from '@/app/components/image';
 import { useT } from '@/lib/i18n/client';
-import { deriveAccentPalette } from '@/lib/utils/color';
+import { deriveAccentPalette, isHexColor } from '@/lib/utils/color';
 
 export interface BrandingPreviewData {
   appName?: string;
@@ -80,10 +80,12 @@ export const BrandingPreview = memo(function BrandingPreview({
   const { resolvedTheme } = useTheme();
   const { appName, logoUrl, faviconUrl } = data;
   // Mirror the live app: the one picked accent is normalized into the same
-  // theme-legible palette the BrandingProvider injects.
-  const accentColor = data.accentColor
-    ? deriveAccentPalette(data.accentColor, resolvedTheme).base
-    : undefined;
+  // theme-legible palette the BrandingProvider injects. Only a complete hex
+  // is derived — a value still being typed is not a color yet.
+  const accentColor =
+    data.accentColor && isHexColor(data.accentColor)
+      ? deriveAccentPalette(data.accentColor, resolvedTheme).base
+      : undefined;
 
   return (
     <Row

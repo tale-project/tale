@@ -5843,6 +5843,50 @@ async function checkDocumentWriteGuards(
   };
   const memberKey = await mintKey(memberCookie, 'itest-doc-guards-member');
   const ownerKey = await mintKey(cookie, 'itest-doc-guards-owner');
+
+  // The api-key plugin has no hooks of its own: the auth after-hook audits
+  // a key's create and revoke, one row per organization of the holder,
+  // naming the key and its last four characters — never the plaintext.
+  const auditKeyRes = await fetch(`${base}/api/auth/api-key/create`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({ name: 'itest-audit-key' }),
+  });
+  const auditKey = z
+    .looseObject({ id: z.string(), key: z.string() })
+    .safeParse(await auditKeyRes.json().catch(() => null));
+  const auditKeyId = auditKey.success ? auditKey.data.id : '';
+  const revokeKeyRes = await fetch(`${base}/api/auth/api-key/delete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({ keyId: auditKeyId }),
+  });
+  const keyAudit = await sql<
+    {
+      action: string;
+      resourceName: string | null;
+      newState: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, resource_name AS "resourceName", new_state AS "newState"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'api_key'
+      AND resource_id = ${auditKeyId}
+    ORDER BY ts ASC
+  `;
+  record(
+    'api keys: create and revoke leave audit rows naming the key, never its plaintext',
+    auditKeyRes.status === 200 &&
+      revokeKeyRes.status === 200 &&
+      keyAudit.length === 2 &&
+      keyAudit[0]?.action === 'api_key.created' &&
+      keyAudit[0].resourceName === 'itest-audit-key' &&
+      typeof keyAudit[0].newState?.suffix === 'string' &&
+      keyAudit[1]?.action === 'api_key.revoked' &&
+      auditKey.success &&
+      !JSON.stringify(keyAudit).includes(auditKey.data.key),
+    `create → ${auditKeyRes.status}, revoke → ${revokeKeyRes.status} (want 200/200); rows=${keyAudit.map((row) => row.action).join(',')} (want api_key.created,api_key.revoked) name=${String(keyAudit[0]?.resourceName)} suffix=${String(keyAudit[0]?.newState?.suffix)}`,
+  );
   const v1 = (
     key: string,
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
@@ -27927,6 +27971,49 @@ async function checkWebdav(
     `created=${davEntry.success}, delete=${davEntryDelete.status} (want 204), doc=${davEntryChain[0]?.lifecycleStatus ?? 'missing'} (want trashed), chainDeleted=${davEntryChain[0]?.deleted ?? 'missing'} (want true), update=${davEntryUpdate.status} (want 404)`,
   );
 
+  // Every WebDAV write above left its audit row under the app-password's
+  // owner, stamped `door: webdav`: the first PUT a `document.created`, the
+  // overwrite a `document.updated`, the folder cascade one `folder.deleted`
+  // with the count it trashed (`plan2.txt` and the nested `foobar/x.txt` —
+  // the sum crosses the subtree), the entry's DELETE a `document.trashed`
+  // (never `document.deleted` — the row is in the Trash, not gone).
+  const planDocId = docRows[0]?.id ?? '';
+  const davAudit = await sql<
+    {
+      action: string;
+      actorId: string;
+      resourceName: string | null;
+      metadata: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, actor_id AS "actorId", resource_name AS "resourceName",
+           metadata
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND metadata->>'door' = 'webdav'
+      AND (
+        (resource_type = 'document' AND resource_id = ${planDocId})
+        OR (resource_type = 'folder' AND resource_name = 'DavReports')
+        OR (resource_type = 'document' AND resource_id = (
+          SELECT document_id FROM app.knowledge_entries WHERE id = ${davEntryId}
+        ))
+      )
+    ORDER BY ts ASC
+  `;
+  const davActions = davAudit.map((row) => row.action);
+  const cascadeRow = davAudit.find((row) => row.action === 'folder.deleted');
+  record(
+    'webdav: PUT, overwrite, folder DELETE and DELETE leave document and folder audit rows under the app-password owner',
+    davActions[0] === 'document.created' &&
+      davActions[1] === 'document.updated' &&
+      davActions.includes('folder.deleted') &&
+      davActions.includes('document.trashed') &&
+      !davActions.includes('document.deleted') &&
+      davAudit.every((row) => row.actorId === userId) &&
+      cascadeRow?.metadata?.trashedDocumentCount === 2 &&
+      davAudit[0]?.resourceName === 'plan.txt',
+    `rows=${davActions.join(',')} (want document.created,document.updated,…,folder.deleted,…,document.trashed and no document.deleted) actors=${[...new Set(davAudit.map((row) => row.actorId))].join(',')} (want ${userId}) cascade trashed=${String(cascadeRow?.metadata?.trashedDocumentCount)} (want 2)`,
+  );
+
   // Chunked PUT (no Content-Length) is refused with 411 up front — the
   // presigned object-store PUT needs the length, and the refusal is an
   // expected client error, not a reported 500.
@@ -28113,6 +28200,33 @@ async function checkWebdav(
     method: 'PROPFIND',
     headers: { depth: '1' },
   });
+
+  // Mint and revoke each left an audit row naming the label; the create
+  // row carries the four-character prefix and nothing of the secret.
+  const appPasswordAudit = await sql<
+    {
+      action: string;
+      resourceName: string | null;
+      newState: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, resource_name AS "resourceName", new_state AS "newState"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'webdav_app_password'
+      AND resource_id = ${passwordId}
+    ORDER BY ts ASC
+  `;
+  record(
+    'webdav: app-password mint and revoke leave audit rows naming the label and the prefix only',
+    appPasswordAudit.length === 2 &&
+      appPasswordAudit[0]?.action === 'webdav_app_password.created' &&
+      appPasswordAudit[0].resourceName === 'itest device' &&
+      minted.success &&
+      appPasswordAudit[0].newState?.prefix === minted.data.prefix &&
+      !JSON.stringify(appPasswordAudit).includes(minted.data.password) &&
+      appPasswordAudit[1]?.action === 'webdav_app_password.revoked',
+    `rows=${appPasswordAudit.map((row) => row.action).join(',')} (want webdav_app_password.created,webdav_app_password.revoked) label=${String(appPasswordAudit[0]?.resourceName)} prefix=${String(appPasswordAudit[0]?.newState?.prefix)} (want ${minted.success ? minted.data.prefix : '?'})`,
+  );
 
   record(
     'webdav re-home (protocol + tree + locks + visibility on pg)',
@@ -38846,6 +38960,121 @@ async function checkChatThreadSurface(
     `edit=${editCount[0]?.count} (want 0), regen=${regenCount[0]?.count} (want 1), lineage=${lineage.success ? lineage.data.branches.length : 'ERR'} (want 2), hidden=${!listedIds.includes(editBranchId)}, scope=${scope.threadIds.length}`,
   );
 
+  // A fork at a sibling's own fork sequence versions the SAME turn: an edit
+  // taken from the regenerate sibling (forked at 0) hangs off the ROOT at
+  // 0 — three siblings of one fork point, never a chain — and the door
+  // answers that fork point beside the sibling's id.
+  const regenPrompt = await sql<{ id: string }[]>`
+    SELECT id FROM app.messages
+    WHERE thread_id = ${regenBranchId} AND "order" = 0 AND role = 'user'
+  `;
+  const nestedEdit = z
+    .object({ id: z.string(), parentId: z.string(), forkSequence: z.number() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${regenBranchId}/branch-edit?orgId=${orgId}`,
+          { editedMessageId: regenPrompt[0]?.id ?? '' },
+        )
+      ).json(),
+    );
+  const nestedStamp = await sql<
+    { parentId: string | null; forkSequence: number | null }[]
+  >`
+    SELECT branch_parent_id AS "parentId",
+           branch_fork_sequence AS "forkSequence"
+    FROM app.thread_metadata
+    WHERE thread_id = ${nestedEdit.success ? nestedEdit.data.id : ''}
+  `;
+  record(
+    'edit taken from a "try again" sibling hangs off the root — one fork point',
+    nestedEdit.success &&
+      nestedEdit.data.parentId === threadB &&
+      nestedEdit.data.forkSequence === 0 &&
+      nestedStamp[0]?.parentId === threadB &&
+      nestedStamp[0]?.forkSequence === 0,
+    `answer=${nestedEdit.success ? `${nestedEdit.data.parentId}:${nestedEdit.data.forkSequence}` : 'ERR'} row=${nestedStamp[0]?.parentId}:${nestedStamp[0]?.forkSequence} (want ${threadB}:0)`,
+  );
+
+  // A share link publishes the sibling on screen: the leaf the client names
+  // is frozen on the ROOT row (`shared_thread_id`, migration 0114) and the
+  // snapshot reads ITS rows under the root's token; a leaf outside the
+  // lineage is refused; without a leaf the stored selection map (root:0 →
+  // the regenerate sibling, set above) resolves it.
+  const regenOnly = `regen only reply ${Date.now()}`;
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, parts, status,
+      created_at_ms
+    ) VALUES
+      (${regenBranchId}, ${orgId}, 1, 0, 'assistant', ${regenOnly},
+       ${sql.json(toJson([{ type: 'text', text: regenOnly }]))},
+       'complete', ${Date.now()})
+  `;
+  const snapshotTexts = async (): Promise<{
+    threadId: string;
+    texts: string[];
+  } | null> => {
+    const parsed = z
+      .object({
+        threadId: z.string(),
+        messages: z.array(
+          z
+            .object({
+              parts: z.array(z.object({ text: z.string().optional() }).loose()),
+            })
+            .loose(),
+        ),
+      })
+      .loose()
+      .safeParse(
+        await get(`/api/app/chat/threads/shared/${token}?orgId=${orgId}`),
+      );
+    if (!parsed.success) return null;
+    return {
+      threadId: parsed.data.threadId,
+      texts: parsed.data.messages.flatMap((message) =>
+        message.parts.map((part) => part.text ?? ''),
+      ),
+    };
+  };
+  const leafShare = z.object({ shareToken: z.string() }).safeParse(
+    await (
+      await post(`/api/app/chat/threads/${threadB}/share?orgId=${orgId}`, {
+        leafThreadId: regenBranchId,
+      })
+    ).json(),
+  );
+  const leafSnapshot = await snapshotTexts();
+  const frozen = await sql<{ sharedThreadId: string | null }[]>`
+    SELECT shared_thread_id AS "sharedThreadId"
+    FROM app.thread_metadata WHERE thread_id = ${threadB}
+  `;
+  const foreignLeaf = await post(
+    `/api/app/chat/threads/${threadB}/share?orgId=${orgId}`,
+    { leafThreadId: threadA },
+  );
+  const resolvedShare = await post(
+    `/api/app/chat/threads/${threadB}/share?orgId=${orgId}`,
+    {},
+  );
+  const resolvedSnapshot = await snapshotTexts();
+  record(
+    'share links publish the sibling on screen; a foreign leaf is refused; the stored map resolves one',
+    leafShare.success &&
+      leafShare.data.shareToken === token &&
+      frozen[0]?.sharedThreadId === regenBranchId &&
+      leafSnapshot !== null &&
+      leafSnapshot.threadId === threadB &&
+      leafSnapshot.texts.includes(regenOnly) &&
+      !leafSnapshot.texts.includes('result text beta') &&
+      foreignLeaf.status === 404 &&
+      resolvedShare.status === 200 &&
+      resolvedSnapshot !== null &&
+      resolvedSnapshot.texts.includes(regenOnly),
+    `token=${leafShare.success && leafShare.data.shareToken === token}, frozen=${frozen[0]?.sharedThreadId === regenBranchId}, leaf=${leafSnapshot ? `${leafSnapshot.threadId === threadB}/${leafSnapshot.texts.includes(regenOnly)}/${!leafSnapshot.texts.includes('result text beta')}` : 'ERR'} (want root/true/true), foreign=${foreignLeaf.status} (want 404), resolved=${resolvedShare.status}/${resolvedSnapshot?.texts.includes(regenOnly)} (want 200/true)`,
+  );
+
   // Palette search reads the whole live lineage: a body that exists ONLY on
   // the hidden edit sibling is found, and the hit names the ROOT (the id the
   // chat URL carries), never the sibling. The regenerate sibling — selected
@@ -40478,6 +40707,30 @@ async function checkTurnEquipmentBroker(
   const created = z
     .object({ credentialId: z.string() })
     .safeParse(await createdRes.json());
+  // The create door left one audit row naming the connector and the
+  // method; the token is nowhere in it.
+  const credentialAudit = await sql<
+    {
+      action: string;
+      actorId: string;
+      metadata: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, actor_id AS "actorId", metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'connector_credential'
+      AND resource_id = ${created.success ? created.data.credentialId : ''}
+  `;
+  record(
+    'connector credentials: the create door leaves an audit row naming the connector, never the token',
+    createdRes.status === 201 &&
+      credentialAudit.length === 1 &&
+      credentialAudit[0]?.action === 'connector_credential.created' &&
+      credentialAudit[0].actorId === userId &&
+      credentialAudit[0].metadata?.connectorSlug === 'github' &&
+      credentialAudit[0].metadata?.authMethod === 'bearer' &&
+      !JSON.stringify(credentialAudit).includes(token),
+    `create → ${createdRes.status} (want 201); rows=${credentialAudit.length} action=${credentialAudit[0]?.action} actor=${credentialAudit[0]?.actorId} connector=${String(credentialAudit[0]?.metadata?.connectorSlug)}/${String(credentialAudit[0]?.metadata?.authMethod)} (want 1 / connector_credential.created / the itest user / github/bearer)`,
+  );
   // A live session row owned by the itest USER: the broker resolves the git
   // author identity off `created_by`, so the env must carry helper + name +
   // email. (A workflow run's synthetic `system:automation` owner resolves to
@@ -51051,13 +51304,58 @@ async function checkTeamScopeRetirement(
            shared_with_team_ids AS shared
     FROM app.projects WHERE id = ${projectC}
   `;
+  // The hook is the only audit this door gets: one `team.deleted` row naming
+  // the plugin door and the signed-in actor, with the retirement counts.
+  const pluginAudit = await sql<
+    { actorId: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT actor_id AS "actorId", metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'team.deleted'
+      AND resource_id = ${teamC}
+  `;
   record(
-    'teams: Better Auth’s own remove-team still retires the scopes through its hook',
+    'teams: Better Auth’s own remove-team still retires the scopes through its hook, audited',
     removeTeam.status === 200 &&
       rowsC[0]?.teamIds.length === 0 &&
       rowsC[0]?.teamId === null &&
-      rowsC[0]?.shared.length === 0,
-    `remove-team → ${removeTeam.status} (want 200), project ids=[${rowsC[0]?.teamIds.length}] mirror=${String(rowsC[0]?.teamId)}/${rowsC[0]?.shared.length} (want [0] null/0)`,
+      rowsC[0]?.shared.length === 0 &&
+      pluginAudit.length === 1 &&
+      pluginAudit[0]?.actorId === ctx.userId &&
+      pluginAudit[0]?.metadata?.door === 'plugin' &&
+      pluginAudit[0]?.metadata?.projectsRetagged === 1,
+    `remove-team → ${removeTeam.status} (want 200), project ids=[${rowsC[0]?.teamIds.length}] mirror=${String(rowsC[0]?.teamId)}/${rowsC[0]?.shared.length} (want [0] null/0); audit rows=${pluginAudit.length} actor=${pluginAudit[0]?.actorId} door=${String(pluginAudit[0]?.metadata?.door)} projectsRetagged=${String(pluginAudit[0]?.metadata?.projectsRetagged)} (want 1 / the owner / plugin / 1)`,
+  );
+
+  // The plugin's own membership doors are closed: they would write a
+  // membership with no audit row and no last-member rule.
+  const pluginAddMember = await fetch(
+    `${base}/api/auth/organization/add-team-member`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        teamId: teamD,
+        userId: member.userId,
+        organizationId: orgId,
+      }),
+    },
+  );
+  const pluginRemoveMember = await fetch(
+    `${base}/api/auth/organization/remove-team-member`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        teamId: teamD,
+        userId: member.userId,
+        organizationId: orgId,
+      }),
+    },
+  );
+  record(
+    'teams: Better Auth’s own add/remove-team-member doors are closed',
+    pluginAddMember.status === 404 && pluginRemoveMember.status === 404,
+    `add-team-member → ${pluginAddMember.status}, remove-team-member → ${pluginRemoveMember.status} (want 404/404)`,
   );
 
   // ---- the last-member rule (team D: the member, then the owner)
@@ -51090,8 +51388,18 @@ async function checkTeamScopeRetirement(
     .object({ removed: z.boolean() })
     .safeParse(await removeOne.json().catch(() => null));
   const afterRemoval = await countD();
+  // Every membership change on team D left a row: two adds, one removal (the
+  // refused last-member removal wrote nothing).
+  const membershipAudit = await sql<{ action: string; count: string }[]>`
+    SELECT action, count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${teamD}
+      AND action IN ('team.member_added', 'team.member_removed')
+    GROUP BY action
+  `;
+  const membershipCount = (action: string): string =>
+    membershipAudit.find((row) => row.action === action)?.count ?? '0';
   record(
-    'teams: the admin doors never take a team’s last member (409 TEAM_LAST_MEMBER)',
+    'teams: the admin doors never take a team’s last member (409 TEAM_LAST_MEMBER), and audit every membership change',
     addMember.status === 201 &&
       removeLast.status === 409 &&
       removeLastCode === 'TEAM_LAST_MEMBER' &&
@@ -51100,8 +51408,10 @@ async function checkTeamScopeRetirement(
       removeOne.status === 200 &&
       removeOneBody.success &&
       removeOneBody.data.removed &&
-      afterRemoval === '1',
-    `add → ${addMember.status} (want 201), remove the only member → ${removeLast.status}/${removeLastCode} (want 409/TEAM_LAST_MEMBER) leaving ${afterRefusal} (want 1), add a second → ${addOwner.status}, remove one of two → ${removeOne.status} removed=${removeOneBody.success ? removeOneBody.data.removed : 'ERR'} leaving ${afterRemoval} (want 1)`,
+      afterRemoval === '1' &&
+      membershipCount('team.member_added') === '2' &&
+      membershipCount('team.member_removed') === '1',
+    `add → ${addMember.status} (want 201), remove the only member → ${removeLast.status}/${removeLastCode} (want 409/TEAM_LAST_MEMBER) leaving ${afterRefusal} (want 1), add a second → ${addOwner.status}, remove one of two → ${removeOne.status} removed=${removeOneBody.success ? removeOneBody.data.removed : 'ERR'} leaving ${afterRemoval} (want 1); audit member_added=${membershipCount('team.member_added')} member_removed=${membershipCount('team.member_removed')} (want 2/1)`,
   );
 
   // ---- the assignment rule (the editor joins team E; nobody else is in E)

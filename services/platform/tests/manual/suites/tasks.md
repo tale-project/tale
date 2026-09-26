@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 27 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -189,6 +189,14 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   single harness process, and the backend log carries the
   `predecessor … reap` line ahead of the new exec's start — never two CLIs
   writing one workspace.
+- [ ] `TASK-F19` · **A missing skill fails once, without auto-retry** — Equip
+  a project agent with a skill, then narrow that skill's visibility so the
+  project no longer sees it (do not delete it); start a task with the agent
+  → The run fails at once with **the agent run could not start: the skill
+  "<slug>" is not available to this run …**, stays at one run — no
+  **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
+  after unticking the unavailable skill in the agent dialog, **Retry**
+  starts a run that reaches the harness.
 
 ## Boundary & error tests
 
@@ -229,6 +237,21 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   offered but no automatic retry follows (the run stays failed); raising the
   rule and retrying starts the run, and the run's cost then appears under
   **Governance > Usage** for the person who started it.
+- [ ] `TASK-B6` · **A harness that cannot start names its cause** — Make the
+  CLI refuse to start (e.g. point the agent at a Codex run whose
+  `CODEX_HOME` directory is missing, or break the harness's config) and
+  **Start agent** → The Run row flips to **Failed** and its reason reads
+  **The harness exited unexpectedly (exit code 1) without completing the
+  turn. Last output: …** followed by the CLI's own last stderr lines (for
+  Codex: `Error finding codex home …`) — never the bare exit code alone; no
+  credential appears in the quoted output. With a healthy runtime, Codex +
+  DeepSeek starts, reaches the model and completes a tool-using run (a task
+  that asks the agent to list the workspace and report back settles
+  **Completed**; **Details** shows Codex announcing its thread, the tool
+  call and the report). A run the model's provider refuses mid-way names the
+  provider's own sentence and status as its reason (e.g. **… must be passed
+  back to the API. (API status 400)**) — never the agent's last narration
+  sentence.
 
 ## Accessibility (WCAG 2.1 AA)
 

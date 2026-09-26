@@ -616,6 +616,11 @@ automations:
       title: Andere Version anzeigen?
       description: Beim Versionswechsel gehen nicht gespeicherte Änderungen verloren.
       confirm: Verwerfen und wechseln
+    staleVersion:
+      title: Diese Automatisierung hat sich während deiner Bearbeitung geändert
+      description: "{message}"
+      reload: Meine Änderungen verwerfen und neu laden
+      saveAnyway: Trotzdem speichern
     showLastRun: Letzten Lauf einblenden
     hideLastRun: Letzten Lauf ausblenden
     runLive: Live ausführen
@@ -1379,6 +1384,7 @@ chat:
     sectionConnectors: Connectors
     sectionTools: Plattform-Tools
     emptySkills: Noch keine Skills in dieser Organisation.
+    unavailableOption: '"{slug}" (nicht verfügbar)'
     emptyConnectors: Noch keine Connectors hinzugefügt.
     emptyTools: Keine Plattform-Tools verfügbar.
   generation:
@@ -4835,8 +4841,8 @@ skills:
   skillDeleted: Skill gelöscht
   skillDeleteFailed: Skill konnte nicht gelöscht werden
   deleteConfirmation:
-    Das entfernt das Skill-Bundle "{slug}" von der Festplatte. Jeder Agent,
-    der es ausgerüstet hat, verliert den Zugriff.
+    Das entfernt das Skill-Bundle "{slug}" von der Festplatte. Bei jedem
+    Agenten, der es ausgerüstet hat, wird es abgelegt.
   listFailed: Die Skill-Bibliothek konnte nicht geladen werden. Lade neu und versuche es erneut.
   readOnly: Du kannst diesen Skill lesen, aber nicht ändern — sein Inhaber
     (oder ein Org-Admin bei geteilten Skills) verwaltet ihn.
@@ -6126,6 +6132,28 @@ settings:
         api: API
         workflow: Automatisierung
       actionLabels:
+        skill.deleted: Skill gelöscht
+        team.created: Team erstellt
+        team.updated: Team aktualisiert
+        team.deleted: Team gelöscht
+        team.member_added: Teammitglied hinzugefügt
+        team.member_removed: Teammitglied entfernt
+        api_key.created: API-Schlüssel erstellt
+        api_key.updated: API-Schlüssel aktualisiert
+        api_key.revoked: API-Schlüssel widerrufen
+        webdav_app_password.created: WebDAV-App-Passwort erstellt
+        webdav_app_password.revoked: WebDAV-App-Passwort widerrufen
+        connector_credential.created: Connector-Zugangsdaten erstellt
+        connector_credential.updated: Connector-Zugangsdaten aktualisiert
+        connector_credential.deleted: Connector-Zugangsdaten gelöscht
+        document.created: Dokument erstellt
+        document.updated: Dokument aktualisiert
+        document.trashed: Dokument in den Papierkorb verschoben
+        document.deleted: Dokument gelöscht
+        folder.deleted: Ordner gelöscht
+        branding.updated: Branding aktualisiert
+        branding.image_uploaded: Branding-Bild hochgeladen
+        branding.image_deleted: Branding-Bild entfernt
         joined_organization: Organisation beigetreten
         signed_in_to_organization: An Organisation angemeldet
         add_member: Mitglied hinzugefügt
@@ -6313,6 +6341,7 @@ settings:
         conversation: Konversation
         conversationMessage: Konversationsnachricht
         document: Dokument
+        folder: Ordner
         agent: Agent
         workflow: Automatisierung
         workflow_run: Automatisierungslauf
@@ -6330,9 +6359,13 @@ settings:
         chat_message: Chat-Nachricht
         chat_thread: Chat
         member: Mitglied
+        team: Team
         project: Projekt
         connector: Connector
         connector_operation: Connector-Vorgang
+        connector_credential: Connector-Zugangsdaten
+        api_key: API-Schlüssel
+        webdav_app_password: WebDAV-App-Passwort
         sso_provider: SSO-Anbieter
         video_link: Video-Link
         location_request: Standortanfrage

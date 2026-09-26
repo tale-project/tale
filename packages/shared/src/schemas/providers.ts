@@ -292,9 +292,12 @@ export const providerDefinitionSchema = z
      * session (which speaks the Anthropic wire to the gateway) should ride, so
      * the gateway forwards Anthropic natively instead of down-converting
      * Anthropic→OpenAI — a conversion some upstreams (DeepSeek) mishandle for
-     * multi-turn `reasoning_content` replay. Consulted only when the requesting
-     * harness's gateway wire matches this `apiFormat`; other harnesses keep the
-     * provider's `baseUrl`/`apiFormat`. Realistically `apiFormat: anthropic`.
+     * multi-turn `reasoning_content` replay. Consulted when the requesting
+     * harness's gateway wire matches this `apiFormat`, and for a Responses-wire
+     * harness (Codex) on a connector the gateway would otherwise serve as a
+     * chat-only custom upstream (the Responses→Chat translation loses the
+     * thinking round-trip); chat-wire harnesses keep the provider's
+     * `baseUrl`/`apiFormat`. Realistically `apiFormat: anthropic`.
      * A connector the gateway implements natively (OpenRouter) may declare one
      * as well: that lane then rides an org-scoped custom record instead of the
      * gateway's shared one, whose built-in implementation speaks OpenAI only.
@@ -1184,6 +1187,28 @@ const harnessVariantSchema = z
   })
   .strict();
 
+/**
+ * The wire a harness speaks to the platform gateway on the managed lane —
+ * what the gateway has to translate from, and so which upstream door serves
+ * the session best:
+ *
+ *  - `anthropic`: the Anthropic Messages API (`/anthropic`) — Claude Code.
+ *  - `openai-chat`: OpenAI chat completions (`/openai/v1/chat/completions`)
+ *    — the native wire of every OpenAI-format upstream.
+ *  - `openai-responses`: the OpenAI Responses API (`/openai/v1/responses`) —
+ *    Codex. A chat-only upstream only sees it through the gateway's
+ *    Responses→Chat translation, which cannot round-trip a thinking model's
+ *    reasoning (the CLI echoes only `summary`/`encrypted_content`, the
+ *    translation emits neither), so such a session rides the connector's
+ *    Anthropic harness endpoint when it declares one.
+ */
+export const harnessGatewayWireSchema = z.enum([
+  'anthropic',
+  'openai-chat',
+  'openai-responses',
+]);
+export type HarnessGatewayWire = z.infer<typeof harnessGatewayWireSchema>;
+
 /** The shape of one `configs/platform/system/harnesses/<slug>/harness.yml`. */
 export const harnessDefinitionSchema = z
   .object({
@@ -1210,6 +1235,15 @@ export const harnessDefinitionSchema = z
       .refine((keys) => new Set(keys).size === keys.length, {
         message: 'credentialEnvKeys must be unique',
       }),
+    /**
+     * The wire the CLI speaks to the platform gateway on the managed lane
+     * (see {@link harnessGatewayWireSchema}). Absent = derived: a harness
+     * that reads `ANTHROPIC_BASE_URL` speaks `anthropic`, every other one
+     * `openai-chat`. Declare it where the derivation is wrong — Codex reads
+     * an OpenAI-style key but speaks the Responses API, whose translation
+     * onto a chat-only upstream loses the model's thinking between calls.
+     */
+    gatewayWire: harnessGatewayWireSchema.optional(),
     modelIdDialect: modelIdDialectSchema,
     promptTransport: promptTransportSchema,
     capabilities: z

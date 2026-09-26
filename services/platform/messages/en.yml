@@ -584,6 +584,11 @@ automations:
       title: Show another version?
       description: Switching versions discards any unsaved changes you've made.
       confirm: Discard and switch
+    staleVersion:
+      title: This automation changed while you were editing
+      description: "{message}"
+      reload: Discard my changes and reload
+      saveAnyway: Save anyway
     showLastRun: Show last run
     hideLastRun: Hide last run
     runLive: Run live
@@ -1335,6 +1340,7 @@ chat:
     sectionConnectors: Connectors
     sectionTools: Platform tools
     emptySkills: No skills in this organization yet.
+    unavailableOption: '"{slug}" (unavailable)'
     emptyConnectors: No connectors added yet.
     emptyTools: No platform tools available.
   generation:
@@ -4674,8 +4680,8 @@ skills:
   skillDeleted: Skill deleted
   skillDeleteFailed: Couldn't delete skill
   deleteConfirmation:
-    This removes the skill bundle "{slug}" from disk. Any agent currently
-    equipped with it loses access.
+    This removes the skill bundle "{slug}" from disk. Every agent currently
+    equipped with it is unequipped.
   listFailed: Couldn't load the skill library. Reload to retry.
   readOnly: You can read this skill but not change it — its owner (or an org
     admin, for shared skills) manages it.
@@ -6218,6 +6224,28 @@ settings:
         api: API
         workflow: Automation
       actionLabels:
+        skill.deleted: Skill deleted
+        team.created: Team created
+        team.updated: Team updated
+        team.deleted: Team deleted
+        team.member_added: Team member added
+        team.member_removed: Team member removed
+        api_key.created: API key created
+        api_key.updated: API key updated
+        api_key.revoked: API key revoked
+        webdav_app_password.created: WebDAV app password created
+        webdav_app_password.revoked: WebDAV app password revoked
+        connector_credential.created: Connector credential created
+        connector_credential.updated: Connector credential updated
+        connector_credential.deleted: Connector credential deleted
+        document.created: Document created
+        document.updated: Document updated
+        document.trashed: Document moved to trash
+        document.deleted: Document deleted
+        folder.deleted: Folder deleted
+        branding.updated: Branding updated
+        branding.image_uploaded: Branding image uploaded
+        branding.image_deleted: Branding image removed
         joined_organization: Joined organization
         signed_in_to_organization: Signed in to organization
         add_member: Added member
@@ -6405,6 +6433,7 @@ settings:
         conversation: Conversation
         conversationMessage: Conversation message
         document: Document
+        folder: Folder
         agent: Agent
         workflow: Automation
         workflow_run: Automation run
@@ -6422,9 +6451,13 @@ settings:
         chat_message: Chat message
         chat_thread: Chat
         member: Member
+        team: Team
         project: Project
         connector: Connector
         connector_operation: Connector operation
+        connector_credential: Connector credential
+        api_key: API key
+        webdav_app_password: WebDAV app password
         sso_provider: SSO provider
         video_link: Video link
         location_request: Location request

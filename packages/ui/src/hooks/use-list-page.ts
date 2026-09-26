@@ -32,7 +32,22 @@ export const DEFAULT_LIST_PAGE_SIZE = 20;
 // Data Source Types
 // ---------------------------------------------------------------------------
 
-interface PaginatedDataSource<TData> {
+/**
+ * What a data source says about a failed request. A list that has nothing
+ * loaded renders the table's error state with the retry, never the
+ * collection's empty state — "No projects yet" over a 500 read as data loss
+ * (2026-09-26 evaluation, G-07). With rows already loaded the rows stay on
+ * screen and the next successful refetch heals it.
+ */
+interface RequestOutcome {
+  /** The request's error once the retry policy gave up; `null`/absent
+   * while it is healthy or still loading. */
+  error?: Error | null;
+  /** Re-issue the request — the table's retry action. */
+  retry?: () => void;
+}
+
+interface PaginatedDataSource<TData> extends RequestOutcome {
   type: 'paginated';
   results: TData[] | undefined;
   status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
@@ -40,7 +55,7 @@ interface PaginatedDataSource<TData> {
   isLoading: boolean;
 }
 
-interface QueryDataSource<TData> {
+interface QueryDataSource<TData> extends RequestOutcome {
   type: 'query';
   data: TData[] | undefined;
 }
@@ -133,6 +148,10 @@ interface ListPageTableProps<TData> {
   filters?: FilterConfig[];
   onClearFilters?: () => void;
   getRowId: (row: TData) => string;
+  /** The data source's request error when nothing is loaded — the table
+   * renders its error state with `onRetry` instead of the empty state. */
+  error: Error | null;
+  onRetry?: () => void;
   infiniteScroll: {
     hasMore: boolean;
     onLoadMore: () => void;
@@ -384,12 +403,17 @@ export function useListPage<TData>(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex documents always have _id; TData generic doesn't enforce it
   const rowIdFn = getRowId ?? ((row: TData) => (row as { _id: string })._id);
 
+  // A failed request with nothing loaded is the table's error state (with
+  // its retry), never its empty state; loaded rows outlive a failed refetch.
+  const requestError = dataSource.error ?? null;
   const sharedTableProps = {
     search: searchConfig,
     filters: filterConfigs,
     onClearFilters,
     getRowId: rowIdFn,
     approxRowCount,
+    error: requestError !== null && rawData.length === 0 ? requestError : null,
+    onRetry: dataSource.retry,
   };
 
   // The list normally fetches the next backend page only as the user scrolls.

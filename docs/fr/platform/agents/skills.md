@@ -30,7 +30,7 @@ Lors de la préparation de la sandbox, Tale met les bundles équipés à disposi
 
 ## Vérifier les skills manquants ou modifiés
 
-Si un skill requis manque ou n’est plus partagé avec le périmètre de l’exécution, sa mise à disposition échoue en indiquant son nom. Vérifie son slug, sa visibilité, les équipes du projet et une éventuelle suppression ou un remplacement. Rétablis l’accès prévu ou retire l’équipement obsolète avant de réessayer.
+Supprimer un skill le déséquipe de chaque agent qui le portait, et le journal d’audit indique lesquels. Si un skill requis n’est plus partagé avec le périmètre de l’exécution, sa mise à disposition échoue en indiquant son nom ; l’exécution n’est pas relancée automatiquement, car une relance n’y change rien. Dans le dialogue de l’agent, le skill apparaît comme indisponible pour que tu puisses le décocher — tous les autres réglages de l’agent s’enregistrent toujours. Rétablis l’accès prévu ou retire l’équipement obsolète avant de réessayer.
 
 Les modifications d’un bundle partagé s’appliquent à ses prochaines mises à disposition. Vérifie les remplacements et teste l’agent avec une entrée connue après un changement important. Ne suppose pas qu’un skill de même nom dans le dépôt remplace le bundle équipé.
 

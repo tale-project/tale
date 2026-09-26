@@ -30,6 +30,11 @@ export interface UsePaginatedQueryReturnType<Item> {
   status: PaginatedStatus;
   isLoading: boolean;
   loadMore: (numItems: number) => void;
+  /** The request's error once the retry policy gave up, else `null` — a
+   * list hands it to `useListPage` so a failed read is never an empty list. */
+  error: Error | null;
+  /** Re-issue the request. */
+  retry: () => void;
 }
 
 /** The listing lane: react-query `useInfiniteQuery` over the backend's keyset
@@ -64,6 +69,8 @@ function useBackendPaginatedQuery<Item>(
     data,
     isLoading,
     isError,
+    error,
+    refetch,
   } = infinite;
   const loadMore = useCallback(
     (_numItems: number) => {
@@ -84,12 +91,20 @@ function useBackendPaginatedQuery<Item>(
         : hasNextPage
           ? 'CanLoadMore'
           : 'Exhausted';
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter's page rows are the contract's page item by construction (both keyed by the same name)
     results: results as Item[],
     status,
     isLoading: isLoading || isFetchingNextPage,
     loadMore,
+    // A failed request is the list's to show, never to pass off as an empty
+    // collection: with no page loaded the table renders the error and its
+    // retry; with pages loaded the rows stay and a later refetch heals it.
+    error: isError ? (error ?? new Error('request failed')) : null,
+    retry,
   };
 }
 

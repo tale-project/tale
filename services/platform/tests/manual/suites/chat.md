@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 77 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 79 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -339,6 +339,27 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   prompt appears once per column (never a second copy when the reply
   arrives), and the verdict buttons stay unavailable until both replies
   finish.
+- [ ] `CHAT-F44` · **Try again, then Edit → 3/3, original reachable** — On an
+  assistant reply click **Try again** (`chat.tryAgain`); once the new reply
+  lands, hover the user message above it → **Edit message**
+  (`chat.editMessage`) → change the text → **Send** (`chat.editSend`) → The
+  navigator under that user message reads 3/3; **Previous branch**
+  (`chat.branchNavigator.previous`) twice lands on 1/3 with the ORIGINAL
+  question and its ORIGINAL reply, and 2/3 shows the original question with
+  the retried reply; **Try again** twice on one reply likewise reads 3/3 with
+  the first reply still reachable; after a reload the same version is on
+  screen.
+- [ ] `CHAT-F45` · **Share publishes the branch on screen** — In a chat with
+  versions (CHAT-F44) navigate to the edited version (3/3), then **Share**
+  (`chat.share.button`) → **Share with organization**
+  (`chat.share.organizationLink`) → **Create share link**
+  (`chat.share.createLink`) → **Preview** (`chat.share.preview`) → The shared
+  page shows the edited question and its reply, never the original; back in
+  the chat switch to 1/3 and send a follow-up there, reopen **Share** →
+  **Include newer messages** (`chat.share.includeNewer`) → reload the preview
+  → it now shows the original version WITH the follow-up (the snapshot is
+  re-taken from the branch on screen); the thread row's **Shared** indicator
+  (`chat.share.sharedIndicator`) and the link stay the same throughout.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick

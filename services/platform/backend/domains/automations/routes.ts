@@ -62,6 +62,9 @@ const saveSchema = z.object({
   // Install target for a NEW automation (capped like every project-id door;
   // the store validates it exists in the org and binds only version 1).
   projectId: z.string().min(1).max(128).optional(),
+  // The version the editor's draft started from; the store refuses the save
+  // (409 AUTOMATION_VERSION_STALE) when another version landed since.
+  baseVersion: z.number().int().min(1).optional(),
 });
 
 const deploySchema = z.object({ version: z.number().int().min(1) });
@@ -125,7 +128,17 @@ function handleError<E extends OrgEnv>(
   error: unknown,
 ): Response {
   if (error instanceof AutomationError) {
-    return c.json({ error: error.code, message: error.message }, error.status);
+    // The structured detail rides beside the sentence (`data`), the shape
+    // the app's fetch layer already reads — a stale save names the version
+    // that landed, so the editor can offer "save anyway" on top of it.
+    return c.json(
+      {
+        error: error.code,
+        message: error.message,
+        ...(error.data !== undefined && { data: error.data }),
+      },
+      error.status,
+    );
   }
   // The shared upload lane refuses with the 0.4 `AppError({code,message})`
   // contract — surface it as the structured 4xx the dialog maps.
@@ -450,6 +463,9 @@ export function createAutomationRoutes(deps: {
                   : {}),
                 ...(body.data.projectId !== undefined
                   ? { projectId: body.data.projectId }
+                  : {}),
+                ...(body.data.baseVersion !== undefined
+                  ? { baseVersion: body.data.baseVersion }
                   : {}),
               }).catch((error: unknown) => {
                 storeError = error;

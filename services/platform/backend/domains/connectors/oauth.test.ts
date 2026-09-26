@@ -154,6 +154,8 @@ describe('storeOauth2Grant', () => {
       secret: TOKENS,
       status: 'active',
       statusDetail: null,
+      // The renewal is audited under the person who completed the grant.
+      actor: { userId: 'user-1' },
     });
   });
 

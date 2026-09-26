@@ -35,7 +35,7 @@ Verwerfen im Seitenkopf setzt ausstehende Formularänderungen zurück. Ein berei
 
 ## Die Akzentfarbe ändern
 
-Bearbeite **Akzentfarbe** und prüfe die Vorschau. Mit **Speichern** im Seitenkopf übernimmst du die Änderung; **Verwerfen** stellt den gespeicherten Wert wieder her. Das Farbfeld zeigt den Wert für das aktuelle Design. Eine abgeleitete Farbe im dunklen Design kann deshalb vom gespeicherten Wert für das helle Design abweichen.
+Bearbeite **Akzentfarbe** und prüfe die Vorschau. Mit **Speichern** im Seitenkopf übernimmst du die Änderung; **Verwerfen** stellt den gespeicherten Wert wieder her. Das Farbfeld zeigt den Wert für das aktuelle Design. Eine abgeleitete Farbe im dunklen Design kann deshalb vom gespeicherten Wert für das helle Design abweichen. Das Speichern einer Änderung sowie das Hochladen oder Entfernen eines Bildes hinterlassen je einen Eintrag im Audit-Log unter **Einstellungen > Richtlinien > Protokolle**.
 
 Lade die Seite nach dem Speichern neu und prüfe einen ausgewählten Navigationseintrag, eine Schaltfläche und den Tastaturfokus. Eine Farbe, die als große Fläche gut aussieht, ist in einem kleinen Bedienelement nicht unbedingt gut erkennbar.
 

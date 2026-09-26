@@ -74,6 +74,14 @@ nationalIds:
   - id: se-passport
     name: Swedish Passport Number
     pattern: \b\d{8}\b
+    contextKeywords:
+      - passnummer
+      - passnr
+      - pass nr
+      - pass-nr
+      - passport number
+      - passport no
+      - passport
     replacement: '[PASSPORT]'
 dateOfBirth:
   monthsLong:

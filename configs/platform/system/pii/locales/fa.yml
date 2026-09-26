@@ -51,6 +51,13 @@ nationalIds:
   - id: ir-national-id
     name: Iranian National ID
     pattern: \b\d{10}\b
+    contextKeywords:
+      - کد ملی
+      - کدملی
+      - شماره ملی
+      - شماره ملي
+      - national id
+      - national code
     replacement: '[IR_ID]'
 dateOfBirth:
   monthsLong:

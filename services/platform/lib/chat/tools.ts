@@ -447,7 +447,10 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'orders hits within one response only. ' +
     'Document, web-page and task rows carry a "ref" for rag_fetch; contact, ' +
     'product, knowledge-entry, website and project rows carry their content ' +
-    'inline and cannot be fetched. Never present one page of a list as the ' +
+    'inline and cannot be fetched. A "snippet" that ends in "…(+N chars)" ' +
+    'is cut: when what you need is not in it, rag_fetch the ref at the ' +
+    'hit\'s "offset" before answering that the source does not hold it. ' +
+    'Never present one page of a list as the ' +
     'whole set: when "hasMore" is true, pass the "continueCursor" back as ' +
     '"cursor", or say which part you saw. Ignore rows that do not answer ' +
     'the question. When a search comes back empty or unhelpful, do not ' +
@@ -462,8 +465,9 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'question needs more than the title and status a search hit already ' +
     "carried. A project ref returns that project's tasks, which is how you " +
     'answer "the project has 8 open tasks, which ones?". ' +
-    'Fetch before quoting or summarizing content — a search hit ' +
-    'is only a snippet. When an attachment already names its ref, fetch it ' +
+    'Fetch before quoting or summarizing content, and before concluding ' +
+    'that a source does not hold a fact — a search hit is only a snippet, ' +
+    'cut where it ends in "…(+N chars)". When an attachment already names its ref, fetch it ' +
     'directly; do not rag_search the organization for a file whose ref you ' +
     'already hold. Reads a window of up to 20000 characters; "offset" and ' +
     '"limit" select an exact range, and a truncated result reports the ' +

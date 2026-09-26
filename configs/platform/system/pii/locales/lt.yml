@@ -48,6 +48,11 @@ nationalIds:
   - id: lt-personal-code
     name: Lithuanian Personal Code
     pattern: \b[3456]\d{10}\b
+    contextKeywords:
+      - asmens kodas
+      - asmens kodą
+      - a.k.
+      - personal code
     replacement: '[LT_ID]'
 dateOfBirth:
   monthsLong:

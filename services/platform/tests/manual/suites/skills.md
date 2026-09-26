@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 18 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 19 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) any chat or agent can read. Covers the settings table with its facets,
@@ -138,6 +138,17 @@ builtin skill from `configs/platform/custom/skills/`.
   not); with none the empty line reads `chat.skills.emptySkills`; the trigger
   shows the count (`chat.skills.labelWithCount`) and the selection survives
   reopening the dialog. Agent depth is [projects.md](projects.md)'s job.
+- [ ] `SKILL-F13` · **Deleting an equipped skill unequips it** — Create a
+  skill, equip it on a project agent (the row reads **1 equipped**), then
+  Settings → Skills → open it → **Delete skill** → confirm
+  (`skills.deleteConfirmation`) → The agent's row no longer counts it, its
+  dialog opens with **Skills (0)** and saves any other change (model,
+  instructions) without a refusal, a run started from it starts normally,
+  and Governance → Logs carries a **Skill deleted** row
+  (`settings.logs.audit.actionLabels.skill.deleted`) naming the agent. A
+  skill that is merely unshared from the project's scope instead shows in
+  the dialog's skills menu as **"<slug>" (unavailable)**
+  (`chat.skills.unavailableOption`), checked, so it can be unticked.
 
 ## Boundary & error tests
 

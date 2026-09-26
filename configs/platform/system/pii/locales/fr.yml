@@ -156,6 +156,7 @@ nationalIds:
   - id: fr-nir
     name: French NIR (INSEE)
     pattern: \b[12]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{3}\s?\d{3}\s?\d{2}\b
+    checksum: fr-nir
     replacement: '[FRENCH_NIR]'
   - id: fr-passport
     name: French Passport Number

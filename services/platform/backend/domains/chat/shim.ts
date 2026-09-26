@@ -980,10 +980,16 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           phone: string | null;
           tags: string[];
           lifecycleStatus: string | null;
+          externalId: string | null;
+          source: string;
+          locale: string | null;
+          address: Record<string, unknown> | null;
+          notes: string | null;
         }[]
       >`
         SELECT name, email, phone, tags,
-               lifecycle_status AS "lifecycleStatus"
+               lifecycle_status AS "lifecycleStatus",
+               external_id AS "externalId", source, locale, address, notes
         FROM app.contacts
         WHERE org_id = ${args.organizationId}
           -- The contacts domain hides trashed rows from every read; a
@@ -999,10 +1005,14 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return pageOf(
         rows.map((row) =>
           Object.assign(
-            { tags: row.tags },
+            { tags: row.tags, source: row.source },
             row.name !== null ? { name: row.name } : {},
             row.email !== null ? { email: row.email } : {},
             row.phone !== null ? { phone: row.phone } : {},
+            row.externalId !== null ? { externalId: row.externalId } : {},
+            row.locale !== null ? { locale: row.locale } : {},
+            row.address !== null ? { address: row.address } : {},
+            row.notes !== null ? { notes: row.notes } : {},
             row.lifecycleStatus !== null
               ? { lifecycleStatus: row.lifecycleStatus }
               : {},
@@ -1026,13 +1036,19 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const rows = await sql<
         {
           name: string;
+          description: string | null;
+          imageUrl: string | null;
           category: string | null;
           price: number | null;
+          currency: string | null;
           stock: number | null;
+          tags: string[];
           status: string | null;
+          externalId: string | null;
         }[]
       >`
-        SELECT name, category, price, stock, status
+        SELECT name, description, image_url AS "imageUrl", category, price,
+               currency, stock, tags, status, external_id AS "externalId"
         FROM app.products
         WHERE org_id = ${args.organizationId}
           AND (${term === ''} OR name ILIKE ${like} OR category ILIKE ${like}
@@ -1047,11 +1063,15 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return pageOf(
         rows.map((row) =>
           Object.assign(
-            { name: row.name },
+            { name: row.name, tags: row.tags },
+            row.description !== null ? { description: row.description } : {},
+            row.imageUrl !== null ? { imageUrl: row.imageUrl } : {},
             row.category !== null ? { category: row.category } : {},
             row.price !== null ? { price: row.price } : {},
+            row.currency !== null ? { currency: row.currency } : {},
             row.stock !== null ? { stock: row.stock } : {},
             row.status !== null ? { status: row.status } : {},
+            row.externalId !== null ? { externalId: row.externalId } : {},
           ),
         ),
         bounds,

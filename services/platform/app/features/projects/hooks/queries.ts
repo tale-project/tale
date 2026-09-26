@@ -1,3 +1,5 @@
+import { useCallback } from 'react';
+
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -105,16 +107,23 @@ export function useProjectsOverview(
   organizationId: string,
   options: { includeArchived: boolean },
 ) {
-  const { data, isLoading } = useBackendQuery(
+  const { data, isLoading, isError, error, refetch } = useBackendQuery(
     'projects/queries:listProjectsOverview',
     projectsOverviewArgs(organizationId, options.includeArchived),
   );
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
   return {
     projects: data?.projects ?? [],
     // Global to the scan, so a truncated walk makes every row's overdue
     // number a lower bound.
     overdueTruncated: data?.overdueTruncated ?? false,
     isLoading,
+    // A failed read is the list's to show, not to pass off as "no projects
+    // yet" (2026-09-26 evaluation, G-07).
+    error: isError ? error : null,
+    retry,
   };
 }
 

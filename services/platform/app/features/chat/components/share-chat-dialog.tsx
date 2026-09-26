@@ -73,6 +73,7 @@ function ShareChatDialogContent({
   open,
   onOpenChange,
   threadId,
+  viewThreadId,
   organizationId,
 }: ShareChatDialogProps) {
   const { t } = useT('chat');
@@ -109,7 +110,10 @@ function ShareChatDialogContent({
     setPending(true);
     setPublishFailed(false);
     try {
-      const token = await sharing.share(threadId);
+      // The snapshot is the branch on screen — the version of each edited
+      // or regenerated turn the owner is looking at; a re-publish
+      // ("Include newer messages") re-takes it from the same place.
+      const token = await sharing.share(threadId, viewThreadId);
       if (token === null) {
         setPublishFailed(true);
         toast({
@@ -122,7 +126,7 @@ function ShareChatDialogContent({
     } finally {
       setPending(false);
     }
-  }, [isShareable, sharing, t, threadId]);
+  }, [isShareable, sharing, t, threadId, viewThreadId]);
 
   const unshare = useCallback(async () => {
     setPending(true);
@@ -266,7 +270,11 @@ function ShareChatDialogContent({
 interface ShareChatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The lineage root — the id the URL and the share link name. */
   threadId: string;
+  /** The sibling on screen (the root itself when no edit / regenerate
+   * version is selected); the snapshot is frozen to it. */
+  viewThreadId: string;
   organizationId: string;
 }
 

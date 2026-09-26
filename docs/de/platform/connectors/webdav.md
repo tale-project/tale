@@ -71,10 +71,10 @@ WebDAV-Uploads folgen den Dokumentberechtigungen und Indexierungsregeln; ihre Qu
 
 Ein kompatibler Editor kann eine Datei während der Bearbeitung sperren. Ein konkurrierender Schreibzugriff erhält **423 Locked**. Beende die andere Bearbeitung, statt wiederholt zu überschreiben. Der Widerruf eines App-Passworts löst auch seine Dateisperren.
 
-Unter `.trash/` liegen vorläufig gelöschte Dokumente schreibgeschützt. Lade eine noch gespeicherte Datei bei Bedarf zur Prüfung herunter und stelle sie über Tale wieder her. Endgültig entfernte Dateien lassen sich dort nicht zurückholen.
+Unter `.trash/` liegen vorläufig gelöschte Dokumente schreibgeschützt. Lade eine noch gespeicherte Datei bei Bedarf zur Prüfung herunter und stelle sie über Tale wieder her. Endgültig entfernte Dateien lassen sich dort nicht zurückholen. Eine Datei, die du über WebDAV hochlädst, überschreibst, kopierst oder löschst, hinterlässt in deinem Namen einen Eintrag im Audit-Log unter **Einstellungen > Richtlinien > Protokolle**; eine Löschung erscheint dort als in den Papierkorb verschobenes Dokument.
 
 ## Einen Zugang widerrufen oder reparieren
 
-Wähle an der Passwortzeile **Widerrufen** und bestätige. Künftige Anfragen damit werden abgelehnt; andere App-Passwörter bleiben nutzbar. Der Widerruf ist nicht umkehrbar. Stelle den Client bei Bedarf auf ein neues Passwort um.
+Wähle an der Passwortzeile **Widerrufen** und bestätige. Künftige Anfragen damit werden abgelehnt; andere App-Passwörter bleiben nutzbar. Der Widerruf ist nicht umkehrbar. Stelle den Client bei Bedarf auf ein neues Passwort um. Das Erzeugen und das Widerrufen eines App-Passworts hinterlassen je einen Eintrag im Audit-Log unter **Einstellungen > Richtlinien > Protokolle**.
 
 Bei wiederholten Anmeldeaufforderungen prüfe die genaue URL, Organisationsmitgliedschaft und einen möglichen Widerruf. Eine fehlende Berechtigung nach der Anmeldung unterscheidet sich von einem falschen Passwort. Die [WebDAV-API-Referenz](/de/develop/webdav-api) erklärt Statuscodes und Protokolldiagnose. Für Software mit REST-Zugriff dienen stattdessen [API-Schlüssel](/de/platform/admin/api-keys).

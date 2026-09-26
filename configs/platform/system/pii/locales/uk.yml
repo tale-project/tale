@@ -60,6 +60,13 @@ nationalIds:
   - id: ua-inn
     name: Ukrainian Tax ID (ІПН)
     pattern: \b\d{10}\b
+    contextKeywords:
+      - ІПН
+      - РНОКПП
+      - ідентифікаційний код
+      - ідентифікаційний номер
+      - податковий номер
+      - tax id
     replacement: '[UA_INN]'
 dateOfBirth:
   monthsLong:

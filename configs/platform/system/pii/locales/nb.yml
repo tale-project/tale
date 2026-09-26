@@ -52,6 +52,13 @@ nationalIds:
   - id: no-fodselsnummer
     name: Norwegian Fødselsnummer
     pattern: \b\d{6}\s?\d{5}\b
+    contextKeywords:
+      - fødselsnummer
+      - fødselsnr
+      - f.nr
+      - fnr
+      - personnummer
+      - d-nummer
     replacement: '[NO_ID]'
 dateOfBirth:
   monthsLong:

@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 45 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 48 boxes
 
 Exercise the org-level **Inbox** — the standalone
 `/dashboard/{org}/conversations` surface (user-visible name: **Inbox**,
@@ -394,6 +394,14 @@ rows lead with the subject.
   → no Add row; as a **member** who cannot write contacts, type any unknown
   address → no Add row and no hint, and the field still searches and selects
   normally. No console error in any case.
+- [ ] `CONV-B6` · **A torn-down mirror keeps its transcript** — With an
+  owner's API key, `POST /api/v1/conversations/sync` a mirror with two
+  messages (version 1, `status: open`), then the same thread as version 2
+  with `status: closed`, `deleted: true` and `messages: []` → 200
+  `applied: true`; open the conversation under **Closed** and reload → both
+  messages are still shown (never **"No messages yet"**), the reply box is
+  refused, and `GET /api/v1/conversations/sync?source=…&externalId=…` reads
+  `sourceDeleted: true`, `status: closed`.
 
 ## Accessibility (WCAG 2.1 AA)
 

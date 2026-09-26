@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 35 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), and the task
@@ -247,6 +247,15 @@ projects-list row ⋯ menu.
   a team on **General** asks for confirmation that members outside the
   remaining teams lose access before it saves; clearing every team makes the
   row read `projects.list.sharingOrgWide`.
+
+- [ ] `PROJ-F25` · **A failed list read is an error, not an empty list** — In
+  DevTools, block `GET /api/app/projects/overview` (or answer it 500) and
+  open `/dashboard/{org}/projects` → After the retries the table shows the
+  error state **Something went wrong** with **Try again**
+  (`common.errors.somethingWentWrong`, `common.errors.tryAgain`) — never
+  **"No projects yet"** for an organization that has projects. Unblock the
+  request and click **Try again** → the rows appear without navigating away;
+  alternatively switch tabs and back → the list refetches on its own.
 
 ## Boundary & error tests
 

@@ -263,6 +263,7 @@ export async function trustedHeadersAuthenticate(
     try {
       const syncResult = await syncTeamsFromGroupNames(sql, {
         userId: result.userId,
+        userEmail: email,
         organizationId: result.organizationId,
         groupNames: args.teams.map((team) => team.name),
         excludeGroups: [],

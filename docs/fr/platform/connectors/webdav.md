@@ -71,10 +71,10 @@ L’envoi WebDAV suit les permissions et l’indexation des documents ; sa sour
 
 Un éditeur compatible peut verrouiller un fichier pendant sa modification. Une écriture concurrente reçoit **423 Locked**. Termine ou ferme l’autre session plutôt que de répéter l’écrasement. Révoquer un mot de passe applicatif libère aussi ses verrous.
 
-La zone `.trash/` liste en lecture seule les documents supprimés provisoirement. Télécharge un fichier encore conservé pour l’examiner et utilise Tale pour le restaurer. Cette zone ne récupère pas un fichier déjà supprimé définitivement.
+La zone `.trash/` liste en lecture seule les documents supprimés provisoirement. Télécharge un fichier encore conservé pour l’examiner et utilise Tale pour le restaurer. Cette zone ne récupère pas un fichier déjà supprimé définitivement. Un fichier que tu charges, écrases, copies ou supprimes via WebDAV laisse une entrée à ton nom dans le journal d’audit, sous **Paramètres > Gouvernance > Journaux** ; une suppression y figure comme un document mis à la corbeille.
 
 ## Révoquer ou réparer une connexion
 
-Choisis **Révoquer** sur la ligne du mot de passe et confirme. Les requêtes suivantes avec ce mot de passe sont refusées ; les autres mots de passe restent utilisables. La révocation est irréversible. Configure un nouveau mot de passe dans le client si nécessaire.
+Choisis **Révoquer** sur la ligne du mot de passe et confirme. Les requêtes suivantes avec ce mot de passe sont refusées ; les autres mots de passe restent utilisables. La révocation est irréversible. Configure un nouveau mot de passe dans le client si nécessaire. La génération et la révocation d’un mot de passe d’application laissent chacune une entrée dans le journal d’audit, sous **Paramètres > Gouvernance > Journaux**.
 
 En cas de demandes de connexion répétées, vérifie l’URL exacte, ton appartenance à l’organisation et une éventuelle révocation. Un refus de permission après authentification diffère d’un mot de passe incorrect. La [référence API WebDAV](/fr/develop/webdav-api) explique les codes et le diagnostic du protocole. Les logiciels qui utilisent REST emploient plutôt des [clés API](/fr/platform/admin/api-keys).

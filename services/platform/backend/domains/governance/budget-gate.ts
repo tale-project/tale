@@ -1,6 +1,7 @@
 import type { BudgetRule } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { usageLedgerSubjectForms } from '../../../lib/shared/constants/usage.ts';
 import {
   findOrganizationMember,
   getUserTeamIds,
@@ -58,6 +59,12 @@ export type UsageScope =
  * ledger's `team_id`: most lanes (chat, tools, agent turns) book no team,
  * and a member of two teams counts toward both team caps without the
  * organization's total counting them twice.
+ *
+ * A person's spend is matched under every form the ledger ever booked it
+ * as — the bare id and the legacy door forms (`user:<id>`, `api-key:<id>`)
+ * the workflow lane wrote before it derived the person from the run's
+ * starter — so a cap sees the member's whole spend, whichever door it came
+ * through (`governance/README.md`).
  */
 export async function periodUsage(
   sql: Sql | TransactionSql,
@@ -74,7 +81,7 @@ export async function periodUsage(
                coalesce(sum(request_count), 0)::float8 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND user_id = ${scope.userId}
+          AND user_id = ANY(${usageLedgerSubjectForms(scope.userId)})
       `;
       break;
     case 'team':
@@ -84,7 +91,7 @@ export async function periodUsage(
                coalesce(sum(request_count), 0)::float8 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND user_id IN (
+          AND regexp_replace(user_id, '^(user|api-key):', '') IN (
             SELECT tm."userId" FROM "teamMember" tm
             JOIN "team" t ON t."id" = tm."teamId"
             WHERE tm."teamId" = ${scope.teamId}

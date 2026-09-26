@@ -70,7 +70,7 @@ A facet that matches one field exactly can live in the hook through `filters.def
 | Collection has no items | `emptyState` explaining the collection and how to create the first item. |
 | Active search has no matches | The table's shared no-results state; preserve a way to clear the query. |
 | More cursor pages could contain matches | Continue loading; do not claim the entire collection has no results yet. |
-| Request failed | `error` plus `onRetry`, preserving the reader's query. |
+| Request failed | `error` plus `onRetry`, preserving the reader's query. `useListPage` derives both from the data source's `error` and `retry`: hand it the query's error once the retry policy gave up, and the table shows the error state instead of the collection's empty state; rows already loaded stay on screen through a failed refetch. |
 
 An unknown approximate count is `undefined`, not zero. Positive counts reserve skeleton rows up to the component cap. A create action moves into the initial empty state only when no search/filter toolbar needs to remain visible.
 

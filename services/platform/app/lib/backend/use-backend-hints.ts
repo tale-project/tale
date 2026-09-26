@@ -1,6 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
+import { isStructuredBackendError } from '@/app/hooks/use-action-query';
+
 import { eventsUrl } from './api-client';
 import { reportBackendReachable } from './connection-state';
 import { backendEntityPrefix, backendOrgPrefix } from './query-keys';
@@ -91,6 +93,15 @@ export function useBackendHints(orgId: string | undefined): void {
           queryKey: backendOrgPrefix(org),
         });
       }
+      // The backend answering again is the moment a read that failed on
+      // a fault gets its retry: a list stuck on its error heals itself
+      // when the outage ends (2026-09-26 evaluation, G-07).
+      void queryClient.refetchQueries({
+        queryKey: backendOrgPrefix(org),
+        predicate: (query) =>
+          query.state.status === 'error' &&
+          !isStructuredBackendError(query.state.error),
+      });
     };
     // The replay had a hole: hints between the reconnect cursor and now were
     // reclaimed, so nothing the cache holds for this org can be trusted.

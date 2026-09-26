@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 71 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 72 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -532,6 +532,14 @@ any toggled setting after the run.
   (`settings.account.role.manageLink`) to `/dashboard/{org}/settings/members`;
   hovering the name in the profile menu reads the name and the same translated
   role.
+- [ ] `SET-F46` · **Typing a hex one character at a time** —
+  `/dashboard/{org}/settings/branding` → click the **Accent color hex value**
+  field (`settings.branding.hexValueAria`) and type `E`, `1`, `1`, `D`, `4`,
+  `8` one keystroke at a time → The page stays responsive after every
+  keystroke (no frozen tab, no CPU spin); the **Branding preview** keeps the
+  last complete color until all six digits are in, then re-tints to
+  `#E11D48`; **Save** stays disabled while the value is shorter than six
+  digits.
 
 ## Boundary & error tests
 

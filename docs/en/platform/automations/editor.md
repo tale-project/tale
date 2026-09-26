@@ -38,7 +38,7 @@ Open **Control flow** for conditions and iteration. Click the empty canvas, **Cl
 ## Save and test a version
 
 1. Edit the required fields and click **Save**.
-2. Enter a **Version message** that explains the change, then **Save version**. This appends a version and preserves earlier ones.
+2. Enter a **Version message** that explains the change, then **Save version**. This appends a version and preserves earlier ones. If someone saved another version while you were editing, Tale refuses the save and asks: **Discard my changes and reload** shows the newer version, **Save anyway** appends your version on top of it — the newer one stays in the version history, but the latest version is then yours.
 3. Click **Test run**. If the workflow declares an input schema, fill **Run input (JSON)** in the dialog. Expand **Input schema** to inspect required fields and types. Invalid JSON or a schema mismatch prevents the start.
 4. Start the test, switch to the **Runs** tab and inspect its row. Open it to compare the resolved input, output, and proposed operations with your expected result.
 

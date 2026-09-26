@@ -39,6 +39,7 @@ nationalIds:
   - id: jp-my-number
     name: Japanese Individual Number (My Number)
     pattern: \b\d{12}\b
+    checksum: jp-mynumber
     replacement: '[MY_NUMBER]'
   - id: jp-passport
     name: Japanese Passport Number

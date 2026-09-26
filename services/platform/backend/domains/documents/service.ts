@@ -58,6 +58,12 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { purgeDocument } from '../retention/service.ts';
+import {
+  auditDocumentCreated,
+  auditDocumentRemoved,
+  auditFolderDeleted,
+  documentActor,
+} from './audit.ts';
 import { emitDocumentChangeHints } from './hints.ts';
 
 /**
@@ -525,22 +531,12 @@ export async function createDocumentFromUpload(
       END
     WHERE id = ${args.fileId}
   `;
-  await createAuditLog(tx, {
-    organizationId: auth.organizationId,
-    actorId: auth.userId,
-    ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-    actorType: 'user',
-    action: 'document.created',
-    category: 'data',
-    resourceType: 'document',
-    resourceId: documentId,
-    resourceName: args.fileName,
-    metadata: {
-      sourceProvider: 'upload',
-      projectId: args.projectId ?? null,
-      teamIds: effectiveTeamIds,
-    },
-    status: 'success',
+  await auditDocumentCreated(tx, documentActor(auth), {
+    documentId,
+    title: args.fileName,
+    sourceProvider: 'upload',
+    projectId: args.projectId ?? null,
+    teamIds: effectiveTeamIds,
   });
   await emitDocumentChangeHints(tx, {
     orgId: auth.organizationId,
@@ -1106,18 +1102,10 @@ export async function createHubDocument(
       },
     );
   }
-  await createAuditLog(tx, {
-    organizationId: auth.organizationId,
-    actorId: auth.userId,
-    ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-    actorType: 'api',
-    action: 'document.created',
-    category: 'data',
-    resourceType: 'document',
-    resourceId: documentId,
-    resourceName: title,
-    metadata: { sourceProvider: args.sourceProvider ?? 'api_import' },
-    status: 'success',
+  await auditDocumentCreated(tx, documentActor(auth, 'api'), {
+    documentId,
+    title,
+    sourceProvider: args.sourceProvider ?? 'api_import',
   });
   await emitDocumentChangeHints(tx, {
     orgId: auth.organizationId,
@@ -2196,16 +2184,10 @@ export async function deleteDocumentHard(
       organizationId: doc.organizationId,
       metadata: doc.metadata,
     });
-    await createAuditLog(tx, {
-      organizationId: auth.organizationId,
-      actorId: auth.userId,
-      ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-      actorType: 'user',
-      action: 'document.deleted',
-      category: 'data',
-      resourceType: 'document',
-      resourceId: documentId,
-      ...(doc.title !== null ? { resourceName: doc.title } : {}),
+    await auditDocumentRemoved(tx, documentActor(auth), {
+      documentId,
+      title: doc.title,
+      mode: 'purged',
       metadata: {
         controlled: doc.record !== null,
         ...(doc.record !== null
@@ -2215,7 +2197,6 @@ export async function deleteDocumentHard(
             }
           : {}),
       },
-      status: 'success',
     });
     await emitDocumentChangeHints(tx, {
       orgId: auth.organizationId,
@@ -2291,18 +2272,10 @@ export async function deleteFolderCascade(
       DELETE FROM app.folders
       WHERE id = ${folderId} AND org_id = ${auth.organizationId}
     `;
-    await createAuditLog(tx, {
-      organizationId: auth.organizationId,
-      actorId: auth.userId,
-      ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
-      actorType: 'user',
-      action: 'folder.deleted',
-      category: 'data',
-      resourceType: 'folder',
-      resourceId: folderId,
-      resourceName: folder.name,
+    await auditFolderDeleted(tx, documentActor(auth), {
+      folderId,
+      name: folder.name,
       metadata: { deletedDocumentCount: docs.length },
-      status: 'success',
     });
     // A project folder's deletion flips `folderExists` on every task bound
     // to it — the same task hint a document change in it owes.

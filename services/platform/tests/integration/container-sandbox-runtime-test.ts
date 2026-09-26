@@ -239,6 +239,66 @@ await assertOk(
   10001,
   'test -x /usr/local/bin/tale-qwen-run',
 );
+// The pinned Codex accepts the managed argv shape and gets as far as its
+// own protocol: with its state root present it announces the thread before
+// it ever reaches a model (the provider here is unreachable on purpose).
+// Without the root it dies on stderr with "Error finding codex home", exit
+// 1 and no JSON at all — what every managed Codex run hit while the
+// entrypoint never created the directory (2026-09-26 evaluation, C-08).
+await assertContains(
+  'codex exec starts against its state root and speaks its protocol',
+  10001,
+  '"type":"thread.started"',
+  // The managed argv of `lib/harnesses/fixtures/exec/codex.yml` (TOML values
+  // quoted, the prompt on stdin), pointed at a port nothing listens on.
+  [
+    'mkdir -p /workspace/.codex && cd /workspace && echo ping |',
+    'CODEX_HOME=/workspace/.codex TALE_GATEWAY_TOKEN=unused codex exec',
+    '--json --skip-git-repo-check',
+    `-c 'approval_policy="never"' -c 'sandbox_mode="danger-full-access"'`,
+    `-c 'web_search="disabled"' -c 'model_provider="tale"'`,
+    `-c 'model_providers.tale.name="Tale Gateway"'`,
+    `-c 'model_providers.tale.base_url="http://127.0.0.1:9/openai/v1"'`,
+    `-c 'model_providers.tale.env_key="TALE_GATEWAY_TOKEN"'`,
+    `-c 'model_providers.tale.wire_api="responses"'`,
+    `-c 'model_providers.tale.request_max_retries=0'`,
+    `-c 'model_providers.tale.stream_max_retries=0'`,
+    '-m probe - 2>&1 || true',
+  ].join(' '),
+);
+// The entrypoint creates every harness state root a harness.yml points at
+// under HOME, or the harness refuses to start (Codex above). Registry and
+// entrypoint are pinned to each other here, in the lane that cannot run
+// the entrypoint itself.
+{
+  const harnessesDir = join(PROJECT_ROOT, 'configs/platform/system/harnesses');
+  const entrypoint = readFileSync(
+    join(PROJECT_ROOT, 'services/sandbox-runtime/entrypoint.sh'),
+    'utf8',
+  );
+  const roots = readdirSync(harnessesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => {
+      const facts = parseYaml(
+        readFileSync(join(harnessesDir, entry.name, 'harness.yml'), 'utf8'),
+      ) as { env?: { base?: Record<string, string> } };
+      return Object.values(facts.env?.base ?? {})
+        .filter((value) => value.startsWith('/agent/.runtime/home/'))
+        .map((value) => ({ slug: entry.name, root: value }));
+    });
+  for (const { slug, root } of roots) {
+    if (
+      entrypoint.includes(`    ${root} \\`) ||
+      entrypoint.includes(`    ${root}\n`)
+    ) {
+      pass(`entrypoint creates ${slug}'s state root ${root}`);
+    } else {
+      fail(
+        `entrypoint does not create ${slug}'s state root ${root} (harness.yml env.base)`,
+      );
+    }
+  }
+}
 // The registry is the contract: every harness the platform advertises as
 // runnable on a managed credential must have its exec binary on the agent
 // PATH — a harness.yml added (or a wrapper renamed) without the image
