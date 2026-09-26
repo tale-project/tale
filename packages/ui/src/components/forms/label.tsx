@@ -51,7 +51,7 @@ export const Label = forwardRef<
           explicitly-optional → muted "(optional)" hint; left undefined → no
           suffix (the default, for labels not tied to a field). */}
       {required === false ? (
-        <span className="text-muted-foreground/70 ml-1 text-xs font-normal lowercase">
+        <span className="text-muted-foreground ml-1 text-xs font-normal lowercase">
           ({t('optional')})
         </span>
       ) : null}

@@ -13,6 +13,27 @@ vi.mock('@tale/ui/i18n/client', () => ({
 }));
 
 describe('AssigneeAvatar', () => {
+  it.each(['user', 'agent', 'app'] as const)(
+    'exposes the %s avatar as a named image',
+    (assigneeType) => {
+      render(
+        <AssigneeAvatar
+          assigneeType={assigneeType}
+          assigneeId="actor-1"
+          name="Issues Audit"
+        />,
+      );
+      expect(screen.getByRole('img', { name: 'Issues Audit' })).toBeVisible();
+    },
+  );
+
+  it('exposes the unassigned avatar as a named image', () => {
+    render(<AssigneeAvatar />);
+    expect(
+      screen.getByRole('img', { name: 'assignee.unassigned' }),
+    ).toBeVisible();
+  });
+
   it('uses the muted chip for another human', () => {
     render(
       <AssigneeAvatar
