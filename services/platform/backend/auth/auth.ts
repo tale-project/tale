@@ -27,6 +27,10 @@ import { getClientIp } from '../core/lib/utils/client_ip.ts';
 import { resolvePostgresConnection } from '../db/ssl.ts';
 import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
 import {
+  recordUserScopedSecurityEvent,
+  userEmail,
+} from '../domains/audit_logs/user-scoped.ts';
+import {
   clearOnSuccess,
   getLockState,
   recordBlocked,
@@ -132,6 +136,121 @@ function sessionPayloadUser(
   if (!isRecord(user) || typeof user.id !== 'string') return null;
   const email = typeof user.email === 'string' ? user.email : undefined;
   return { id: user.id, ...(email !== undefined ? { email } : {}) };
+}
+
+/**
+ * The API-key LIFECYCLE endpoints. `@better-auth/api-key` exposes no hooks
+ * of its own, so create / revoke / update are audited from the after-hook.
+ * A key is a bearer credential valid in every organization of its holder,
+ * so each event lands in every one of them — the second-factor posture.
+ */
+const API_KEY_CREATE_PATH = '/api-key/create';
+const API_KEY_DELETE_PATH = '/api-key/delete';
+const API_KEY_UPDATE_PATH = '/api-key/update';
+/** Update-body fields that address the key rather than change it. */
+const API_KEY_ADDRESSING_FIELDS = new Set(['keyId', 'configId', 'userId']);
+
+interface ApiKeyLifecycle {
+  action: 'api_key.created' | 'api_key.revoked' | 'api_key.updated';
+  /** The key holder: the session's user, else the row's owner. */
+  userId: string;
+  email?: string;
+  keyId: string;
+  name?: string;
+  newState?: Record<string, unknown>;
+  changedFields?: string[];
+}
+
+/** An `expiresAt` as the plugin returns it (a Date in-process, a string
+ * once serialized, a number in some adapters), as epoch ms, or null. */
+function toEpochMs(value: unknown): number | null {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const ms = Date.parse(value);
+    return Number.isNaN(ms) ? null : ms;
+  }
+  return null;
+}
+
+/**
+ * Classify an API-key endpoint's outcome for the audit trail, or null when
+ * the path is another one or the call was refused. The plaintext key on a
+ * create response is read for its last four characters only — the
+ * `start … suffix` masking convention the table renders — and never
+ * recorded whole.
+ */
+function resolveApiKeyLifecycle(mw: {
+  path: string;
+  body: unknown;
+  context: { returned?: unknown; session?: unknown };
+}): ApiKeyLifecycle | null {
+  if (
+    mw.path !== API_KEY_CREATE_PATH &&
+    mw.path !== API_KEY_DELETE_PATH &&
+    mw.path !== API_KEY_UPDATE_PATH
+  ) {
+    return null;
+  }
+  const returned = mw.context.returned;
+  if (returned instanceof APIError || !isRecord(returned)) return null;
+  // Create and update also serve server-side calls that carry no session;
+  // the returned row then names its owner.
+  const session = sessionPayloadUser(mw.context.session);
+  const userId =
+    session?.id ??
+    getString(returned, 'referenceId') ??
+    getString(returned, 'userId');
+  if (userId === undefined) return null;
+  const base = {
+    userId,
+    ...(session?.email !== undefined ? { email: session.email } : {}),
+  };
+  if (mw.path === API_KEY_DELETE_PATH) {
+    const keyId = isRecord(mw.body) ? getString(mw.body, 'keyId') : undefined;
+    if (keyId === undefined || returned.success !== true) return null;
+    return { ...base, action: 'api_key.revoked', keyId };
+  }
+  const keyId = getString(returned, 'id');
+  if (keyId === undefined) return null;
+  const name = getString(returned, 'name');
+  const named = name !== undefined ? { name } : {};
+  const expiresAt = toEpochMs(returned.expiresAt);
+  if (mw.path === API_KEY_CREATE_PATH) {
+    const plaintext = getString(returned, 'key');
+    return {
+      ...base,
+      ...named,
+      action: 'api_key.created',
+      keyId,
+      newState: {
+        name: name ?? null,
+        start: getString(returned, 'start') ?? null,
+        suffix:
+          plaintext !== undefined && plaintext.length > 4
+            ? plaintext.slice(-4)
+            : null,
+        expiresAt,
+      },
+    };
+  }
+  const changedFields = isRecord(mw.body)
+    ? Object.keys(mw.body)
+        .filter((key) => !API_KEY_ADDRESSING_FIELDS.has(key))
+        .sort()
+    : [];
+  return {
+    ...base,
+    ...named,
+    action: 'api_key.updated',
+    keyId,
+    changedFields,
+    newState: {
+      name: name ?? null,
+      enabled: typeof returned.enabled === 'boolean' ? returned.enabled : null,
+      expiresAt,
+    },
+  };
 }
 
 // Random delay (ms) added to lockout responses to fuzz the timing channel
@@ -827,7 +946,7 @@ export function createAuth(config: AuthConfig) {
 
         // Persist the trailing plaintext chars of a freshly created API key
         // (`start … suffix` masking convention). Non-fatal on failure.
-        if (mw.path === '/api-key/create') {
+        if (mw.path === API_KEY_CREATE_PATH) {
           const returned = mw.context.returned;
           const id = isRecord(returned) ? getString(returned, 'id') : null;
           const plaintext = isRecord(returned)
@@ -845,6 +964,40 @@ export function createAuth(config: AuthConfig) {
                 error instanceof Error ? error.message : error,
               );
             }
+          }
+        }
+
+        // API-key lifecycle audit: create / revoke / update, one row per
+        // organization the holder belongs to. Non-fatal like the
+        // second-factor rows — the key already exists (or is already gone).
+        const apiKeyEvent = resolveApiKeyLifecycle(mw);
+        if (apiKeyEvent !== null) {
+          try {
+            const email =
+              apiKeyEvent.email ?? (await userEmail(sql, apiKeyEvent.userId));
+            await recordUserScopedSecurityEvent(sql, {
+              userId: apiKeyEvent.userId,
+              action: apiKeyEvent.action,
+              resourceType: 'api_key',
+              resourceId: apiKeyEvent.keyId,
+              ...(apiKeyEvent.name !== undefined
+                ? { resourceName: apiKeyEvent.name }
+                : {}),
+              ...(email !== undefined ? { actorEmail: email } : {}),
+              ...(ip !== undefined ? { ip } : {}),
+              ...(userAgent !== undefined ? { userAgent } : {}),
+              ...(apiKeyEvent.newState !== undefined
+                ? { newState: apiKeyEvent.newState }
+                : {}),
+              ...(apiKeyEvent.changedFields !== undefined
+                ? { changedFields: apiKeyEvent.changedFields }
+                : {}),
+            });
+          } catch (error) {
+            console.error(
+              `[api-key] failed to write the ${apiKeyEvent.action} audit row`,
+              error instanceof Error ? error.message : error,
+            );
           }
         }
         return undefined;

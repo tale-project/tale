@@ -27,6 +27,7 @@ import {
   type EncryptedSecret,
 } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import {
   applyMicrosoftTenant,
   resolveConnectorOauthApp,
@@ -41,9 +42,41 @@ import {
  * transactional invariants (case-insensitive name uniqueness, at most one
  * default per pair, delete-promotes-oldest-active) run here, backed by the
  * table's own unique indexes.
+ *
+ * Every write leaves a `connector` audit row in its own transaction
+ * (`connector_credential.created` / `.updated` / `.deleted`) naming the
+ * credential, its connector and auth method — never the secret and never
+ * the config. The actor is the signed-in person a door hands in; a write
+ * without one (a token renewal the callback runs) is the system's.
  */
 
 type Db = Sql | TransactionSql;
+
+/** The person a door acts for — absent for a system write. */
+export interface CredentialActor {
+  userId: string;
+  email?: string;
+}
+
+function actorFields(actor: CredentialActor | undefined) {
+  if (actor === undefined) {
+    return { actorId: 'system', actorType: 'system' as const };
+  }
+  return {
+    actorId: actor.userId,
+    ...(actor.email !== undefined ? { actorEmail: actor.email } : {}),
+    actorType: 'user' as const,
+  };
+}
+
+/** What an audit row may say about a credential — identity and state only. */
+function credentialState(row: {
+  name: string;
+  status: CredentialStatus;
+  isDefault: boolean;
+}): Record<string, unknown> {
+  return { name: row.name, status: row.status, isDefault: row.isDefault };
+}
 
 type AuthMethod = 'api-key' | 'bearer' | 'basic' | 'oauth2';
 type CredentialStatus = 'active' | 'disabled' | 'needs-reauth';
@@ -490,6 +523,8 @@ export interface CreateCredentialArgs {
   config?: Record<string, string | number | boolean>;
   isDefault?: boolean;
   createdBy: string;
+  /** Who is acting — defaults to `createdBy` (a user), never the system. */
+  actor?: CredentialActor;
 }
 
 /** Create one credential: connector must offer the method; the pair's FIRST
@@ -582,6 +617,25 @@ async function insertPreparedCredential(
   `;
   const credentialId = inserted[0]?.id;
   if (!credentialId) throw new Error('credential insert failed');
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    ...actorFields(args.actor ?? { userId: args.createdBy }),
+    action: 'connector_credential.created',
+    category: 'connector',
+    resourceType: 'connector_credential',
+    resourceId: credentialId,
+    resourceName: prepared.name,
+    newState: credentialState({
+      name: prepared.name,
+      status: 'active',
+      isDefault,
+    }),
+    metadata: {
+      connectorSlug: args.connectorSlug,
+      authMethod: args.authMethod,
+    },
+    status: 'success',
+  });
   return { credentialId };
 }
 
@@ -595,7 +649,19 @@ export interface UpdateCredentialArgs {
   status?: CredentialStatus;
   statusDetail?: string | null;
   isDefault?: boolean;
+  actor?: CredentialActor;
 }
+
+/** The patchable fields, in the order the audit row lists them. */
+const UPDATABLE_FIELDS = [
+  'name',
+  'secret',
+  'endpointUrl',
+  'config',
+  'status',
+  'statusDetail',
+  'isDefault',
+] as const;
 
 /** Update one credential; a secret replacement is validated against the
  * row's EXISTING method and re-sealed whole. */
@@ -662,6 +728,29 @@ export async function updateCredential(
         updated_at_ms = ${Date.now()}
       WHERE id = ${row.id}
     `;
+    await createAuditLog(tx, {
+      organizationId: args.organizationId,
+      ...actorFields(args.actor),
+      action: 'connector_credential.updated',
+      category: 'connector',
+      resourceType: 'connector_credential',
+      resourceId: row.id,
+      resourceName: name,
+      previousState: credentialState(row),
+      newState: credentialState({
+        name,
+        status: args.status ?? row.status,
+        isDefault: args.isDefault ?? row.isDefault,
+      }),
+      changedFields: UPDATABLE_FIELDS.filter(
+        (field) => args[field] !== undefined,
+      ),
+      metadata: {
+        connectorSlug: row.connectorSlug,
+        authMethod: row.authMethod,
+      },
+      status: 'success',
+    });
   });
 }
 
@@ -671,26 +760,46 @@ export async function deleteCredential(
   sql: Sql,
   organizationId: string,
   credentialId: string,
+  actor?: CredentialActor,
 ): Promise<void> {
   await sql.begin(async (tx) => {
     const row = await requireOwnRow(tx, organizationId, credentialId);
     await tx`DELETE FROM app.connector_credentials WHERE id = ${row.id}`;
-    if (!row.isDefault) return;
-    const successors = await tx<{ id: string }[]>`
-      SELECT id FROM app.connector_credentials
-      WHERE org_id = ${organizationId}
-        AND connector_slug = ${row.connectorSlug} AND status = 'active'
-      ORDER BY created_at_ms ASC, id ASC
-      LIMIT 1
-    `;
-    const successor = successors[0];
-    if (successor) {
-      await tx`
-        UPDATE app.connector_credentials
-        SET is_default = true, updated_at_ms = ${Date.now()}
-        WHERE id = ${successor.id}
+    let promotedId: string | null = null;
+    if (row.isDefault) {
+      const successors = await tx<{ id: string }[]>`
+        SELECT id FROM app.connector_credentials
+        WHERE org_id = ${organizationId}
+          AND connector_slug = ${row.connectorSlug} AND status = 'active'
+        ORDER BY created_at_ms ASC, id ASC
+        LIMIT 1
       `;
+      const successor = successors[0];
+      if (successor) {
+        await tx`
+          UPDATE app.connector_credentials
+          SET is_default = true, updated_at_ms = ${Date.now()}
+          WHERE id = ${successor.id}
+        `;
+        promotedId = successor.id;
+      }
     }
+    await createAuditLog(tx, {
+      organizationId,
+      ...actorFields(actor),
+      action: 'connector_credential.deleted',
+      category: 'connector',
+      resourceType: 'connector_credential',
+      resourceId: row.id,
+      resourceName: row.name,
+      previousState: credentialState(row),
+      metadata: {
+        connectorSlug: row.connectorSlug,
+        authMethod: row.authMethod,
+        ...(promotedId !== null ? { promotedDefaultId: promotedId } : {}),
+      },
+      status: 'success',
+    });
   });
 }
 
@@ -699,6 +808,7 @@ export async function setDefaultCredential(
   sql: Sql,
   organizationId: string,
   credentialId: string,
+  actor?: CredentialActor,
 ): Promise<void> {
   await sql.begin(async (tx) => {
     const row = await requireOwnRow(tx, organizationId, credentialId);
@@ -715,13 +825,30 @@ export async function setDefaultCredential(
       );
     }
     await clearOtherDefaults(tx, organizationId, row.connectorSlug, row.id);
-    if (!row.isDefault) {
-      await tx`
-        UPDATE app.connector_credentials
-        SET is_default = true, updated_at_ms = ${Date.now()}
-        WHERE id = ${row.id}
-      `;
-    }
+    // Already the default: nothing changed, nothing to record.
+    if (row.isDefault) return;
+    await tx`
+      UPDATE app.connector_credentials
+      SET is_default = true, updated_at_ms = ${Date.now()}
+      WHERE id = ${row.id}
+    `;
+    await createAuditLog(tx, {
+      organizationId,
+      ...actorFields(actor),
+      action: 'connector_credential.updated',
+      category: 'connector',
+      resourceType: 'connector_credential',
+      resourceId: row.id,
+      resourceName: row.name,
+      previousState: credentialState(row),
+      newState: credentialState({ ...row, isDefault: true }),
+      changedFields: ['isDefault'],
+      metadata: {
+        connectorSlug: row.connectorSlug,
+        authMethod: row.authMethod,
+      },
+      status: 'success',
+    });
   });
 }
 

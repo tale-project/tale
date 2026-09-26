@@ -75,6 +75,6 @@ Unter `.trash/` liegen vorläufig gelöschte Dokumente schreibgeschützt. Lade e
 
 ## Einen Zugang widerrufen oder reparieren
 
-Wähle an der Passwortzeile **Widerrufen** und bestätige. Künftige Anfragen damit werden abgelehnt; andere App-Passwörter bleiben nutzbar. Der Widerruf ist nicht umkehrbar. Stelle den Client bei Bedarf auf ein neues Passwort um.
+Wähle an der Passwortzeile **Widerrufen** und bestätige. Künftige Anfragen damit werden abgelehnt; andere App-Passwörter bleiben nutzbar. Der Widerruf ist nicht umkehrbar. Stelle den Client bei Bedarf auf ein neues Passwort um. Das Erzeugen und das Widerrufen eines App-Passworts hinterlassen je einen Eintrag im Audit-Log unter **Einstellungen > Richtlinien > Protokolle**.
 
 Bei wiederholten Anmeldeaufforderungen prüfe die genaue URL, Organisationsmitgliedschaft und einen möglichen Widerruf. Eine fehlende Berechtigung nach der Anmeldung unterscheidet sich von einem falschen Passwort. Die [WebDAV-API-Referenz](/de/develop/webdav-api) erklärt Statuscodes und Protokolldiagnose. Für Software mit REST-Zugriff dienen stattdessen [API-Schlüssel](/de/platform/admin/api-keys).

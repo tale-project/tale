@@ -6138,6 +6138,14 @@ settings:
         team.deleted: Team gelöscht
         team.member_added: Teammitglied hinzugefügt
         team.member_removed: Teammitglied entfernt
+        api_key.created: API-Schlüssel erstellt
+        api_key.updated: API-Schlüssel aktualisiert
+        api_key.revoked: API-Schlüssel widerrufen
+        webdav_app_password.created: WebDAV-App-Passwort erstellt
+        webdav_app_password.revoked: WebDAV-App-Passwort widerrufen
+        connector_credential.created: Connector-Zugangsdaten erstellt
+        connector_credential.updated: Connector-Zugangsdaten aktualisiert
+        connector_credential.deleted: Connector-Zugangsdaten gelöscht
         joined_organization: Organisation beigetreten
         signed_in_to_organization: An Organisation angemeldet
         add_member: Mitglied hinzugefügt
@@ -6346,6 +6354,9 @@ settings:
         project: Projekt
         connector: Connector
         connector_operation: Connector-Vorgang
+        connector_credential: Connector-Zugangsdaten
+        api_key: API-Schlüssel
+        webdav_app_password: WebDAV-App-Passwort
         sso_provider: SSO-Anbieter
         video_link: Video-Link
         location_request: Standortanfrage

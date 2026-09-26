@@ -43,7 +43,7 @@ Tale ne renouvelle pas les clés automatiquement. La création et la révocation
 
 ## Révoquer une clé
 
-Dans le menu de sa ligne, sélectionne **Révoquer la clé**, puis confirme. Les requêtes suivantes ne peuvent plus s’authentifier avec cette clé. La révocation est irréversible ; crée une nouvelle clé si tu as révoqué la mauvaise.
+Dans le menu de sa ligne, sélectionne **Révoquer la clé**, puis confirme. Les requêtes suivantes ne peuvent plus s’authentifier avec cette clé. La révocation est irréversible ; crée une nouvelle clé si tu as révoqué la mauvaise. La création et la révocation d’une clé laissent chacune une entrée dans le journal d’audit, sous **Paramètres > Gouvernance > Journaux**, dans chaque organisation dont tu fais partie.
 
 Une ancienne date de **Dernière utilisation** ne suffit pas à justifier une révocation. Une tâche mensuelle ou une procédure de récupération peut rester longtemps inactive. Vérifie d’abord le logiciel indiqué par le nom de la clé.
 

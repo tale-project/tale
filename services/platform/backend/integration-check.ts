@@ -5843,6 +5843,50 @@ async function checkDocumentWriteGuards(
   };
   const memberKey = await mintKey(memberCookie, 'itest-doc-guards-member');
   const ownerKey = await mintKey(cookie, 'itest-doc-guards-owner');
+
+  // The api-key plugin has no hooks of its own: the auth after-hook audits
+  // a key's create and revoke, one row per organization of the holder,
+  // naming the key and its last four characters — never the plaintext.
+  const auditKeyRes = await fetch(`${base}/api/auth/api-key/create`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({ name: 'itest-audit-key' }),
+  });
+  const auditKey = z
+    .looseObject({ id: z.string(), key: z.string() })
+    .safeParse(await auditKeyRes.json().catch(() => null));
+  const auditKeyId = auditKey.success ? auditKey.data.id : '';
+  const revokeKeyRes = await fetch(`${base}/api/auth/api-key/delete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({ keyId: auditKeyId }),
+  });
+  const keyAudit = await sql<
+    {
+      action: string;
+      resourceName: string | null;
+      newState: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, resource_name AS "resourceName", new_state AS "newState"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'api_key'
+      AND resource_id = ${auditKeyId}
+    ORDER BY ts ASC
+  `;
+  record(
+    'api keys: create and revoke leave audit rows naming the key, never its plaintext',
+    auditKeyRes.status === 200 &&
+      revokeKeyRes.status === 200 &&
+      keyAudit.length === 2 &&
+      keyAudit[0]?.action === 'api_key.created' &&
+      keyAudit[0].resourceName === 'itest-audit-key' &&
+      typeof keyAudit[0].newState?.suffix === 'string' &&
+      keyAudit[1]?.action === 'api_key.revoked' &&
+      auditKey.success &&
+      !JSON.stringify(keyAudit).includes(auditKey.data.key),
+    `create → ${auditKeyRes.status}, revoke → ${revokeKeyRes.status} (want 200/200); rows=${keyAudit.map((row) => row.action).join(',')} (want api_key.created,api_key.revoked) name=${String(keyAudit[0]?.resourceName)} suffix=${String(keyAudit[0]?.newState?.suffix)}`,
+  );
   const v1 = (
     key: string,
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
@@ -28114,6 +28158,33 @@ async function checkWebdav(
     headers: { depth: '1' },
   });
 
+  // Mint and revoke each left an audit row naming the label; the create
+  // row carries the four-character prefix and nothing of the secret.
+  const appPasswordAudit = await sql<
+    {
+      action: string;
+      resourceName: string | null;
+      newState: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, resource_name AS "resourceName", new_state AS "newState"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'webdav_app_password'
+      AND resource_id = ${passwordId}
+    ORDER BY ts ASC
+  `;
+  record(
+    'webdav: app-password mint and revoke leave audit rows naming the label and the prefix only',
+    appPasswordAudit.length === 2 &&
+      appPasswordAudit[0]?.action === 'webdav_app_password.created' &&
+      appPasswordAudit[0].resourceName === 'itest device' &&
+      minted.success &&
+      appPasswordAudit[0].newState?.prefix === minted.data.prefix &&
+      !JSON.stringify(appPasswordAudit).includes(minted.data.password) &&
+      appPasswordAudit[1]?.action === 'webdav_app_password.revoked',
+    `rows=${appPasswordAudit.map((row) => row.action).join(',')} (want webdav_app_password.created,webdav_app_password.revoked) label=${String(appPasswordAudit[0]?.resourceName)} prefix=${String(appPasswordAudit[0]?.newState?.prefix)} (want ${minted.success ? minted.data.prefix : '?'})`,
+  );
+
   record(
     'webdav re-home (protocol + tree + locks + visibility on pg)',
     minted.success &&
@@ -40593,6 +40664,30 @@ async function checkTurnEquipmentBroker(
   const created = z
     .object({ credentialId: z.string() })
     .safeParse(await createdRes.json());
+  // The create door left one audit row naming the connector and the
+  // method; the token is nowhere in it.
+  const credentialAudit = await sql<
+    {
+      action: string;
+      actorId: string;
+      metadata: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT action, actor_id AS "actorId", metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'connector_credential'
+      AND resource_id = ${created.success ? created.data.credentialId : ''}
+  `;
+  record(
+    'connector credentials: the create door leaves an audit row naming the connector, never the token',
+    createdRes.status === 201 &&
+      credentialAudit.length === 1 &&
+      credentialAudit[0]?.action === 'connector_credential.created' &&
+      credentialAudit[0].actorId === userId &&
+      credentialAudit[0].metadata?.connectorSlug === 'github' &&
+      credentialAudit[0].metadata?.authMethod === 'bearer' &&
+      !JSON.stringify(credentialAudit).includes(token),
+    `create → ${createdRes.status} (want 201); rows=${credentialAudit.length} action=${credentialAudit[0]?.action} actor=${credentialAudit[0]?.actorId} connector=${String(credentialAudit[0]?.metadata?.connectorSlug)}/${String(credentialAudit[0]?.metadata?.authMethod)} (want 1 / connector_credential.created / the itest user / github/bearer)`,
+  );
   // A live session row owned by the itest USER: the broker resolves the git
   // author identity off `created_by`, so the env must carry helper + name +
   // email. (A workflow run's synthetic `system:automation` owner resolves to
