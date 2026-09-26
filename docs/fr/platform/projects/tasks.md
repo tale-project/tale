@@ -70,6 +70,17 @@ Pour une tâche humaine, compare le travail au critère de fin décrit dans la t
 
 Passe la tâche à **Terminé** lorsqu’elle répond au besoin. Si l’agent doit reprendre son travail, explique précisément la modification attendue dans un commentaire et mentionne-le. [Automatiser les tâches](/fr/platform/projects/task-automation) détaille les reprises, nouvelles tentatives et annulations.
 
+## Ouvrir tes tâches depuis Accueil
+
+[Accueil](/fr/platform#home) liste les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, dans tous les projets que tu peux consulter ; **Tâches**, au-dessus de la liste, n’affiche qu’elles. Une tâche ouverte depuis **Accueil** s’affiche sur une page à part, à côté du panneau latéral, et non dans la boîte de dialogue du tableau :
+
+- La demande vient en premier, sous forme de carte : la description, les pièces jointes et les sous-tâches.
+- La discussion suit comme une conversation, des éléments les plus anciens aux plus récents, regroupés par jour. Elle réunit les commentaires et l’historique de la tâche, par exemple les changements de statut, les attributions et les exécutions d’agents.
+- Le champ de commentaire se trouve en bas. Envoie avec **⌘+Entrée** ou **Ctrl+Entrée**, ou avec le bouton d’envoi rond ; **Entrée** seule passe à la ligne. Saisis `@` pour mentionner un agent ou une personne, avec le même effet que dans la boîte de dialogue du tableau.
+- **Détails**, à côté de la discussion, regroupe le statut, la priorité, la personne assignée, le relecteur, les dates, les étiquettes et les dépendances, ainsi que **Suivre** et **Archiver**. **Masquer les détails**, au bout de l’en-tête, replie ce panneau et **Afficher les détails** le rouvre. Sur téléphone, **Afficher les détails** ouvre les détails dans un volet en bas de l’écran.
+
+**Tableau**, dans l’en-tête, ouvre le tableau des tâches du projet. Une tâche ouverte depuis le tableau s’affiche toujours dans sa boîte de dialogue ; les deux vues modifient la même tâche.
+
 ## Retrouver le travail à suivre
 
 Réduis le tableau avec les filtres ou passe à la liste pour parcourir les tâches ligne par ligne. Garde les propositions dans le [Backlog](/fr/platform/projects/backlog) jusqu’à leur démarrage. Utilise des étiquettes pour les distinctions qui ne demandent pas un nouveau statut.

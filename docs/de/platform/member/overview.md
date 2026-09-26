@@ -35,7 +35,7 @@ Bearbeite dein Profil, prüfe deine Nutzungslimits und verstehe gespeicherte Ein
 
 </CardGroup>
 
-Wechsle über die [Hauptnavigation](/de/platform#navigation) zwischen deinen Tätigkeiten. Kehrst du in einen Bereich zurück, öffnet sich deine letzte Ansicht. Wählst du den bereits aktiven Bereich erneut, gelangst du zu dessen Startansicht.
+Wechsle über die [Hauptnavigation](/de/platform#navigation) zwischen deinen Tätigkeiten. Jeder Bereich öffnet seine eigene erste Seite; am Computer öffnet **Start** stattdessen den Chat, den du zuletzt gelesen hast, und wählst du **Start** erneut, beginnt ein neuer Chat. [Start](/de/platform#home) zeigt außerdem deine Projekte, die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, und die Inbox, sofern deine Organisation eine hat.
 
 ## Einer Benachrichtigung folgen
 

@@ -45,4 +45,4 @@ Prüfe Ideen im Backlog, bevor du sie in die geplante Arbeit des Teams übernimm
 
 </CardGroup>
 
-**Allgemein**, **Chats**, **Wissen** und **Agenten** ergänzen die Aufgabenansichten. Eine zugeordnete Automatisierung fügt **Automatisierungen** hinzu; Projektadministratoren können die **Umgebung** konfigurieren. Installierte Apps können weitere Tabs ergänzen. Für den Einstieg mit Dateien, Chats und Aufgaben sind sie nicht nötig.
+Alle Projekte, die du öffnen kannst, stehen im Bereich [Start](/de/platform#home) unter **Projekte**; **Alle Projekte** öffnet dort die vollständige Liste. Ein Projekt öffnet sich mit seinem Aufgaben-Board, und **Allgemein**, **Chats**, **Wissen** und **Agenten** ergänzen die Aufgabenansichten. Eine zugeordnete Automatisierung fügt **Automatisierungen** hinzu; Projektadministratoren können die **Umgebung** konfigurieren. Installierte Apps können weitere Tabs ergänzen. Für den Einstieg mit Dateien, Chats und Aufgaben sind sie nicht nötig.

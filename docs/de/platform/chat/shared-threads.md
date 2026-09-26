@@ -28,7 +28,7 @@ Wer das Thema fortsetzen möchte, beginnt einen eigenen Chat. Die Momentaufnahme
 
 ## Die Freigabe beenden
 
-Wähle **Privat lassen** im Freigabedialog oder **Teilen beenden** im Zeilenmenü des Chats. Der Link ist danach nicht mehr verfügbar. Auch das Löschen des ursprünglichen Chats beendet seine Freigabe.
+Wähle **Privat lassen** im Freigabedialog oder **Teilen beenden** im Menü des Chats in der Liste von **Start**. Der Link ist danach nicht mehr verfügbar. Auch das Löschen des ursprünglichen Chats beendet seine Freigabe.
 
 Nach dem Beenden lässt sich der Chat über diesen Link nicht mehr öffnen. Bereits kopierten Text kannst du damit nicht zurückholen. Prüfe den Inhalt deshalb vor der ersten Freigabe.
 

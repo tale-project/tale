@@ -19,7 +19,7 @@ Les paquets sont ajoutés à la création de l’organisation. Lorsque le paquet
 
 ## Synchroniser le courrier dans la Boîte de réception
 
-Ces workflows importent les nouveaux messages dans des conversations toutes les cinq minutes. Chacun fournit la vue **Boîte de réception** : sa mise en service l’ajoute à la navigation et propose la boîte connectée dans le formulaire de rédaction. Avant cela, la page de réception renvoie vers **Automatisations**.
+Ces workflows importent les nouveaux messages dans des conversations toutes les cinq minutes. Chacun fournit la vue **Réception** : sa mise en service ajoute cette vue à [Accueil](/fr/platform#home) et propose la boîte connectée dans le formulaire de rédaction. Avant cela, **Accueil** n’a pas de vue **Réception**, et un lien vers la boîte de réception renvoie vers **Automatisations**.
 
 | Automatisation | Connector requis | Planification |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Ces workflows importent les nouveaux messages dans des conversations toutes les 
 | Synchroniser les e-mails Outlook | Outlook | Toutes les 5 minutes |
 | Synchroniser les e-mails via SMTP/IMAP | IMAP/SMTP | Toutes les 5 minutes |
 
-Connecte d’abord la boîte correspondante. Après la première exécution réelle, examine son [journal](/fr/platform/automations/execution-logs) et vérifie que les messages attendus apparaissent dans la Boîte de réception.
+Connecte d’abord la boîte correspondante. Après la première exécution réelle, examine son [journal](/fr/platform/automations/execution-logs) et vérifie que les messages attendus apparaissent dans la vue **Réception** d’**Accueil**.
 
 ## Lire un résumé des messages récents
 

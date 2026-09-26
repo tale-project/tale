@@ -13,7 +13,7 @@ Chat is the quickest place to ask about a document, understand a topic, or refin
 
 ## Start with a useful question
 
-Open **Chat**, type in the composer, and send. A starter prompt can help if you are unsure where to begin. Include the outcome you need and the relevant source: “Using the onboarding guide, list the steps a new customer needs to complete. Cite the guide.”
+Open **Home**, choose **New chat**, type in the composer, and send. A starter prompt can help if you are unsure where to begin. Include the outcome you need and the relevant source: “Using the onboarding guide, list the steps a new customer needs to complete. Cite the guide.”
 
 When several usable models are available, the model picker can start on **Auto**. Select a named model when you want control over which available model answers, and adjust reasoning effort where supported. You can attach a file for a question about its contents or open a project chat for recurring reference material.
 
@@ -27,7 +27,7 @@ When several usable models are available, the model picker can start on **Auto**
 
 | You want to | Start in |
 | --- | --- |
-| Ask, compare information, or clarify an answer | **Chat** |
+| Ask, compare information, or clarify an answer | A **chat** |
 | Reuse the same files and instructions across conversations | A **project chat** |
 | Produce a deliverable with an owner and a review | A project **task** |
 | Run a repeatable process on a schedule or incoming event | An **automation** |

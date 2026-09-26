@@ -3,7 +3,7 @@ title: Projektagenten verwalten und prüfen
 description: Prüfe Bearbeitungsrechte, erlaubte Ressourcen und die Folgen von Secret-Zuordnungen für Agentenläufe.
 ---
 
-Verwalte einen Agenten über sein Projekt und die Ressourcen der Organisation. Es gibt keine zusätzliche organisationsweite Agentenliste zum Konfigurieren. Öffne **Projekte**, wähle das Projekt und dann **Agenten**, um seine Agenten zu prüfen oder zu bearbeiten.
+Verwalte einen Agenten über sein Projekt und die Ressourcen der Organisation. Es gibt keine zusätzliche organisationsweite Agentenliste zum Konfigurieren. Öffne das Projekt im Bereich **Start** unter **Projekte** und wähle dann **Agenten**, um seine Agenten zu prüfen oder zu bearbeiten.
 
 ## Die Bearbeitungsrechte klären
 

@@ -13,12 +13,12 @@ Les nouveaux projets sont accessibles à **Toute l'organisation**. Utilise un do
 
 ## Créer le projet
 
-1. Ouvre **Projets** et clique sur **Créer un projet**.
+1. Dans **Accueil**, clique sur **Nouveau projet**, l’icône de dossier à côté de **Projets**.
 2. Renseigne **Nom du projet** avec un nom reconnaissable, par exemple `Refonte du site`.
 3. Vérifie la **Clé du projet**, le préfixe des identifiants de tâches tels que `WEB-1`. Elle ne peut plus être modifiée après la création.
 4. Ajoute une **Description** si nécessaire, puis clique sur **Créer le projet**.
 
-Le projet s’ouvre sur **Tâches**. Sa navigation comprend aussi **Général**, **Chats**, **Connaissances** et **Agents**. Tu n’as pas besoin de créer un agent pour utiliser le chat du projet.
+Le projet s’ouvre sur **Tâches** et apparaît sous **Projets** dans **Accueil**. Sa navigation comprend aussi **Général**, **Chats**, **Connaissances** et **Agents**. Tu n’as pas besoin de créer un agent pour utiliser le chat du projet.
 
 ## Ajouter un fichier de référence
 

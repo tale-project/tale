@@ -45,4 +45,4 @@ Utilise le Backlog pour étudier les idées avant de les intégrer au travail pr
 
 </CardGroup>
 
-**Général**, **Chats**, **Connaissances** et **Agents** complètent les vues des tâches. Une automatisation liée au projet ajoute l’espace **Automatisations** ; les administrateurs du projet peuvent configurer l’**Environnement**. Les applications installées peuvent ajouter d’autres onglets. Elles ne sont pas nécessaires pour commencer avec les fichiers, les chats et les tâches.
+Tous les projets que tu peux ouvrir figurent sous **Projets** dans [Accueil](/fr/platform#home), où **Tous les projets** ouvre la liste complète. Un projet s’ouvre sur son tableau des tâches ; **Général**, **Chats**, **Connaissances** et **Agents** complètent les vues des tâches. Une automatisation liée au projet ajoute l’espace **Automatisations** ; les administrateurs du projet peuvent configurer l’**Environnement**. Les applications installées peuvent ajouter d’autres onglets. Elles ne sont pas nécessaires pour commencer avec les fichiers, les chats et les tâches.

@@ -70,6 +70,17 @@ Vergleiche bei menschlicher Arbeit das Ergebnis mit dem Abschlusskriterium in de
 
 Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ein Agent nacharbeiten, beschreibe die nötige Änderung in einem Kommentar und erwähne ihn darin. [Aufgaben automatisieren](/de/platform/projects/task-automation) erklärt Wiederholungen, Nacharbeit und Abbruch.
 
+## Deine Aufgaben aus Start öffnen
+
+[Start](/de/platform#home) listet die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, aus allen Projekten, die du lesen darfst; **Aufgaben** über der Liste zeigt nur sie. Öffnest du dort eine Aufgabe, erscheint sie als eigene Seite neben der Seitenleiste von **Start** und nicht im Dialog des Boards:
+
+- Oben steht der Auftrag als Karte: Beschreibung, Anhänge und Teilaufgaben.
+- Darunter folgt die Diskussion wie ein Gespräch, mit den ältesten Einträgen zuerst und nach Tagen gegliedert. Sie verbindet die Kommentare mit dem Verlauf der Aufgabe, etwa Statuswechseln, Zuweisungen und Agentenläufen.
+- Das Kommentarfeld steht ganz unten. Zum Senden drückst du **⌘+Enter** oder **Ctrl+Enter** oder klickst auf die runde Senden-Schaltfläche; **Enter** allein beginnt eine neue Zeile. Mit `@` erwähnst du einen Agenten oder eine Person, mit derselben Wirkung wie im Dialog des Boards.
+- **Details** neben der Diskussion enthält Status, Priorität, Zuständigkeit, Reviewer, Termine, Labels und Abhängigkeiten, dazu **Verfolgen** und **Archivieren**. **Details ausblenden** am Ende der Kopfzeile blendet diesen Bereich aus, **Details einblenden** holt ihn zurück. Auf dem Smartphone öffnet **Details einblenden** die Details in einem Fenster am unteren Bildschirmrand.
+
+**Board** in der Kopfzeile öffnet das Aufgaben-Board des Projekts. Öffnest du eine Aufgabe dort, erscheint sie weiterhin im Dialog des Boards; beide Ansichten bearbeiten dieselbe Aufgabe.
+
 ## Aufgaben finden, die Aufmerksamkeit brauchen
 
 Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu überfliegen. Lass Vorschläge im [Backlog](/de/platform/projects/backlog), bis sie begonnen werden sollen. Nutze Labels für Unterscheidungen, die keinen eigenen Status brauchen.
