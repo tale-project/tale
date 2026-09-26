@@ -481,6 +481,34 @@ describe('DataTable addAction contract', () => {
       ).not.toBeInTheDocument();
     });
 
+    it('drops the select-all box when no row on the page can be selected', () => {
+      render(
+        <DataTable
+          columns={selectColumns}
+          data={sampleRows}
+          approxRowCount={3}
+          enableRowSelection={() => false}
+        />,
+      );
+
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    });
+
+    it('keeps the select-all box while any row can be selected', () => {
+      render(
+        <DataTable
+          columns={selectColumns}
+          data={sampleRows}
+          approxRowCount={3}
+          enableRowSelection={(row) => row.original.name === 'Bob'}
+        />,
+      );
+
+      expect(
+        screen.getByRole('checkbox', { name: 'Select all' }),
+      ).toBeInTheDocument();
+    });
+
     it('keeps a checkbox on every row when all rows are selectable', () => {
       render(
         <DataTable

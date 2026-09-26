@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { AutomationRunDialog } from './automation-run-dialog';
 
@@ -103,6 +103,16 @@ it.each(['github', 'glitchtip'] as const)(
       screen.queryByRole('textbox', { name: 'Run input (JSON)' }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Test run' })).toBeDisabled();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('textbox', {
+          name:
+            source === 'github'
+              ? /GitHub owner/
+              : /GlitchTip organization slug/,
+        }),
+      ).toHaveFocus();
+    });
     await user.click(screen.getByRole('button', { name: /Tale project/ }));
     await user.click(screen.getByRole('option', { name: 'Engineering' }));
     if (source === 'github') {

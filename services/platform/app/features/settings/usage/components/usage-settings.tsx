@@ -59,9 +59,6 @@ function toMeterRows(limits: readonly MyBudgetUsageLimit[]): MeterRow[] {
   );
 }
 
-/** Rows masked while the first read is in flight. */
-const PLACEHOLDER_ROWS = 2;
-
 interface UsageSettingsProps {
   organizationId: string;
 }
@@ -80,8 +77,12 @@ export function UsageSettings({ organizationId }: UsageSettingsProps) {
   const rows = toMeterRows(limits ?? []);
   const personal = rows.filter((row) => row.limit.scope === 'user');
   const shared = rows.filter((row) => row.limit.scope !== 'user');
-  const showPersonal = isLoading || personal.length > 0;
-  const showFallback = !isLoading && (isError || rows.length === 0);
+  // Until the read answers, the page takes the shape most members get: an
+  // organization sets no budget by default, so the first paint is the "Usage
+  // limits" section with its empty state masked in place — never the claim
+  // that nothing applies, and no heading that swaps when nothing does. The
+  // storage meter below reasons the same way.
+  const showFallback = isLoading || isError || rows.length === 0;
 
   const manageLimits = ability.can('read', 'orgSettings') ? (
     <Button asChild variant="secondary" size="sm">
@@ -96,24 +97,18 @@ export function UsageSettings({ organizationId }: UsageSettingsProps) {
 
   return (
     <SettingsPage>
-      {showPersonal && (
-        <Skeletonize loading={isLoading} label={t('usage.personal.title')}>
-          <SettingsSection
-            title={t('usage.personal.title')}
-            description={t('usage.personal.description')}
-            action={manageLimits}
-          >
-            <SettingsFieldList>
-              {isLoading
-                ? Array.from({ length: PLACEHOLDER_ROWS }, (_, index) => (
-                    <PlaceholderMeterRow key={index} seed={index * 3} />
-                  ))
-                : personal.map((row) => (
-                    <UsageMeterRow key={row.key} row={row} />
-                  ))}
-            </SettingsFieldList>
-          </SettingsSection>
-        </Skeletonize>
+      {personal.length > 0 && (
+        <SettingsSection
+          title={t('usage.personal.title')}
+          description={t('usage.personal.description')}
+          action={manageLimits}
+        >
+          <SettingsFieldList>
+            {personal.map((row) => (
+              <UsageMeterRow key={row.key} row={row} />
+            ))}
+          </SettingsFieldList>
+        </SettingsSection>
       )}
 
       {shared.length > 0 && (
@@ -131,24 +126,42 @@ export function UsageSettings({ organizationId }: UsageSettingsProps) {
       )}
 
       {showFallback && (
-        <SettingsSection
-          title={t('usage.limits.title')}
-          description={t('usage.limits.description')}
-          action={manageLimits}
-        >
-          {isError ? (
-            <p role="alert" className="text-destructive text-sm">
-              {t('usage.loadFailed')}
-            </p>
-          ) : (
-            <EmptyState
-              icon={Gauge}
-              title={t('usage.empty.title')}
-              description={t('usage.empty.description')}
-              className="border-border rounded-lg border px-5 py-10"
-            />
-          )}
-        </SettingsSection>
+        <Skeletonize loading={isLoading} label={t('usage.limits.title')}>
+          <SettingsSection
+            title={t('usage.limits.title')}
+            description={t('usage.limits.description')}
+            action={manageLimits}
+          >
+            {isError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {t('usage.loadFailed')}
+              </p>
+            ) : (
+              <EmptyState
+                icon={Gauge}
+                title={
+                  isLoading ? (
+                    <span className="inline-block w-48">
+                      <SkeletonText />
+                    </span>
+                  ) : (
+                    t('usage.empty.title')
+                  )
+                }
+                description={
+                  isLoading ? (
+                    <span className="block w-64 max-w-full">
+                      <SkeletonText lines={2} seed={1} />
+                    </span>
+                  ) : (
+                    t('usage.empty.description')
+                  )
+                }
+                className="border-border rounded-lg border px-5 py-10"
+              />
+            )}
+          </SettingsSection>
+        </Skeletonize>
       )}
 
       <StorageSection organizationId={organizationId} />
@@ -253,26 +266,6 @@ function UsageMeter({
   );
 }
 
-/** A meter row whose label, reset line and values are not known yet. */
-function PlaceholderMeterRow({ seed }: { seed: number }) {
-  return (
-    <SettingsFieldRow
-      label={
-        <span className="block w-28">
-          <SkeletonText seed={seed} />
-        </span>
-      }
-      description={
-        <span className="block w-56">
-          <SkeletonText seed={seed + 1} />
-        </span>
-      }
-    >
-      <PlaceholderMeter seed={seed + 2} />
-    </SettingsFieldRow>
-  );
-}
-
 /** The meter's footprint — its summary line and bar — while it loads. */
 function PlaceholderMeter({ seed }: { seed: number }) {
   return (
@@ -316,7 +309,7 @@ function StorageSection({ organizationId }: { organizationId: string }) {
     body = (
       <SettingsFieldList>
         <SettingsFieldRow label={label}>
-          <PlaceholderMeter seed={PLACEHOLDER_ROWS * 3} />
+          <PlaceholderMeter seed={6} />
         </SettingsFieldRow>
       </SettingsFieldList>
     );

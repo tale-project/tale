@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
+import { CountBadge } from '@tale/ui/count-badge';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
@@ -130,14 +131,10 @@ export function SidebarNavItem({
           />
         )}
         {showBadge && (
-          <span
-            // Re-keyed on the count so a new arrival pops the chip again.
-            key={item.badge}
-            aria-hidden="true"
-            className="bg-primary text-primary-foreground ring-background animate-in zoom-in-50 absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-medium tabular-nums ring-2 duration-300 motion-reduce:animate-none"
-          >
-            {(item.badge ?? 0) > 99 ? '99+' : item.badge}
-          </span>
+          <CountBadge
+            count={item.badge ?? 0}
+            className="absolute -top-1.5 -right-1.5"
+          />
         )}
       </span>
     </div>

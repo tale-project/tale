@@ -46,7 +46,12 @@ afterEach(cleanup);
 it('keeps focus inside a task dialog opened by a notification after the popover closes', async () => {
   await page.viewport(1280, 800);
   const { user } = render(<Harness />);
-  await user.click(screen.getByRole('button', { name: 'Notifications' }));
+  // One unread notification is mocked, and the bell's name carries it.
+  await user.click(
+    screen.getByRole('button', {
+      name: 'Notifications, 1 unread notification',
+    }),
+  );
   await user.click(screen.getByRole('button', { name: 'Review requested' }));
   const task = await screen.findByRole('dialog', { name: 'Review task' });
   await waitFor(() => expect(task.contains(document.activeElement)).toBe(true));

@@ -48,8 +48,12 @@ export function TwoFactorLowBackupCodesBanner({
     >
       <span className="grow">
         <span className="font-medium">{t(titleKey, { count })}</span>
-        {' — '}
-        {t('lowBackupCodes.body')}
+        {/* Same phone treatment as every dashboard nudge: read out, not
+            drawn, so the banner stays one line above the page. */}
+        <span className="sr-only sm:not-sr-only">
+          {' — '}
+          {t('lowBackupCodes.body')}
+        </span>
       </span>
       <Link
         to="/dashboard/$id/settings/account"

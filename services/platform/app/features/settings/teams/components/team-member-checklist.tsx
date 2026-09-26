@@ -98,11 +98,11 @@ export function TeamMemberChecklist({
 
   return (
     <Stack gap={2}>
-      <p className="text-muted-foreground text-xs">
-        {tSettings('teams.memberChecklistHint')}
-      </p>
+      {/* The hint is the field's own description: as a paragraph above the
+          label it sat under the team name, as if it were about that. */}
       <MultiSelect
         label={tSettings('teams.manageMembers')}
+        description={tSettings('teams.memberChecklistHint')}
         value={Array.from(selectedMemberIds)}
         onValueChange={handleChange}
         options={options}

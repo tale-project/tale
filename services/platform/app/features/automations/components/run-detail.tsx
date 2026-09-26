@@ -5,6 +5,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
 import { EmptyState } from '@tale/ui/empty-state';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { JsonViewer } from '@tale/ui/json-viewer';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
@@ -13,6 +14,7 @@ import { Ban, SearchX } from 'lucide-react';
 import { useCallback, useId, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import { useCancelAutomationRun } from '../hooks/mutations';
@@ -99,6 +101,14 @@ export function RunDetail({
     () => readDocument(versionQuery.data?.document),
     [versionQuery.data?.document],
   );
+  // The heading names the automation the way the breadcrumb above it does,
+  // not by the slug the store addresses it with.
+  const { locale } = useLocale();
+  const displayName = automationDisplayName(
+    versionQuery.data?.presentation,
+    automationSlug,
+    locale,
+  );
   const graph = useMemo(() => buildGraph(automation), [automation]);
   const positions = useMemo(() => readPositions(automation), [automation]);
   const projection = useMemo(() => projectRun(run), [run]);
@@ -156,7 +166,7 @@ export function RunDetail({
         <SectionHeader
           as="h2"
           size="lg"
-          title={t('runs.heading', { automation: run.name })}
+          title={t('runs.heading', { automation: displayName })}
         />
         <RunBadge status={status} />
         {(() => {

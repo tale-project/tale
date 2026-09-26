@@ -6,6 +6,7 @@ import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
 import { InlineCode } from '@tale/ui/inline-code';
 import { Row, Stack } from '@tale/ui/layout';
+import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
@@ -88,11 +89,19 @@ export function AuditIntegrityPanel({
           </Row>
           <Stack gap={1}>
             <Text as="span" variant="muted" className="text-xs">
-              {s == null
-                ? t('logs.integrity.neverChecked')
-                : t('logs.integrity.lastCheck', {
-                    date: formatDate(new Date(s.updatedAt), 'long'),
-                  })}
+              {/* Like the badge: while the first read is in flight the line
+                  masks rather than claim no check has ever run. */}
+              {status.isLoading ? (
+                <span className="block w-56 max-w-full">
+                  <SkeletonText />
+                </span>
+              ) : s == null ? (
+                t('logs.integrity.neverChecked')
+              ) : (
+                t('logs.integrity.lastCheck', {
+                  date: formatDate(new Date(s.updatedAt), 'long'),
+                })
+              )}
             </Text>
             {s?.alertActive && s.lastAlertedAt !== undefined && (
               <Text as="span" variant="muted" className="text-xs">

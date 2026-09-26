@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 41 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 43 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -217,6 +217,13 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   (`home.row.awaitingReview`) with the blue dot, and the **Tasks** option
   carries the attention dot until you decide it. Clicking a row opens
   `/dashboard/{org}/tasks/{taskId}`.
+- [ ] `TASK-F29` · **Task details in a narrower window** — At 900 px (a
+  tablet, or a desktop window at half width) open a task → The conversation
+  takes the full width beside the Home panel with no docked **Details**
+  (`tasks.detail.details`); **Show details** (`tasks.detail.showDetails`)
+  opens them as a sheet from the right over the conversation, Escape closes it
+  and focus returns to the button; widen the window past 1280 px → the panel
+  docks beside the thread again, as `TASK-F23` left it.
 - [ ] `TASK-F20` · **The page's frame** — Open a task from Home → Beside the
   Home panel, one header: the **Hide sidebar** toggle (`home.panel.hide`),
   the task's status glyph, its title (click it, type, Enter — the new title
@@ -348,7 +355,7 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   `/dashboard/{org}/tasks/{taskId}` for a task that was deleted, for an id
   that never existed, and for a task in a project you cannot read → Once the
   read answers, the page shows **Page not found** (`common.notFound.title`)
-  with **Back to dashboard** (`common.notFound.backToDashboard`), which leads
+  with **Back to Home** (`common.notFound.backToDashboard`), which leads
   to `/dashboard/{org}`, beside the Home panel — never a blank column without
   a header or a way back. While the read is still on its way the page shows
   no dead end.
@@ -381,3 +388,12 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   empty lanes) in < 3 s on the mock stack at ~50 tasks.
 - [ ] `TASK-P2` · **Drag settle** → A dropped card re-homes optimistically (<
   200 ms perceived) and the persisted status reads back on reload in < 2 s.
+- [ ] `TASK-P3` · **A slow task keeps its frame** — Throttle the network
+  (DevTools → Network → Slow 4G) and open a task from Home → Before it
+  arrives the page already stands: its header (the Home panel toggle, a
+  phone's back arrow, **Copy link** and the details toggle all usable), the
+  brief card, the composer's frame and the **Details** names (Project,
+  Status, Priority …) with pulsing values where the task will land; when it
+  arrives nothing moves. Open `…/tasks/board?task={taskId}` the same way →
+  the dialog shows the key, the title, the brief and the details masked in
+  place, never an empty panel, and no focus ring frames the dialog itself.

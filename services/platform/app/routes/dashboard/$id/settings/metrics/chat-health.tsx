@@ -62,7 +62,7 @@ function ChatHealthRoute() {
   );
 
   return (
-    <SettingsPage>
+    <SettingsPage fullWidth>
       <ChatHealthMetricsPage
         organizationId={organizationId}
         period={period}

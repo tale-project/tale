@@ -147,7 +147,7 @@ export function SkillIconPicker({
               }}
               onKeyDown={handleKeyDown}
               placeholder={t('iconPicker.searchPlaceholder')}
-              className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none"
+              className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none md:text-sm"
               aria-expanded={open}
               aria-controls={listboxId}
               aria-activedescendant={cellId(highlighted)}

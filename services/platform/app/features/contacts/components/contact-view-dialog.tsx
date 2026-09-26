@@ -73,7 +73,9 @@ export function ContactViewDialog({
       {
         label: tCommon('labels.source'),
         value: (
-          <Text>{getContactSourceLabel(contact.source, notAvailable)}</Text>
+          <Text>
+            {getContactSourceLabel(contact.source, tContacts, notAvailable)}
+          </Text>
         ),
       },
       {

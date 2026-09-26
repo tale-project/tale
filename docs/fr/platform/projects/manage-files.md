@@ -18,7 +18,7 @@ L’onglet **Connaissances** du projet contient les fichiers consultables par se
 3. Clique sur **Ajouter un fichier** ou dépose des fichiers dans la zone d’import.
 4. Vérifie que chacun apparaît au bon endroit et termine son indexation.
 
-**Nouveau dossier** crée un dossier à la racine. **Nouveau sous-dossier** crée un dossier à l’intérieur d’un autre. **Ajouter un dossier** importe un dossier de ton appareil et reproduit sa structure à l’emplacement sélectionné. Un import de dossier est limité à 200 fichiers et 200 Mo. Divise les dossiers plus volumineux et vérifie les fichiers ignorés dans le compte rendu.
+**Nouveau dossier** crée un dossier à la racine. **Nouveau sous-dossier** crée un dossier à l’intérieur d’un autre. **Importer un dossier** reprend un dossier de ton appareil et reproduit sa structure à l’emplacement sélectionné. Un import de dossier est limité à 200 fichiers et 200 Mo. Divise les dossiers plus volumineux et vérifie les fichiers ignorés dans le compte rendu.
 
 ## Vérifier si le chat peut lire le fichier
 

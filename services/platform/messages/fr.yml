@@ -742,6 +742,7 @@ automations:
     title: Nœud
     workflowTitle: Workflow
     noSelection: Sélectionne un nœud sur le canvas pour voir et modifier ce qu’il fait.
+    noSelectionReadOnly: Sélectionne un nœud sur le canvas pour voir ce qu’il fait.
     unknownType: 'Type de nœud inconnu : {type}'
     catalogUnavailable:
       Le catalogue des types de nœuds n’a pas pu être chargé, donc seuls
@@ -868,6 +869,10 @@ automations:
     autoRetrying: 'Tentative automatique {n} sur {max}'
     cancel: Arrêter l’exécution
     startedBy: 'Lancée par {actor}'
+    starter:
+      apiKey: '{name} via une clé API'
+      trigger: un déclencheur
+      formerMember: un ancien membre
     startedAt: 'Lancée {date}'
     finishedAt: 'Terminée {date}'
     inputTitle: Entrée de l’exécution
@@ -1621,7 +1626,7 @@ common:
   notFound:
     title: Page introuvable
     description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
-    backToDashboard: Retour au tableau de bord
+    backToDashboard: Retour à l’Accueil
   moveUp: Monter
   moveDown: Descendre
   drag: Glisser pour réordonner
@@ -1888,7 +1893,10 @@ contacts:
     source:
       manual: Manuel
       upload: Téléversement
+      api: API
       conversation: Conversation
+      webhook: Webhook
+      custom: Personnalisé
   importForm:
     manualEntry: Saisie manuelle
     upload: Téléversement
@@ -2578,7 +2586,7 @@ onboarding:
     inviteItem: Invite des coéquipiers à collaborer.
     providerCta: Connecter un fournisseur
     inviteCta: Inviter des coéquipiers
-    goToDashboard: Aller au tableau de bord
+    goToDashboard: Aller à l’Accueil
 emptyStates:
   providers:
     title: Connecte ton premier fournisseur AI
@@ -4595,6 +4603,7 @@ navigation:
   aria:
     primaryNavigation: Navigation principale
     unreadConversations: '{count, plural, one {# conversation non lue} other {# conversations non lues}}'
+    unreadNotifications: '{count, plural, one {# notification non lue} other {# notifications non lues}}'
   dataResidency: Résidence des données
   sandboxes: Sandboxes
   enterpriseSso: SSO d'entreprise
@@ -5542,7 +5551,7 @@ settings:
       statusNone: Non configurée
       orgClientId: 'ID client : {clientId}'
       statusEnvDetail: Utilise l'app enregistrée dans l'environnement du déploiement.
-      statusNoneDetail: Aucune app nulle part — la connexion n'est pas encore possible.
+      statusNoneDetail: Les membres ne peuvent pas s'y connecter tant qu'aucune app n'est configurée ici ou sur le déploiement.
       configure: Configurer
       remove: Retirer
       removeTitle: Retirer l'app OAuth de {connector} ?
@@ -6013,6 +6022,7 @@ settings:
       noDirectCredential:
         Aucun identifiant de fournisseur directement utilisable — ajoute une
         clé API ou une variable d'environnement ci-dessus.
+      noModel: Pas encore de modèle
       degraded: En échec récemment
       subscriptionVia: Abonnement · {provider}
       subscriptionInert: Abonnement · {provider} — inutilisable, ce harness ne tourne qu'avec des identifiants gérés
@@ -6591,10 +6601,6 @@ settings:
     uploadLogo: Téléverser le logo
     uploadFavicon: Téléverser le favicon
     preview: Aperçu de la marque
-    previewStatus:
-      open: Ouvert
-      closed: Fermé
-      spam: Spam
     pickColorAria: Choisir {label}
     hexValueAria: Valeur hexadécimale de {label}
     removeImageAria: Supprimer {label}
@@ -7752,7 +7758,7 @@ projects:
     indexingStartFailed: Impossible de lancer l'indexation
     treeLabel: Fichiers du projet
     addToFolder: Ajouter un fichier à « {folder} »
-    addFolderButton: Ajouter un dossier
+    addFolderButton: Importer un dossier
     batchTooLarge: Un téléversement de dossier est limité à {maxFiles} fichiers / {maxSize} Mo — divise le dossier et réessaie.
     moreSkipped: +{count} autre(s) fichier(s) ont été ignorés.
     folderGone: Ce dossier n'existe plus.
@@ -7880,7 +7886,7 @@ projects:
     deleteBody: 'Supprimer « {name} » ? Les tâches qui y faisaient référence gardent leur historique.'
   settings:
     name: Nom
-    nameHint: Affiché dans la liste des projets et la barre latérale du chat.
+    nameHint: Affiché dans la liste des projets et dans le panneau latéral d’Accueil.
     description: Description
     descriptionHint: Un court résumé pour que ton équipe sache ce qui va
       ici.

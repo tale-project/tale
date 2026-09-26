@@ -222,19 +222,35 @@ describe('UsageSettings', () => {
     ).toBeInTheDocument();
   });
 
-  it('masks the meters in place while loading', () => {
+  it('holds the shape most members get, masked, while loading', () => {
     state.budget = { data: undefined, isLoading: true, isError: false };
     state.storage = { data: undefined, isLoading: true };
 
     render(<UsageSettings organizationId="org-1" />);
 
     expect(
-      screen.getByRole('heading', { name: 'Your limits' }),
+      screen.getByRole('heading', { name: 'Usage limits' }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Your limits' })).toBeNull();
     expect(screen.getByText('Uploaded files')).toBeInTheDocument();
+    // Masked, never claimed before the read answers.
     expect(screen.queryByText('No usage limits apply to you')).toBeNull();
     expect(screen.queryByText('No storage limit applies to you.')).toBeNull();
     expect(screen.getAllByRole('status')).toHaveLength(2);
+  });
+
+  it('keeps the limits section in place when the read finds none', () => {
+    state.budget = { data: undefined, isLoading: true, isError: false };
+    const { rerender } = render(<UsageSettings organizationId="org-1" />);
+    const loading = section('Usage limits');
+
+    state.budget = { data: [], isLoading: false, isError: false };
+    rerender(<UsageSettings organizationId="org-1" />);
+
+    expect(section('Usage limits')).toBe(loading);
+    expect(
+      within(loading).getByText('No usage limits apply to you'),
+    ).toBeInTheDocument();
   });
 
   it('passes an accessibility audit with personal and shared meters', async () => {

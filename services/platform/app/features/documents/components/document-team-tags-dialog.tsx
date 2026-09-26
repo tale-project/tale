@@ -180,9 +180,9 @@ function DocumentTeamDialogContent({
             <Button
               type="button"
               variant="secondary"
+              icon={Settings}
               onClick={handleGoToSettings}
             >
-              <Settings className="size-3.5" aria-hidden="true" />
               {tDocuments('teamTags.goToSettings')}
             </Button>
           }

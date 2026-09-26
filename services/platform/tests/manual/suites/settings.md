@@ -297,8 +297,9 @@ any toggled setting after the run.
   (`settings.credentials.enable`) the credential on the providers page, then
   revisit each surface without reloading → the **Agent runtimes** rows
   (`settings.providers.harnesses.title`) trade
-  `settings.providers.harnesses.noDirectCredential` for a model count
-  (`settings.providers.harnesses.modelPool`); the agent **Model** picker
+  `settings.providers.harnesses.noModel` for a model count
+  (`settings.providers.harnesses.modelPool`) and the one note above them
+  (`settings.providers.harnesses.noDirectCredential`) leaves; the agent **Model** picker
   lists the provider's models; **Governance → Models** names the model that
   reads images (`governance.visionModel.resolved.*`, no longer
   `governance.visionModel.resolvedNone`); **Data residency** offers the
@@ -632,7 +633,11 @@ any toggled setting after the run.
   cache a few seconds) → **Usage limits** (`settings.usage.limits.title`) shows
   **No usage limits apply to you** (`settings.usage.empty.title`) and no
   meters; with the upload policy's per-user volume unset, **Storage** reads
-  `settings.usage.storage.unlimited`. Restore both policies afterwards.
+  `settings.usage.storage.unlimited`. Reload once more under DevTools → Slow
+  4G → the same **Usage limits** section is there from the first paint with
+  its card masked (never the words before the read answers), and the card
+  fills in without the heading or the page moving. Restore both policies
+  afterwards.
 - [ ] `SET-B14` · **Reached cap** — Lower the member's daily request cap to
   their booked requests → The row reads **Limit reached**
   (`settings.usage.reached`) over a full destructive bar; the chat banner

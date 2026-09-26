@@ -25,7 +25,7 @@ Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajout
 
 ## Voir ton rôle {#role}
 
-**Paramètres > Compte > Ton rôle** affiche ton rôle dans cette organisation, par exemple Éditeur ou Membre. Ton rôle détermine ce que tu peux faire ; tes équipes déterminent quels contenus d’équipe tu vois. Les admins attribuent les rôles dans [Membres et rôles](/fr/platform/admin/members-and-roles). Avec l’authentification unique, ton fournisseur d’identité peut aussi définir ton rôle à chaque connexion. Les propriétaires et les admins voient le lien **Gérer les membres** dans la section.
+**Paramètres > Compte > Ton rôle** affiche ton rôle dans cette organisation, par exemple Éditeur ou Membre. Ton rôle détermine ce que tu peux faire ; tes équipes déterminent quels contenus d’équipe tu vois. Les admins attribuent les rôles dans [Membres et rôles](/fr/platform/admin/members-and-roles). Avec l’authentification unique, ton fournisseur d’identité peut aussi définir ton rôle à chaque connexion. Les propriétaires et les admins voient le bouton **Gérer les membres** à côté du titre de la section.
 
 ## Voir tes équipes {#teams}
 
@@ -33,7 +33,7 @@ Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajout
 
 Pour restreindre une liste à certains travaux, utilise son filtre **Équipes** : **Toute l'organisation** n’affiche que les éléments sans équipe, **Mes équipes** affiche ceux qu’une de tes équipes peut voir, et chaque équipe figure par son nom. La boîte de réception propose un filtre **Responsable** derrière son champ de recherche, qui réunit personnes et équipes. Un filtre change la vue, sans accorder l’accès aux données d’une autre équipe.
 
-Les propriétaires et les admins gèrent les membres dans [Équipes](/fr/platform/admin/teams) ; la section y renvoie pour eux.
+Les propriétaires et les admins gèrent les membres dans [Équipes](/fr/platform/admin/teams) ; le bouton **Gérer les équipes** de la section les y mène.
 
 ## Définir des instructions personnalisées pour l’assistant de chat
 

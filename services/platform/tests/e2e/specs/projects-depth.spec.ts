@@ -281,9 +281,14 @@ test('task live-edit: status/priority/label persist across board and list', asyn
       taskDialog.getByText(t('tasks.status.in_progress')).first(),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
-    // Priority → "High" (the icon exposes its localized label via aria-label).
+    // Priority → "High". The details panel names the priority beside its
+    // glyph, and the trigger's name carries both the field and the value it
+    // shows ("Priority: No priority") — the icon keeps its own aria-label.
     await taskDialog
-      .getByRole('button', { name: t('tasks.fields.priority'), exact: true })
+      .getByRole('button', {
+        name: `${t('tasks.fields.priority')}: ${t('tasks.priority.none')}`,
+        exact: true,
+      })
       .click();
     await page
       .getByRole('listbox', { name: t('tasks.fields.priority') })

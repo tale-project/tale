@@ -146,7 +146,12 @@ export function ProjectThreadsTab({
         title={t('threads.yourChats')}
         description={t('threads.subtitle')}
         action={
-          <Button icon={SquarePen} onClick={handleNewChat}>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={SquarePen}
+            onClick={handleNewChat}
+          >
             {t('overview.newChatCta')}
           </Button>
         }

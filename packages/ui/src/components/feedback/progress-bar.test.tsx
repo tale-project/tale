@@ -1,11 +1,11 @@
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { describe, it, expect } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 import { ProgressBar } from './progress-bar';
-
-const NNBSP = '\u202F';
 
 function renderProgressBar(props?: Partial<Parameters<typeof ProgressBar>[0]>) {
   return render(
@@ -32,9 +32,28 @@ describe('ProgressBar', () => {
       expect(screen.getByRole('progressbar')).toBeInTheDocument();
     });
 
-    it('renders percentage text with narrow no-break space', () => {
+    it('renders the percentage in the UI language’s own format', () => {
       renderProgressBar({ value: 75, max: 100 });
-      expect(getPercentageText()).toBe(`75${NNBSP}%`);
+      expect(getPercentageText()).toBe('75%');
+    });
+
+    it('spaces the sign the German way for a German UI', async () => {
+      const de = createInstance();
+      await de.init({ lng: 'de', resources: {} });
+      render(
+        <I18nextProvider i18n={de}>
+          <ProgressBar
+            value={75}
+            max={100}
+            label="Indexed pages"
+            tooltipContent={null}
+          />
+        </I18nextProvider>,
+      );
+      expect(getPercentageText()).toBe(
+        new Intl.NumberFormat('de', { style: 'percent' }).format(0.75),
+      );
+      expect(getPercentageText()).not.toBe('75%');
     });
 
     it('renders a group wrapper', () => {
@@ -52,32 +71,32 @@ describe('ProgressBar', () => {
   describe('percentage calculation', () => {
     it('calculates percentage correctly', () => {
       renderProgressBar({ value: 50, max: 200 });
-      expect(getPercentageText()).toBe(`25${NNBSP}%`);
+      expect(getPercentageText()).toBe('25%');
     });
 
     it('rounds percentage to nearest integer', () => {
       renderProgressBar({ value: 1, max: 3 });
-      expect(getPercentageText()).toBe(`33${NNBSP}%`);
+      expect(getPercentageText()).toBe('33%');
     });
 
     it('clamps percentage at 100', () => {
       renderProgressBar({ value: 150, max: 100 });
-      expect(getPercentageText()).toBe(`100${NNBSP}%`);
+      expect(getPercentageText()).toBe('100%');
     });
 
     it('handles 0 max gracefully', () => {
       renderProgressBar({ value: 0, max: 0 });
-      expect(getPercentageText()).toBe(`0${NNBSP}%`);
+      expect(getPercentageText()).toBe('0%');
     });
 
     it('shows 0% when value is 0', () => {
       renderProgressBar({ value: 0, max: 50 });
-      expect(getPercentageText()).toBe(`0${NNBSP}%`);
+      expect(getPercentageText()).toBe('0%');
     });
 
     it('shows 100% when value equals max', () => {
       renderProgressBar({ value: 50, max: 50 });
-      expect(getPercentageText()).toBe(`100${NNBSP}%`);
+      expect(getPercentageText()).toBe('100%');
     });
   });
 

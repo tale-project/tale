@@ -1,6 +1,6 @@
 'use client';
 
-import { Info } from 'lucide-react';
+import { BarChart3, Info } from 'lucide-react';
 import { type ComponentType, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -35,6 +35,9 @@ interface ChartCardProps {
    */
   emptyTitle?: string;
   emptyDescription?: string;
+  /** Glyph above the empty heading. Defaults to a bar chart, so every empty
+   *  card in a grid carries one — a card without it sat lower and read as a
+   *  different state than its neighbours. */
   emptyIcon?: ComponentType<{ className?: string }>;
   /** The chart itself (e.g. a recharts `ResponsiveContainer`). */
   children: ReactNode;
@@ -62,7 +65,7 @@ export function ChartCard({
   isEmpty = false,
   emptyTitle,
   emptyDescription,
-  emptyIcon,
+  emptyIcon = BarChart3,
   children,
   bodyClassName = 'h-60',
   className,

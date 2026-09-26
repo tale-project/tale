@@ -8,7 +8,8 @@ import { cn } from '../../lib/cn';
 
 interface EmptyStateProps {
   icon?: ComponentType<{ className?: string }>;
-  title: string;
+  /** The heading's text — or, inside a loading `Skeletonize`, its mask. */
+  title: ReactNode;
   /** Plain text or rich content (links, doc CTAs). Rendered in a `<div>`. */
   description?: ReactNode;
   action?: ReactNode;
@@ -52,7 +53,13 @@ export function EmptyState({
         // content (links, doc CTAs), and a `<div>` inside a `<p>` is invalid.
         // `min-h-10` reserves two text-sm lines (2 × 1.25rem) so one-line and
         // two-line descriptions produce equal-height empty states.
-        <Text as="div" variant="muted" className="mt-1 min-h-10 max-w-80">
+        // `text-balance` evens the two lines out, so a sentence that just
+        // overflows the column never strands its last word on a line alone.
+        <Text
+          as="div"
+          variant="muted"
+          className="mt-1 min-h-10 max-w-80 text-balance"
+        >
           {description}
         </Text>
       )}

@@ -100,6 +100,41 @@ describe('HarnessStatusSection', () => {
         'No directly usable provider credential yet — add an API key or an environment credential above.',
       ),
     ).toBeInTheDocument();
+    // The runtime's own row only says where it stands.
+    expect(screen.getByText('No model yet')).toBeInTheDocument();
+  });
+
+  it('says how to fix a missing credential once, however many runtimes lack one', () => {
+    const [available, missing] = ROWS;
+    fixtures.status = [
+      ...(available ? [available] : []),
+      ...(missing
+        ? [missing, { ...missing, slug: 'codex', label: 'Codex' }]
+        : []),
+    ];
+    fixtures.health = [];
+    fixtures.statusError = null;
+
+    renderSection();
+
+    expect(
+      screen.getAllByText(
+        'No directly usable provider credential yet — add an API key or an environment credential above.',
+      ),
+    ).toHaveLength(1);
+    expect(screen.getAllByText('No model yet')).toHaveLength(2);
+  });
+
+  it('adds no credential note when every runtime has a model', () => {
+    fixtures.status = ROWS.filter((row) => row.managed.available);
+    fixtures.health = [];
+    fixtures.statusError = null;
+
+    renderSection();
+
+    expect(
+      screen.queryByText(/No directly usable provider credential yet/),
+    ).not.toBeInTheDocument();
   });
 
   it('names a subscription by provider and flags the inert binding', () => {

@@ -3,6 +3,7 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { cn } from '@tale/ui/cn';
+import { CountBadge } from '@tale/ui/count-badge';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { tooltipContentClassName } from '@tale/ui/tooltip';
 import { Bell } from 'lucide-react';
@@ -44,22 +45,24 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
     setExpanded(true);
   }, []);
 
+  // The count chip is decoration, so the button's own name carries it.
+  const buttonLabel =
+    unreadCount > 0
+      ? `${tNav('notifications')}, ${tNav('aria.unreadNotifications', { count: unreadCount })}`
+      : tNav('notifications');
+
   const buttonNode = (
     <button
       type="button"
-      aria-label={tNav('notifications')}
+      aria-label={buttonLabel}
       className="hover:bg-muted relative flex cursor-pointer items-center justify-center rounded-md p-2"
     >
       <span className="relative inline-flex">
         <Bell className="text-muted-foreground size-5 shrink-0" />
-        {unreadCount > 0 && (
-          <span
-            aria-hidden
-            className="text-destructive-foreground absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold"
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
+        <CountBadge
+          count={unreadCount}
+          className="absolute -top-1.5 -right-1.5"
+        />
       </span>
     </button>
   );

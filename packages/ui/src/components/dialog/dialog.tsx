@@ -28,7 +28,9 @@ const dialogContentVariants = cva(
   // while the middle section scrolls. `overflow-hidden` + `min-h-0` make
   // `max-h` win: without them a flex item's `min-height: auto` grows the
   // shell past the viewport, and `top-1/2 -translate-y-1/2` clips both ends.
-  'ring-border bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 flex min-h-0 flex-col gap-4 overflow-hidden border-none shadow-lg ring-1 duration-[var(--duration-standard)] motion-reduce:animate-none ' +
+  // `outline-none`: a dialog with no field to start in takes focus itself so
+  // screen readers announce it; the panel is not a control and draws no ring.
+  'ring-border bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 flex min-h-0 flex-col gap-4 overflow-hidden border-none shadow-lg ring-1 duration-[var(--duration-standard)] outline-none motion-reduce:animate-none ' +
     // Mobile: bottom sheet
     'data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 inset-x-0 top-auto right-0 bottom-0 left-0 max-h-[88dvh] w-full max-w-full rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] ' +
     // md+: centered dialog. `md:left-1/2 md:right-auto` is the correct
@@ -60,6 +62,42 @@ const dialogContentVariants = cva(
     },
   },
 );
+
+/** A control a person types into — where a form dialog should open. File,
+ *  checkbox and radio inputs are not where anyone starts typing. */
+const FIELD_SELECTOR = [
+  'input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([disabled]):not([readonly])',
+  'textarea:not([disabled]):not([readonly])',
+  'select:not([disabled])',
+  '[contenteditable="true"]',
+].join(', ');
+
+/** The first field that is actually drawn: focusing an element hidden by
+ *  its own or an ancestor's styles is a silent no-op that would leave focus
+ *  outside the dialog. (`checkVisibility` is missing only outside real
+ *  browsers, where nothing is laid out anyway.) */
+function firstVisibleField(root: HTMLElement | null): HTMLElement | null {
+  if (root === null) return null;
+  for (const field of root.querySelectorAll<HTMLElement>(FIELD_SELECTOR)) {
+    if (
+      typeof field.checkVisibility !== 'function' ||
+      field.checkVisibility()
+    ) {
+      return field;
+    }
+  }
+  return null;
+}
+
+/** Fine pointers only: on a touch screen, focusing a field raises the
+ *  on-screen keyboard over a dialog the person has not read yet. */
+function prefersFieldFocus(): boolean {
+  return (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function' ||
+    !window.matchMedia('(pointer: coarse)').matches
+  );
+}
 
 export type DialogSize = NonNullable<
   VariantProps<typeof dialogContentVariants>['size']
@@ -146,8 +184,10 @@ export interface DialogProps {
    */
   restoreFocusRef?: React.RefObject<HTMLElement | null>;
   /**
-   * Where focus lands when the overlay opens. `default` is Radix's first
-   * tabbable (correct for forms). `container` focuses the scroll body so
+   * Where focus lands when the overlay opens. `default` is the body's first
+   * form field (a form opens ready to type; on a touch screen, where that
+   * would raise the keyboard unasked, the dialog itself), else the dialog —
+   * never the Close button, which comes first in the DOM. `container` focuses the scroll body so
    * header icon actions (Edit, Close) don't receive focus — their tooltip
    * would otherwise look like a hover the pointer never asked for.
    */
@@ -209,6 +249,7 @@ export function Dialog({
   // focus falls to <body> (WCAG 2.4.3). Capture the opener and refocus it.
   const restoreFocus = useRestoreFocus(open, restoreFocusRef);
   const bodyRef = React.useRef<HTMLDivElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       {trigger && (
@@ -223,20 +264,32 @@ export function Dialog({
             />
           )}
           <DialogPrimitive.Content
+            ref={contentRef}
             aria-modal="true"
             className={cn(dialogContentVariants({ size }), className)}
             onClick={(e) => e.stopPropagation()}
             {...(customHeader || !description
               ? { 'aria-describedby': undefined }
               : {})}
-            onOpenAutoFocus={
-              openAutoFocus === 'container'
-                ? (event) => {
-                    event.preventDefault();
-                    bodyRef.current?.focus({ preventScroll: true });
-                  }
-                : undefined
-            }
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              if (openAutoFocus === 'container') {
+                bodyRef.current?.focus({ preventScroll: true });
+                return;
+              }
+              // Radix would pick the first tabbable: the Close button, which
+              // sits first in the DOM — so a form opened on "Close" instead
+              // of its first field, and a dialog opened from a menu drew a
+              // focus ring on it. The dialog element itself is the fallback:
+              // it announces the title and draws no ring.
+              const field = prefersFieldFocus()
+                ? firstVisibleField(bodyRef.current)
+                : null;
+              field?.focus({ preventScroll: true });
+              if (field === null || document.activeElement !== field) {
+                contentRef.current?.focus({ preventScroll: true });
+              }
+            }}
             onCloseAutoFocus={
               preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
             }

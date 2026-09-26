@@ -25,7 +25,7 @@ Prüfe den Organisationsnamen, bevor du Einstellungen änderst oder Inhalte hinz
 
 ## Deine Rolle sehen {#role}
 
-Unter **Einstellungen > Konto > Deine Rolle** steht deine Rolle in dieser Organisation, zum Beispiel Redakteur oder Mitglied. Die Rolle bestimmt, was du tun darfst; deine Teams bestimmen, welche Team-Inhalte du siehst. Admins vergeben Rollen unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles). Mit Single Sign-On kann auch dein Identity-Provider deine Rolle bei jeder Anmeldung festlegen. Inhaber und Admins sehen im Abschnitt den Link **Mitglieder verwalten**.
+Unter **Einstellungen > Konto > Deine Rolle** steht deine Rolle in dieser Organisation, zum Beispiel Redakteur oder Mitglied. Die Rolle bestimmt, was du tun darfst; deine Teams bestimmen, welche Team-Inhalte du siehst. Admins vergeben Rollen unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles). Mit Single Sign-On kann auch dein Identity-Provider deine Rolle bei jeder Anmeldung festlegen. Inhaber und Admins sehen neben dem Titel des Abschnitts die Schaltfläche **Mitglieder verwalten**.
 
 ## Deine Teams sehen {#teams}
 
@@ -33,7 +33,7 @@ Unter **Einstellungen > Konto > Deine Teams** stehen die Teams, zu denen du geh�
 
 Um eine Liste auf bestimmte Arbeit einzugrenzen, nutze ihren Filter **Teams**: **Organisationsweit** zeigt nur Einträge ohne Team, **Meine Teams** zeigt Einträge, die eines deiner Teams sehen darf, und jedes Team steht mit Namen zur Wahl. Der Posteingang bietet hinter seinem Suchfeld den Filter **Zuständig**, der Personen und Teams gemeinsam aufführt. Ein Filter ändert die Ansicht, erweitert aber nicht deinen Zugriff auf Daten anderer Teams.
 
-Inhaber und Admins verwalten die Mitgliedschaften unter [Teams](/de/platform/admin/teams); der Abschnitt verlinkt für sie dorthin.
+Inhaber und Admins verwalten die Mitgliedschaften unter [Teams](/de/platform/admin/teams); die Schaltfläche **Teams verwalten** im Abschnitt führt sie dorthin.
 
 ## Benutzerdefinierte Anweisungen für den Chat-Assistenten festlegen
 

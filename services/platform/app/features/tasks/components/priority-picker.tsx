@@ -65,11 +65,16 @@ export function PriorityPicker({
   onChange,
   align = 'start',
   disabled = false,
+  showLabel = false,
 }: {
   priority: TaskPriority | null | undefined;
   onChange: (priority: TaskPriority | null) => void;
   align?: 'start' | 'center' | 'end';
   disabled?: boolean;
+  /** Name the priority beside its glyph — for a property list, where there is
+   *  room and a bare glyph made the reader hover to learn what it meant.
+   *  Cards and rows keep the glyph alone. */
+  showLabel?: boolean;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -82,7 +87,12 @@ export function PriorityPicker({
   const label = priority ? t(`priority.${priority}`) : t('priority.none');
 
   if (disabled) {
-    return (
+    return showLabel ? (
+      <span className="inline-flex h-7 items-center gap-1.5 px-1.5 text-sm">
+        {glyph}
+        {label}
+      </span>
+    ) : (
       <Tooltip content={label}>
         <span className="inline-flex">{glyph}</span>
       </Tooltip>
@@ -98,15 +108,27 @@ export function PriorityPicker({
     })),
   ];
 
-  const trigger = (
+  // See AssigneePicker: keep the press/click off the draggable parent so it
+  // doesn't start a drag or open the task.
+  const trigger = showLabel ? (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={`${t('fields.priority')}: ${label}`}
+      className="h-7 gap-1.5 rounded-md px-1.5 text-sm font-normal"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {glyph}
+      {label}
+    </Button>
+  ) : (
     <Button
       type="button"
       variant="ghost"
       size="icon"
       aria-label={t('fields.priority')}
       className="h-auto w-auto rounded-md p-1"
-      // See AssigneePicker: keep the press/click off the draggable parent so it
-      // doesn't start a drag or open the task.
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -114,45 +136,47 @@ export function PriorityPicker({
     </Button>
   );
 
-  return (
-    <Tooltip content={label}>
-      {/* Stop pointer/click here: React replays portal events through the React
-          tree, so a click on a portaled option would otherwise bubble to the
-          draggable card/row's onClick and open the task. This span is the
-          common React-tree ancestor of the trigger and the portaled list — a
-          propagation boundary, not a control. */}
-      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary, not an interactive control */}
-      <span
-        className="inline-flex"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <SearchableSelect
-          value={priority ?? NO_PRIORITY}
-          onValueChange={(val) => {
-            if (val === NO_PRIORITY) {
-              onChange(null);
-              return;
-            }
-            const match = TASK_PRIORITY_ORDER.find((p) => p === val);
-            if (match) onChange(match);
-          }}
-          options={options}
-          align={align}
-          trigger={trigger}
-          aria-label={t('fields.priority')}
-          searchPlaceholder={t('fields.priority')}
-          emptyText={tCommon('search.noResults')}
-          optionAction={(opt) => {
-            const match = TASK_PRIORITY_ORDER.find((p) => p === opt.value);
-            return match ? (
-              <TaskPriorityIcon priority={match} />
-            ) : (
-              <NoPriorityGlyph />
-            );
-          }}
-        />
-      </span>
-    </Tooltip>
+  const picker = (
+    // Stop pointer/click here: React replays portal events through the React
+    // tree, so a click on a portaled option would otherwise bubble to the
+    // draggable card/row's onClick and open the task. This span is the common
+    // React-tree ancestor of the trigger and the portaled list — a propagation
+    // boundary, not a control.
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary, not an interactive control
+    <span
+      className="inline-flex"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <SearchableSelect
+        value={priority ?? NO_PRIORITY}
+        onValueChange={(val) => {
+          if (val === NO_PRIORITY) {
+            onChange(null);
+            return;
+          }
+          const match = TASK_PRIORITY_ORDER.find((p) => p === val);
+          if (match) onChange(match);
+        }}
+        options={options}
+        align={align}
+        trigger={trigger}
+        aria-label={t('fields.priority')}
+        searchPlaceholder={t('fields.priority')}
+        emptyText={tCommon('search.noResults')}
+        optionAction={(opt) => {
+          const match = TASK_PRIORITY_ORDER.find((p) => p === opt.value);
+          return match ? (
+            <TaskPriorityIcon priority={match} />
+          ) : (
+            <NoPriorityGlyph />
+          );
+        }}
+      />
+    </span>
   );
+
+  // A labelled trigger already says what the glyph means; the tooltip is
+  // only for the bare glyph.
+  return showLabel ? picker : <Tooltip content={label}>{picker}</Tooltip>;
 }

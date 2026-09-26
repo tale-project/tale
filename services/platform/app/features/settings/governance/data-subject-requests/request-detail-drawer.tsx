@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { IconButton } from '@tale/ui/icon-button';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { Sheet } from '@tale/ui/sheet';
@@ -534,10 +535,10 @@ function FullBreakdown({ snapshot }: { snapshot: Record<string, unknown> }) {
   const { visible, zeroCount } = foldBreakdownEntries(snapshot);
 
   return (
-    <details className="border-border bg-muted/20 group rounded-md border p-2 text-sm">
-      <summary className="text-foreground cursor-pointer px-1 py-1 font-medium select-none">
-        {t('dataSubjectRequests.drawer.fullBreakdownTitle')}
-      </summary>
+    <CollapsibleDetails
+      summary={t('dataSubjectRequests.drawer.fullBreakdownTitle')}
+      className="border-border bg-muted/20 rounded-md border p-2 text-sm"
+    >
       <dl className="mt-2 flex flex-col gap-1 px-1">
         {visible.map(({ key, rows, skippedByHold }) => (
           <Row
@@ -566,7 +567,7 @@ function FullBreakdown({ snapshot }: { snapshot: Record<string, unknown> }) {
           </Text>
         )}
       </dl>
-    </details>
+    </CollapsibleDetails>
   );
 }
 

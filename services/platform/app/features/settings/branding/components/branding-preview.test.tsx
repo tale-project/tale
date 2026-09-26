@@ -102,26 +102,14 @@ describe('BrandingPreview', () => {
     expect(container.querySelector('.font-bold')).toBeNull();
   });
 
-  it('applies accent color to tab border', () => {
-    render(<BrandingPreview data={{ accentColor: '#FF5500' }} />);
-
-    const openTab = screen.getByText('Open');
-    expect(openTab).toHaveStyle({ borderColor: '#FF5500' });
-  });
-
-  it('applies accent color to first nav icon', () => {
+  it('marks the open Home section with the accent, as the live rail does', () => {
     // #0066CC already clears 3:1 against the (mocked light) background, so the
     // theme adjustment is a no-op and the exact color is applied.
-    const { container } = render(
-      <BrandingPreview data={{ accentColor: '#0066CC' }} />,
-    );
+    render(<BrandingPreview data={{ accentColor: '#0066CC' }} />);
 
-    const navIcons = container.querySelectorAll('svg');
-    const firstIcon = navIcons[0];
-    expect(firstIcon).toBeDefined();
-    if (firstIcon) {
-      expect(firstIcon).toHaveStyle({ color: '#0066CC' });
-    }
+    const tile = screen.getByTestId('preview-rail-active');
+    expect(tile).toHaveStyle({ backgroundColor: '#0066CC26' });
+    expect(tile.querySelector('svg')).toHaveStyle({ color: '#0066CC' });
   });
 
   it('renders browser chrome dots', () => {
@@ -132,20 +120,21 @@ describe('BrandingPreview', () => {
     expect(dots).toHaveLength(3);
   });
 
-  it('renders tab navigation items', () => {
+  it('draws the Home panel with its live view labels', () => {
     render(<BrandingPreview data={{}} />);
 
-    expect(screen.getByText('Open')).toBeInTheDocument();
-    expect(screen.getByText('Closed')).toBeInTheDocument();
-    expect(screen.getByText('Spam')).toBeInTheDocument();
+    const panel = screen.getByTestId('preview-home-panel');
+    expect(panel).toHaveTextContent('Home');
+    for (const label of ['All', 'Chats', 'Tasks', 'Inbox']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.getAllByTestId('preview-row')).toHaveLength(4);
   });
 
-  it('renders placeholder content rows', () => {
-    const { container } = render(<BrandingPreview data={{}} />);
+  it('no longer draws the retired inbox tabs', () => {
+    render(<BrandingPreview data={{}} />);
 
-    // 4 placeholder avatar circles
-    const avatars = container.querySelectorAll('.rounded-full.bg-muted');
-    expect(avatars.length).toBe(4);
+    expect(screen.queryByText('Spam')).not.toBeInTheDocument();
   });
 
   it('applies the accent color to the sidebar org-name wordmark', () => {

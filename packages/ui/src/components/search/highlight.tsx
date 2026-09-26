@@ -40,7 +40,10 @@ export function Highlight({ text, terms, className }: HighlightProps) {
             // oxlint-disable-next-line react/no-array-index-key
             key={i}
             className={cn(
-              'text-fg-base rounded-[3px] bg-amber-400/25 px-0.5 dark:bg-amber-300/20',
+              // A tint behind the letters, no side padding: padding pushed the
+              // matched run apart from its word ("re launch") and widened the
+              // gaps around a whole-word match.
+              'text-fg-base rounded-[3px] bg-amber-400/25 dark:bg-amber-300/20',
               className,
             )}
           >

@@ -7,6 +7,18 @@ import { DatePicker } from './date-picker';
 import { DATE_PICKER_POPPER_ATTR } from './date-picker-popper';
 
 describe('DatePicker', () => {
+  it('draws a bordered field by default and a borderless h-7 trigger as ghost', () => {
+    const { rerender } = render(<DatePicker onChange={vi.fn()} />);
+    const bordered = screen.getByRole('button', { name: /pick a date/i });
+    expect(bordered.parentElement).toHaveClass('ring-1');
+    expect(bordered).toHaveClass('h-9');
+
+    rerender(<DatePicker onChange={vi.fn()} variant="ghost" />);
+    const ghost = screen.getByRole('button', { name: /pick a date/i });
+    expect(ghost.parentElement).not.toHaveClass('ring-1');
+    expect(ghost).toHaveClass('h-7');
+  });
+
   it('passes axe audit', async () => {
     const { container } = render(<DatePicker onChange={vi.fn()} />);
     await checkAccessibility(container);

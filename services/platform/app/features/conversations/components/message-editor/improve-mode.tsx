@@ -54,7 +54,7 @@ export const ImproveMode = memo(function ImproveMode({
           onInstructionChange(e.target.value);
         }}
         placeholder={tConversations('suggestEditsPlaceholder')}
-        className="text-muted-foreground h-auto min-h-[10rem] flex-1 resize-none border-0 bg-transparent p-2 text-base outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+        className="text-muted-foreground h-auto min-h-[10rem] flex-1 resize-none border-0 bg-transparent p-2 text-base outline-none focus-visible:ring-0 focus-visible:ring-offset-0 md:text-sm"
         onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
           if (
             e.key === 'Enter' &&

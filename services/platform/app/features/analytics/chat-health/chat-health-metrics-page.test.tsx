@@ -107,6 +107,30 @@ describe('ChatHealthMetricsPage', () => {
     expect(screen.getByText('PII')).toBeInTheDocument();
   });
 
+  // The page rests on the last 7 days; showing that window is not a filter
+  // the user set, so the Filter button carries no active dot until another
+  // window is picked.
+  it('marks the filter active only away from its resting 7-day window', () => {
+    const { container, unmount } = render(
+      <ChatHealthMetricsPage
+        organizationId="org-1"
+        period="7"
+        onChangePeriod={() => undefined}
+      />,
+    );
+    expect(container.querySelector('.bg-blue-500')).toBeNull();
+    unmount();
+
+    const other = render(
+      <ChatHealthMetricsPage
+        organizationId="org-1"
+        period="30"
+        onChangePeriod={() => undefined}
+      />,
+    );
+    expect(other.container.querySelector('.bg-blue-500')).not.toBeNull();
+  });
+
   it('passes axe audit in its loaded state', async () => {
     const { container } = render(
       <ChatHealthMetricsPage

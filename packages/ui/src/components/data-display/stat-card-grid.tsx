@@ -92,13 +92,18 @@ export function StatCard({
         className,
       )}
     >
-      <Text className="text-fg-muted text-sm">
+      {/* A flex row, so an info glyph beside the label centres on it instead
+          of riding the text baseline and pushing this card's value lower than
+          its neighbours'. */}
+      <Text className="text-fg-muted flex min-h-5 items-center text-sm">
         {label}
         {tooltip}
       </Text>
+      {/* Inter's tabular figures, not a monospace face: the headline numbers
+          read in the UI's own type while digits still line up across cards. */}
       <Text
         className={cn(
-          'text-fg-base font-mono text-2xl font-semibold',
+          'text-fg-base text-2xl font-semibold tracking-tight tabular-nums',
           valueClassName,
         )}
       >

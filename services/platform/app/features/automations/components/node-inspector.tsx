@@ -292,7 +292,11 @@ export function NodeInspector({
           as="h3"
           size="sm"
           title={<span id={headingId}>{t('editor.title')}</span>}
-          description={t('editor.noSelection')}
+          // A read-only canvas (a run, an older version) offers nothing to
+          // edit, so it does not promise to.
+          description={t(
+            readOnly ? 'editor.noSelectionReadOnly' : 'editor.noSelection',
+          )}
         />
       )}
 

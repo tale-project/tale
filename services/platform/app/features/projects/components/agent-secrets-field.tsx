@@ -254,10 +254,10 @@ export function AgentSecretsField({
                 type="button"
                 variant="ghost"
                 size="sm"
+                icon={X}
                 disabled={busy}
                 onClick={resetForm}
               >
-                <X aria-hidden className="size-3.5" />
                 {t('agents.secrets.cancelButton')}
               </Button>
             </div>

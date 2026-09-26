@@ -78,10 +78,11 @@ describe('contacts CRUD (e2e migration)', () => {
     // dialog is covered by contact-create-dialog.test.tsx.
     await user.click(screen.getByRole('button', { name: 'Add contact' }));
 
+    // Device import first, the order the products and documents menus use.
     const items = await screen.findAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      'Manual entry',
       'From your device',
+      'Manual entry',
     ]);
   });
 

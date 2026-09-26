@@ -12,12 +12,12 @@ const STATUS_DOT_CLASS: Record<
   (typeof TASK_STATUS_BADGE_VARIANT)[TaskStatus],
   string
 > = {
-  outline: 'bg-gray-600',
-  destructive: 'bg-red-600',
-  orange: 'bg-orange-600',
-  yellow: 'bg-yellow-600',
-  blue: 'bg-blue-600',
-  green: 'bg-green-600',
+  outline: 'bg-gray-600 dark:bg-neutral-400',
+  destructive: 'bg-red-600 dark:bg-red-400',
+  orange: 'bg-orange-600 dark:bg-orange-400',
+  yellow: 'bg-yellow-600 dark:bg-yellow-400',
+  blue: 'bg-blue-600 dark:bg-blue-400',
+  green: 'bg-green-600 dark:bg-green-400',
 };
 
 /**

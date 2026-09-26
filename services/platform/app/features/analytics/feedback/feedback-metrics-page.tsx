@@ -180,6 +180,9 @@ function FeedbackMetricsPageView({
         <MetricsPeriodSelect
           periods={['1', '7', '30', '90', 'all']}
           value={period}
+          // This page rests on the last 7 days (its route's fallback), so
+          // that window is not an active filter and clearing returns to it.
+          defaultValue="7"
           onValueChange={onChangePeriod}
         />
       }
