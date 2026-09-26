@@ -245,6 +245,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [navigation](../suites/navigation.md) | `NAV-F11` | ✅ automated | `navigation.spec.ts` (user-menu Documentation link → `https://tale.dev/docs`) + component `user-button.test.tsx` |
 | [navigation](../suites/navigation.md) | `NAV-F10` | ⛔ manual-only | — (no DataTable bulk-action spec exists) |
 | [navigation](../suites/navigation.md) | `NAV-F12`–`NAV-F14` | ⛔ manual-only | — (env-gated: version bump / iOS Safari UA / production build with a waiting SW) |
+| [navigation](../suites/navigation.md) | `NAV-F25` | 🔶 partial | `scripts/check-sw-manifest.ts` (runs in `bun run build` and the image build: the precache manifest is unique and revisioned) + `packages/ui/src/pwa/sw-update-listener.test.tsx` (no update prompt without a controlling worker); the offline reload and the toast's lifetime stay manual |
 | [navigation](../suites/navigation.md) | `NAV-B1` | ✅ automated | `navigation.spec.ts` (not-found shell) |
 | [navigation](../suites/navigation.md) | `NAV-B2` | ✅ automated | `navigation.spec.ts` (styled 404 for an unknown route inside the shell, incl. document title) |
 | [navigation](../suites/navigation.md) | `NAV-B10` | 🔶 partial | `navigation.spec.ts` (standalone 404 for an unknown route outside the dashboard, incl. document title and the way back to the organization) + component `route-not-found.test.tsx` (also a miss beneath the sign-in layout: one `main`, no nested frame); the signed-out log-in hand-off and both themes stay manual |

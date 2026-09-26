@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 37 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 38 boxes
 
 Exercise cross-app navigation — the primary side-nav rail, the breadcrumb
 trail, browser back/forward, the chat command palette (Cmd/Ctrl+K), the org
@@ -228,6 +228,19 @@ loaded, and reads **No teams** for an account in none.
   to one of their teams) → The member's rail chip counts ONLY the second one:
   the unassigned triage row is invisible to them, in the chip exactly as in the
   list. The admin's own chip counts both.
+- [ ] `NAV-F25` · **The offline shell is real and a first visit is not an
+  update** — Needs a production build (`bun run build` — it runs
+  `scripts/check-sw-manifest.ts`, which refuses a precache manifest with a
+  URL listed twice or an un-revisioned entry). Open the app in a browser
+  profile that has never visited it → no **Update available**
+  (`pwa.updateAvailableTitle`) toast (only the one-off
+  **"Tale is ready to work offline."**, `pwa.offlineReady`); DevTools →
+  Application → Cache Storage holds the workbox precache with
+  `offline.html` and the icons; go offline and reload → Tale's own offline
+  page, not the browser's error page. After a second deploy, load the app
+  again → the **Update available** toast appears with **Update now**
+  (`pwa.updateNow`) and **Later** (`pwa.updateLater`); **Later** closes it,
+  and it dismisses on its own within ~15 s either way.
 
 ## Boundary & error tests
 
