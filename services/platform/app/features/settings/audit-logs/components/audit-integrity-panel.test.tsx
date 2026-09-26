@@ -50,6 +50,16 @@ beforeEach(() => {
 });
 
 describe('AuditIntegrityPanel', () => {
+  it('claims nothing about past checks while the status is loading', () => {
+    state.status = { data: undefined, isLoading: true };
+    renderPanel();
+    expect(screen.getByText('Chain integrity')).toBeInTheDocument();
+    expect(screen.queryByText('Not yet checked')).toBeNull();
+    expect(
+      screen.queryByText('No automated integrity check has run yet.'),
+    ).toBeNull();
+  });
+
   it('shows "not yet checked" when the org has no progress row', () => {
     renderPanel();
     expect(screen.getByText('Chain integrity')).toBeInTheDocument();
