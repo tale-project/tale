@@ -115,11 +115,11 @@ function HomeProjectRow({
         {pinned && (
           <Pin
             aria-label={tChat('pinned')}
-            className="text-muted-foreground size-3 shrink-0 transition-opacity md:group-hover:opacity-0 md:group-has-[[data-state=open]]:opacity-0"
+            className="text-muted-foreground size-3 shrink-0 transition-opacity md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0 md:group-has-[[data-state=open]]:opacity-0"
           />
         )}
       </Link>
-      <div className="bg-background/85 absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-md opacity-100 backdrop-blur-sm transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:has-[[data-state=open]]:opacity-100">
+      <div className="bg-background/85 absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-md opacity-100 backdrop-blur-sm transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
         <DropdownMenu
           align="end"
           trigger={

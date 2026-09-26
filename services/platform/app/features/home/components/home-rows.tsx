@@ -55,11 +55,14 @@ function RowText({
   unread,
   age,
   meta,
+  actions = false,
 }: {
   title: ReactNode;
   unread: boolean;
   age: string | null;
   meta: ReactNode;
+  /** The row reveals its actions over the age's edge (desktop). */
+  actions?: boolean;
 }) {
   const { t } = useT('home');
   return (
@@ -74,9 +77,15 @@ function RowText({
           {title}
         </span>
         {age !== null && (
-          // Steps aside on hover (desktop) — the row's actions land on this
-          // edge and the age would show through them.
-          <span className="text-muted-foreground/80 shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150 md:group-hover:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
+          <span
+            className={cn(
+              'text-muted-foreground/80 shrink-0 text-[11px] leading-5 tabular-nums transition-opacity duration-150',
+              // Steps aside while the row's actions show (desktop) — they
+              // land on this edge and the age would show through them.
+              actions &&
+                'md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0 md:group-has-[[data-state=open]]:opacity-0',
+            )}
+          >
             {age}
           </span>
         )}
@@ -128,10 +137,10 @@ function ProjectMarker({ project }: { project: ChatProjectSummary }) {
 // ───────────────────────────── chats ─────────────────────────────
 
 /**
- * A chat in the stream. Carries the chat list's whole toolset — pin, rename
- * in place, mark read, move to a project (also by dragging the row onto a
- * project), share, archive, delete — through the same menu and hooks the
- * chat panel used, so nothing was lost in the move.
+ * A chat in the stream. Carries every chat action — pin, rename in place,
+ * mark read, move to a project (also by dragging the row onto a project),
+ * share, archive, delete — through the row menu an archived chat's row
+ * shares, on the same handlers as the chat header's menu.
  */
 export function HomeChatRow({
   item,
@@ -200,6 +209,7 @@ export function HomeChatRow({
             title={title}
             unread={item.unread && !active}
             age={item.generating ? null : age}
+            actions
             meta={
               <>
                 {item.pinnedAt !== undefined && (
@@ -229,7 +239,7 @@ export function HomeChatRow({
         </Link>
       )}
       {!renaming && (
-        <div className="bg-background/85 absolute top-1.5 right-1.5 z-10 rounded-md opacity-100 backdrop-blur-sm transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:has-[[data-state=open]]:opacity-100">
+        <div className="bg-background/85 absolute top-1.5 right-1.5 z-10 rounded-md opacity-100 backdrop-blur-sm transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:group-has-[:focus-visible]:opacity-100 md:has-[[data-state=open]]:opacity-100">
           <ThreadRowMenu
             thread={thread}
             variant="default"
@@ -390,7 +400,9 @@ export function HomeConversationRow({
             className={cn(
               'transition-opacity duration-150',
               selection !== undefined &&
-                (showCheckbox ? 'opacity-0' : 'md:group-hover:opacity-0'),
+                (showCheckbox
+                  ? 'opacity-0'
+                  : 'opacity-0 md:opacity-100 md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0'),
             )}
           >
             <ContactInitials label={contact} />
@@ -414,15 +426,17 @@ export function HomeConversationRow({
         />
       </Link>
       {selection !== undefined && (
-        // A sibling of the link, never inside it, laid over the glyph: the
-        // contact's initials give way to a checkbox on hover, and every row
-        // keeps its checkbox once a selection is under way.
+        // A sibling of the link, never inside it, laid over the glyph. On a
+        // computer the contact's initials give way to a checkbox on hover or
+        // keyboard focus, and every row keeps its checkbox once a selection
+        // is under way; on a phone, where nothing hovers, the checkbox always
+        // stands in for them — or a selection could never start.
         <span
           className={cn(
             'absolute top-2 left-2 flex size-5 items-center justify-center transition-opacity duration-150',
             showCheckbox
               ? 'opacity-100'
-              : 'pointer-events-none opacity-0 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100',
+              : 'md:pointer-events-none md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:opacity-100 md:group-has-[:focus-visible]:pointer-events-auto md:group-has-[:focus-visible]:opacity-100',
           )}
         >
           <Checkbox
