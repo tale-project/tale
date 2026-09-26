@@ -153,6 +153,10 @@ export function groupHomeItems(
   return groups;
 }
 
+/** The provisional row of a fresh chat being written — its key beside the
+ * items' own, for the stream's highlight and reveal. */
+export const DRAFT_ROW_KEY = 'draft';
+
 /** A stable identity across kinds — chat, task and conversation ids live in
  * different tables and could in principle collide. */
 export function homeItemKey(item: Pick<HomeItem, 'kind' | 'id'>): string {

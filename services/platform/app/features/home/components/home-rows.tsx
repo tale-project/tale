@@ -9,9 +9,9 @@
  * column whatever the kind.
  */
 
+import { useAccentColor } from '@tale/ui/accent-color';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
-import { useSubPanelRowTreatment } from '@tale/ui/sub-panel-list';
 import { Link } from '@tanstack/react-router';
 import {
   LoaderCircle,
@@ -20,7 +20,7 @@ import {
   Share2,
   SquarePen,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 
 import { useThreadDraggable } from '@/app/features/chat/components/thread-dnd';
 import { useThreadListFrame } from '@/app/features/chat/components/thread-list-context';
@@ -38,6 +38,7 @@ import { TaskStatusGlyph } from '@/app/features/tasks/components/task-status-gly
 import { useT } from '@/lib/i18n/client';
 
 import { useCompactAge } from '../hooks/use-compact-age';
+import { DRAFT_ROW_KEY, homeItemKey } from '../lib/home-items';
 import type {
   HomeChatItem,
   HomeConversationItem,
@@ -47,7 +48,27 @@ import type {
 // ───────────────────────────── shared frame ─────────────────────────────
 
 const ROW_LINK_CLASS =
-  'focus-visible:ring-ring flex w-full min-w-0 items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset';
+  'focus-visible:ring-ring relative z-10 flex w-full min-w-0 items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset';
+
+/** How a row that just joined a list arrives: it drops into place. */
+const ROW_ENTER_CLASS = 'animate-row-enter motion-reduce:animate-none';
+
+/**
+ * A row's own treatment. The open row's fill is the list's one gliding
+ * highlight (`SlidingHighlight`), so the row itself only changes colour and
+ * weight — a branded organization's accent colours its text.
+ */
+function useHomeRowTone(active: boolean): {
+  className: string;
+  style?: CSSProperties;
+} {
+  const accentColor = useAccentColor();
+  if (!active) return { className: 'hover:bg-muted/60' };
+  return {
+    className: 'text-foreground font-medium',
+    ...(accentColor ? { style: { color: accentColor } } : {}),
+  };
+}
 
 /** The two text lines every row shares: title + age, then context + dot. */
 function RowText({
@@ -147,11 +168,14 @@ export function HomeChatRow({
   thread,
   project,
   active,
+  entering = false,
 }: {
   item: HomeChatItem;
   thread: ChatThreadSummary;
   project: ChatProjectSummary | undefined;
   active: boolean;
+  /** The row just joined the list — it slides in. */
+  entering?: boolean;
 }) {
   const { t } = useT('home');
   const { t: tChat } = useT('chat');
@@ -163,7 +187,7 @@ export function HomeChatRow({
     title: thread.title ?? tChat('history.untitled'),
     archived: thread.archived,
   });
-  const treatment = useSubPanelRowTreatment(active && !isDragging);
+  const tone = useHomeRowTone(active && !isDragging);
   const age = useCompactAge(item.activityAt, { paused: item.generating });
   const title = item.title.length > 0 ? item.title : t('row.untitledChat');
 
@@ -172,7 +196,11 @@ export function HomeChatRow({
       ref={setNodeRef}
       {...(renaming ? {} : listeners)}
       data-thread-id={thread.id}
-      className={cn('group relative rounded-lg', isDragging && 'opacity-40')}
+      className={cn(
+        'group relative rounded-lg',
+        isDragging && 'opacity-40',
+        entering && ROW_ENTER_CLASS,
+      )}
     >
       {renaming ? (
         <div className="flex items-center gap-2.5 px-2 py-1.5">
@@ -190,13 +218,9 @@ export function HomeChatRow({
           to="/dashboard/$id/chat/$threadId"
           params={{ id: organizationId, threadId: thread.id }}
           aria-current={active ? 'page' : undefined}
-          className={cn(
-            ROW_LINK_CLASS,
-            active ? treatment.className : 'hover:bg-muted/60',
-          )}
-          {...(active && treatment.style !== undefined
-            ? { style: treatment.style }
-            : {})}
+          data-indicator-key={homeItemKey(item)}
+          className={cn(ROW_LINK_CLASS, tone.className)}
+          {...(tone.style !== undefined ? { style: tone.style } : {})}
         >
           <RowGlyph>
             {item.generating ? (
@@ -261,7 +285,7 @@ export function HomeDraftChatRow({
   projectId?: string;
 }) {
   const { t } = useT('home');
-  const treatment = useSubPanelRowTreatment(true);
+  const tone = useHomeRowTone(true);
   return (
     <li className="animate-in fade-in-0 slide-in-from-top-1 rounded-lg duration-200">
       <Link
@@ -271,8 +295,9 @@ export function HomeDraftChatRow({
           projectId !== undefined ? { projectId, new: true } : { new: true }
         }
         aria-current="page"
-        className={cn(ROW_LINK_CLASS, treatment.className)}
-        {...(treatment.style !== undefined ? { style: treatment.style } : {})}
+        data-indicator-key={DRAFT_ROW_KEY}
+        className={cn(ROW_LINK_CLASS, tone.className)}
+        {...(tone.style !== undefined ? { style: tone.style } : {})}
       >
         <RowGlyph>
           <SquarePen className="size-4" />
@@ -294,29 +319,30 @@ export function HomeTaskRow({
   item,
   organizationId,
   active,
+  entering = false,
 }: {
   item: HomeTaskItem;
   organizationId: string;
   active: boolean;
+  /** The row just joined the list — it slides in. */
+  entering?: boolean;
 }) {
   const { t } = useT('home');
   const { t: tTasks } = useT('tasks');
-  const treatment = useSubPanelRowTreatment(active);
+  const tone = useHomeRowTone(active);
   const age = useCompactAge(item.activityAt);
 
   return (
-    <li className="group relative rounded-lg">
+    <li
+      className={cn('group relative rounded-lg', entering && ROW_ENTER_CLASS)}
+    >
       <Link
         to="/dashboard/$id/tasks/$taskId"
         params={{ id: organizationId, taskId: item.id }}
         aria-current={active ? 'page' : undefined}
-        className={cn(
-          ROW_LINK_CLASS,
-          active ? treatment.className : 'hover:bg-muted/60',
-        )}
-        {...(active && treatment.style !== undefined
-          ? { style: treatment.style }
-          : {})}
+        data-indicator-key={homeItemKey(item)}
+        className={cn(ROW_LINK_CLASS, tone.className)}
+        {...(tone.style !== undefined ? { style: tone.style } : {})}
       >
         <RowGlyph>
           <TaskStatusGlyph status={item.status} />
@@ -361,15 +387,18 @@ export function HomeConversationRow({
   organizationId,
   active,
   selection,
+  entering = false,
 }: {
   item: HomeConversationItem;
   organizationId: string;
   active: boolean;
   /** The Inbox view's multi-select; absent in the mixed stream. */
   selection?: HomeRowSelection;
+  /** The row just joined the list — it slides in. */
+  entering?: boolean;
 }) {
   const { t: tConversations } = useT('conversations');
-  const treatment = useSubPanelRowTreatment(active);
+  const tone = useHomeRowTone(active);
   const age = useCompactAge(item.activityAt);
   const contact = item.contactLabel ?? tConversations('unknownContact');
   const showCheckbox =
@@ -380,6 +409,7 @@ export function HomeConversationRow({
       className={cn(
         'group relative rounded-lg',
         selection?.checked === true && 'bg-primary/5',
+        entering && ROW_ENTER_CLASS,
       )}
     >
       <Link
@@ -387,13 +417,9 @@ export function HomeConversationRow({
         params={{ id: organizationId, status: item.status }}
         search={{ conversation: item.id }}
         aria-current={active ? 'page' : undefined}
-        className={cn(
-          ROW_LINK_CLASS,
-          active ? treatment.className : 'hover:bg-muted/60',
-        )}
-        {...(active && treatment.style !== undefined
-          ? { style: treatment.style }
-          : {})}
+        data-indicator-key={homeItemKey(item)}
+        className={cn(ROW_LINK_CLASS, tone.className)}
+        {...(tone.style !== undefined ? { style: tone.style } : {})}
       >
         <RowGlyph>
           <span

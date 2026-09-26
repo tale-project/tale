@@ -17,10 +17,12 @@
 
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
+import { SlidingHighlight } from '@tale/ui/section-nav';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { SubPanel } from '@tale/ui/sub-panel';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useIsMac } from '@tale/ui/use-is-mac';
+import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
 import { Link, useLocation } from '@tanstack/react-router';
 import {
   Inbox,
@@ -43,6 +45,7 @@ import { ArchivedSection } from '@/app/features/chat/components/archived-section
 import {
   ThreadDndProvider,
   useStayDropZone,
+  useThreadDndState,
 } from '@/app/features/chat/components/thread-dnd';
 import {
   ThreadListFrameProvider,
@@ -53,8 +56,10 @@ import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
+import { useEnteringKeys } from '../hooks/use-entering-keys';
 import { useHomeData } from '../hooks/use-home-data';
 import {
+  DRAFT_ROW_KEY,
   HOME_VIEWS,
   INBOX_STATUSES,
   groupHomeItems,
@@ -240,12 +245,24 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
   const activeKey =
     location.kind === 'chat'
       ? // A fresh chat's draft row is the open item too.
-        (location.threadId ?? 'draft')
+        (location.threadId ?? DRAFT_ROW_KEY)
       : location.kind === 'task'
         ? location.taskId
         : location.kind === 'conversation'
           ? location.conversationId
           : undefined;
+  // The row the stream's highlight rests on, in the rows' own keys.
+  const highlightKey =
+    location.kind === 'chat'
+      ? location.threadId !== undefined
+        ? homeItemKey({ kind: 'chat', id: location.threadId })
+        : DRAFT_ROW_KEY
+      : location.kind === 'task'
+        ? homeItemKey({ kind: 'task', id: location.taskId })
+        : location.kind === 'conversation' &&
+            location.conversationId !== undefined
+          ? homeItemKey({ kind: 'conversation', id: location.conversationId })
+          : null;
   // A fresh chat being written shows as a draft row at the top of the stream.
   const draftingChat =
     location.kind === 'chat' &&
@@ -267,6 +284,24 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
     revealedRef.current = target;
     row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [activeKey, view, streamLoading, groups, draftingChat]);
+
+  const streamLayout = useMemo(
+    () =>
+      groups
+        .map(
+          (group) =>
+            `${group.key}:${group.items.map((item) => homeItemKey(item)).join(',')}`,
+        )
+        .join('|'),
+    [groups],
+  );
+
+  const streamKeys = useMemo(
+    () =>
+      groups.flatMap((group) => group.items.map((item) => homeItemKey(item))),
+    [groups],
+  );
+  const entering = useEnteringKeys(streamKeys, view, streamLoading);
 
   const projectsById = useMemo(
     () => new Map(data.projects.map((project) => [project.id, project])),
@@ -296,6 +331,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
       return (
         <HomeChatRow
           key={homeItemKey(item)}
+          entering={entering.has(homeItemKey(item))}
           item={item}
           thread={thread}
           project={
@@ -311,6 +347,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
       return (
         <HomeTaskRow
           key={homeItemKey(item)}
+          entering={entering.has(homeItemKey(item))}
           item={item}
           organizationId={organizationId}
           active={active}
@@ -320,6 +357,7 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
     return (
       <HomeConversationRow
         key={homeItemKey(item)}
+        entering={entering.has(homeItemKey(item))}
         item={item}
         organizationId={organizationId}
         active={active}
@@ -362,7 +400,11 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
                   : {})}
               />
 
-              <HomeStreamScroller scrollerRef={streamRef}>
+              <HomeStreamScroller
+                scrollerRef={streamRef}
+                highlightKey={highlightKey}
+                layoutVersion={`${view}|${draftingChat ? 'draft|' : ''}${streamLayout}`}
+              >
                 {streamLoading ? (
                   <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
                     <HomeRowsSkeleton />
@@ -419,24 +461,39 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
  */
 function HomeStreamScroller({
   scrollerRef,
+  highlightKey,
+  layoutVersion,
   children,
 }: {
   scrollerRef: RefObject<HTMLDivElement | null>;
+  /** The open row's key — the one the gliding highlight rests on. */
+  highlightKey: string | null;
+  /** Changes whenever rows move without the open one changing. */
+  layoutVersion: string;
   children: ReactNode;
 }) {
   const setDropRef = useStayDropZone();
+  // The highlight steps away while a chat is dragged, so the lifted row is
+  // not left sitting on a fill; it lands back in place on drop.
+  const { isDragging } = useThreadDndState();
+  const { containerRef, ...indicator } = useSlidingIndicator<HTMLDivElement>(
+    isDragging ? null : highlightKey,
+    layoutVersion,
+  );
   const setRefs = useCallback(
     (node: HTMLDivElement | null) => {
       scrollerRef.current = node;
       setDropRef(node);
+      containerRef(node);
     },
-    [scrollerRef, setDropRef],
+    [scrollerRef, setDropRef, containerRef],
   );
   return (
     <div
       ref={setRefs}
-      className="scrollbar-thin border-border/70 -mx-2.5 mt-2 min-h-0 flex-1 overflow-y-auto border-t px-2.5"
+      className="scrollbar-thin border-border/70 relative -mx-2.5 mt-2 min-h-0 flex-1 overflow-y-auto border-t px-2.5"
     >
+      <SlidingHighlight indicator={indicator} />
       {children}
     </div>
   );

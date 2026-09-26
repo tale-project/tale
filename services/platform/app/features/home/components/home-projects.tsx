@@ -8,15 +8,15 @@
  * so the stream below always stays in reach.
  */
 
+import { useAccentColor } from '@tale/ui/accent-color';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
+import { SlidingHighlight } from '@tale/ui/section-nav';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import {
-  SubPanelDisclosureBody,
-  useSubPanelRowTreatment,
-} from '@tale/ui/sub-panel-list';
+import { SubPanelDisclosureBody } from '@tale/ui/sub-panel-list';
 import { Tooltip } from '@tale/ui/tooltip';
+import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
 import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -54,7 +54,7 @@ function HomeProjectRow({
   const { t } = useT('home');
   const { t: tChat } = useT('chat');
   const navigate = useNavigate();
-  const treatment = useSubPanelRowTreatment(active);
+  const accentColor = useAccentColor();
   const { setNodeRef, isOver } = useProjectDropZone(project.id);
   const { setPinned } = useProjectPin(organizationId);
   const pinned = project.pinnedAt !== undefined;
@@ -95,15 +95,15 @@ function HomeProjectRow({
         to="/dashboard/$id/projects/$projectId"
         params={{ id: organizationId, projectId: project.id }}
         aria-current={active ? 'page' : undefined}
+        data-indicator-key={project.id}
         className={cn(
-          'focus-visible:ring-ring flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+          'focus-visible:ring-ring relative z-10 flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+          // The open project's fill is the list's gliding highlight.
           active
-            ? treatment.className
+            ? 'text-foreground font-medium'
             : 'text-foreground/90 hover:bg-muted/60 hover:text-foreground',
         )}
-        {...(active && treatment.style !== undefined
-          ? { style: treatment.style }
-          : {})}
+        {...(active && accentColor ? { style: { color: accentColor } } : {})}
       >
         <ProjectAvatar
           name={project.name}
@@ -171,6 +171,12 @@ export function HomeProjects({
       }),
     [projects],
   );
+  // One highlight glides between project rows as the open project changes;
+  // the order moves it without changing its key.
+  const indicator = useSlidingIndicator<HTMLDivElement>(
+    activeProjectId ?? null,
+    sorted.map((project) => project.id).join(','),
+  );
 
   return (
     <section
@@ -224,7 +230,11 @@ export function HomeProjects({
         </Tooltip>
       </div>
       <SubPanelDisclosureBody open={open} className="min-h-0">
-        <div className="scrollbar-thin max-h-full overflow-y-auto">
+        <div
+          ref={indicator.containerRef}
+          className="scrollbar-thin relative max-h-full overflow-y-auto"
+        >
+          <SlidingHighlight indicator={indicator} />
           {loading ? (
             <Skeletonize loading className="flex flex-col gap-0.5 py-0.5">
               <ProjectRowsSkeleton />

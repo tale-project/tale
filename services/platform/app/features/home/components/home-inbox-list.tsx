@@ -16,8 +16,10 @@ import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { FilterPanel } from '@tale/ui/filters/filter-panel';
 import { SearchInput } from '@tale/ui/search-input';
+import { SlidingHighlight } from '@tale/ui/section-nav';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Tooltip } from '@tale/ui/tooltip';
+import { useSlidingIndicator } from '@tale/ui/use-sliding-indicator';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArchiveIcon,
@@ -51,10 +53,12 @@ import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
 
+import { useEnteringKeys } from '../hooks/use-entering-keys';
 import { toHomeConversationItem } from '../hooks/use-home-data';
 import {
   INBOX_STATUSES,
   groupHomeItems,
+  homeItemKey,
   type HomeConversationItem,
   type InboxStatus,
 } from '../lib/home-items';
@@ -219,6 +223,26 @@ export function HomeInboxList({
     [list.filteredConversations, status],
   );
 
+  const loading = pageStatus === 'LoadingFirstPage';
+  const rowKeys = useMemo(
+    () => groups.flatMap((group) => group.items.map((item) => item.id)),
+    [groups],
+  );
+  const entering = useEnteringKeys(rowKeys, status, loading);
+
+  // One highlight glides between conversation rows as the open one changes.
+  const indicator = useSlidingIndicator<HTMLDivElement>(
+    activeConversationId !== undefined
+      ? homeItemKey({ kind: 'conversation', id: activeConversationId })
+      : null,
+    `${status}|${groups
+      .map(
+        (group) =>
+          `${group.key}:${group.items.map((item) => item.id).join(',')}`,
+      )
+      .join('|')}`,
+  );
+
   const selectStatus = (next: InboxStatus) => {
     selection.clearSelection();
     onStatusChange(next);
@@ -239,7 +263,6 @@ export function HomeInboxList({
     })),
   ];
 
-  const loading = pageStatus === 'LoadingFirstPage';
   const busy = bulk.isBulkProcessing;
 
   return (
@@ -380,7 +403,11 @@ export function HomeInboxList({
         )}
       </div>
 
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2.5">
+      <div
+        ref={indicator.containerRef}
+        className="scrollbar-thin relative min-h-0 flex-1 overflow-y-auto px-2.5"
+      >
+        <SlidingHighlight indicator={indicator} />
         {loading ? (
           <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
             <HomeRowsSkeleton />
@@ -422,6 +449,7 @@ export function HomeInboxList({
                     item.kind === 'conversation' ? (
                       <HomeConversationRow
                         key={item.id}
+                        entering={entering.has(item.id)}
                         item={item}
                         organizationId={organizationId}
                         active={item.id === activeConversationId}
