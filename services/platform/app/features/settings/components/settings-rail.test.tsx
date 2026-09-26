@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { SettingsRail } from './settings-rail';
 
@@ -49,14 +49,16 @@ describe('SettingsRail', () => {
   describe('accessibility', () => {
     it('passes axe audit with all sections (governance expanded)', async () => {
       const { container } = render(<SettingsRail organizationId="org-1" />);
-      await waitFor(() => checkAccessibility(container));
+      await screen.findByRole('link', { name: 'Policies & Limits' });
+      await checkAccessibility(container);
     });
 
     it('passes axe audit without account row', async () => {
       const { container } = render(
         <SettingsRail organizationId="org-1" showAccountTab={false} />,
       );
-      await waitFor(() => checkAccessibility(container));
+      await screen.findByRole('link', { name: 'Policies & Limits' });
+      await checkAccessibility(container);
     });
   });
 
