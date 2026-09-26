@@ -68,11 +68,14 @@ function BulkButton({
   icon: Icon,
   onClick,
   busy,
+  disabled = false,
 }: {
   label: string;
   icon: LucideIcon;
   onClick: () => void;
   busy: boolean;
+  /** Held without a spinner — another verb is running. */
+  disabled?: boolean;
 }) {
   return (
     <Tooltip content={label} side="bottom">
@@ -80,7 +83,7 @@ function BulkButton({
         size="icon"
         variant="ghost"
         onClick={onClick}
-        disabled={busy}
+        disabled={busy || disabled}
         aria-label={label}
         className="text-muted-foreground hover:text-foreground size-7"
       >
@@ -165,6 +168,15 @@ export function HomeInboxList({
     assigneeSelection: assignee,
     onAssigneeFilterChange: setAssignee,
     channelFilter,
+    // As on the inbox page: a bulk verb lets go of the open conversation,
+    // which may have just moved to another tab.
+    onBulkComplete: () => {
+      if (activeConversationId === undefined) return;
+      void navigate({
+        to: '/dashboard/$id/conversations/$status',
+        params: { id: organizationId, status },
+      });
+    },
   });
   const { selection, bulk } = list;
 
@@ -241,7 +253,11 @@ export function HomeInboxList({
                 variant="ghost"
                 size="sm"
                 className="text-foreground -ml-1 h-7 gap-1 px-2 text-xs font-medium"
-                aria-label={t('inbox.statusLabel')}
+                // The name leads with the visible status, so a voice command
+                // saying what is on screen reaches the button.
+                aria-label={t('inbox.statusLabel', {
+                  status: t(`inbox.status.${status}`),
+                })}
               >
                 {t(`inbox.status.${status}`)}
                 <ChevronDown className="text-muted-foreground size-3.5" />
@@ -297,6 +313,7 @@ export function HomeInboxList({
                   icon={SendHorizontalIcon}
                   onClick={bulk.openBulkSendDialog}
                   busy={false}
+                  disabled={busy}
                 />
                 <BulkButton
                   label={tConversations('bulk.close')}

@@ -4257,7 +4257,7 @@ home:
     actions: 'Actions pour {project}'
     empty: Aucun projet pour le moment
   inbox:
-    statusLabel: Statut de la conversation
+    statusLabel: '{status}, statut de la conversation'
     compose: Nouvel e-mail
     clearSelection: Effacer la sélection
     status:

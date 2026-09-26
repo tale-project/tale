@@ -176,7 +176,6 @@ function homeData(
     },
     hasInbox: false,
     attention: { chats: 0, tasks: 0, inbox: 0 },
-    inboxPagination: { canLoadMore: false, loadMore: vi.fn() },
   };
 }
 

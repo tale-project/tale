@@ -23,15 +23,18 @@ interface ListConversationsPaginatedArgs {
    *  several. */
   credentialId?: string;
   initialNumItems: number;
+  /** When false the read is skipped — an organization without an inbox has
+   *  no conversations to ask for. */
+  enabled?: boolean;
 }
 
 export function useListConversationsPaginated(
   args: ListConversationsPaginatedArgs,
 ) {
-  const { initialNumItems, ...queryArgs } = args;
+  const { initialNumItems, enabled = true, ...queryArgs } = args;
   return useCachedPaginatedQuery(
     'conversations/queries:listConversationsPaginated',
-    queryArgs,
+    enabled ? queryArgs : 'skip',
     { initialNumItems },
   );
 }

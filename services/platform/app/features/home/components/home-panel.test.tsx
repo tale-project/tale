@@ -138,7 +138,6 @@ function data(overrides: Partial<HomeData> = {}): HomeData {
     },
     hasInbox: true,
     attention: { chats: 0, tasks: 1, inbox: 1 },
-    inboxPagination: { canLoadMore: false, loadMore: vi.fn() },
     ...overrides,
   };
 }

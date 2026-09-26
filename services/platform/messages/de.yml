@@ -4192,7 +4192,7 @@ home:
     actions: 'Aktionen für {project}'
     empty: Noch keine Projekte
   inbox:
-    statusLabel: Konversationsstatus
+    statusLabel: '{status}, Konversationsstatus'
     compose: Neue E-Mail
     clearSelection: Auswahl aufheben
     status:

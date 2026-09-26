@@ -173,14 +173,17 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
     `home-inbox-status-${organizationId}`,
     'open',
   );
-  // On an inbox route the URL's status wins, so the stream shows the tab the
-  // open conversation lives in.
-  const inboxStatus =
+  // On an inbox route the URL's status wins, so the Inbox view shows the tab
+  // the open conversation lives in; the remembered one is checked like the
+  // view, since storage may hold anything.
+  const inboxStatus: InboxStatus =
     location.kind === 'conversation' && isInboxStatus(location.status)
       ? location.status
-      : storedInboxStatus;
+      : isInboxStatus(storedInboxStatus)
+        ? storedInboxStatus
+        : 'open';
 
-  const data = useHomeData(organizationId, inboxStatus);
+  const data = useHomeData(organizationId);
   const view: HomeView =
     isHomeView(storedView) && (storedView !== 'inbox' || data.hasInbox)
       ? storedView
@@ -214,11 +217,9 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
         data.items.filter(
           (item) =>
             viewIncludes(view, item.kind) &&
-            // The All view keeps only the conversations still open — the
+            // The stream keeps only the conversations still open — the
             // closed, spam and archived tabs live in the Inbox view.
-            (view === 'inbox' ||
-              item.kind !== 'conversation' ||
-              item.status === 'open'),
+            (item.kind !== 'conversation' || item.status === 'open'),
         ),
         now,
       ),
@@ -245,23 +246,33 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
         : location.kind === 'conversation'
           ? location.conversationId
           : undefined;
+  // A fresh chat being written shows as a draft row at the top of the stream.
+  const draftingChat =
+    location.kind === 'chat' &&
+    location.threadId === undefined &&
+    viewIncludes(view, 'chat');
+  // Once per open item and view: the row may arrive after the first render
+  // (the inbox answers after the chats), so each change to the stream looks
+  // again until it is found — but a row already revealed is left where the
+  // user scrolled it.
+  const revealedRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (activeKey === undefined) return;
+    const target = `${view}:${activeKey}`;
+    if (revealedRef.current === target) return;
     const row = streamRef.current?.querySelector<HTMLElement>(
       '[aria-current="page"]',
     );
-    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeKey, view, streamLoading]);
+    if (row === null || row === undefined) return;
+    revealedRef.current = target;
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [activeKey, view, streamLoading, groups, draftingChat]);
 
   const projectsById = useMemo(
     () => new Map(data.projects.map((project) => [project.id, project])),
     [data.projects],
   );
 
-  const draftingChat =
-    location.kind === 'chat' &&
-    location.threadId === undefined &&
-    viewIncludes(view, 'chat');
   const searchRecord: Record<string, unknown> = search;
   const draftProjectId =
     typeof searchRecord.projectId === 'string'

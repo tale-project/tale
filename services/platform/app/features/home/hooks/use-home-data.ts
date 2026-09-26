@@ -57,10 +57,6 @@ export interface HomeData {
     readonly tasks: number;
     readonly inbox: number;
   };
-  readonly inboxPagination: {
-    readonly canLoadMore: boolean;
-    readonly loadMore: () => void;
-  };
 }
 
 function isInboxStatus(value: unknown): value is InboxStatus {
@@ -108,16 +104,15 @@ export function toHomeConversationItem(
 }
 
 /**
- * Everything the Home panel lists, from the three feature reads it is made
+ * Everything the Home stream lists, from the three feature reads it is made
  * of. Each source keeps its own access rule and cache — the chat list is the
  * caller's own threads, the tasks are the open ones assigned to them across
- * every project they can read, and the inbox is the page of conversations
- * their inbox scope shows for `inboxStatus`.
+ * every project they can read, and the inbox is the first page of OPEN
+ * conversations their inbox scope shows. Always open, whichever status the
+ * Inbox view was left on: that view reads its own pages, and the stream and
+ * the Inbox dot are about what still needs an answer.
  */
-export function useHomeData(
-  organizationId: string,
-  inboxStatus: InboxStatus,
-): HomeData {
+export function useHomeData(organizationId: string): HomeData {
   const threads = useChatThreads(organizationId);
   const projectsQuery = useChatProjects(organizationId);
   const { data: me } = useCurrentUser();
@@ -139,9 +134,10 @@ export function useHomeData(
   const { hasInbox, isLoading: inboxGateLoading } =
     useInboxAvailability(organizationId);
   const conversations = useListConversationsPaginated({
-    organizationId: hasInbox ? organizationId : '',
-    status: inboxStatus,
+    organizationId,
+    status: 'open',
     initialNumItems: INBOX_PAGE_SIZE,
+    enabled: hasInbox,
   });
 
   const projects =
@@ -206,10 +202,10 @@ export function useHomeData(
   const conversationItems = useMemo((): HomeConversationItem[] => {
     if (!hasInbox) return [];
     return conversations.results.flatMap((row) => {
-      const item = toHomeConversationItem(row, inboxStatus);
+      const item = toHomeConversationItem(row, 'open');
       return item === null ? [] : [item];
     });
-  }, [conversations.results, hasInbox, inboxStatus]);
+  }, [conversations.results, hasInbox]);
 
   const items = useMemo(
     (): HomeItem[] => [...chatItems, ...taskItems, ...conversationItems],
@@ -250,9 +246,5 @@ export function useHomeData(
     },
     hasInbox,
     attention,
-    inboxPagination: {
-      canLoadMore: conversations.status === 'CanLoadMore',
-      loadMore: () => conversations.loadMore(INBOX_PAGE_SIZE),
-    },
   };
 }

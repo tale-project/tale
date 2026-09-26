@@ -4036,7 +4036,7 @@ home:
     actions: 'Actions for {project}'
     empty: No projects yet
   inbox:
-    statusLabel: Conversation status
+    statusLabel: '{status}, conversation status'
     compose: New email
     clearSelection: Clear selection
     status:
