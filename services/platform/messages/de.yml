@@ -7478,6 +7478,9 @@ websites:
     addErrorDuplicate: Diese Website wurde bereits hinzugefügt
     addListSuccess: '{count} URLs zur Indexierung vorgemerkt'
     addListPartial: 'Einige Quellen konnten nicht hinzugefügt werden: {domains}'
+    addErrorReason:
+      domainInvalid: Gib einen öffentlichen https://-Host ohne Port und Pfad ein, z. B. example.com — http://-Adressen werden nicht gecrawlt.
+      notCrawlable: Der Crawler erreicht diesen Host nicht — private, Loopback- und Cloud-Metadaten-Adressen werden abgelehnt.
     updateSuccess: Website aktualisiert
     updateError: Website konnte nicht aktualisiert werden
     fetchPagesError: Seiten konnten nicht geladen werden

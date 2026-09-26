@@ -1,7 +1,11 @@
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 
 export function useCreateWebsite() {
-  return useBackendAction('websites/actions:createWebsite');
+  // The create dialog reads the refusal and toasts it with its reason; the
+  // hook's generic toast would only be replaced by it (one toast at a time).
+  return useBackendAction('websites/actions:createWebsite', {
+    errorToast: false,
+  });
 }
 
 export function useDeleteWebsite() {

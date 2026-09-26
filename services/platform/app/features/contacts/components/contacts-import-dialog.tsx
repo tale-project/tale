@@ -15,6 +15,7 @@ import {
 } from '@/app/hooks/use-file-import';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useBulkCreateContacts } from '../hooks/mutations';
 import { ContactImportForm } from './contact-import-form';
@@ -168,6 +169,8 @@ export function ImportContactsDialog({
         console.error('Error importing contacts:', err);
         toast({
           title: tContacts('import.error'),
+          // A refused file names its row and column ("contacts.1.email: …").
+          description: backendRefusalReason(err),
           variant: 'destructive',
         });
       }

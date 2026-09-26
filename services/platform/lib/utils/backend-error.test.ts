@@ -4,6 +4,7 @@ import { AppError } from '../shared/errors/app-error';
 import {
   backendErrorCode,
   backendErrorMessage,
+  backendRefusalReason,
   backendUserMessage,
 } from './backend-error';
 
@@ -90,5 +91,35 @@ describe('backendUserMessage', () => {
     expect(
       backendUserMessage(new AppError('plain string data'), 'fallback'),
     ).toBe('fallback');
+  });
+});
+
+describe('backendRefusalReason', () => {
+  it('returns the sentence a coded refusal carries beside its code', () => {
+    expect(
+      backendRefusalReason(
+        new AppError({
+          code: 'invalid body',
+          message: 'price: Number must be less than or equal to 1000',
+        }),
+      ),
+    ).toBe('price: Number must be less than or equal to 1000');
+  });
+
+  it('is undefined when the message only repeats the code', () => {
+    expect(
+      backendRefusalReason(
+        new AppError({
+          code: 'PRODUCT_NOT_FOUND',
+          message: 'PRODUCT_NOT_FOUND',
+        }),
+      ),
+    ).toBeUndefined();
+    expect(backendRefusalReason(new AppError({ code: 'X' }))).toBeUndefined();
+  });
+
+  it('is undefined for an unstructured throw', () => {
+    expect(backendRefusalReason(new Error('boom'))).toBeUndefined();
+    expect(backendRefusalReason(undefined)).toBeUndefined();
   });
 });

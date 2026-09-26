@@ -7526,6 +7526,9 @@ websites:
     addErrorDuplicate: This website has already been added
     addListSuccess: '{count} URLs registered for indexing'
     addListPartial: 'Some sources could not be added: {domains}'
+    addErrorReason:
+      domainInvalid: Enter a public https:// host without a port or path, e.g. example.com — http:// addresses are not crawled.
+      notCrawlable: The crawler cannot reach this host — private, loopback and cloud-metadata addresses are refused.
     updateSuccess: Website updated
     updateError: Couldn't update website
     fetchPagesError: Couldn't load pages

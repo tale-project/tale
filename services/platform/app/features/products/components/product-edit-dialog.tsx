@@ -21,6 +21,7 @@ import {
   PRODUCT_NAME_MAX,
 } from '@/backend/core/products/field_limits';
 import { useT } from '@/lib/i18n/client';
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useUpdateProduct } from '../hooks/mutations';
 import { ProductImageField } from './product-image-field';
@@ -217,6 +218,7 @@ export function ProductEditDialog({
           }
           toast({
             title: tProducts('edit.toast.error'),
+            description: backendRefusalReason(err),
             variant: 'destructive',
           });
         },

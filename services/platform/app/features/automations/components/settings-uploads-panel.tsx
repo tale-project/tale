@@ -302,7 +302,7 @@ export function SettingsUploadsPanel({
         projectId,
       });
     } catch (error) {
-      if (extractErrorCode(error) === 'FOLDER_DUPLICATE_NAME') {
+      if (extractErrorCode(error) === 'FOLDER_NAME_TAKEN') {
         const existing = foldersRef.current.find(
           (entry) =>
             entry.name === name && (entry.parentId ?? '') === (parentId ?? ''),
@@ -488,7 +488,7 @@ export function SettingsUploadsPanel({
       console.error('[automations] settings folder create failed', error);
       // The one recoverable cause gets its specific house message (same as
       // the documents create-folder dialogs); everything else stays generic.
-      const isDuplicate = extractErrorCode(error) === 'FOLDER_DUPLICATE_NAME';
+      const isDuplicate = extractErrorCode(error) === 'FOLDER_NAME_TAKEN';
       toast({
         title: isDuplicate
           ? tDocuments('folder.duplicateName')

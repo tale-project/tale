@@ -12,7 +12,10 @@ import { useMemo } from 'react';
 import * as z from 'zod';
 
 import { useT } from '@/lib/i18n/client';
-import { backendErrorCode } from '@/lib/utils/backend-error';
+import {
+  backendErrorCode,
+  backendRefusalReason,
+} from '@/lib/utils/backend-error';
 
 import { useCreateWebsite } from '../hooks/mutations';
 
@@ -174,6 +177,22 @@ export function WebsiteCreateDialog({
   const scanInterval = watch('scanInterval');
   const isLoading = isPending || isSubmitting;
 
+  /**
+   * Why the server refused a registration, for the toast: the two policy
+   * codes get their localized sentence, any other coded refusal keeps the
+   * server's own sentence, and an unstructured failure has none.
+   */
+  const refusalReason = (error: unknown): string | undefined => {
+    switch (backendErrorCode(error)) {
+      case 'WEBSITE_DOMAIN_INVALID':
+        return tWebsites('toast.addErrorReason.domainInvalid');
+      case 'WEBSITE_DOMAIN_NOT_CRAWLABLE':
+        return tWebsites('toast.addErrorReason.notCrawlable');
+      default:
+        return backendRefusalReason(error);
+    }
+  };
+
   const submitSite = (data: FormData) => {
     createWebsite(
       {
@@ -198,6 +217,7 @@ export function WebsiteCreateDialog({
             title: isDuplicate
               ? tWebsites('toast.addErrorDuplicate')
               : tWebsites('toast.addError'),
+            description: isDuplicate ? undefined : refusalReason(error),
             variant: 'destructive',
           });
         },
@@ -208,6 +228,7 @@ export function WebsiteCreateDialog({
   const submitList = async (data: FormData) => {
     const { groups } = parseUrlList(data.urls);
     const failed: string[] = [];
+    let firstReason: string | undefined;
     let urlCount = 0;
     // One source per domain, registered sequentially. Re-registering merges
     // server-side, so retrying after a partial failure is idempotent.
@@ -223,6 +244,7 @@ export function WebsiteCreateDialog({
       } catch (error) {
         console.error(`Failed to add URL list for ${domain}:`, error);
         failed.push(domain);
+        firstReason ??= refusalReason(error);
       }
     }
     if (failed.length > 0) {
@@ -230,6 +252,7 @@ export function WebsiteCreateDialog({
         title: tWebsites('toast.addListPartial', {
           domains: failed.join(', '),
         }),
+        description: firstReason,
         variant: 'destructive',
       });
       return;

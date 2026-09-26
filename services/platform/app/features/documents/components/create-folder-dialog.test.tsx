@@ -140,14 +140,15 @@ describe('CreateFolderDialog', () => {
 
   // Regression for #2005: in prod Convex redacts raw Error messages to
   // "Server Error", so the old `error.message.includes('already exists')`
-  // check was dead and the duplicate toast never appeared. The backend now
-  // throws AppError({ code: 'FOLDER_DUPLICATE_NAME' }) and the dialog reads
-  // the code, which survives the redaction.
+  // check was dead and the duplicate toast never appeared. The dialog reads
+  // the structured code — and it must be the one the folders door answers,
+  // `FOLDER_NAME_TAKEN` (409): the dialog checked a code no server emitted
+  // and the duplicate toast was dead again (2026-09-26 evaluation, B-04).
   it('shows friendly duplicate name error from the structured code', async () => {
     mockCreateFolder.mockRejectedValue(
       new AppError({
-        code: 'FOLDER_DUPLICATE_NAME',
-        message: 'A folder with this name already exists',
+        code: 'FOLDER_NAME_TAKEN',
+        message: 'Folder name taken',
       }),
     );
 

@@ -155,6 +155,76 @@ describe('WebsiteCreateDialog', () => {
     });
   });
 
+  // Regression (2026-09-26 evaluation, B-04): every policy refusal read
+  // "Couldn't add website" while the server's answer named the reason.
+  describe('refusal reasons', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    it.each([
+      ['WEBSITE_DOMAIN_INVALID', /Enter a public https:\/\/ host/],
+      ['WEBSITE_DOMAIN_NOT_CRAWLABLE', /The crawler cannot reach this host/],
+    ])('says why a %s refusal happened', async (code, reason) => {
+      createWebsiteMock.mockImplementation(
+        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
+          opts.onError(new AppError({ code, message: 'server sentence' }));
+        },
+      );
+
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await fillAndSubmit(user);
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Couldn't add website",
+            description: expect.stringMatching(reason),
+            variant: 'destructive',
+          }),
+        ),
+      );
+    });
+
+    it("keeps the server's own sentence for a code it has no copy for", async () => {
+      createWebsiteMock.mockImplementation(
+        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
+          opts.onError(
+            new AppError({
+              code: 'WEBSITE_LIMIT_REACHED',
+              message: 'This organization has reached its website limit',
+            }),
+          );
+        },
+      );
+
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await fillAndSubmit(user);
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Couldn't add website",
+            description: 'This organization has reached its website limit',
+          }),
+        ),
+      );
+    });
+  });
+
   describe('URL list mode', () => {
     beforeEach(() => {
       vi.clearAllMocks();

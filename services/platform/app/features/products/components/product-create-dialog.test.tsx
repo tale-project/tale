@@ -99,6 +99,35 @@ describe('ProductCreateDialog', () => {
     );
   });
 
+  // Regression (2026-09-26 evaluation, B-04): a refused body reached the
+  // user as "Couldn't create product" with no field named.
+  it('puts the refused field under the error toast', async () => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onError(
+        new AppError({
+          code: 'invalid body',
+          message:
+            'price: Number must be less than or equal to 9007199254740991',
+          data: { issues: [{ path: 'price', message: 'too large' }] },
+        }),
+      );
+    });
+
+    const { user } = renderDialog();
+    await submitWizard(user);
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'products.create.toast.error',
+          description:
+            'price: Number must be less than or equal to 9007199254740991',
+          variant: 'destructive',
+        }),
+      );
+    });
+  });
+
   it('shows the generic error toast for any other failure', async () => {
     mockMutate.mockImplementation((_args, opts) => {
       opts.onError(new Error('network down'));

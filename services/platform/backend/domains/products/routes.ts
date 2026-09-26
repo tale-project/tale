@@ -8,6 +8,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { PRODUCT_CATEGORY_MAX } from '../../core/products/field_limits.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
@@ -172,7 +173,7 @@ export function createProductRoutes(deps: {
   app.post('/', async (c) => {
     const body = productAppInputSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);
@@ -191,7 +192,7 @@ export function createProductRoutes(deps: {
       .object({ products: z.array(productInputSchema).max(1000) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       return c.json(
@@ -219,7 +220,7 @@ export function createProductRoutes(deps: {
   app.post('/:productId', async (c) => {
     const body = productAppInputSchema.partial().safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);

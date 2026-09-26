@@ -93,4 +93,19 @@ describe('contact file import validation', () => {
     });
     expect(response.status).toBe(400);
   });
+
+  // Regression: the refusal carried only `invalid body`, so the import
+  // dialog could not say which row or column was wrong.
+  it('names the row and column of a refused import', async () => {
+    const response = await upload([good, { ...good, email: 'not-an-email' }]);
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      error: string;
+      message: string;
+      data: { issues: { path: string }[] };
+    };
+    expect(body.error).toBe('invalid body');
+    expect(body.message).toMatch(/^contacts\.1\.email: /);
+    expect(body.data.issues[0]?.path).toBe('contacts.1.email');
+  });
 });

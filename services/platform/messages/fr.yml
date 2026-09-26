@@ -7577,6 +7577,9 @@ websites:
     addErrorDuplicate: Ce site web a déjà été ajouté
     addListSuccess: "{count} URL enregistrées pour l'indexation"
     addListPartial: "Échec de l'ajout de certaines sources : {domains}"
+    addErrorReason:
+      domainInvalid: Saisis un hôte public en https:// sans port ni chemin, p. ex. example.com — les adresses en http:// ne sont pas explorées.
+      notCrawlable: Le robot d'exploration ne peut pas atteindre cet hôte — les adresses privées, de bouclage et de métadonnées cloud sont refusées.
     updateSuccess: Site web mis à jour avec succès
     updateError: Échec de la mise à jour du site web
     fetchPagesError: Échec du chargement des pages

@@ -16,6 +16,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 import type { ProductStatus } from '@/lib/shared/constants/product-enums';
 import { PRODUCT_STATUS } from '@/lib/shared/constants/product-enums';
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useBulkCreateProducts } from '../hooks/mutations';
 import { ProductImportForm } from './product-import-form';
@@ -176,6 +177,8 @@ export function ProductsImportDialog({
         console.error('Error importing products:', err);
         toast({
           title: t('import.error'),
+          // A refused file names its row and column ("products.1.price: …").
+          description: backendRefusalReason(err),
           variant: 'destructive',
         });
       }

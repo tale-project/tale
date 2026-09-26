@@ -87,7 +87,7 @@ export function CreateFolderDialog({
       onSuccess?.();
     } catch (error) {
       console.error('Failed to create folder:', error);
-      const isDuplicate = extractErrorCode(error) === 'FOLDER_DUPLICATE_NAME';
+      const isDuplicate = extractErrorCode(error) === 'FOLDER_NAME_TAKEN';
       toast({
         title: isDuplicate
           ? tDocuments('folder.duplicateName')

@@ -31,6 +31,7 @@ import {
   PRODUCT_STATUS,
   type ProductStatus,
 } from '@/lib/shared/constants/product-enums';
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useCreateProduct } from '../hooks/mutations';
 import { ProductImageField } from './product-image-field';
@@ -210,6 +211,8 @@ export function ProductCreateDialog({
             title: isDuplicate
               ? tProducts('create.toast.duplicateName')
               : tProducts('create.toast.error'),
+            // A refused body names its field ("price: …"); keep it.
+            description: isDuplicate ? undefined : backendRefusalReason(err),
             variant: 'destructive',
           });
         },

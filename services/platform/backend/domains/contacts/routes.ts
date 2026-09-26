@@ -7,6 +7,7 @@ import { CONTACT_LOCALE_PATTERN } from '../../../lib/shared/schemas/common.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   CONTACT_EXTERNAL_ID_MAX,
@@ -120,7 +121,7 @@ export function createContactRoutes(deps: {
   app.post('/', async (c) => {
     const body = contactInputSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);
@@ -162,7 +163,7 @@ export function createContactRoutes(deps: {
       })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       return c.json(
@@ -190,7 +191,7 @@ export function createContactRoutes(deps: {
   app.post('/:contactId', async (c) => {
     const body = contactInputSchema.partial().safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);

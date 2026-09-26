@@ -97,3 +97,38 @@ describe('GET /products — the listing query boundary', () => {
     expect(options.cursor).toBeNull();
   });
 });
+
+describe('POST /products — a refused body names its field', () => {
+  // Regression: the door answered a bare `{ error: 'invalid body' }`, so the
+  // create dialog could only say "Couldn't create product" for a price the
+  // schema refuses.
+  it('answers the failed field and the issues beside the code', async () => {
+    const res = await makeApp().request('/?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Kettle', price: 1e20 }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as {
+      error: string;
+      message: string;
+      data: { issues: { path: string }[] };
+    };
+    expect(body.error).toBe('invalid body');
+    expect(body.message).toMatch(/^price: /);
+    expect(body.data.issues.map((issue) => issue.path)).toEqual(['price']);
+  });
+
+  it('names the row and column of a refused bulk import', async () => {
+    const res = await makeApp().request('/bulk?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        products: [{ name: 'Kettle' }, { name: 'Toaster', price: 'free' }],
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { message: string };
+    expect(body.message).toMatch(/^products\.1\.price: /);
+  });
+});

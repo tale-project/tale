@@ -78,7 +78,7 @@ import {
 const FOLDER_UPLOAD_MAX_FILES = 200;
 const FOLDER_UPLOAD_MAX_TOTAL_BYTES = 200 * 1024 * 1024;
 
-/** Cache sentinel for a folder path that failed on FOLDER_DUPLICATE_NAME —
+/** Cache sentinel for a folder path that failed on FOLDER_NAME_TAKEN —
  * later files under the same path fail once, locally, instead of repeating
  * the failing create per file. */
 const DUPLICATE_PATH = '!duplicate';
@@ -547,7 +547,7 @@ export function ProjectFilesTab({
         if (cached === DUPLICATE_PATH) {
           // This exact path already failed on a duplicate name this batch —
           // fail its remaining files without re-hitting the server per file.
-          throw new AppError({ code: 'FOLDER_DUPLICATE_NAME' });
+          throw new AppError({ code: 'FOLDER_NAME_TAKEN' });
         }
         if (cached !== undefined) {
           parentId = cached;
@@ -573,7 +573,7 @@ export function ProjectFilesTab({
             // batch reports it once, then rethrow for the per-file handler.
             if (
               error instanceof AppError &&
-              error.data?.code === 'FOLDER_DUPLICATE_NAME'
+              error.data?.code === 'FOLDER_NAME_TAKEN'
             ) {
               cache.set(key, DUPLICATE_PATH);
             }
@@ -674,7 +674,7 @@ export function ProjectFilesTab({
               });
               continue;
             }
-            if (code === 'FOLDER_DUPLICATE_NAME') {
+            if (code === 'FOLDER_NAME_TAKEN') {
               // ensureFolderPath hit a name that exists server-side but not
               // in the (stale) reactive snapshot — the house message; a
               // re-pick finds the existing folder once the list refreshes.

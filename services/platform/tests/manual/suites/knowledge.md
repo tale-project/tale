@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 40 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 42 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -390,7 +390,13 @@ records and delete them after.
 - [ ] `KNOW-B2` · **Invalid domain** — KNOW-F7 Websites → **Add website** →
   **Domain** = `not a url` → submit → Inline error **Enter a valid domain
   (e.g. example.com)** (`websites.validation.validDomain`); dialog stays open,
-  nothing added (verified live).
+  nothing added (verified live). Then **Domain** = `https://example.org:8443`
+  → **Save** → ONE toast **Couldn't add website** (`websites.toast.addError`)
+  whose description is the https-host sentence
+  (`websites.toast.addErrorReason.domainInvalid`); `https://169.254.169.254/`
+  → the same title with the not-reachable sentence
+  (`websites.toast.addErrorReason.notCrawlable`). Never a bare title, never a
+  second generic toast behind it.
 - [ ] `KNOW-B3` · **Unsupported upload** — KNOW-F1 upload a genuinely
   unsupported type (e.g. `.exe`) or a file over the size cap (the cap is
   exactly 100 MB — a 100 MB file passes, 100 MB + 1 byte is rejected; enforced
@@ -418,6 +424,19 @@ records and delete them after.
   refused with the record message — nothing inside is removed. In every
   rejected or cancelled case the row version, preview content, approval state,
   and RAG state remain unchanged.
+- [ ] `KNOW-B6` · **Duplicate folder name is named** — Documents → **New
+  folder** `Reports`, then **New folder** `reports` beside it (a project's
+  files tab and an automation's uploads panel behave the same) → toast **A
+  folder with this name already exists** (`documents.folder.duplicateName`),
+  never the generic **Couldn't create folder**; nothing is created.
+- [ ] `KNOW-B7` · **A refused product or import names its field** — Products
+  → **Add product** with price `1e20` → **Create** → toast **Couldn't create
+  product** (`products.create.toast.error`) with a description starting
+  `price:`; the same for **Edit**. Import a CSV whose second row has price
+  `notanumber` → toast **Couldn't import products** (`products.import.error`)
+  with a description starting `products.1.price:`; a contacts CSV with an
+  invalid email on the second row → **Import error** (`contacts.import.error`)
+  with `contacts.1.email:`. Nothing is imported in either case.
 
 ## Accessibility (WCAG 2.1 AA)
 
