@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   groupHomeItems,
@@ -85,6 +85,37 @@ describe('groupHomeItems', () => {
       'pinned-first',
     ]);
     expect(groups[1]?.items.map((item) => item.id)).toEqual(['recent']);
+  });
+
+  describe('across a daylight-saving change', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    // Europe/Zurich springs forward on 29 March 2026, a 23-hour day. A
+    // "yesterday" counted as 24 hours back from midnight would start at
+    // 23:00 on the 28th and pull a late chat from two days ago into it.
+    it('keeps each band edge on local midnight', () => {
+      vi.stubEnv('TZ', 'Europe/Zurich');
+      const now = new Date(2026, 2, 30, 9, 0, 0).getTime();
+      const twoDaysAgoLate = new Date(2026, 2, 28, 23, 30, 0).getTime();
+      const yesterdayEarly = new Date(2026, 2, 29, 0, 30, 0).getTime();
+
+      const groups = groupHomeItems(
+        [
+          chat('two-days-ago', twoDaysAgoLate),
+          chat('yesterday', yesterdayEarly),
+        ],
+        now,
+      );
+
+      expect(
+        groups.map((group) => [group.key, group.items.map((item) => item.id)]),
+      ).toEqual([
+        ['yesterday', ['yesterday']],
+        ['thisWeek', ['two-days-ago']],
+      ]);
+    });
   });
 
   it('omits empty bands', () => {

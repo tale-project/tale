@@ -91,11 +91,18 @@ export interface HomeGroup {
   readonly items: readonly HomeItem[];
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 function startOfDay(at: number): number {
   const date = new Date(at);
   date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+/** Local midnight `days` calendar days before the midnight `dayStart` —
+ * counted in days, not 24-hour steps, so a daylight-saving change (a 23- or
+ * 25-hour day) cannot shift a band's edge off midnight. */
+function daysBefore(dayStart: number, days: number): number {
+  const date = new Date(dayStart);
+  date.setDate(date.getDate() - days);
   return date.getTime();
 }
 
@@ -110,8 +117,8 @@ export function groupHomeItems(
   now: number,
 ): HomeGroup[] {
   const today = startOfDay(now);
-  const yesterday = today - DAY_MS;
-  const weekAgo = today - 6 * DAY_MS;
+  const yesterday = daysBefore(today, 1);
+  const weekAgo = daysBefore(today, 6);
 
   const pinned: HomeItem[] = [];
   const buckets: Record<Exclude<HomeGroupKey, 'pinned'>, HomeItem[]> = {
