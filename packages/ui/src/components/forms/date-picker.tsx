@@ -30,6 +30,13 @@ export interface DatePickerProps {
   placeholder?: string;
   id?: string;
   className?: string;
+  /**
+   * `default` is a bordered field for forms and filter bars. `ghost` drops the
+   * border and fits the dense `h-7` row of a property list (a task's details),
+   * where the date sits among other borderless value controls and a bordered
+   * box would read as the one field still waiting to be filled in.
+   */
+  variant?: 'default' | 'ghost';
 }
 
 const MonthNavHeader = memo(function MonthNavHeader({
@@ -83,16 +90,27 @@ interface TriggerProps {
   hasValue: boolean;
   onClear: () => void;
   className?: string;
+  variant: 'default' | 'ghost';
 }
 
 const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
   (
-    { value, onClick, disabled, placeholder, hasValue, onClear, className },
+    {
+      value,
+      onClick,
+      disabled,
+      placeholder,
+      hasValue,
+      onClear,
+      className,
+      variant,
+    },
     ref,
   ) => (
     <span
       className={cn(
-        'ring-border focus-within:ring-ring inline-flex items-center gap-1 rounded-md ring-1 focus-within:ring-2',
+        'focus-within:ring-ring inline-flex items-center gap-1 rounded-md focus-within:ring-2',
+        variant === 'default' && 'ring-border ring-1',
         className,
       )}
     >
@@ -103,7 +121,8 @@ const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
         disabled={disabled}
         onClick={onClick}
         className={cn(
-          'h-9 gap-1.5 px-2 text-sm font-normal ring-0',
+          'gap-1.5 text-sm font-normal ring-0',
+          variant === 'ghost' ? 'h-7 px-1.5' : 'h-9 px-2',
           className != null && 'min-w-0 flex-1 justify-start',
           !value && 'text-muted-foreground',
         )}
@@ -137,6 +156,7 @@ export function DatePicker({
   placeholder,
   id,
   className,
+  variant = 'default',
 }: DatePickerProps) {
   const { t } = useT('common');
   const selected = value !== undefined ? new Date(value) : null;
@@ -158,6 +178,7 @@ export function DatePicker({
             hasValue={selected != null}
             onClear={() => onChange(null)}
             className={cn('w-full', className)}
+            variant={variant}
           />
         }
         renderCustomHeader={({

@@ -21,7 +21,6 @@ import {
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
-import { Textarea } from '@tale/ui/textarea';
 import { ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useCopy } from '@tale/ui/use-copy';
@@ -316,9 +315,12 @@ function PropertyField({
       </div>
     );
   }
+  // The label centres on the row's first `h-7` line — the height every value
+  // control here shares — rather than hanging from its top edge, where it sat
+  // above the middle of a taller control. A label that wraps grows the row.
   return (
     <Row gap={2} align="start" className="min-h-7 shrink-0">
-      <span className="text-muted-foreground w-20 shrink-0 pt-1 text-xs font-medium break-words hyphens-auto">
+      <span className="text-muted-foreground flex min-h-7 w-20 shrink-0 items-center text-xs font-medium break-words hyphens-auto">
         {label}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
@@ -887,6 +889,7 @@ function CreateTaskBody({
                 priority={priority}
                 onChange={setPriority}
                 align="end"
+                showLabel
               />
             </PropertyField>
             <PropertyField label={t('fields.assignee')}>
@@ -905,6 +908,7 @@ function CreateTaskBody({
             </PropertyField>
             <PropertyField label={t('startDate.label')}>
               <DatePicker
+                variant="ghost"
                 className="w-full"
                 value={startDate}
                 onChange={(ms) => setStartDate(ms ?? undefined)}
@@ -912,6 +916,7 @@ function CreateTaskBody({
             </PropertyField>
             <PropertyField label={t('dueDate.label')}>
               <DatePicker
+                variant="ghost"
                 className="w-full"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
@@ -1480,19 +1485,21 @@ export function EditTaskBody({
         )}
         {canMutate && (
           <Row gap={2}>
-            <Textarea
+            {/* A one-line field, like the button beside it: a subtask is a
+                title, and the one-row textarea it used to be stood a few
+                pixels taller than the button and showed a resize grip. */}
+            <Input
               id="new-subtask"
-              rows={1}
               value={subtaskTitle}
               onChange={(e) => setSubtaskTitle(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   if (!createTask.isPending) void addSubtask();
                 }
               }}
               placeholder={t('detail.addSubtask')}
-              className="min-h-0"
+              aria-label={t('detail.addSubtask')}
               wrapperClassName="min-w-0 flex-1"
             />
             <Button
@@ -1572,7 +1579,7 @@ export function EditTaskBody({
               next.task = task._id;
               return next;
             }}
-            className="text-foreground hover:text-foreground/80 focus-visible:ring-ring min-w-0 truncate rounded-sm text-sm focus-visible:ring-2 focus-visible:outline-none"
+            className="text-foreground hover:text-foreground/80 focus-visible:ring-ring inline-block max-w-full truncate rounded-sm align-top text-sm leading-7 focus-visible:ring-2 focus-visible:outline-none"
           >
             {project.name}
           </Link>
@@ -1616,6 +1623,7 @@ export function EditTaskBody({
           priority={task.priority ?? null}
           disabled={!canMutate}
           align="end"
+          showLabel
           onChange={(priority) =>
             void updateTask
               .mutateAsync({ taskId: task._id, priority })
@@ -1705,6 +1713,7 @@ export function EditTaskBody({
       </PropertyField>
       <PropertyField label={t('startDate.label')}>
         <DatePicker
+          variant="ghost"
           className="w-full"
           value={task.startDate}
           disabled={!canMutate}
@@ -1717,6 +1726,7 @@ export function EditTaskBody({
       </PropertyField>
       <PropertyField label={t('dueDate.label')}>
         <DatePicker
+          variant="ghost"
           className="w-full"
           value={task.dueDate}
           disabled={!canMutate}
@@ -1755,7 +1765,7 @@ export function EditTaskBody({
 
       <PanelDivider />
       <PropertyField label={t('fields.author')}>
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="flex min-h-7 min-w-0 items-center gap-1.5">
           <AssigneeAvatar
             assigneeType={task.createdByType}
             assigneeId={task.createdBy}
@@ -1767,7 +1777,7 @@ export function EditTaskBody({
         </div>
       </PropertyField>
       <PropertyField label={t('fields.created')}>
-        <span className="text-foreground text-sm">
+        <span className="text-foreground block text-sm leading-7">
           {formatDate(new Date(task.createdAt), 'medium')}
         </span>
       </PropertyField>
