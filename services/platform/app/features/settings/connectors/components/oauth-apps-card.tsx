@@ -7,6 +7,8 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
+import { SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { useState } from 'react';
@@ -109,12 +111,23 @@ interface OauthAppTarget {
   envConfigured: boolean;
 }
 
+/**
+ * Rows drawn while the catalog is on its way: the shipped catalog's OAuth
+ * connectors plus the OneDrive import — five today. A catalog that grows
+ * costs a row of movement when it lands, never a wrong claim.
+ */
+const PLACEHOLDER_ROWS = 5;
+
 export function OauthAppsCard({
   organizationId,
   connectors,
+  catalogLoading = false,
 }: {
   organizationId: string;
   connectors: ConnectorSummary[];
+  /** The connector catalog is still on its way: its rows are masked in
+   *  place, not missing. */
+  catalogLoading?: boolean;
 }) {
   const { t } = useT('settings');
   const appsQuery = useConnectorOauthApps(organizationId);
@@ -124,6 +137,13 @@ export function OauthAppsCard({
     GOOGLE_DRIVE_SLUG,
   );
   const entraSso = useEntraSsoSource(organizationId);
+  // Until every source has answered, no row can say whether an app stands
+  // behind it: its status masks instead of claiming "Not configured".
+  const loading =
+    catalogLoading ||
+    appsQuery.isLoading ||
+    onedriveStatus.isLoading ||
+    driveImportStatus.isLoading;
 
   const [editing, setEditing] = useState<OauthAppTarget | null>(null);
   const [removing, setRemoving] = useState<OauthAppTarget | null>(null);
@@ -166,74 +186,90 @@ export function OauthAppsCard({
           description={mapCredentialError(appsQuery.error)}
         />
       )}
-      <Stack
-        gap={0}
-        className="border-border divide-border divide-y rounded-lg border"
-      >
-        {targets.map((target) => {
-          const orgApp = orgApps.get(target.slug);
-          return (
-            <div
-              key={target.slug}
-              className="flex items-center justify-between gap-4 px-4 py-3"
-            >
-              <Stack gap={1}>
-                <Text as="span" className="text-sm font-medium">
-                  {target.displayName}
-                </Text>
-                <Text as="span" variant="muted" className="text-xs">
-                  {orgApp
-                    ? t('connectors.oauthApps.orgClientId', {
-                        clientId: orgApp.clientId,
-                      })
-                    : target.envConfigured
-                      ? t('connectors.oauthApps.statusEnvDetail')
-                      : t('connectors.oauthApps.statusNoneDetail')}
-                </Text>
-              </Stack>
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant={
-                    orgApp ? 'green' : target.envConfigured ? 'blue' : 'slate'
-                  }
-                >
-                  {orgApp
-                    ? t('connectors.oauthApps.statusOrg')
-                    : target.envConfigured
-                      ? t('connectors.oauthApps.statusEnv')
-                      : t('connectors.oauthApps.statusNone')}
-                </Badge>
-                {orgApp && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setRemoving(target)}
+      <Skeletonize loading={loading} label={t('connectors.oauthApps.title')}>
+        <Stack
+          gap={0}
+          className="border-border divide-border divide-y rounded-lg border"
+        >
+          {catalogLoading
+            ? Array.from({ length: PLACEHOLDER_ROWS }, (_, index) => (
+                <OauthAppRowPlaceholder key={index} seed={index * 2} />
+              ))
+            : targets.map((target) => {
+                const orgApp = orgApps.get(target.slug);
+                return (
+                  <div
+                    key={target.slug}
+                    className="flex items-center justify-between gap-4 px-4 py-3"
                   >
-                    {t('connectors.oauthApps.remove')}
-                  </Button>
-                )}
-                {target.slug === ONEDRIVE_SLUG &&
-                  entraSso.data?.available === true && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setReusingSso(true)}
-                    >
-                      {t('connectors.oauthApps.reuseSso')}
-                    </Button>
-                  )}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setEditing(target)}
-                >
-                  {t('connectors.oauthApps.configure')}
-                </Button>
-              </div>
-            </div>
-          );
-        })}
-      </Stack>
+                    <Stack gap={1}>
+                      <Text as="span" className="text-sm font-medium">
+                        {target.displayName}
+                      </Text>
+                      <Text as="span" variant="muted" className="text-xs">
+                        {loading ? (
+                          <span className="block w-64 max-w-full">
+                            <SkeletonText />
+                          </span>
+                        ) : orgApp ? (
+                          t('connectors.oauthApps.orgClientId', {
+                            clientId: orgApp.clientId,
+                          })
+                        ) : target.envConfigured ? (
+                          t('connectors.oauthApps.statusEnvDetail')
+                        ) : (
+                          t('connectors.oauthApps.statusNoneDetail')
+                        )}
+                      </Text>
+                    </Stack>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={
+                          orgApp
+                            ? 'green'
+                            : target.envConfigured
+                              ? 'blue'
+                              : 'slate'
+                        }
+                      >
+                        {orgApp
+                          ? t('connectors.oauthApps.statusOrg')
+                          : target.envConfigured
+                            ? t('connectors.oauthApps.statusEnv')
+                            : t('connectors.oauthApps.statusNone')}
+                      </Badge>
+                      {orgApp && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setRemoving(target)}
+                        >
+                          {t('connectors.oauthApps.remove')}
+                        </Button>
+                      )}
+                      {target.slug === ONEDRIVE_SLUG &&
+                        entraSso.data?.available === true && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setReusingSso(true)}
+                          >
+                            {t('connectors.oauthApps.reuseSso')}
+                          </Button>
+                        )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditing(target)}
+                      >
+                        {t('connectors.oauthApps.configure')}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+        </Stack>
+      </Skeletonize>
 
       {editing && (
         <OauthAppDialog
@@ -258,6 +294,37 @@ export function OauthAppsCard({
         />
       )}
     </SettingsSection>
+  );
+}
+
+/**
+ * One OAuth app row whose connector is not known yet — the live row's
+ * geometry (name, detail line, status badge, Configure) with every value
+ * masked, inside the card's `Skeletonize`.
+ */
+function OauthAppRowPlaceholder({ seed }: { seed: number }) {
+  const { t } = useT('settings');
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <Stack gap={1} className="min-w-0 flex-1">
+        <Text as="span" className="block w-40 max-w-full text-sm font-medium">
+          <SkeletonText seed={seed} />
+        </Text>
+        <Text
+          as="span"
+          variant="muted"
+          className="block w-64 max-w-full text-xs"
+        >
+          <SkeletonText seed={seed + 1} />
+        </Text>
+      </Stack>
+      <div className="flex items-center gap-2">
+        <Badge variant="slate">{t('connectors.oauthApps.statusNone')}</Badge>
+        <Button variant="secondary" size="sm">
+          {t('connectors.oauthApps.configure')}
+        </Button>
+      </div>
+    </div>
   );
 }
 
