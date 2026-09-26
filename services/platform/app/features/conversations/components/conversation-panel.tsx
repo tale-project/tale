@@ -58,6 +58,7 @@ const MessageEditor = lazyComponent(
 
 import { cn } from '@tale/ui/cn';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { useSwapFade } from '@tale/ui/use-swap-fade';
 
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 
@@ -116,6 +117,10 @@ export function ConversationPanel({
     error: loadError,
     refetch,
   } = useConversationWithMessages(selectedConversationId);
+  // The next conversation opening in place fades in, as another chat does.
+  const swapRef = useSwapFade<HTMLDivElement>(
+    selectedConversationId ?? undefined,
+  );
   // Where a reply leaves from. The server derives the route — down to the
   // mailbox — from the conversation's own stamps, so this states the outcome
   // rather than choosing it: the composer cannot send anywhere else.
@@ -458,7 +463,7 @@ export function ConversationPanel({
     >
       {/* The composer/banner footer is a flex SIBLING of the scroller — never
           inside the scroll container — so it cannot move with content. */}
-      <Stack gap={0} className="relative min-h-0 flex-[1_1_0]">
+      <Stack ref={swapRef} gap={0} className="relative min-h-0 flex-[1_1_0]">
         <Stack
           ref={containerRef}
           gap={0}

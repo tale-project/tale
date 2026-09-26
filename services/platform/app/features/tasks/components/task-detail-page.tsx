@@ -12,6 +12,7 @@
 
 import { Button } from '@tale/ui/button';
 import { PageLayout } from '@tale/ui/page-layout';
+import { useSwapFade } from '@tale/ui/use-swap-fade';
 import { useNavigate } from '@tanstack/react-router';
 import { KanbanSquare } from 'lucide-react';
 
@@ -31,6 +32,8 @@ export function TaskDetailPage({
   const { t } = useT('tasks');
   const navigate = useNavigate();
   const { task, isLoading } = useTask(taskId);
+  // The next task opening in place fades in, as another chat does.
+  const swapRef = useSwapFade<HTMLDivElement>(taskId);
 
   const openBoard = () => {
     if (task === null) return;
@@ -48,7 +51,10 @@ export function TaskDetailPage({
 
   return (
     <PageLayout className="overflow-hidden">
-      <div className="animate-in fade-in-0 flex min-h-0 flex-1 flex-col duration-200 motion-reduce:animate-none">
+      <div
+        ref={swapRef}
+        className="animate-in fade-in-0 flex min-h-0 flex-1 flex-col duration-200 motion-reduce:animate-none"
+      >
         <EditTaskBody
           key={taskId}
           taskId={taskId}

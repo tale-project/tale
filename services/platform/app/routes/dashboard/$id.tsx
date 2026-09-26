@@ -11,6 +11,7 @@ import { Row, Stack, VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
+import { useSwapFade } from '@tale/ui/use-swap-fade';
 import { toast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -40,7 +41,10 @@ import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-ex
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
 import { HomePanel } from '@/app/features/home/components/home-panel';
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
-import { showsHomePanel } from '@/app/features/home/lib/home-paths';
+import {
+  readHomeLocation,
+  showsHomePanel,
+} from '@/app/features/home/lib/home-paths';
 import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/components/embedding-setup-banner';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -416,15 +420,25 @@ function HomeSectionFrame({
   organizationId: string;
   children: ReactNode;
 }) {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   // A phone has no panel beside the page (its Home list is a screen of its
   // own), so the panel — and every read it makes — mounts on desktop only.
   const isMobile = useIsMobile();
+  // Moving between kinds of page — a chat, a task, a conversation, a
+  // project — fades the page in; each page fades its own swaps of item.
+  const location = readHomeLocation(pathname, search, organizationId);
+  const pageRef = useSwapFade<HTMLDivElement>(
+    location.kind === 'project'
+      ? `project:${location.projectId ?? ''}`
+      : location.kind,
+  );
   if (!showsHomePanel(pathname, organizationId)) return <>{children}</>;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-row">
       {!isMobile && <HomePanel organizationId={organizationId} />}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+      <div ref={pageRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {children}
+      </div>
     </div>
   );
 }

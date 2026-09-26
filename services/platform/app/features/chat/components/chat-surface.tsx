@@ -29,6 +29,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
+import { useSwapFade } from '@tale/ui/use-swap-fade';
 import { useToast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -1741,6 +1742,11 @@ function ChatSurfaceInner({
   );
 
   const panelToggle = <HomePanelToggle />;
+  // Another chat opening in place fades in; a chat born from its first
+  // message is the same conversation continuing, so it does not.
+  const threadSwapRef = useSwapFade<HTMLDivElement>(threadId, {
+    fromEmpty: false,
+  });
   const activeProject =
     headerThread?.projectId !== undefined
       ? headerProjects.find((project) => project.id === headerThread.projectId)
@@ -1751,7 +1757,11 @@ function ChatSurfaceInner({
     // nothing; rows read the map during their own renders.
     <AttachmentPreviewProvider value={sentPreviewsRef.current}>
       <div className="flex min-h-0 flex-1 flex-row">
-        <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
+        <Stack
+          ref={threadSwapRef}
+          gap={0}
+          className="relative min-h-0 min-w-0 flex-1"
+        >
           {/* Mobile header (<md): the Home panel and the floating header
             below are desktop-only — without this row a phone could neither
             get back to its Home list nor reach the conversation actions. */}
