@@ -326,7 +326,15 @@ export async function mintVirtualKey(
   // (the shared record for standard connectors; this org's per-model records
   // for custom ones). Allow both the bare model id and the full gateway ref so the
   // allowlist matches however the requesting client spells the model.
-  const byProvider = new Map<string, string[]>();
+  //
+  // One whitelist entry per spelling: the gateway refuses a duplicate value
+  // outright (400 "duplicate value … in whitelist"), and a turn routinely
+  // names the same model twice — the serving model and the org's vision
+  // model are one and the same for most connectors. On the Anthropic lane
+  // the two land on different records, so only the OpenAI-wire harnesses
+  // (Codex, OpenCode, …) ever hit it — every managed Codex + DeepSeek run
+  // failed to start on it (2026-09-26 evaluation, C-08).
+  const byProvider = new Map<string, Set<string>>();
   for (const ref of args.allowedModels) {
     const { gatewayProvider, gatewayModel } = resolveGatewayRouting(
       args.organizationId,
@@ -334,8 +342,9 @@ export async function mintVirtualKey(
       ref.modelId,
       { anthropicHarnessLane: ref.anthropicHarnessLane },
     );
-    const models = byProvider.get(gatewayProvider) ?? [];
-    models.push(ref.modelId, gatewayModel);
+    const models = byProvider.get(gatewayProvider) ?? new Set<string>();
+    models.add(ref.modelId);
+    models.add(gatewayModel);
     byProvider.set(gatewayProvider, models);
   }
   if (byProvider.size === 0) {
@@ -363,7 +372,7 @@ export async function mintVirtualKey(
       provider,
       key_ids: [keyId],
       allow_all_keys: false,
-      allowed_models: allowedModels,
+      allowed_models: [...allowedModels],
     });
   }
   const body = {
@@ -394,7 +403,18 @@ export async function mintVirtualKey(
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) {
-    throw new Error(`llm-gateway mint key failed (${res.status})`);
+    // The gateway names what it refused (a field it did not accept, a
+    // provider it does not know); a bare status left every start failure
+    // reading "mint key failed (400)" with nothing to act on (2026-09-26
+    // evaluation, C-08). Bounded, and never the key material — the body of
+    // a refusal is the validation message, never a credential.
+    const detail = await res
+      .text()
+      .then((text) => text.replace(/\s+/g, ' ').trim().slice(0, 300))
+      .catch(() => '');
+    throw new Error(
+      `llm-gateway mint key failed (${res.status})${detail !== '' ? `: ${detail}` : ''}`,
+    );
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = (await res.json()) as {
