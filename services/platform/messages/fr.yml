@@ -622,6 +622,11 @@ automations:
       title: Afficher une autre version ?
       description: Changer de version supprime les modifications non enregistrées.
       confirm: Abandonner et changer
+    staleVersion:
+      title: Cette automatisation a changé pendant ta modification
+      description: "{message}"
+      reload: Abandonner mes modifications et recharger
+      saveAnyway: Enregistrer quand même
     showLastRun: Afficher la dernière exécution
     hideLastRun: Masquer la dernière exécution
     runLive: Exécuter en réel

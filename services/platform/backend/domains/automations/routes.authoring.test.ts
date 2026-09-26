@@ -126,6 +126,38 @@ describe('app automation acceptance gate', () => {
     expect(result.status).toBe(400);
     expect(io.save).not.toHaveBeenCalled();
   });
+  it('forwards the version the draft started from and hands back a stale refusal with its detail', async () => {
+    const result = await post('/double/save', {
+      document: document(2),
+      baseVersion: 5,
+    });
+    expect(result.status).toBe(201);
+    expect(io.save).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ baseVersion: 5 }),
+    );
+
+    io.save.mockRejectedValueOnce(
+      new AutomationError(
+        'AUTOMATION_VERSION_STALE',
+        'v6 of "double" was saved after your draft started from v5.',
+        409,
+        { latestVersion: 6, baseVersion: 5 },
+      ),
+    );
+    const stale = await post('/double/save', {
+      document: document(2),
+      baseVersion: 5,
+    });
+    expect(stale.status).toBe(409);
+    // The detail rides beside the sentence so the editor can offer "save
+    // anyway" on top of the version that landed.
+    expect(await stale.json()).toEqual({
+      error: 'AUTOMATION_VERSION_STALE',
+      message: 'v6 of "double" was saved after your draft started from v5.',
+      data: { latestVersion: 6, baseVersion: 5 },
+    });
+  });
   it('preserves a store refusal after the shared save gate', async () => {
     io.save.mockRejectedValueOnce(
       new AutomationError('PROJECT_NOT_FOUND', 'Project not found', 404),

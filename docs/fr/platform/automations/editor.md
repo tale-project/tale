@@ -38,7 +38,7 @@ Ouvre **Contrôle du flux** pour les conditions et répétitions. Clique sur le 
 ## Enregistrer et tester une version
 
 1. Modifie les champs nécessaires et clique sur **Enregistrer**.
-2. Explique le changement dans le **Message de version**, puis choisis **Enregistrer la version**. Cela ajoute une version et conserve les précédentes.
+2. Explique le changement dans le **Message de version**, puis choisis **Enregistrer la version**. Cela ajoute une version et conserve les précédentes. Si quelqu’un a enregistré une autre version pendant ta modification, Tale refuse l’enregistrement et te demande : **Abandonner mes modifications et recharger** affiche la version plus récente, **Enregistrer quand même** ajoute ta version par-dessus — la plus récente reste dans l’historique des versions, mais la dernière version est alors la tienne.
 3. Clique sur **Essai**. Si le workflow déclare un schéma d’entrée, remplis **Données de l’exécution (JSON)** dans le dialogue. Déplie **Schéma des données** pour vérifier les champs obligatoires et leurs types. Un JSON invalide ou non conforme au schéma empêche le démarrage.
 4. Lance le test, passe à l’onglet **Exécutions** et ouvre sa ligne. Compare les données résolues, la sortie et les opérations prévues au résultat attendu.
 

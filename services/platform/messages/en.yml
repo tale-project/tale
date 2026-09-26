@@ -584,6 +584,11 @@ automations:
       title: Show another version?
       description: Switching versions discards any unsaved changes you've made.
       confirm: Discard and switch
+    staleVersion:
+      title: This automation changed while you were editing
+      description: "{message}"
+      reload: Discard my changes and reload
+      saveAnyway: Save anyway
     showLastRun: Show last run
     hideLastRun: Hide last run
     runLive: Run live

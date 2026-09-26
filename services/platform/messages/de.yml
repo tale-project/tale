@@ -616,6 +616,11 @@ automations:
       title: Andere Version anzeigen?
       description: Beim Versionswechsel gehen nicht gespeicherte Änderungen verloren.
       confirm: Verwerfen und wechseln
+    staleVersion:
+      title: Diese Automatisierung hat sich während deiner Bearbeitung geändert
+      description: "{message}"
+      reload: Meine Änderungen verwerfen und neu laden
+      saveAnyway: Trotzdem speichern
     showLastRun: Letzten Lauf einblenden
     hideLastRun: Letzten Lauf ausblenden
     runLive: Live ausführen

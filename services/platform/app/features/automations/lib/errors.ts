@@ -38,6 +38,19 @@ export function automationErrorCode(error: unknown): string | undefined {
 }
 
 /**
+ * The version that landed while a draft was open — the detail a stale save
+ * (`AUTOMATION_VERSION_STALE`) carries so the editor can save on top of it.
+ * `null` when the automation has no version any more; `undefined` when the
+ * error carries no such detail.
+ */
+export function automationErrorLatestVersion(
+  error: unknown,
+): number | null | undefined {
+  const latest = errorData(error)?.latestVersion;
+  return typeof latest === 'number' || latest === null ? latest : undefined;
+}
+
+/**
  * A read that answered "no such thing". The store answers `null` for a row it
  * cannot see; the backend's route answers 404, which the fetch layer surfaces
  * as a structured refusal (the route's `error` string as the code) rather
