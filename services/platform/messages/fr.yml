@@ -6569,10 +6569,6 @@ settings:
     uploadLogo: Téléverser le logo
     uploadFavicon: Téléverser le favicon
     preview: Aperçu de la marque
-    previewStatus:
-      open: Ouvert
-      closed: Fermé
-      spam: Spam
     pickColorAria: Choisir {label}
     hexValueAria: Valeur hexadécimale de {label}
     removeImageAria: Supprimer {label}

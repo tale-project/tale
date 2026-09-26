@@ -6468,10 +6468,6 @@ settings:
     uploadLogo: Logo hochladen
     uploadFavicon: Favicon hochladen
     preview: Branding-Vorschau
-    previewStatus:
-      open: Offen
-      closed: Geschlossen
-      spam: Spam
     pickColorAria: '{label} auswählen'
     hexValueAria: Hex-Wert für {label}
     removeImageAria: '{label} entfernen'

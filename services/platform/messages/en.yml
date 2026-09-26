@@ -6560,10 +6560,6 @@ settings:
     uploadLogo: Upload logo
     uploadFavicon: Upload favicon
     preview: Branding preview
-    previewStatus:
-      open: Open
-      closed: Closed
-      spam: Spam
     pickColorAria: Pick {label}
     hexValueAria: '{label} hex value'
     removeImageAria: Remove {label}
