@@ -570,6 +570,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   dots and the ticking
   `Thinking · Ns` shell are gone the moment the notice lands and the count
   does not keep running under it; a reload shows the same settled row.
+- [ ] `CHAT-B15` · **Dictation with the microphone denied** — Block the
+  microphone for the site in the browser, then click **Start dictation**
+  (`dictation.start`) twice → Each click shows the **Microphone access
+  denied** toast (`dictation.permissionDenied`) at once; the button never
+  flips to **Stop dictation** (`dictation.stop`); with the site allowed but
+  the network offline, a click shows the **Dictation is unavailable** toast
+  (`dictation.serviceUnavailable`) rather than "not supported".
 
 ## Accessibility (WCAG 2.1 AA)
 

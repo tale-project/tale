@@ -1333,6 +1333,7 @@ chat:
     retry: Erneut versuchen
     discard: Aufnahme verwerfen
     permissionDenied: Mikrofonzugriff verweigert. Erlaube ihn in den Browsereinstellungen.
+    serviceUnavailable: Diktat ist gerade nicht verfügbar. Der Browser erreicht seinen Sprachdienst nicht; prüfe die Verbindung und versuche es erneut.
   citations:
     source: Quelle {number}
     page: Seite {page}

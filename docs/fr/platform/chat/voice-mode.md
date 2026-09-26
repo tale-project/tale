@@ -33,6 +33,7 @@ Le réglage dans un chat existant s’applique à ce chat. Sur un nouveau chat, 
 | Symptôme | Points à vérifier |
 | --- | --- |
 | Le microphone ne démarre pas | Permission du navigateur, périphérique d’entrée sélectionné et éventuelle utilisation par une autre app. |
+| Un message indique que la dictée est indisponible | Le navigateur ne joint pas son service vocal : vérifier la connexion, un proxy ou un bloqueur de contenu, puis réessayer. |
 | Des mots manquent ou sont incorrects | Réduire le bruit ambiant et corriger le texte avant l’envoi. |
 | La transcription serveur échoue | Réessayer tant que l’enregistrement reste disponible, ou le supprimer et taper le message. |
 | La réponse est prête mais silencieuse | Vérifier le volume et l’autorisation de lecture du navigateur, puis lancer la lecture de la réponse. |

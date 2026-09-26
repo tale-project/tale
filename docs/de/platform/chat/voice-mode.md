@@ -33,6 +33,7 @@ Die Einstellung in einem vorhandenen Chat gilt für dieses Gespräch. In einem n
 | Symptom | Was du prüfen kannst |
 | --- | --- |
 | Das Mikrofon startet nicht | Mikrofonberechtigung des Browsers, gewähltes Eingabegerät und mögliche Nutzung durch eine andere App. |
+| Eine Meldung sagt, Diktat sei nicht verfügbar | Der Browser erreicht seinen Sprachdienst nicht: Verbindung, Proxy oder Inhaltsblocker prüfen, dann erneut versuchen. |
 | Wörter fehlen oder stimmen nicht | Hintergrundgeräusche verringern und den Text vor dem Senden korrigieren. |
 | Die Server-Transkription schlägt fehl | Erneut versuchen, solange die fehlgeschlagene Aufnahme verfügbar ist, oder verwerfen und tippen. |
 | Die Antwort ist bereit, aber stumm | Lautstärke und Wiedergabeerlaubnis des Browsers prüfen, dann die Antwort abspielen. |

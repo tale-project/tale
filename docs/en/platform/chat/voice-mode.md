@@ -33,6 +33,7 @@ The voice setting on an existing chat applies to that chat. Setting it on a new 
 | Symptom | What to check |
 | --- | --- |
 | The microphone will not start | Browser microphone permission, the selected input device, and whether another app is using it. |
+| A message says dictation is unavailable | The browser's speech service could not be reached: check the connection, a proxy or a content blocker, then try again. |
 | Words are missing or wrong | Reduce background noise and correct the transcript before sending. |
 | Server transcription failed | Use the retry control while the failed recording remains available, or discard it and type. |
 | A reply is ready but silent | Check device volume and browser playback permission, then use the reply's play control. |
