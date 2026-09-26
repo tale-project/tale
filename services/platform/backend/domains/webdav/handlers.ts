@@ -39,6 +39,13 @@ import {
   checkOrganizationRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import {
+  auditDocumentCreated,
+  auditDocumentRemoved,
+  auditDocumentUpdated,
+  auditFolderDeleted,
+  type DocumentAuditActor,
+} from '../documents/audit.ts';
 import { registerUploadedBytes } from '../files/service.ts';
 import { MAX_FOLDER_DEPTH } from '../folders/service.ts';
 import {
@@ -179,6 +186,23 @@ async function grantFor(
 /** The physical view — every hub row, whoever asks. Collision checks and
  * legal-hold pre-walks are about what EXISTS, not what the caller sees. */
 const ANY_VIEWER: AudienceGrant = { isAdmin: true, teamIds: [] };
+
+/**
+ * Who a WebDAV write is recorded under: the app-password's owner (every
+ * method handler passes the authenticated `userId`), with `door: 'webdav'`
+ * on the row so the trail tells a sync client's write from the UI's. A call
+ * that somehow carries no user is the door's own.
+ */
+function webdavActor(
+  organizationId: string,
+  userId: string | undefined,
+): DocumentAuditActor {
+  return userId !== undefined && userId.length > 0
+    ? { organizationId, userId, type: 'user' }
+    : { organizationId, userId: 'webdav', type: 'system' };
+}
+
+const WEBDAV_DOOR = { door: 'webdav' } as const;
 
 /** A hub row (never a project file), active, within the viewer's audience. */
 function isVisibleDoc(doc: DocRow, viewer: AudienceGrant): boolean {
@@ -452,6 +476,7 @@ async function softDeleteDocumentInner(
   organizationId: string,
   documentId: string,
   viewer: AudienceGrant,
+  actor: DocumentAuditActor,
 ): Promise<void> {
   const doc = await loadDoc(tx, organizationId, documentId);
   // A project-scoped doc is not a WebDAV resource (#2545), and neither is a
@@ -477,6 +502,13 @@ async function softDeleteDocumentInner(
   // entry must not outlive it (listed, counted, served, while its corpus
   // rows are dark).
   await markEntryChainDeletedForDocument(tx, organizationId, documentId);
+  // Trashed, not purged: the row is in the Trash for a restore.
+  await auditDocumentRemoved(tx, actor, {
+    documentId,
+    title: doc.title,
+    mode: 'trashed',
+    metadata: WEBDAV_DOOR,
+  });
 }
 
 async function assertFolderTreeNotHeld(
@@ -521,19 +553,30 @@ async function assertFolderTreeNotHeld(
   await walk(folderId, 0);
 }
 
+/**
+ * Trash every document under the folder and drop the folder rows, bottom
+ * up. Answers how many documents it trashed; the root of the cascade
+ * records ONE `folder.deleted` row carrying that count — the UI's folder
+ * delete idiom — rather than a row per document.
+ */
 async function cascadeDeleteFolderRecursive(
   tx: TransactionSql,
   organizationId: string,
   folderId: string,
   viewer: AudienceGrant,
+  actor: DocumentAuditActor,
   depth = 0,
   budget: ReadBudget = newReadBudget(),
-): Promise<void> {
-  // Legal-hold pre-walk once at the root: never half-delete a tree.
+): Promise<number> {
+  // Legal-hold pre-walk once at the root: never half-delete a tree. The
+  // root's name is read here too — the row that names it goes last.
+  let root: FolderRow | null = null;
   if (depth === 0) {
     await assertFolderTreeNotHeld(tx, organizationId, folderId);
+    root = await loadFolder(tx, organizationId, folderId);
   }
   if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
+  let trashed = 0;
   const children = await tx<{ id: string; teamTags: string[] }[]>`
     SELECT id, team_tags AS "teamTags" FROM app.folders
     WHERE org_id = ${organizationId} AND parent_id = ${folderId}
@@ -546,11 +589,12 @@ async function cascadeDeleteFolderRecursive(
     if (!canSeeAudience({ teamIds: c.teamTags }, viewer)) {
       throw new AppError({ code: 'FORBIDDEN' });
     }
-    await cascadeDeleteFolderRecursive(
+    trashed += await cascadeDeleteFolderRecursive(
       tx,
       organizationId,
       c.id,
       viewer,
+      actor,
       depth + 1,
       budget,
     );
@@ -581,8 +625,17 @@ async function cascadeDeleteFolderRecursive(
       WHERE id = ${d.id}
     `;
     await markEntryChainDeletedForDocument(tx, organizationId, d.id);
+    trashed += 1;
   }
   await tx`DELETE FROM app.folders WHERE id = ${folderId}`;
+  if (depth === 0) {
+    await auditFolderDeleted(tx, actor, {
+      folderId,
+      name: root?.name ?? '',
+      metadata: { trashedDocumentCount: trashed, ...WEBDAV_DOOR },
+    });
+  }
+  return trashed;
 }
 
 /** A hub folder the caller may see, else the opaque 404. */
@@ -777,6 +830,7 @@ async function copyFolderRecursive(
   `;
   chargeReadBudget(budget, childDocs.length);
   const now = Date.now();
+  const actor = webdavActor(organizationId, userId);
   for (const d of childDocs) {
     if (!isVisibleDoc(d, ANY_VIEWER)) continue;
     // A document outside the caller's audience refuses the whole copy.
@@ -785,22 +839,35 @@ async function copyFolderRecursive(
     }
     const docTags = audience ?? d.teamTags;
     const docMirror = audienceMirror(docTags);
+    const title = nfc(d.title ?? '(untitled)');
     // Same blob ref — the destination is another reference to the bytes,
     // filed under the audience the copy takes.
-    await tx`
+    const copied = await tx<{ id: string }[]>`
       INSERT INTO app.documents (
         org_id, title, file_ref, mime_type, extension, content_hash,
         source_provider, source_created_at_ms, source_modified_at_ms,
         created_by, folder_id, team_id, team_tags, created_at_ms,
         updated_at_ms
       ) VALUES (
-        ${organizationId}, ${nfc(d.title ?? '(untitled)')}, ${d.fileRef},
+        ${organizationId}, ${title}, ${d.fileRef},
         ${d.mimeType}, ${d.extension}, ${d.contentHash},
         ${WEBDAV_SOURCE_PROVIDER}, ${now}, ${now},
         ${userId}, ${newFolderId}, ${docMirror.teamId}, ${docTags}, ${now},
         ${now}
       )
+      RETURNING id
     `;
+    const copiedId = copied[0]?.id;
+    if (!copiedId) throw new Error('document copy failed');
+    await auditDocumentCreated(tx, actor, {
+      documentId: copiedId,
+      title,
+      sourceProvider: WEBDAV_SOURCE_PROVIDER,
+      projectId: null,
+      teamIds: docTags,
+      folderId: newFolderId,
+      metadata: { ...WEBDAV_DOOR, copiedFromDocumentId: d.id },
+    });
   }
   return newFolderId;
 }
@@ -1258,6 +1325,7 @@ export function webdavHandlers(
         await addJobInTx(tx, 'rag.index_file', { fileId });
 
         const sourceModifiedAt = args.sourceModifiedAtMs ?? Date.now();
+        const actor = webdavActor(args.organizationId, args.userId);
         if (existing) {
           const oldFileRef = existing.fileRef;
           await tx`
@@ -1276,6 +1344,17 @@ export function webdavHandlers(
           if (oldFileRef && oldFileRef !== args.storageId) {
             await purgeOldBlob(tx, args.organizationId, oldFileRef);
           }
+          // The bytes were replaced in place — the row the UI's replace
+          // lane and an agent's rewrite leave.
+          await auditDocumentUpdated(tx, actor, {
+            documentId: existing.id,
+            title: fileName,
+            changedFields: ['fileRef'],
+            metadata: {
+              ...WEBDAV_DOOR,
+              sourceProvider: WEBDAV_SOURCE_PROVIDER,
+            },
+          });
           return { created: false, documentId: existing.id };
         }
         const now = Date.now();
@@ -1306,6 +1385,15 @@ export function webdavHandlers(
           UPDATE app.file_metadata SET document_id = ${documentId}
           WHERE id = ${fileId}
         `;
+        await auditDocumentCreated(tx, actor, {
+          documentId,
+          title: fileName,
+          sourceProvider: WEBDAV_SOURCE_PROVIDER,
+          projectId: null,
+          teamIds: audience,
+          folderId,
+          metadata: WEBDAV_DOOR,
+        });
         return { created: true, documentId };
       });
     },
@@ -1322,6 +1410,7 @@ export function webdavHandlers(
           args.organizationId,
           args.documentId,
           await grantFor(tx, args.organizationId, args.userId),
+          webdavActor(args.organizationId, args.userId),
         ),
       );
       return null;
@@ -1346,6 +1435,7 @@ export function webdavHandlers(
           args.organizationId,
           args.folderId,
           viewer,
+          webdavActor(args.organizationId, args.userId),
         );
       });
       return null;
@@ -1482,12 +1572,14 @@ export function webdavHandlers(
           throw new AppError({ code: 'DEST_EXISTS' });
         }
         if (collision && args.overwrite) {
+          const actor = webdavActor(args.organizationId, args.userId);
           if (collision.kind === 'document') {
             await softDeleteDocumentInner(
               tx,
               args.organizationId,
               collision.id,
               viewer,
+              actor,
             );
           } else {
             await cascadeDeleteFolderRecursive(
@@ -1495,6 +1587,7 @@ export function webdavHandlers(
               args.organizationId,
               collision.id,
               viewer,
+              actor,
             );
           }
         }
@@ -1631,12 +1724,14 @@ export function webdavHandlers(
           throw new AppError({ code: 'DEST_EXISTS' });
         }
         if (collision && args.overwrite) {
+          const actor = webdavActor(args.organizationId, args.userId);
           if (collision.kind === 'document') {
             await softDeleteDocumentInner(
               tx,
               args.organizationId,
               collision.id,
               viewer,
+              actor,
             );
           } else {
             await cascadeDeleteFolderRecursive(
@@ -1644,6 +1739,7 @@ export function webdavHandlers(
               args.organizationId,
               collision.id,
               viewer,
+              actor,
             );
           }
         }
@@ -1657,7 +1753,7 @@ export function webdavHandlers(
             throw new AppError({ code: 'NOT_FOUND' });
           }
           const now = Date.now();
-          await tx`
+          const copied = await tx<{ id: string }[]>`
             INSERT INTO app.documents (
               org_id, title, file_ref, mime_type, extension, content_hash,
               source_provider, source_created_at_ms, source_modified_at_ms,
@@ -1670,7 +1766,23 @@ export function webdavHandlers(
               ${args.userId}, ${destFolderId}, ${destMirror.teamId},
               ${destAudience}, ${now}, ${now}
             )
+            RETURNING id
           `;
+          const copiedId = copied[0]?.id;
+          if (!copiedId) throw new Error('document copy failed');
+          await auditDocumentCreated(
+            tx,
+            webdavActor(args.organizationId, args.userId),
+            {
+              documentId: copiedId,
+              title: destName,
+              sourceProvider: WEBDAV_SOURCE_PROVIDER,
+              projectId: null,
+              teamIds: destAudience,
+              folderId: destFolderId,
+              metadata: { ...WEBDAV_DOOR, copiedFromDocumentId: src.id },
+            },
+          );
           return { created: collision === null };
         }
         const srcFolder = await loadFolder(

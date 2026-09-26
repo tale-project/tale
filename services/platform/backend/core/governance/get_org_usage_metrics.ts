@@ -2,6 +2,7 @@ import {
   bucketAgentSlug,
   classifyUsageRow,
   isAutomationSubject,
+  usageLedgerSubject,
 } from '../../../lib/shared/constants/usage';
 import { buildPeriodKeyFromTimestamp } from './helpers';
 
@@ -240,6 +241,12 @@ export async function foldOrgUsageMetrics(
       continue;
     }
 
+    // The PERSON the row books under. Rows written before the workflow lane
+    // derived the subject from the run's starter carry a door form
+    // (`user:<id>`, `api-key:<id>`, `trigger:<id>`); they are the same
+    // member's spend (or the automation bucket's) and fold onto one row.
+    const subjectId = usageLedgerSubject(row.userId);
+
     const seriesPoint = seriesMap.get(row.periodKey);
     if (!seriesPoint) {
       // Rows outside the current window but inside the prior one feed deltas.
@@ -247,8 +254,8 @@ export async function foldOrgUsageMetrics(
         prevTotalRequests += row.requestCount;
         prevTotalTokens += row.totalTokens;
         prevTotalCostCents += row.costEstimate;
-        if (row.requestCount > 0 && !isAutomationSubject(row.userId)) {
-          prevActiveUserIds.add(row.userId);
+        if (row.requestCount > 0 && !isAutomationSubject(subjectId)) {
+          prevActiveUserIds.add(subjectId);
         }
       }
       continue;
@@ -267,8 +274,8 @@ export async function foldOrgUsageMetrics(
     totalCostCents += row.costEstimate;
     // The automation sentinel is a bucket, not a member — it holds the spend
     // of trigger-started runs and never counts as an active user.
-    if (row.requestCount > 0 && !isAutomationSubject(row.userId)) {
-      activeUserIds.add(row.userId);
+    if (row.requestCount > 0 && !isAutomationSubject(subjectId)) {
+      activeUserIds.add(subjectId);
     }
 
     // Classify by schema discriminator (connectorName / audioDurationSec /
@@ -343,11 +350,11 @@ export async function foldOrgUsageMetrics(
 
     // One row per PERSON: the ledger's `team_id` is a retired dimension (no
     // lane books one), so folding by it split a member's spend into rows.
-    const userKey = row.userId;
+    const userKey = subjectId;
     let userBucket = userBuckets.get(userKey);
     if (!userBucket) {
       userBucket = {
-        userId: row.userId,
+        userId: subjectId,
         teamId: null,
         inputTokens: 0,
         outputTokens: 0,

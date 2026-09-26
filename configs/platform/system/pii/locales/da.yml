@@ -53,6 +53,7 @@ nationalIds:
   - id: dk-cpr
     name: Danish CPR
     pattern: \b\d{6}-?\d{4}\b
+    checksum: dk-cpr
     replacement: '[CPR]'
 dateOfBirth:
   monthsLong:

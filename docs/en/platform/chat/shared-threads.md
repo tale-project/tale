@@ -12,6 +12,8 @@ Share a chat when a colleague needs to read the question and answer without cont
 3. Click **Create share link**.
 4. Use **Preview** to check the snapshot, then **Copy link** when it is ready to share.
 
+The snapshot is the branch you are viewing. If you used **Edit message** or **Try again**, the link publishes the version of each edited or regenerated turn that is on screen. Switch to the version you want colleagues to read with **Previous branch** and **Next branch** before you create the link.
+
 Read the transcript before distributing the link. A reply can contain details copied or summarized from a restricted source; sharing that reply makes its text readable to the organization members who have the link.
 
 <Frame caption="Recipients read the snapshot with its sharing byline; there is no message composer.">
@@ -22,7 +24,7 @@ Read the transcript before distributing the link. A reply can contain details co
 
 ## Include a later answer
 
-New messages stay outside the published snapshot. Open **Share** again and choose **Include newer messages** when you want the same link to show the newer exchange. Preview it again before treating that version as the one colleagues should read.
+New messages stay outside the published snapshot. Open **Share** again and choose **Include newer messages** when you want the same link to show the newer exchange. The snapshot is taken again from the branch you are viewing, so switch to the version you want to publish first. Preview it again before treating that version as the one colleagues should read.
 
 A recipient who wants to continue the topic starts their own chat. A snapshot does not create a collaborative conversation, and it does not grant access to every source mentioned in it.
 

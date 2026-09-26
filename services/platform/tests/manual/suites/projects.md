@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 37 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 38 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -249,7 +249,7 @@ projects-list row ⋯ menu.
   a team on **General** asks for confirmation that members outside the
   remaining teams lose access before it saves; clearing every team makes the
   row read `projects.list.sharingOrgWide`.
-- [ ] `PROJ-F25` · **Projects in the Home panel** — With four projects, one
+- [ ] `PROJ-F28` · **Projects in the Home panel** — With four projects, one
   pinned, open the Home panel's **All** view and click a project row → The
   **Projects** section (`home.projects.title`) lists every project you can
   see, the pinned one first and the rest A→Z, each with its avatar; the row
@@ -284,6 +284,15 @@ projects-list row ⋯ menu.
   switch changes the sharing without opening the chat; **New chat**
   (`projects.overview.newChatCta`) carries the pencil Home's **New chat**
   wears.
+
+- [ ] `PROJ-F25` · **A failed list read is an error, not an empty list** — In
+  DevTools, block `GET /api/app/projects/overview` (or answer it 500) and
+  open `/dashboard/{org}/projects` → After the retries the table shows the
+  error state **Something went wrong** with **Try again**
+  (`common.errors.somethingWentWrong`, `common.errors.tryAgain`) — never
+  **"No projects yet"** for an organization that has projects. Unblock the
+  request and click **Try again** → the rows appear without navigating away;
+  alternatively switch tabs and back → the list refetches on its own.
 
 ## Boundary & error tests
 

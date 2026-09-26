@@ -15,28 +15,35 @@ export function SwUpdateToasts() {
         updateAvailableTitle: t('updateAvailableTitle'),
         updateAvailableDescription: t('updateAvailableDescription'),
         updateNow: t('updateNow'),
+        updateLater: t('updateLater'),
         offlineReady: t('offlineReady'),
       }}
       renderUpdateToast={({ labels, onUpdate }) => {
+        // A minute-long toast sat on the primary controls (it covered
+        // "Create project" and, on a phone, the account menu) and the
+        // toaster has no close control — so the prompt is short-lived and
+        // carries its own "Later"; the update stays one reload away.
         toast({
-          duration: 60_000,
+          duration: 15_000,
           title: labels.updateAvailableTitle,
           description: labels.updateAvailableDescription,
           action: (
-            <ToastPrimitives.Action
-              altText={labels.updateNow}
-              asChild
-              onClick={onUpdate}
-            >
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                className="shrink-0"
+            <div className="flex shrink-0 items-center gap-2">
+              <ToastPrimitives.Close asChild>
+                <Button type="button" variant="ghost" size="sm">
+                  {labels.updateLater}
+                </Button>
+              </ToastPrimitives.Close>
+              <ToastPrimitives.Action
+                altText={labels.updateNow}
+                asChild
+                onClick={onUpdate}
               >
-                {labels.updateNow}
-              </Button>
-            </ToastPrimitives.Action>
+                <Button type="button" variant="primary" size="sm">
+                  {labels.updateNow}
+                </Button>
+              </ToastPrimitives.Action>
+            </div>
           ),
         });
       }}

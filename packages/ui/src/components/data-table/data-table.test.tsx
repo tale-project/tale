@@ -949,3 +949,23 @@ describe('DataTable utility column header accessibility', () => {
     expect(selectHeader()).toHaveAccessibleName('Select all');
   });
 });
+
+describe('DataTable — error state', () => {
+  it('renders the error with a retry instead of the empty state', () => {
+    const onRetry = vi.fn();
+    render(
+      <DataTable
+        columns={columnsWithSize}
+        data={[]}
+        emptyState={{ title: 'No items found', description: 'Create one.' }}
+        error={new Error('overview failed')}
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.queryByText('No items found')).not.toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /try ?again/i });
+    retry.click();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});

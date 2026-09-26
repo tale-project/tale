@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 73 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 74 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -535,7 +535,15 @@ any toggled setting after the run.
   (`settings.account.role.manageLink`) to `/dashboard/{org}/settings/members`;
   hovering the name in the profile menu reads the name and the same translated
   role.
-- [ ] `SET-F46` · **The page header names the open page** — Desktop, as owner:
+- [ ] `SET-F46` · **Typing a hex one character at a time** —
+  `/dashboard/{org}/settings/branding` → click the **Accent color hex value**
+  field (`settings.branding.hexValueAria`) and type `E`, `1`, `1`, `D`, `4`,
+  `8` one keystroke at a time → The page stays responsive after every
+  keystroke (no frozen tab, no CPU spin); the **Branding preview** keeps the
+  last complete color until all six digits are in, then re-tints to
+  `#E11D48`; **Save** stays disabled while the value is shorter than six
+  digits.
+- [ ] `SET-F48` · **The page header names the open page** — Desktop, as owner:
   click **Teams** in the Settings panel, then expand **Governance** and click
   **Policies & Limits**, then open **Branding** and edit a field → The page
   header beside the panel reads **Teams** (`navigation.teams`), then

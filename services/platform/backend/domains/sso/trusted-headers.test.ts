@@ -347,6 +347,8 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     });
     expect(syncTeamsFromGroupNames).toHaveBeenCalledWith(sql, {
       userId: 'user-1',
+      // The person on the `team.member_*` audit rows the sync writes.
+      userEmail: 'proxy.user@door.test',
       organizationId: 'org-1',
       groupNames: ['Finance', 'Operations'],
       excludeGroups: [],

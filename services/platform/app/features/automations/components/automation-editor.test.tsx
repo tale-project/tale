@@ -793,6 +793,8 @@ describe('AutomationEditor', () => {
     expect(saveMutation.mutateAsync).toHaveBeenCalledWith({
       organizationId: 'org-1',
       message: 'tighten the prompt',
+      // The version the draft was built on rides along.
+      baseVersion: 3,
       automation: expect.objectContaining({
         name: 'billing/dunning',
         nodes: [expect.objectContaining({ id: 'summary', when: 'x' })],
@@ -854,6 +856,94 @@ describe('AutomationEditor', () => {
     );
     // The refusal leaves the draft in place so it can be corrected and re-saved.
     expect(saveButton()).toBeEnabled();
+  });
+
+  it('sends the version the draft started from, pinned before another tab moves it', async () => {
+    const { user } = renderPage();
+    await editTheNode(user);
+    // Another tab saved v4 while the draft was open: the detail read now
+    // answers v4, but the draft was built on v3 and says so.
+    state.version = 4;
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+
+    await waitFor(() => {
+      expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(saveMutation.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ baseVersion: 3 }),
+    );
+  });
+
+  it('offers reload or save-anyway when the store refuses a stale draft, and never a silent revert', async () => {
+    saveMutation.mutateAsync = vi
+      .fn()
+      .mockRejectedValueOnce({
+        data: {
+          code: 'AUTOMATION_VERSION_STALE',
+          message:
+            'v4 of "billing/dunning" was saved after your draft started from v3.',
+          latestVersion: 4,
+          baseVersion: 3,
+        },
+      })
+      .mockResolvedValue(undefined);
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+
+    // The refusal is a decision, not a failure toast; the draft is kept.
+    await waitFor(() => {
+      expect(
+        screen.getByText('This automation changed while you were editing'),
+      ).toBeVisible();
+    });
+    expect(toastSpy).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        'v4 of "billing/dunning" was saved after your draft started from v3.',
+      ),
+    ).toBeVisible();
+
+    // Save anyway appends on top of the version that landed.
+    await user.click(screen.getByRole('button', { name: 'Save anyway' }));
+    await waitFor(() => {
+      expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(2);
+    });
+    expect(saveMutation.mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ baseVersion: 4 }),
+    );
+    await waitFor(() => {
+      expect(saveButton()).toBeDisabled();
+    });
+  });
+
+  it('drops the draft and shows the newer version on reload after a stale refusal', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue({
+      data: {
+        code: 'AUTOMATION_VERSION_STALE',
+        message: 'v4 landed.',
+        latestVersion: 4,
+        baseVersion: 3,
+      },
+    });
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => {
+      expect(screen.getByText('v4 landed.')).toBeVisible();
+    });
+
+    await user.click(
+      screen.getByRole('button', { name: 'Discard my changes and reload' }),
+    );
+    await waitFor(() => {
+      expect(saveButton()).toBeDisabled();
+    });
+    expect(onSelectVersion).toHaveBeenCalledWith(undefined);
+    expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
   });
 
   it('confirms before a version switch drops the draft', async () => {

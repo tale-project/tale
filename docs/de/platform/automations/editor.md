@@ -38,7 +38,7 @@ Wähle einen Kasten, um seine Felder zu öffnen. Ein `transform` hat **Code**, e
 ## Eine Version speichern und testen
 
 1. Ändere die nötigen Felder und klicke auf **Speichern**.
-2. Erkläre die Änderung in der **Versionsnachricht** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten.
+2. Erkläre die Änderung in der **Versionsnachricht** und wähle **Version speichern**. Eine neue Version entsteht; frühere Fassungen bleiben erhalten. Hat jemand während deiner Bearbeitung eine andere Version gespeichert, lehnt Tale das Speichern ab und fragt nach: **Meine Änderungen verwerfen und neu laden** zeigt die neuere Version, **Trotzdem speichern** legt deine Version darüber an — die neuere bleibt im Versionsverlauf, die aktuelle Version ist dann aber deine.
 3. Klicke auf **Testlauf**. Hat der Workflow ein Eingabeschema, fülle im Dialog **Eingabe für den Lauf (JSON)** aus. Öffne **Eingabeschema**, um Pflichtfelder und Typen zu prüfen. Ungültiges JSON oder unpassende Werte verhindern den Start.
 4. Starte den Test, wechsle zum Tab **Läufe** und öffne seinen Eintrag. Vergleiche aufgelöste Eingabe, Ausgabe und geplante Aktionen mit dem erwarteten Ergebnis.
 

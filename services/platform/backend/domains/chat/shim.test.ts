@@ -100,4 +100,55 @@ describe("chat shim 'contacts/internal_queries:queryContacts'", () => {
     const contacts = texts.find((text) => text.includes('FROM app.contacts'));
     expect(contacts).toContain("lifecycle_status IS DISTINCT FROM 'trashed'");
   });
+
+  it('reads every user-facing field — the chat row is the only view of a contact', async () => {
+    const { sql, texts } = capturingSql();
+    const handlers = chatShimHandlers(sql);
+    const query = handlers['contacts/internal_queries:queryContacts'];
+    if (query === undefined) throw new Error('contact query handler missing');
+
+    await query({ organizationId: 'org_1', searchTerm: 'ada' });
+
+    const contacts = texts.find((text) => text.includes('FROM app.contacts'));
+    for (const column of [
+      'name',
+      'email',
+      'phone',
+      'tags',
+      'external_id AS "externalId"',
+      'source',
+      'locale',
+      'address',
+      'notes',
+    ]) {
+      expect(contacts).toContain(column);
+    }
+  });
+});
+
+describe("chat shim 'products/internal_queries:queryProducts'", () => {
+  it('reads every user-facing field — the chat row is the only view of a product', async () => {
+    const { sql, texts } = capturingSql();
+    const handlers = chatShimHandlers(sql);
+    const query = handlers['products/internal_queries:queryProducts'];
+    if (query === undefined) throw new Error('product query handler missing');
+
+    await query({ organizationId: 'org_1', searchTerm: 'kettle' });
+
+    const products = texts.find((text) => text.includes('FROM app.products'));
+    for (const column of [
+      'name',
+      'description',
+      'image_url AS "imageUrl"',
+      'category',
+      'price',
+      'currency',
+      'stock',
+      'tags',
+      'status',
+      'external_id AS "externalId"',
+    ]) {
+      expect(products).toContain(column);
+    }
+  });
 });

@@ -711,6 +711,25 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  it('accepts a declared gateway wire and rejects an unknown one', () => {
+    for (const gatewayWire of [
+      'anthropic',
+      'openai-chat',
+      'openai-responses',
+    ]) {
+      expect(
+        harnessDefinitionSchema.safeParse({ ...VALID_HARNESS, gatewayWire })
+          .success,
+      ).toBe(true);
+    }
+    expect(
+      harnessDefinitionSchema.safeParse({
+        ...VALID_HARNESS,
+        gatewayWire: 'responses',
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects the retired argv-positional transport spelling', () => {
     expect(
       harnessDefinitionSchema.safeParse({

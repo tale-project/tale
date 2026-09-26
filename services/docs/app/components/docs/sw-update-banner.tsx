@@ -37,6 +37,7 @@ export function SwUpdateBanner() {
           updateAvailableTitle: t('updateAvailableTitle'),
           updateAvailableDescription: t('updateAvailableDescription'),
           updateNow: t('updateNow'),
+          updateLater: t('updateLater'),
           offlineReady: t('offlineReady'),
         }}
         renderUpdateToast={({ labels, onUpdate }) => {

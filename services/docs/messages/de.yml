@@ -46,5 +46,6 @@ pwa:
   updateAvailableTitle: Aktualisierung verfügbar
   updateAvailableDescription: Eine neue Version der Doku ist bereit.
   updateNow: Neu laden
+  updateLater: Später
   dismiss: Schließen
   offlineReady: Doku ist offline lesbar.

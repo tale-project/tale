@@ -31,7 +31,9 @@ Si plusieurs catégories correspondent, bloquer passe avant masquer, puis signal
 
 La protection PII détecte des formats configurés, comme les adresses e-mail, numéros de téléphone et identifiants. Sélectionne les types intégrés utiles et les motifs personnalisés, puis le comportement souhaité.
 
-Le masquage retire les valeurs détectées du texte transmis. Le blocage refuse une correspondance. La tokenisation remplace les valeurs par des tokens numérotés pour le modèle, puis les restaure dans sa réponse. Elle réduit l’exposition pendant le traitement, sans garantir une réponse finale dépourvue de données personnelles.
+Le masquage retire les valeurs détectées du texte transmis. Dans un chat, Tale enregistre et affiche aussi le texte masqué comme message ; la formulation d’origine n’est pas conservée. Le blocage refuse une correspondance. La tokenisation remplace les valeurs par des tokens numérotés pour le modèle, puis les restaure dans sa réponse. Elle réduit l’exposition pendant le traitement, sans garantir une réponse finale dépourvue de données personnelles.
+
+Un identifiant intégré composé uniquement de chiffres, comme un numéro de passeport suédois ou un identifiant fiscal ukrainien, n’est reconnu qu’à côté d’un mot qui le nomme, par exemple `passnummer` ou `ІПН`. Les numéros de commande, les dates compactes et les numéros de build passent tels quels. Chaque détection dans **Événements récents** nomme le motif déclenché, par exemple `se-passport`.
 
 Teste tes formats réels avec des valeurs fictives. La détection peut manquer des formats inhabituels et signaler à tort du texte ordinaire. Vérifie séparément l’entrée et la sortie.
 

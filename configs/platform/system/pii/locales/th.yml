@@ -39,6 +39,12 @@ nationalIds:
   - id: th-national-id
     name: Thai National ID
     pattern: \b\d-\d{4}-\d{5}-\d{2}-\d\b
+    contextKeywords:
+      - เลขบัตรประชาชน
+      - เลขประจำตัวประชาชน
+      - บัตรประชาชน
+      - เลขประจำตัว
+      - national id
     replacement: '[TH_ID]'
 dateOfBirth:
   monthsLong:

@@ -280,6 +280,7 @@ export async function storeOauth2Grant(
       secret,
       status: 'active',
       statusDetail: null,
+      actor: { userId: args.userId },
     });
     console.info(
       `[connectors:oauth2] "${args.connectorSlug}" grant renewed for organization ${args.organizationId}`,
@@ -312,6 +313,7 @@ export async function storeOauth2Grant(
       authMethod: 'oauth2',
       name,
       createdBy: args.userId,
+      actor: { userId: args.userId },
       secret,
     });
     if (tokens.teamId !== undefined) {

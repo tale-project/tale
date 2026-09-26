@@ -47,6 +47,12 @@ nationalIds:
   - id: pk-cnic
     name: Pakistani CNIC
     pattern: \b\d{5}-?\d{7}-?\d\b
+    contextKeywords:
+      - CNIC
+      - NIC
+      - شناختی کارڈ
+      - قومی شناختی کارڈ
+      - شناختی کارڈ نمبر
     replacement: '[CNIC]'
 dateOfBirth:
   monthsLong:

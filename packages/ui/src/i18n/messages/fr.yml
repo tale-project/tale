@@ -269,6 +269,7 @@ pwa:
   updateAvailableDescription: Une nouvelle version de Tale est prête.
   updateAvailableTitle: Mise à jour disponible
   updateNow: Mettre à jour
+  updateLater: Plus tard
 settings:
   agents:
     form:

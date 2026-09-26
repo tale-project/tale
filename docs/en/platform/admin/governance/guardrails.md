@@ -31,7 +31,9 @@ When several categories match, block takes precedence over mask, then flag. Word
 
 **PII protection** detects configured patterns such as email addresses, phone numbers, and identifiers. Select the relevant built-in types and any custom patterns, then choose the intended behavior.
 
-Masking removes matched values from the text sent onward. Blocking refuses a match. Tokenization replaces detected values with indexed tokens for the model and restores them in its reply. Tokenization is therefore useful for processing with reduced exposure, but it is not a promise that the final reply will contain no personal data.
+Masking removes matched values from the text sent onward. In a chat, the masked text is also what Tale stores and shows as the message; the original wording is not kept. Blocking refuses a match. Tokenization replaces detected values with indexed tokens for the model and restores them in its reply. Tokenization is therefore useful for processing with reduced exposure, but it is not a promise that the final reply will contain no personal data.
+
+A built-in identifier that is digits only, such as a Swedish passport number or a Ukrainian tax ID, is recognized only next to a word that names it, for example `passnummer` or `ІПН`. Order numbers, compact dates, and build numbers pass through. Each detection in **Recent events** names the pattern that fired, such as `se-passport`.
 
 Test the formats you actually use with synthetic values. Pattern detection can miss unusual formats and can flag ordinary text. Check input and output separately.
 

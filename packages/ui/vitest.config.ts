@@ -26,6 +26,12 @@ export default defineConfig({
       // in order, so this entry must precede `@`.
       '@/tests': fileURLToPath(new URL('./tests', import.meta.url)),
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // vite-plugin-pwa generates this module at build time in a consuming
+      // service; here it resolves to a stub so a component that imports it
+      // can be rendered (and the hook mocked) under test.
+      'virtual:pwa-register/react': fileURLToPath(
+        new URL('./tests/stubs/pwa-register-react.ts', import.meta.url),
+      ),
     },
   },
   test: {

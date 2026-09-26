@@ -35,10 +35,13 @@ vi.mock('../../auth/membership.ts', () => ({
 }));
 
 import {
+  branchForEdit,
+  branchForRegenerate,
   getSharedThread,
   moveThreadToProject,
   searchChats,
   setThreadArchived,
+  shareThread,
   unshareThread,
   trashThread,
 } from './threads.ts';
@@ -70,6 +73,9 @@ const OWNED_ROW = {
   sharedBy: 'user_1',
   status: 'active',
   branchRootId: null,
+  branchParentId: null,
+  branchForkSequence: null,
+  sharedThreadId: null,
   hidden: null,
   createdAt: 1,
   updatedAt: 1,
@@ -282,6 +288,76 @@ describe('trashThread with the turn fence', () => {
   });
 });
 
+/**
+ * A share names the ROOT but publishes the sibling on screen: the leaf is
+ * frozen on the root row at share time, and the snapshot reads ITS rows.
+ * A leaf outside the lineage (or someone else's) refuses the share.
+ */
+describe('shareThread freezes the leaf', () => {
+  const isOwnedRead = (s: Statement) =>
+    s.text.includes('FROM app.threads t') && s.text.includes('WHERE t.id = ?');
+  const isSiblingCheck = (s: Statement) =>
+    s.text.includes('tm.branch_root_id = ?') &&
+    s.text.includes('t.user_id = ?');
+  const update = (statements: Statement[]) =>
+    statements.find((s) => s.text.includes('shared_thread_id = ?'));
+
+  it('stores the sibling on screen when it is a live branch of the root, owned by the sharer', async () => {
+    const { sql, statements } = fakeSql((statement) => {
+      if (isSiblingCheck(statement)) return [{ id: 'b1' }];
+      if (isOwnedRead(statement)) return [OWNED_ROW];
+      return undefined;
+    });
+    await expect(
+      shareThread(sql, 'org_1', 'user_1', 'thread_1', 'b1'),
+    ).resolves.toEqual({ shareToken: 'tok' });
+    const check = statements.find(isSiblingCheck);
+    expect(check?.values).toEqual(['b1', 'org_1', 'user_1', 'thread_1']);
+    expect(check?.text).toContain("tm.status = 'active'");
+    // share_token, shared_at_ms, shared_by, shared_thread_id, thread_id
+    expect(update(statements)?.values[3]).toBe('b1');
+  });
+
+  it('stores NULL for the root itself — no lineage read', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      isOwnedRead(statement) ? [OWNED_ROW] : undefined,
+    );
+    await shareThread(sql, 'org_1', 'user_1', 'thread_1', 'thread_1');
+    expect(statements.some(isSiblingCheck)).toBe(false);
+    expect(update(statements)?.values[3]).toBeNull();
+  });
+
+  it('refuses a leaf that is not a live sibling of the root (foreign, trashed, another lineage)', async () => {
+    const { sql, statements } = fakeSql((statement) => {
+      if (isSiblingCheck(statement)) return [];
+      if (isOwnedRead(statement)) return [OWNED_ROW];
+      return undefined;
+    });
+    await expect(
+      shareThread(sql, 'org_1', 'user_1', 'thread_1', 'not-mine'),
+    ).resolves.toBeNull();
+    expect(update(statements)).toBeUndefined();
+  });
+
+  it('resolves the leaf from the stored selection map when the caller names none', async () => {
+    const { sql, statements } = fakeSql((statement) => {
+      if (statement.text.includes('branch_parent_id IS NOT NULL')) {
+        return [
+          { id: 'b1', parentId: 'thread_1', forkSequence: 2, createdAt: 5 },
+          { id: 'b2', parentId: 'b1', forkSequence: 4, createdAt: 6 },
+        ];
+      }
+      if (statement.text.includes('SELECT branch_selections')) {
+        return [{ branchSelections: '{"thread_1:2":"b1","b1:4":"b2"}' }];
+      }
+      if (isOwnedRead(statement)) return [OWNED_ROW];
+      return undefined;
+    });
+    await shareThread(sql, 'org_1', 'user_1', 'thread_1');
+    expect(update(statements)?.values[3]).toBe('b2');
+  });
+});
+
 describe('getSharedThread', () => {
   it('resolves the token only for an ACTIVE thread — trash and expiry go dark', async () => {
     const { sql, statements } = fakeSql((statement) =>
@@ -292,6 +368,44 @@ describe('getSharedThread', () => {
     expect(view?.threadId).toBe('thread_1');
     const lookup = statements.find((s) => s.text.includes('share_token'));
     expect(lookup?.text).toContain("tm.status = 'active'");
+  });
+
+  it('reads the frozen sibling’s rows while it is live, the root’s once it is gone', async () => {
+    const messagesOf = (statements: Statement[]) =>
+      statements.find((s) => s.text.includes('FROM app.messages'));
+    const isLeafCheck = (s: Statement) =>
+      s.text.includes('tm.branch_root_id = ?') &&
+      s.text.includes('tm.thread_id = ?');
+    const frozen = { ...OWNED_ROW, sharedThreadId: 'b1' };
+
+    const live = fakeSql((statement) => {
+      if (statement.text.includes('share_token')) return [frozen];
+      if (isLeafCheck(statement)) return [{ id: 'b1' }];
+      return [];
+    });
+    const view = await getSharedThread(live.sql, ['org_1'], 'tok');
+    // The link still names the root; only the rows come from the leaf.
+    expect(view?.threadId).toBe('thread_1');
+    expect(messagesOf(live.statements)?.values).toEqual(['b1', 1_000]);
+
+    const gone = fakeSql((statement) =>
+      statement.text.includes('share_token') ? [frozen] : [],
+    );
+    await getSharedThread(gone.sql, ['org_1'], 'tok');
+    expect(messagesOf(gone.statements)?.values).toEqual(['thread_1', 1_000]);
+  });
+
+  it('reads the root when nothing was frozen — every share taken before the column', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      statement.text.includes('share_token') ? [OWNED_ROW] : [],
+    );
+    await getSharedThread(sql, ['org_1'], 'tok');
+    expect(
+      statements.some((s) => s.text.includes('tm.branch_root_id = ?')),
+    ).toBe(false);
+    expect(
+      statements.find((s) => s.text.includes('FROM app.messages'))?.values[0],
+    ).toBe('thread_1');
   });
 
   it('maps NULL blocked_reason/error to ABSENT — a shared message is not a blocked, failed reply', async () => {
@@ -340,6 +454,153 @@ describe('getSharedThread', () => {
     // A genuinely blocked or failed row keeps its stamps.
     expect(blocked?.blockedReason).toBe('content_policy');
     expect(blocked?.error).toBe('upstream refused');
+  });
+});
+
+/**
+ * A fork at or before a sibling's own fork sequence versions the SAME turn
+ * as that sibling: it hangs off the sibling's parent (walking up through a
+ * chain written before this rule), so "Try again" then "Edit" — or two
+ * "Try again"s — read as three siblings of one fork point with the original
+ * among them. A fork after the sibling's own fork stays on the sibling.
+ */
+describe('branchForEdit / branchForRegenerate hang a fork off the turn it versions', () => {
+  interface Ancestor {
+    id: string;
+    branchParentId: string | null;
+    branchForkSequence: number | null;
+  }
+  const isAncestorRead = (s: Statement) =>
+    s.text.includes('tm.branch_parent_id AS "branchParentId"');
+  const isOwnedRead = (s: Statement) =>
+    s.text.includes('FROM app.threads t') && s.text.includes('WHERE t.id = ?');
+  const drive = (
+    onScreen: Record<string, unknown>,
+    ancestors: Ancestor[],
+    message: { order: number; role: string },
+    prompt?: { order: number },
+  ) =>
+    fakeSql((statement) => {
+      if (isAncestorRead(statement)) {
+        return ancestors.filter((row) => row.id === statement.values[0]);
+      }
+      if (isOwnedRead(statement)) return [onScreen];
+      if (statement.text.includes('SELECT "order", role FROM app.messages')) {
+        return [message];
+      }
+      if (statement.text.includes("role = 'user'") && prompt) return [prompt];
+      if (statement.text.includes('INSERT INTO app.threads')) {
+        return [{ id: 'b_new' }];
+      }
+      return [];
+    });
+  /** root, parent, fork sequence — the lineage stamps of the new sibling. */
+  const stamps = (statements: Statement[]) =>
+    statements
+      .find((s) => s.text.includes('INSERT INTO app.thread_metadata'))
+      ?.values.slice(9, 12);
+  const copiedFrom = (statements: Statement[]) =>
+    statements.find((s) => s.text.includes('INSERT INTO app.messages'))?.values;
+  const sibling = (id: string, parentId: string, forkSequence: number) => ({
+    ...OWNED_ROW,
+    id,
+    branchRootId: 'thread_1',
+    branchParentId: parentId,
+    branchForkSequence: forkSequence,
+    isShared: null,
+    shareToken: null,
+    sharedAt: null,
+    sharedBy: null,
+    hidden: true,
+  });
+  const root: Ancestor = {
+    id: 'thread_1',
+    branchParentId: null,
+    branchForkSequence: null,
+  };
+
+  it('edit at the sequence a "try again" sibling forked at hangs off the sibling’s parent', async () => {
+    const { sql, statements } = drive(sibling('b1', 'thread_1', 2), [root], {
+      order: 2,
+      role: 'user',
+    });
+    await expect(
+      branchForEdit(sql, 'org_1', 'user_1', 'b1', 'm_edit'),
+    ).resolves.toEqual({ id: 'b_new', parentId: 'thread_1', forkSequence: 2 });
+    expect(stamps(statements)).toEqual(['thread_1', 'thread_1', 2]);
+    // The rows still copy from the sibling on screen — an identical prefix.
+    expect(copiedFrom(statements)).toEqual([
+      'b_new',
+      expect.any(Number),
+      'b1',
+      1,
+    ]);
+  });
+
+  it('edit BEFORE the sibling’s fork walks up too — that prefix is the parent’s', async () => {
+    const { sql, statements } = drive(sibling('b1', 'thread_1', 4), [root], {
+      order: 2,
+      role: 'user',
+    });
+    await expect(
+      branchForEdit(sql, 'org_1', 'user_1', 'b1', 'm_edit'),
+    ).resolves.toMatchObject({ parentId: 'thread_1', forkSequence: 2 });
+    expect(stamps(statements)).toEqual(['thread_1', 'thread_1', 2]);
+  });
+
+  it('edit AFTER the sibling’s fork stays on the sibling — those rows are its own', async () => {
+    const { sql, statements } = drive(sibling('b1', 'thread_1', 2), [root], {
+      order: 4,
+      role: 'user',
+    });
+    await expect(
+      branchForEdit(sql, 'org_1', 'user_1', 'b1', 'm_edit'),
+    ).resolves.toMatchObject({ parentId: 'b1', forkSequence: 4 });
+    expect(stamps(statements)).toEqual(['thread_1', 'b1', 4]);
+    expect(statements.some(isAncestorRead)).toBe(false);
+  });
+
+  it('walks a chain written before this rule up to the turn’s owner', async () => {
+    const { sql, statements } = drive(
+      sibling('b2', 'b1', 2),
+      [{ id: 'b1', branchParentId: 'thread_1', branchForkSequence: 2 }, root],
+      { order: 2, role: 'user' },
+    );
+    await expect(
+      branchForEdit(sql, 'org_1', 'user_1', 'b2', 'm_edit'),
+    ).resolves.toMatchObject({ parentId: 'thread_1' });
+    expect(stamps(statements)).toEqual(['thread_1', 'thread_1', 2]);
+  });
+
+  it('stops at the last live node when an ancestor is gone', async () => {
+    const { sql, statements } = drive(sibling('b2', 'b1', 2), [], {
+      order: 2,
+      role: 'user',
+    });
+    await expect(
+      branchForEdit(sql, 'org_1', 'user_1', 'b2', 'm_edit'),
+    ).resolves.toMatchObject({ parentId: 'b2' });
+    expect(stamps(statements)).toEqual(['thread_1', 'b2', 2]);
+  });
+
+  it('a second "try again" hangs off the first one’s parent — three replies of one turn', async () => {
+    const { sql, statements } = drive(
+      sibling('b1', 'thread_1', 2),
+      [root],
+      { order: 3, role: 'assistant' },
+      { order: 2 },
+    );
+    await expect(
+      branchForRegenerate(sql, 'org_1', 'user_1', 'b1', 'm_reply'),
+    ).resolves.toEqual({ id: 'b_new', parentId: 'thread_1', forkSequence: 2 });
+    expect(stamps(statements)).toEqual(['thread_1', 'thread_1', 2]);
+    // Through the prompt, from the sibling on screen.
+    expect(copiedFrom(statements)).toEqual([
+      'b_new',
+      expect.any(Number),
+      'b1',
+      2,
+    ]);
   });
 });
 

@@ -325,13 +325,27 @@ describe('rag_search', () => {
               email: 'ada@acme.com',
               phone: '+1 555',
               tags: ['vip'],
+              locale: 'en',
+              externalId: 'crm-7',
+              source: 'import',
+              address: { city: 'Zürich' },
+              notes: 'Prefers email.',
             },
           ],
           isDone: true,
         }),
         [PRODUCTS_FN]: () => ({
           page: [
-            { name: 'Acme Widget', category: 'Tools', price: 19, stock: 3 },
+            {
+              name: 'Acme Widget',
+              description: 'Internal product code GK-7731.',
+              category: 'Tools',
+              price: 19,
+              currency: 'CHF',
+              stock: 3,
+              tags: ['hardware'],
+              externalId: 'sku-1',
+            },
           ],
           isDone: true,
         }),
@@ -364,6 +378,28 @@ describe('rag_search', () => {
     // The corpus hit carries the ref rag_fetch accepts; the page its URL.
     expect(result.results?.[0]?.ref).toBe('file_123');
     expect(result.results?.[1]?.url).toBe('https://acme.com/pricing');
+    // A contact or product row is the model's only view of the record (it
+    // cannot be fetched), so every user-facing field rides it — currency,
+    // description, locale and the rest, not a handful.
+    expect(result.results?.[3]?.data).toEqual({
+      email: 'ada@acme.com',
+      phone: '+1 555',
+      locale: 'en',
+      address: { city: 'Zürich' },
+      tags: ['vip'],
+      externalId: 'crm-7',
+      source: 'import',
+      notes: 'Prefers email.',
+    });
+    expect(result.results?.[4]?.data).toEqual({
+      description: 'Internal product code GK-7731.',
+      category: 'Tools',
+      price: 19,
+      currency: 'CHF',
+      stock: 3,
+      tags: ['hardware'],
+      externalId: 'sku-1',
+    });
     expect(result.sources).toEqual({
       documents: 'searched',
       mailAttachments:
@@ -3020,6 +3056,64 @@ describe('email content is not trusted', () => {
       input: { query: 'refunds' },
     });
     expect(result.results?.[0]?.snippet).not.toContain('<untrusted_source');
+  });
+
+  it('hands the model a whole retrieved chunk, not its head', async () => {
+    // A 971-character document is one chunk; the fact sits past the first
+    // 500 characters, where the old head-cut snippet ended.
+    const text = `${'Filler sentence about nothing in particular. '.repeat(12)}The eval project codename is BLUE-HERON-4471.${' More filler after the fact.'.repeat(14)}`;
+    expect(text.length).toBeGreaterThan(900);
+    searchKnowledgeMock.mockResolvedValueOnce({
+      hits: [
+        {
+          id: '1',
+          corpus: 'documents',
+          text,
+          chunkIndex: 0,
+          score: 0.9,
+          fusedScore: 0.9,
+          source: { ref: 'file_facts', title: 'Facts', url: null },
+        },
+      ],
+      diagnostics: {},
+    });
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = await executor.execute({
+      id: 'c3',
+      name: 'rag_search',
+      input: { query: 'codename' },
+    });
+    expect(result.results?.[0]?.snippet).toBe(text);
+  });
+
+  it('falls back to the short head once a response has spent its chunk budget', async () => {
+    const chunk = 'x'.repeat(2_400);
+    searchKnowledgeMock.mockResolvedValueOnce({
+      hits: Array.from({ length: 10 }, (_, index) => ({
+        id: String(index),
+        corpus: 'documents' as const,
+        text: chunk,
+        chunkIndex: index,
+        score: 0.5,
+        fusedScore: 0.5,
+        offset: index * 2_400,
+        source: { ref: 'file_long', title: 'Long', url: null },
+      })),
+      diagnostics: {},
+    });
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = await executor.execute({
+      id: 'c4',
+      name: 'rag_search',
+      input: { query: 'x', limit: 10 },
+    });
+    const snippets = result.results?.map((entry) => entry.snippet) ?? [];
+    expect(snippets).toHaveLength(10);
+    // Eight whole chunks (the default page), then the head of each — with
+    // the offset a rag_fetch continues from.
+    expect(snippets.slice(0, 8).every((s) => s === chunk)).toBe(true);
+    expect(snippets[8]).toBe(`${'x'.repeat(500)}…(+1900 chars)`);
+    expect(result.results?.[8]?.offset).toBe(8 * 2_400);
   });
 
   it('strips control and bidi characters from a corpus title', async () => {

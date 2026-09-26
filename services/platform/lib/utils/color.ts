@@ -1,3 +1,11 @@
+/** A complete hex color — `#RRGGBB`, optionally `#RRGGBBAA`. The same shape
+ * the branding schema accepts; a value still being typed is not one. */
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/;
+
+export function isHexColor(value: string): boolean {
+  return HEX_COLOR_PATTERN.test(value);
+}
+
 /** Parse a hex color string into normalized [0,1] sRGB channels. */
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const cleaned = hex.replace('#', '');
@@ -120,6 +128,9 @@ export function isLightColor(hex: string): boolean {
 /** Page background each theme applies the branded color against. */
 const THEME_BACKGROUND = { light: '#FFFFFF', dark: '#0A0A0A' } as const;
 const LIGHTNESS_STEP = 2;
+/** The most steps a lightness walk can take from one end of the scale to
+ * the other — the hard bound on every walk below, whatever the input. */
+const MAX_LIGHTNESS_STEPS = Math.ceil(100 / LIGHTNESS_STEP) + 1;
 
 /**
  * Adapt a single branded color so it stays legible in the given theme.
@@ -131,12 +142,17 @@ const LIGHTNESS_STEP = 2;
  * that's the theme it "fits". Otherwise its HSL lightness is nudged toward the
  * contrasting direction (lighter on dark, darker on light) until it clears the
  * threshold or lightness clamps.
+ *
+ * Only a complete hex color is walked. A partial one — a hex field being
+ * typed one character at a time — parses to NaN channels, and a walk over
+ * NaN never clamps and never clears the threshold; it is answered untouched.
  */
 export function adjustColorForTheme(
   hex: string,
   theme: 'light' | 'dark',
   minContrast = 3,
 ): string {
+  if (!isHexColor(hex)) return hex;
   const background = THEME_BACKGROUND[theme];
   if (contrastRatio(hex, background) >= minContrast) {
     return hex;
@@ -147,7 +163,7 @@ export function adjustColorForTheme(
 
   let lightness = l;
   let candidate = hex;
-  for (;;) {
+  for (let step = 0; step < MAX_LIGHTNESS_STEPS; step++) {
     // Step first, then test the clamp — a walk may START at a boundary (pure
     // black on the dark theme, pure white on the light one) and must still
     // move inward rather than return the invisible original untouched.
@@ -213,6 +229,10 @@ interface AccentPalette {
  * 3. `mutedHsl` keeps the accent hue at half saturation with the same
  *    lightness the default `--primary-muted` grays use per theme, so muted
  *    text stays muted but on-brand.
+ *
+ * The input must be a complete hex color (`isHexColor`); a partial one is
+ * answered as its own base with no walk, so a caller that renders while a
+ * field is being typed cannot spin — pass the last complete color instead.
  */
 export function deriveAccentPalette(
   hex: string,
@@ -231,7 +251,10 @@ export function deriveAccentPalette(
   const direction = fg === ACCENT_INK_DARK ? 1 : -1;
   const { h, s, l } = hexToHslParts(base);
   let lightness = l;
+  let steps = 0;
   while (
+    isHexColor(base) &&
+    steps++ < MAX_LIGHTNESS_STEPS &&
     contrastRatio(base, fg) < MIN_FG_CONTRAST &&
     lightness > 0 &&
     lightness < 100

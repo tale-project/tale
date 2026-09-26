@@ -36,6 +36,7 @@ import {
   readFileSafe,
   readJsonFile,
 } from '../../core/lib/file_io.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
  * Branding file I/O — the 0.5 twin of `convex/branding/file_actions.ts`
@@ -43,7 +44,46 @@ import {
  * REUSED verbatim; only the auth/slug resolution moved to the routes. The
  * image files themselves stay served by the shell's static handler
  * (`vite-plugins/serve-branding-images.ts`) — the URL builder is shared.
+ *
+ * Every write is an organization-wide change every member sees, so each
+ * leaves an `admin` audit row on the organization (`branding.updated` with
+ * the fields that changed, `branding.image_uploaded`, `branding.image_deleted`)
+ * — written inside the config write lock's transaction, the way the
+ * provider definitions are audited.
  */
+
+/** The admin a branding write is recorded under. */
+export interface BrandingAuditActor {
+  organizationId: string;
+  userId: string;
+  email?: string;
+}
+
+function brandingAuditFields(actor: BrandingAuditActor) {
+  return {
+    organizationId: actor.organizationId,
+    actorId: actor.userId,
+    ...(actor.email !== undefined ? { actorEmail: actor.email } : {}),
+    actorType: 'user' as const,
+    category: 'admin' as const,
+    resourceType: 'organization',
+    resourceId: actor.organizationId,
+    status: 'success' as const,
+  };
+}
+
+/** The config keys whose value differs between two branding files. */
+export function changedBrandingFields(
+  previous: Record<string, unknown>,
+  next: Record<string, unknown>,
+): string[] {
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
+  return [...keys]
+    .filter(
+      (key) => JSON.stringify(previous[key]) !== JSON.stringify(next[key]),
+    )
+    .sort();
+}
 
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
@@ -173,25 +213,54 @@ export async function saveBranding(
   sql: Sql,
   orgSlug: string,
   config: unknown,
-  expectedHash?: string | null,
+  expectedHash: string | null | undefined,
+  actor: BrandingAuditActor,
 ): Promise<{ hash: string }> {
   const parsed = brandingJsonSchema.parse(config);
   const content = serializeBrandingJson(parsed);
-  await withConfigWriteLock(sql, orgSlug, 'branding', async () => {
-    if (expectedHash !== undefined)
-      assertExpectedHash(
-        (await readBrandingConfig(orgSlug)).hash,
-        expectedHash,
-      );
-    await atomicWrite(resolveBrandingFilePath(orgSlug), content);
-  });
-  return { hash: sha256(content) };
+  const nextHash = sha256(content);
+  await sql.begin((tx) =>
+    withConfigWriteLock(tx, orgSlug, 'branding', async () => {
+      let current: Awaited<ReturnType<typeof readBrandingConfig>>;
+      try {
+        current = await readBrandingConfig(orgSlug);
+      } catch (error) {
+        // A reviewed save (with a hash) needs the current file to compare
+        // against; a plain save has always been allowed to write over an
+        // unreadable one, and still is — its row then has no prior state.
+        if (expectedHash !== undefined) throw error;
+        console.warn(
+          `[branding] current config for "${orgSlug}" is unreadable; saving over it`,
+          error instanceof Error ? error.message : error,
+        );
+        current = { config: null, hash: null };
+      }
+      if (expectedHash !== undefined) {
+        assertExpectedHash(current.hash, expectedHash);
+      }
+      // A save that re-sent the stored values changed nothing: no row.
+      if (current.hash !== nextHash) {
+        const previous: Record<string, unknown> = { ...current.config };
+        const next: Record<string, unknown> = { ...parsed };
+        await createAuditLog(tx, {
+          ...brandingAuditFields(actor),
+          action: 'branding.updated',
+          previousState: previous,
+          newState: next,
+          changedFields: changedBrandingFields(previous, next),
+        });
+      }
+      await atomicWrite(resolveBrandingFilePath(orgSlug), content);
+    }),
+  );
+  return { hash: nextHash };
 }
 
 export async function saveBrandingImage(
   sql: Sql,
   orgSlug: string,
   args: { type: string; base64: string; mimeType: string },
+  actor: BrandingAuditActor,
 ): Promise<{ filename: string }> {
   if (!validateImageType(args.type)) {
     throw new BrandingError(
@@ -230,12 +299,19 @@ export async function saveBrandingImage(
   // Replacing an image is a delete-then-write across extensions: two saves
   // of the same type interleaving there leave the loser's file beside the
   // winner's, and the reader picks by prefix.
-  await withConfigWriteLock(sql, orgSlug, 'branding', async () => {
-    await mkdir(imagesDir, { recursive: true });
-    await removeImageVariants(imagesDir, imageType, 'saveBrandingImage');
-    await atomicWriteBuffer(resolveImagePath(orgSlug, filename), buffer);
-    await writeImageReference(orgSlug, imageType, filename);
-  });
+  await sql.begin((tx) =>
+    withConfigWriteLock(tx, orgSlug, 'branding', async () => {
+      await mkdir(imagesDir, { recursive: true });
+      await removeImageVariants(imagesDir, imageType, 'saveBrandingImage');
+      await atomicWriteBuffer(resolveImagePath(orgSlug, filename), buffer);
+      await writeImageReference(orgSlug, imageType, filename);
+      await createAuditLog(tx, {
+        ...brandingAuditFields(actor),
+        action: 'branding.image_uploaded',
+        metadata: { type: imageType, filename, bytes: buffer.length },
+      });
+    }),
+  );
   return { filename };
 }
 
@@ -304,6 +380,7 @@ export async function deleteBrandingImage(
   sql: Sql,
   orgSlug: string,
   type: string,
+  actor: BrandingAuditActor,
 ): Promise<void> {
   if (!validateImageType(type)) {
     throw new BrandingError(
@@ -313,14 +390,21 @@ export async function deleteBrandingImage(
   }
   // Narrowed here: the guard above does not reach into the closure.
   const imageType: BrandingImageType = type;
-  await withConfigWriteLock(sql, orgSlug, 'branding', async () => {
-    await removeImageVariants(
-      resolveImagesDir(orgSlug),
-      imageType,
-      'deleteBrandingImage',
-    );
-    await writeImageReference(orgSlug, imageType, undefined);
-  });
+  await sql.begin((tx) =>
+    withConfigWriteLock(tx, orgSlug, 'branding', async () => {
+      await removeImageVariants(
+        resolveImagesDir(orgSlug),
+        imageType,
+        'deleteBrandingImage',
+      );
+      await writeImageReference(orgSlug, imageType, undefined);
+      await createAuditLog(tx, {
+        ...brandingAuditFields(actor),
+        action: 'branding.image_deleted',
+        metadata: { type: imageType },
+      });
+    }),
+  );
 }
 
 export async function snapshotBrandingToHistory(

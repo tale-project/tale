@@ -511,7 +511,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 8
+    # The four container tests share this budget: the disk reclaim ahead of the
+    # test alone has taken seven minutes on a slow runner, and an 8-minute job
+    # then cancelled the test before it ran (PR #3491) — a cancel that reads
+    # as a failed check while nothing was tested.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -541,7 +545,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 8
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -571,7 +575,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 8
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -604,7 +608,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 8
+    timeout-minutes: 15
 
     steps:
       - name: Checkout

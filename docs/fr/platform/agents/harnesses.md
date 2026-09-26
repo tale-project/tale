@@ -52,3 +52,5 @@ L’accès sortant autorise normalement l’installation de paquets et le clonag
 ## Examiner le résultat
 
 Le programme décide quand son échange est terminé ; Tale collecte le compte rendu et la sortie. Lis les deux avant de terminer la tâche. Vérifie quels contrôles ont réellement été exécutés et quels services manquaient dans la sandbox. L’[automatisation des tâches](/fr/platform/projects/task-automation) explique la revue du travail de projet ; les [journaux d’exécution](/fr/platform/automations/execution-logs) expliquent le résultat d’un nœud agent.
+
+Si le programme ne peut pas démarrer du tout — une configuration qu’il refuse, un répertoire d’état qu’il ne trouve pas —, l’exécution échoue aussitôt et sa cause cite les dernières lignes écrites par le programme : la cause est nommée, pas seulement un code de sortie. Une telle exécution n’est pas relancée automatiquement ; corrige la cause, puis relance-la.

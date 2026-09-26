@@ -33,7 +33,14 @@ export const queryClient = new QueryClient({
       // `/events` hint stream invalidates whatever actually changed, so a
       // stale window never outlives a real change.
       staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
+      // A healthy read keeps its stale window; a read that ERRORED on a
+      // transport or server fault gets another chance when the tab is
+      // looked at again, so a list that failed once does not sit on its
+      // error until a navigation (2026-09-26 evaluation, G-07). A structured
+      // refusal is deterministic and stays.
+      refetchOnWindowFocus: (query) =>
+        query.state.status === 'error' &&
+        !isStructuredBackendError(query.state.error),
     },
   },
 });

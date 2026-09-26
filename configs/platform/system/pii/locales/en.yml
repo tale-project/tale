@@ -160,11 +160,21 @@ nationalIds:
   - id: au-medicare
     name: Australian Medicare Number
     pattern: \b[2-6]\d{3}\s?\d{5}\s?\d\b
+    contextKeywords:
+      - medicare number
+      - medicare no
+      - medicare card
+      - medicare
     replacement: '[AU_MEDICARE]'
   - id: nz-ird
     name: New Zealand IRD Number
     pattern: \b\d{2,3}-?\d{3}-?\d{3}\b
     checksum: nz-ird
+    contextKeywords:
+      - IRD number
+      - IRD no
+      - IRD
+      - tax file number
     replacement: '[NZ_IRD]'
   - id: za-id
     name: South African ID Number
@@ -179,6 +189,7 @@ nationalIds:
   - id: sg-nric
     name: Singapore NRIC / FIN
     pattern: \b[STFGM]\d{7}[A-Z]\b
+    checksum: sg-nric
     replacement: '[SG_NRIC]'
 dateOfBirth:
   monthsLong:

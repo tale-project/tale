@@ -17,8 +17,20 @@ export interface SwUpdateListenerLabels {
   updateAvailableDescription: string;
   /** Action button label inside the update toast. */
   updateNow: string;
+  /** Dismiss label inside the update toast — the page keeps its version. */
+  updateLater: string;
   /** Toast title shown the first time the app is cached for offline use. */
   offlineReady: string;
+}
+
+/** Whether a service worker already controls this page. A page without one
+ * is a first install (or a hard reload): there is no older version to
+ * update FROM, so a "new version is ready" prompt would be false. */
+function hasControllingServiceWorker(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    navigator.serviceWorker?.controller != null
+  );
 }
 
 interface SwUpdateListenerProps {
@@ -51,6 +63,12 @@ export function SwUpdateListener({
   renderOfflineReadyToast,
 }: SwUpdateListenerProps): ReactNode {
   const firedRef = useRef(false);
+  // Read once, at mount: `needRefresh` can only mean "a newer worker is
+  // waiting behind the one that controls this page". On a first install
+  // nothing controls the page yet, and the workbox-window `waiting` event
+  // that first visit can still see (a worker left waiting by an earlier
+  // registration) is not an update of what the user is looking at.
+  const hadControllerRef = useRef(hasControllingServiceWorker());
 
   const {
     needRefresh: [needRefresh],
@@ -65,6 +83,7 @@ export function SwUpdateListener({
   useEffect(() => {
     if (!needRefresh || firedRef.current) return;
     firedRef.current = true;
+    if (!hadControllerRef.current) return;
     renderUpdateToast({
       labels,
       onUpdate: () => {

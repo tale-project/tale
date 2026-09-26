@@ -247,11 +247,19 @@ export async function incrementUsageLedger(
           app.usage_ledger.connector_call_count
             + EXCLUDED.connector_call_count,
         character_count =
-          coalesce(app.usage_ledger.character_count, 0)
-            + coalesce(EXCLUDED.character_count, 0),
+          CASE
+            WHEN app.usage_ledger.character_count IS NULL
+              AND EXCLUDED.character_count IS NULL THEN NULL
+            ELSE coalesce(app.usage_ledger.character_count, 0)
+              + coalesce(EXCLUDED.character_count, 0)
+          END,
         audio_duration_sec =
-          coalesce(app.usage_ledger.audio_duration_sec, 0)
-            + coalesce(EXCLUDED.audio_duration_sec, 0),
+          CASE
+            WHEN app.usage_ledger.audio_duration_sec IS NULL
+              AND EXCLUDED.audio_duration_sec IS NULL THEN NULL
+            ELSE coalesce(app.usage_ledger.audio_duration_sec, 0)
+              + coalesce(EXCLUDED.audio_duration_sec, 0)
+          END,
         provider = coalesce(app.usage_ledger.provider, EXCLUDED.provider),
         updated_at_ms = ${now}
     `;

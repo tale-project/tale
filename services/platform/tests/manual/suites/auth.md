@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 40 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 43 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -204,6 +204,36 @@ compute codes from the enrollment secret.
   and open `/log-in?reason=idle`) with the headers on → the inactivity
   notice and a **Continue with automatic sign-in** button, and nothing signs
   in until it is pressed.
+- [ ] `AUTH-F25` · **An API key's life reaches the audit log** — Under
+  `/dashboard/{org}/settings/api` create a REST key, then revoke it from its
+  row menu → `/dashboard/{org}/settings/logs` → **Audit logs** shows **API
+  key created** (`settings.logs.audit.actionLabels.api_key.created`) and
+  **API key revoked** (`settings.logs.audit.actionLabels.api_key.revoked`)
+  with the resource type **API key**
+  (`settings.logs.audit.resourceTypeLabels.api_key`), both naming you and
+  the key's name; the created row's detail carries the key's start and its
+  last four characters and never the key itself. With a second organization
+  you belong to, the same two rows appear in its log.
+- [ ] `AUTH-F26` · **A WebDAV app-password's life reaches the audit log** —
+  Under `/dashboard/{org}/settings/api/webdav` generate an app-password with
+  a label, then revoke it → **Audit logs** shows **WebDAV app password
+  created** (`settings.logs.audit.actionLabels.webdav_app_password.created`)
+  and **WebDAV app password revoked**
+  (`settings.logs.audit.actionLabels.webdav_app_password.revoked`) naming
+  the label; the created row's detail carries the four-character prefix and
+  nothing of the password.
+- [ ] `AUTH-F27` · **A connector credential's life reaches the audit log** —
+  Under `/dashboard/{org}/settings/connectors` add a credential to a
+  connector, rename it, add a second one and make it the default, then delete
+  the first → **Audit logs** shows **Connector credential created**
+  (`settings.logs.audit.actionLabels.connector_credential.created`),
+  **Connector credential updated**
+  (`settings.logs.audit.actionLabels.connector_credential.updated` — one row
+  per change; the default switch lists **isDefault** under changed fields)
+  and **Connector credential deleted**
+  (`settings.logs.audit.actionLabels.connector_credential.deleted`), each
+  naming the credential and, in its detail, the connector and auth method;
+  no row carries the secret or the connector's configuration.
 
 ## Boundary & error tests
 

@@ -52,6 +52,8 @@ const overview = vi.hoisted(() => ({
   projects: [] as unknown[],
   overdueTruncated: false,
   isLoading: false,
+  error: null as Error | null,
+  retry: () => undefined,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -336,5 +338,23 @@ describe('ProjectsTable', () => {
     ]);
 
     await checkAccessibility(container);
+  });
+});
+
+describe('ProjectsTable — a failed overview read', () => {
+  // The org has projects; the read failed. "No projects yet" here read as
+  // data loss (2026-09-26 evaluation, G-07).
+  it('shows the error state with a retry, never the first-run empty state', () => {
+    overview.projects = [];
+    overview.error = new Error('overview failed');
+    try {
+      render(<ProjectsTable organizationId="test-org-id" />);
+      expect(
+        screen.getByRole('button', { name: /tryAgain|try ?again/i }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/projects\.list\.empty/)).toBeNull();
+    } finally {
+      overview.error = null;
+    }
   });
 });

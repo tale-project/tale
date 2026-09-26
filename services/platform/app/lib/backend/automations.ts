@@ -336,6 +336,11 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
             // colliding slug once silently appended a version to a live
             // automation instead of being refused.
             ...(args.create === true ? { create: true } : {}),
+            // The version the draft started from — the store refuses the
+            // save when another one landed since (409 AUTOMATION_VERSION_STALE).
+            ...(typeof args.baseVersion === 'number'
+              ? { baseVersion: args.baseVersion }
+              : {}),
           },
         },
       );

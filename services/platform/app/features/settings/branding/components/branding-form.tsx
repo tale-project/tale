@@ -10,7 +10,7 @@ import { Form } from '@tale/ui/form';
 import { HStack, Stack } from '@tale/ui/layout';
 import { useTheme } from '@tale/ui/theme';
 import { useToast } from '@tale/ui/use-toast';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Controller } from 'react-hook-form';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
@@ -18,7 +18,7 @@ import { SettingsFieldList } from '@/app/features/settings/components/settings-f
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { useT } from '@/lib/i18n/client';
-import { adjustColorForTheme } from '@/lib/utils/color';
+import { adjustColorForTheme, isHexColor } from '@/lib/utils/color';
 import {
   deriveFaviconPngBase64,
   shouldDeriveFavicon,
@@ -185,6 +185,16 @@ export function BrandingForm({
     null,
   );
 
+  // The accent the preview tints with: the field's value once it is a
+  // complete hex, the last complete one while a shorter value is being typed
+  // (the preview derives a palette from it, and a partial hex parses to NaN),
+  // and nothing once the field is cleared.
+  const previewAccentRef = useRef<string | undefined>(undefined);
+  const typedAccent = watchedValues.accentColor;
+  if (!typedAccent) previewAccentRef.current = undefined;
+  else if (isHexColor(typedAccent)) previewAccentRef.current = typedAccent;
+  const previewAccent = previewAccentRef.current;
+
   // The app name shown in the preview is the org's name (passed via `branding`)
   // — it is no longer an editable field, so it stays constant as the user edits.
   useEffect(() => {
@@ -192,11 +202,11 @@ export function BrandingForm({
       appName: branding?.appName,
       logoUrl: logoPreviewUrl ?? branding?.logoUrl,
       faviconUrl: faviconPreviewUrl ?? branding?.faviconLightUrl,
-      accentColor: watchedValues.accentColor || undefined,
+      accentColor: previewAccent,
     });
   }, [
     branding?.appName,
-    watchedValues.accentColor,
+    previewAccent,
     branding?.logoUrl,
     branding?.faviconLightUrl,
     logoPreviewUrl,

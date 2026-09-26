@@ -12,7 +12,12 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  auditTeamDeleted,
+  auditTeamMemberAdded,
+  auditTeamMemberRemoved,
+  type TeamAuditActor,
+} from './audit.ts';
 import {
   deleteTeamInTx,
   listTeamDirectory,
@@ -40,7 +45,9 @@ import {
  * members. Add/remove need an org admin, and a team never drops to zero
  * members through the admin doors (`TEAM_LAST_MEMBER`) — an identity
  * provider's own lanes (SCIM, SSO group sync) are authoritative and not
- * bound by that rule.
+ * bound by that rule. Every write here leaves its `team.*` audit row in
+ * the same transaction (`./audit.ts`); the plugin-door writes are audited
+ * from their hooks in `auth.ts`.
  */
 export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
@@ -50,9 +57,9 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   const teamInOrg = async (
     teamId: string,
     orgId: string,
-  ): Promise<{ id: string } | null> => {
-    const rows = await deps.sql<{ id: string }[]>`
-      SELECT "id" FROM "team"
+  ): Promise<{ id: string; name: string } | null> => {
+    const rows = await deps.sql<{ id: string; name: string }[]>`
+      SELECT "id", "name" FROM "team"
       WHERE "id" = ${teamId} AND "organizationId" = ${orgId}
       LIMIT 1
     `;
@@ -61,6 +68,17 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
 
   const callerIsAdmin = (c: Context<OrgEnv>): boolean =>
     isAdminRole(c.get('orgMember').role);
+
+  /** The signed-in admin, as the audit rows name them. */
+  const actorOf = (c: Context<OrgEnv>): TeamAuditActor => {
+    const user = c.get('sessionBundle').user;
+    return {
+      id: user.id,
+      ...(user.email !== undefined ? { email: user.email } : {}),
+      role: c.get('orgMember').role,
+      type: 'user',
+    };
+  };
 
   /** Whether the caller belongs to `teamId` (admins pass without a read). */
   const callerMayReadRoster = async (
@@ -201,25 +219,18 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     const orgId = c.get('orgId');
     const teamId = c.req.param('teamId');
-    const user = c.get('sessionBundle').user;
+    const actor = actorOf(c);
     const result = await transactSerializable(deps.sql, async (tx) => {
       const deleted = await deleteTeamInTx(tx, orgId, teamId);
       if (deleted === null) return null;
       const { touchedFileDocumentIds: _touched, ...counts } =
         deleted.retirement;
-      await createAuditLog(tx, {
+      await auditTeamDeleted(tx, {
         organizationId: orgId,
-        actorId: user.id,
-        actorEmail: user.email,
-        actorRole: c.get('orgMember').role,
-        actorType: 'user',
-        action: 'team.deleted',
-        category: 'member',
-        resourceType: 'team',
-        resourceId: teamId,
-        resourceName: deleted.name,
+        actor,
+        teamId,
+        teamName: deleted.name,
         metadata: counts,
-        status: 'success',
       });
       return deleted;
     });
@@ -288,35 +299,57 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const orgId = c.get('orgId');
     const team = await teamInOrg(c.req.param('teamId'), orgId);
     if (team === null) return c.json({ error: 'TEAM_NOT_FOUND' }, 404);
-    // The target must already be an org member — a team never smuggles an
-    // outsider into the organization.
-    const member = await deps.sql<{ id: string }[]>`
-      SELECT "id" FROM "member"
-      WHERE "organizationId" = ${orgId} AND "userId" = ${body.data.userId}
-      LIMIT 1
-    `;
-    if (member.length === 0) {
+    const userId = body.data.userId;
+    const actor = actorOf(c);
+    // The membership row, its audit row and the hint commit together — a
+    // membership nobody can account for is exactly what the log is for.
+    const outcome = await deps.sql.begin(async (tx) => {
+      // The target must already be an org member — a team never smuggles an
+      // outsider into the organization.
+      const member = await tx<{ id: string; email: string | null }[]>`
+        SELECT m."id", u."email"
+        FROM "member" m
+        LEFT JOIN "user" u ON u."id" = m."userId"
+        WHERE m."organizationId" = ${orgId} AND m."userId" = ${userId}
+        LIMIT 1
+      `;
+      if (member[0] === undefined) return { kind: 'not_member' as const };
+      const existing = await tx<{ id: string }[]>`
+        SELECT "id" FROM "teamMember"
+        WHERE "teamId" = ${team.id} AND "userId" = ${userId}
+        LIMIT 1
+      `;
+      if (existing[0]) {
+        return { kind: 'already' as const, id: existing[0].id };
+      }
+      const id = randomUUID();
+      await tx`
+        INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+        VALUES (${id}, ${team.id}, ${userId}, ${new Date()})
+      `;
+      await auditTeamMemberAdded(tx, {
+        organizationId: orgId,
+        actor,
+        teamId: team.id,
+        teamName: team.name,
+        userId,
+        teamMemberId: id,
+        ...(member[0].email !== null ? { targetEmail: member[0].email } : {}),
+      });
+      await emitHintInTx(tx, {
+        orgId,
+        entity: TEAM_HINT_ENTITY,
+        entityId: team.id,
+      });
+      return { kind: 'added' as const, id };
+    });
+    if (outcome.kind === 'not_member') {
       return c.json({ error: 'USER_NOT_ORG_MEMBER' }, 400);
     }
-    const existing = await deps.sql<{ id: string }[]>`
-      SELECT "id" FROM "teamMember"
-      WHERE "teamId" = ${team.id} AND "userId" = ${body.data.userId}
-      LIMIT 1
-    `;
-    if (existing[0]) {
-      return c.json({ id: existing[0].id, alreadyMember: true });
+    if (outcome.kind === 'already') {
+      return c.json({ id: outcome.id, alreadyMember: true });
     }
-    const id = randomUUID();
-    await deps.sql`
-      INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
-      VALUES (${id}, ${team.id}, ${body.data.userId}, ${new Date()})
-    `;
-    await emitHintInTx(deps.sql, {
-      orgId: c.get('orgId'),
-      entity: TEAM_HINT_ENTITY,
-      entityId: team.id,
-    });
-    return c.json({ id, alreadyMember: false }, 201);
+    return c.json({ id: outcome.id, alreadyMember: false }, 201);
   });
 
   /**
@@ -326,9 +359,10 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
    */
   const removeMembership = async (
     orgId: string,
+    actor: TeamAuditActor,
     locate: (
       tx: TransactionSql,
-    ) => Promise<{ id: string; teamId: string } | null>,
+    ) => Promise<{ id: string; teamId: string; userId: string } | null>,
   ): Promise<{
     removed: boolean;
     lastMember: boolean;
@@ -339,7 +373,9 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       if (row === null) {
         return { removed: false, lastMember: false, teamId: null };
       }
-      await tx`SELECT "id" FROM "team" WHERE "id" = ${row.teamId} FOR UPDATE`;
+      const locked = await tx<{ id: string; name: string }[]>`
+        SELECT "id", "name" FROM "team" WHERE "id" = ${row.teamId} FOR UPDATE
+      `;
       const counted = await tx<{ count: string }[]>`
         SELECT count(*)::text AS count FROM "teamMember"
         WHERE "teamId" = ${row.teamId}
@@ -348,6 +384,19 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         return { removed: false, lastMember: true, teamId: row.teamId };
       }
       await tx`DELETE FROM "teamMember" WHERE "id" = ${row.id}`;
+      const target = await tx<{ email: string | null }[]>`
+        SELECT "email" FROM "user" WHERE "id" = ${row.userId} LIMIT 1
+      `;
+      const targetEmail = target[0]?.email ?? null;
+      await auditTeamMemberRemoved(tx, {
+        organizationId: orgId,
+        actor,
+        teamId: row.teamId,
+        teamName: locked[0]?.name ?? '',
+        userId: row.userId,
+        teamMemberId: row.id,
+        ...(targetEmail !== null ? { targetEmail } : {}),
+      });
       await emitHintInTx(tx, {
         orgId,
         entity: TEAM_HINT_ENTITY,
@@ -374,9 +423,9 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     const orgId = c.get('orgId');
     const teamMemberId = c.req.param('teamMemberId');
-    const outcome = await removeMembership(orgId, async (tx) => {
-      const rows = await tx<{ id: string; teamId: string }[]>`
-        SELECT tm."id", tm."teamId"
+    const outcome = await removeMembership(orgId, actorOf(c), async (tx) => {
+      const rows = await tx<{ id: string; teamId: string; userId: string }[]>`
+        SELECT tm."id", tm."teamId", tm."userId"
         FROM "teamMember" tm
         JOIN "team" t ON t."id" = tm."teamId"
         WHERE tm."id" = ${teamMemberId} AND t."organizationId" = ${orgId}
@@ -396,9 +445,9 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const team = await teamInOrg(c.req.param('teamId'), orgId);
     if (team === null) return c.json({ error: 'TEAM_NOT_FOUND' }, 404);
     const userId = c.req.param('userId');
-    const outcome = await removeMembership(orgId, async (tx) => {
-      const rows = await tx<{ id: string; teamId: string }[]>`
-        SELECT "id", "teamId" FROM "teamMember"
+    const outcome = await removeMembership(orgId, actorOf(c), async (tx) => {
+      const rows = await tx<{ id: string; teamId: string; userId: string }[]>`
+        SELECT "id", "teamId", "userId" FROM "teamMember"
         WHERE "teamId" = ${team.id} AND "userId" = ${userId}
         LIMIT 1
       `;

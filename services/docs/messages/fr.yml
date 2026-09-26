@@ -48,5 +48,6 @@ pwa:
   updateAvailableTitle: Mise à jour disponible
   updateAvailableDescription: Une nouvelle version de la doc est prête.
   updateNow: Recharger
+  updateLater: Plus tard
   dismiss: Ignorer
   offlineReady: La doc est prête en mode hors ligne.

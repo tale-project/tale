@@ -160,11 +160,22 @@ export function SkillsMenu({
       });
     };
 
+    // An equipped skill the picker cannot see any more — one that was
+    // unshared from this scope after it was equipped — still counts and
+    // still fails a run, so it is listed as a checked, removable entry
+    // rather than hidden behind a count nothing in the menu explains.
+    const unavailableSkills: SkillOption[] = value.skills
+      .filter((slug) => !skills.some((option) => option.slug === slug))
+      .map((slug) => ({
+        slug,
+        label: t('skills.unavailableOption', { slug }),
+      }));
+
     return [
       group(
         t('skills.sectionSkills'),
         t('skills.emptySkills'),
-        skills,
+        [...skills, ...unavailableSkills],
         value.skills,
         (slugs) => ({ ...value, skills: slugs }),
       ),

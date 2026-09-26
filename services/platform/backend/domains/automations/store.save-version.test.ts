@@ -36,8 +36,15 @@ function fakeStore(existingVersions: number[]): {
     const text = strings.join('?');
     statements.push({ text, values });
     if (text.includes('pg_advisory_xact_lock')) return Promise.resolve([]);
-    if (text.includes('SELECT version FROM app.automations')) {
-      return Promise.resolve(existingVersions.map((version) => ({ version })));
+    if (text.includes('SELECT max(version)')) {
+      return Promise.resolve([
+        {
+          latest:
+            existingVersions.length === 0
+              ? null
+              : Math.max(...existingVersions),
+        },
+      ]);
     }
     if (text.includes('INSERT INTO app.automations')) {
       return Promise.resolve([
@@ -72,7 +79,7 @@ describe('saveVersion', () => {
     const [lock, read] = fake.statements;
     expect(lock?.text).toContain('pg_advisory_xact_lock');
     expect(lock?.values).toEqual(['org_1', 'ops/greet']);
-    expect(read?.text).toContain('SELECT version FROM app.automations');
+    expect(read?.text).toContain('SELECT max(version)');
   });
 
   it('refuses a create-only save of an existing name with a coded 409 and writes nothing', async () => {
@@ -93,6 +100,44 @@ describe('saveVersion', () => {
         statement.text.includes('INSERT INTO'),
       ),
     ).toBe(false);
+  });
+
+  it('refuses a save whose draft started from a version that is no longer the latest', async () => {
+    // Tab A saved v6 while tab B still held a draft of v5: B's save must
+    // not silently revert A's change (2026-09-26 evaluation, D-15).
+    const fake = fakeStore([4, 5, 6]);
+    let caught: unknown;
+    try {
+      await saveVersion(fake.sql, args({ baseVersion: 5 }));
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(AutomationError);
+    if (caught instanceof AutomationError) {
+      expect(caught.code).toBe('AUTOMATION_VERSION_STALE');
+      expect(caught.status).toBe(409);
+      expect(caught.data).toEqual({ latestVersion: 6, baseVersion: 5 });
+      expect(caught.message).toContain('v6');
+    }
+    expect(
+      fake.statements.some((statement) =>
+        statement.text.includes('INSERT INTO'),
+      ),
+    ).toBe(false);
+  });
+
+  it('appends when the draft started from the latest version, and always without a base', async () => {
+    const current = fakeStore([4, 5, 6]);
+    await expect(
+      saveVersion(current.sql, args({ baseVersion: 6 })),
+    ).resolves.toEqual({ name: 'ops/greet', version: 7 });
+    // The builder's autosave, an upload and MCP pass no base: last write
+    // wins, as before.
+    const blind = fakeStore([4, 5, 6]);
+    await expect(saveVersion(blind.sql, args())).resolves.toEqual({
+      name: 'ops/greet',
+      version: 7,
+    });
   });
 
   it('creates a fresh name and appends to an existing one without the flag', async () => {

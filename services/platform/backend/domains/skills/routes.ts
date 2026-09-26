@@ -20,6 +20,7 @@ import {
 } from '../../core/skills/file_actions.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { assertSkillTeamsAssignable, skillErrorResponse } from './errors.ts';
+import { unequipDeletedSkill } from './unequip.ts';
 import { uploadSkillBundlePg } from './upload.ts';
 import { withSkillWriterLock } from './writer-lock.ts';
 
@@ -169,13 +170,24 @@ export function createSkillRoutes(deps: {
     try {
       const who = await caller(c);
       const slug = c.req.param('slug');
+      const user = c.get('sessionBundle').user;
+      let detachedAgents = 0;
       const deleted = await withSkillWriterLock(
         deps.sql,
         c.get('orgId'),
         slug,
-        () => deleteSkillForViewer({ ...who, slug }),
+        async () => {
+          const removed = await deleteSkillForViewer({ ...who, slug });
+          if (!removed) return false;
+          detachedAgents = await unequipDeletedSkill(deps.sql, {
+            organizationId: c.get('orgId'),
+            slug,
+            actor: { id: user.id, email: user.email },
+          });
+          return true;
+        },
       );
-      return c.json({ deleted });
+      return c.json({ deleted, detachedAgents });
     } catch (error) {
       return skillErrorResponse(c, error);
     }

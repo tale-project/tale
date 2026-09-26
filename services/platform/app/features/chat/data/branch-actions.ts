@@ -34,7 +34,15 @@ import { invalidateBudgetStanding, useChatQueryClient } from './chat-backend';
  * like a refused send. Anything else that fails is `failed`.
  */
 export type BranchForkResult =
-  | { readonly status: 'created'; readonly id: string }
+  | {
+      readonly status: 'created';
+      readonly id: string;
+      /** The fork point the sibling hangs off — the thread whose turn it
+       * versions, which the server may resolve to an ancestor of the one
+       * forked from. Selections are keyed here. */
+      readonly parentId: string;
+      readonly forkSequence: number;
+    }
   | {
       readonly status: 'refused';
       readonly reason: string;
@@ -97,11 +105,11 @@ export interface BranchActions {
    * the fork point shows no empty sibling for the view to strand on. Best
    * effort: a failure costs an empty ‹n/m› entry, never the conversation. */
   readonly discard: (threadId: string) => Promise<void>;
-  /** Persist which sibling a fork point shows. Fire-and-forget. */
+  /** Persist which sibling a fork point shows — every key one flip writes,
+   * in one request. Fire-and-forget. */
   readonly select: (
     rootThreadId: string,
-    forkKey: string,
-    selectedThreadId: string,
+    selections: ReadonlyArray<{ forkKey: string; selectedThreadId: string }>,
   ) => void;
   /** A visible fork of the conversation up to a message. */
   readonly fork: (
@@ -136,13 +144,13 @@ export function useBranchActions(organizationId: string): BranchActions {
       editedMessageId: string,
     ): Promise<BranchForkResult> => {
       try {
-        const id = await branchChatThreadForEdit(
+        const fork = await branchChatThreadForEdit(
           organizationId,
           threadId,
           editedMessageId,
         );
         invalidateChatThreads(queryClient, organizationId);
-        return { status: 'created', id };
+        return { status: 'created', ...fork };
       } catch (error) {
         return settleForkFailure('edit', error);
       }
@@ -156,13 +164,13 @@ export function useBranchActions(organizationId: string): BranchActions {
       assistantMessageId: string,
     ): Promise<BranchForkResult> => {
       try {
-        const id = await branchChatThreadForRegenerate(
+        const fork = await branchChatThreadForRegenerate(
           organizationId,
           threadId,
           assistantMessageId,
         );
         invalidateChatThreads(queryClient, organizationId);
-        return { status: 'created', id };
+        return { status: 'created', ...fork };
       } catch (error) {
         return settleForkFailure('regenerate', error);
       }
@@ -227,13 +235,12 @@ export function useBranchActions(organizationId: string): BranchActions {
   );
 
   const select = useCallback(
-    (rootThreadId: string, forkKey: string, selectedThreadId: string): void => {
-      setChatBranchSelection(
-        organizationId,
-        rootThreadId,
-        forkKey,
-        selectedThreadId,
-      )
+    (
+      rootThreadId: string,
+      selections: ReadonlyArray<{ forkKey: string; selectedThreadId: string }>,
+    ): void => {
+      if (selections.length === 0) return;
+      setChatBranchSelection(organizationId, rootThreadId, selections)
         .then(() => invalidateChatThreads(queryClient, organizationId))
         .catch((error: unknown) => {
           // A lost write costs one re-flip after reload, never a broken view.

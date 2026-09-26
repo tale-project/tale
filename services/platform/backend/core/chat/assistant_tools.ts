@@ -93,8 +93,23 @@ export interface ChatToolContext {
  * never threaten the Convex value ceiling. */
 const WEB_FETCH_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const WEB_FETCH_TIMEOUT_MS = 15_000;
-/** Snippet budget per rag_search result. */
+/** Snippet budget per rag_search row that carries a description — a task, a
+ * project, a website — and for a product's or contact's free text. */
 const SNIPPET_CHARS = 500;
+/**
+ * Snippet budget per corpus hit: a whole chunk (`CHUNK_SIZE` 2048 code units
+ * plus its contextual header), so a fact anywhere in a retrieved passage
+ * reaches the model. A hit used to be cut at `SNIPPET_CHARS` — the head of
+ * one passage — and a fact past the cut, in a short document's only chunk or
+ * at the end of a PDF page, was answered as "not found" although the search
+ * had retrieved it (2026-09-26 evaluation, B-01).
+ */
+const CORPUS_SNIPPET_CHARS = 2_400;
+/** Total corpus-snippet budget per response — the default page of hits as
+ * whole chunks. Past it a later hit falls back to `SNIPPET_CHARS`; its
+ * `offset` names where a rag_fetch continues. */
+const CORPUS_SNIPPET_TOTAL_CHARS =
+  RAG_SEARCH_DEFAULT_LIMIT * CORPUS_SNIPPET_CHARS;
 
 /**
  * Namespace prefixes that make a work row's `ref` self-describing, so
@@ -286,12 +301,22 @@ function projectResultEntry(
   };
 }
 
+// A contact or product row is the model's ONLY view of the record — the
+// kinds cannot be fetched — so every user-facing field rides the row. A
+// projection of a few fields had the model state "currency not specified"
+// and "locale not set" as facts about records that carried both
+// (2026-09-26 evaluation, B-06).
 function contactResultEntry(contact: {
   name?: string;
   email?: string;
   phone?: string;
   tags?: string[];
   lifecycleStatus?: string;
+  externalId?: string;
+  source?: string;
+  locale?: string;
+  address?: Record<string, unknown>;
+  notes?: string;
 }): SearchResultEntry {
   return {
     kind: 'contact',
@@ -300,8 +325,17 @@ function contactResultEntry(contact: {
     data: {
       ...(contact.email ? { email: contact.email } : {}),
       ...(contact.phone ? { phone: contact.phone } : {}),
+      ...(contact.locale ? { locale: contact.locale } : {}),
+      ...(contact.address ? { address: contact.address } : {}),
       ...(contact.tags && contact.tags.length > 0
         ? { tags: contact.tags }
+        : {}),
+      ...(contact.externalId ? { externalId: contact.externalId } : {}),
+      ...(contact.source ? { source: contact.source } : {}),
+      // Notes are staff prose about the person — clipped like any other
+      // free text, and neutralized like the name a correspondent picks.
+      ...(contact.notes
+        ? { notes: sanitizeUntrustedField(clip(contact.notes, SNIPPET_CHARS)) }
         : {}),
       // A non-active row must say so, or a trashed contact reads as the
       // current address book.
@@ -314,18 +348,32 @@ function contactResultEntry(contact: {
 
 function productResultEntry(product: {
   name?: string;
+  description?: string;
+  imageUrl?: string;
   category?: string;
   price?: number;
+  currency?: string;
   stock?: number;
+  tags?: string[];
   status?: string;
+  externalId?: string;
 }): SearchResultEntry {
   return {
     kind: 'product',
     title: product.name ?? 'Unnamed product',
     data: {
+      ...(product.description
+        ? { description: clip(product.description, SNIPPET_CHARS) }
+        : {}),
       ...(product.category ? { category: product.category } : {}),
       ...(product.price !== undefined ? { price: product.price } : {}),
+      ...(product.currency ? { currency: product.currency } : {}),
       ...(product.stock !== undefined ? { stock: product.stock } : {}),
+      ...(product.tags && product.tags.length > 0
+        ? { tags: product.tags }
+        : {}),
+      ...(product.imageUrl ? { imageUrl: product.imageUrl } : {}),
+      ...(product.externalId ? { externalId: product.externalId } : {}),
       // Draft and archived SKUs are real rows but not current inventory.
       ...(product.status && product.status !== 'active'
         ? { status: product.status }
@@ -341,7 +389,9 @@ function knowledgeEntryResultEntry(entry: {
   return {
     kind: 'knowledge-entry',
     title: entry.topic,
-    snippet: clip(entry.content, SNIPPET_CHARS * 2),
+    // An entry carries its content inline and cannot be fetched, so it gets
+    // the same whole-passage budget a corpus hit does.
+    snippet: clip(entry.content, CORPUS_SNIPPET_CHARS),
   };
 }
 
@@ -927,6 +977,7 @@ export function createChatToolExecutor(
             access: docAccess,
           });
           const found = { document: 0, mailAttachment: 0, webPage: 0 };
+          let corpusSnippetLeft = CORPUS_SNIPPET_TOTAL_CHARS;
           for (const hit of knowledge.hits) {
             // A hit that arrived by email is attacker-controlled: anyone who
             // can email the organization chose its text, and #3014 puts the
@@ -955,7 +1006,14 @@ export function createChatToolExecutor(
               projectId: hit.source.projectId,
               archivedProjectIds: archivedForDocs,
             });
-            const snippet = clip(hit.text, SNIPPET_CHARS);
+            // A whole chunk while the response's budget lasts, the head
+            // of one after — never less than a listed row gets.
+            const snippetBudget =
+              corpusSnippetLeft >= CORPUS_SNIPPET_CHARS
+                ? CORPUS_SNIPPET_CHARS
+                : SNIPPET_CHARS;
+            const snippet = clip(hit.text, snippetBudget);
+            corpusSnippetLeft -= snippet.length;
             results.push({
               kind,
               title: sanitizeUntrustedField(hit.source.title ?? hit.source.ref),

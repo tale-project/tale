@@ -31,6 +31,7 @@ credentialEnvKeys:
   - OPENAI_API_KEY
   - GEMINI_API_KEY
   - TALE_GATEWAY_TOKEN
+gatewayWire: openai-chat
 modelIdDialect: catalog
 promptTransport: stdin-ndjson
 capabilities:

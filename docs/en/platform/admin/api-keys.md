@@ -43,7 +43,7 @@ Tale does not automatically rotate keys. Key creation and revocation happen in t
 
 ## Revoke a key
 
-Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate. Revocation cannot be undone; create a new key if you revoke the wrong one.
+Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate. Revocation cannot be undone; create a new key if you revoke the wrong one. Creating and revoking a key each leave a row in the audit log under **Settings > Governance > Logs**, in every organization you belong to.
 
 Do not use an old **Last used** date as the only reason to revoke a key. A monthly job or a recovery process may legitimately be idle. Check the caller identified by the name first.
 

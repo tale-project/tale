@@ -93,6 +93,35 @@ describe('shipped data tree', () => {
   });
 });
 
+describe('national-id specs of every locale at once (the production default)', () => {
+  // An organization that never picked locales runs every dataset. A
+  // digits-only identifier spec then reads every ordinary number as an
+  // identifier — the evaluation's order number, compact date and build
+  // number all became `[PASSPORT]` (Swedish passport, `\b\d{8}\b`) and a
+  // reference `[NZ_IRD]` (a checksum that passes 1 in 11 random numbers).
+  const scrubber = createScrubber({
+    mode: 'mask',
+    patterns: { nationalId: { locales: '*' } },
+  });
+
+  it('leaves an order number, a compact date, a build number and a reference alone', () => {
+    const text =
+      'order 12345678; date 2026-09-10; build 20260926; ref 87654321; ' +
+      'project TALE-EVAL-20260911; ticket 4711';
+    expect(scrubber.scrub(text).kind).toBe('pass');
+  });
+
+  it('still masks the identifier next to the word that names it', () => {
+    const o = scrubber.scrub('passnummer 12345678, ІПН: 9876543210');
+    expect(o.kind).toBe('modified');
+    if (o.kind !== 'modified') return;
+    expect(o.text).toBe('passnummer [PASSPORT], ІПН: [UA_INN]');
+    expect(o.categoryIds).toEqual(
+      expect.arrayContaining(['se-passport', 'ua-inn']),
+    );
+  });
+});
+
 describe('createScrubber — mask mode', () => {
   const scrubber = createScrubber(ALL_PATTERNS_MASK);
 

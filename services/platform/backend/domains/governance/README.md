@@ -62,9 +62,9 @@ page, the budget gate, erasure and retention are its readers.
 
 | Reader | What it assumes |
 | --- | --- |
-| Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel; the sentinel is a labelled row and no active user; project agent slugs resolve to names |
-| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = <bare id>`, team caps the members' bare ids, key caps `api_key_id`; an impersonal subject has no personal bucket |
-| Member's own view (`/my/budget-status`, Settings > Usage) | `user_id = <own id>` |
+| Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel, folded through `usageLedgerSubject` so a legacy door form (`user:<id>`, `api-key:<id>`) is the person's row and `trigger:<id>` the sentinel's; the sentinel is a labelled row and no active user; project agent slugs resolve to names; a row is a transcription or speech row only when its seconds or characters are `> 0` (the upsert once stamped `0` on every second request) |
+| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids under the same forms, key caps `api_key_id`; an impersonal subject has no personal bucket |
+| Member's own view (`/my/budget-status`, Settings > Usage) | the same `usageLedgerSubjectForms(<own id>)` as the gate |
 | Erasure (`domains/erasure/service.ts`) | the subject's rows are `user_id IN (<id>, user:<id>, api-key:<id>)` — the two door forms cover rows booked before rule 2 held |
 | Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows |
 
@@ -89,4 +89,6 @@ page, the budget gate, erasure and retention are its readers.
   fact. Historical rows carry the door forms and the previous image would violate it mid-roll, so
   it lands `NOT VALID` in a later release, once every image books bare ids.
 - **History is not rewritten** (decision 2026-09-19): rows booked under `user:`/`api-key:` before
-  this release stay as booked and read as their own rows on the usage page.
+  this release stay as booked. Since 2026-09-26 every reader folds them onto the person
+  (`usageLedgerSubject` / `usageLedgerSubjectForms` in `lib/shared/constants/usage.ts`), so the
+  usage page shows one row per member and a cap sees a member's whole spend without a backfill.

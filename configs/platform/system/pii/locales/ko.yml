@@ -39,6 +39,7 @@ nationalIds:
   - id: kr-rrn
     name: Korean Resident Registration Number
     pattern: \b\d{6}-?[1-4]\d{6}\b
+    checksum: kr-rrn
     replacement: '[RRN]'
   - id: kr-passport
     name: Korean Passport Number

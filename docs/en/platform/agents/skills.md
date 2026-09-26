@@ -30,7 +30,7 @@ During sandbox setup, Tale stages the equipped bundles as files and gives the ag
 
 ## Resolve missing or changed skills
 
-If a required skill is missing or is no longer shared with the run's scope, staging fails and names the unavailable skill. Check its slug, visibility, the project's teams, and whether it was deleted or replaced. Restore the intended access or remove the obsolete equipment before retrying.
+Deleting a skill unequips it from every agent that carried it, and the audit log records which ones. If a required skill is no longer shared with the run's scope, staging fails and names the unavailable skill; the run is not retried automatically, because nothing about a retry changes that. In the agent's dialog the skill is listed as unavailable so you can untick it — every other setting of the agent still saves. Restore the intended access or remove the obsolete equipment before retrying.
 
 Changes to a shared bundle affect later staging for its users. Review replacements and test an agent with a known input after a substantial change. Do not assume a repository's similarly named skill overrides the equipped bundle.
 

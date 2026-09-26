@@ -19,6 +19,7 @@ credentialEnvKeys:
   - OPENROUTER_API_KEY
   - ANTHROPIC_API_KEY
   - TALE_GATEWAY_TOKEN
+gatewayWire: openai-chat
 modelIdDialect: catalog
 promptTransport: stdin-ndjson
 capabilities:

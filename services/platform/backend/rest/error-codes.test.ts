@@ -143,6 +143,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'AUTOMATION_NAME_INVALID',
   'AUTOMATION_NAME_RESERVED',
   'AUTOMATION_NAME_TAKEN',
+  // The editor's optimistic base version (`baseVersion` on the app save);
+  // no REST or MCP save sends one yet, so no machine door can answer it.
+  'AUTOMATION_VERSION_STALE',
   // A project id the organization does not have: every REST door resolves
   // the URL project first (`loadRestProject` → `PROJECT_NOT_FOUND`), the MCP
   // store checks it before the run store does (`PROJECT_NOT_FOUND`), and the

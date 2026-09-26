@@ -25,4 +25,30 @@ describe('SkillsMenu', () => {
       screen.getByRole('group', { name: 'Equipment' }),
     ).toBeInTheDocument();
   });
+
+  it('lists an equipped skill the picker cannot see as a checked, removable entry', async () => {
+    // A skill unshared from the scope after it was equipped still counts
+    // and still fails a run; hidden, it read "Skills (1)" with nothing to
+    // untick (2026-09-26 evaluation, C-09).
+    const onChange = vi.fn();
+    const { user } = render(
+      <SkillsMenu
+        skills={[{ slug: 'docx', label: 'Word documents' }]}
+        connectors={[]}
+        tools={[]}
+        value={{ skills: ['docx', 'gone-skill'], connectors: [], tools: [] }}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const stale = await screen.findByRole('menuitemcheckbox', {
+      name: '"gone-skill" (unavailable)',
+    });
+    expect(stale).toHaveAttribute('aria-checked', 'true');
+
+    await user.click(stale);
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ skills: ['docx'] }),
+    );
+  });
 });

@@ -37,6 +37,20 @@ import { loadPiiData } from './loader';
  */
 const KNOWN_DROPPED = new Set(['es/co-cc']);
 
+/** True when a regex source can only ever match digits and separators —
+ * no letter, no letter class, no Unicode property: the shape of an order
+ * number as much as of an identifier. A class of digits (`[12]`, `[1-4]`)
+ * or of separators (`[ -]`) is still that shape. */
+function isDigitsAndSeparatorsOnly(pattern: string): boolean {
+  const stripped = pattern
+    .replace(/\\[bds]/g, '')
+    .replace(/\{\d+(?:,\d+)?\}/g, '')
+    .replace(/\(\?:|[()|?+*]/g, '')
+    .replace(/\[[-+\\s./' \d]*\]/g, '')
+    .replace(/[-+./' ]/g, '');
+  return stripped === '';
+}
+
 describe('the shipped pii locale data', () => {
   const { locales } = loadPiiData();
 
@@ -60,6 +74,25 @@ describe('the shipped pii locale data', () => {
     }
 
     expect(dropped.map((d) => d.split(':')[0])).toEqual([...KNOWN_DROPPED]);
+  });
+
+  it('gates every digits-only spec by a check digit or a context keyword', () => {
+    // A pattern of digits and separators alone matches an order number, a
+    // compact date or a build number as readily as the identifier it was
+    // written for — `\b\d{8}\b` turned every 8-digit value in a chat into
+    // `[PASSPORT]` (2026-09-26 evaluation, A-04/E-21). Such a spec must
+    // validate a check digit or require the words that name the identifier.
+    const bare: string[] = [];
+    for (const locale of locales) {
+      for (const spec of locale.nationalIds) {
+        if (!isDigitsAndSeparatorsOnly(spec.pattern)) continue;
+        if (spec.checksum !== undefined || spec.contextKeywords !== undefined) {
+          continue;
+        }
+        bare.push(`${locale.locale}/${spec.id}`);
+      }
+    }
+    expect(bare).toEqual([]);
   });
 
   it('keeps KNOWN_DROPPED honest — every entry is really still dropped', () => {

@@ -9,6 +9,7 @@ import {
   hexToHsl,
   hexToHslParts,
   hslToHex,
+  isHexColor,
   isLightColor,
   relativeLuminance,
 } from './color';
@@ -98,6 +99,35 @@ describe('relativeLuminance / contrastRatio', () => {
       contrastRatio('#abcdef', '#123456'),
       6,
     );
+  });
+});
+
+describe('isHexColor', () => {
+  it('accepts a complete 6- or 8-digit hex and nothing shorter', () => {
+    expect(isHexColor('#E11D48')).toBe(true);
+    expect(isHexColor('#e11d48ff')).toBe(true);
+    for (const partial of ['', '#', '#E', '#E1', '#12', '#E11', '#E11D4']) {
+      expect(isHexColor(partial)).toBe(false);
+    }
+    expect(isHexColor('E11D48')).toBe(false);
+    expect(isHexColor('#GGGGGG')).toBe(false);
+  });
+});
+
+describe('a partial hex typed one character at a time', () => {
+  // The branding hex field emits `#E`, `#E1`, … on every keystroke. Those
+  // parse to NaN channels, and a lightness walk over NaN neither clamps nor
+  // clears a contrast threshold — it used to spin the renderer forever.
+  const PARTIALS = ['#E', '#E1', '#12', '#E11', '#E11D', '#E11D4'];
+
+  it.each(PARTIALS)('adjustColorForTheme answers %s untouched', (partial) => {
+    expect(adjustColorForTheme(partial, 'light')).toBe(partial);
+    expect(adjustColorForTheme(partial, 'dark')).toBe(partial);
+  });
+
+  it.each(PARTIALS)('deriveAccentPalette returns for %s', (partial) => {
+    expect(deriveAccentPalette(partial, 'light').base).toBe(partial);
+    expect(deriveAccentPalette(partial, 'dark').base).toBe(partial);
   });
 });
 

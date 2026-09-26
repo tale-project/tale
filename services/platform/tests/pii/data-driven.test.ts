@@ -23,9 +23,12 @@
  * satisfied: for these ten Persian address cases the reference detected
  * only a national-ID lookalike in the postcode digits (`sa-national-id` /
  * `cz-birth-number`), never `address` — verified by running the retired
- * engine side by side. The corpus stays frozen, so the label defect is
- * carried here explicitly: these cases must still be DETECTED, but their
- * pattern label is not enforced.
+ * engine side by side. Since the digits-only national-ID specs are gated
+ * by a check digit or a context keyword (2026-09-26), that lookalike is
+ * gone too, and the Persian inverted address form still matches none of
+ * them. The corpus stays frozen, so the defect is carried here
+ * explicitly: the address is asserted NOT detected, so the entry has to go
+ * the day the form learns these shapes.
  */
 const MISLABELED_EXPECTED: ReadonlySet<string> = new Set([
   'fa/addr-fa-00000',
@@ -138,9 +141,16 @@ describe.each(LOCALES)('locale: %s', (locale) => {
     describe('positives', () => {
       it.each(posCases)('detects $id', (c) => {
         const outcome = scrubber.scrub(c.input);
+        if (MISLABELED_EXPECTED.has(`${locale}/${c.id}`)) {
+          // Still not an address; whatever else the digits resemble.
+          expect(
+            outcome.kind !== 'modified' ||
+              !outcome.categoryIds.includes('address'),
+          ).toBe(true);
+          return;
+        }
         expect(outcome.kind).toBe('modified');
         if (outcome.kind !== 'modified') return;
-        if (MISLABELED_EXPECTED.has(`${locale}/${c.id}`)) return;
         for (const expectedPattern of new Set(
           c.expected.map((e) => e.pattern),
         )) {

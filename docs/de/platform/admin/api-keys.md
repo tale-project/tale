@@ -43,7 +43,7 @@ Tale rotiert Schlüssel nicht automatisch. Erstellen und Widerrufen erfolgen in 
 
 ## Einen Schlüssel widerrufen
 
-Öffne das Zeilenmenü, wähle **Schlüssel widerrufen** und bestätige. Weitere Anfragen können sich mit diesem Schlüssel nicht mehr authentifizieren. Der Widerruf ist endgültig. Erstelle einen neuen Schlüssel, falls du den falschen widerrufen hast.
+Öffne das Zeilenmenü, wähle **Schlüssel widerrufen** und bestätige. Weitere Anfragen können sich mit diesem Schlüssel nicht mehr authentifizieren. Der Widerruf ist endgültig. Erstelle einen neuen Schlüssel, falls du den falschen widerrufen hast. Das Erstellen und das Widerrufen eines Schlüssels hinterlassen je einen Eintrag im Audit-Log unter **Einstellungen > Richtlinien > Protokolle**, und zwar in jeder Organisation, der du angehörst.
 
 Ein altes Datum unter **Zuletzt verwendet** reicht allein nicht als Grund zum Widerruf. Ein monatlicher Auftrag oder ein Wiederherstellungsverfahren kann längere Zeit ungenutzt bleiben. Prüfe zuerst den Dienst, den der Name bezeichnet.
 

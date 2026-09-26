@@ -354,6 +354,23 @@ export async function synchronizeConversation(
     }
     const conversationId = binding.conversationId;
     await tx`SELECT id FROM app.conversations WHERE id = ${conversationId} AND org_id = ${viewer.organizationId} FOR UPDATE`;
+    // A teardown is not content. It closes the mirror and marks the source
+    // deleted; the messages the source mirrored stay in the Inbox as the
+    // conversation's record (the reference promises "Closing preserves the
+    // conversation and messages"). Erasing a person is `DELETE
+    // /contacts/{id}` and the erasure lane, never a source snapshot.
+    if (input.deleted) {
+      await tx`
+        UPDATE app.conversations SET status = 'closed'
+        WHERE id = ${conversationId} AND org_id = ${viewer.organizationId}
+      `;
+      await tx`
+        UPDATE app.conversation_api_bindings SET snapshot_version = ${input.version}, snapshot_hash = ${hash}, source_deleted = true, reply_constraints = ${tx.json(toJson(input.replyConstraints))}
+        WHERE conversation_id = ${conversationId} AND org_id = ${viewer.organizationId}
+      `;
+      await hint(tx, viewer.organizationId, conversationId);
+      return { conversationId, applied: true };
+    }
     const existing = await tx<
       {
         externalId: string;
@@ -446,7 +463,7 @@ export async function synchronizeConversation(
       await tx`DELETE FROM app.conversation_messages WHERE id = ${removed.messageId} AND org_id = ${viewer.organizationId}`;
     }
     await tx`
-      UPDATE app.conversations SET subject = ${input.subject}, status = ${input.deleted ? 'closed' : input.status},
+      UPDATE app.conversations SET subject = ${input.subject}, status = ${input.status},
         metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{unread_count}', to_jsonb(least(
           CASE WHEN jsonb_typeof(metadata->'unread_count') = 'number' THEN (metadata->>'unread_count')::bigint ELSE 0 END,
           (SELECT count(*) FROM app.conversation_messages WHERE conversation_id = ${conversationId} AND direction = 'inbound')))),
@@ -455,7 +472,7 @@ export async function synchronizeConversation(
       WHERE id = ${conversationId} AND org_id = ${viewer.organizationId}
     `;
     await tx`
-      UPDATE app.conversation_api_bindings SET snapshot_version = ${input.version}, snapshot_hash = ${hash}, source_deleted = ${input.deleted}, reply_constraints = ${tx.json(toJson(input.replyConstraints))}
+      UPDATE app.conversation_api_bindings SET snapshot_version = ${input.version}, snapshot_hash = ${hash}, source_deleted = false, reply_constraints = ${tx.json(toJson(input.replyConstraints))}
       WHERE conversation_id = ${conversationId} AND org_id = ${viewer.organizationId}
     `;
     await hint(tx, viewer.organizationId, conversationId);

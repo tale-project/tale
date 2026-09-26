@@ -35,7 +35,7 @@ The header's Discard action applies to pending form edits. It does not undo an i
 
 ## Change the accent color
 
-Edit **Accent color** and inspect the preview. Select **Save** in the settings header to persist the change, or **Discard** to return to the saved value. The color field reflects the current theme, so a derived dark-theme color may differ from the stored light-theme value.
+Edit **Accent color** and inspect the preview. Select **Save** in the settings header to persist the change, or **Discard** to return to the saved value. The color field reflects the current theme, so a derived dark-theme color may differ from the stored light-theme value. Saving a change, uploading an image or removing one each leave a row in the audit log under **Settings > Governance > Logs**.
 
 After saving, reload the page and check a selected navigation item, a button, and keyboard focus. A color that looks good as a large swatch may be hard to recognize in a small control.
 

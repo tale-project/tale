@@ -70,7 +70,6 @@ import {
   OUTPUT_DIR,
 } from '../node_only/sandbox/session_exec';
 import {
-  isTurnBudgetExceededError,
   readReserveTurnBudgetResult,
   TurnBudgetExceededError,
 } from '../node_only/sandbox/turn_budget';
@@ -86,6 +85,7 @@ import {
   secretsGuidance,
 } from '../sandbox/tool_names';
 import { TASK_COMMENT_MAX } from './helpers';
+import { classifyStartFailure } from './start_failure';
 import type { TaskRunFailureCode } from './task_auto_retry';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
@@ -1125,16 +1125,13 @@ export async function startTaskAgentTurnImpl(
         return null;
       }
       console.error('[task-agent] turn start failed:', err);
-      // A cap refusal is the org's decision, not a fault: named as such,
-      // and never retried (the cap only moves with the period or an admin).
-      const budgetRefused = isTurnBudgetExceededError(err);
+      // A cap refusal is the org's decision and a missing skill the agent's
+      // configuration — neither a fault, neither retried; the rest is
+      // `start_failed` and retries by default (`classifyStartFailure`).
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
-        reason: budgetRefused
-          ? `the agent run was refused by the organization's spend cap: ${err.reason}`
-          : `the agent run could not start: ${err instanceof Error ? err.message : String(err)}`,
+        ...classifyStartFailure(err),
         text: '',
-        failureCode: budgetRefused ? 'budget_exceeded' : 'start_failed',
       });
     }
     return null;
@@ -1404,17 +1401,14 @@ async function continueOrSettle(
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
       : window.text;
-  // The harness's own last words ARE the reason when it reported the error
-  // itself (classify yields none there) — never bury a "401 token revoked"
-  // behind a generic line.
+  // The harness's own words ARE the reason when it reported the error
+  // itself: the failure it named on its stream (classify carries it), else
+  // its last words — never bury a "401 token revoked" behind a generic line.
+  // A spend refusal (402) is named as such first, whichever way it arrived.
   const spendRefused = errored && isSpendRefusal(ended);
-  const reason =
-    endReason ??
-    (spendRefused
-      ? spendRefusalReason(text)
-      : errored
-        ? failureReasonFromFinalText(text)
-        : undefined);
+  const reason = spendRefused
+    ? spendRefusalReason(window.harnessError ?? text)
+    : (endReason ?? (errored ? failureReasonFromFinalText(text) : undefined));
   await settleTaskAgentTurn(ctx, args, {
     errored,
     ...(reason !== undefined ? { reason } : {}),

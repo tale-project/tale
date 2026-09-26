@@ -104,6 +104,7 @@ nationalIds:
   - id: pt-nif
     name: Portuguese NIF
     pattern: \b\d{9}\b
+    checksum: pt-nif
     replacement: '[NIF]'
   - id: br-cpf
     name: Brazilian CPF

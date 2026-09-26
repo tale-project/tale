@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
@@ -19,6 +19,7 @@ import {
   checkOrganizationRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
 import { webdavHandlers } from './handlers.ts';
 
 /**
@@ -35,7 +36,9 @@ import { webdavHandlers } from './handlers.ts';
  * Plus the app-password admin surface (`/api/app/webdav/app-passwords`):
  * create is developer-gated (PAT-equivalent credentials), list/revoke are
  * ownership-gated — a user revoking their own credential after losing role
- * privileges must still succeed.
+ * privileges must still succeed. Both writes leave a `security` audit row in
+ * their own transaction (`webdav_app_password.created` / `.revoked`) — a
+ * credential that can write the document tree never exists unaccounted for.
  */
 
 const MAX_ACTIVE_APP_PASSWORDS_PER_USER = 50;
@@ -76,6 +79,17 @@ export function createWebdavAdminRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+
+  /** The signed-in owner of the credential, as the audit rows name them. */
+  const actorFields = (c: Context<OrgEnv>) => {
+    const user = c.get('sessionBundle').user;
+    return {
+      actorId: user.id,
+      ...(user.email !== undefined ? { actorEmail: user.email } : {}),
+      actorRole: c.get('orgMember').role,
+      actorType: 'user' as const,
+    };
+  };
 
   app.get('/app-passwords', async (c) => {
     const userId = c.get('sessionBundle').user.id;
@@ -141,15 +155,34 @@ export function createWebdavAdminRoutes(deps: {
     const secret = generateAppPasswordSecret();
     const passwordHashed = await hmacHash(secret, requireHmacSecret());
     const passwordPrefix = secret.slice(0, 4);
-    await deps.sql`
-      INSERT INTO app.webdav_app_passwords (
-        org_id, user_id, label, password_prefix, password_hashed,
-        created_at_ms
-      ) VALUES (
-        ${organizationId}, ${userId}, ${body.data.label.trim()},
-        ${passwordPrefix}, ${passwordHashed}, ${Date.now()}
-      )
-    `;
+    const label = body.data.label.trim();
+    await deps.sql.begin(async (tx) => {
+      const inserted = await tx<{ id: string }[]>`
+        INSERT INTO app.webdav_app_passwords (
+          org_id, user_id, label, password_prefix, password_hashed,
+          created_at_ms
+        ) VALUES (
+          ${organizationId}, ${userId}, ${label},
+          ${passwordPrefix}, ${passwordHashed}, ${Date.now()}
+        )
+        RETURNING id
+      `;
+      const id = inserted[0]?.id;
+      if (!id) throw new Error('app password insert failed');
+      // The row and its account commit together. The prefix is what the
+      // list shows; the secret is never recorded.
+      await createAuditLog(tx, {
+        organizationId,
+        ...actorFields(c),
+        action: 'webdav_app_password.created',
+        category: 'security',
+        resourceType: 'webdav_app_password',
+        resourceId: id,
+        resourceName: label,
+        newState: { prefix: passwordPrefix },
+        status: 'success',
+      });
+    });
     // Plaintext ONCE — never read back.
     return c.json({ password: secret, prefix: passwordPrefix }, 201);
   });
@@ -162,8 +195,16 @@ export function createWebdavAdminRoutes(deps: {
     // org's rows from here.
     const userId = c.get('sessionBundle').user.id;
     const organizationId = c.get('orgId');
-    const rows = await deps.sql<{ id: string; revokedAt: number | null }[]>`
-      SELECT id, revoked_at_ms::float8 AS "revokedAt"
+    const rows = await deps.sql<
+      {
+        id: string;
+        revokedAt: number | null;
+        label: string;
+        prefix: string;
+      }[]
+    >`
+      SELECT id, revoked_at_ms::float8 AS "revokedAt", label,
+             password_prefix AS "prefix"
       FROM app.webdav_app_passwords
       WHERE id = ${c.req.param('id')} AND org_id = ${organizationId}
         AND user_id = ${userId}
@@ -184,6 +225,17 @@ export function createWebdavAdminRoutes(deps: {
         DELETE FROM app.webdav_locks
         WHERE app_password_id = ${row.id} AND org_id = ${organizationId}
       `;
+      await createAuditLog(tx, {
+        organizationId,
+        ...actorFields(c),
+        action: 'webdav_app_password.revoked',
+        category: 'security',
+        resourceType: 'webdav_app_password',
+        resourceId: row.id,
+        resourceName: row.label,
+        metadata: { prefix: row.prefix },
+        status: 'success',
+      });
     });
     return c.json({ ok: true });
   });

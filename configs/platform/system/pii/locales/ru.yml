@@ -87,14 +87,25 @@ nationalIds:
   - id: ru-snils
     name: Russian SNILS
     pattern: \b\d{3}-\d{3}-\d{3}[ -]\d{2}\b
+    contextKeywords:
+      - СНИЛС
+      - страховой номер
+      - snils
     replacement: '[SNILS]'
   - id: ru-inn-individual
     name: Russian INN (individual)
     pattern: \b\d{12}\b
+    checksum: ru-inn-12
     replacement: '[INN]'
   - id: ru-passport
     name: Russian Passport
     pattern: \b\d{4}\s?\d{6}\b
+    contextKeywords:
+      - паспорт
+      - паспорта
+      - серия и номер
+      - серия
+      - passport
     replacement: '[PASSPORT]'
 dateOfBirth:
   monthsLong:

@@ -21,6 +21,7 @@ import { Input } from '@tale/ui/input';
 import { PageActionHeader } from '@tale/ui/page-action-header';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useToast } from '@tale/ui/use-toast';
 import {
   CheckCircle2,
   ChevronDown,
@@ -54,7 +55,12 @@ import {
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { automationDetailPathname } from '../lib/detail-paths';
 import { readDocument, readPositions } from '../lib/document';
-import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
+import {
+  automationErrorCode,
+  automationErrorLatestVersion,
+  automationErrorMessage,
+  isMissingAutomationRead,
+} from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import { nodeStatusMap, projectRun } from '../lib/run-view';
 import {
@@ -200,6 +206,7 @@ function AutomationEditorScope({
   onSelectVersion,
 }: AutomationEditorProps) {
   const { t } = useT('automations');
+  const { toast } = useToast();
   const { t: tCommon } = useT('common');
   const inspectorId = useId();
   const saveMessageId = useId();
@@ -219,6 +226,16 @@ function AutomationEditorScope({
     }
   }, [selectedNodeId]);
   const [draft, setDraft] = useState<Automation | null>(null);
+  /** The version the draft was built on — pinned on its first edit, sent
+   * with the save so the store can refuse a draft another tab overtook. */
+  const draftBaseRef = useRef<number | undefined>(undefined);
+  /** A save the store refused because a version landed after the draft
+   * started: the author decides — drop the draft and reload, or save on
+   * top of what landed. Never resolved silently either way. */
+  const [staleSave, setStaleSave] = useState<{
+    latestVersion: number | null;
+    message: string;
+  } | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
   /** A refused RUN, not refused save feedback — see the Alert below. */
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -336,9 +353,14 @@ function AutomationEditorScope({
   const onChangeNode = useCallback(
     (patch: Partial<NodeDef>) => {
       if (!automation || selectedNodeId === null) return;
+      // The base is pinned on the draft's FIRST edit: the detail query
+      // follows every version another tab saves (its hint invalidates the
+      // read), so reading the version at save time would name the one that
+      // overtook the draft, not the one it was built on.
+      if (draft === null) draftBaseRef.current = automationQuery.data?.version;
       setDraft(patchNode(automation, selectedNodeId, patch));
     },
-    [automation, selectedNodeId],
+    [automation, selectedNodeId, draft, automationQuery.data?.version],
   );
 
   const isDirty = draft !== null;
@@ -499,43 +521,81 @@ function AutomationEditorScope({
         ];
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  /** Append the draft as a version built on `baseVersion` (none: append
+   * whatever the latest is), then show the version that landed. */
+  const submitSave = async (baseVersion: number | undefined): Promise<void> => {
+    await save.mutateAsync({
+      organizationId,
+      automation,
+      // Package metadata belongs to the version being edited, even when
+      // the author only changes a node or its canvas position.
+      ...(automationQuery.data?.presentation !== undefined && {
+        presentation: automationQuery.data.presentation,
+      }),
+      ...(automationQuery.data?.settings !== undefined && {
+        settings: automationQuery.data.settings,
+      }),
+      ...(automationQuery.data?.taskContract !== undefined && {
+        taskContract: automationQuery.data.taskContract,
+      }),
+      ...(saveMessage !== '' && { message: saveMessage }),
+      // Binds a NEW automation to this project on its first save; an
+      // existing one keeps its bindings (membership is managed in the
+      // Projects panel, never moved by saving a version).
+      ...(projectId !== undefined && { projectId }),
+      ...(baseVersion !== undefined && { baseVersion }),
+    });
+    setSaveDialogOpen(false);
+    setDraft(null);
+    setSaveMessage('');
+    // The save appended a version; show it, whichever one was on screen.
+    onSelectVersion(undefined);
+  };
   const confirmSave = async (): Promise<void> => {
     const pending = pendingSaveRef.current;
     try {
-      await save.mutateAsync({
-        organizationId,
-        automation,
-        // Package metadata belongs to the version being edited, even when
-        // the author only changes a node or its canvas position.
-        ...(automationQuery.data?.presentation !== undefined && {
-          presentation: automationQuery.data.presentation,
-        }),
-        ...(automationQuery.data?.settings !== undefined && {
-          settings: automationQuery.data.settings,
-        }),
-        ...(automationQuery.data?.taskContract !== undefined && {
-          taskContract: automationQuery.data.taskContract,
-        }),
-        ...(saveMessage !== '' && { message: saveMessage }),
-        // Binds a NEW automation to this project on its first save; an
-        // existing one keeps its bindings (membership is managed in the
-        // Projects panel, never moved by saving a version).
-        ...(projectId !== undefined && { projectId }),
-      });
+      await submitSave(draftBaseRef.current);
       pendingSaveRef.current = null;
-      setSaveDialogOpen(false);
-      setDraft(null);
-      setSaveMessage('');
-      // The save appended a version; show it, whichever one was on screen.
-      onSelectVersion(undefined);
       pending?.resolve();
     } catch (error) {
       pendingSaveRef.current = null;
       setSaveDialogOpen(false);
+      if (automationErrorCode(error) === 'AUTOMATION_VERSION_STALE') {
+        // Another version landed after the draft started. Not a failure the
+        // Save cluster reports: the dialog below carries the store's
+        // sentence and the author decides — reload, or save on top.
+        setStaleSave({
+          latestVersion: automationErrorLatestVersion(error) ?? null,
+          message: automationErrorMessage(error),
+        });
+        pending?.reject(new EditorSaveCancelledError());
+        return;
+      }
       // The store's refusal names the problem AND the fix; hand that sentence
       // to the Save cluster, which owns the single failure toast.
       pending?.reject(new Error(automationErrorMessage(error)));
     }
+  };
+  /** Save on top of the version that landed — an explicit append, never a
+   * server-side merge; the overtaken version stays in the history. */
+  const saveAnyway = async (): Promise<void> => {
+    const stale = staleSave;
+    setStaleSave(null);
+    if (stale === null) return;
+    try {
+      await submitSave(stale.latestVersion ?? undefined);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        description: automationErrorMessage(error),
+      });
+    }
+  };
+  /** Drop the draft and show the version that landed. */
+  const reloadAfterStale = (): void => {
+    setStaleSave(null);
+    setDraft(null);
+    onSelectVersion(undefined);
   };
 
   return (
@@ -846,6 +906,28 @@ function AutomationEditorScope({
           setPendingVersion(null);
         }}
       />
+
+      <ConfirmDialog
+        open={staleSave !== null}
+        onOpenChange={(open) => {
+          // Backing out keeps the draft: nothing is saved and nothing is
+          // dropped until the author picks a side.
+          if (!open) setStaleSave(null);
+        }}
+        title={t('detail.staleVersion.title')}
+        description={t('detail.staleVersion.description', {
+          message: staleSave?.message ?? '',
+        })}
+        confirmText={t('detail.staleVersion.saveAnyway')}
+        variant="warning"
+        onConfirm={() => {
+          void saveAnyway();
+        }}
+      >
+        <Button type="button" variant="secondary" onClick={reloadAfterStale}>
+          {t('detail.staleVersion.reload')}
+        </Button>
+      </ConfirmDialog>
     </>
   );
 }

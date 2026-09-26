@@ -158,6 +158,14 @@ export interface SaveVersionArgs {
   taskContract?: unknown;
   settings?: unknown;
   presentation?: unknown;
+  /** The version the saver's draft started from. When given and the name's
+   * latest version is another one, the save is refused with
+   * `AUTOMATION_VERSION_STALE` (409, `data.latestVersion`) instead of
+   * appending a version built on stale content — two editor tabs used to
+   * silently revert each other's work (2026-09-26 evaluation, D-15). A
+   * saver that passes none (the builder's autosave, an upload, MCP)
+   * appends as before. */
+  baseVersion?: number;
 }
 
 /** Serialize every writer of ONE automation name (two tabs, the builder's
@@ -186,19 +194,30 @@ export async function saveVersion(
   const name = assertAutomationName(args.name);
   return sql.begin(async (tx) => {
     await lockAutomationName(tx, args.organizationId, name);
-    // The FIRST version is the create: a name the router keeps for itself is
-    // refused here, once, before anything is written.
-    const existing = await tx<{ version: number }[]>`
-      SELECT version FROM app.automations
+    // The latest version, read under the lock: null is the create (a name
+    // the router keeps for itself is refused here, once, before anything is
+    // written); otherwise it is what a base version is checked against.
+    const heads = await tx<{ latest: number | null }[]>`
+      SELECT max(version)::int AS latest FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
-      LIMIT 1
     `;
-    if (existing.length === 0) assertAutomationNameCreatable(name);
-    if (args.create === true && existing.length > 0) {
+    const latest = heads[0]?.latest ?? null;
+    if (latest === null) assertAutomationNameCreatable(name);
+    if (args.create === true && latest !== null) {
       throw new AutomationError(
         'AUTOMATION_NAME_TAKEN',
         `An automation named "${name}" already exists — pick a different name.`,
         409,
+      );
+    }
+    if (args.baseVersion !== undefined && latest !== args.baseVersion) {
+      throw new AutomationError(
+        'AUTOMATION_VERSION_STALE',
+        latest === null
+          ? `"${name}" has no version any more — your draft started from v${args.baseVersion}. Save it under a new name, or save anyway to recreate the automation from it.`
+          : `v${latest} of "${name}" was saved after your draft started from v${args.baseVersion}. Reload to see it, or save anyway to append your version on top of it.`,
+        409,
+        { latestVersion: latest, baseVersion: args.baseVersion },
       );
     }
     const now = Date.now();

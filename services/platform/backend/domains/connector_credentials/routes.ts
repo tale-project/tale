@@ -61,6 +61,15 @@ export function createConnectorCredentialRoutes(deps: {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
+  /** The signed-in person every write is recorded under. */
+  const actorOf = (c: Context<OrgEnv>) => {
+    const user = c.get('sessionBundle').user;
+    return {
+      userId: user.id,
+      ...(user.email !== undefined ? { email: user.email } : {}),
+    };
+  };
+
   const requireDeveloper = (c: Context<OrgEnv>): Response | null => {
     if (
       defineAbilityFor(c.get('orgMember').role).cannot(
@@ -148,6 +157,7 @@ export function createConnectorCredentialRoutes(deps: {
         ...body.data,
         organizationId: c.get('orgId'),
         createdBy: c.get('sessionBundle').user.id,
+        actor: actorOf(c),
       });
       return c.json(created, 201);
     } catch (error) {
@@ -175,6 +185,7 @@ export function createConnectorCredentialRoutes(deps: {
         ...body.data,
         organizationId: c.get('orgId'),
         credentialId: c.req.param('id'),
+        actor: actorOf(c),
       });
       return c.json({ ok: true });
     } catch (error) {
@@ -186,7 +197,12 @@ export function createConnectorCredentialRoutes(deps: {
     const refused = requireDeveloper(c);
     if (refused) return refused;
     try {
-      await setDefaultCredential(deps.sql, c.get('orgId'), c.req.param('id'));
+      await setDefaultCredential(
+        deps.sql,
+        c.get('orgId'),
+        c.req.param('id'),
+        actorOf(c),
+      );
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -197,7 +213,12 @@ export function createConnectorCredentialRoutes(deps: {
     const refused = requireDeveloper(c);
     if (refused) return refused;
     try {
-      await deleteCredential(deps.sql, c.get('orgId'), c.req.param('id'));
+      await deleteCredential(
+        deps.sql,
+        c.get('orgId'),
+        c.req.param('id'),
+        actorOf(c),
+      );
       return c.body(null, 204);
     } catch (error) {
       return handleError(c, error);

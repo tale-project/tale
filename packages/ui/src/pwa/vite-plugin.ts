@@ -84,26 +84,20 @@ export function createPwaPlugin(options: PwaPluginOptions): Plugin[] {
     projectDir,
   } = options;
 
-  // vite-plugin-pwa runs workbox-build against the dev temp folder (set via
-  // `resolveTempFolder` below to `dist-pwa/`). That folder only ever holds
-  // the generated SW + workbox-*.js, so any glob aimed at the prod `dist/`
-  // shape ("**/*.webmanifest", "**/*.svg", icons, …) matches nothing and
-  // emits a noisy "One of the glob patterns doesn't match any files"
-  // warning per pattern on every dev boot. Skip them in dev — the dev SW
-  // is driven by `navigateFallback`, not the glob set — and keep the full
-  // list in prod where the matching is meaningful.
-  const isProductionBuild = process.env.NODE_ENV === 'production';
-  const globPatterns = isProductionBuild
-    ? [
-        '**/*.webmanifest',
-        '**/*.svg',
-        '**/*.ico',
-        'favicon-*.png',
-        'assets/pwa-*.png',
-        'assets/apple-touch-*.png',
-        'assets/maskable-*.png',
-      ]
-    : [];
+  // The precache is exactly `includeAssets` + the manifest icons + the web
+  // manifest, every entry hashed by vite-plugin-pwa from the file in
+  // `public/` (`additionalManifestEntries`, content-MD5 revision). No
+  // workbox glob runs over `dist/` on top of that: the same files sit
+  // un-hashed under `dist/assets/`, and a glob hit there rides
+  // vite-plugin-pwa's `dontCacheBustURLsMatching: /^assets\//` with
+  // `revision: null` — the same URL twice with two revisions, which
+  // workbox-precaching refuses at install
+  // (`add-to-cache-list-conflicting-entries`), so the service worker
+  // activated with an EMPTY cache: no offline shell, while the client still
+  // announced "ready to work offline" (2026-09-26 evaluation, G-05/G-01).
+  // `scripts/check-sw-manifest.ts` in the platform build pins the built
+  // manifest to unique, revisioned entries.
+  const globPatterns: string[] = [];
 
   return VitePWA({
     registerType: 'prompt',

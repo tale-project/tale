@@ -75,6 +75,7 @@ nationalIds:
   - id: it-codice-fiscale
     name: Italian Codice Fiscale
     pattern: \b[A-Z]{6}\d{2}[A-EHLMPRST]\d{2}[A-Z]\d{3}[A-Z]\b
+    checksum: it-codice-fiscale
     replacement: '[CODICE_FISCALE]'
   - id: it-piva
     name: Italian Partita IVA

@@ -46,6 +46,8 @@ function stubGateway(
     authEnabled?: boolean;
     /** The gateway stored the minted key WITHOUT its budget. */
     mintWithoutBudget?: boolean;
+    /** The gateway refuses the mint with this status and body. */
+    mintRefusal?: { status: number; body: string };
     /** Overrides `GET /api/governance/pricing-overrides` lists. */
     pricingOverrides?: Record<string, unknown>[];
   } = {},
@@ -99,6 +101,13 @@ function stubGateway(
         );
       }
       if (method === 'POST' && u.includes('/governance/virtual-keys')) {
+        if (opts.mintRefusal) {
+          return Promise.resolve(
+            new Response(opts.mintRefusal.body, {
+              status: opts.mintRefusal.status,
+            }),
+          );
+        }
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -831,6 +840,64 @@ describe('mintVirtualKey', () => {
       is_active: true,
     });
     expect(mint?.body).not.toHaveProperty('budget');
+  });
+
+  it('names each whitelist spelling once when the serving and the vision model are the same', async () => {
+    // A turn names the org's vision model beside its serving model, and for
+    // most connectors they are one model. On the OpenAI-wire lane both land
+    // on the same record, and the gateway refuses a duplicate whitelist
+    // value outright — every managed Codex + DeepSeek run failed to start
+    // on it (2026-09-26 evaluation, C-08).
+    const calls = stubGateway({
+      keyExists: true,
+      // The org's key under its per-model custom record.
+      keyName: `tale-${ORG}-${ORG}__deepseek__deepseek-flash`,
+    });
+    const mod = await loadModule();
+    await mod.mintVirtualKey({
+      budgetCents: 500,
+      allowedModels: [
+        { providerSlug: 'deepseek', modelId: 'deepseek-flash' },
+        { providerSlug: 'deepseek', modelId: 'deepseek-flash' },
+      ],
+      organizationId: ORG,
+      sessionId: 'sess-1',
+    });
+    const mint = calls.find((c) => c.url.includes('/governance/virtual-keys'));
+    expect(mint?.body).toMatchObject({
+      provider_configs: [
+        {
+          provider: `${ORG}__deepseek__deepseek-flash`,
+          allowed_models: [
+            'deepseek-flash',
+            `${ORG}__deepseek__deepseek-flash/deepseek-flash`,
+          ],
+        },
+      ],
+    });
+  });
+
+  it("quotes the gateway's refusal so a failed start says what was refused", async () => {
+    stubGateway({
+      keyExists: true,
+      mintRefusal: {
+        status: 400,
+        body: '{"error":{"message":"invalid allowed_models for provider p: duplicate value \'x\' in whitelist"}}',
+      },
+    });
+    const mod = await loadModule();
+    await expect(
+      mod.mintVirtualKey({
+        budgetCents: 500,
+        allowedModels: [
+          { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+        ],
+        organizationId: ORG,
+        sessionId: 'sess-1',
+      }),
+    ).rejects.toThrow(
+      'llm-gateway mint key failed (400): {"error":{"message":"invalid allowed_models for provider p: duplicate value \'x\' in whitelist"}}',
+    );
   });
 
   it('revokes and refuses a key the gateway stored without its budget', async () => {

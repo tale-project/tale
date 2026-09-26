@@ -69,6 +69,16 @@ export function createBrandingRoutes(deps: {
   const orgSlugOf = async (c: Context<OrgEnv>): Promise<string | null> =>
     resolveOrgSlug(deps.sql, c.get('orgId'));
 
+  /** The admin every branding write is recorded under. */
+  const actorOf = (c: Context<OrgEnv>) => {
+    const user = c.get('sessionBundle').user;
+    return {
+      organizationId: c.get('orgId'),
+      userId: user.id,
+      ...(user.email !== undefined ? { email: user.email } : {}),
+    };
+  };
+
   admin.get('/config', async (c) => {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
@@ -95,7 +105,7 @@ export function createBrandingRoutes(deps: {
     try {
       const { expectedHash, ...config } = body.data;
       return c.json(
-        await saveBranding(deps.sql, orgSlug, config, expectedHash),
+        await saveBranding(deps.sql, orgSlug, config, expectedHash, actorOf(c)),
       );
     } catch (error) {
       return handleError(c, error);
@@ -114,7 +124,9 @@ export function createBrandingRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      return c.json(await saveBrandingImage(deps.sql, orgSlug, body.data));
+      return c.json(
+        await saveBrandingImage(deps.sql, orgSlug, body.data, actorOf(c)),
+      );
     } catch (error) {
       return handleError(c, error);
     }
@@ -124,7 +136,12 @@ export function createBrandingRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      await deleteBrandingImage(deps.sql, orgSlug, c.req.param('type'));
+      await deleteBrandingImage(
+        deps.sql,
+        orgSlug,
+        c.req.param('type'),
+        actorOf(c),
+      );
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

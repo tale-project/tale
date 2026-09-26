@@ -52,3 +52,5 @@ Ausgehender Netzwerkzugriff erlaubt normalerweise Paketinstallationen und das Kl
 ## Das Ergebnis prüfen
 
 Die Laufzeit entscheidet, wann ihr Durchlauf fertig ist; Tale sammelt Bericht und Ausgabe. Lies beides, bevor du die Aufgabe abschließt. Prüfe, welche Tests tatsächlich liefen und welche Dienste in der Sandbox fehlten. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt die Prüfung von Projektarbeit; [Ausführungsprotokolle](/de/platform/automations/execution-logs) erklärt Ergebnisse einer Agent-Node.
+
+Kann die Laufzeit gar nicht starten — eine Konfiguration, die sie ablehnt, ein Zustandsverzeichnis, das sie nicht findet —, schlägt der Lauf sofort fehl, und seine Begründung zitiert die letzten Zeilen, die die Laufzeit geschrieben hat: Die Ursache wird benannt, nicht nur ein Exit-Code. Ein solcher Lauf wird nicht automatisch wiederholt; behebe die Ursache und wiederhole ihn dann.

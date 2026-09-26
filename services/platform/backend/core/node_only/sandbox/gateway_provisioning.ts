@@ -153,8 +153,8 @@ async function pushModelPricing(
   const catalogs = new Map<string, readonly ModelCatalogEntry[]>();
   for (const ref of args.allowedModels) {
     // The record the session routes to: custom for a custom connector, and
-    // for a standard connector's Claude Code lane (`…__anthropic`) — neither
-    // has a price on the gateway's own datasheet.
+    // for a standard connector's Anthropic-wire lane (`…__anthropic`) —
+    // neither has a price on the gateway's own datasheet.
     const customRecord =
       !isStandardGatewayProvider(ref.providerSlug) ||
       ref.anthropicHarnessLane === true;

@@ -31,7 +31,9 @@ Treffen mehrere Kategorien zu, hat Blockieren Vorrang vor Maskieren und Markiere
 
 Der PII-Schutz erkennt konfigurierte Muster wie E-Mail-Adressen, Telefonnummern und Kennungen. Wähle passende eingebaute Typen und eigene Muster, danach das gewünschte Verhalten.
 
-Maskieren entfernt erkannte Werte aus dem weitergegebenen Text. Blockieren lehnt einen Treffer ab. Tokenisierung ersetzt die Werte für das Modell durch nummerierte Tokens und stellt sie in der Antwort wieder her. Sie kann die Verarbeitung mit weniger offengelegten Daten unterstützen, verspricht aber keine Antwort ohne personenbezogene Daten.
+Maskieren entfernt erkannte Werte aus dem weitergegebenen Text. Im Chat speichert und zeigt Tale auch den maskierten Text als Nachricht; der ursprüngliche Wortlaut bleibt nicht erhalten. Blockieren lehnt einen Treffer ab. Tokenisierung ersetzt die Werte für das Modell durch nummerierte Tokens und stellt sie in der Antwort wieder her. Sie kann die Verarbeitung mit weniger offengelegten Daten unterstützen, verspricht aber keine Antwort ohne personenbezogene Daten.
+
+Eine eingebaute Kennung, die nur aus Ziffern besteht, etwa eine schwedische Passnummer oder eine ukrainische Steuernummer, wird nur neben einem Wort erkannt, das sie benennt, zum Beispiel `passnummer` oder `ІПН`. Bestellnummern, kompakte Datumsangaben und Build-Nummern bleiben unverändert. Jede Erkennung unter **Letzte Ereignisse** nennt das ausgelöste Muster, etwa `se-passport`.
 
 Teste die tatsächlich verwendeten Formate mit erfundenen Werten. Muster können ungewöhnliche Formate übersehen oder normalen Text fälschlich markieren. Prüfe Eingabe und Ausgabe getrennt.
 

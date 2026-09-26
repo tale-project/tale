@@ -15,12 +15,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createProjectAgent,
+  detachSkillFromAgents,
   listProjectsPage,
   updateProjectAgent,
 } from './service.ts';
 
+// Hoisted so the tests can read the mocks' calls without importing the
+// mocked modules themselves (a static import beside `importOriginal` made
+// the real equipment gate run).
+const { outbox, equipment } = vi.hoisted(() => ({
+  outbox: { emitHintInTx: vi.fn() },
+  equipment: {
+    agentModelRefusal: vi.fn(() => Promise.resolve(null)),
+    agentEquipmentRefusal: vi.fn(() => Promise.resolve(null)),
+  },
+}));
+
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
-vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+vi.mock('../../realtime/outbox.ts', () => outbox);
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 vi.mock('../documents/service.ts', () => ({
   recordTrashRefusalFromJson: () => null,
@@ -28,8 +40,7 @@ vi.mock('../documents/service.ts', () => ({
 vi.mock('../tasks/retire.ts', () => ({ retireTasksInTx: vi.fn() }));
 vi.mock('./agent-equipment.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agent-equipment.ts')>()),
-  agentModelRefusal: vi.fn(() => Promise.resolve(null)),
-  agentEquipmentRefusal: vi.fn(() => Promise.resolve(null)),
+  ...equipment,
 }));
 
 const PROJECT = {
@@ -260,6 +271,80 @@ describe('updateProjectAgent — the optimistic precondition', () => {
     const unconditional = fakeTx();
     await updateProjectAgent(unconditional.tx, auth, config);
     expect(updates(unconditional.statements)).toHaveLength(1);
+  });
+});
+
+describe('updateProjectAgent — equipment the project can no longer see', () => {
+  it('validates only the equipment a save ADDS, so a stored but unshared skill blocks nothing else', async () => {
+    // The agent still names `gone-skill` (unshared from the scope after it
+    // was equipped); the author changes the model and adds `docx`. Only
+    // the addition is checked (2026-09-26 evaluation, C-09).
+    const stored = { ...AGENT, skills: ['gone-skill'], connectors: ['slack'] };
+    const { tx: base } = fakeTx();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stand-in is a plain tag function
+    const forward = base as unknown as (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => Promise<unknown[]>;
+    const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FROM app.project_agents WHERE id = ?')) {
+        return Promise.resolve([stored]);
+      }
+      return forward(strings, ...values);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- template-tag stand-in
+    const tx = Object.assign(run, {
+      unsafe: (t: string) => t,
+    }) as unknown as TransactionSql;
+
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      model: 'other-model',
+      skills: ['gone-skill', 'docx'],
+      connectors: ['slack'],
+    });
+
+    expect(equipment.agentEquipmentRefusal).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ skills: ['docx'], connectors: [] }),
+    );
+  });
+});
+
+describe('detachSkillFromAgents', () => {
+  it('unequips the slug from every agent of the organization and hints each project once', async () => {
+    const statements: Statement[] = [];
+    const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      statements.push({ text, values });
+      if (
+        text.startsWith('UPDATE app.project_agents SET skills = array_remove')
+      ) {
+        return Promise.resolve([
+          { id: 'agent-1', name: 'Reviewer', projectId: 'project-1' },
+          { id: 'agent-2', name: 'Writer', projectId: 'project-1' },
+          { id: 'agent-3', name: 'Ops', projectId: 'project-2' },
+        ]);
+      }
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- template-tag stand-in
+    const tx = Object.assign(run, {
+      unsafe: (t: string) => t,
+    }) as unknown as TransactionSql;
+
+    const detached = await detachSkillFromAgents(tx, 'org_1', 'gone-skill');
+
+    expect(detached.map((agent) => agent.id)).toEqual([
+      'agent-1',
+      'agent-2',
+      'agent-3',
+    ]);
+    const update = statements.find((s) => s.text.includes('array_remove'));
+    expect(update?.text).toContain('WHERE org_id = ? AND ? = ANY(skills)');
+    expect(update?.values.slice(0, 1)).toEqual(['gone-skill']);
+    expect(outbox.emitHintInTx).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -9,7 +9,11 @@ import type { HarnessDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
-import { buildHarnessExec, isClaudeModelRef } from './exec-builder';
+import {
+  buildHarnessExec,
+  CACHE_AFFINITY_GATEWAY_HEADER,
+  isClaudeModelRef,
+} from './exec-builder';
 import { GOLDEN_BYO_ENV, GOLDEN_GATEWAY, goldenBattery } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
 
@@ -388,6 +392,68 @@ describe('claude reasoning levers scope to Claude models', () => {
       managedSpec({ model: 'openrouter/~deepseek/deepseek-v4-flash-latest' }),
     );
     expect(exec.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBe('0');
+  });
+
+  // Each replica of a self-hosted model keeps a conversation's prefix in its
+  // own cache; a balancer can keep an exec on one replica only if every
+  // request names it (observed live: one 42-turn exec changed replica 20
+  // times under fewest-requests selection).
+  it('a non-Claude gateway exec names itself in every request for cache affinity', () => {
+    const exec = buildHarnessExec(
+      fact('claude-code'),
+      managedSpec({
+        model: 'openrouter/~deepseek/deepseek-v4-flash-latest',
+        execId: 'exec-affinity-1',
+      }),
+    );
+    expect(exec.env.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      `${CACHE_AFFINITY_GATEWAY_HEADER}: exec-affinity-1`,
+    );
+    expect(CACHE_AFFINITY_GATEWAY_HEADER).toBe('x-bf-eh-x-tale-cache-affinity');
+  });
+
+  it('keeps a header the harness already sends beside the affinity name', () => {
+    const claude = fact('claude-code');
+    const exec = buildHarnessExec(
+      {
+        ...claude,
+        exec: {
+          ...claude.exec,
+          env: {
+            ...claude.exec.env,
+            managed: {
+              ...claude.exec.env?.managed,
+              ANTHROPIC_CUSTOM_HEADERS: 'x-existing: 1',
+            },
+          },
+        },
+      },
+      managedSpec({ model: 'glm-4.7', execId: 'exec-affinity-2' }),
+    );
+    expect(exec.env.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      `x-existing: 1\n${CACHE_AFFINITY_GATEWAY_HEADER}: exec-affinity-2`,
+    );
+  });
+
+  it.each([
+    ['a Claude model', managedSpec({ model: 'claude-opus-4-6', execId: 'e' })],
+    ['an exec without an id', managedSpec({ model: 'glm-4.7' })],
+  ])('sends no affinity name for %s', (_kind, spec) => {
+    const exec = buildHarnessExec(fact('claude-code'), spec);
+    expect(exec.env.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined();
+  });
+
+  it('sends no gateway-only header on a bring-your-own credential', () => {
+    const exec = buildHarnessExec(fact('claude-code'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'glm-4.7',
+      execId: 'exec-affinity-3',
+    });
+    expect(exec.env.ANTHROPIC_CUSTOM_HEADERS ?? '').not.toContain(
+      CACHE_AFFINITY_GATEWAY_HEADER,
+    );
   });
 
   it.each([

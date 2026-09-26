@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 56 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -435,6 +435,19 @@ output:
       text `{ not json` into the **Input** field → Notice
       `automations.editor.invalidJson`; the node is NOT changed (no dirty state
       from the invalid text; Save version keeps the last valid document)
+- [ ] `AUTO-B7` · **Two tabs editing the same automation** — Open the same
+      automation's workbench in tabs A and B (both on the latest version). In
+      B, edit a node and leave it unsaved. In A, edit another node → **Save**
+      → **Save version** (a new version lands; B's version switcher follows
+      it live). Now save in B → The save is refused with the dialog **This
+      automation changed while you were editing**
+      (`automations.detail.staleVersion.title`) naming the version that
+      landed; **Discard my changes and reload**
+      (`automations.detail.staleVersion.reload`) drops B's draft and shows
+      A's version with A's change intact; **Save anyway**
+      (`automations.detail.staleVersion.saveAnyway`) appends B's version on
+      top instead (A's version stays in **Versions**, the latest is B's).
+      Nothing is ever reverted silently.
 
 ## Run liveness — chaos recovery (backend, scripted)
 

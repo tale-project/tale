@@ -191,11 +191,12 @@ describe('native file configuration preconditions', () => {
 
   it('allows one of two reviewed branding writers and holds stale plans after an ordinary UI save', async () => {
     const sql = lockedSql();
-    await saveBranding(sql, 'north', { accentColor: '#111111' }, null);
+    const admin = { organizationId: 'org-north', userId: 'user-1' };
+    await saveBranding(sql, 'north', { accentColor: '#111111' }, null, admin);
     const first = await readBrandingConfig('north');
     const outcomes = await Promise.allSettled([
-      saveBranding(sql, 'north', { accentColor: '#222222' }, first.hash),
-      saveBranding(sql, 'north', { accentColor: '#333333' }, first.hash),
+      saveBranding(sql, 'north', { accentColor: '#222222' }, first.hash, admin),
+      saveBranding(sql, 'north', { accentColor: '#333333' }, first.hash, admin),
     ]);
     expect(
       outcomes.filter((result) => result.status === 'fulfilled'),
@@ -204,9 +205,21 @@ describe('native file configuration preconditions', () => {
       outcomes.filter((result) => result.status === 'rejected'),
     ).toHaveLength(1);
     const second = await readBrandingConfig('north');
-    await saveBranding(sql, 'north', { accentColor: '#444444' });
+    await saveBranding(
+      sql,
+      'north',
+      { accentColor: '#444444' },
+      undefined,
+      admin,
+    );
     await expect(
-      saveBranding(sql, 'north', { accentColor: '#555555' }, second.hash),
+      saveBranding(
+        sql,
+        'north',
+        { accentColor: '#555555' },
+        second.hash,
+        admin,
+      ),
     ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
     expect((await readBrandingConfig('north')).config?.accentColor).toBe(
       '#444444',

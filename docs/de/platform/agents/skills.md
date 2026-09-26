@@ -30,7 +30,7 @@ Beim Einrichten der Sandbox stellt Tale die ausgerüsteten Bundles als Dateien b
 
 ## Fehlende oder geänderte Skills prüfen
 
-Fehlt ein benötigter Skill oder ist er nicht mehr mit dem Ausführungsbereich geteilt, schlägt die Bereitstellung fehl und nennt den nicht verfügbaren Skill. Prüfe Slug, Sichtbarkeit, Projektteams sowie mögliche Löschungen oder Ersetzungen. Stelle den vorgesehenen Zugriff wieder her oder entferne die veraltete Ausrüstung, bevor du es erneut versuchst.
+Löschst du einen Skill, wird er bei jedem Agenten abgelegt, der ihn ausgerüstet hatte; das Audit-Protokoll hält fest, bei welchen. Ist ein benötigter Skill nicht mehr mit dem Ausführungsbereich geteilt, schlägt die Bereitstellung fehl und nennt den nicht verfügbaren Skill; der Lauf wird nicht automatisch wiederholt, weil eine Wiederholung daran nichts ändert. Im Dialog des Agenten erscheint der Skill als nicht verfügbar, damit du ihn abwählen kannst — alle anderen Einstellungen des Agenten lassen sich weiterhin speichern. Stelle den vorgesehenen Zugriff wieder her oder entferne die veraltete Ausrüstung, bevor du es erneut versuchst.
 
 Änderungen an einem geteilten Bundle wirken sich auf spätere Bereitstellungen aus. Prüfe Ersetzungen und teste den Agenten nach größeren Änderungen mit einer bekannten Eingabe. Verlasse dich nicht darauf, dass ein gleichnamiger Skill im Repository das ausgerüstete Bundle überschreibt.
 

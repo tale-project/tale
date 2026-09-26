@@ -44,11 +44,14 @@ function harness(
   slug: string,
   policy: { managed: boolean; byo: boolean },
   withSubscriptionDelivery: boolean,
+  /** The declared managed-lane wire (absent = derived from the env keys). */
+  gatewayWire?: 'anthropic' | 'openai-chat' | 'openai-responses',
 ) {
   return harnessDefinitionSchema.parse({
     slug,
     displayName: slug,
     credentialPolicy: policy,
+    ...(gatewayWire !== undefined ? { gatewayWire } : {}),
     // An anthropic-wire harness (Claude Code) points ANTHROPIC_BASE_URL at the
     // gateway's `/anthropic` path; the serving reads this to decide the native
     // Anthropic harness lane. Mirror that for the subscription-delivery fixture.
@@ -120,6 +123,19 @@ const OPENROUTER: ProviderDefinition = providerDefinitionSchema.parse({
   auth: [{ method: 'api-key' }, { method: 'env' }],
 });
 
+/** The shipped `openrouter` with its Anthropic Messages door declared: a
+ * STANDARD gateway provider (built-in implementation) that also serves the
+ * Anthropic wire. */
+const OPENROUTER_WITH_DOOR: ProviderDefinition = providerDefinitionSchema.parse(
+  {
+    ...OPENROUTER,
+    harnessEndpoint: {
+      baseUrl: 'https://openrouter.ai/api',
+      apiFormat: 'anthropic',
+    },
+  },
+);
+
 /** An OpenAI-format connector that also exposes a native Anthropic endpoint
  * for anthropic-wire harnesses (mirrors the shipped `deepseek`). */
 const DEEPSEEK: ProviderDefinition = providerDefinitionSchema.parse({
@@ -155,7 +171,9 @@ beforeEach(() => {
   ]);
   loadHarnesses.mockReturnValue([
     harness('claude-code', { managed: true, byo: true }, true),
-    harness('codex', { managed: true, byo: true }, false),
+    // Codex reads an OpenAI-style key but speaks the Responses API — the
+    // shipped harness.yml declares the wire, mirrored here.
+    harness('codex', { managed: true, byo: true }, false, 'openai-responses'),
   ]);
 });
 
@@ -763,7 +781,13 @@ describe('resolveWorkflowAgentServing — native Anthropic harness lane', () => 
     });
   });
 
-  it('keeps an OpenAI-wire harness (codex) on the OpenAI base for the same connector', async () => {
+  it('routes a Responses-wire harness (codex) onto the same endpoint for a custom chat-only connector', async () => {
+    // The gateway serves deepseek as a custom OpenAI upstream that only
+    // speaks chat completions; its Responses→Chat translation cannot hand
+    // Codex a reasoning item the CLI echoes back, so DeepSeek refused every
+    // tool-loop turn (400 "`reasoning_content` … must be passed back",
+    // 2026-09-26). Responses→Anthropic on the vendor's own door keeps the
+    // loop intact.
     resolveConnectors.mockResolvedValue([DEEPSEEK]);
     credentials = { deepseek: DIRECT };
     getProviderCatalog.mockResolvedValue([
@@ -777,7 +801,58 @@ describe('resolveWorkflowAgentServing — native Anthropic harness lane', () => 
       harness: 'codex',
     });
 
-    // No `anthropicHarnessLane` flag → the OpenAI record serves it.
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'deepseek',
+      modelId: 'deepseek-v4-flash',
+      anthropicHarnessLane: true,
+    });
+  });
+
+  it('keeps a Responses-wire harness (codex) on a STANDARD connector that declares the door', async () => {
+    // The gateway's built-in openrouter implementation owns the Responses
+    // wire itself — nothing is translated, so the OpenAI record serves it.
+    resolveConnectors.mockResolvedValue([OPENROUTER_WITH_DOOR]);
+    credentials = { openrouter: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'anthropic/claude-sonnet-5', tags: ['chat'] },
+    ]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'anthropic/claude-sonnet-5',
+      modelProvider: 'openrouter',
+      harness: 'codex',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'openrouter',
+      modelId: 'anthropic/claude-sonnet-5',
+    });
+  });
+
+  it('keeps a chat-wire harness (opencode) on the OpenAI base for the same connector', async () => {
+    loadHarnesses.mockReturnValue([
+      harness('claude-code', { managed: true, byo: true }, true),
+      harness('codex', { managed: true, byo: true }, false, 'openai-responses'),
+      harness('opencode', { managed: true, byo: false }, false, 'openai-chat'),
+    ]);
+    resolveConnectors.mockResolvedValue([DEEPSEEK]);
+    credentials = { deepseek: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'deepseek-v4-flash', tags: ['chat'] },
+    ]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'deepseek-v4-flash',
+      modelProvider: 'deepseek',
+      harness: 'opencode',
+    });
+
+    // Chat completions IS the upstream's own wire — no `anthropicHarnessLane`
+    // flag, the OpenAI record serves it.
     expect(serving).toEqual({
       lane: 'gateway',
       providerSlug: 'deepseek',

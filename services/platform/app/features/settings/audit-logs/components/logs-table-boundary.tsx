@@ -28,6 +28,8 @@ const LOADING_RESULT: UsePaginatedQueryReturnType<AuditLogDoc> = {
   status: 'LoadingFirstPage',
   loadMore: () => {},
   isLoading: true,
+  error: null,
+  retry: () => {},
 };
 
 interface LogsTableBoundaryProps {

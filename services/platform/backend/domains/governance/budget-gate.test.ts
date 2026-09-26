@@ -43,9 +43,11 @@ type LedgerUsage = {
 function recordingLedger(usage: LedgerUsage) {
   const zero: Usage = { totalTokens: 0, costEstimate: 0, requestCount: 0 };
   const queries: string[] = [];
+  const bindings: unknown[][] = [];
   const sql = async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
     queries.push(text);
+    bindings.push(values);
     if (text.includes('"teamMember"')) {
       return [usage.teams?.[String(values[2])] ?? zero];
     }
@@ -53,7 +55,7 @@ function recordingLedger(usage: LedgerUsage) {
     if (text.includes('user_id =')) return [usage.user ?? zero];
     return [usage.org ?? zero];
   };
-  return { sql: sql as never, queries };
+  return { sql: sql as never, queries, bindings };
 }
 
 function ledger(usage: LedgerUsage) {
@@ -174,6 +176,46 @@ describe('resolveTurnAllowance', () => {
     if (!allowance.allowed) {
       expect(allowance.reason).toMatch(/Request limit reached/);
     }
+  });
+
+  it('sums a person’s spend under the bare id and the legacy door forms alike', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'user',
+          scopeId: 'user-1',
+          period: 'monthly',
+          maxCostCents: 2_000,
+        },
+        {
+          scope: 'team',
+          scopeId: 'team-1',
+          period: 'monthly',
+          maxCostCents: 9_000,
+        },
+      ],
+    };
+    const { sql, queries, bindings } = recordingLedger({
+      user: { totalTokens: 0, costEstimate: 100, requestCount: 1 },
+    });
+    await resolveTurnAllowance(sql, {
+      ...SUBJECT,
+      defaultCents: 500,
+      reservations: holds(0, 0),
+    });
+    // Rows the workflow lane booked before it derived the person from the
+    // run's starter carry `user:<id>` / `api-key:<id>`; the cap sees them.
+    const personal = queries.findIndex((q) => q.includes('user_id = ANY('));
+    expect(personal).toBeGreaterThan(-1);
+    expect(bindings[personal]?.[2]).toEqual([
+      'user-1',
+      'user:user-1',
+      'api-key:user-1',
+    ]);
+    // A team's members are matched under the same forms.
+    const team = queries.find((q) => q.includes('"teamMember"'));
+    expect(team).toContain("regexp_replace(user_id, '^(user|api-key):', '')");
   });
 
   it('binds no personal cap to an impersonal subject — the org cap alone sizes a trigger-started turn', async () => {
