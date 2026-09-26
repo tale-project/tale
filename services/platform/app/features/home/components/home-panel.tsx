@@ -622,13 +622,18 @@ function HomeEmpty({
           </Link>
         </Button>
       ) : view === 'all' || view === 'chats' ? (
-        <Button asChild size="sm" variant="secondary" className="mt-3">
+        <Button
+          asChild
+          size="sm"
+          variant="secondary"
+          icon={SquarePen}
+          className="mt-3"
+        >
           <Link
             to="/dashboard/$id/chat"
             params={{ id: organizationId }}
             search={{ new: true }}
           >
-            <SquarePen className="size-3.5" />
             {t('newChat')}
           </Link>
         </Button>

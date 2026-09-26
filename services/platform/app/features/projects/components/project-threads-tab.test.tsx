@@ -120,6 +120,21 @@ describe('ProjectThreadsTab', () => {
     await checkAccessibility(container, NO_HEADING_ORDER);
   });
 
+  it('names an untitled chat the way Home does, never by its id', () => {
+    mineFixture = [
+      {
+        id: 'thread-untitled',
+        updatedAt: 1,
+        sharedWithProject: false,
+        userId: 'user-1',
+        authorName: null,
+      },
+    ];
+    renderTab();
+    expect(screen.getByText('Untitled chat')).toBeInTheDocument();
+    expect(screen.queryByText('thread-untitled')).not.toBeInTheDocument();
+  });
+
   it("shows the author's resolved name for shared chats, falling back to a userId fragment", () => {
     sharedFixture = [
       {

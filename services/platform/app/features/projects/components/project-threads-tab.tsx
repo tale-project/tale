@@ -11,14 +11,15 @@ import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
 import { EmptyState } from '@tale/ui/empty-state';
 import { FormSection } from '@tale/ui/form-section';
-import { HStack } from '@tale/ui/layout';
 import { PageSection } from '@tale/ui/page-section';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { MessageSquare } from 'lucide-react';
+import { MessageCircle, SquarePen } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -30,6 +31,61 @@ import { ProjectThreadsSkeleton } from './project-tab-skeletons';
 interface ProjectThreadsTabProps {
   organizationId: string;
   projectId: string;
+}
+
+/**
+ * One chat of the project, read the way Home lists a chat: the bubble, the
+ * title (or "Untitled chat"), when it last moved and one line of context —
+ * the whole row opens it, while `trailing` (the share switch) stays its own
+ * control above the row's link.
+ */
+function ProjectChatRow({
+  organizationId,
+  thread,
+  context,
+  trailing,
+}: {
+  organizationId: string;
+  thread: { id: string; title?: string; updatedAt: number };
+  context?: ReactNode;
+  trailing?: ReactNode;
+}) {
+  const { t: tHome } = useT('home');
+  const { formatRelative } = useFormatDate();
+  const title = thread.title ?? tHome('row.untitledChat');
+  return (
+    <li className="hover:bg-muted/50 has-[a:focus-visible]:bg-muted/50 has-[a:focus-visible]:ring-ring relative flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-inset">
+      <MessageCircle
+        className="text-muted-foreground size-4 shrink-0"
+        aria-hidden="true"
+      />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <Link
+          to="/dashboard/$id/chat/$threadId"
+          params={{ id: organizationId, threadId: thread.id }}
+          // The link's box covers the row, so the whole row opens the chat.
+          className="text-foreground truncate text-sm font-medium outline-none after:absolute after:inset-0 after:content-['']"
+          title={title}
+        >
+          {title}
+        </Link>
+        <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+          <span className="shrink-0 tabular-nums">
+            {formatRelative(new Date(thread.updatedAt))}
+          </span>
+          {context !== undefined && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="truncate">{context}</span>
+            </>
+          )}
+        </span>
+      </span>
+      {trailing !== undefined && (
+        <span className="relative z-10 shrink-0">{trailing}</span>
+      )}
+    </li>
+  );
 }
 
 export function ProjectThreadsTab({
@@ -90,14 +146,16 @@ export function ProjectThreadsTab({
         title={t('threads.yourChats')}
         description={t('threads.subtitle')}
         action={
-          <Button onClick={handleNewChat}>{t('overview.newChatCta')}</Button>
+          <Button icon={SquarePen} onClick={handleNewChat}>
+            {t('overview.newChatCta')}
+          </Button>
         }
       />
 
       <FormSection>
         {mine.length === 0 ? (
           <EmptyState
-            icon={MessageSquare}
+            icon={MessageCircle}
             title={t('threads.emptyYours')}
             className="rounded-lg border border-dashed py-8"
           />
@@ -106,38 +164,24 @@ export function ProjectThreadsTab({
             <Text variant="muted" className="text-sm">
               {t('threads.shareToggleDisclosure')}
             </Text>
-            <div className="divide-y rounded-lg border">
+            <ul className="divide-y overflow-hidden rounded-lg border">
               {mine.map((thread) => (
-                <HStack
+                <ProjectChatRow
                   key={thread.id}
-                  gap={3}
-                  align="center"
-                  className="px-4 py-3"
-                >
-                  <MessageSquare
-                    className="text-muted-foreground size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <Link
-                    to="/dashboard/$id/chat/$threadId"
-                    params={{
-                      id: organizationId,
-                      threadId: thread.id,
-                    }}
-                    className="min-w-0 flex-1 truncate text-sm hover:underline"
-                  >
-                    {thread.title ?? thread.id}
-                  </Link>
-                  <Switch
-                    checked={thread.sharedWithProject === true}
-                    onCheckedChange={(checked) =>
-                      void handleToggleShare(thread.id, checked)
-                    }
-                    label={t('threads.shareToggle')}
-                  />
-                </HStack>
+                  organizationId={organizationId}
+                  thread={thread}
+                  trailing={
+                    <Switch
+                      checked={thread.sharedWithProject === true}
+                      onCheckedChange={(checked) =>
+                        void handleToggleShare(thread.id, checked)
+                      }
+                      label={t('threads.shareToggle')}
+                    />
+                  }
+                />
               ))}
-            </div>
+            </ul>
           </div>
         )}
       </FormSection>
@@ -149,39 +193,21 @@ export function ProjectThreadsTab({
       >
         {sharedThreads.length === 0 ? (
           <EmptyState
-            icon={MessageSquare}
+            icon={MessageCircle}
             title={t('threads.emptyShared')}
             className="rounded-lg border border-dashed py-8"
           />
         ) : (
-          <div className="divide-y rounded-lg border">
+          <ul className="divide-y overflow-hidden rounded-lg border">
             {sharedThreads.map((thread) => (
-              <HStack
+              <ProjectChatRow
                 key={thread.id}
-                gap={3}
-                align="center"
-                className="px-4 py-3"
-              >
-                <MessageSquare
-                  className="text-muted-foreground size-4 shrink-0"
-                  aria-hidden="true"
-                />
-                <Link
-                  to="/dashboard/$id/chat/$threadId"
-                  params={{
-                    id: organizationId,
-                    threadId: thread.id,
-                  }}
-                  className="min-w-0 flex-1 truncate text-sm hover:underline"
-                >
-                  {thread.title ?? thread.id}
-                </Link>
-                <Text variant="caption">
-                  {thread.authorName ?? thread.userId.slice(0, 8)}
-                </Text>
-              </HStack>
+                organizationId={organizationId}
+                thread={thread}
+                context={thread.authorName ?? thread.userId.slice(0, 8)}
+              />
             ))}
-          </div>
+          </ul>
         )}
       </PageSection>
     </ContentArea>
