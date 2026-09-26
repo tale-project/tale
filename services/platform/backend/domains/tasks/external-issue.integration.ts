@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import type { Sql } from 'postgres';
 
+import type { WorkflowIssueInput } from '../../../lib/connectors/natives/platform-tasks.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
 import { upsertTaskByExternalRef } from './external-ref.ts';
 import { loadTaskOrThrow, TaskError } from './service.ts';
@@ -263,6 +264,8 @@ export async function checkTaskExternalIssueSync(
   }
 
   await checkLegacySourceDiscovery(sql, ctx, record);
+  await checkIssueBatchTransactions(sql, ctx, record);
+  await checkIssueRefreshFairness(sql, ctx, record);
 }
 
 async function checkLegacySourceDiscovery(
@@ -342,18 +345,6 @@ async function checkLegacySourceDiscovery(
     limit: 1,
   };
   const first = await store.listExternalIssues(query);
-  const all = await store.listExternalIssues({ ...query, limit: 500 });
-  record(
-    'external issue: discovery includes bounded legacy and stable source matches only',
-    first.hasMore &&
-      first.issues[0]?.taskId === legacyId &&
-      first.issues[0]?.externalIssue === null &&
-      all.issues.length === 2 &&
-      all.issues.some((issue) => issue.taskId === trackedId) &&
-      all.issues.every((issue) => !ignoredIds.includes(issue.taskId)),
-    `oldest=${first.issues[0]?.taskId === legacyId}, matched=${all.issues.length}, hasMore=${first.hasMore}`,
-  );
-
   await sql`UPDATE app.tasks SET title='Legacy human edit', status='in_progress' WHERE id=${legacyId}`;
   const closed = {
     ...snapshot,
@@ -404,6 +395,18 @@ async function checkLegacySourceDiscovery(
     'external issue: subsequent refresh selects the oldest remaining snapshot',
     next.issues[0]?.taskId === trackedId && next.hasMore,
     `next=${next.issues[0]?.taskId}, expected=${trackedId}`,
+  );
+
+  const all = await store.listExternalIssues({ ...query, limit: 500 });
+  record(
+    'external issue: discovery includes bounded legacy and stable source matches only',
+    first.hasMore &&
+      first.issues[0]?.taskId === legacyId &&
+      first.issues[0]?.externalIssue === null &&
+      all.issues.length === 2 &&
+      all.issues.some((issue) => issue.taskId === trackedId) &&
+      all.issues.every((issue) => !ignoredIds.includes(issue.taskId)),
+    `oldest=${first.issues[0]?.taskId === legacyId}, matched=${all.issues.length}, hasMore=${first.hasMore}`,
   );
 
   const origin = 'https://errors.example.test';
@@ -520,5 +523,305 @@ async function checkLegacySourceDiscovery(
       JSON.stringify(afterTwinCollision) === JSON.stringify(chosenTwin) &&
       JSON.stringify(afterOtherTwinCollision) === JSON.stringify(untouchedTwin),
     `rejected=${twinCollision}, source unchanged=${afterTwinCollision.externalIssue?.syncedAt === twinSnapshot.syncedAt}`,
+  );
+}
+
+async function checkIssueBatchTransactions(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  record: (name: string, ok: boolean, detail: string) => void,
+): Promise<void> {
+  const projectId = randomUUID();
+  const now = Date.now();
+  await sql`INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
+    VALUES (${projectId}, ${ctx.orgId}, 'Concurrent issue batch proof', ${ctx.userId}, ${now}, ${now})`;
+  const store = pgTaskStore(sql);
+  const scope = {
+    organizationId: ctx.orgId,
+    projectId,
+    caller: { kind: 'system' as const, reason: 'isolated issue batch proof' },
+  };
+  const issues: WorkflowIssueInput[] = Array.from({ length: 40 }, (_, at) => ({
+    externalSystem: 'github',
+    externalId: `example/concurrent#${at + 1}`,
+    title: `Source ${at + 1}`,
+    externalIssue: {
+      id: `batch-${String(at + 1).padStart(3, '0')}`,
+      title: `Source ${at + 1}`,
+      description: 'Source body',
+      url: `https://github.com/example/concurrent/issues/${at + 1}`,
+      state: 'open',
+      syncedAt: now,
+      repositoryId: 991,
+      number: at + 1,
+    },
+  }));
+  const bursts = await Promise.allSettled(
+    Array.from({ length: 8 }, (_, at) =>
+      store.upsertIssues({
+        ...scope,
+        issues: at % 2 === 0 ? issues : issues.toReversed(),
+      }),
+    ),
+  );
+  const completed = bursts.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
+  );
+  const rows = await sql<{ id: string; external_source_id: string }[]>`
+    SELECT id, external_source_id FROM app.tasks WHERE project_id = ${projectId}
+  `;
+  const bySource = new Map(rows.map((row) => [row.external_source_id, row.id]));
+  record(
+    'external issue: eight overlapping reversed batches complete with one task per source',
+    completed.length === 8 &&
+      completed.flat().filter((result) => result.created).length === 40 &&
+      rows.length === 40 &&
+      bySource.size === 40 &&
+      completed.every((batch, at) => {
+        const expected = at % 2 === 0 ? issues : issues.toReversed();
+        return batch.every(
+          (result, index) =>
+            result.taskId ===
+            bySource.get(expected[index]?.externalIssue?.id ?? ''),
+        );
+      }),
+    `completed=${completed.length}/8, tasks=${rows.length}, unique=${bySource.size}`,
+  );
+
+  const first = issues[0];
+  const second = issues[1];
+  const third = issues[2];
+  if (!first?.externalIssue || !second?.externalIssue || !third?.externalIssue)
+    throw new Error('Missing source fixtures');
+  const before = await sql`
+    SELECT * FROM app.tasks WHERE project_id = ${projectId} ORDER BY id
+  `;
+  const projectBefore =
+    await sql`SELECT * FROM app.projects WHERE id = ${projectId}`;
+  let rejected = false;
+  try {
+    await store.upsertIssues({
+      ...scope,
+      issues: [
+        {
+          ...first,
+          externalIssue: {
+            ...first.externalIssue,
+            title: 'Must roll back',
+            syncedAt: now + 1,
+          },
+        },
+        {
+          ...second,
+          externalId: 'example/concurrent#41',
+          externalIssue: {
+            ...second.externalIssue,
+            id: 'batch-041',
+            number: 41,
+          },
+        },
+        {
+          ...third,
+          externalIssue: {
+            ...third.externalIssue,
+            id: 'zzz-conflicting-source',
+          },
+        },
+      ],
+    });
+  } catch (error) {
+    rejected =
+      error instanceof TaskError &&
+      error.code === 'TASK_EXTERNAL_REF_INVALID' &&
+      error.status === 409;
+  }
+  const after = await sql`
+    SELECT * FROM app.tasks WHERE project_id = ${projectId} ORDER BY id
+  `;
+  const projectAfter =
+    await sql`SELECT * FROM app.projects WHERE id = ${projectId}`;
+  record(
+    'external issue: a late batch conflict rolls back earlier inserts, updates and project counters',
+    rejected &&
+      JSON.stringify(before) === JSON.stringify(after) &&
+      JSON.stringify(projectBefore) === JSON.stringify(projectAfter),
+    `rejected=${rejected}, unchanged tasks=${JSON.stringify(before) === JSON.stringify(after)}, unchanged project=${JSON.stringify(projectBefore) === JSON.stringify(projectAfter)}`,
+  );
+}
+
+async function checkIssueRefreshFairness(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  record: (name: string, ok: boolean, detail: string) => void,
+): Promise<void> {
+  const projectId = randomUUID();
+  const now = Date.now();
+  await sql`INSERT INTO app.projects (id, org_id, name, created_by, created_at_ms, updated_at_ms)
+    VALUES (${projectId}, ${ctx.orgId}, 'Source refresh fairness', ${ctx.userId}, ${now}, ${now})`;
+  const store = pgTaskStore(sql);
+  const scope = {
+    organizationId: ctx.orgId,
+    projectId,
+    caller: {
+      kind: 'system' as const,
+      reason: 'isolated refresh fairness proof',
+    },
+  };
+  const queries: Parameters<typeof store.listExternalIssues>[0][] = [];
+  for (const provider of ['github', 'glitchtip'] as const) {
+    const origin = 'https://errors.example.test';
+    const prefix =
+      provider === 'github' ? 'example/fair#' : `${origin}/example/fair#`;
+    const legacy = await store.upsert({
+      ...scope,
+      externalSystem: provider,
+      externalId: `${prefix}1`,
+      title: 'Legacy issue',
+    });
+    const snapshot: TaskExternalIssue = {
+      id: provider === 'github' ? 'fair-2' : `${origin}#2`,
+      title: 'Last known issue',
+      description: 'Last known body',
+      url:
+        provider === 'github'
+          ? 'https://github.com/example/fair/issues/2'
+          : `${origin}/example/issues/2`,
+      state: 'open',
+      syncedAt: now - 10_000,
+      ...(provider === 'github'
+        ? { repositoryId: 1991, number: 2 }
+        : { sourceProjectId: '1991' }),
+    };
+    const tracked = await store.upsert({
+      ...scope,
+      externalSystem: provider,
+      externalId: `${prefix}2`,
+      title: 'Human task',
+      externalIssue: snapshot,
+    });
+    if (!legacy.taskId || !tracked.taskId)
+      throw new Error('Missing fairness tasks');
+    const localBefore = await Promise.all(
+      [legacy.taskId, tracked.taskId].map((id) =>
+        loadTaskOrThrow(sql, id, ctx.orgId),
+      ),
+    );
+    const query = {
+      ...scope,
+      externalSystem: provider,
+      legacyPrefixes: [prefix],
+      limit: 1,
+      ...(provider === 'github'
+        ? { repositoryId: 1991 }
+        : { sourceOrigin: origin, sourceProjectId: '1991' }),
+    };
+    queries.push(query);
+    const first = await store.listExternalIssues(query);
+    // A legacy issue returning HTTP404 has no snapshot to write; a failed
+    // upstream read likewise commits no source update. Both must rotate.
+    const second = await store.listExternalIssues(query);
+    const localAfter = await Promise.all(
+      [legacy.taskId, tracked.taskId].map((id) =>
+        loadTaskOrThrow(sql, id, ctx.orgId),
+      ),
+    );
+    const all = await store.listExternalIssues({ ...query, limit: 500 });
+    record(
+      `external issue: ${provider} missing or failed attempts rotate without altering Tale or source observations`,
+      first.issues[0]?.taskId === legacy.taskId &&
+        first.hasMore &&
+        second.issues[0]?.taskId === tracked.taskId &&
+        second.hasMore &&
+        JSON.stringify(localBefore) === JSON.stringify(localAfter) &&
+        all.issues.length === 2 &&
+        !all.hasMore &&
+        all.issues.some(
+          (issue) =>
+            issue.taskId === legacy.taskId && issue.externalIssue === null,
+        ) &&
+        all.issues.some(
+          (issue) =>
+            issue.taskId === tracked.taskId &&
+            issue.externalIssue?.syncedAt === snapshot.syncedAt,
+        ),
+      `first legacy=${first.issues[0]?.taskId === legacy.taskId}, next tracked=${second.issues[0]?.taskId === tracked.taskId}, local unchanged=${JSON.stringify(localBefore) === JSON.stringify(localAfter)}`,
+    );
+    for (const futureClock of ['snapshot', 'attempt'] as const) {
+      const future = Date.now() + 60_000;
+      await sql`
+        UPDATE app.tasks SET external_issue_refresh_attempted_at_ms = NULL
+        WHERE org_id = ${ctx.orgId} AND project_id = ${projectId} AND external_system = ${provider}
+      `;
+      if (futureClock === 'snapshot') {
+        await sql`
+          UPDATE app.tasks SET external_issue = jsonb_set(external_issue, '{syncedAt}', to_jsonb(${future}::bigint))
+          WHERE id = ${tracked.taskId}
+        `;
+      } else {
+        await sql`
+          UPDATE app.tasks SET external_issue = jsonb_set(external_issue, '{syncedAt}', to_jsonb(${snapshot.syncedAt}::bigint)),
+            external_issue_refresh_attempted_at_ms = ${future}
+          WHERE id = ${tracked.taskId}
+        `;
+      }
+      const beforeMixed = await Promise.all(
+        [legacy.taskId, tracked.taskId].map((id) =>
+          loadTaskOrThrow(sql, id, ctx.orgId),
+        ),
+      );
+      const mixedFirst = await store.listExternalIssues(query);
+      const mixedSecond = await store.listExternalIssues(query);
+      const afterMixed = await Promise.all(
+        [legacy.taskId, tracked.taskId].map((id) =>
+          loadTaskOrThrow(sql, id, ctx.orgId),
+        ),
+      );
+      record(
+        `external issue: ${provider} mixed legacy and future ${futureClock} clocks rotate fairly`,
+        mixedFirst.issues[0]?.taskId === legacy.taskId &&
+          mixedSecond.issues[0]?.taskId === tracked.taskId &&
+          JSON.stringify(beforeMixed) === JSON.stringify(afterMixed),
+        `first legacy=${mixedFirst.issues[0]?.taskId === legacy.taskId}, next tracked=${mixedSecond.issues[0]?.taskId === tracked.taskId}, task and source unchanged=${JSON.stringify(beforeMixed) === JSON.stringify(afterMixed)}`,
+      );
+    }
+    const beforeRefusal =
+      await sql`SELECT id, external_issue_refresh_attempted_at_ms FROM app.tasks WHERE project_id=${projectId} ORDER BY id`;
+    let refused = false;
+    try {
+      await store.listExternalIssues({
+        ...query,
+        organizationId: `foreign-${randomUUID()}`,
+      });
+    } catch (error) {
+      refused =
+        error instanceof TaskError && error.code === 'PROJECT_NOT_FOUND';
+    }
+    const afterRefusal =
+      await sql`SELECT id, external_issue_refresh_attempted_at_ms FROM app.tasks WHERE project_id=${projectId} ORDER BY id`;
+    record(
+      `external issue: refused ${provider} refresh selection records no attempt`,
+      refused && JSON.stringify(beforeRefusal) === JSON.stringify(afterRefusal),
+      `refused=${refused}, unchanged=${JSON.stringify(beforeRefusal) === JSON.stringify(afterRefusal)}`,
+    );
+  }
+  const futureAttempt = Date.now() + 60_000;
+  await sql`UPDATE app.tasks SET external_issue_refresh_attempted_at_ms = ${futureAttempt} WHERE project_id = ${projectId}`;
+  const overlappingSelections = await Promise.all(
+    queries.flatMap((query) => [
+      store.listExternalIssues({ ...query, limit: 500 }),
+      store.listExternalIssues({ ...query, limit: 500 }),
+    ]),
+  );
+  const attempts = await sql<{ attempted: string }[]>`
+    SELECT external_issue_refresh_attempted_at_ms AS attempted FROM app.tasks WHERE project_id = ${projectId}
+  `;
+  record(
+    'external issue: overlapping refresh selections keep attempts monotonic after a clock rollback',
+    overlappingSelections.every((selection) => selection.issues.length === 2) &&
+      attempts.length === 4 &&
+      attempts.every((row) => Number(row.attempted) >= futureAttempt + 2) &&
+      Math.max(...attempts.map((row) => Number(row.attempted))) ===
+        futureAttempt + 4,
+    `selections=${overlappingSelections.length}, clocks advanced=${attempts.every((row) => Number(row.attempted) >= futureAttempt + 2)}`,
   );
 }

@@ -1,3 +1,8 @@
+import {
+  markRetryQueueKey,
+  RETRY_QUEUE_LOCK_CLASS,
+  retryQueueKeysOf,
+} from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,7 +28,7 @@ vi.mock('../tasks/external-ref.ts', () => ({
   upsertTaskByExternalRef: vi.fn(),
 }));
 
-const tx = {};
+const tx = vi.fn(async () => []);
 const sql = {
   begin: async (
     optionsOrCallback: string | ((transaction: unknown) => unknown),
@@ -46,6 +51,7 @@ const workflow = { kind: 'workflow' as const, runId: 'run-1', nodeId: 'tasks' };
 
 beforeEach(() => {
   vi.resetAllMocks();
+  tx.mockResolvedValue([]);
   vi.mocked(loadProjectOrThrow).mockResolvedValue({
     id: 'project-1',
     organizationId: 'org-1',
@@ -105,6 +111,30 @@ describe('task import authorization and reconciliation policy', () => {
       expect(upsertTaskByExternalRef).not.toHaveBeenCalled();
     },
   );
+
+  it('does not record refresh attempts when project authorization refuses selection', async () => {
+    vi.mocked(loadProjectOrThrow).mockResolvedValue({
+      organizationId: 'foreign',
+      archivedAt: null,
+    } as never);
+    await expect(
+      pgTaskStore(sql).listExternalIssues({
+        organizationId: 'org-1',
+        projectId: 'project-1',
+        caller: workflow,
+        externalSystem: 'github',
+        repositoryId: 10,
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    // The shared import mutex is the only statement; no task read or stamp ran.
+    expect(tx).toHaveBeenCalledTimes(1);
+    expect(tx).toHaveBeenCalledWith(
+      expect.anything(),
+      RETRY_QUEUE_LOCK_CLASS,
+      'task-issue-import:org-1:project-1',
+    );
+  });
 
   it('propagates the run binding refusal', async () => {
     const refused = new Error('automation is not bound to the target');
@@ -194,6 +224,43 @@ describe('task import authorization and reconciliation policy', () => {
         .mocked(upsertTaskByExternalRef)
         .mock.calls.map((call) => call[1].externalId),
     ).toEqual(['example/web#1', 'example/web#2']);
+  });
+
+  it('queues a batch before reading authorization and preserves nested retry marks', async () => {
+    const failure = markRetryQueueKey(
+      Object.assign(new Error('concurrent audit write'), { code: '40001' }),
+      'audit-chain:org-1',
+    );
+    vi.mocked(upsertTaskByExternalRef).mockRejectedValueOnce(failure);
+    vi.mocked(loadProjectOrThrow).mockImplementation(async () => {
+      expect(tx).toHaveBeenCalledWith(
+        expect.anything(),
+        RETRY_QUEUE_LOCK_CLASS,
+        'task-issue-import:org-1:project-1',
+      );
+      return {
+        id: 'project-1',
+        organizationId: 'org-1',
+        archivedAt: null,
+      } as never;
+    });
+    await pgTaskStore(sql).upsertIssues({
+      organizationId: 'org-1',
+      projectId: 'project-1',
+      caller: workflow,
+      issues: [
+        {
+          externalSystem: 'github',
+          externalId: 'example/web#1',
+          title: 'Issue',
+        },
+      ],
+    });
+    expect(retryQueueKeysOf(failure)).toEqual([
+      'task-issue-import:org-1:project-1',
+      'audit-chain:org-1',
+    ]);
+    expect(tx).toHaveBeenCalledTimes(2);
   });
 
   it.each(['40001', '40P01'])(

@@ -1,4 +1,8 @@
-import { transactSerializable } from '@tale/shared/db/serializable';
+import {
+  markRetryQueueKey,
+  RETRY_QUEUE_LOCK_CLASS,
+  transactSerializable,
+} from '@tale/shared/db/serializable';
 import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -24,6 +28,20 @@ import {
   loadTaskOrThrow,
   TaskError,
 } from '../tasks/service.ts';
+
+function issueImportQueueKey(
+  organizationId: string,
+  projectId: string,
+): string {
+  return `task-issue-import:${organizationId}:${projectId}`;
+}
+
+async function lockIssueImportQueue(
+  tx: TransactionSql,
+  key: string,
+): Promise<void> {
+  await tx`SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${key}))`;
+}
 
 /** The task natives over the 0.5 tasks domain — trusted writes (the
  * connector door's callers own authorization), the 0.4 platform-store
@@ -101,31 +119,42 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
     });
   return {
     async upsertIssues({ organizationId, caller, projectId, issues }) {
+      const queueKey = issueImportQueueKey(organizationId, projectId);
       return transactSerializable(sql, async (tx) => {
-        await authorizeProject(tx, organizationId, projectId, caller);
-        const ordered = issues
-          .map((issue, index) => ({ issue, index }))
-          .sort((left, right) =>
-            `${left.issue.externalSystem}:${left.issue.externalIssue?.id ?? left.issue.externalId}`.localeCompare(
-              `${right.issue.externalSystem}:${right.issue.externalIssue?.id ?? right.issue.externalId}`,
-            ),
-          );
-        const results = [];
-        for (const { issue, index } of ordered) {
-          const result = await persistIssue(
-            tx,
-            organizationId,
-            caller,
-            projectId,
-            issue,
-          );
-          results.push({ index, value: { ...result, title: issue.title } });
+        try {
+          // Overlapping imports touch the same source and project rows. A
+          // transaction lock alone cannot refresh a serializable snapshot;
+          // mark conflicts so the shared retry queue takes this lock before
+          // opening the retry's snapshot, ahead of any inner audit locks.
+          await lockIssueImportQueue(tx, queueKey);
+          await authorizeProject(tx, organizationId, projectId, caller);
+          const ordered = issues
+            .map((issue, index) => ({ issue, index }))
+            .sort((left, right) =>
+              `${left.issue.externalSystem}:${left.issue.externalIssue?.id ?? left.issue.externalId}`.localeCompare(
+                `${right.issue.externalSystem}:${right.issue.externalIssue?.id ?? right.issue.externalId}`,
+              ),
+            );
+          const results = [];
+          for (const { issue, index } of ordered) {
+            const result = await persistIssue(
+              tx,
+              organizationId,
+              caller,
+              projectId,
+              issue,
+            );
+            results.push({ index, value: { ...result, title: issue.title } });
+          }
+          return results
+            .sort((left, right) => left.index - right.index)
+            .map((result) => result.value);
+        } catch (error) {
+          throw markRetryQueueKey(error, queueKey);
         }
-        return results
-          .sort((left, right) => left.index - right.index)
-          .map((result) => result.value);
       });
     },
+
     async listExternalIssues({
       organizationId,
       caller,
@@ -138,6 +167,13 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       legacyPrefixes,
     }) {
       return sql.begin(async (tx) => {
+        // Selection now writes its own attempt clock. Share the batch queue
+        // so refresh bookkeeping and source upserts never lock a project's
+        // task rows in opposite orders.
+        await lockIssueImportQueue(
+          tx,
+          issueImportQueueKey(organizationId, projectId),
+        );
         await authorizeProject(tx, organizationId, projectId, caller);
         const rows = await tx<
           { taskId: string; externalId: string; externalIssue: unknown }[]
@@ -155,11 +191,38 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
                   THEN starts_with(lower(external_id), lower(prefix))
                   ELSE starts_with(external_id, prefix) END
               )) )
-          ORDER BY COALESCE((external_issue->>'syncedAt')::bigint, 0) ASC, id ASC
+          ORDER BY GREATEST(
+            COALESCE(external_issue_refresh_attempted_at_ms, 0),
+            COALESCE((external_issue->>'syncedAt')::bigint, 0)
+          ) ASC, id ASC
           LIMIT ${limit + 1}
         `;
+        const selected = rows.slice(0, limit);
+        if (selected.length > 0) {
+          // This records a scheduling attempt, not a successful source read.
+          // Missing legacy rows and failed reads must rotate behind unchecked
+          // rows without inventing a snapshot or changing local task activity.
+          // Move behind the project's entire effective queue, including
+          // clocks ahead of this replica after a wall-clock rollback. A
+          // per-row increment alone can leave a legacy row ahead forever.
+          await tx`
+            UPDATE app.tasks SET external_issue_refresh_attempted_at_ms = GREATEST(
+              COALESCE(external_issue_refresh_attempted_at_ms, 0) + 1,
+              ${Date.now()}, queue.next_clock
+            )
+            FROM (
+              SELECT COALESCE(MAX(GREATEST(
+                COALESCE(external_issue_refresh_attempted_at_ms, 0),
+                COALESCE((external_issue->>'syncedAt')::bigint, 0)
+              )), 0) + 1 AS next_clock
+              FROM app.tasks WHERE org_id = ${organizationId} AND project_id = ${projectId}
+            ) AS queue
+            WHERE app.tasks.org_id = ${organizationId} AND app.tasks.project_id = ${projectId}
+              AND app.tasks.id IN ${tx(selected.map((row) => row.taskId))}
+          `;
+        }
         return {
-          issues: rows.slice(0, limit).map((row) => ({
+          issues: selected.map((row) => ({
             taskId: row.taskId,
             externalId: row.externalId,
             externalIssue:
