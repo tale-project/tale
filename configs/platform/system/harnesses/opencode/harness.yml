@@ -20,6 +20,7 @@ credentialPolicy:
   byo: false
 credentialEnvKeys:
   - TALE_GATEWAY_TOKEN
+gatewayWire: openai-chat
 modelIdDialect: vendor-native
 promptTransport: argv
 capabilities:

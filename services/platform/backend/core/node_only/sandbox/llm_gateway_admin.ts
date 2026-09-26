@@ -45,6 +45,7 @@ import {
 import { resolveHostAddresses } from '../../../../lib/net/safe-fetch';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
+import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 import type { GatewaySpendReading } from './gateway_key_settlement';
@@ -152,46 +153,10 @@ function managementHeaders(): Record<string, string> {
   };
 }
 
-/** Provider names the gateway serves with a BUILT-IN implementation (its own
- * base URL + request shaping). Mirrors the gateway's `StandardProviders`
- * (maximhq/bifrost core/schemas/bifrost.go @ core/v1.5.13). This is NOT an
- * allowlist of permitted providers — any connector can be provisioned; it is
- * the set the gateway RESERVES: it rejects `custom_provider_config` on these
- * names (400) and overriding their `network_config.base_url` breaks the
- * built-in URL construction. A standard provider keeps native dispatch;
- * every other connector is provisioned as a custom OpenAI-compatible (or
- * Anthropic-format) upstream. */
-const LLM_GATEWAY_STANDARD_PROVIDERS = new Set([
-  'openai',
-  'azure',
-  'anthropic',
-  'bedrock',
-  'cohere',
-  'vertex',
-  'mistral',
-  'ollama',
-  'groq',
-  'sgl',
-  'parasail',
-  'perplexity',
-  'cerebras',
-  'gemini',
-  'openrouter',
-  'elevenlabs',
-  'huggingface',
-  'nebius',
-  'xai',
-  'replicate',
-  'vllm',
-  'runway',
-  'fireworks',
-]);
-
-/** Whether the gateway has a built-in implementation for this provider name
- * (and so owns its wire format + rejects custom_provider_config). */
-export function isStandardGatewayProvider(name: string): boolean {
-  return LLM_GATEWAY_STANDARD_PROVIDERS.has(name);
-}
+// The gateway's built-in provider set lives in lib/shared/providers (the
+// serving resolver reads it too); re-exported so this module stays the
+// gateway-facing entry point for the provisioner and the mint.
+export { isStandardGatewayProvider };
 
 /** Gateway provider name for a CUSTOM connector's per-(org, model) upstream.
  * The model's effective (baseUrl, apiFormat, key) lives on its own provider
@@ -213,10 +178,11 @@ function customGatewayProviderName(
   modelId: string,
   anthropicHarnessLane = false,
 ): string {
-  // An anthropic-wire harness (Claude Code) on a connector that declares a
-  // native Anthropic harness endpoint rides a DISTINCT record so its upstream
-  // (base_provider_type: anthropic) never overwrites the OpenAI record other
-  // harnesses use for the same (org, model). `__anthropic` is a safe suffix:
+  // A harness on the Anthropic-wire lane (Claude Code; Codex on a chat-only
+  // upstream) of a connector that declares a native Anthropic harness endpoint
+  // rides a DISTINCT record so its upstream (base_provider_type: anthropic)
+  // never overwrites the OpenAI record other harnesses use for the same
+  // (org, model). `__anthropic` is a safe suffix:
   // `/` is still stripped below, and the segment stays one gateway record name.
   const base = `${organizationId}__${slug}__${modelId}`;
   return (anthropicHarnessLane ? `${base}__anthropic` : base).replace(
@@ -235,10 +201,11 @@ export interface GatewayRouting {
 
 /** Extra routing inputs beyond the (org, connector, model) triple. */
 export interface GatewayRoutingOpts {
-  /** The requesting harness speaks the Anthropic wire to the gateway AND the
-   * connector declares a native Anthropic harness endpoint, so this session
-   * rides a distinct per-model record (`…__anthropic`) whose upstream is that
-   * endpoint. A STANDARD connector that declares one (OpenRouter's Anthropic
+  /** The connector declares a native Anthropic harness endpoint AND the
+   * requesting harness should ride it (it speaks the Anthropic wire, or the
+   * Responses wire onto a chat-only upstream — `agent_serving.ts` decides), so
+   * this session rides a distinct per-model record (`…__anthropic`) whose
+   * upstream is that endpoint. A STANDARD connector that declares one (OpenRouter's Anthropic
    * Messages door) takes the same org-scoped record: the gateway's built-in
    * implementation of the vendor only speaks the OpenAI wire to it, so the
    * native pass-through needs a custom record of its own. Only serving sets
@@ -288,7 +255,8 @@ export interface AllowedModelRef {
   providerSlug: string;
   modelId: string;
   /** Route this model through the connector's native Anthropic harness
-   * endpoint (Claude Code lane). See {@link GatewayRoutingOpts}. */
+   * endpoint (the Anthropic-wire lane — Claude Code, and Codex on a chat-only
+   * upstream). See {@link GatewayRoutingOpts}. */
   anthropicHarnessLane?: boolean;
 }
 

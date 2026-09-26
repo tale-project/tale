@@ -27,6 +27,9 @@ credentialPolicy:
 credentialEnvKeys:
   - OPENAI_API_KEY
   - TALE_GATEWAY_TOKEN
+# The pinned CLI speaks ONLY the OpenAI Responses API to the gateway (see the
+# `wire_api` note in the exec section).
+gatewayWire: openai-responses
 modelIdDialect: vendor-native
 promptTransport: stdin-text
 capabilities:

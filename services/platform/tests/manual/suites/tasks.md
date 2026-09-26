@@ -245,8 +245,13 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   turn. Last output: …** followed by the CLI's own last stderr lines (for
   Codex: `Error finding codex home …`) — never the bare exit code alone; no
   credential appears in the quoted output. With a healthy runtime, Codex +
-  DeepSeek starts and reaches the model (**Details** shows Codex announcing
-  its thread before the first model call).
+  DeepSeek starts, reaches the model and completes a tool-using run (a task
+  that asks the agent to list the workspace and report back settles
+  **Completed**; **Details** shows Codex announcing its thread, the tool
+  call and the report). A run the model's provider refuses mid-way names the
+  provider's own sentence and status as its reason (e.g. **… must be passed
+  back to the API. (API status 400)**) — never the agent's last narration
+  sentence.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -27,6 +27,7 @@ credentialEnvKeys:
   - ANTHROPIC_AUTH_TOKEN
   - ANTHROPIC_API_KEY
   - TALE_GATEWAY_TOKEN
+gatewayWire: anthropic
 modelIdDialect: vendor-native
 promptTransport: stdin-ndjson
 capabilities:

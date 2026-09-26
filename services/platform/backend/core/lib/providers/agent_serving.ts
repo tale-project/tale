@@ -29,6 +29,7 @@
  */
 
 import type {
+  HarnessGatewayWire,
   ModelCatalogEntry,
   ProviderDefinition,
 } from '@tale/shared/schemas/providers';
@@ -37,6 +38,7 @@ import {
   modelIdsEquivalent,
 } from '@tale/shared/utils/model-ref';
 
+import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import {
   buildHarnessTable,
   resolveExecution,
@@ -62,10 +64,12 @@ export type AgentTurnServing =
       lane: 'gateway';
       providerSlug: string;
       modelId: string;
-      /** The requesting harness speaks the Anthropic wire to the gateway AND
-       * this connector declares a native Anthropic harness endpoint, so the
-       * session rides that endpoint (a distinct `…__anthropic` record) instead
-       * of the OpenAI base. Absent/false ⇒ the OpenAI record. */
+      /** This connector declares a native Anthropic harness endpoint AND the
+       * requesting harness should ride it — it speaks the Anthropic wire, or
+       * the Responses wire onto a chat-only upstream (see
+       * `usesAnthropicHarnessEndpoint`) — so the session rides that endpoint
+       * (a distinct `…__anthropic` record) instead of the OpenAI base.
+       * Absent/false ⇒ the OpenAI record. */
       anthropicHarnessLane?: boolean;
     }
   | {
@@ -317,28 +321,42 @@ export async function walkDirectServing(
  * actionable reason — a pin NEVER falls back to another provider (the
  * silent-swap billing surprise is the defect the pin exists to close).
  */
-/** Whether a harness talks the Anthropic wire to the sandbox gateway — it
- * points ANTHROPIC_BASE_URL at the gateway's `/anthropic` path, declared by
- * ANTHROPIC_BASE_URL in its credentialEnvKeys. Today only Claude Code does. */
-function harnessSpeaksAnthropicWire(harness: string): boolean {
-  return (
-    loadHarnesses()
-      .find((def) => def.slug === harness)
-      ?.credentialEnvKeys.includes('ANTHROPIC_BASE_URL') ?? false
-  );
+/** The wire a harness speaks to the sandbox gateway on the managed lane: its
+ * declaration, else derived — a harness that points ANTHROPIC_BASE_URL at the
+ * gateway's `/anthropic` path speaks Anthropic, every other one chat. */
+function harnessGatewayWire(harness: string): HarnessGatewayWire {
+  const def = loadHarnesses().find((entry) => entry.slug === harness);
+  if (def?.gatewayWire !== undefined) return def.gatewayWire;
+  return def?.credentialEnvKeys.includes('ANTHROPIC_BASE_URL') === true
+    ? 'anthropic'
+    : 'openai-chat';
 }
 
 /** The gateway serving should ride the connector's native Anthropic harness
- * endpoint (a distinct `…__anthropic` gateway record): the harness speaks the
- * Anthropic wire and the connector declares such an endpoint. Otherwise the
- * OpenAI base serves — an OpenAI-wire harness never crosses onto it. */
+ * endpoint (a distinct `…__anthropic` gateway record). The connector must
+ * declare one; then:
+ *
+ *  - an Anthropic-wire harness (Claude Code) rides it, so the gateway passes
+ *    Anthropic through instead of down-converting it;
+ *  - a Responses-wire harness (Codex) rides it when the gateway would
+ *    otherwise serve the connector as a CUSTOM chat-only upstream: that
+ *    Responses→Chat translation cannot round-trip a thinking model's
+ *    reasoning (the CLI echoes only `summary`/`encrypted_content`, the
+ *    translation emits neither), so the upstream refused every tool-loop turn
+ *    (DeepSeek 400 "`reasoning_content` … must be passed back", 2026-09-26);
+ *    Responses→Anthropic keeps the loop intact. A STANDARD gateway provider
+ *    keeps its built-in implementation, which owns the Responses wire itself;
+ *  - a chat-wire harness keeps the OpenAI base — its own wire IS the
+ *    upstream's, nothing to translate. */
 function usesAnthropicHarnessEndpoint(
   harness: string,
-  connector: { harnessEndpoint?: { apiFormat: string } },
+  connector: { name: string; harnessEndpoint?: { apiFormat: string } },
 ): boolean {
+  if (connector.harnessEndpoint?.apiFormat !== 'anthropic') return false;
+  const wire = harnessGatewayWire(harness);
+  if (wire === 'anthropic') return true;
   return (
-    connector.harnessEndpoint?.apiFormat === 'anthropic' &&
-    harnessSpeaksAnthropicWire(harness)
+    wire === 'openai-responses' && !isStandardGatewayProvider(connector.name)
   );
 }
 
