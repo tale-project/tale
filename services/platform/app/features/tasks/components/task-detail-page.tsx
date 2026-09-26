@@ -15,6 +15,7 @@ import { PageLayout } from '@tale/ui/page-layout';
 import { useNavigate } from '@tanstack/react-router';
 import { KanbanSquare } from 'lucide-react';
 
+import { DashboardNotFound } from '@/app/components/layout/dashboard-not-found';
 import { useT } from '@/lib/i18n/client';
 
 import { useTask } from '../hooks/queries';
@@ -29,7 +30,7 @@ export function TaskDetailPage({
 }) {
   const { t } = useT('tasks');
   const navigate = useNavigate();
-  const { task } = useTask(taskId);
+  const { task, isLoading } = useTask(taskId);
 
   const openBoard = () => {
     if (task === null) return;
@@ -38,6 +39,12 @@ export function TaskDetailPage({
       params: { id: organizationId, projectId: task.projectId },
     });
   };
+
+  // Deleted, never there, or out of reach: the platform's dead end with its
+  // way out, not a blank column without a header or a back button.
+  if (!isLoading && task === null) {
+    return <DashboardNotFound organizationId={organizationId} />;
+  }
 
   return (
     <PageLayout className="overflow-hidden">
