@@ -16,6 +16,7 @@ import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -75,9 +76,11 @@ function HarnessRow({
             </span>
           </SkeletonBox>
         ) : (
+          // The way out (add a credential above) is said once, over the
+          // list; each runtime only says where it stands.
           <SkeletonBox asChild>
             <span className="text-muted-foreground text-xs">
-              {t('providers.harnesses.noDirectCredential')}
+              {t('providers.harnesses.noModel')}
             </span>
           </SkeletonBox>
         )}
@@ -128,6 +131,12 @@ export function HarnessStatusSection({
         />
       ) : (
         <Skeletonize loading={statusQuery.isPending}>
+          {!statusQuery.isPending &&
+            statusQuery.data.some((row) => !row.managed.available) && (
+              <Text variant="muted" className="text-sm">
+                {t('providers.harnesses.noDirectCredential')}
+              </Text>
+            )}
           <ul className="border-border divide-border divide-y rounded-lg border">
             {(statusQuery.isPending ? LOADING_HARNESSES : statusQuery.data).map(
               (row) => (

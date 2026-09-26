@@ -5994,6 +5994,7 @@ settings:
       noDirectCredential:
         Aucun identifiant de fournisseur directement utilisable — ajoute une
         clé API ou une variable d'environnement ci-dessus.
+      noModel: Pas encore de modèle
       degraded: En échec récemment
       subscriptionVia: Abonnement · {provider}
       subscriptionInert: Abonnement · {provider} — inutilisable, ce harness ne tourne qu'avec des identifiants gérés

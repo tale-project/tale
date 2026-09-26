@@ -297,8 +297,9 @@ any toggled setting after the run.
   (`settings.credentials.enable`) the credential on the providers page, then
   revisit each surface without reloading → the **Agent runtimes** rows
   (`settings.providers.harnesses.title`) trade
-  `settings.providers.harnesses.noDirectCredential` for a model count
-  (`settings.providers.harnesses.modelPool`); the agent **Model** picker
+  `settings.providers.harnesses.noModel` for a model count
+  (`settings.providers.harnesses.modelPool`) and the one note above them
+  (`settings.providers.harnesses.noDirectCredential`) leaves; the agent **Model** picker
   lists the provider's models; **Governance → Models** names the model that
   reads images (`governance.visionModel.resolved.*`, no longer
   `governance.visionModel.resolvedNone`); **Data residency** offers the

@@ -5994,6 +5994,7 @@ settings:
       noDirectCredential:
         No directly usable provider credential yet — add an API key or an
         environment credential above.
+      noModel: No model yet
       degraded: Recently failing
       subscriptionVia: Subscription · {provider}
       subscriptionInert: Subscription · {provider} — not usable, this harness runs managed credentials only
