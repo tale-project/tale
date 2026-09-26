@@ -1,14 +1,16 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 36 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
 mentions, attachments, dependencies, assignee), and the agent loop: start a
 run, watch the step timeline and live transcript, receive outputs, and decide
-the review. Deepens projects.md F21 (run visibility) and owns the board/run
-loop; project/agent creation is [projects.md](projects.md)'s job, the
-notification side of reviews is [notifications.md](notifications.md)'s.
+the review — plus the **task page**, where Home opens a task: the same task
+read as a conversation, beside the Home panel. Deepens projects.md F21 (run
+visibility) and owns the board/run loop; project/agent creation is
+[projects.md](projects.md)'s job, the notification side of reviews is
+[notifications.md](notifications.md)'s.
 
 ## Scope & routes
 
@@ -18,10 +20,13 @@ notification side of reviews is [notifications.md](notifications.md)'s.
 | Board          | `/dashboard/{org}/projects/{projectId}/tasks/board`                             |
 | List           | `/dashboard/{org}/projects/{projectId}/tasks/list`                              |
 | Backlog (gone) | `/dashboard/{org}/projects/{projectId}/tasks/backlog` (redirects to `…/board`)  |
+| Task page      | `/dashboard/{org}/tasks/{taskId}` (Home's rows open a task here)                |
 
 The backlog **tab** was retired — Backlog is a status lane on the board/list
-again (TASK-F1 asserts the redirect). A task deep-links via `?task={taskId}`
-(the target of notification rows); there is no per-task URL segment.
+again (TASK-F1 asserts the redirect). On the board a task deep-links via
+`?task={taskId}` (the target of notification rows) and opens in the task
+dialog; Home opens a task on its own page, `/dashboard/{org}/tasks/{taskId}`,
+which carries the same fields in a different frame (TASK-F20–TASK-F25).
 
 ## Preconditions
 
@@ -190,6 +195,74 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   `predecessor … reap` line ahead of the new exec's start — never two CLIs
   writing one workspace.
 
+### The task page
+
+- [ ] `TASK-F19` · **Your tasks in Home** — Assign yourself an open task in two
+  projects, make a third task (assigned to someone else) wait **In review**
+  with you as its reviewer, and set a fourth task of yours to **Done**; then
+  pick **Tasks** (`home.views.tasks`) in the Home panel → It lists the first
+  three and not the Done one — only open work (Backlog, To do, In progress,
+  In review) assigned to you or waiting on your review, never an archived
+  task — each row with its status glyph, its title, its key (such as
+  `WEB-12`, when the project has a key) and its status; the review task reads
+  **Waiting for your review**
+  (`home.row.awaitingReview`) with the blue dot, and the **Tasks** option
+  carries the attention dot until you decide it. Clicking a row opens
+  `/dashboard/{org}/tasks/{taskId}`.
+- [ ] `TASK-F20` · **The page's frame** — Open a task from Home → Beside the
+  Home panel, one header: the **Hide sidebar** toggle (`home.panel.hide`),
+  the task's status glyph, its title (click it, type, Enter — the new title
+  survives a reload), and under it the project · key · status line (plus
+  **Archived** for an archived task); at the right a **Board** button
+  (`tasks.detail.openBoard`, icon only on a phone) and the details toggle
+  (`tasks.detail.hideDetails` / `tasks.detail.showDetails`). A card with the
+  brief — description, attachments, subtasks — leads the column, the
+  conversation follows, and the composer sits at the foot; the page opens
+  scrolled to the newest end. The browser tab's title starts with **Task**
+  (`metadata.task.title`).
+- [ ] `TASK-F21` · **The task's conversation** — On a task with a few comments,
+  a status change, an assignment and an agent run spread over several days →
+  Under **Conversation** (`tasks.detail.conversation`) the comments and what
+  happened to the task read as one column, oldest first with the newest at
+  the foot, each day under its own date pill; a comment never appears a
+  second time as a "comment added" event; with more comments than the first
+  page holds, **Show earlier comments** (`tasks.detail.showEarlierComments`)
+  sits at the top and loads them, and no event older than the loaded
+  comments shows until it has. An empty thread invites the first comment
+  (`tasks.detail.conversationEmpty`); a reader who may not comment sees
+  `tasks.detail.noComments` instead.
+- [ ] `TASK-F22` · **Comment from the page** — In the composer (placeholder
+  `tasks.actions.commentPlaceholder`) write a comment with an `@`-mention of a
+  member; send it with ⌘/Ctrl+Enter, then write another and send it with the
+  round button (**Comment**, `tasks.actions.comment`) → A bare Enter adds a
+  line; the hint under the field names the shortcut
+  (`tasks.actions.commentShortcut`); the send button stays disabled while the
+  field is empty; each comment lands at the foot of the conversation, in
+  view, and survives a reload; an agent mention shows its chip
+  (`tasks.mentionPreview.willRespond`) before sending, as in the board
+  dialog. A reader who may not comment gets no composer.
+- [ ] `TASK-F23` · **Details panel** — Press **Hide details**
+  (`tasks.detail.hideDetails`), reload, open another task, then **Show
+  details** (`tasks.detail.showDetails`) → The side panel **Details**
+  (`tasks.detail.details`) — status, assignee, reviewer, priority, labels,
+  dates, dependencies, the run — folds away and back; the choice survives the
+  reload and holds for every task page on this device; a field edited there
+  saves on change, as in the board dialog. Its **Project** field
+  (`tasks.fields.project`) links to the task on its project's board
+  (`?task=`), where the dialog opens on it.
+- [ ] `TASK-F24` · **From the page to the board** — Press **Board**
+  (`tasks.detail.openBoard`) → You land on the project's tasks
+  (`/dashboard/{org}/projects/{projectId}/tasks`, the last-used view) with the
+  Home panel still beside you and the project's row current in its Projects
+  section; open the same task there → it opens in the board's task dialog,
+  unchanged, with the same values the page showed.
+- [ ] `TASK-F25` · **Task details on a phone** — At 390 px open a task from the
+  Home list and press **Show details** (`tasks.detail.showDetails`) → The
+  details (`tasks.detail.details`) slide up as a bottom sheet over the
+  conversation — no docked panel; Escape or a swipe down closes it and focus
+  returns to the **Show details** button; the header's back arrow
+  (`common.aria.back`) returns to `/dashboard/{org}/home`.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -229,6 +302,14 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   offered but no automatic retry follows (the run stays failed); raising the
   rule and retrying starts the run, and the run's cost then appears under
   **Governance > Usage** for the person who started it.
+- [ ] `TASK-B6` · **A task page that leads nowhere** — Open
+  `/dashboard/{org}/tasks/{taskId}` for a task that was deleted, for an id
+  that never existed, and for a task in a project you cannot read → Once the
+  read answers, the page shows **Page not found** (`common.notFound.title`)
+  with **Back to dashboard** (`common.notFound.backToDashboard`), which leads
+  to `/dashboard/{org}`, beside the Home panel — never a blank column without
+  a header or a way back. While the read is still on its way the page shows
+  no dead end.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -242,6 +323,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   labelled (`tasks.fields.*`)
 - [ ] `TASK-A3` · **Mentions** → The mention popup is a labelled listbox
   (`tasks.mentionPicker.title`) navigable by arrows/Enter.
+- [ ] `TASK-A4` · **Task page structure** → The page has one `h1` naming the
+  task, and the editable title's control is named **Title**
+  (`tasks.fields.title`); the conversation is a region named
+  **Conversation** (`tasks.detail.conversation`); the details panel is an
+  `aside` named **Details** (`tasks.detail.details`) that leaves the tab order
+  while folded; the details toggle exposes `aria-expanded` and
+  `aria-controls`; the round send button is named **Comment**
+  (`tasks.actions.comment`); everything is reachable by keyboard in reading
+  order, header first.
 
 ## Performance
 

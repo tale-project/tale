@@ -1,12 +1,14 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 36 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
-threads, agents, instructions, secrets, metrics, automations), and the task
+threads, agents, instructions, secrets, metrics, automations), the task
 board/list (backlog is the leftmost lane) with the task detail sheet and the
-cascade-delete confirmation. Mock-LLM stack; no real provider needed for these
-flows.
+cascade-delete confirmation, and the **Projects** section of the Home panel —
+the doors into every project, beside every Home route. Projects have no rail
+tile of their own: they live in Home. Mock-LLM stack; no real provider needed
+for these flows.
 
 ## Scope & routes
 
@@ -247,6 +249,27 @@ projects-list row ⋯ menu.
   a team on **General** asks for confirmation that members outside the
   remaining teams lose access before it saves; clearing every team makes the
   row read `projects.list.sharingOrgWide`.
+- [ ] `PROJ-F25` · **Projects in the Home panel** — With four projects, one
+  pinned, open the Home panel's **All** view and click a project row → The
+  **Projects** section (`home.projects.title`) lists every project you can
+  see, the pinned one first and the rest A→Z, each with its avatar; the row
+  opens `/dashboard/{org}/projects/{projectId}` and stays marked current
+  (`aria-current="page"`) while you are anywhere in that project; **All
+  projects** (`home.projects.allProjects`) opens `/dashboard/{org}/projects`;
+  **New project** (`home.projects.newProject`) opens the **Create project**
+  dialog (`projects.create.title`), and the new project joins the section
+  without a reload. The section's header collapses it (the count shows beside
+  the title) and the choice survives a reload; a member of no project reads
+  **No projects yet** (`home.projects.empty`); only the Inbox view hides the
+  section.
+- [ ] `PROJ-F26` · **A project row's menu** — Hover a project row and open
+  **Actions for {project}** (`home.projects.actions`) → **New chat**
+  (`chat.newChat`) opens a fresh composer bound to that project
+  (`/chat?projectId=…`), whose first message files the chat under the project
+  (its row and header then name the project); **Pin project**
+  (`chat.pinProject`) lifts it to the top of the section with a pin mark and
+  survives a reload, and **Unpin project** (`chat.unpinProject`) puts it back
+  in A→Z order.
 
 ## Boundary & error tests
 
