@@ -44,7 +44,7 @@ it.each(['github-import-issues', 'glitchtip-import-issues'])(
     );
     expect(
       await screen.findByText(
-        '2 issues processed. New tasks: 1. Existing tasks: 1.',
+        'Processed issues: 2. New tasks: 1. Existing tasks: 1.',
       ),
     ).toBeVisible();
     expect(
@@ -55,6 +55,28 @@ it.each(['github-import-issues', 'glitchtip-import-issues'])(
     ).toHaveAttribute('href', '/dashboard/org-1/tasks/task-2');
   },
 );
+
+it.each([0, 1, 2])('renders count labels for %i processed issues', (count) => {
+  render(
+    <IssueImportResult
+      organizationId="org-1"
+      automationSlug="github-import-issues"
+      output={{
+        ...output,
+        imported: count,
+        created: count,
+        updated: 0,
+        tasks: [],
+      }}
+      mock
+    />,
+  );
+  expect(
+    screen.getByText(
+      `Processed issues: ${count}. New tasks: ${count}. Existing tasks: 0.`,
+    ),
+  ).toBeVisible();
+});
 
 it('labels mock output without linking to nonexistent tasks and explains a partial import', () => {
   render(

@@ -562,7 +562,7 @@ automations:
       query: Recherche GlitchTip
       limit: Nombre maximal d'issues
     resultTitle: Tâches importées
-    summary: '{imported} issues traitées. Nouvelles tâches : {created}. Tâches existantes : {updated}.'
+    summary: 'Issues traitées : {imported}. Nouvelles tâches : {created}. Tâches existantes : {updated}.'
     mockResult: Ceci est un résultat de test. Aucune issue n'a été récupérée et aucune tâche n'a été écrite.
     openTask: 'Ouvrir la tâche {id}'
     truncated: 'D''autres issues correspondent aux filtres. Poursuis l''import pour lire le lot suivant. Les issues déjà liées réutilisent leurs tâches Tale.'

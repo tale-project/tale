@@ -555,7 +555,7 @@ automations:
       query: GlitchTip-Suche
       limit: Maximale Anzahl an Issues
     resultTitle: Importierte Aufgaben
-    summary: '{imported} Issues verarbeitet. Neue Aufgaben: {created}. Vorhandene Aufgaben: {updated}.'
+    summary: 'Verarbeitete Issues: {imported}. Neue Aufgaben: {created}. Vorhandene Aufgaben: {updated}.'
     mockResult: Dies ist ein Testergebnis. Es wurden keine Issues abgerufen und keine Aufgaben geschrieben.
     openTask: 'Aufgabe {id} öffnen'
     truncated: 'Weitere Issues passen zu den Filtern. Setze den Import mit dem nächsten Stapel fort. Bereits verknüpfte Issues verwenden ihre Tale-Aufgaben weiter.'

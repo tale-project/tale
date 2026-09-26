@@ -524,7 +524,7 @@ automations:
       query: GlitchTip search
       limit: Maximum issues
     resultTitle: Imported tasks
-    summary: '{imported} issues processed. New tasks: {created}. Existing tasks: {updated}.'
+    summary: 'Processed issues: {imported}. New tasks: {created}. Existing tasks: {updated}.'
     mockResult: This is a test result. No issues were fetched and no tasks were written.
     openTask: 'Open task {id}'
     truncated: 'More issues match. Continue the import to read the next batch. Previously linked issues reuse their Tale tasks.'
