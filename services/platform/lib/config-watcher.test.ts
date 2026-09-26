@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -73,13 +73,23 @@ describe('createConfigWatcher', () => {
     await watcher?.close();
     watcher = undefined;
     await rm(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
   });
 
   /** A tree with one org + domain dir already present, then a live watcher
    * on it: the writes below exercise change reporting, not dir discovery. */
-  async function start(coalesceMs: number): Promise<ConfigChangeEvent[]> {
+  async function start(
+    coalesceMs: number,
+    initialFile = false,
+  ): Promise<ConfigChangeEvent[]> {
     dir = await mkdtemp(join(tmpdir(), 'tale-config-watcher-'));
     await mkdir(join(dir, 'acme', 'agents', '.history'), { recursive: true });
+    if (initialFile) {
+      await writeFile(
+        join(dir, 'acme', 'agents', 'coder.yml'),
+        'name: Before\n',
+      );
+    }
     watcher = createConfigWatcher(dir, { coalesceMs });
     const events: ConfigChangeEvent[] = [];
     watcher.onChange((event) => events.push(event));
@@ -88,8 +98,7 @@ describe('createConfigWatcher', () => {
   }
 
   it('reports a config write as one event for the item', async () => {
-    // A wide window so every fs event of the write (add, change, the
-    // atomic-write rename) provably lands inside it — one invalidation.
+    // A wide window coalesces the add and change into one invalidation.
     const events = await start(500);
     const file = join(dir, 'acme', 'agents', 'coder.yml');
     await writeFile(file, 'name: Coder\n');
@@ -106,6 +115,126 @@ describe('createConfigWatcher', () => {
     );
     await new Promise((resolve) => setTimeout(resolve, 600));
     expect(events.filter((e) => e.slug === 'coder')).toHaveLength(1);
+  });
+
+  it('reports an atomic replacement and subsequent edits to the new inode', async () => {
+    const events = await start(50, true);
+    const file = join(dir, 'acme', 'agents', 'coder.yml');
+    const temporary = join(dir, 'acme', 'agents', '.coder.yml.1.tmp');
+    expect(events).toEqual([]);
+    await writeFile(temporary, 'name: Replacement\n');
+    await rename(temporary, file);
+    await vi.waitFor(
+      () =>
+        expect(events).toContainEqual({
+          type: 'agents',
+          orgSlug: 'acme',
+          slug: 'coder',
+        }),
+      { timeout: 10_000 },
+    );
+    events.length = 0;
+    await writeFile(file, 'name: Replacement\ndescription: edited again\n');
+    await vi.waitFor(
+      () =>
+        expect(events).toContainEqual({
+          type: 'agents',
+          orgSlug: 'acme',
+          slug: 'coder',
+        }),
+      { timeout: 10_000 },
+    );
+    expect(events.every((event) => event.slug === 'coder')).toBe(true);
+  });
+
+  it('discovers a new org, domain and nested bundle written in one burst', async () => {
+    const events = await start(50);
+    const scripts = join(dir, 'second-org', 'skills', 'summarize', 'scripts');
+    await mkdir(scripts, { recursive: true });
+    await writeFile(join(scripts, 'run.py'), 'print("hello")\n');
+    await vi.waitFor(
+      () =>
+        expect(events).toContainEqual({
+          type: 'skills',
+          orgSlug: 'second-org',
+          slug: 'summarize',
+        }),
+      { timeout: 10_000 },
+    );
+    events.length = 0;
+    await writeFile(join(scripts, 'run.py'), 'print("updated")\n');
+    await vi.waitFor(
+      () =>
+        expect(events).toContainEqual({
+          type: 'skills',
+          orgSlug: 'second-org',
+          slug: 'summarize',
+        }),
+      { timeout: 10_000 },
+    );
+    expect(events.every((event) => event.orgSlug === 'second-org')).toBe(true);
+  });
+
+  it('reports deletion and watches a recreated domain', async () => {
+    const events = await start(50, true);
+    const agents = join(dir, 'acme', 'agents');
+    await rm(agents, { recursive: true });
+    await vi.waitFor(
+      () => expect(events).toContainEqual({ type: 'agents', orgSlug: 'acme' }),
+      { timeout: 10_000 },
+    );
+    events.length = 0;
+    await mkdir(agents);
+    await writeFile(join(agents, 'helper.yml'), 'name: Helper\n');
+    await vi.waitFor(
+      () =>
+        expect(events).toContainEqual({
+          type: 'agents',
+          orgSlug: 'acme',
+          slug: 'helper',
+        }),
+      { timeout: 10_000 },
+    );
+  });
+
+  it('continues reporting after a subscriber throws', async () => {
+    const events = await start(50);
+    const failedSubscriber = vi.fn(() => {
+      throw new Error('subscriber failed');
+    });
+    const healthySubscriber = vi.fn();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    watcher?.onChange(failedSubscriber);
+    watcher?.onChange(healthySubscriber);
+    await writeFile(join(dir, 'acme', 'agents', 'coder.yml'), 'name: Coder\n');
+    await vi.waitFor(
+      () =>
+        expect(healthySubscriber).toHaveBeenCalledWith({
+          type: 'agents',
+          orgSlug: 'acme',
+          slug: 'coder',
+        }),
+      { timeout: 10_000 },
+    );
+    expect(failedSubscriber).toHaveBeenCalled();
+    expect(events.some((event) => event.slug === 'coder')).toBe(true);
+    expect(console.warn).toHaveBeenCalledWith(
+      '[config-watcher] onChange callback failed',
+      expect.any(Error),
+    );
+  });
+
+  it('can close during its initial scan, and close again', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'tale-config-watcher-'));
+    await mkdir(join(dir, 'acme', 'agents'), { recursive: true });
+    watcher = createConfigWatcher(dir);
+    const onChange = vi.fn();
+    watcher.onChange(onChange);
+    await watcher.close();
+    await watcher.close();
+    await writeFile(join(dir, 'acme', 'agents', 'coder.yml'), 'name: Coder\n');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('never emits for dot entries, and stops after close', async () => {

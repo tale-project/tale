@@ -124,6 +124,15 @@ export function createConfigWatcher(
 
   const watcher = watch(configDir, {
     ignoreInitial: true,
+    // macOS fs.watch can lose writes after registration: it starts on a
+    // separate native thread and exposes no readiness handshake. Chokidar's
+    // `ready` only covers the initial scan, so waiting longer cannot make
+    // that contract reliable (https://github.com/nodejs/node/issues/52601).
+    // Poll only this config tree on macOS; keep native watches elsewhere.
+    usePolling: process.platform === 'darwin',
+    interval: 100,
+    // Preserve atomic replacement normalization with either watch backend.
+    atomic: true,
     // Skip dot entries at the watch level too, so `.history/` trees cost no
     // inotify watches and temp files never reach the parser.
     ignored: (candidate) => {
