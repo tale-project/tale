@@ -1,7 +1,7 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
+import { DataTableActionMenu } from '@tale/ui/data-table/data-table-action-menu';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -329,7 +329,10 @@ export function TasksWorkspace({
 
   return (
     <ContentArea gap={4} className="flex h-full flex-col">
-      <Row gap={3} justify="between" wrap>
+      {/* The list pages' toolbar shape (DataTable's header): controls left,
+          the create action right at their h-9 height, and on a phone the
+          create action takes its own full-width row beneath them. */}
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <Row gap={2} wrap>
           <Tabs
             variant="pill"
@@ -357,20 +360,20 @@ export function TasksWorkspace({
             className="w-auto"
           />
         </Row>
-        <Row gap={2}>
-          {/* Read-only viewers can't create tasks (the server rejects the
-              write); hide the action rather than surface a doomed button.
-              All-projects mode has no single write target — Create stays off
-              even when canEdit is true (drag / pickers still work). */}
-          {(canEdit || (isFirstLoad && skeletonCanEdit)) && !allProjects && (
-            <Skeletonize loading={isFirstLoad} className="contents">
-              <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
-                {t('actions.create')}
-              </Button>
-            </Skeletonize>
-          )}
-        </Row>
-      </Row>
+        {/* Read-only viewers can't create tasks (the server rejects the
+            write); hide the action rather than surface a doomed button.
+            All-projects mode has no single write target — Create stays off
+            even when canEdit is true (drag / pickers still work). */}
+        {(canEdit || (isFirstLoad && skeletonCanEdit)) && !allProjects && (
+          <Skeletonize loading={isFirstLoad} className="contents">
+            <DataTableActionMenu
+              label={t('actions.create')}
+              icon={Plus}
+              onClick={() => setCreateOpen(true)}
+            />
+          </Skeletonize>
+        )}
+      </div>
 
       {isFirstLoad ? (
         <TasksSkeleton view={view} canEdit={skeletonCanEdit} />
