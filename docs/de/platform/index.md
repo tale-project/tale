@@ -26,7 +26,7 @@ Lesezeichen und geteilte Links zu einem bestimmten Projekt, einer Aufgabe oder e
 
 ### Deine Arbeit in Start finden {#home}
 
-**Start** bündelt deine Chats, Aufgaben, Projekte und Kundenkonversationen. Am Computer bleibt die Seitenleiste von **Start** neben jedem Chat, jeder Aufgabe, jedem Projekt und jeder Inbox-Seite stehen. Auf dem Smartphone öffnet **Start** dieselbe Liste als eigenen Bildschirm. Öffnest du von dort einen Chat, eine Aufgabe oder eine Konversation, bringt dich ein Zurück-Pfeil wieder zur Liste.
+**Start** bündelt deine Chats, Aufgaben, Projekte und Kundenkonversationen. Am Computer bleibt die Seitenleiste von **Start** neben jedem Chat, jeder Aufgabe, jedem Projekt und jeder Inbox-Seite stehen. Auf dem Smartphone öffnet **Start** dieselbe Liste als eigenen Bildschirm. Öffnest du von dort einen Chat, eine Aufgabe oder eine Konversation, hat die Seite nur eine Kopfzeile mit einem Zurück-Pfeil zur Liste, dem Titel und den Aktionen. Dein Profilmenü bleibt oben auf dem Bildschirm **Start** und in den **Einstellungen** erreichbar.
 
 Oben in der Seitenleiste startest du mit **Neuer Chat**, dem Stift neben dem Titel **Start**, einen Chat; der Tooltip der Schaltfläche zeigt das Tastenkürzel. Darunter legst du mit **Alle**, **Chats**, **Aufgaben** und **Inbox** fest, was die Liste zeigt. **Inbox** erscheint nur, wenn deine Organisation eine Inbox hat: eine live geschaltete Automatisierung, die E-Mails synchronisiert, oder eine API-App, die bereits eine Konversation synchronisiert hat.
 
@@ -38,11 +38,27 @@ Unter den Projekten ordnet eine einzige Liste deine Arbeit nach **Angeheftet**, 
 - Die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, aus allen Projekten, die du lesen darfst.
 - In **Alle** außerdem die offenen Inbox-Konversationen, die du sehen darfst.
 
-Jede Zeile beginnt mit einer Sprechblase, einem farbigen Kreis für den Status der Aufgabe oder den Initialen des Kontakts. Es folgen der Titel mit der Zeit seit der letzten Änderung und darunter eine Zeile Kontext: bei einem Chat sein Projekt, bei einer Aufgabe Kennung und Status wie `WEB-2` **In Prüfung** oder **Wartet auf dein Review**, bei einer Konversation der Kontakt mit seiner letzten Nachricht. Ein blauer Punkt markiert ungelesene Chats und Konversationen sowie Aufgaben, die auf dein Review warten. Das Menü eines Chats bietet **Chat anheften**, **Als gelesen markieren** oder **Als ungelesen markieren**, **Umbenennen**, **In Projekt verschieben…**, **Teilen**, bei einem geteilten Chat **Teilen beenden**, **Archivieren** und **Löschen**. Archivierte Chats wandern unter **Archiviert** ans Ende der Liste.
+Ist die Ansicht **Alle** oder **Chats** leer, bietet sie **Neuer Chat** an. Eine leere Ansicht **Aufgaben** bietet **Alle Projekte**, das die Projektliste öffnet.
+
+Jede Zeile beginnt mit einer Sprechblase, einem farbigen Kreis für den Status der Aufgabe oder den Initialen des Kontakts. Es folgen der Titel mit der Zeit seit der letzten Änderung und darunter eine Zeile Kontext: bei einem Chat sein Projekt, bei einer Aufgabe Kennung und Status wie `WEB-2` **In Prüfung** oder **Wartet auf dein Review**, bei einer Konversation der Kontakt mit seiner letzten Nachricht. Ein blauer Punkt markiert ungelesene Chats und Konversationen sowie Aufgaben, die auf dein Review warten. Ein Stift mit **Entwurf** am Anfang der Kontextzeile zeigt dir, wo du Text geschrieben, aber noch nicht gesendet hast – bei einem Chat, einer Aufgabe oder einer Konversation, nur nicht beim gerade geöffneten Eintrag. Entwürfe bleiben in dem Browser, in dem du sie geschrieben hast. Das Menü eines Chats bietet **Chat anheften**, **Als gelesen markieren** oder **Als ungelesen markieren**, **Umbenennen**, **In Projekt verschieben…**, **Teilen**, bei einem geteilten Chat **Teilen beenden**, **Archivieren** und **Löschen**. Archivierte Chats wandern unter **Archiviert** ans Ende der Liste.
 
 Die Ansicht **Inbox** zeigt die Konversationen eines Status. Im Statusmenü wählst du **Offen**, **Geschlossen**, **Spam** oder **Archiviert**. Dazu kommen **Neue E-Mail**, ein Suchfeld und die Schaltfläche **Filter** für **Zuständig**, **Lesestatus** und **Kanal**. Willst du mehrere Konversationen auf einmal bearbeiten, zeige auf die Initialen einer Konversation und setze das Häkchen, das dort erscheint. Die Leiste über der Liste bietet dann für offene Konversationen **Nachrichten senden**, **Schließen** und **Als Spam markieren**, für geschlossene und Spam-Konversationen **Erneut öffnen**, außerdem **Archivieren** oder **Dearchivieren** und **Auswahl aufheben**.
 
-Ein Chat, eine Aufgabe oder eine Konversation öffnet sich unter einer Kopfzeile mit Symbol, Titel, einer Zeile Kontext und den passenden Aktionen. **Seitenleiste ausblenden** am Anfang dieser Kopfzeile blendet die Seitenleiste von **Start** aus und schafft Platz; **Seitenleiste einblenden** holt sie zurück.
+Ein Chat, eine Aufgabe oder eine Konversation öffnet sich unter einer Kopfzeile mit Symbol, Titel, einer Zeile Kontext und den passenden Aktionen. **Seitenleiste ausblenden** am Anfang dieser Kopfzeile blendet die Seitenleiste von **Start** aus und schafft Platz; **Seitenleiste einblenden** holt sie zurück. Der Tooltip der Schaltfläche zeigt das Tastenkürzel. Bei einer Konversation steht **Link kopieren** an erster Stelle der Aktionen und kopiert einen Link, über den deine Kollegen dieselbe Konversation öffnen.
+
+### Tastenkürzel {#shortcuts}
+
+Am Computer bewegst du dich auch mit der Tastatur durch **Start** und öffnest die Suche:
+
+| Mac | Windows oder Linux | Wirkung |
+| --- | --- | --- |
+| **⌥⌘N** | **Alt+Ctrl+N** | Beginnt von jeder Seite aus einen neuen Chat. |
+| **⌘K** | **Ctrl+K** | Öffnet von jeder Seite aus die Suche, wie die Lupe in der Navigationsleiste. |
+| **⌘\\** | **Ctrl+\\** | Blendet die Seitenleiste von **Start** bei einem Chat, einer Aufgabe oder einer geöffneten Konversation aus oder ein. |
+| **⌥↑** oder **⌥↓** | **Alt+↑** oder **Alt+↓** | Öffnet den vorherigen oder nächsten Eintrag der aktuellen Ansicht, auch bei ausgeblendeter Seitenleiste. |
+| **↑** oder **↓** | **↑** oder **↓** | Springt zur Zeile darüber oder darunter, sobald eine Zeile der Seitenleiste den Tastaturfokus hat. |
+
+Ist aus der Liste nichts geöffnet, öffnet **⌥↓** (**Alt+↓**) ihren ersten Eintrag und **⌥↑** (**Alt+↑**) ihren letzten. In einem Textfeld behalten diese Tasten ihre gewohnte Funktion. Hat eine Zeile den Tastaturfokus, springen die Tasten **Pos1** und **Ende** zur ersten und letzten Zeile ihrer Liste, und **Enter** öffnet die fokussierte Zeile.
 
 ## Eine Funktion wählen
 

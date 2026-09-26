@@ -26,7 +26,7 @@ Bookmarks and shared links to a particular project, task, or document still open
 
 ### Find your work in Home {#home}
 
-Home keeps your chats, tasks, projects, and customer conversations together. On a computer, the Home panel stays beside every chat, task, project, and inbox page. On a phone, **Home** opens the same list as a screen of its own; a chat, task, or conversation you open from it shows a back arrow that returns to the list.
+Home keeps your chats, tasks, projects, and customer conversations together. On a computer, the Home panel stays beside every chat, task, project, and inbox page. On a phone, **Home** opens the same list as a screen of its own. A chat, task, or conversation you open from it has a single header: a back arrow that returns to the list, its title, and its actions. Your profile menu stays at the top of the Home screen and of Settings.
 
 At the top of the panel, **New chat**, the pencil beside the **Home** title, starts a chat; its tooltip shows the shortcut. Below it, **All**, **Chats**, **Tasks**, and **Inbox** switch what the list shows. **Inbox** appears only when your organization has an inbox: a deployed mail-sync automation, or an API app that has synced a conversation.
 
@@ -38,11 +38,27 @@ Below the projects, one list groups your work under **Pinned**, **Today**, **Yes
 - The open tasks assigned to you or waiting for your review, from every project you can read.
 - In **All**, the open inbox conversations you can see.
 
-Each row starts with a chat bubble, a colored circle for the task's status, or the customer's initials. The title follows with how long ago the item last changed, and one line of context below: the chat's project, the task's key and status such as `WEB-2` **In review** or **Waiting for your review**, or the customer and their latest message. A blue dot marks an unread chat or conversation and a task waiting for your review. A chat's menu offers **Pin chat**, **Mark as read** or **Mark as unread**, **Rename**, **Move to project…**, **Share**, **Stop sharing** for a shared chat, **Archive**, and **Delete**. Archived chats move to **Archived** at the bottom of the list.
+An empty **All** or **Chats** view offers **New chat**, and an empty **Tasks** view offers **All projects**, which opens the project list.
+
+Each row starts with a chat bubble, a colored circle for the task's status, or the customer's initials. The title follows with how long ago the item last changed, and one line of context below: the chat's project, the task's key and status such as `WEB-2` **In review** or **Waiting for your review**, or the customer and their latest message. A blue dot marks an unread chat or conversation and a task waiting for your review. **Draft** with a pencil at the start of the context line marks a chat, task, or conversation holding text you typed but have not sent, except the one you have open. Drafts stay in the browser you typed them in. A chat's menu offers **Pin chat**, **Mark as read** or **Mark as unread**, **Rename**, **Move to project…**, **Share**, **Stop sharing** for a shared chat, **Archive**, and **Delete**. Archived chats move to **Archived** at the bottom of the list.
 
 The **Inbox** view lists the conversations of one status: choose **Open**, **Closed**, **Spam**, or **Archived** in its status menu. It also offers **New email**, a search field, and a **Filter** button for **Assignee**, **Read status**, and **Channel**. To act on several conversations at once, point to a conversation's initials and tick the checkbox that appears. The bar above the list then offers **Send messages**, **Close**, and **Mark as spam** for open conversations, or **Reopen** for closed and spam ones, together with **Archive** or **Unarchive** and **Clear selection**.
 
-A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room; **Show sidebar** brings it back.
+A chat, task, or conversation opens under a header with its icon, its title, one line of context, and its actions. **Hide sidebar** at the start of that header folds the Home panel away for more room, and **Show sidebar** brings it back; the button's tooltip shows the shortcut. In a conversation, the first action, **Copy link**, copies a link that opens the same conversation for a teammate.
+
+### Keyboard shortcuts {#shortcuts}
+
+On a computer, you can also move through Home and open search from the keyboard:
+
+| Mac | Windows or Linux | What it does |
+| --- | --- | --- |
+| **⌥⌘N** | **Alt+Ctrl+N** | Starts a new chat from any page. |
+| **⌘K** | **Ctrl+K** | Opens search from any page, as the magnifying glass in the rail does. |
+| **⌘\\** | **Ctrl+\\** | Hides or shows the Home panel on a chat, a task, or an open conversation. |
+| **⌥↑** or **⌥↓** | **Alt+↑** or **Alt+↓** | Opens the previous or next chat, task, or conversation in the current view, even while the panel is hidden. |
+| **↑** or **↓** | **↑** or **↓** | Moves to the row above or below once a row in the Home panel has keyboard focus. |
+
+When nothing from the list is open, **⌥↓** (**Alt+↓**) opens its first item and **⌥↑** (**Alt+↑**) its last. In a text field, these keys keep their usual meaning. Once a row has keyboard focus, the **Home** and **End** keys jump to the first and last row of its list, and **Enter** opens the focused row.
 
 ## Choose a feature
 

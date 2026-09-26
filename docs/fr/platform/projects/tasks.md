@@ -76,10 +76,10 @@ Passe la tâche à **Terminé** lorsqu’elle répond au besoin. Si l’agent do
 
 - La demande vient en premier, sous forme de carte : la description, les pièces jointes et les sous-tâches.
 - La discussion suit comme une conversation, des éléments les plus anciens aux plus récents, regroupés par jour. Elle réunit les commentaires et l’historique de la tâche, par exemple les changements de statut, les attributions et les exécutions d’agents.
-- Le champ de commentaire se trouve en bas. Envoie avec **⌘+Entrée** ou **Ctrl+Entrée**, ou avec le bouton d’envoi rond ; **Entrée** seule passe à la ligne. Saisis `@` pour mentionner un agent ou une personne, avec le même effet que dans la boîte de dialogue du tableau.
+- Le champ de commentaire se trouve en bas. Envoie avec **⌘+Entrée** ou **Ctrl+Entrée**, ou avec le bouton d’envoi rond ; **Entrée** seule passe à la ligne. Saisis `@` pour mentionner un agent ou une personne, avec le même effet que dans la boîte de dialogue du tableau. Le texte que tu n’as pas encore envoyé reste dans le champ pour cette tâche, ici comme dans la boîte de dialogue du tableau, et la ligne de la tâche dans **Accueil** affiche **Brouillon** tant que tu travailles ailleurs.
 - **Détails**, à côté de la discussion, regroupe le statut, la priorité, la personne assignée, le relecteur, les dates, les étiquettes et les dépendances, ainsi que **Suivre** et **Archiver**. **Masquer les détails**, au bout de l’en-tête, replie ce panneau et **Afficher les détails** le rouvre. Sur téléphone, **Afficher les détails** ouvre les détails dans un volet en bas de l’écran.
 
-**Tableau**, dans l’en-tête, ouvre le tableau des tâches du projet. Une tâche ouverte depuis le tableau s’affiche toujours dans sa boîte de dialogue ; les deux vues modifient la même tâche.
+**Tableau**, dans l’en-tête, ouvre le tableau des tâches du projet. Une tâche ouverte depuis le tableau s’affiche toujours dans sa boîte de dialogue ; les deux vues modifient la même tâche. **Copier le lien**, l’icône de lien à côté de **Tableau**, copie le lien de cette page de tâche. Pour copier l’identifiant de la tâche, par exemple `WEB-2`, clique dessus dans la ligne sous le titre ; un message confirme chaque copie.
 
 ## Retrouver le travail à suivre
 

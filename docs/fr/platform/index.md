@@ -26,7 +26,7 @@ Les favoris et les liens partagés vers un projet, une tâche ou un document pr�
 
 ### Retrouver ton travail dans Accueil {#home}
 
-**Accueil** réunit tes chats, tes tâches, tes projets et les conversations clients. Sur ordinateur, le panneau latéral d’**Accueil** reste affiché à côté de chaque chat, tâche, projet et page de la boîte de réception. Sur téléphone, **Accueil** ouvre la même liste en plein écran. Quand tu ouvres un chat, une tâche ou une conversation depuis cette liste, une flèche de retour t’y ramène.
+**Accueil** réunit tes chats, tes tâches, tes projets et les conversations clients. Sur ordinateur, le panneau latéral d’**Accueil** reste affiché à côté de chaque chat, tâche, projet et page de la boîte de réception. Sur téléphone, **Accueil** ouvre la même liste en plein écran. Un chat, une tâche ou une conversation que tu ouvres depuis cette liste n’a qu’un seul en-tête : une flèche de retour qui t’y ramène, son titre et ses actions. Ton menu de profil reste accessible en haut de l’écran **Accueil** et dans **Paramètres**.
 
 En haut du panneau, **Nouveau chat**, le crayon à côté du titre **Accueil**, démarre un chat ; son infobulle indique le raccourci clavier. Juste en dessous, **Tout**, **Chats**, **Tâches** et **Réception** déterminent ce que la liste affiche. **Réception** n’apparaît que si ton organisation dispose d’une boîte de réception : une automatisation de synchronisation du courrier mise en service, ou une app API qui a déjà synchronisé une conversation.
 
@@ -38,11 +38,27 @@ Sous les projets, une seule liste regroupe ton travail sous **Épinglés**, **Au
 - Les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, dans tous les projets que tu peux consulter.
 - Dans **Tout**, les conversations ouvertes de la boîte de réception que tu peux voir.
 
-Chaque ligne commence par une bulle de chat, un cercle coloré selon le statut de la tâche ou les initiales du contact. Viennent ensuite le titre, le temps écoulé depuis la dernière modification et, en dessous, une ligne de contexte : pour un chat, son projet ; pour une tâche, son identifiant et son statut, par exemple `WEB-2` **En revue** ou **En attente de ta relecture** ; pour une conversation, le contact et son dernier message. Un point bleu signale les chats et conversations non lus, ainsi que les tâches qui attendent ta relecture. Le menu d’un chat propose **Épingler le chat**, **Marquer comme lu** ou **Marquer comme non lu**, **Renommer**, **Déplacer vers un projet…**, **Partager**, **Arrêter le partage** pour un chat partagé, **Archiver** et **Supprimer**. Les chats archivés rejoignent **Archivés**, en bas de la liste.
+Une vue **Tout** ou **Chats** vide propose **Nouveau chat**, et une vue **Tâches** vide propose **Tous les projets**, qui ouvre la liste des projets.
+
+Chaque ligne commence par une bulle de chat, un cercle coloré selon le statut de la tâche ou les initiales du contact. Viennent ensuite le titre, le temps écoulé depuis la dernière modification et, en dessous, une ligne de contexte : pour un chat, son projet ; pour une tâche, son identifiant et son statut, par exemple `WEB-2` **En revue** ou **En attente de ta relecture** ; pour une conversation, le contact et son dernier message. Un point bleu signale les chats et conversations non lus, ainsi que les tâches qui attendent ta relecture. Un crayon suivi de **Brouillon**, au début de la ligne de contexte, signale un chat, une tâche ou une conversation où tu as saisi un texte sans l’envoyer, sauf pour l’élément ouvert. Les brouillons restent dans le navigateur où tu les as saisis. Le menu d’un chat propose **Épingler le chat**, **Marquer comme lu** ou **Marquer comme non lu**, **Renommer**, **Déplacer vers un projet…**, **Partager**, **Arrêter le partage** pour un chat partagé, **Archiver** et **Supprimer**. Les chats archivés rejoignent **Archivés**, en bas de la liste.
 
 La vue **Réception** affiche les conversations d’un seul statut : choisis **Ouvert**, **Fermé**, **Spam** ou **Archivé** dans son menu de statut. Elle propose aussi **Nouvel e-mail**, un champ de recherche et un bouton **Filtre** pour **Responsable**, **Statut de lecture** et **Canal**. Pour traiter plusieurs conversations à la fois, survole les initiales d’une conversation et coche la case qui apparaît. La barre au-dessus de la liste propose alors **Envoyer les messages**, **Fermer** et **Marquer comme spam** pour les conversations ouvertes, ou **Rouvrir** pour les conversations fermées ou marquées comme spam, ainsi que **Archiver** ou **Désarchiver** et **Effacer la sélection**.
 
-Un chat, une tâche ou une conversation s’ouvre sous un en-tête qui affiche son icône, son titre, une ligne de contexte et ses actions. **Masquer le panneau latéral**, au début de cet en-tête, replie le panneau d’**Accueil** pour laisser plus de place ; **Afficher le panneau latéral** le fait revenir.
+Un chat, une tâche ou une conversation s’ouvre sous un en-tête qui affiche son icône, son titre, une ligne de contexte et ses actions. **Masquer le panneau latéral**, au début de cet en-tête, replie le panneau d’**Accueil** pour laisser plus de place ; **Afficher le panneau latéral** le fait revenir. L’infobulle du bouton indique le raccourci clavier. Dans une conversation, la première action, **Copier le lien**, copie un lien qui ouvre la même conversation pour un collègue.
+
+### Raccourcis clavier {#shortcuts}
+
+Sur ordinateur, tu peux aussi parcourir **Accueil** et ouvrir la recherche au clavier :
+
+| Mac | Windows ou Linux | Effet |
+| --- | --- | --- |
+| **⌥⌘N** | **Alt+Ctrl+N** | Démarre un nouveau chat depuis n’importe quelle page. |
+| **⌘K** | **Ctrl+K** | Ouvre la recherche depuis n’importe quelle page, comme la loupe de la barre de navigation. |
+| **⌘\\** | **Ctrl+\\** | Masque ou affiche le panneau d’**Accueil** sur un chat, une tâche ou une conversation ouverte. |
+| **⌥↑** ou **⌥↓** | **Alt+↑** ou **Alt+↓** | Ouvre l’élément précédent ou suivant de la vue en cours, même quand le panneau est masqué. |
+| **↑** ou **↓** | **↑** ou **↓** | Passe à la ligne précédente ou suivante dès qu’une ligne du panneau a le focus clavier. |
+
+Si aucun élément de la liste n’est ouvert, **⌥↓** (**Alt+↓**) ouvre le premier et **⌥↑** (**Alt+↑**) le dernier. Dans un champ de texte, ces touches gardent leur rôle habituel. Quand une ligne a le focus clavier, les touches **Début** et **Fin** mènent à la première et à la dernière ligne de sa liste, et **Entrée** ouvre cette ligne.
 
 ## Choisir une fonction
 
