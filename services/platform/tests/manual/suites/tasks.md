@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 42 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 43 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -388,3 +388,12 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   empty lanes) in < 3 s on the mock stack at ~50 tasks.
 - [ ] `TASK-P2` · **Drag settle** → A dropped card re-homes optimistically (<
   200 ms perceived) and the persisted status reads back on reload in < 2 s.
+- [ ] `TASK-P3` · **A slow task keeps its frame** — Throttle the network
+  (DevTools → Network → Slow 4G) and open a task from Home → Before it
+  arrives the page already stands: its header (the Home panel toggle, a
+  phone's back arrow, **Copy link** and the details toggle all usable), the
+  brief card, the composer's frame and the **Details** names (Project,
+  Status, Priority …) with pulsing values where the task will land; when it
+  arrives nothing moves. Open `…/tasks/board?task={taskId}` the same way →
+  the dialog shows the key, the title, the brief and the details masked in
+  place, never an empty panel, and no focus ring frames the dialog itself.

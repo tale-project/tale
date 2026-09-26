@@ -76,6 +76,7 @@ export function TaskDetailPage({
         <EditTaskBody
           key={taskId}
           taskId={taskId}
+          organizationId={organizationId}
           surface="page"
           pageActions={
             <>

@@ -20,6 +20,8 @@ import {
   ResponsiveDialogDescription,
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
+import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
@@ -102,7 +104,11 @@ import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { TaskAutomationRunEntry } from './task-automation-run-entry';
-import { TaskCommentComposer, TaskComments } from './task-comments';
+import {
+  TaskCommentComposer,
+  TaskCommentComposerSkeleton,
+  TaskComments,
+} from './task-comments';
 import { TaskConversation } from './task-conversation';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
@@ -325,6 +331,34 @@ function PropertyField({
       </span>
       <div className="min-w-0 flex-1">{children}</div>
     </Row>
+  );
+}
+
+/**
+ * The details panel while the task is on its way: the fields every task
+ * shows, named, with their values masked on the line they will fill.
+ */
+function TaskDetailsSkeleton({ showProject }: { showProject: boolean }) {
+  const { t } = useT('tasks');
+  const labels = [
+    ...(showProject ? [t('fields.project')] : []),
+    t('fields.status'),
+    t('fields.priority'),
+    t('fields.assignee'),
+    t('fields.reviewer'),
+    t('startDate.label'),
+    t('dueDate.label'),
+  ];
+  return (
+    <>
+      {labels.map((label, index) => (
+        <PropertyField key={label} label={label}>
+          <span className="block w-28 max-w-full text-sm leading-7">
+            <SkeletonText seed={index + 3} />
+          </span>
+        </PropertyField>
+      ))}
+    </>
   );
 }
 
@@ -990,6 +1024,7 @@ function CreateTaskBody({
 
 export function EditTaskBody({
   taskId,
+  organizationId,
   onOpenTask,
   onClose,
   showProjectLink = false,
@@ -997,6 +1032,9 @@ export function EditTaskBody({
   pageActions,
 }: {
   taskId: string;
+  /** Page surface: the page's organization, which frames the page while the
+   *  task is still on its way. */
+  organizationId?: string;
   onOpenTask?: (taskId: string) => void;
   onClose: () => void;
   showProjectLink?: boolean;
@@ -1129,9 +1167,77 @@ export function EditTaskBody({
   };
 
   if (!task) {
-    return surface === 'dialog' ? (
-      <ResponsiveDialogTitle>{t('title')}</ResponsiveDialogTitle>
-    ) : null;
+    if (surface === 'dialog') {
+      // The dialog's own shape while the task is on its way — its key, its
+      // title, the brief and the details, masked where each will land —
+      // instead of an empty panel.
+      return (
+        <Skeletonize loading className="flex min-h-0 flex-1 flex-col">
+          <ModalLayout
+            header={
+              <Stack gap={2}>
+                <Text
+                  as="span"
+                  variant="muted"
+                  className="w-12 font-mono text-xs tracking-wide"
+                >
+                  <SkeletonText />
+                </Text>
+                <ResponsiveDialogTitle className="sr-only">
+                  {t('title')}
+                </ResponsiveDialogTitle>
+                <div className="w-72 max-w-full text-lg leading-snug font-semibold">
+                  <SkeletonText seed={1} />
+                </div>
+              </Stack>
+            }
+            main={
+              <div className="text-sm leading-6">
+                <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
+              </div>
+            }
+            panel={<TaskDetailsSkeleton showProject={showProjectLink} />}
+          />
+        </Skeletonize>
+      );
+    }
+    if (organizationId === undefined) return null;
+    // The page's frame is there before the task is: the header, the brief,
+    // the composer and the details keep their places with their values
+    // masked. Same element in the same place as the loaded page below, so
+    // the frame stays mounted and nothing moves when the task arrives.
+    return (
+      <div className="contents">
+        <TaskPageLayout
+          loading
+          organizationId={organizationId}
+          leading={
+            <SkeletonBox asChild>
+              <span className="bg-muted flex size-8 rounded-lg" />
+            </SkeletonBox>
+          }
+          title={
+            <span className="block w-48 max-w-full">
+              <SkeletonText />
+            </span>
+          }
+          meta={
+            <span className="block w-36 max-w-full">
+              <SkeletonText seed={1} />
+            </span>
+          }
+          actions={pageActions}
+          brief={
+            <div className="text-sm leading-6">
+              <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
+            </div>
+          }
+          conversation={null}
+          composer={<TaskCommentComposerSkeleton />}
+          panel={<TaskDetailsSkeleton showProject={showProjectLink} />}
+        />
+      </div>
+    );
   }
 
   const isArchived = task.archivedAt != null;

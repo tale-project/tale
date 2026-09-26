@@ -6,6 +6,7 @@ import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Row, Stack } from '@tale/ui/layout';
 import { SendButton } from '@tale/ui/send-button';
+import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMac } from '@tale/ui/use-is-mac';
@@ -204,6 +205,30 @@ export function TaskCommentView({
         )}
       </div>
     </Row>
+  );
+}
+
+/**
+ * The task page's composer while its task is on the way: the same frame with
+ * the field's room kept and the send masked, inside the page's Skeletonize —
+ * so the composer doesn't pop in under the thread when the task arrives.
+ */
+export function TaskCommentComposerSkeleton() {
+  const { t } = useT('tasks');
+  return (
+    <Stack gap={2} className={cn(CHAT_COMPOSER_FRAME_CLASS, 'pb-3')}>
+      <div className="min-h-[44px]" />
+      <Row gap={2} align="center" justify="between">
+        <Text as="p" variant="caption" className="w-28 max-md:invisible">
+          <SkeletonText />
+        </Text>
+        <SendButton
+          label={t('actions.comment')}
+          onClick={() => undefined}
+          disabled
+        />
+      </Row>
+    </Stack>
   );
 }
 

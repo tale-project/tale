@@ -12,6 +12,7 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Sheet } from '@tale/ui/sheet';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { ThreadHeader } from '@tale/ui/thread-header';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
@@ -38,6 +39,7 @@ export function TaskPageLayout({
   conversation,
   composer,
   panel,
+  loading = false,
 }: {
   organizationId: string;
   leading: ReactNode;
@@ -51,6 +53,9 @@ export function TaskPageLayout({
   composer?: ReactNode;
   /** Status, owner, dates and the rest of the task's structure. */
   panel: ReactNode;
+  /** The task is on its way: the slots hold masked stand-ins, and the frame
+   *  itself stays mounted, so nothing moves when the task arrives. */
+  loading?: boolean;
 }) {
   const { t } = useT('tasks');
   const [detailsOpen, setDetailsOpen] = usePersistedState(
@@ -71,19 +76,21 @@ export function TaskPageLayout({
     : t('detail.showDetails');
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <Skeletonize loading={loading} className="flex min-h-0 flex-1 flex-col">
       <ThreadHeader
+        // The way back and the page's verbs never wait for the task: a slow
+        // load must not trap anyone on the page.
         before={
-          <>
+          <Skeletonize loading={false} className="contents">
             <HomePanelToggle />
             <HomeBackButton organizationId={organizationId} />
-          </>
+          </Skeletonize>
         }
         leading={leading}
         title={title}
         meta={meta}
         actions={
-          <>
+          <Skeletonize loading={false} className="contents">
             {actions}
             <Tooltip content={toggleLabel} side="bottom">
               <Button
@@ -104,7 +111,7 @@ export function TaskPageLayout({
                 )}
               </Button>
             </Tooltip>
-          </>
+          </Skeletonize>
         }
       />
       <div className="flex min-h-0 flex-1">
@@ -159,6 +166,6 @@ export function TaskPageLayout({
       >
         <div className="flex flex-col gap-4 pt-2">{panel}</div>
       </Sheet>
-    </div>
+    </Skeletonize>
   );
 }
