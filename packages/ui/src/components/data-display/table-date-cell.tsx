@@ -71,10 +71,12 @@ export const TableDateCell = React.memo(function TableDateCell({
   // Use formatDate for title to ensure SSR/CSR consistency
   const titleText = formatDate(dateObj, 'long');
 
+  // Tabular figures, so a column of dates and times lines its digits up row
+  // under row instead of wobbling with each value's proportional widths.
   return (
     <span
       className={cn(
-        'text-muted-foreground text-sm whitespace-nowrap',
+        'text-muted-foreground text-sm whitespace-nowrap tabular-nums',
         alignRight && 'block text-right',
         className,
       )}
