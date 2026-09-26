@@ -61,8 +61,13 @@ export function EmbeddingSetupBanner({
         <span className="font-medium">
           {t('dataResidency.orgEmbedding.banner.title')}
         </span>
-        {' — '}
-        {t('dataResidency.orgEmbedding.banner.body')}
+        {/* On a phone the explanation is read out but not drawn: at that
+            width it wrapped the banner to four lines above every page, and
+            the title plus the link already say what to do. */}
+        <span className="sr-only sm:not-sr-only">
+          {' — '}
+          {t('dataResidency.orgEmbedding.banner.body')}
+        </span>
       </span>
       <Link
         to="/dashboard/$id/settings/data-residency"
