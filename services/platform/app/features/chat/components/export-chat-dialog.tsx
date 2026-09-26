@@ -27,6 +27,20 @@ interface ExportChatDialogProps {
   threadTitle?: string;
 }
 
+/**
+ * The accessible name of a row's checkbox is bounded: a label wrapping a
+ * whole reply gave the long ones no usable name at all (axe, 2026-09-26
+ * evaluation A-08), so the name is the role plus a clipped snippet — enough
+ * to tell one row from the next, never a page of prose.
+ */
+const CHECKBOX_SNIPPET_CHARS = 120;
+
+function clipSnippet(text: string): string {
+  return text.length > CHECKBOX_SNIPPET_CHARS
+    ? `${text.slice(0, CHECKBOX_SNIPPET_CHARS).trimEnd()}…`
+    : text;
+}
+
 /** The exportable rows: the conversation's spoken turns, not tool plumbing. */
 function exportableRows(
   messages: readonly ChatMessageView[],
@@ -180,29 +194,33 @@ export function ExportChatDialog({
             </label>
             <div className="max-h-64 overflow-y-auto">
               <ul className="divide-border divide-y">
-                {rows.map((row) => (
-                  <li key={row.id}>
-                    <label
-                      htmlFor={`${idPrefix}-${row.id}`}
-                      className="hover:bg-muted/30 flex w-full cursor-pointer items-start gap-3 p-3 transition-colors"
-                    >
-                      <Checkbox
-                        id={`${idPrefix}-${row.id}`}
-                        checked={!deselected.has(row.id)}
-                        onCheckedChange={() => toggle(row.id)}
-                        className="mt-0.5"
-                      />
-                      <Stack gap={1} className="min-w-0 flex-1">
-                        <Text className="text-sm font-medium">
-                          {roleLabel(row.role)}
-                        </Text>
-                        <Text variant="caption" className="truncate">
-                          {messagePlainText(row.parts)}
-                        </Text>
-                      </Stack>
-                    </label>
-                  </li>
-                ))}
+                {rows.map((row) => {
+                  const text = messagePlainText(row.parts);
+                  return (
+                    <li key={row.id}>
+                      <label
+                        htmlFor={`${idPrefix}-${row.id}`}
+                        className="hover:bg-muted/30 flex w-full cursor-pointer items-start gap-3 p-3 transition-colors"
+                      >
+                        <Checkbox
+                          id={`${idPrefix}-${row.id}`}
+                          checked={!deselected.has(row.id)}
+                          onCheckedChange={() => toggle(row.id)}
+                          aria-label={`${roleLabel(row.role)}: ${clipSnippet(text)}`}
+                          className="mt-0.5"
+                        />
+                        <Stack gap={1} className="min-w-0 flex-1">
+                          <Text className="text-sm font-medium">
+                            {roleLabel(row.role)}
+                          </Text>
+                          <Text variant="caption" className="truncate">
+                            {text}
+                          </Text>
+                        </Stack>
+                      </label>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </div>

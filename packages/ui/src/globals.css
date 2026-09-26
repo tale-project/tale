@@ -204,9 +204,14 @@
   --secondary: 220 9% 65%;
   --secondary-foreground: 240 5.9% 10%;
   --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  /* Header text sits on `--muted`, not the page: `--muted-foreground` there
-     is 4.40:1, under the 4.5:1 AA bar for 14px text. zinc-600 gives 7.03:1. */
+  /* Muted text sits on `--muted` too (a pill tab, a count chip, a table
+     cell), so the pair itself must clear the 4.5:1 AA bar for normal text:
+     #6e6e77 on #f4f4f5 is 4.59:1 (zinc-500's 46.1% was 4.40:1); on the page
+     it is 5.05:1. Never fade it with an opacity modifier — `/70` on #fcfcfc
+     read 2.69:1. */
+  --muted-foreground: 240 3.8% 45%;
+  /* Header text sits on `--muted` as well and keeps the heavier zinc-600
+     (7.03:1) so a header row reads as a header, not as a muted cell. */
   --table-header-foreground: 240 5.2% 33.9%;
   --accent: 240 4.8% 95.9%;
   --accent-foreground: 240 5.9% 10%;

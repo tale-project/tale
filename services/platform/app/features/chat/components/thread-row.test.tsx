@@ -251,6 +251,19 @@ describe('ThreadRow', () => {
     ).not.toHaveAttribute('aria-disabled', 'true');
   });
 
+  it('shows the age at the full muted contrast, never faded', () => {
+    // 2026-09-26 evaluation, A-08 / G-03: `text-muted-foreground/70` read
+    // 2.69:1 on the sidebar — under the 4.5:1 AA bar for the 12px label.
+    const { container } = renderRow(THREAD);
+    const age = container.querySelector('a span.tabular-nums');
+    expect(age).not.toBeNull();
+    expect(age).toHaveClass('text-muted-foreground');
+    const faded = [...(age?.classList ?? [])].filter((name) =>
+      name.startsWith('text-muted-foreground/'),
+    );
+    expect(faded).toEqual([]);
+  });
+
   it('passes an axe audit', async () => {
     const { container } = renderRow({
       ...THREAD,

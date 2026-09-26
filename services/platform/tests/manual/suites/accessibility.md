@@ -77,7 +77,10 @@ component-level axe coverage comes from `vitest-axe` via
 - [ ] `A11Y-A8` · **Contrast** — Sample body text, muted text, primary button
   on each surface (DevTools / contrast tool) → Body text ≥ 4.5:1; large text ≥
   3:1; non-text UI (borders, icons) ≥ 3:1; colour is never the only signal
-  (status uses icon/text too)
+  (status uses icon/text too). Include the chat sidebar's relative timestamps
+  ("2m", "6d ago") in light theme, the inactive Board/List pill tab and the
+  inbox tab count chips (muted text on the muted surface) → each ≥ 4.5:1; an
+  axe `color-contrast` run over the chat and board pages reports no node.
 - [ ] `A11Y-A9` · **Reduced motion** — OS _Reduce motion_ on (macOS: System
   Settings → Accessibility → Display); reload chat, send a turn → Chat segment
   reveal and route transitions present instantly (no fade/slide) under
@@ -107,6 +110,12 @@ component-level axe coverage comes from `vitest-axe` via
   area rather than the glyph. Standard 32/36 px controls are valid; do not
   report a WCAG 2.1 AA failure merely for missing the stronger 44 px target.
   Cross-ref [responsive.md](responsive.md) RESP-A1.
+- [ ] `A11Y-A15` · **Export chat checkbox names** — In a chat with a reply
+  longer than a screen, open **Export chat** (`chat.export.title`) and read the
+  row checkboxes with a screen reader or the accessibility tree → Every row
+  checkbox is named "You: …" / "Assistant: …" (`chat.export.you`,
+  `chat.export.assistant`) followed by a short snippet of that message, never
+  unnamed and never the whole reply.
 
 ## Boundary & error tests
 

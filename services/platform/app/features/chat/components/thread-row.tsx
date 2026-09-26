@@ -167,7 +167,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
             // Hides on hover (desktop) — the actions menu lands on this edge
             // and the age would show through it. Absent while streaming (the
             // dot carries that state).
-            <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs tabular-nums md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
+            <span className="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums md:group-hover:opacity-0 md:group-has-[:focus-visible]:opacity-0 md:group-has-[[data-state=open]]:opacity-0">
               {age}
             </span>
           )}
