@@ -293,8 +293,12 @@ export async function upsertTaskByExternalRef(
         WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId ?? ''}
           AND external_system = ${externalSystem}
           AND (external_source_id = ${source.id}
-            OR (external_source_id IS NULL AND external_id = ${externalId}))
-        ORDER BY (external_source_id = ${source.id}) DESC NULLS LAST
+            OR (external_source_id IS NULL AND (
+              external_id = ${externalId}
+              OR (${externalSystem} = 'github' AND lower(external_id) = lower(${externalId}))
+            )))
+        ORDER BY (external_source_id = ${source.id}) DESC NULLS LAST,
+          (external_id = ${externalId}) DESC, id ASC
         LIMIT 1 FOR UPDATE
       `;
       return rows[0] ?? null;

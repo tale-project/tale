@@ -149,7 +149,12 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
             AND ${repositoryId === undefined ? tx`TRUE` : tx`external_issue->>'repositoryId' = ${String(repositoryId)}`}
             AND ${sourceProjectId === undefined ? tx`TRUE` : tx`external_issue->>'sourceProjectId' = ${sourceProjectId}`}
             AND ${sourceOrigin === undefined ? tx`TRUE` : tx`split_part(external_source_id, '#', 1) = ${sourceOrigin}`})
-              OR (external_issue IS NULL AND EXISTS (SELECT 1 FROM unnest(${legacyPrefixes ?? []}::text[]) AS prefix WHERE starts_with(external_id, prefix))) )
+              OR (external_issue IS NULL AND EXISTS (
+                SELECT 1 FROM unnest(${legacyPrefixes ?? []}::text[]) AS prefix
+                WHERE CASE WHEN ${externalSystem} = 'github'
+                  THEN starts_with(lower(external_id), lower(prefix))
+                  ELSE starts_with(external_id, prefix) END
+              )) )
           ORDER BY COALESCE((external_issue->>'syncedAt')::bigint, 0) ASC, id ASC
           LIMIT ${limit + 1}
         `;

@@ -298,7 +298,7 @@ async function checkLegacySourceDiscovery(
     if (!result.taskId) throw new Error('Expected a discovery fixture task');
     return result.taskId;
   };
-  const legacyId = await create('github', 'example/old-repo#7');
+  const legacyId = await create('github', 'Example/Old-Repo#7');
   const ignoredIds = [
     await create('github', 'example/other#7'),
     await create('github', 'example/old-repo-extra#7'),
@@ -374,6 +374,19 @@ async function checkLegacySourceDiscovery(
     syncedAt: now + 2,
   });
   const hydrated = await loadTaskOrThrow(sql, legacyId, ctx.orgId);
+  const caseFoldedRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks WHERE org_id=${ctx.orgId} AND project_id=${projectId}
+      AND external_system='github'
+      AND (lower(external_id)='example/old-repo#7' OR external_source_id=${closed.id})
+  `;
+  record(
+    'external issue: uppercase GitHub legacy locator adopts canonical source without duplicating the task',
+    hydratedId === legacyId &&
+      caseFoldedRows.length === 1 &&
+      hydrated.status === 'in_progress' &&
+      hydrated.title === 'Legacy human edit',
+    `same=${hydratedId === legacyId}, tasks=${caseFoldedRows.length}, local=${hydrated.status}`,
+  );
   record(
     'external issue: a renamed closed legacy issue hydrates without duplicate or local edits',
     hydratedId === legacyId &&
@@ -445,5 +458,67 @@ async function checkLegacySourceDiscovery(
           issue.taskId !== otherSourceProjectId,
       ),
     `matched=${glitchList.issues.length}`,
+  );
+
+  const uppercaseTwinId = await create('github', 'Example/Case-Twins#17');
+  const exactTwinId = await create('github', 'example/case-twins#17');
+  await sql`UPDATE app.tasks SET title='Uppercase human task', status='in_progress' WHERE id=${uppercaseTwinId}`;
+  await sql`UPDATE app.tasks SET title='Exact human task', status='cancelled' WHERE id=${exactTwinId}`;
+  const twinSnapshot: TaskExternalIssue = {
+    ...snapshot,
+    id: randomUUID(),
+    number: 17,
+    state: 'closed',
+    url: 'https://github.com/example/case-twins/issues/17',
+    syncedAt: now + 3,
+  };
+  const chosenTwinId = await create(
+    'github',
+    'example/case-twins#17',
+    projectId,
+    twinSnapshot,
+  );
+  const chosenTwin = await loadTaskOrThrow(sql, exactTwinId, ctx.orgId);
+  const untouchedTwin = await loadTaskOrThrow(sql, uppercaseTwinId, ctx.orgId);
+  record(
+    'external issue: exact GitHub legacy locator wins over a case twin without merging tasks',
+    chosenTwinId === exactTwinId &&
+      chosenTwin.externalSourceId === twinSnapshot.id &&
+      chosenTwin.externalIssue?.syncedAt === twinSnapshot.syncedAt &&
+      chosenTwin.title === 'Exact human task' &&
+      chosenTwin.status === 'cancelled' &&
+      untouchedTwin.externalSourceId === null &&
+      untouchedTwin.externalIssue === null &&
+      untouchedTwin.externalId === 'Example/Case-Twins#17' &&
+      untouchedTwin.title === 'Uppercase human task' &&
+      untouchedTwin.status === 'in_progress',
+    `exact=${chosenTwinId === exactTwinId}, other source=${untouchedTwin.externalSourceId}`,
+  );
+
+  let twinCollision = false;
+  try {
+    await create('github', 'Example/Case-Twins#17', projectId, {
+      ...twinSnapshot,
+      title: 'Conflicting observation',
+      syncedAt: now + 4,
+    });
+  } catch (error) {
+    twinCollision =
+      error instanceof TaskError &&
+      error.code === 'TASK_EXTERNAL_REF_INVALID' &&
+      error.status === 409;
+  }
+  const afterTwinCollision = await loadTaskOrThrow(sql, exactTwinId, ctx.orgId);
+  const afterOtherTwinCollision = await loadTaskOrThrow(
+    sql,
+    uppercaseTwinId,
+    ctx.orgId,
+  );
+  record(
+    'external issue: stable identity outranks a legacy case twin and collision leaves both tasks unchanged',
+    twinCollision &&
+      JSON.stringify(afterTwinCollision) === JSON.stringify(chosenTwin) &&
+      JSON.stringify(afterOtherTwinCollision) === JSON.stringify(untouchedTwin),
+    `rejected=${twinCollision}, source unchanged=${afterTwinCollision.externalIssue?.syncedAt === twinSnapshot.syncedAt}`,
   );
 }

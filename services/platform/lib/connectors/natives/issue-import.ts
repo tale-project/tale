@@ -26,6 +26,9 @@ interface ImportedIssue {
   description: string;
   externalIssue: TaskExternalIssue;
 }
+// Local task descriptions must remain editable through the app's task API.
+// Source snapshots retain their separate, larger description limit.
+const taskDescriptionLimit = 50_000;
 const limit = z.number().int().min(1).max(500).default(100);
 const cursor = z.string().max(12000).optional();
 const githubInput = z
@@ -161,7 +164,7 @@ function unavailable(
     externalId: source.externalId,
     externalUrl: issue.url,
     title: issue.title,
-    description: issue.description,
+    description: issue.description.slice(0, taskDescriptionLimit),
     externalIssue: issue,
   };
 }
@@ -192,7 +195,7 @@ function githubIssue(raw: unknown, repositoryId: number): ImportedIssue {
     externalId: `${ref[1]}/${ref[2]}#${row.number}`.toLowerCase(),
     externalUrl: row.html_url,
     title: row.title,
-    description,
+    description: description.slice(0, taskDescriptionLimit),
     externalIssue: {
       id: String(row.id),
       title: row.title,
@@ -244,7 +247,7 @@ function glitchtipIssue(
     externalId: `${endpoint}/${encodeURIComponent(organization)}/${encodeURIComponent(row.project.slug)}#${id}`,
     externalUrl: url,
     title: row.title,
-    description,
+    description: description.slice(0, taskDescriptionLimit),
     externalIssue: {
       id: `${endpoint}#${id}`,
       title: row.title,
@@ -437,7 +440,10 @@ export function issueImportNatives(): Readonly<
       const result = githubIssue(requireSuccess(response, 'GitHub'), repoId);
       if (source && result.externalIssue.id !== source.id)
         invalid('GitHub returned a different issue identity.');
-      if (result.externalId.split('#')[0] !== issue.externalId.split('#')[0]) {
+      if (
+        result.externalId.split('#')[0]?.toLowerCase() !==
+        issue.externalId.split('#')[0]?.toLowerCase()
+      ) {
         // A transfer can change both repository and issue number. Resolve the
         // fresh canonical repository instead of pairing its number with the
         // old repository on the next sync.

@@ -355,6 +355,59 @@ function refresh(provider: string, issue = source(provider)) {
 }
 
 describe.each(['github', 'glitchtip'])(
+  '%s editable local description',
+  (provider) => {
+    it.each([50_000, 65_000, 100_001])(
+      'keeps a %i-character source body while seeding a description the task editor accepts',
+      async (length) => {
+        const body = 'd'.repeat(length);
+        const row =
+          provider === 'github'
+            ? { ...githubIssue(1), body }
+            : {
+                ...glitchtipIssue(1),
+                culprit: null,
+                metadata: { value: body },
+              };
+        fetchPage.mockResolvedValueOnce(response([row]));
+        const imported = (await run(provider)) as {
+          issues: {
+            description: string;
+            externalIssue: { description: string };
+          }[];
+        };
+        expect(imported.issues[0]?.description.length).toBe(50_000);
+        expect(imported.issues[0]?.externalIssue.description.length).toBe(
+          Math.min(length, 100_000),
+        );
+        fetchPage.mockResolvedValueOnce(response(row));
+        const refreshed = (await refresh(provider)) as {
+          description: string;
+          externalIssue: { description: string };
+        };
+        expect(refreshed.description.length).toBe(50_000);
+        expect(refreshed.externalIssue.description.length).toBe(
+          Math.min(length, 100_000),
+        );
+      },
+    );
+
+    it('retains a long unavailable snapshot without seeding an uneditable description', async () => {
+      const issue = source(provider);
+      issue.externalIssue.description = 'd'.repeat(100_000);
+      fetchPage.mockResolvedValue(response({}, '', 404));
+      const refreshed = (await refresh(provider, issue)) as {
+        description: string;
+        externalIssue: { description: string; unavailable: boolean };
+      };
+      expect(refreshed.description.length).toBe(50_000);
+      expect(refreshed.externalIssue.description.length).toBe(100_000);
+      expect(refreshed.externalIssue.unavailable).toBe(true);
+    });
+  },
+);
+
+describe.each(['github', 'glitchtip'])(
   '%s immutable source refresh',
   (provider) => {
     it('refreshes closed/resolved source details independently of the open discovery query', async () => {
@@ -445,31 +498,37 @@ it('refuses a GlitchTip list row with a different project id despite a matching 
   await expect(run('glitchtip')).rejects.toThrow(/different project/);
 });
 
-it('hydrates a legacy GitHub reference even after it has closed upstream', async () => {
-  fetchPage.mockResolvedValue(response({ ...githubIssue(1), state: 'closed' }));
-  await expect(
-    issueImportNatives()['github.refresh_import_issues']?.(
+it.each(['example/web#1', 'Example/WEB#1'])(
+  'hydrates legacy GitHub reference %s even after it has closed upstream',
+  async (externalId) => {
+    fetchPage.mockResolvedValue(
+      response({ ...githubIssue(1), state: 'closed' }),
+    );
+    await expect(
+      issueImportNatives()['github.refresh_import_issues']?.(
+        {
+          repositoryId: 10,
+          issues: [{ externalId, externalIssue: null }],
+        },
+        { http: { get: fetchPage } } as never,
+      ),
+    ).resolves.toMatchObject([
       {
-        repositoryId: 10,
-        issues: [{ externalId: 'example/web#1', externalIssue: null }],
+        externalId,
+        externalIssue: {
+          id: '1001',
+          state: 'closed',
+          repositoryId: 10,
+          number: 1,
+        },
       },
-      { http: { get: fetchPage } } as never,
-    ),
-  ).resolves.toMatchObject([
-    {
-      externalId: 'example/web#1',
-      externalIssue: {
-        id: '1001',
-        state: 'closed',
-        repositoryId: 10,
-        number: 1,
-      },
-    },
-  ]);
-  expect(fetchPage.mock.calls[0]?.[0]).toBe(
-    'https://api.github.com/repositories/10/issues/1',
-  );
-});
+    ]);
+    expect(fetchPage.mock.calls[0]?.[0]).toBe(
+      'https://api.github.com/repositories/10/issues/1',
+    );
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+  },
+);
 
 it('hydrates a legacy GlitchTip reference including its resolved state', async () => {
   fetchPage.mockResolvedValue(
