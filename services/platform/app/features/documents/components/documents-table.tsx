@@ -413,6 +413,8 @@ export function DocumentsTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
+      error: paginatedResult.error,
+      retry: paginatedResult.retry,
     },
     pageSize,
     search: {

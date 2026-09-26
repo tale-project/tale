@@ -100,10 +100,8 @@ export function ProjectsTable({
   const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const { projects, isLoading, overdueTruncated } = useProjectsOverview(
-    organizationId,
-    { includeArchived },
-  );
+  const { projects, isLoading, overdueTruncated, error, retry } =
+    useProjectsOverview(organizationId, { includeArchived });
   const { mutateAsync: archiveProject } = useArchiveProject();
   // Names resolve through the org's team DIRECTORY (every team, for any
   // member) so a row shared with a team the viewer is not in still says
@@ -425,6 +423,8 @@ export function ProjectsTable({
     dataSource: {
       type: 'query',
       data: isLoading ? undefined : visibleProjects,
+      error,
+      retry,
     },
     pageSize: DEFAULT_TABLE_PAGE_SIZE,
     search: {

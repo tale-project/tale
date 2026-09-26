@@ -266,3 +266,60 @@ describe('useListPage — managed search', () => {
     expect(result.current.tableProps.infiniteScroll.totalCount).toBe(50);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests — a failed request is an error state, never the empty state
+// ---------------------------------------------------------------------------
+
+describe('useListPage — failed request', () => {
+  // "No projects yet" over a 500 read as data loss (2026-09-26 evaluation,
+  // G-07): with nothing loaded the table gets the error and its retry.
+  it('hands the table the error and the retry when nothing loaded', () => {
+    const error = new Error('overview failed');
+    const retry = vi.fn();
+    const { result } = renderListPage({
+      dataSource: { type: 'query', data: [], error, retry },
+    });
+
+    expect(result.current.tableProps.error).toBe(error);
+    expect(result.current.tableProps.onRetry).toBe(retry);
+    expect(result.current.tableProps.data).toEqual([]);
+  });
+
+  it('keeps loaded rows on screen through a failed refetch', () => {
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'query',
+        data: makeItems(3),
+        error: new Error('refetch failed'),
+        retry: vi.fn(),
+      },
+    });
+
+    expect(result.current.tableProps.error).toBeNull();
+    expect(result.current.tableProps.data).toHaveLength(3);
+  });
+
+  it('does the same for a paginated source whose first page failed', () => {
+    const error = new Error('first page failed');
+    const { result } = renderListPage({
+      dataSource: {
+        type: 'paginated',
+        results: [],
+        status: 'Exhausted',
+        loadMore: vi.fn(),
+        isLoading: false,
+        error,
+        retry: vi.fn(),
+      },
+    });
+
+    expect(result.current.tableProps.error).toBe(error);
+  });
+
+  it('reports no error for a healthy source', () => {
+    const { result } = renderListPage();
+    expect(result.current.tableProps.error).toBeNull();
+    expect(result.current.tableProps.onRetry).toBeUndefined();
+  });
+});

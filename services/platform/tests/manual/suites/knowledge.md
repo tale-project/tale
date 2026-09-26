@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 37 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 38 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -357,6 +357,13 @@ records and delete them after.
   `description`, the contact row `locale` — never "not specified" for a
   field the record has.
 
+
+- [ ] `KNOW-F25` · **A failed documents read is an error, not one folder** —
+  Block `GET /api/app/documents/*` (or answer it 500) and open
+  `/dashboard/{org}/documents` → The table shows the error state
+  **Something went wrong** with **Try again** — never a table of the one
+  folder row with **Showing all 1 document**. Unblock and **Try again** →
+  the documents appear without navigating away.
 
 ## Boundary & error tests
 
