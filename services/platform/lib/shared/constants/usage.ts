@@ -1,3 +1,5 @@
+import { parseRunStarter } from '../run-starter.ts';
+
 // Synthetic agentSlug sentinels for ledger rows that have no real assistant
 // owning the call. The governance/usage aggregation buckets each kind under
 // its own sentinel so the Top Assistants table renders precise labels
@@ -24,6 +26,34 @@ export function isAutomationSubject(userId: string): boolean {
   return userId === AUTOMATION_SUBJECT_ID;
 }
 
+/**
+ * The subject a ledger row's `user_id` names. Every lane books a bare user id
+ * (or the automation sentinel) today, but rows the workflow lane wrote before
+ * it derived the person from the run's starter carry the door forms verbatim
+ * (`user:<id>`, `api-key:<id>`, `trigger:<id>`). History is not rewritten;
+ * every reader folds those rows onto the person (or the sentinel for a
+ * trigger) so one member is one row and one cap, whichever door booked it.
+ * An unknown form stays as booked.
+ */
+export function usageLedgerSubject(userId: string): string {
+  const starter = parseRunStarter(userId);
+  switch (starter.kind) {
+    case 'user':
+    case 'api-key':
+      return starter.userId;
+    case 'trigger':
+      return AUTOMATION_SUBJECT_ID;
+    case 'unknown':
+      return userId;
+  }
+}
+
+/** Every `user_id` value a person's spend may be booked under — the bare id
+ * and the legacy door forms — for a SQL `= ANY(...)` over the ledger. */
+export function usageLedgerSubjectForms(userId: string): string[] {
+  return [userId, `user:${userId}`, `api-key:${userId}`];
+}
+
 type UsageRowKind = 'llm' | 'connector' | 'transcription' | 'tts';
 
 // Subset of usageLedger fields needed to classify a row by kind. Kept
@@ -45,10 +75,18 @@ interface UsageLedgerDiscriminators {
 // in the current schema, so the discriminator works regardless of whether
 // the row carries the synthetic `TTS_SLUG` (legacy) or a real assistant
 // `agentSlug` (post per-assistant-attribution).
+//
+// A discriminator counts only when it is a positive quantity: the ledger's
+// upsert used to stamp `0` (never NULL) on `audio_duration_sec` and
+// `character_count` the moment a bucket took its second request, so nearly
+// every LLM bucket carries `0` seconds and `0` characters. A row with no
+// audio is not a transcription; a row with no characters is not speech.
 export function classifyUsageRow(row: UsageLedgerDiscriminators): UsageRowKind {
   if (row.connectorName !== undefined) return 'connector';
-  if (row.audioDurationSec !== undefined) return 'transcription';
-  if (row.characterCount !== undefined) return 'tts';
+  if (row.audioDurationSec !== undefined && row.audioDurationSec > 0) {
+    return 'transcription';
+  }
+  if (row.characterCount !== undefined && row.characterCount > 0) return 'tts';
   return 'llm';
 }
 
