@@ -225,3 +225,24 @@ it('identifies invalid JSON as run input and prevents scheduling', async () => {
   expect(screen.getByRole('button', { name: 'Test run' })).toBeDisabled();
   expect(scheduled).toBe(false);
 });
+
+// Cursor is deliberately hidden in the guided form: only a prior run supplies it.
+it('keeps a custom required cursor editable through the generic JSON form', () => {
+  const schema = schemaFor('github');
+  render(
+    <AutomationRunDialog
+      request={{
+        automationSlug: 'github-import-issues',
+        mode: 'mock',
+        version: 1,
+        scopeText: 'Organization-wide',
+        schema: { ...schema, required: [...schema.required, 'cursor'] },
+      }}
+      onClose={() => {}}
+      onConfirm={() => {}}
+    />,
+  );
+  expect(
+    screen.getByRole('textbox', { name: 'Run input (JSON)' }),
+  ).toBeVisible();
+});

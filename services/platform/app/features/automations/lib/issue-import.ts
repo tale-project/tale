@@ -56,8 +56,7 @@ export function guidedIssueSource(
   if (
     Array.isArray(schema.required) &&
     schema.required.some(
-      (key) =>
-        typeof key !== 'string' || (!(key in expected) && key !== 'cursor'),
+      (key) => typeof key !== 'string' || !Object.hasOwn(expected, key),
     )
   )
     return null;
