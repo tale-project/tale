@@ -36,7 +36,7 @@ function fakeSql(answer: (statement: Statement) => unknown[] | undefined): {
     const bound: unknown[] = [];
     values.forEach((value, index) => {
       if (typeof value === 'object' && value !== null && 'raw' in value) {
-        text += String((value as { raw: string }).raw);
+        text += (value as { raw: string }).raw;
       } else {
         text += '?';
         bound.push(value);
