@@ -969,9 +969,13 @@ export async function checkConversationApi(
   };
   for (let attempt = 0; attempt < 2; attempt++)
     assert.equal((await machine('/conversations/sync', deletion)).status, 200);
+  // A teardown closes the mirror; the transcript stays in the Inbox as the
+  // conversation's record (the reference: "Closing preserves the
+  // conversation and messages").
   rows =
     await sql`SELECT id, content, channel FROM app.conversation_messages WHERE conversation_id = ${conversationId}`;
-  assert.equal(rows.length, 0);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.id, messageId);
   // A teardown is not content: at the stored version with a different
   // subject it is still a replay of the deletion (200, nothing applied),
   // not the 409 a content snapshot at that version would get.
@@ -1061,7 +1065,7 @@ export async function checkConversationApi(
       resurrectionCode.data.code === 'CONVERSATION_CLOSED' &&
       (stillDown[0]?.sourceDeleted ?? false) &&
       stillDown[0]?.status === 'closed' &&
-      rows.length === 0 &&
+      rows.length === 1 &&
       downReceipt.success &&
       downReceipt.data.snapshot.sourceDeleted &&
       downReceipt.data.snapshot.status === 'closed',
@@ -1079,7 +1083,7 @@ export async function checkConversationApi(
   record(
     'conversation API source edits and tombstones',
     true,
-    'Source deletion reconciles acknowledged messages, stale snapshots cannot restore them, a teardown replays at its version and applies at the maximum version, deleted source threads refuse replies',
+    'Source deletion closes the mirror and keeps its acknowledged messages, stale snapshots cannot change them, a teardown replays at its version and applies at the maximum version, deleted source threads refuse replies',
   );
 
   // ---- a trashed contact freezes its mirror, and a recycled id never
