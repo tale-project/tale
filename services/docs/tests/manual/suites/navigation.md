@@ -67,6 +67,9 @@ this guide focuses on **behaviour**, not link rot.
   page (marked `aria-current="page"`, not a link, and **not** a heading — the
   page's only `<h1>` is the article title below); on the landing page the trail
   is **Home** alone, as its own current leaf; clicking a crumb navigates there.
+  Below 1024 px only the immediate parent precedes the current page; at any
+  width a long trail truncates its crumbs with an ellipsis (Home keeps its
+  width) and never runs past the strip or pushes the page actions away.
 - [ ] `NAV-F5` · **Outline + scroll-spy** — ≥ 1280 px viewport, on a long page
   (e.g. `{base}/self-hosted/install/quickstart`): scroll through the sections
   → The **On this page** aside lists the page's **markdown** H2/H3s only
