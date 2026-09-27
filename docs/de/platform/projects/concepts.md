@@ -25,7 +25,7 @@ Ein Projektchat beginnt mit den gespeicherten Projektanweisungen. Er kann die Da
 
 ## Eine wiedererkennbare Identität wählen
 
-**Projekt erstellen** fragt nach einem Namen und einem **Projektkürzel**; die Beschreibung ist optional. Der Schlüssel wird zum Präfix von Aufgaben-IDs wie `WR-1` und lässt sich nach dem Erstellen nicht mehr ändern. Wähle ein kurzes, dauerhaft passendes Kürzel.
+**Projekt erstellen** fragt nach einem Namen und einem **Projektkürzel**; Beschreibung, Icon und Farbe sind optional. Der Schlüssel wird zum Präfix von Aufgaben-IDs wie `WR-1` und lässt sich nach dem Erstellen nicht mehr ändern. Wähle ein kurzes, dauerhaft passendes Kürzel.
 
 Name, Beschreibung, Icon, Farbe und Anweisungen kannst du später unter **Allgemein** ändern. Mit **Speichern** übernimmst du Feldänderungen, mit **Verwerfen** gibst du sie auf. Eine vollständige Anleitung bietet [Projekte nutzen](/de/tutorials/member/use-projects).
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { ProjectCreateDialog } from './project-create-dialog';
 
@@ -104,5 +104,50 @@ describe('ProjectCreateDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(mockCreateProject).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  // The icon/color pair sits beside the form like the audience: untouched,
+  // the create body carries neither key (the server's default pair); picked,
+  // both ride the same `createProject` call.
+  it('sends a picked icon and color with the create, nothing when untouched', async () => {
+    mockCreateProject.mockResolvedValue('proj-1');
+    const { user } = render(
+      <ProjectCreateDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        organizationId="org-1"
+        navigateOnCreate={false}
+      />,
+    );
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Project name' }),
+      'Launch',
+    );
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(mockCreateProject).toHaveBeenCalledTimes(1);
+    expect(mockCreateProject.mock.calls[0]?.[0]).not.toHaveProperty('icon');
+    expect(mockCreateProject.mock.calls[0]?.[0]).not.toHaveProperty('color');
+
+    await user.click(
+      screen.getByRole('button', { name: /Change icon and color/ }),
+    );
+    await user.click(
+      within(
+        await screen.findByRole('radiogroup', { name: 'Color' }),
+      ).getByRole('radio', { name: 'Teal' }),
+    );
+    await user.click(
+      within(screen.getByRole('radiogroup', { name: 'Icon' })).getByRole(
+        'radio',
+        { name: 'Rocket' },
+      ),
+    );
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+
+    expect(mockCreateProject).toHaveBeenLastCalledWith(
+      expect.objectContaining({ icon: 'Rocket', color: 'teal' }),
+    );
   });
 });

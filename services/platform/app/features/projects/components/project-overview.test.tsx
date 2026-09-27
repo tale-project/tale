@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
-import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import { ProjectOverview } from './project-overview';
 
@@ -15,6 +21,8 @@ import { ProjectOverview } from './project-overview';
 type ProjectFixture = {
   name: string;
   description?: string;
+  icon?: string;
+  color?: string;
   archivedAt?: number;
   canEdit: boolean;
   canAdminister: boolean;
@@ -199,6 +207,57 @@ describe('ProjectOverview', () => {
         expect.objectContaining({ name: 'Renamed' }),
       );
       expect(mockToast).not.toHaveBeenCalled();
+    });
+  });
+
+  // The docs promise icon and color on General; the backend stored both all
+  // along. The picker writes the pair into the identity form so the same Save
+  // sends them through the identity mutation (`null` = the default pair).
+  describe('icon and color', () => {
+    it('sends the picked icon and color with the identity save', async () => {
+      projectFixture = {
+        name: 'Getting started',
+        icon: 'Briefcase',
+        color: 'emerald',
+        canEdit: true,
+        canAdminister: true,
+      };
+      const { user } = renderOverview();
+
+      await user.click(
+        screen.getByRole('button', { name: /Change icon and color/ }),
+      );
+      const colorGroup = await screen.findByRole('radiogroup', {
+        name: 'Color',
+      });
+      expect(
+        within(colorGroup).getByRole('radio', { name: 'Emerald' }),
+      ).toBeChecked();
+      await user.click(within(colorGroup).getByRole('radio', { name: 'Rose' }));
+      const iconGroup = screen.getByRole('radiogroup', { name: 'Icon' });
+      expect(
+        within(iconGroup).getByRole('radio', { name: 'Briefcase' }),
+      ).toBeChecked();
+      await user.click(
+        within(iconGroup).getByRole('radio', { name: 'Rocket' }),
+      );
+      await user.keyboard('{Escape}');
+
+      await submitIdentityForm('Getting started');
+
+      expect(mockUpdateIdentity).toHaveBeenCalledWith(
+        expect.objectContaining({ icon: 'Rocket', color: 'rose' }),
+      );
+    });
+
+    it('keeps the default pair as null until the user picks', async () => {
+      renderOverview();
+
+      await submitIdentityForm('Renamed');
+
+      expect(mockUpdateIdentity).toHaveBeenCalledWith(
+        expect.objectContaining({ icon: null, color: null }),
+      );
     });
   });
 });

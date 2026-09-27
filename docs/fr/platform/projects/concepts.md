@@ -25,7 +25,7 @@ Un chat de projet démarre avec les instructions enregistrées du projet. Il peu
 
 ## Choisir une identité reconnaissable
 
-**Créer un projet** demande un nom et une **Clé du projet**, avec une description facultative. La clé devient le préfixe des identifiants de tâches, comme `WR-1`, et ne peut plus changer après la création. Choisis une abréviation courte et durable.
+**Créer un projet** demande un nom et une **Clé du projet**, avec une description, une icône et une couleur facultatives. La clé devient le préfixe des identifiants de tâches, comme `WR-1`, et ne peut plus changer après la création. Choisis une abréviation courte et durable.
 
 Tu peux ensuite modifier le nom, la description, l’icône, la couleur et les instructions dans **Général**. Utilise **Enregistrer** pour appliquer les modifications ou **Abandonner** pour les annuler. Pour suivre toutes les étapes, consulte [Utiliser les projets](/fr/tutorials/member/use-projects).
 

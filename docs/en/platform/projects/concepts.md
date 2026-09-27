@@ -25,7 +25,7 @@ Project chat starts with the saved project instructions. It can search this proj
 
 ## Create an identity people can recognize
 
-**Create project** asks for a name and a **Project key**, with an optional description. The key becomes the prefix of task IDs such as `WR-1` and cannot change after creation. Choose a short, durable abbreviation.
+**Create project** asks for a name and a **Project key**, with an optional description, icon, and color. The key becomes the prefix of task IDs such as `WR-1` and cannot change after creation. Choose a short, durable abbreviation.
 
 You can revise the name, description, icon, color, and instructions on **General** later. Use **Save** to apply field edits or **Discard** to abandon them. For a complete walkthrough, follow [Use projects](/tutorials/member/use-projects).
 

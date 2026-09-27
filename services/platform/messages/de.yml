@@ -7663,6 +7663,32 @@ projects:
     projectSectionDescription: Name, Beschreibung und feste Anweisungen für
       dieses Projekt.
     sharingHeading: Freigabe
+  identity:
+    label: Icon und Farbe
+    hint: Wird neben dem Projektnamen in Listen und der Chat-Seitenleiste angezeigt.
+    trigger: Icon und Farbe ändern
+    colorLabel: Farbe
+    iconLabel: Icon
+    colors:
+      gray: Grau
+      slate: Schiefer
+      red: Rot
+      orange: Orange
+      amber: Bernstein
+      yellow: Gelb
+      lime: Limette
+      green: Grün
+      emerald: Smaragd
+      teal: Petrol
+      cyan: Cyan
+      sky: Himmelblau
+      blue: Blau
+      indigo: Indigo
+      violet: Violett
+      purple: Purpur
+      fuchsia: Fuchsia
+      pink: Pink
+      rose: Rosé
   instructions:
     label: Anweisungen
     hint: Jeder Chat in diesem Projekt startet mit diesen Anweisungen.

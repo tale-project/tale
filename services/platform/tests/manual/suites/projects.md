@@ -294,6 +294,19 @@ projects-list row ⋯ menu.
   request and click **Try again** → the rows appear without navigating away;
   alternatively switch tabs and back → the list refetches on its own.
 
+- [ ] `PROJ-F27` · **Icon and color on create and on General** — **Create
+  project** → **Icon and color** (`projects.identity.label`) → **Change icon
+  and color** (`projects.identity.trigger`) → pick a color and an icon →
+  create; then on the project's **General** page the same row → pick another
+  pair → **Save** → The popover is named **Icon and color** and holds two
+  radio groups, **Color** (`projects.identity.colorLabel`, 19 swatches) and
+  **Icon** (`projects.identity.iconLabel`, 30 icons); the trigger's avatar
+  previews the pair live; the new project's row in the Projects list and its
+  folder in the chat sidebar show the picked icon on the picked color; on
+  General the Save cluster wakes on a pick, **Discard** restores the saved
+  pair, **Save** flashes **Saved** and the list/sidebar follow; a project
+  never touched keeps the gray folder.
+
 ## Boundary & error tests
 
 - [ ] `PROJ-B1` · **Empty name** — Create-project dialog → leave **Project

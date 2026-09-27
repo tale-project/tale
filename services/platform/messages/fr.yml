@@ -7762,6 +7762,32 @@ projects:
     projectSectionDescription: Nom, description et instructions permanentes de
       ce projet.
     sharingHeading: Partage
+  identity:
+    label: Icône et couleur
+    hint: Affichées à côté du nom du projet dans les listes et la barre latérale du chat.
+    trigger: Changer l'icône et la couleur
+    colorLabel: Couleur
+    iconLabel: Icône
+    colors:
+      gray: Gris
+      slate: Ardoise
+      red: Rouge
+      orange: Orange
+      amber: Ambre
+      yellow: Jaune
+      lime: Citron vert
+      green: Vert
+      emerald: Émeraude
+      teal: Bleu canard
+      cyan: Cyan
+      sky: Bleu ciel
+      blue: Bleu
+      indigo: Indigo
+      violet: Violet
+      purple: Pourpre
+      fuchsia: Fuchsia
+      pink: Rose vif
+      rose: Rose
   instructions:
     label: Instructions
     hint: Chaque chat de ce projet démarre avec ces instructions.
