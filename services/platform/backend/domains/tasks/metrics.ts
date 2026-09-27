@@ -46,7 +46,7 @@ import { assertTaskReadable } from './service.ts';
  *   holds; the newest page was folded and the numbers are lower bounds.
  */
 
-export const PROJECT_METRICS_MAX_SCAN = 5000;
+const PROJECT_METRICS_MAX_SCAN = 5000;
 const STALE_EOD_MS = 24 * 60 * 60 * 1000;
 
 export type ProjectMetricsPeriodDays = 7 | 30 | 90;
