@@ -10,6 +10,7 @@ import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { EmptyState } from '@tale/ui/empty-state';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Sheet } from '@tale/ui/sheet';
@@ -363,6 +364,14 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
               },
             },
           ]}
+          // No event recorded and no filter narrowing the list: there is
+          // nothing to filter. A filter that narrowed it to nothing stays
+          // usable so it can be undone.
+          disabled={isFilterAffordanceDisabled({
+            isLoading,
+            itemCount: events?.length ?? 0,
+            hasActiveFilters: filterName !== 'all' || kind !== 'all',
+          })}
         />
       </Row>
 
