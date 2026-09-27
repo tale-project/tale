@@ -13,6 +13,7 @@ For a workspace deployment, start with `tale status` and `tale logs <service> --
 | --- | --- | --- |
 | Connection fails or TLS warns | DNS, public ports, certificate hostname and issuer, proxy logs. | Fix the failing layer. For an internal CA, install its public root certificate on the client; `docker exec ... caddy trust` does not change the client's trust store. |
 | Proxy returns 502/503 | Identify the failing path and upstream. `/api/health` and web assets use `platform`; application requests use `backend-api`. | Inspect that service's startup error and readiness before changing proxy configuration. |
+| Requests return `503 DATABASE_UNAVAILABLE` | `backend-api` is running, but its database is restarting or unreachable; its log shows `database unavailable` warnings. | Check the database container's state and logs. Requests recover on their own once it accepts connections again. |
 | `400 BODY_LENGTH_MISMATCH` or `400 BODY_CHUNK_MALFORMED` | The request body ended before its declared length, or its HTTP/1.1 chunk framing is malformed. | Correct the sender’s body framing or declared length, then retry the well-formed request. |
 | Sign-in returns to the login page | Browser cookie and callback requests; configured `SITE_URL`, additional origins, base path, and provider registration. | Correct the mismatched origin or callback and recreate services after environment changes. |
 

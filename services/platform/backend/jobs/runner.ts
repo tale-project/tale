@@ -1,5 +1,9 @@
 import type { JobResult, PgBoss } from 'pg-boss';
 
+import {
+  describeDatabaseError,
+  isDatabaseUnavailable,
+} from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
 import type { BackendTaskList } from './task-list.ts';
 
@@ -65,15 +69,25 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
               await handler(job.data, { signal: job.signal });
               return { id: job.id, status: 'completed' };
             } catch (error) {
-              console.error(
-                `[backend] task ${name} (job ${job.id}) failed:`,
-                error,
-              );
-              // Queue names are a bounded vocabulary — safe as a tag.
-              reportError(error, {
-                tags: { 'tale.task': name },
-                extra: { jobId: job.id },
-              });
+              if (isDatabaseUnavailable(error)) {
+                // A database restart fails whatever was running. The failed
+                // job is retried under its queue's policy once the database
+                // is back (a `retryLimit: 0` lane is its watchdog's to
+                // recover), so this is an operational event, not a defect.
+                console.warn(
+                  `[backend] task ${name} (job ${job.id}) failed, database unavailable: ${describeDatabaseError(error)}`,
+                );
+              } else {
+                console.error(
+                  `[backend] task ${name} (job ${job.id}) failed:`,
+                  error,
+                );
+                // Queue names are a bounded vocabulary — safe as a tag.
+                reportError(error, {
+                  tags: { 'tale.task': name },
+                  extra: { jobId: job.id },
+                });
+              }
               return {
                 id: job.id,
                 status: 'failed',

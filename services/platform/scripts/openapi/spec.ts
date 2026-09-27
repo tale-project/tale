@@ -110,13 +110,23 @@ function errorResponse(description: string) {
 
 /** A door-wide refusal folded into an operation's own response of that
  * status: appended to the family's sentence when one exists, the whole
- * description otherwise. */
+ * description — capitalized — otherwise. */
 function withDoorRefusal(existing: Json | undefined, sentence: string): Json {
-  if (existing === undefined) return errorResponse(sentence);
+  if (existing === undefined) {
+    return errorResponse(
+      `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`,
+    );
+  }
   const description =
     typeof existing.description === 'string' ? existing.description : '';
   return { ...existing, description: `${description}; or ${sentence}` };
 }
+
+/** The 503 every operation answers while the database restarts — from the
+ * platform itself, unlike the edge's `UPSTREAM_UNAVAILABLE`
+ * (`databaseUnavailableResponse` in backend/error-reporting.ts). */
+const DATABASE_UNAVAILABLE_REFUSAL =
+  'the platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`';
 
 const standardErrors = {
   '400': errorResponse(
@@ -6362,9 +6372,10 @@ export function buildSpec(): Json {
   // every call; a single-organization key may omit it), the two refusals
   // that header can draw (403 `ORG_FORBIDDEN`, 404 `ORG_SLUG_INVALID`),
   // the 405 a served path answers for a method it does not take, the 500
-  // every operation can end in, and the 413 every operation with a body
-  // answers past its byte cap. A family's own sentence for a status keeps
-  // the lead; the door's clause is appended to it.
+  // every operation can end in, the 503 every operation answers while the
+  // database restarts, and the 413 every operation with a body answers
+  // past its byte cap. A family's own sentence for a status keeps the lead;
+  // the door's clause is appended to it.
   /** The creates whose 201 names the created resource in `Location`. */
   const LOCATION_201_PATHS = new Set([
     '/api/v1/contacts',
@@ -6433,6 +6444,10 @@ export function buildSpec(): Json {
       responses['500'] ??= errorResponse(
         'Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it',
       );
+      responses['503'] = withDoorRefusal(
+        responses['503'],
+        DATABASE_UNAVAILABLE_REFUSAL,
+      );
       // Every JSON read is a validated read (lib/conditional-get.ts): the
       // 200 carries an `ETag` over its bytes, and the same request with
       // that tag in `If-None-Match` answers 304 without the body.
@@ -6478,15 +6493,20 @@ export function buildSpec(): Json {
   // answer through the same app and sit in this document: the request id
   // and the contract version on every response (the REST door's stamper is
   // mounted on both in app.ts — a sender pinning to a version used to read
-  // no header at all, 2026-09-13 round-e evaluation), the wait on a 429.
+  // no header at all, 2026-09-13 round-e evaluation), the wait on a 429 and
+  // on the 503 a database restart answers.
   for (const [path, operations] of Object.entries(paths)) {
     if (!path.includes('/automations/webhook/')) continue;
     for (const [method, operation] of Object.entries(operations)) {
       if (!HTTP_METHODS.has(method)) continue;
       const op = operation as { responses: Record<string, Json> };
+      op.responses['503'] = withDoorRefusal(
+        op.responses['503'],
+        DATABASE_UNAVAILABLE_REFUSAL,
+      );
       for (const [status, response] of Object.entries(op.responses)) {
         withHeaders(response, doorHeaders);
-        if (status === '429') {
+        if (status === '429' || status === '503') {
           withHeaders(response, { 'Retry-After': 'RetryAfter' });
         }
       }
@@ -6632,8 +6652,9 @@ Non-2xx responses carry a flat envelope: \`{"error": "<sentence>", "code":
 below, additive, so treat a value you do not know as a generic refusal of
 the status you got. A 429 carries a sentence in \`error\` like every other
 refusal, with the wait in \`data.retryAfterMs\` (milliseconds) and
-\`Retry-After\` (whole seconds); a 429, a 500, a body-size 413 and a URL-size
-414 add \`requestId\`; a refused body or query
+\`Retry-After\` (whole seconds); a 429, a 500, a 503
+\`DATABASE_UNAVAILABLE\`, a body-size 413 and a URL-size 414 add
+\`requestId\`; a refused body or query
 lists every problem under \`data.issues\`, each naming the field (\`path\`)
 and the reason as a short phrase you can show a person — \`is required\`,
 \`must be a string\`, \`must not be blank\`, \`must be at most 200
@@ -6653,7 +6674,9 @@ body that ended before its declared Content-Length), \`BODY_CHUNK_MALFORMED\`
 malformed), \`UPSTREAM_UNAVAILABLE\`
 (502, 503 or 504, answered at the edge with \`Retry-After\` while the
 platform restarts or cannot be reached — the maintenance page a browser
-gets, as JSON) and \`INTERNAL_ERROR\`.
+gets, as JSON), \`DATABASE_UNAVAILABLE\` (503 with \`Retry-After\`, answered
+by the platform while its database restarts or cannot be reached — retry
+with backoff) and \`INTERNAL_ERROR\`.
 
 ## Pagination
 

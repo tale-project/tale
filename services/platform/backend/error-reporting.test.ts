@@ -5,9 +5,14 @@ import { serve, type ServerType } from '@hono/node-server';
 import * as Sentry from '@sentry/node';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { requestId } from 'hono/request-id';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { safeFetch } from '../lib/net/safe-fetch.ts';
+import {
+  noteSwallowedDatabaseError,
+  runWithSwallowedDatabaseErrors,
+} from './db/unavailable.ts';
 import {
   appErrorHandler,
   errorReportingEnabled,
@@ -63,6 +68,16 @@ function parseEnvelope(url: string, raw: Buffer, gzipped: boolean): void {
 
 function capturedEvents(): Record<string, unknown>[] {
   return captured.flatMap((envelope) => envelope.events);
+}
+
+/** The message of every exception reported so far. */
+function reportedMessages(): string[] {
+  return capturedEvents().flatMap((event) => {
+    const exception = event.exception as
+      | { values?: { value?: unknown }[] }
+      | undefined;
+    return (exception?.values ?? []).map((entry) => String(entry.value));
+  });
 }
 
 describe('scrubUrl', () => {
@@ -364,6 +379,103 @@ describe('error reporting with a DSN', () => {
       JSON.stringify(e).includes('teapot-refusal'),
     );
     expect(leaked).toBeUndefined();
+  });
+
+  it('answers an unavailable database with a retryable 503 and reports nothing', async () => {
+    // A managed upgrade recreates `db` on every release: every request in
+    // flight fails at once, and each used to land in the tracker as a 500.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const app = new Hono();
+      app.onError(appErrorHandler);
+      app.use(requestId());
+      app.get('/api/app/tasks', () => {
+        throw Object.assign(
+          new Error('boom-db-restart: terminating connection'),
+          { code: '57P01' },
+        );
+      });
+
+      const res = await app.request('http://localhost/api/app/tasks', {
+        headers: { 'x-request-id': 'req-503' },
+      });
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('5');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(await res.json()).toEqual({
+        error:
+          'The platform’s database is not answering right now — it may be restarting; retry with backoff',
+        code: 'DATABASE_UNAVAILABLE',
+        requestId: 'req-503',
+      });
+      expect(warn).toHaveBeenCalledWith(
+        '[backend] database unavailable — 503 for GET /api/app/tasks: 57P01 boom-db-restart: terminating connection',
+      );
+
+      await flushErrorReporting();
+      expect(reportedMessages()).not.toContain(
+        'boom-db-restart: terminating connection',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('answers a library’s bare 500 the same way when the database error behind it was noted', async () => {
+    // Better Auth's session read throws a cause-less 500 in place of its
+    // adapter's error and only logs the original (auth/auth.ts notes it).
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const bare500 = (message: string): Error =>
+      Object.assign(new Error(message), {
+        status: 'INTERNAL_SERVER_ERROR',
+        statusCode: 500,
+      });
+    try {
+      const app = new Hono();
+      app.onError(appErrorHandler);
+      app.use((_c, next) => runWithSwallowedDatabaseErrors(next));
+      app.get('/events', () => {
+        noteSwallowedDatabaseError(
+          Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:5432'), {
+            code: 'ECONNREFUSED',
+          }),
+        );
+        throw bare500('boom-bare-outage');
+      });
+      app.get('/api/app/me', () => {
+        throw bare500('boom-bare-defect');
+      });
+
+      const outage = await app.request('http://localhost/events');
+      expect(outage.status).toBe(503);
+      expect(await outage.json()).toMatchObject({
+        code: 'DATABASE_UNAVAILABLE',
+      });
+      // Nothing noted: the same bare 500 is a defect, reported as before.
+      const defect = await app.request('http://localhost/api/app/me');
+      expect(defect.status).toBe(500);
+
+      await flushErrorReporting();
+      // Matched on the exception message: a reported event's source context
+      // quotes the neighbouring lines of this file, the other message too.
+      expect(reportedMessages()).not.toContain('boom-bare-outage');
+      expect(reportedMessages()).toContain('boom-bare-defect');
+    } finally {
+      warn.mockRestore();
+      consoleError.mockRestore();
+    }
+  });
+
+  it('reports at the level it is given', async () => {
+    reportError(new Error('boom-warning-level'), { level: 'warning' });
+    await flushErrorReporting();
+    const event = capturedEvents().find((e) =>
+      JSON.stringify(e).includes('boom-warning-level'),
+    );
+    expect(event?.level).toBe('warning');
   });
 
   it('sends no credential of a real HTTP request: no cookie, no key, no body', async () => {

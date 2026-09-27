@@ -62,6 +62,10 @@ export const REST_ERROR_CODES = [
   'CONVERSATION_NOT_FOUND',
   'CONVERSATION_SNAPSHOT_CONFLICT',
   'CONVERSATION_SOURCE_NOT_FOUND',
+  // Answered by the error handlers (`databaseUnavailableResponse` in
+  // error-reporting.ts), never by a route: a 503 while the database
+  // restarts or cannot be reached.
+  'DATABASE_UNAVAILABLE',
   'DELIVERY_NOT_FOUND',
   'DELIVERY_RECEIPT_CONFLICT',
   'DELIVERY_RETRY_UNAVAILABLE',

@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 16 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 17 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -165,6 +165,21 @@ single warm sample.
   `e2e:error` in `mockA`. → The provider-error UI renders (HTTP 500 path); the
   chat input recovers to **Send message** enabled — no spinner stuck on, no
   page crash. This is the designed error path (**ENVIRONMENT**).
+- [ ] `PERF-B5` · **Database restart** — Keep a tab open on `/dashboard/{org}`
+  (DevTools → Network shows its `…/events?orgId=` stream), start a loop that
+  calls the REST API twice a second (`while true; do curl -s -o /dev/null -w
+  '%{http_code} ' -H 'Authorization: Bearer <key>' {SITE_URL}/api/v1/me;
+  sleep 0.5; done`), then run `docker compose restart db` and wait until it
+  reports healthy. → The loop prints `200`s, then `503`s while the database is
+  away — each a JSON `DATABASE_UNAVAILABLE` with `Retry-After: 5`, never a
+  `401` or a `500` — then `200` again. The tab's hint stream stays open
+  through the restart (heartbeats keep arriving) and delivers hints again
+  afterwards without a reload: edit a task in a second session and watch the
+  first one update. `docker inspect --format '{{.RestartCount}}'` on the
+  `backend-api` container is unchanged; its log shows `database unavailable`
+  warnings and `/events: database back after …` rather than error stacks;
+  with `SENTRY_DSN` set no error-level event arrives (a restart longer than
+  about a minute sends one warning-level event).
 
 ## Accessibility (WCAG 2.1 AA)
 

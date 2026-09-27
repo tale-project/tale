@@ -64,6 +64,8 @@ SENTRY_TRACES_SAMPLE_RATE=0.1
 
 The trace sample rate applies to browser performance traces. The backend sends errors, not performance traces. Browser traces default to 1.0 in development; choose a production sample rate that fits your monitoring budget. Backend events never include request cookies or bodies. Authorization, cookie, API-key, token, secret and session headers, webhook and share tokens in URLs, and credential query values such as OAuth codes are replaced with `[Filtered]` before sending. Stack frames and error messages are sent as they are, so choose the destination according to your data-handling requirements.
 
+A database restart is not reported as an error; a managed upgrade recreates the database on every release. While it is unreachable, requests answer `503 DATABASE_UNAVAILABLE` with `Retry-After`, background jobs fail and retry under their queue's policy, and open live-update streams back off and resume. Each logs a warning line instead. When the database stays unreachable for more than about a minute, an API process with live-update streams open sends one warning-level event for that outage.
+
 ## Aggregate analytics with Umami
 
 Aggregate traffic collection is disabled by default and enabled separately for each deployment. Set `UMAMI_URL`, `UMAMI_WEBSITE_ID` and `UMAMI_PROXY_TOKEN` as described in the [environment reference](/self-hosted/configuration/environment-reference). Use a separate website ID for each deployment. Apply environment changes by recreating the affected production service; no image rebuild is needed. Clear the website ID and apply the change to disable collection. The Vite development server does not inject this configuration.

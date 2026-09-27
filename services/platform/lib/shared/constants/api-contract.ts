@@ -204,5 +204,12 @@
  * organization-wide legal hold or a custodian hold on the uploader of the
  * product's image, the way document and contact deletes do — the response
  * is now documented on the operation.
+ *
+ * 2.2.0 — 2026-09-27: new code `DATABASE_UNAVAILABLE` (503, with
+ * `Retry-After` and a `requestId`) on every operation, the webhook doors
+ * included, while the platform's database restarts or cannot be reached.
+ * Such a request used to answer a 500 `INTERNAL_ERROR`, and a key the
+ * database could not look up a 401 `UNAUTHORIZED` — a key that works once
+ * the database is back. Retry with backoff.
  */
-export const API_CONTRACT_VERSION = '2.1.0';
+export const API_CONTRACT_VERSION = '2.2.0';

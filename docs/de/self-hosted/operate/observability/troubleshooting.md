@@ -13,6 +13,7 @@ Beginne bei einer Workspace-Bereitstellung mit `tale status` und `tale logs <ser
 | --- | --- | --- |
 | Verbindung scheitert oder TLS warnt | DNS, öffentliche Ports, Hostname und Aussteller des Zertifikats, Proxy-Protokolle. | Behebe die betroffene Ebene. Installiere bei einer internen CA das öffentliche Stammzertifikat auf dem Client; `docker exec ... caddy trust` ändert dessen Vertrauensspeicher nicht. |
 | Proxy antwortet mit 502/503 | Ermittle Pfad und Zieldienst. `/api/health` und Webdateien nutzen `platform`, Anwendungsanfragen `backend-api`. | Prüfe Startfehler und Bereitschaft des Dienstes vor Änderungen am Proxy. |
+| Anfragen antworten mit `503 DATABASE_UNAVAILABLE` | `backend-api` läuft, aber seine Datenbank startet neu oder ist nicht erreichbar; das Protokoll zeigt Warnungen mit `database unavailable`. | Prüfe Zustand und Protokolle des Datenbank-Containers. Sobald er wieder Verbindungen annimmt, laufen die Anfragen von selbst wieder durch. |
 | `400 BODY_LENGTH_MISMATCH` oder `400 BODY_CHUNK_MALFORMED` | Der Anfragekörper endet vor seiner angegebenen Länge oder enthält fehlerhafte HTTP/1.1-Chunk-Grenzen. | Korrigiere Längenangabe oder Übertragungsformat beim Sender und wiederhole dann die korrekt formatierte Anfrage. |
 | Anmeldung führt zurück zur Anmeldeseite | Cookies und Callback-Anfragen im Browser; `SITE_URL`, weitere Ursprünge, Basispfad und Anbieterregistrierung. | Korrigiere Ursprung oder Callback und erstelle Dienste nach Umgebungsänderungen neu. |
 
