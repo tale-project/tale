@@ -90,8 +90,11 @@ describe('sandbox device config', () => {
     });
     const path = sandboxDeviceConfigPath(stateDir);
     await writeSandboxDeviceConfig(config, path);
-    expect((await stat(path)).mode & 0o777).toBe(0o600);
-    expect((await stat(stateDir)).mode & 0o777).toBe(0o700);
+    // POSIX modes: Windows ignores them (and devices refuse Windows anyway).
+    if (process.platform !== 'win32') {
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      expect((await stat(stateDir)).mode & 0o777).toBe(0o700);
+    }
     expect(await readSandboxDeviceConfig(path)).toEqual(config);
     expect(JSON.parse(await readFile(path, 'utf8')).deviceSecret).toBe(
       'tsd_0123456789abcdef',
