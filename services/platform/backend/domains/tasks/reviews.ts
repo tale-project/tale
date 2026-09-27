@@ -280,13 +280,21 @@ export async function requestTaskReview(
  * An erasure moves a review off its subject the same way: no person made
  * that change, so `actorUserId` is absent and the request reads
  * impersonally, and `excludeUserId` keeps the chain from landing on the
- * subject again through a creator slot.
+ * subject again through a creator slot. `silent` moves the routing (and
+ * the follow) without asking anyone — for a task hidden from the board,
+ * where an actionable request would point at a card nobody can act on
+ * until it is restored.
  */
 export async function retargetPendingTaskReview(
   tx: TransactionSql,
-  args: { task: TaskRow; actorUserId?: string; excludeUserId?: string },
+  args: {
+    task: TaskRow;
+    actorUserId?: string;
+    excludeUserId?: string;
+    silent?: boolean;
+  },
 ): Promise<string | undefined> {
-  const { task, actorUserId, excludeUserId } = args;
+  const { task, actorUserId, excludeUserId, silent = false } = args;
   const pending = (await listTaskReviewApprovals(tx, task.id)).filter(
     (approval) =>
       approval.status === 'pending' && approval.wfExecutionId === null,
@@ -316,6 +324,7 @@ export async function retargetPendingTaskReview(
       subscriberId: reviewer,
       reason: 'reviewer',
     });
+    if (silent) continue;
     await notifyTaskReviewRequested(tx, {
       organizationId: task.organizationId,
       task: { id: task.id, projectId: task.projectId, title: task.title },

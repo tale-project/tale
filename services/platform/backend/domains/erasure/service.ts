@@ -1171,8 +1171,16 @@ export async function processErasure(
   // instead, it waited on nobody — on no board and in no bell. Only then is
   // what still names the subject pseudonymized: the decisions, the
   // workflow-era rows every review door leaves alone, and a waiting row
-  // whose task is gone or that was decided in the meantime.
+  // whose task is gone, that was decided in the meantime, or whose hand-over
+  // failed — routing never holds back the erasure of history.
   await pass('reviewDecisions', async () => {
+    const clearDesignation = (tx: TransactionSql, taskId: string) =>
+      tx<{ id: string }[]>`
+        UPDATE app.tasks SET reviewer_user_id = NULL
+        WHERE id = ${taskId} AND org_id = ${organizationId}
+          AND reviewer_user_id = ${targetUserId}
+        RETURNING id
+      `;
     const designated = await sql<{ id: string }[]>`
       SELECT id FROM app.tasks
       WHERE org_id = ${organizationId}
@@ -1194,49 +1202,73 @@ export async function processErasure(
       // The designation, review and hint move together. A concurrent task
       // edit retries this read instead of letting a stale reviewer overwrite
       // the designation that edit just selected.
-      const moved = await transactSerializable(sql, async (tx) => {
-        const removed = await tx<{ id: string }[]>`
-          UPDATE app.tasks SET reviewer_user_id = NULL
-          WHERE id = ${taskId} AND org_id = ${organizationId}
-            AND reviewer_user_id = ${targetUserId}
-          RETURNING id
-        `;
-        let task: TaskRow;
-        try {
-          task = await loadTaskOrThrow(tx, taskId, organizationId);
-        } catch (error) {
-          // A row whose task is gone has nowhere to move: the pseudonym
-          // below covers it.
-          if (error instanceof TaskError && error.code === 'TASK_NOT_FOUND') {
-            return { cleared: removed.length, handedOver: 0 };
+      let moved: { cleared: number; handedOver: number };
+      try {
+        moved = await transactSerializable(sql, async (tx) => {
+          const removed = await clearDesignation(tx, taskId);
+          let task: TaskRow;
+          try {
+            task = await loadTaskOrThrow(tx, taskId, organizationId);
+          } catch (error) {
+            // A row whose task is gone has nowhere to move: the pseudonym
+            // below covers it.
+            if (error instanceof TaskError && error.code === 'TASK_NOT_FOUND') {
+              return { cleared: removed.length, handedOver: 0 };
+            }
+            throw error;
           }
-          throw error;
-        }
-        // Discovery was outside this transaction: someone may already have
-        // decided or reassigned the review. Only a request still addressed
-        // to the subject needs a handover.
-        const pending = await tx<{ id: string }[]>`
-          SELECT id FROM app.approvals
-          WHERE org_id = ${organizationId} AND resource_type = 'task_review'
-            AND resource_id = ${taskId} AND status = 'pending'
-            AND wf_execution_id IS NULL
-            AND metadata->>'requestedFor' = ${targetUserId}
-        `;
-        if (pending.length > 0) {
-          await retargetPendingTaskReview(tx, {
-            task,
-            excludeUserId: targetUserId,
-          });
-        }
-        if (removed.length > 0 || pending.length > 0) {
-          await emitHintInTx(tx, {
-            orgId: organizationId,
-            entity: 'task',
-            entityId: taskId,
-          });
-        }
-        return { cleared: removed.length, handedOver: pending.length };
-      });
+          // Discovery was outside this transaction: someone may already have
+          // decided or reassigned the review. Only a request still addressed
+          // to the subject needs a handover.
+          const pending = await tx<{ id: string }[]>`
+            SELECT id FROM app.approvals
+            WHERE org_id = ${organizationId} AND resource_type = 'task_review'
+              AND resource_id = ${taskId} AND status = 'pending'
+              AND wf_execution_id IS NULL
+              AND metadata->>'requestedFor' = ${targetUserId}
+          `;
+          if (pending.length > 0) {
+            // An archived task keeps its open review (archiving closes no
+            // gate), so the routing still moves — a restore must not bring
+            // back a review waiting on nobody — but nobody is asked about a
+            // card hidden from the board.
+            await retargetPendingTaskReview(tx, {
+              task,
+              excludeUserId: targetUserId,
+              silent: task.archivedAt !== null,
+            });
+          }
+          if (removed.length > 0 || pending.length > 0) {
+            await emitHintInTx(tx, {
+              orgId: organizationId,
+              entity: 'task',
+              entityId: taskId,
+            });
+          }
+          return { cleared: removed.length, handedOver: pending.length };
+        });
+      } catch (error) {
+        // Everything in that transaction rolled back. The designation still
+        // goes — it is the subject's id on live routing — and the waiting
+        // row falls to the pseudonym below, as before hand-overs existed: a
+        // failed hand-over must not keep the subject's id on this or any
+        // later task, nor on the decisions after it.
+        console.error(
+          `[erasure] handing on the review of task ${taskId} failed:`,
+          error,
+        );
+        moved = await sql.begin(async (tx) => {
+          const removed = await clearDesignation(tx, taskId);
+          if (removed.length > 0) {
+            await emitHintInTx(tx, {
+              orgId: organizationId,
+              entity: 'task',
+              entityId: taskId,
+            });
+          }
+          return { cleared: removed.length, handedOver: 0 };
+        });
+      }
       cleared += moved.cleared;
       handedOver += moved.handedOver;
     }

@@ -368,6 +368,37 @@ describe('retargetPendingTaskReview — moving a review off an erased subject', 
     });
   });
 
+  it('moves the routing and the follow but asks nobody when silent', async () => {
+    const { tx, statements } = fakeTx(
+      [approval({ metadata: { taskId: 't-1', requestedFor: 'u-carol' } })],
+      { createdBy: 'u-lead', teamIds: [] },
+    );
+
+    const waitsOn = await retargetPendingTaskReview(tx, {
+      task: taskRow({
+        reviewerUserId: null,
+        createdBy: 'u-carol',
+        archivedAt: 5,
+      }),
+      excludeUserId: 'u-carol',
+      silent: true,
+    });
+
+    expect(waitsOn).toBe('u-lead');
+    expect(approvalWrites(statements)).toEqual([
+      [{ json: { requestedFor: 'u-lead' } }, 'apv-1'],
+    ]);
+    // The subject's request bell still goes and the new reviewer follows
+    // the task (a restore brings the card back waiting on them), but no
+    // request rings for a card hidden from the board.
+    expect(dismissReviewRequestNotifications).toHaveBeenCalledTimes(1);
+    expect(autoSubscribe).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ subscriberId: 'u-lead', reason: 'reviewer' }),
+    );
+    expect(notifyTaskReviewRequested).not.toHaveBeenCalled();
+  });
+
   it('empties the request when the subject is every link of the chain', async () => {
     const { tx, statements } = fakeTx(
       [approval({ metadata: { taskId: 't-1', requestedFor: 'u-carol' } })],

@@ -43756,6 +43756,12 @@ async function checkErasure(
     ) VALUES (${orgId}, ${subject}, 'folder', ${`gd-${subject}`}, 'Reports',
               'documents', 'active', ${now}, ${now})
   `;
+  // Nothing above hints the task (the designation and the review were
+  // written directly), so a `task` hint past this cursor is the erasure's:
+  // the board, **Needs my review** and the Reviewer field refresh on it.
+  const outboxBefore = await sql<{ max: string | null }[]>`
+    SELECT max(id)::text AS max FROM app_realtime.outbox
+  `;
   const filed = z
     .object({ requestId: z.string(), threadsTargeted: z.number() })
     .loose()
@@ -43846,6 +43852,12 @@ async function checkErasure(
       AND type = 'task_review_requested'
       AND resource_id = ${waitingAfter[0]?.id ?? ''}
   `;
+  const boardHints = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'task'
+      AND entity_id = ${waitingTaskId}
+      AND id > ${outboxBefore[0]?.max ?? '0'}::bigint
+  `;
   record(
     'erasure: a review still waiting on the subject moves on to the task creator, not to the pseudonym',
     waitingTask.success &&
@@ -43854,8 +43866,9 @@ async function checkErasure(
       waitingAfter[0]?.requestedFor === userId &&
       waitingDesignation[0]?.reviewerUserId === null &&
       handedBell.length === 1 &&
-      handedBell.every((bell) => !bell.read && bell.actorType === 'system'),
-    `task=${waitingTask.success ? 'ok' : 'ERR'}; reviews=${waitingAfter.length} ${waitingAfter[0]?.status}/${waitingAfter[0]?.requestedFor === userId ? 'creator' : String(waitingAfter[0]?.requestedFor)} (want 1 pending/creator); designation=${String(waitingDesignation[0]?.reviewerUserId)} (want null); creator bell=${handedBell.map((bell) => `${bell.read ? 'read' : 'unread'}:${bell.actorType}`).join(',') || 'none'} (want unread:system)`,
+      handedBell.every((bell) => !bell.read && bell.actorType === 'system') &&
+      Number(boardHints[0]?.count ?? '0') > 0,
+    `task=${waitingTask.success ? 'ok' : 'ERR'}; reviews=${waitingAfter.length} ${waitingAfter[0]?.status}/${waitingAfter[0]?.requestedFor === userId ? 'creator' : String(waitingAfter[0]?.requestedFor)} (want 1 pending/creator); designation=${String(waitingDesignation[0]?.reviewerUserId)} (want null); creator bell=${handedBell.map((bell) => `${bell.read ? 'read' : 'unread'}:${bell.actorType}`).join(',') || 'none'} (want unread:system); task hints=${boardHints[0]?.count} (want >0)`,
   );
   record(
     'erasure: the uploads pass deletes the blob behind the ledger row',
