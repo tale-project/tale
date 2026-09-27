@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { ProviderEmbeddingSupport } from '@tale/shared/schemas/providers';
+
 export interface KnowledgeContract {
   'knowledge/actions:deleteKnowledgeConnection': {
     kind: 'action';
@@ -93,11 +95,20 @@ export interface KnowledgeContract {
   'knowledge/recommendations:listEmbeddingRecommendations': {
     kind: 'action';
     args: { organizationId: string };
-    returns: Array<{
-      providerSlug: string;
-      model: string;
-      dimensions: number;
-      recommended: boolean;
-    }>;
+    returns: {
+      recommendations: Array<{
+        providerSlug: string;
+        model: string;
+        dimensions: number;
+        recommended: boolean;
+      }>;
+      /** Every provider the org can choose, with its declared embedding
+       *  support: `unsupported` cannot embed; `unknown` has no curated
+       *  width here, so the model and dimensions are entered by hand. */
+      providers: Array<{
+        providerSlug: string;
+        support: ProviderEmbeddingSupport;
+      }>;
+    };
   };
 }

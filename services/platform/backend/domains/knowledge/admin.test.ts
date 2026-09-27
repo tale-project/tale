@@ -1,10 +1,15 @@
 // @vitest-environment node
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   KnowledgeAdminError,
+  listEmbeddingRecommendationsForOrg,
   probeKnowledgeConnection,
   writeKnowledgeConnection,
   resolveKeptEmbeddingSettings,
@@ -167,5 +172,78 @@ describe('the settings an embedding write keeps', () => {
     );
     expect(error.status).toBe(400);
     expect(error.code).toBe('INVALID_EMBEDDING');
+  });
+});
+
+/**
+ * The recommendations read also carries every provider's declared embedding
+ * support, so the form can tell "cannot embed" (refused) from "no curated
+ * width here" (typed by hand). The shipped connector tree is the fixture;
+ * the org has no providers of its own, and only static catalogs are read.
+ */
+describe('embedding recommendations with declared support', () => {
+  async function withEmptyConfigDir<T>(run: () => Promise<T>): Promise<T> {
+    const dir = await mkdtemp(path.join(tmpdir(), 'tale-embedding-support-'));
+    vi.stubEnv('TALE_CONFIG_DIR', dir);
+    try {
+      return await run();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  function key(providerSlug: string) {
+    return { status: 'active', authMethod: 'api-key', providerSlug };
+  }
+
+  it('reports Anthropic as unable to embed and never recommends it', async () => {
+    const view = await withEmptyConfigDir(() =>
+      listEmbeddingRecommendationsForOrg('acme', [
+        key('anthropic'),
+        key('deepseek'),
+        key('openai'),
+      ]),
+    );
+    const support = new Map(
+      view.providers.map((entry) => [entry.providerSlug, entry.support]),
+    );
+
+    expect(support.get('anthropic')).toBe('unsupported');
+    // No curated width ships for DeepSeek, and its docs say nothing either
+    // way: enter the model and dimensions by hand, never refused.
+    expect(support.get('deepseek')).toBe('unknown');
+    expect(support.get('openai')).toBe('supported');
+    expect(view.recommendations).toEqual([
+      {
+        providerSlug: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 1536,
+        recommended: true,
+      },
+    ]);
+  });
+
+  it('reports every provider the org can choose, even without a direct key', async () => {
+    const view = await withEmptyConfigDir(() =>
+      listEmbeddingRecommendationsForOrg('acme', [
+        {
+          status: 'active',
+          authMethod: 'subscription-broker',
+          providerSlug: 'anthropic',
+        },
+      ]),
+    );
+
+    expect(view.recommendations).toEqual([]);
+    expect(view.providers).toContainEqual({
+      providerSlug: 'anthropic',
+      support: 'unsupported',
+    });
+    // Declared `supported`, but with no direct key there is no width to
+    // offer here — the manual path, not a refusal.
+    expect(view.providers).toContainEqual({
+      providerSlug: 'openai',
+      support: 'unknown',
+    });
   });
 });

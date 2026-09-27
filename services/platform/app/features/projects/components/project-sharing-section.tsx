@@ -1,12 +1,16 @@
 'use client';
 
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
-import { FormSection } from '@tale/ui/form-section';
+import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import {
   useOrgTeams,
   useTeamNames,
@@ -108,42 +112,58 @@ export function ProjectSharingSection({
         ? t('list.sharingOrgWide')
         : teamIds.map((id) => nameOf(id) ?? t('list.unknownTeam')).join(', ');
     return (
-      <FormSection label={t('sharing.effectiveAudience')}>
-        <p className="text-muted-foreground text-sm">{audience}</p>
-      </FormSection>
+      <SettingsFieldList>
+        <SettingsFieldRow label={t('sharing.effectiveAudience')}>
+          <Text variant="muted">{audience}</Text>
+        </SettingsFieldRow>
+      </SettingsFieldList>
     );
   }
 
+  // The same field-row chrome as the Project section above it: label and help
+  // on the left, the control pinned in the shared control column on the
+  // right, so this page reads as one aligned list of rows.
   if (!assignableTeams || assignableTeams.length === 0) {
     return (
-      <FormSection>
-        <p className="text-muted-foreground text-sm">
-          {t('sharing.noTeamsHint')}{' '}
-          <Link
-            to="/dashboard/$id/settings/teams"
-            params={{ id: organizationId }}
-            className="text-primary hover:underline"
-          >
-            {t('sharing.noTeamsCreateLink')}
-          </Link>
-        </p>
-      </FormSection>
+      <SettingsFieldList>
+        <SettingsFieldRow
+          label={t('settings.audience')}
+          description={t('settings.audienceHelp')}
+        >
+          <Text variant="muted">
+            {t('sharing.noTeamsHint')}{' '}
+            <Link
+              to="/dashboard/$id/settings/teams"
+              params={{ id: organizationId }}
+              className="text-primary hover:underline"
+            >
+              {t('sharing.noTeamsCreateLink')}
+            </Link>
+          </Text>
+        </SettingsFieldRow>
+      </SettingsFieldList>
     );
   }
 
   return (
     <>
-      <FormSection>
-        <TeamMultiSelect
+      <SettingsFieldList>
+        <SettingsFieldRow
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
-          teams={assignableTeams}
-          selectedTeamIds={teamIds}
-          onSelectionChange={handleChange}
-          orgWideLabel={t('list.sharingOrgWide')}
-          disabled={isPending}
-        />
-      </FormSection>
+        >
+          {/* The row shows the label, so the combobox carries its accessible
+              name itself — a `<label htmlFor>` cannot name a combobox div. */}
+          <TeamMultiSelect
+            aria-label={t('settings.audience')}
+            teams={assignableTeams}
+            selectedTeamIds={teamIds}
+            onSelectionChange={handleChange}
+            orgWideLabel={t('list.sharingOrgWide')}
+            disabled={isPending}
+          />
+        </SettingsFieldRow>
+      </SettingsFieldList>
 
       <ConfirmDialog
         open={pendingNarrowChange !== null}

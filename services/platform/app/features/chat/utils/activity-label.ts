@@ -9,6 +9,7 @@
 
 import type { TFunction } from 'i18next';
 
+import { isMessageRef } from '@/lib/knowledge/message-ref';
 import { isRecord } from '@/lib/utils/type-utils';
 
 /** The hostname of a URL, when it parses — shared by the "Reading {hostname}"
@@ -99,11 +100,12 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
   }
   if (step.tool === 'rag_fetch') {
     // A document read is named by the filename the result carried — a miss
-    // carries it too, whenever the reader may know it. Without one, the only
-    // handle left is the blob ref the model passed, and an `s3:` key is not
-    // a name a person should ever read on the timeline.
+    // carries it too, whenever the reader may know it; an email read by the
+    // subject its result carried. Without one, the only handle left is the
+    // ref the model passed, and an `s3:` key or a `msg:` id is not a name a
+    // person should ever read on the timeline.
     const name = step.resultName ?? step.detail;
-    if (name === undefined || isBlobRef(name)) {
+    if (name === undefined || isAddressRef(name)) {
       return t('thinking.readingDocumentUnnamed');
     }
     return t('thinking.readingDocument', { name });
@@ -111,7 +113,8 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
   return t('parts.toolCall', { tool: step.tool });
 }
 
-/** A stored-blob reference (`s3:<key>`) — an address, never a title. */
-function isBlobRef(value: string): boolean {
-  return value.startsWith('s3:');
+/** A stored-blob reference (`s3:<key>`) or an email ref (`msg:<id>`) — an
+ * address, never a title. */
+function isAddressRef(value: string): boolean {
+  return value.startsWith('s3:') || isMessageRef(value);
 }

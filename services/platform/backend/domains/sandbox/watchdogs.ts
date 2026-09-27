@@ -114,9 +114,11 @@ export interface SandboxWatchdogResult {
  *    it: a container its create left behind (one cut short between Docker's
  *    create and start stays `created`, pinning its runtime image through
  *    every later deploy) and its host workspace had no owner at all. The
- *    failing turn destroys them best-effort before the flip; this pass
- *    collects what that destroy could not, past a grace, behind the same
- *    `if_idle` guard as RECLAIM, and stamps `destroyed_at_ms` on the row.
+ *    failing turn or crawler render batch destroys them best-effort before
+ *    the flip (a render batch refused as a duplicate destroys nothing: the
+ *    id may be another run's live session); this pass collects what that
+ *    destroy could not, past a grace, behind the same `if_idle` guard as
+ *    RECLAIM, and stamps `destroyed_at_ms` on the row.
  */
 export async function runSandboxWatchdog(
   sql: Sql,

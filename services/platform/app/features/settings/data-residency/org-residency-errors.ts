@@ -27,7 +27,7 @@ export function mapOrgResidencyError(err: unknown, t: Translator): string {
     serverMessage ?? (err instanceof Error ? err.message : String(err));
 
   switch (code) {
-    case 'UNAUTHENTICATED':
+    case 'UNAUTHORIZED':
     case 'ORG_ID_REQUIRED':
     case 'ORG_NOT_FOUND':
     case 'ORG_FORBIDDEN':

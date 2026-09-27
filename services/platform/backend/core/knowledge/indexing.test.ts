@@ -287,6 +287,40 @@ describe('unchanged content is not re-embedded', () => {
     expect(db.statements.join('\n')).toContain('WITH copied AS');
   });
 
+  it('never clones an email body from another row', async () => {
+    // A clone copies the source's chunks header and all: an email whose body
+    // matched another row's text would announce that row's name instead of
+    // its own subject and sender.
+    const db = fakeDb({ duplicateId: 'doc-original' });
+    const embedder = stubEmbedder();
+    await indexDocument({
+      ...ARGS,
+      fileId: 'msg:6f3c2a1e-8b7d-4e5f-9a0b-1c2d3e4f5a6b',
+      title: 'Application — from Bob Example <bob@example.test>',
+      conversationId: 'conv_1',
+      sql: db.sql,
+      embedder,
+    });
+    const text = db.statements.join('\n');
+    expect(text).not.toContain('WITH copied AS');
+    expect(text).not.toMatch(/content_hash = \$2 AND status = 'completed'/);
+    expect(embedder.embedded.length).toBeGreaterThan(0);
+  });
+
+  it('never offers an email body as the source of a clone', async () => {
+    // Its header names a correspondent in a conversation the reader of the
+    // copy — a hub document, another inbox row — may have no right to see.
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+    const index = db.statements.findIndex(
+      (statement) =>
+        statement.includes('content_hash = $2') &&
+        statement.includes('completed'),
+    );
+    expect(db.statements[index]).toContain('file_id NOT LIKE $4');
+    expect(db.params[index]?.[3]).toBe('msg:%');
+  });
+
   it('looks for a duplicate only inside the same organization', async () => {
     // Reusing another organization's embeddings would copy its content and
     // reveal that it holds the same file.
@@ -615,6 +649,137 @@ describe('the chunk header announces the title, not just the filename', () => {
       .map((value) => (typeof value === 'string' ? value : ''))
       .join('\n');
     expect(flat).toContain(ARGS.filename);
+  });
+});
+
+describe('the PII policy covers the chunk header and the stored name', () => {
+  // The header is prepended to every chunk: embedded, stored in
+  // `chunk_content`, matched by the keyword leg and returned as the passage.
+  // An email body's header names its sender (`Subject — from Name
+  // <address>`), so a policy that masked only the body would still send
+  // every correspondent's address to the embedding provider.
+  const EMAIL_MASK = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['email'],
+  } as const;
+  const MAIL = {
+    ...ARGS,
+    fileId: 'msg:6f3c2a1e-8b7d-4e5f-9a0b-1c2d3e4f5a6b',
+    filename: 'Email from Bob Example <bob@example.test>',
+    title: 'Email from Bob Example <bob@example.test>',
+    text: 'Please reach me at bob@example.test about the role.',
+    conversationId: 'conv_1',
+  };
+
+  /** Every string a statement wrote — the claim, the chunks, the stamps. */
+  function written(db: FakeDb): string {
+    return db.params
+      .flat()
+      .map((value) => (typeof value === 'string' ? value : ''))
+      .join('\n');
+  }
+
+  function claimed(db: FakeDb): unknown[] {
+    const at = db.statements.findIndex((text) =>
+      text.includes('INSERT INTO private_knowledge.documents'),
+    );
+    return db.params[at] ?? [];
+  }
+
+  it('masks the address in the header, the chunks and the stored name', async () => {
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    const result = await indexDocument({
+      ...MAIL,
+      sql: db.sql,
+      embedder,
+      piiConfig: EMAIL_MASK as never,
+    });
+
+    expect(result.chunksWritten).toBeGreaterThan(0);
+    // Nothing the provider saw carries the address…
+    for (const text of embedder.embedded) {
+      expect(text).not.toContain('bob@example.test');
+      expect(text).toContain('Bob Example');
+      expect(text).toContain('about the role');
+    }
+    // …nor anything the corpus stores: `chunk_content`, `filename`.
+    expect(written(db)).not.toContain('bob@example.test');
+    const filename = claimed(db)[2];
+    expect(typeof filename).toBe('string');
+    expect(filename).toContain('Email from Bob Example');
+    expect(filename).not.toContain('bob@example.test');
+  });
+
+  it('refuses under block when only the header carries the identifier', async () => {
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    const result = await indexDocument({
+      ...MAIL,
+      text: 'I am applying for the field sales agent role.',
+      sql: db.sql,
+      embedder,
+      piiConfig: { ...EMAIL_MASK, mode: 'block' } as never,
+    });
+
+    expect(result.skipped).toBe('pii-blocked');
+    expect(result.refusal).toContain('email');
+    expect(embedder.embedded).toEqual([]);
+    expect(db.statements.join('\n')).toContain("'failed'");
+    expect(written(db)).not.toContain('bob@example.test');
+  });
+
+  it('covers a Document Hub file, whose header is its filename', async () => {
+    const db = fakeDb();
+    const embedder = stubEmbedder();
+    await indexDocument({
+      ...ARGS,
+      filename: 'Offer for ada@example.test.pdf',
+      sql: db.sql,
+      embedder,
+      piiConfig: EMAIL_MASK as never,
+    });
+    for (const text of embedder.embedded) {
+      expect(text).not.toContain('ada@example.test');
+      expect(text).toContain('Offer for');
+    }
+    expect(claimed(db)[2]).not.toContain('ada@example.test');
+  });
+
+  it('makes a masked header part of the content’s identity, and only then', async () => {
+    // A policy switched on must re-index a body it finds nothing in when
+    // the header changed — and must not move the hash of a header it left
+    // alone, or every stored document would read as changed.
+    const hashOf = async (
+      args: Omit<Parameters<typeof indexDocument>[0], 'sql'>,
+    ) => {
+      const db = fakeDb();
+      await indexDocument({ ...args, sql: db.sql });
+      return claimed(db)[3];
+    };
+    const clean = 'I am applying for the field sales agent role.';
+    const bare = await hashOf({
+      ...MAIL,
+      text: clean,
+      embedder: stubEmbedder(),
+    });
+    const masked = await hashOf({
+      ...MAIL,
+      text: clean,
+      embedder: stubEmbedder(),
+      piiConfig: EMAIL_MASK as never,
+    });
+    const untouched = await hashOf({
+      ...MAIL,
+      title: 'Application — from Bob Example',
+      text: clean,
+      embedder: stubEmbedder(),
+      piiConfig: EMAIL_MASK as never,
+    });
+    expect(bare).toBe(computeContentHash(clean));
+    expect(masked).not.toBe(bare);
+    expect(untouched).toBe(bare);
   });
 });
 

@@ -23,7 +23,6 @@ export function ErrorLogTable({
   const paginatedResult = useListErrorLogsPaginated({
     organizationId,
     category,
-    initialNumItems: 30,
   });
 
   return (

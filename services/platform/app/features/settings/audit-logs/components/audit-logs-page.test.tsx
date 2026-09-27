@@ -17,21 +17,44 @@ import { AuditLogsPage } from './audit-logs-page';
 // the data hooks to their empty/loaded states so only the static UI renders.
 
 // All audit-page query hooks (page + child tabs) resolve to this one module.
+// The two trails are mutable so a test can load, fill or empty either; a
+// category narrows them on the server, so a categorised read answers
+// `filtered` instead. Every test starts from two empty, settled trails.
+const trails = vi.hoisted(() => ({
+  status: 'Exhausted' as 'LoadingFirstPage' | 'Exhausted',
+  audit: [] as unknown[],
+  errors: [] as unknown[],
+  filtered: [] as unknown[],
+}));
+function trail(rows: unknown[], args: { category?: string }) {
+  const loading = trails.status === 'LoadingFirstPage';
+  return {
+    results: loading ? [] : args.category ? trails.filtered : rows,
+    status: trails.status,
+    loadMore: vi.fn(),
+    isLoading: loading,
+  };
+}
 vi.mock('@/app/features/settings/audit-logs/hooks/queries', () => ({
-  useListAuditLogsPaginated: () => ({
-    results: [],
-    status: 'Exhausted' as const,
-    loadMore: vi.fn(),
-    isLoading: false,
-  }),
-  useListErrorLogsPaginated: () => ({
-    results: [],
-    status: 'Exhausted' as const,
-    loadMore: vi.fn(),
-    isLoading: false,
-  }),
+  useListAuditLogsPaginated: (args: { category?: string }) =>
+    trail(trails.audit, args),
+  useListErrorLogsPaginated: (args: { category?: string }) =>
+    trail(trails.errors, args),
   useActivitySummary: () => ({ data: undefined, isLoading: false }),
 }));
+
+const LOG_ROW = {
+  _id: 'log_1',
+  _creationTime: 1_700_000_000_000,
+  organizationId: 'org-1',
+  actorId: 'user_1',
+  actorType: 'user',
+  action: 'add_member',
+  category: 'member',
+  resourceType: 'member',
+  timestamp: 1_700_000_000_000,
+  status: 'success',
+};
 
 // Members list (email map) + block-counters list both go through this hook.
 vi.mock('@/app/hooks/use-backend-query', () => ({
@@ -80,6 +103,10 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 afterEach(() => {
   memberRole.current = 'owner';
   exportMutate.mockClear();
+  trails.status = 'Exhausted';
+  trails.audit = [];
+  trails.errors = [];
+  trails.filtered = [];
 });
 
 // The DataTable reads the org id from the router; outside a RouterProvider that
@@ -91,20 +118,21 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 // The active tab now round-trips through the URL (the route owns it), so the
 // component is controlled. Mirror that here with a tiny stateful harness so
 // clicking a trigger flips the selection the same way the route would.
-function ControlledAuditLogsPage() {
+function ControlledAuditLogsPage({ category }: { category?: string }) {
   const [tab, setTab] = useState('audit');
   return (
     <AuditLogsPage
       organizationId="org-1"
       tab={tab}
       onTabChange={setTab}
+      category={category}
       onCategoryChange={vi.fn()}
     />
   );
 }
 
-function renderPage() {
-  return render(<ControlledAuditLogsPage />);
+function renderPage(category?: string) {
+  return render(<ControlledAuditLogsPage category={category} />);
 }
 
 describe('AuditLogsPage', () => {
@@ -228,5 +256,43 @@ describe('AuditLogsPage', () => {
     const tabPanel = await screen.findByRole('tabpanel');
     await checkAccessibility(tabPanel);
     await checkAccessibility(screen.getByRole('tablist'));
+  });
+
+  // The category filter sits above the active tab's table, so the page reads
+  // that tab's trail to know whether there is anything to filter.
+  describe('category filter', () => {
+    const filterButton = () => screen.getByRole('button', { name: 'Filter' });
+
+    it('is offered over a trail with rows', () => {
+      trails.audit = [LOG_ROW];
+      renderPage();
+      expect(filterButton()).toBeEnabled();
+    });
+
+    it('is disabled over an empty trail with no category picked', () => {
+      renderPage();
+      expect(filterButton()).toBeDisabled();
+    });
+
+    it('stays usable while the trail loads', () => {
+      trails.status = 'LoadingFirstPage';
+      renderPage();
+      expect(filterButton()).toBeEnabled();
+    });
+
+    it('stays usable when the picked category narrows the trail to nothing', () => {
+      trails.audit = [LOG_ROW];
+      renderPage('security');
+      expect(filterButton()).toBeEnabled();
+    });
+
+    it('follows the active tab: the error trail decides on Error logs', async () => {
+      trails.audit = [LOG_ROW];
+      const { user } = renderPage();
+      expect(filterButton()).toBeEnabled();
+
+      await user.click(screen.getByRole('tab', { name: 'Error logs' }));
+      expect(filterButton()).toBeDisabled();
+    });
   });
 });

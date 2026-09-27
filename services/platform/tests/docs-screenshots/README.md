@@ -45,7 +45,7 @@ TALE_DEV_OPEN=0 \
 ```
 
 Wait for the ready banner. The application runs on port 3000, its backend on 3005, and the mock
-gateway on 4141. `TALE_E2E=1` skips the video toolchain; it does not replace the database or object
+gateway on 4141. `TALE_E2E=1` skips the external toolchains; it does not replace the database or object
 store with mocks.
 
 ### Use backing services you have already started

@@ -23,6 +23,7 @@ database or object store. Follow the [platform setup guide](../README.md) first.
 | Startup gates and timeouts | `dev-gates.ts` |
 | Log presentation and local modes | `dev-output.ts`, `dev-modes.ts` |
 | Local development credentials | `dev-secrets.ts` |
+| Sandbox runtime image and external toolchains steps | `dev-sandbox-runtime.ts`, `dev-toolchains.ts` |
 | Machine prerequisites and remediation | `setup-check.ts` |
 
 ## Regenerate a contract or build artifact

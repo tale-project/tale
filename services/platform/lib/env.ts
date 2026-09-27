@@ -16,6 +16,8 @@ declare global {
       SENTRY_TRACES_SAMPLE_RATE?: number;
       TALE_VERSION?: string;
       SESSION_IDLE_TIMEOUT_MINUTES?: number;
+      /** The deployment's own support page, validated http(s) by `server.ts`. */
+      TALE_CONTACT_SUPPORT_URL?: string;
     };
     __ACCEPT_LANGUAGE__?: string;
   }
@@ -28,6 +30,7 @@ export function getEnv(key: 'SENTRY_DSN'): string | undefined;
 export function getEnv(key: 'SENTRY_TRACES_SAMPLE_RATE'): number;
 export function getEnv(key: 'TALE_VERSION'): string | undefined;
 export function getEnv(key: 'SESSION_IDLE_TIMEOUT_MINUTES'): number | undefined;
+export function getEnv(key: 'TALE_CONTACT_SUPPORT_URL'): string | undefined;
 export function getEnv(
   key:
     | 'SITE_URL'
@@ -36,7 +39,8 @@ export function getEnv(
     | 'SENTRY_DSN'
     | 'SENTRY_TRACES_SAMPLE_RATE'
     | 'TALE_VERSION'
-    | 'SESSION_IDLE_TIMEOUT_MINUTES',
+    | 'SESSION_IDLE_TIMEOUT_MINUTES'
+    | 'TALE_CONTACT_SUPPORT_URL',
 ): string | boolean | number | undefined {
   const value = window.__ENV__?.[key];
   if (value === undefined) {
@@ -49,7 +53,8 @@ export function getEnv(
     if (
       key === 'SENTRY_DSN' ||
       key === 'TALE_VERSION' ||
-      key === 'SESSION_IDLE_TIMEOUT_MINUTES'
+      key === 'SESSION_IDLE_TIMEOUT_MINUTES' ||
+      key === 'TALE_CONTACT_SUPPORT_URL'
     ) {
       return undefined;
     }

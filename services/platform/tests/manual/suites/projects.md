@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 49 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -431,6 +431,21 @@ projects-list row ⋯ menu.
   the project's tasks, exactly like a pointer click on the row; the row
   click still works and does not navigate twice when the name itself is
   clicked.
+- [ ] `PROJ-A7` · **Sharing reads like Project** → On General
+  (`…/{projectId}/overview`) as an owner of a project in an org with teams,
+  in light and in dark: the **Audience** row (`projects.settings.audience`,
+  help `projects.settings.audienceHelp`) under **Sharing**
+  (`projects.overview.sharingHeading`) has the shape of the **Name** row
+  (`projects.settings.name`) — label and help on the left, the picker's left
+  and right edges on the Name field's, the rows divided by the same hairline
+  — and a screen reader names the picker **Audience**; as a member who
+  cannot administer it, **Effective audience**
+  (`projects.sharing.effectiveAudience`) is a row of the same shape with the
+  team names on the right; in an org with no teams the Audience row carries
+  **No teams yet.** (`projects.sharing.noTeamsHint`) and **Create a team**
+  (`projects.sharing.noTeamsCreateLink`) on the right. The **Instructions**
+  textarea (`projects.instructions.label`) is labelled by its section header
+  alone, with its counter under it.
 
 ## Performance
 

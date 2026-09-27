@@ -1,6 +1,10 @@
 'use client';
 
-import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
+import {
+  DataTableFilters,
+  type FilterConfig,
+} from '@tale/ui/data-table/data-table-filters';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -138,6 +142,22 @@ function ActivityLogViewInner({
     periodOptions.find((option) => option.value === String(periodDays))
       ?.label ?? '';
 
+  const filters: FilterConfig[] = [
+    {
+      key: 'period',
+      title: t('logs.activity.period.label'),
+      options: periodOptions,
+      selectedValues: [String(periodDays)],
+      // The view opens on the 7-day window, so that selection is the
+      // resting state: no active-filter dot, and clearing returns here.
+      defaultValues: ['7'],
+      onChange: (values) => onPeriod(values[0] ?? '7'),
+      // A longer window reveals actions the 7-day one leaves out, so a quiet
+      // week must not lock the reader out of the 30- and 90-day views.
+      widensResultSet: true,
+    },
+  ];
+
   return (
     <Stack gap={6}>
       {/* Same filter affordance as the sibling log views — a filter button,
@@ -146,18 +166,13 @@ function ActivityLogViewInner({
           falls back to the default period rather than an unfiltered view,
           because the summary always needs a window. */}
       <DataTableFilters
-        filters={[
-          {
-            key: 'period',
-            title: t('logs.activity.period.label'),
-            options: periodOptions,
-            selectedValues: [String(periodDays)],
-            // The view opens on the 7-day window, so that selection is the
-            // resting state: no active-filter dot, and clearing returns here.
-            defaultValues: ['7'],
-            onChange: (values) => onPeriod(values[0] ?? '7'),
-          },
-        ]}
+        filters={filters}
+        disabled={isFilterAffordanceDisabled({
+          isLoading,
+          itemCount: summary?.totalActions ?? 0,
+          hasActiveFilters: periodDays !== 7,
+          filters,
+        })}
         actions={actions}
       />
 

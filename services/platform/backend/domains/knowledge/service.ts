@@ -1,6 +1,11 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { isMessageRef } from '../../../lib/knowledge/message-ref.ts';
+import {
+  INDEXED_MESSAGE_CHANNEL,
+  INDEXED_MESSAGE_DIRECTION,
+  isMessageRef,
+  parseMessageRef,
+} from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
 import { shouldRagIndexOnUpload } from '../../../lib/shared/file-types.ts';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
@@ -87,9 +92,11 @@ import {
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { isCorpusRefLive } from './liveness.ts';
 import {
+  decideMessageRetrievable,
   decideRetrievable,
   type AccessScopeArg,
   type DocCandidate,
+  type MessageCandidate,
   type UnboundFileCandidate,
 } from './retrievable.ts';
 
@@ -99,13 +106,13 @@ import {
  * BYO corpus → deployment default, pgvector + FTS), so search/fetch reuse
  * them VERBATIM through the ctx shim; only three seams re-point at 0.5:
  * the org-row lookup, the credential row loads, and the retrievable-file
- * access filter (Tier A: document, chat-thread and CONVERSATION scopes; the
- * email-message (`msg:`) branch returns deny until something writes such a
- * ref — ledger).
+ * access filter (Tier A: document, chat-thread and CONVERSATION scopes, plus
+ * the email-message (`msg:`) branch, decided by the message's conversation).
  *
  * Ingest is a 0.5-native composition of the same exported pieces
  * (extractText → embedder → indexDocument) with status writes on
- * `app.file_metadata`, driven by the `rag.index_file` job.
+ * `app.file_metadata`, driven by the `rag.index_file` job; an inbound email
+ * body indexes through `rag.index_message` (`message-index.ts`).
  */
 
 const ADAPTER_FIND_ONE = '_reference/childComponent/betterAuth/adapter/findOne';
@@ -128,7 +135,8 @@ const READ_TEXT_ON_DEMAND =
  * shared predicate per row.
  *
  * No caller identity means no person is asking through this path — an
- * emailed attachment stays denied rather than defaulting to org-wide.
+ * emailed attachment or an email body stays denied rather than defaulting to
+ * org-wide.
  */
 async function allowedConversationIds(
   sql: Sql,
@@ -185,9 +193,13 @@ async function allowedConversationIds(
  * expired document is dark immediately, whatever the physical purge is
  * still doing) or a LIVE unbound file row holds it: a thread file inside its
  * thread's scope, an emailed attachment inside the scope of the conversation
- * it arrived on, and a row bound to neither is denied. The DECISION is
- * `decideRetrievable` (pure, tested); this wrapper fetches its candidates
- * and resolves which of THEIR conversations the caller may read.
+ * it arrived on, and a row bound to neither is denied. An email message ref
+ * (`msg:`) passes when its inbound email still exists, its conversation is
+ * live and not spam, the door asked for message bodies, and the caller may
+ * read that conversation. The DECISIONS are `decideRetrievable` and
+ * `decideMessageRetrievable` (pure, tested); this wrapper fetches their
+ * candidates and resolves which of THEIR conversations the caller may read —
+ * attachments' and messages' together, in one read.
  *
  * `folder` (canonical spelling) re-checks the folder filter against each
  * document's CURRENT folder — the corpus row's stamp is a copy that can lag
@@ -201,10 +213,10 @@ async function filterRetrievableRagFileIds(
     access?: AccessScopeArg;
     folder?: string;
     /**
-     * Who is asking — needed ONLY by the conversation branch, which is
-     * assignment privacy rather than org scope. Absent leaves an emailed
-     * attachment denied: a system caller, or a person the shim could not
-     * resolve to a live member.
+     * Who is asking — needed ONLY by the conversation branches (emailed
+     * attachments and email bodies), which are assignment privacy rather
+     * than org scope. Absent leaves both denied: a system caller, or a
+     * person the shim could not resolve to a live member.
      */
     caller?: { userId: string; isAdmin: boolean };
   },
@@ -212,21 +224,36 @@ async function filterRetrievableRagFileIds(
   if (args.fileIds.length === 0) {
     return [];
   }
-  const docRows = await sql<
-    ({
-      fileRef: string;
-      folderId: string | null;
-      folderPath: string | null;
-    } & Omit<DocCandidate, 'folderPath'>)[]
-  >`
-    SELECT d.file_ref AS "fileRef", d.lifecycle_status AS "lifecycleStatus",
-           d.project_id AS "projectId", d.team_id AS "teamId",
-           d.team_tags AS "teamTags", d.folder_id AS "folderId",
-           d.folder_path AS "folderPath"
-    FROM app.documents d
-    WHERE d.org_id = ${args.organizationId}
-      AND d.file_ref = ANY(${args.fileIds})
-  `;
+  // Two vocabularies: blob refs resolve through documents and file rows,
+  // message refs through the message table. Neither is looked up in the
+  // other's tables.
+  const blobRefs = args.fileIds.filter((ref) => !isMessageRef(ref));
+  const messageIds = [
+    ...new Set(
+      args.fileIds.flatMap((ref) => {
+        const messageId = parseMessageRef(ref);
+        return messageId !== null ? [messageId] : [];
+      }),
+    ),
+  ];
+  const docRows =
+    blobRefs.length === 0
+      ? []
+      : await sql<
+          ({
+            fileRef: string;
+            folderId: string | null;
+            folderPath: string | null;
+          } & Omit<DocCandidate, 'folderPath'>)[]
+        >`
+          SELECT d.file_ref AS "fileRef", d.lifecycle_status AS "lifecycleStatus",
+                 d.project_id AS "projectId", d.team_id AS "teamId",
+                 d.team_tags AS "teamTags", d.folder_id AS "folderId",
+                 d.folder_path AS "folderPath"
+          FROM app.documents d
+          WHERE d.org_id = ${args.organizationId}
+            AND d.file_ref = ANY(${blobRefs})
+        `;
   // A candidate's folder is decisive only under a folder filter, so the
   // tree is read only then (one recursive query for every candidate).
   const folder = normalizeFolderPath(args.folder);
@@ -240,15 +267,37 @@ async function filterRetrievableRagFileIds(
           ),
         )
       : new Map<string, string>();
-  const fileRows = await sql<({ storageRef: string } & UnboundFileCandidate)[]>`
-    SELECT fm.storage_ref AS "storageRef", fm.thread_id AS "threadId",
-           fm.conversation_id AS "conversationId",
-           fm.lifecycle_status AS "lifecycleStatus"
-    FROM app.file_metadata fm
-    WHERE fm.org_id = ${args.organizationId}
-      AND fm.storage_ref = ANY(${args.fileIds})
-      AND fm.document_id IS NULL
-  `;
+  const fileRows =
+    blobRefs.length === 0
+      ? []
+      : await sql<({ storageRef: string } & UnboundFileCandidate)[]>`
+          SELECT fm.storage_ref AS "storageRef", fm.thread_id AS "threadId",
+                 fm.conversation_id AS "conversationId",
+                 fm.lifecycle_status AS "lifecycleStatus"
+          FROM app.file_metadata fm
+          WHERE fm.org_id = ${args.organizationId}
+            AND fm.storage_ref = ANY(${blobRefs})
+            AND fm.document_id IS NULL
+        `;
+  // The inbound emails the message refs name, with the conversation each
+  // decides by. Read only for a door that asked for message bodies — for any
+  // other the decision is a deny, and the read would be wasted.
+  const messageRows =
+    messageIds.length === 0 || args.access?.includeConversationMessages !== true
+      ? []
+      : await sql<({ id: string } & MessageCandidate)[]>`
+          SELECT m.id, m.conversation_id AS "conversationId",
+                 c.lifecycle_status AS "conversationLifecycleStatus",
+                 c.status AS "conversationStatus"
+          FROM app.conversation_messages m
+          JOIN app.conversations c
+            ON c.id = m.conversation_id AND c.org_id = m.org_id
+          WHERE m.org_id = ${args.organizationId}
+            AND m.id = ANY(${messageIds})
+            AND m.direction = ${INDEXED_MESSAGE_DIRECTION}
+            AND m.channel = ${INDEXED_MESSAGE_CHANNEL}
+            AND m.connector_name <> ''
+        `;
   // Which of the CANDIDATES' conversations this caller may read. Bounded by
   // the candidate set, never enumerated for the caller: an admin sees every
   // conversation, so an org with a large inbox would otherwise ship
@@ -256,11 +305,12 @@ async function filterRetrievableRagFileIds(
   const conversationIds = await allowedConversationIds(sql, {
     organizationId: args.organizationId,
     candidates: [
-      ...new Set(
-        fileRows.flatMap((row) =>
+      ...new Set([
+        ...fileRows.flatMap((row) =>
           row.conversationId !== null ? [row.conversationId] : [],
         ),
-      ),
+        ...messageRows.map((row) => row.conversationId),
+      ]),
     ],
     teamIds: args.access?.teamIds ?? [],
     ...(args.caller !== undefined ? { caller: args.caller } : {}),
@@ -288,10 +338,25 @@ async function filterRetrievableRagFileIds(
     if (list) list.push(candidate);
     else filesByRef.set(storageRef, [candidate]);
   }
+  const messagesById = new Map<string, MessageCandidate>();
+  for (const { id, ...candidate } of messageRows) {
+    messagesById.set(id, candidate);
+  }
   const retrievable: string[] = [];
   for (const ref of args.fileIds) {
-    // Conversation/email-message refs (`msg:`) deny until that domain lands.
     if (isMessageRef(ref)) {
+      // Decided by the message's conversation. A malformed ref names no
+      // message and denies — it never falls through to the blob branch.
+      const messageId = parseMessageRef(ref);
+      if (
+        decideMessageRetrievable(
+          messageId !== null ? messagesById.get(messageId) : undefined,
+          access,
+          folder ?? undefined,
+        )
+      ) {
+        retrievable.push(ref);
+      }
       continue;
     }
     if (
@@ -368,7 +433,8 @@ export async function withDocumentIds<
  * or a member (their assignments). The reused search/fetch modules carry the
  * identity as `access.userId` and hand it to the filter top-level; nothing
  * else on that wire says who the person is. No member row, or a disabled
- * one, is no caller — an emailed attachment then stays denied.
+ * one, is no caller — an emailed attachment or an email body then stays
+ * denied.
  */
 async function retrievalCallerFor(
   sql: Sql,
@@ -713,6 +779,48 @@ async function writeRagStatus(
 }
 
 /**
+ * Land a file no text extractor reads on its terminal state: `unsupported`
+ * with `unsupported_type`. The indexer writes it when such a file reaches the
+ * job; a lane that can tell from the name alone (a sync import's `.loop`, an
+ * upload's `.zip`, a replaced `.doc`) writes the same state through
+ * {@link markRagUnsupportedIfNoExtractor} instead of queueing a job the
+ * indexer would only refuse — and instead of leaving the status empty, which
+ * the document list reads as "Not indexed" with a retry that can never
+ * succeed and REST as `pending`. One writer, so every lane carries the same
+ * sentence and code.
+ */
+async function markRagUnsupportedType(
+  sql: Sql,
+  fileId: string,
+  fileName: string,
+): Promise<void> {
+  await writeRagStatus(sql, fileId, {
+    ragStatus: 'unsupported',
+    ragError: `No text extractor exists for "${fileName}".`,
+    ragErrorCode: RAG_ERROR_UNSUPPORTED_TYPE,
+  });
+}
+
+/**
+ * The status a lane leaves on a file it stores without queueing it for
+ * indexing — a sync import, an upload's registration, a controlled-record
+ * replacement. A file no extractor reads lands on the terminal state above.
+ * A file the indexer CAN read but the platform does not index by itself
+ * (`.log`) keeps its empty status: a Reindex of it succeeds, and
+ * `unsupported` promises that a retry reproduces the answer. Judged by the
+ * stored file name, the one the indexer reads. One decision for every such
+ * lane, so a `.loop` or a `.log` reads the same whichever lane stored it.
+ */
+export async function markRagUnsupportedIfNoExtractor(
+  sql: Sql,
+  fileId: string,
+  fileName: string,
+): Promise<void> {
+  if (isSupported(fileName)) return;
+  await markRagUnsupportedType(sql, fileId, fileName);
+}
+
+/**
  * A failure of the indexing job, recorded on BOTH rows that describe it: the
  * file's status (what the document list shows) and the corpus document (what
  * the RAG watchdog consults). Recording only the first left the corpus row at
@@ -850,11 +958,7 @@ export async function indexUploadedFile(
   }
 
   if (!isSupported(file.fileName)) {
-    await writeRagStatus(sql, fileId, {
-      ragStatus: 'unsupported',
-      ragError: `No text extractor exists for "${file.fileName}".`,
-      ragErrorCode: RAG_ERROR_UNSUPPORTED_TYPE,
-    });
+    await markRagUnsupportedType(sql, fileId, file.fileName);
     return;
   }
   // Images route to the vision extractor, and the vision seam is retired

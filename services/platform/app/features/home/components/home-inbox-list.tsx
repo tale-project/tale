@@ -14,7 +14,10 @@ import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { FilterPanel } from '@tale/ui/filters/filter-panel';
+import {
+  FilterPanel,
+  isFilterAffordanceDisabled,
+} from '@tale/ui/filters/filter-panel';
 import { SearchInput } from '@tale/ui/search-input';
 import { SlidingHighlight } from '@tale/ui/section-nav';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -228,6 +231,17 @@ export function HomeInboxList({
   );
 
   const loading = pageStatus === 'LoadingFirstPage';
+  // Nothing to search or narrow while the first page loads (as on the phone's
+  // Inbox), nor in a status that holds no conversation at all. A search or a
+  // facet that narrowed the list to nothing keeps both usable so it can be
+  // undone — the channel facet included, though it narrows on the server.
+  const controlsDisabled =
+    loading ||
+    isFilterAffordanceDisabled({
+      itemCount: paginated.results.length,
+      hasActiveFilters: list.isFiltering || channel !== '',
+      filters: list.filters,
+    });
   const rowKeys = useMemo(
     () => groups.flatMap((group) => group.items.map((item) => item.id)),
     [groups],
@@ -394,12 +408,12 @@ export function HomeInboxList({
               placeholder={tConversations('searchPlaceholder')}
               wrapperClassName="min-w-0 flex-1"
               className="h-8 bg-transparent text-xs shadow-none"
-              disabled={loading}
+              disabled={controlsDisabled}
             />
             <FilterPanel
               filters={list.filters}
               onClearAll={list.clearAllFilters}
-              disabled={loading}
+              disabled={controlsDisabled}
               align="end"
               iconOnly
               compact
