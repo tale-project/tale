@@ -55,7 +55,6 @@ export function AssigneeAvatar({
           'border-border text-muted-foreground inline-flex items-center justify-center rounded-full border border-dashed',
           className,
         )}
-        role="img"
         aria-label={t('assignee.unassigned')}
         title={t('assignee.unassigned')}
       >

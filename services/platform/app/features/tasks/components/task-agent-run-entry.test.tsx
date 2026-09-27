@@ -381,6 +381,7 @@ describe('TaskAgentRunEntry with a missing agent', () => {
       <TaskAgentRunEntry
         organizationId="org-1"
         taskId={taskId}
+        assigneeId="agent-1"
         canEdit
         assigneeLive={false}
       />,
@@ -393,6 +394,7 @@ describe('TaskAgentRunEntry with a missing agent', () => {
       <TaskAgentRunEntry
         organizationId="org-1"
         taskId={taskId}
+        assigneeId="agent-1"
         canEdit
         assigneeLive={false}
       />,
@@ -406,7 +408,12 @@ describe('TaskAgentRunEntry with a missing agent', () => {
     startRun.mockReset();
     toast.mockReset();
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
 
     startRun.mockResolvedValueOnce({ started: false, reason: 'agent_missing' });
