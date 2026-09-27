@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
   isBackendRefusal,
   projectAdaptedRead,
   retryAdaptedRead,
@@ -65,6 +67,97 @@ describe('isBackendRefusal', () => {
     ).toBe(false);
     expect(isBackendRefusal(new TypeError('Failed to fetch'))).toBe(false);
     expect(isBackendRefusal(undefined)).toBe(false);
+  });
+});
+
+/**
+ * An upload POST sends a file, not JSON, so it cannot go through
+ * `backendFetch` — and it used to throw `upload failed: <status>`, keeping
+ * nothing the door said. It now throws what an adapted call throws.
+ */
+describe('backendErrorFromResponse', () => {
+  it("turns a refused upload into the AppError of the door's own words", async () => {
+    const error = await backendErrorFromResponse(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'The file exceeds the 512 MiB limit',
+        },
+        { status: 413 },
+      ),
+    );
+    expect(error).toBeInstanceOf(AppError);
+    expect(error).toMatchObject({
+      data: {
+        code: 'FILE_SIZE_INVALID',
+        message: 'The file exceeds the 512 MiB limit',
+      },
+    });
+  });
+
+  it('keeps a 5xx a transient BackendApiError', async () => {
+    const error = await backendErrorFromResponse(
+      Response.json({ error: 'OBJECT_STORE_UNCONFIGURED' }, { status: 503 }),
+    );
+    expect(error).toBeInstanceOf(BackendApiError);
+    expect(isBackendRefusal(error)).toBe(false);
+  });
+});
+
+describe('backendRefusalDetail', () => {
+  it("is the handler's sentence, else its bare code", () => {
+    expect(
+      backendRefusalDetail(
+        new AppError({
+          code: 'FILE_SIZE_INVALID',
+          message: 'The file exceeds the 512 MiB limit',
+        }),
+      ),
+    ).toBe('The file exceeds the 512 MiB limit');
+    // The fetch boundary repeats a bare code as the message.
+    expect(
+      backendRefusalDetail(
+        new AppError({ code: 'RATE_LIMITED', message: 'RATE_LIMITED' }),
+      ),
+    ).toBe('RATE_LIMITED');
+    expect(
+      backendRefusalDetail(new AppError({ code: 'FOLDER_NAME_TAKEN' })),
+    ).toBe('FOLDER_NAME_TAKEN');
+  });
+
+  it('reads a raw 4xx BackendApiError the same way', () => {
+    expect(
+      backendRefusalDetail(
+        new BackendApiError(400, 'text: too long', 'invalid body'),
+      ),
+    ).toBe('text: too long');
+    expect(
+      backendRefusalDetail(
+        new BackendApiError(404, 'thread not found', 'thread not found'),
+      ),
+    ).toBe('thread not found');
+  });
+
+  it('says nothing for a fault or for an answer without a code', () => {
+    expect(
+      backendRefusalDetail(
+        new BackendApiError(
+          503,
+          'OBJECT_STORE_UNCONFIGURED',
+          'OBJECT_STORE_UNCONFIGURED',
+        ),
+      ),
+    ).toBeUndefined();
+    // A proxy page: the status text is the client's, not the door's.
+    expect(
+      backendRefusalDetail(
+        new BackendApiError(413, 'Request failed with status 413'),
+      ),
+    ).toBeUndefined();
+    expect(
+      backendRefusalDetail(new TypeError('Failed to fetch')),
+    ).toBeUndefined();
+    expect(backendRefusalDetail(undefined)).toBeUndefined();
   });
 });
 

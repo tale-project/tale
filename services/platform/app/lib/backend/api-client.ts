@@ -71,6 +71,57 @@ export function eventsUrl(orgId: string): string {
   return `${basePath()}/events?orgId=${encodeURIComponent(orgId)}`;
 }
 
+/**
+ * The `BackendApiError` a non-2xx answer's parsed body becomes — the one
+ * reading of the app's error envelope (`{ error: <code>, message?, data? }`)
+ * that {@link backendFetch} and the raw-fetch lanes (the chat turn, the
+ * upload POSTs) share: the handler's `message`, else its `error`, as the
+ * message; `error` as the code; `data` beside them. A body that is not an
+ * object (a proxy page, an empty 502) keeps the status text.
+ */
+export function backendApiErrorFromBody(
+  status: number,
+  body: unknown,
+): BackendApiError {
+  let message = `Request failed with status ${status}`;
+  let code: string | undefined;
+  let data: Record<string, unknown> | undefined;
+  if (body !== null && typeof body === 'object') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate every field read
+    const record = body as Record<string, unknown>;
+    if (typeof record.message === 'string' && record.message.length > 0) {
+      message = record.message;
+    } else if (typeof record.error === 'string') {
+      message = record.error;
+    }
+    if (typeof record.error === 'string') {
+      code = record.error;
+    }
+    if (record.data !== null && typeof record.data === 'object') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object just above
+      data = record.data as Record<string, unknown>;
+    }
+  }
+  return new BackendApiError(status, message, code, data);
+}
+
+/** Read a non-2xx `response`'s body into its {@link BackendApiError}. */
+export async function readBackendApiError(
+  response: Response,
+): Promise<BackendApiError> {
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch (error) {
+    // A non-JSON error body (proxy page, empty 502) keeps the status text.
+    console.warn(
+      `[backend] the ${response.status} answer carried no JSON body`,
+      error,
+    );
+  }
+  return backendApiErrorFromBody(response.status, body);
+}
+
 export async function backendFetch<T>(
   route: string,
   options: BackendFetchOptions = {},
@@ -103,31 +154,7 @@ export async function backendFetch<T>(
   }
   reportBackendReachable();
   if (!response.ok) {
-    let message = `Request failed with status ${response.status}`;
-    let code: string | undefined;
-    let data: Record<string, unknown> | undefined;
-    try {
-      const body: unknown = await response.json();
-      if (body !== null && typeof body === 'object') {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate every field read
-        const record = body as Record<string, unknown>;
-        if (typeof record.message === 'string' && record.message.length > 0) {
-          message = record.message;
-        } else if (typeof record.error === 'string') {
-          message = record.error;
-        }
-        if (typeof record.error === 'string') {
-          code = record.error;
-        }
-        if (record.data !== null && typeof record.data === 'object') {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object just above
-          data = record.data as Record<string, unknown>;
-        }
-      }
-    } catch {
-      // A non-JSON error body (proxy page, empty 502) keeps the status text.
-    }
-    throw new BackendApiError(response.status, message, code, data);
+    throw await readBackendApiError(response);
   }
   if (response.status === 204) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 204 callers declare T = undefined

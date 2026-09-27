@@ -11,6 +11,7 @@ import { ImagePlus, Pencil, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { Image } from '@/app/components/image';
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -49,9 +50,13 @@ export function ProductImageField({
   const [uploadError, setUploadError] = useState<string | undefined>();
   const isDisabled = disabled || isUploading;
 
-  const refuse = (message: string) => {
+  const refuse = (message: string, reason?: string) => {
     setUploadError(message);
-    toast({ title: message, variant: 'destructive' });
+    toast({
+      title: message,
+      ...(reason !== undefined ? { description: reason } : {}),
+      variant: 'destructive',
+    });
   };
 
   const handleFilesSelected = async (files: File[]) => {
@@ -73,7 +78,17 @@ export function ProductImageField({
       }
     } catch (err) {
       console.error('Product image upload failed:', err);
-      refuse(tProducts(productImageUploadErrorKey(err)));
+      const key = productImageUploadErrorKey(err);
+      // A refusal the field has no words of its own for — a role that
+      // cannot write products, a spent upload budget — says why in the
+      // door's: "try again" alone would be the wrong advice. A fault (a
+      // 5xx, a network failure) has nothing to add.
+      refuse(
+        tProducts(key),
+        key === 'edit.imageUploadFailed'
+          ? backendRefusalDetail(err)
+          : undefined,
+      );
     }
   };
 

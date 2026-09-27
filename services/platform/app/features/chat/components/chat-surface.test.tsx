@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { Toaster } from '@tale/ui/toaster';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
@@ -1316,6 +1318,142 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       ).not.toBeInTheDocument(),
     );
     await waitFor(() => expect(input).toHaveValue('read this file for me'));
+  });
+
+  // A request the door refused outright (no turn refusal: a body it would
+  // not take, a thread it cannot find) used to toast a bare "Couldn't send
+  // message" — the door's own words were dropped on the way.
+  it('names why the door refused the send request', async () => {
+    let failTurn!: (error: Error) => void;
+    const outcome = new Promise<never>((_resolve, reject) => {
+      failTurn = reject;
+    });
+    outcome.catch(() => undefined);
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(() =>
+        Promise.resolve({ threadId: 't-1', boundVideoJobIds: [], outcome }),
+      ),
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-1' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    vi.mocked(useThreadView).mockImplementation(() => ({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    }));
+
+    const { user } = render(
+      <>
+        <ChatSurface organizationId="org-1" threadId="t-1" />
+        <Toaster />
+      </>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'read this file for me');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await act(async () => {
+      failTurn(
+        new BackendApiError(
+          400,
+          'text: Too big: expected string to have <=200000 characters',
+          'invalid body',
+        ),
+      );
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(
+          'text: Too big: expected string to have <=200000 characters',
+        ),
+      ).not.toHaveLength(0),
+    );
+    expect(screen.getAllByText("Couldn't send message")).not.toHaveLength(0);
+  });
+
+  // A parked send (media still processing) the door refused for anything but
+  // a cap used to toast a bare "Couldn't send message".
+  it('names why the door refused to park the send', async () => {
+    indexingState.isIndexing = true;
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      defer: vi.fn(() =>
+        Promise.reject(
+          new BackendApiError(409, 'Too many parked sends', 'QUEUE_FULL'),
+        ),
+      ),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+
+    const { user } = render(
+      <>
+        <ChatSurface organizationId="org-1" />
+        <Toaster />
+      </>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'what did they decide?');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText('Too many parked sends')).not.toHaveLength(0),
+    );
+    expect(screen.getAllByText("Couldn't send message")).not.toHaveLength(0);
+    // Nothing was parked: the words come back to the composer.
+    expect(input).toHaveValue('what did they decide?');
+  });
+
+  // The first message of a new chat creates its thread first; a door that
+  // refused the thread (an archived project) used to toast a bare title.
+  it('names why the door refused the new chat the send needed', async () => {
+    start.mockRejectedValueOnce(
+      new BackendApiError(403, 'Project is archived', 'PROJECT_ARCHIVED'),
+    );
+
+    const { user } = render(
+      <>
+        <ChatSurface organizationId="org-1" />
+        <Toaster />
+      </>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'kick off the audit');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText('Project is archived')).not.toHaveLength(0),
+    );
+    expect(screen.getAllByText("Couldn't send message")).not.toHaveLength(0);
+    await waitFor(() => expect(input).toHaveValue('kick off the audit'));
+  });
+
+  it('keeps the bare title when the new chat got no answer', async () => {
+    start.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+    const { user } = render(
+      <>
+        <ChatSurface organizationId="org-1" />
+        <Toaster />
+      </>,
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'kick off the audit',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Couldn't send message")).not.toHaveLength(0),
+    );
+    expect(screen.queryByText('Failed to fetch')).toBeNull();
   });
 
   it('offers a working Stop for any in-flight generation', async () => {

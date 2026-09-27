@@ -81,6 +81,53 @@ describe('useProductImageUpload', () => {
     });
   });
 
+  // The products door answers `{ error: <code> }` alone (a role without
+  // write access, a spent upload budget): the code doubles as the message,
+  // as `backendFetch` reads it, so the field can name the refusal. The
+  // hook's own reader used to put "Upload failed with status 403" there.
+  it('carries a bare code as the message', async () => {
+    mutation.mockResolvedValue('https://upload.example/post');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ error: 'RBAC_FORBIDDEN' }, { status: 403 }),
+        ),
+    );
+
+    const { result } = renderHook(() => useProductImageUpload());
+    await expect(result.current.uploadImage(file())).rejects.toMatchObject({
+      data: { code: 'RBAC_FORBIDDEN', message: 'RBAC_FORBIDDEN' },
+    });
+  });
+
+  // A regression guard for the move onto the shared reader: #3498's inline
+  // reader already carried a sentence the door writes beside its code.
+  it("carries the door's message beside its code", async () => {
+    mutation.mockResolvedValue('https://upload.example/post');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: 'FILE_SIZE_INVALID',
+            message: 'The file is 6291456 bytes; the limit is 5 MiB',
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useProductImageUpload());
+    await expect(result.current.uploadImage(file())).rejects.toMatchObject({
+      data: {
+        code: 'FILE_SIZE_INVALID',
+        message: 'The file is 6291456 bytes; the limit is 5 MiB',
+      },
+    });
+  });
+
   it('throws when the response has no stable image URL', async () => {
     mutation.mockResolvedValue('https://upload.example/post');
     vi.stubGlobal(

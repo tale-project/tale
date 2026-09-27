@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { toast } from '@tale/ui/use-toast';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -42,12 +43,16 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
+const generateUploadUrlMock = vi.hoisted(() =>
+  vi.fn(async (_args: Record<string, unknown>) => '/api/app/files/upload'),
+);
+
 vi.mock('../hooks/mutations', () => ({
   useComposeEmailConversation: () => ({
     mutateAsync: composeMock,
     isPending: false,
   }),
-  useGenerateUploadUrl: () => ({ mutateAsync: vi.fn() }),
+  useGenerateUploadUrl: () => ({ mutateAsync: generateUploadUrlMock }),
 }));
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
@@ -93,7 +98,8 @@ vi.mock('./contact-recipient-picker', () => ({
   ContactRecipientPicker: () => <div data-testid="recipient-picker" />,
 }));
 
-// The body editor, reduced to its send gesture.
+// The body editor, reduced to its send gestures: the body alone, and the
+// body with one attached document.
 vi.mock('@tale/ui/lazy-component', () => ({
   lazyComponent:
     () =>
@@ -101,16 +107,38 @@ vi.mock('@tale/ui/lazy-component', () => ({
       onSave,
       disabled,
     }: {
-      onSave: (message: string) => Promise<void>;
+      onSave: (
+        message: string,
+        attachments?: Array<{ id: string; file: File | null; type: string }>,
+      ) => Promise<void>;
       disabled?: boolean;
     }) => (
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => void onSave('<p>Body</p>')}
-      >
-        Send body
-      </button>
+      <>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => void onSave('<p>Body</p>')}
+        >
+          Send body
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() =>
+            void onSave('<p>Body</p>', [
+              {
+                id: 'att-1',
+                type: 'document',
+                file: new File(['%PDF'], 'quote.pdf', {
+                  type: 'application/pdf',
+                }),
+              },
+            ])
+          }
+        >
+          Send with attachment
+        </button>
+      </>
     ),
 }));
 
@@ -260,5 +288,60 @@ describe('ComposeEmailPane — the mailbox', () => {
       credentialId: 'cred-general',
       from: 'hello@support.test',
     });
+  });
+});
+
+/**
+ * A refused attachment POST used to throw a bare "upload failed", and the
+ * toast said "Couldn't upload attachment" with nothing the door had said.
+ */
+describe('ComposeEmailPane — a refused attachment', () => {
+  const DRAFT = 'compose-user-1-org-1';
+
+  beforeEach(() => {
+    persisted.clear();
+    persisted.set(`${DRAFT}-contact`, 'ct1');
+    persisted.set(`${DRAFT}-subject`, 'Quote 7');
+    emailConnectorsMock.current = [
+      {
+        credentialId: 'cred-general',
+        slug: 'imap-smtp',
+        title: 'General Support',
+        type: 'imap_smtp',
+        fromAddress: 'hello@support.test',
+      },
+    ];
+    composeMock.mockClear();
+    vi.mocked(toast).mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('says why the door refused it, and sends nothing', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'The file exceeds the 512 MiB limit',
+        },
+        { status: 413 },
+      ),
+    );
+    renderPane('admin');
+
+    screen.getByRole('button', { name: 'Send with attachment' }).click();
+
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        title: "Couldn't upload attachment",
+        description: 'The file exceeds the 512 MiB limit',
+        variant: 'destructive',
+      }),
+    );
+    expect(composeMock).not.toHaveBeenCalled();
   });
 });
