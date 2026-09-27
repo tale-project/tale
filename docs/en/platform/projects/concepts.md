@@ -41,6 +41,8 @@ Project files follow project access. They do not appear as ordinary library docu
 
 A chat inside a project starts as your own conversation. Other project members do not see it simply because they can open the project. **Chats** separates **Your chats** from **Shared with project**; use **Share with project** when the conversation is ready for colleagues.
 
+Colleagues open a shared chat read-only: they cannot reply, edit a message, or rate an answer. Where you edited a message or retried an answer, they read the version you have selected, not the one it replaced.
+
 Read the messages before sharing, including any sensitive information the answer quotes. Moving a shared chat to a different project, or out of the project, ends its project share. Share it again deliberately if the new audience should read it.
 
 Use **Move to project…** in a chat's actions, or drag the chat onto the project in Home, when an existing conversation belongs with this work. Organization-wide snapshot links are a separate option, described in [Share a chat](/platform/chat/shared-threads).

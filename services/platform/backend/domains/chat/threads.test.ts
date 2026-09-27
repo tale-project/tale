@@ -5,7 +5,9 @@
  * serves nothing for a thread in the trash, revoking the link works there
  * too, and refiling a project-shared thread never carries its audience into
  * the new project, and every refiling leaves an audit row on the project the
- * chat lands in. The real-Postgres probes ride `integration-check.ts`;
+ * chat lands in, and a project reader is served the branch on the owner's
+ * screen, never the version they replaced. The real-Postgres probes ride
+ * `integration-check.ts`;
  * these lock the statements the rules live in.
  */
 
@@ -38,7 +40,10 @@ import {
   branchForEdit,
   branchForRegenerate,
   getSharedThread,
+  listThreadBranches,
+  loadProjectSharedThread,
   moveThreadToProject,
+  projectSharedViewLeaf,
   searchChats,
   setThreadArchived,
   shareThread,
@@ -815,6 +820,127 @@ describe('searchChats lineage', () => {
     ).resolves.toEqual([]);
     expect(
       statements.some(({ text }) => text.includes('FROM app.messages m')),
+    ).toBe(false);
+  });
+});
+
+/**
+ * A project share is the owner's opt-in on the lineage ROOT; every edit /
+ * retry tail lives in a hidden sibling. The grant stays keyed on the row a
+ * reader names (a sibling id opens nothing), and what a reader is served of
+ * the root is the leaf the OWNER's view resolves to — the branch on their
+ * screen, never the version it replaced, and never a sibling id.
+ */
+describe('the project share read grant', () => {
+  const isSharedRead = (text: string): boolean =>
+    text.includes('FROM app.threads t') &&
+    text.includes('tm.shared_with_project = true');
+  const isOwnedRead = (text: string): boolean =>
+    text.includes('FROM app.threads t') && text.includes('t.user_id = ?');
+  const isProjectRead = (text: string): boolean =>
+    text.includes('FROM app.projects WHERE id = ?');
+
+  it('grants a reader the root the owner shared, judged on the project it names', async () => {
+    const { sql, statements } = fakeSql(({ text }) => {
+      if (isSharedRead(text)) return [OWNED_ROW];
+      if (isProjectRead(text)) return [{ orgId: 'org_1', teamIds: [] }];
+      return [];
+    });
+    await expect(
+      loadProjectSharedThread(sql, 'org_1', 'user_reader', 'thread_1'),
+    ).resolves.toMatchObject({ id: 'thread_1', projectId: 'project_a' });
+    const read = statements.find(({ text }) => isSharedRead(text));
+    // The row's own flag and filing decide — no lineage join.
+    expect(read?.text).toContain('tm.project_id IS NOT NULL');
+    expect(read?.text).not.toContain('branch_root_id');
+    expect(read?.values.slice(1)).toEqual(['thread_1', 'org_1']);
+    expect(
+      statements.find(({ text }) => isProjectRead(text))?.values,
+    ).toContain('project_a');
+    expect(findOrganizationMember).toHaveBeenCalledWith(
+      sql,
+      'org_1',
+      'user_reader',
+    );
+  });
+
+  it('refuses a reader outside the project, and a row nobody shared', async () => {
+    const shared = fakeSql(({ text }) => {
+      if (isSharedRead(text)) return [OWNED_ROW];
+      if (isProjectRead(text)) return [{ orgId: 'org_1', teamIds: [] }];
+      return [];
+    });
+    findOrganizationMember.mockResolvedValueOnce(null);
+    await expect(
+      loadProjectSharedThread(shared.sql, 'org_1', 'user_outsider', 'thread_1'),
+    ).resolves.toBeNull();
+
+    // A hidden sibling carries no flag of its own: by id it opens nothing.
+    const sibling = fakeSql(() => []);
+    await expect(
+      loadProjectSharedThread(
+        sibling.sql,
+        'org_1',
+        'user_reader',
+        'thread_sibling',
+      ),
+    ).resolves.toBeNull();
+    expect(sibling.statements.some(({ text }) => isProjectRead(text))).toBe(
+      false,
+    );
+  });
+
+  it('serves a reader the leaf the OWNER’s selections resolve to', async () => {
+    const selections = JSON.stringify({ 'thread_1:0': 'thread_sibling' });
+    const { sql, statements } = fakeSql(({ text }) => {
+      if (isOwnedRead(text)) return [OWNED_ROW];
+      if (text.includes('tm.branch_root_id = ?')) {
+        return [
+          {
+            id: 'thread_sibling',
+            parentId: 'thread_1',
+            forkSequence: 0,
+            createdAt: 9,
+          },
+        ];
+      }
+      if (text.includes('SELECT branch_selections')) {
+        return [{ branchSelections: selections }];
+      }
+      return [];
+    });
+    await expect(
+      projectSharedViewLeaf(sql, {
+        id: 'thread_1',
+        organizationId: 'org_1',
+        userId: 'user_1',
+      }),
+    ).resolves.toBe('thread_sibling');
+    // The lineage is read as the OWNER — the reader never holds it.
+    const owned = statements.find(({ text }) => isOwnedRead(text));
+    expect(owned?.values.slice(1)).toEqual(['thread_1', 'org_1', 'user_1']);
+  });
+
+  it('serves the root itself while nothing is selected away from it', async () => {
+    const { sql } = fakeSql(({ text }) =>
+      isOwnedRead(text) ? [OWNED_ROW] : [],
+    );
+    await expect(
+      projectSharedViewLeaf(sql, {
+        id: 'thread_1',
+        organizationId: 'org_1',
+        userId: 'user_1',
+      }),
+    ).resolves.toBe('thread_1');
+  });
+
+  it('answers an empty lineage to anyone but the owner', async () => {
+    const { sql, statements } = fakeSql(() => []);
+    await expect(
+      listThreadBranches(sql, 'org_1', 'user_reader', 'thread_1'),
+    ).resolves.toEqual({ branches: [], selections: null });
+    expect(
+      statements.some(({ text }) => text.includes('tm.branch_root_id = ?')),
     ).toBe(false);
   });
 });

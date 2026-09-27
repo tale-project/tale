@@ -228,7 +228,10 @@ export async function loadOwnedThread(
 }
 
 /** The one read-grant beside share links: a project member may READ a
- * conversation its owner shared with the project. Never for writes. */
+ * conversation its owner shared with the project. Never for writes. Keyed on
+ * the row itself: the opt-in lives on the lineage ROOT, so a hidden edit /
+ * retry sibling never grants anything by id — what a reader is served of a
+ * branched conversation is `projectSharedViewLeaf`'s business. */
 export async function loadProjectSharedThread(
   sql: Sql,
   organizationId: string,
@@ -252,6 +255,21 @@ export async function loadProjectSharedThread(
     userId,
   });
   return access === 'ok' ? row : null;
+}
+
+/**
+ * The thread whose rows a project reader is served: the leaf the OWNER's
+ * view resolves to from the stored selection map — the conversation on their
+ * screen, under the root's id. Every edit / retry tail lives in a hidden
+ * sibling, so the root's own rows are the version the owner replaced; a
+ * share link freezes this leaf when it is taken, a project share follows it
+ * live. The reader learns no sibling id: the answer is rows, never a lineage.
+ */
+export async function projectSharedViewLeaf(
+  sql: Sql,
+  shared: Pick<ThreadRow, 'id' | 'organizationId' | 'userId'>,
+): Promise<string> {
+  return resolveViewLeaf(sql, shared.organizationId, shared.userId, shared.id);
 }
 
 /** The generating thread ids of one org (a generation row exists exactly
@@ -1680,7 +1698,9 @@ export interface BranchInfo {
 }
 
 /** A root's whole lineage in one read: its live branches plus the root's
- * selection map — one watch serves the navigator. */
+ * selection map — one watch serves the navigator. The owner's alone: a
+ * project reader is served the resolved leaf's rows under the root's id
+ * (`projectSharedViewLeaf`) and never a sibling id. */
 export async function listThreadBranches(
   sql: Sql,
   organizationId: string,

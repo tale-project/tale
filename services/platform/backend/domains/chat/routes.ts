@@ -97,6 +97,7 @@ import {
   listThreads,
   listThreadsForProject,
   loadProjectSharedThread,
+  projectSharedViewLeaf,
   markThreadRead,
   moveThreadToProject,
   renameThread,
@@ -1159,6 +1160,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       userId,
       c.req.param('threadId'),
     );
+    // The owner's client resolves its own view leaf and asks for that
+    // sibling by id. A reader asks for the root — the only id it holds —
+    // and is served the leaf the owner's view resolves to: the conversation
+    // on the owner's screen, never the version an edit or retry replaced.
+    let rowsThreadId = thread?.id;
     if (thread === null) {
       const shared = await loadProjectSharedThread(
         deps.sql,
@@ -1168,6 +1174,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       );
       if (shared !== null) {
         thread = await threadViewById(deps.sql, organizationId, shared.id);
+        rowsThreadId = await projectSharedViewLeaf(deps.sql, shared);
       }
     }
     if (thread === null) {
@@ -1176,7 +1183,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const messages = await listMessageViews(
       deps.sql,
       organizationId,
-      thread.id,
+      rowsThreadId ?? thread.id,
     );
     return c.json({ thread, messages });
   });

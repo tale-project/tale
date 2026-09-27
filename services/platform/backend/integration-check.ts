@@ -39511,6 +39511,171 @@ async function checkChatThreadSurface(
     `live=${litBefore.status} (want 200), trashed=${darkInTrash.status} (want 404), unshareInTrash=${unshareInTrash.success ? unshareInTrash.data.ok : 'ERR'} (want true), sharedAfterRestore=${shareAfterRestore.success ? shareAfterRestore.data.isShared : 'ERR'} (want false), afterRestore=${darkAfterRestore.status} (want 404), unknownThread=${unshareUnknown.success ? unshareUnknown.data.ok : 'ERR'} (want false)`,
   );
 
+  // A project reader is served the branch on the OWNER's screen. The opt-in
+  // sits on the root; every edit / retry tail lives in a hidden sibling. A
+  // project member who does not own threadB (shared since the filing probe;
+  // root:0 selects the regenerate sibling) asks for the root — the only id
+  // they hold — and gets the selected sibling's rows, not the reply the
+  // owner replaced; the lineage itself stays the owner's (no sibling ids),
+  // a sibling asked for by id opens nothing, the reader moves no selection,
+  // an unshared lineage stays closed, and the owner's withdrawal closes the
+  // root.
+  const reader = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'share-reader',
+    'member',
+  );
+  const readAs = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie: reader.cookie } });
+  const textsOf = async (res: Response): Promise<string[]> => {
+    const parsed = z
+      .object({
+        thread: z.object({ id: z.string() }).loose(),
+        messages: z.array(
+          z
+            .object({
+              parts: z.array(z.object({ text: z.string().optional() }).loose()),
+            })
+            .loose(),
+        ),
+      })
+      .loose()
+      .safeParse(await res.json());
+    return parsed.success
+      ? [
+          parsed.data.thread.id,
+          ...parsed.data.messages.flatMap((message) =>
+            message.parts.map((part) => part.text ?? ''),
+          ),
+        ]
+      : [];
+  };
+  const lineageShape = z.object({
+    branches: z.array(z.object({ id: z.string() }).loose()),
+    selections: z.string().nullable(),
+  });
+  const readerSummary = z
+    .object({ thread: z.object({ viewerIsOwner: z.boolean() }).loose() })
+    .safeParse(
+      await (
+        await readAs(`/api/app/chat/threads/${threadB}/summary?orgId=${orgId}`)
+      ).json(),
+    );
+  const readerRoot = await readAs(
+    `/api/app/chat/threads/${threadB}/messages?orgId=${orgId}`,
+  );
+  const readerRootTexts = await textsOf(readerRoot);
+  const readerLineage = lineageShape.safeParse(
+    await (
+      await readAs(`/api/app/chat/threads/${threadB}/branches?orgId=${orgId}`)
+    ).json(),
+  );
+  const readerSibling = await readAs(
+    `/api/app/chat/threads/${regenBranchId}/messages?orgId=${orgId}`,
+  );
+  // The selection is the owner's: a reader's write changes nothing.
+  await fetch(
+    `${base}/api/app/chat/threads/${threadB}/branch-selection?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: reader.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({
+        forkKey: `${threadB}:0`,
+        selectedThreadId: editBranchId,
+      }),
+    },
+  );
+  const selectionAfterReader = await sql<{ selections: string | null }[]>`
+    SELECT branch_selections AS selections
+    FROM app.thread_metadata WHERE thread_id = ${threadB}
+  `;
+  // The owner flips back to the original: the reader follows.
+  await post(
+    `/api/app/chat/threads/${threadB}/branch-selection?orgId=${orgId}`,
+    { forkKey: `${threadB}:0`, selectedThreadId: threadB },
+  );
+  const readerFollowsTexts = await textsOf(
+    await readAs(`/api/app/chat/threads/${threadB}/messages?orgId=${orgId}`),
+  );
+  await post(
+    `/api/app/chat/threads/${threadB}/branch-selection?orgId=${orgId}`,
+    { forkKey: `${threadB}:0`, selectedThreadId: regenBranchId },
+  );
+  // A lineage nobody shared: threadA's root and an edit sibling of it.
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, parts, status,
+      created_at_ms
+    ) VALUES
+      (${threadA}, ${orgId}, 0, 0, 'user', 'private prompt',
+       ${sql.json(toJson([{ type: 'text', text: 'private prompt' }]))},
+       'complete', ${Date.now()})
+  `;
+  const privatePrompt = await sql<{ id: string }[]>`
+    SELECT id FROM app.messages
+    WHERE thread_id = ${threadA} AND "order" = 0 AND role = 'user'
+  `;
+  const privateSibling = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(
+        `/api/app/chat/threads/${threadA}/branch-edit?orgId=${orgId}`,
+        {
+          editedMessageId: privatePrompt[0]?.id ?? '',
+        },
+      )
+    ).json(),
+  );
+  const privateSiblingId = privateSibling.success ? privateSibling.data.id : '';
+  const privateRoot = await readAs(
+    `/api/app/chat/threads/${threadA}/messages?orgId=${orgId}`,
+  );
+  const privateBranch = await readAs(
+    `/api/app/chat/threads/${privateSiblingId}/messages?orgId=${orgId}`,
+  );
+  // Withdrawn, the share closes; granted again it reopens (leaving threadB
+  // shared for the refiling probe below).
+  await post(`/api/app/chat/threads/${threadB}/share-project?orgId=${orgId}`, {
+    shared: false,
+  });
+  const withdrawnRoot = await readAs(
+    `/api/app/chat/threads/${threadB}/messages?orgId=${orgId}`,
+  );
+  await post(`/api/app/chat/threads/${threadB}/share-project?orgId=${orgId}`, {
+    shared: true,
+  });
+  const regrantedRoot = await readAs(
+    `/api/app/chat/threads/${threadB}/messages?orgId=${orgId}`,
+  );
+  record(
+    'a project reader is served the branch on the owner’s screen under the root, read-only, closed when withdrawn',
+    readerSummary.success &&
+      !readerSummary.data.thread.viewerIsOwner &&
+      readerRoot.status === 200 &&
+      readerRootTexts[0] === threadB &&
+      readerRootTexts.includes(regenOnly) &&
+      !readerRootTexts.includes('result text beta') &&
+      readerLineage.success &&
+      readerLineage.data.branches.length === 0 &&
+      readerLineage.data.selections === null &&
+      readerSibling.status === 404 &&
+      (selectionAfterReader[0]?.selections ?? '').includes(regenBranchId) &&
+      !(selectionAfterReader[0]?.selections ?? '').includes(editBranchId) &&
+      readerFollowsTexts.includes('result text beta') &&
+      !readerFollowsTexts.includes(regenOnly) &&
+      privateSibling.success &&
+      privateRoot.status === 404 &&
+      privateBranch.status === 404 &&
+      withdrawnRoot.status === 404 &&
+      regrantedRoot.status === 200,
+    `owner=${readerSummary.success ? readerSummary.data.thread.viewerIsOwner : 'ERR'} (want false), root=${readerRoot.status}/${readerRootTexts[0] === threadB}/${readerRootTexts.includes(regenOnly)}/${!readerRootTexts.includes('result text beta')} (want 200/root/true/true), lineage=${readerLineage.success ? `${readerLineage.data.branches.length}/${readerLineage.data.selections}` : 'ERR'} (want 0/null), siblingById=${readerSibling.status} (want 404), selectionKept=${(selectionAfterReader[0]?.selections ?? '').includes(regenBranchId)} (want true), follows=${readerFollowsTexts.includes('result text beta')}/${!readerFollowsTexts.includes(regenOnly)} (want true/true), unshared=${privateRoot.status}/${privateBranch.status} (want 404/404), withdrawn=${withdrawnRoot.status} (want 404), regranted=${regrantedRoot.status} (want 200)`,
+  );
+
   // Refiling a project-shared thread ends the share — the new project's
   // members never inherit an audience the owner consented to elsewhere — and
   // the implicit unshare leaves an audit row on the project it left. threadB
