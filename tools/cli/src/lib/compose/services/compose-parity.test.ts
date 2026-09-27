@@ -492,7 +492,7 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     );
     const dotGrammar = (source: string, matcher: string): string => {
       const line = source
-        .split('\n')
+        .split(/\r?\n/)
         .find((candidate) => candidate.includes(`@${matcher} expression`));
       expect(line).toBeDefined();
       return (line ?? '')
