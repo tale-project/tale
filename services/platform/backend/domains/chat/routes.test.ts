@@ -448,6 +448,50 @@ describe('POST /threads/:threadId/arena/turn admits the pair', () => {
   });
 });
 
+/**
+ * The composer toasts what a send door says when it refuses the body. It used
+ * to answer a bare `invalid body`, and the toast could not say which field
+ * was wrong or why.
+ */
+describe('a refused send body names its field', () => {
+  const post = (route: string, body: unknown) =>
+    makeApp().request(`${route}?orgId=o1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it.each([
+    ['/threads/t1/messages', { text: 7 }],
+    ['/threads/t1/deferred-sends', { text: 7 }],
+  ])('%s answers the field and the reason', async (route, body) => {
+    const res = await post(route, body);
+    expect(res.status).toBe(400);
+    const answer: unknown = await res.json();
+    expect(answer).toMatchObject({
+      error: 'invalid body',
+      message: expect.stringMatching(/^text: /),
+      data: { issues: [expect.objectContaining({ path: 'text' })] },
+    });
+    expect(runChatTurn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['/threads', { kind: 7 }, 'kind'],
+    ['/threads/t1/branch-edit', {}, 'editedMessageId'],
+    ['/threads/t1/branch-regenerate', {}, 'assistantMessageId'],
+  ])('%s answers the field and the reason', async (route, body, field) => {
+    const res = await post(route, body);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      error: 'invalid body',
+      message: expect.stringMatching(new RegExp(`^${field}: `)),
+    });
+    expect(branchForEdit).not.toHaveBeenCalled();
+    expect(branchForRegenerate).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /threads/bulk', () => {
   it('binds the bulk operation to the authenticated owner and organization', async () => {
     bulkUpdateThreads.mockResolvedValue({ changedIds: [], failed: 2 });
