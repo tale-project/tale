@@ -122,36 +122,50 @@ export function VendorPickerPane<
                   key={vendor.key}
                   className="border-border overflow-hidden rounded-lg border"
                 >
+                  {/* The row answers to its own width (`@container`): one
+                      grid places its badges beside the name once it is 24rem
+                      wide and beneath it when narrower — on a phone two
+                      badges and the chevron left the name, the one thing
+                      picked by, as "E…". */}
                   <button
                     type="button"
                     onClick={() => onSelect(vendor)}
-                    className="hover:bg-accent focus-visible:ring-ring flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors focus-visible:ring-1 focus-visible:outline-none"
+                    className="hover:bg-accent focus-visible:ring-ring @container block w-full px-3 py-2.5 text-left transition-colors focus-visible:ring-1 focus-visible:outline-none"
                   >
-                    <VendorIcon iconUrl={vendor.iconUrl} className="size-5" />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-foreground truncate text-sm font-medium">
-                        {vendor.displayName}
+                    <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 @sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
+                      <VendorIcon
+                        iconUrl={vendor.iconUrl}
+                        className="col-start-1 row-span-2 row-start-1 size-5"
+                      />
+                      <span className="col-start-2 row-start-1 flex min-w-0 flex-col">
+                        <span className="text-foreground truncate text-sm font-medium">
+                          {vendor.displayName}
+                        </span>
+                        {meta !== null && meta !== undefined && (
+                          <span className="text-muted-foreground truncate text-xs">
+                            {meta}
+                          </span>
+                        )}
                       </span>
-                      {meta !== null && meta !== undefined && (
-                        <span className="text-muted-foreground truncate text-xs">
-                          {meta}
+                      {(tag !== null || configured) && (
+                        <span className="col-start-2 row-start-2 mt-1 flex flex-wrap gap-1 @sm:col-start-3 @sm:row-start-1 @sm:mt-0 @sm:flex-nowrap @sm:gap-3">
+                          {tag !== null && (
+                            <Badge variant="slate" className="shrink-0">
+                              {tag}
+                            </Badge>
+                          )}
+                          {configured && (
+                            <Badge variant="outline" className="shrink-0">
+                              {t('credentials.catalog.configured')}
+                            </Badge>
+                          )}
                         </span>
                       )}
+                      <ChevronRight
+                        aria-hidden
+                        className="text-muted-foreground col-start-3 row-span-2 row-start-1 size-4 @sm:col-start-4"
+                      />
                     </span>
-                    {tag !== null && (
-                      <Badge variant="slate" className="shrink-0">
-                        {tag}
-                      </Badge>
-                    )}
-                    {configured && (
-                      <Badge variant="outline" className="shrink-0">
-                        {t('credentials.catalog.configured')}
-                      </Badge>
-                    )}
-                    <ChevronRight
-                      aria-hidden
-                      className="text-muted-foreground size-4 shrink-0"
-                    />
                   </button>
                 </li>
               );
