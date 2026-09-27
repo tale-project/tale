@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isAbortErrorEvent,
   normalizeConvexSentryEvent,
   stripConvexRequestId,
 } from './sentry-normalize';
@@ -121,5 +122,104 @@ describe('normalizeConvexSentryEvent', () => {
       message: 'plain failure',
       exception: { values: [{ value: 'TypeError: boom' }] },
     });
+  });
+});
+
+describe('isAbortErrorEvent', () => {
+  it('drops an event whose thrown value is a cancellation', () => {
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      isAbortErrorEvent(
+        { exception: { values: [{ type: 'Error', value: 'unrelated text' }] } },
+        { originalException: controller.signal.reason },
+      ),
+    ).toBe(true);
+  });
+
+  it('drops the shape the SDK builds from a DOMException with a stack', () => {
+    // GlitchTip: `AbortError: signal is aborted without reason`.
+    expect(
+      isAbortErrorEvent({
+        exception: {
+          values: [
+            { type: 'AbortError', value: 'signal is aborted without reason' },
+          ],
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('drops the stringified shape of a stackless DOMException', () => {
+    // GlitchTip: `Error: AbortError: The user aborted a request.` — Chromium
+    // raises it without a stack when the abort lands mid-body.
+    expect(
+      isAbortErrorEvent({
+        exception: {
+          values: [
+            { type: 'Error', value: 'AbortError: The user aborted a request.' },
+          ],
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('drops a console-promoted message that logged a cancellation', () => {
+    // The error boundary's logger passes the error's fields as an object,
+    // so the SDK records a message event with the fields as an argument.
+    expect(
+      isAbortErrorEvent({
+        message: 'Error caught by boundary: [object Object]',
+        extra: {
+          arguments: [
+            'Error caught by boundary:',
+            { name: 'AbortError', message: 'signal is aborted without reason' },
+          ],
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('keeps a failure whose cause was a cancellation', () => {
+    expect(
+      isAbortErrorEvent(
+        {
+          exception: {
+            values: [
+              { type: 'AbortError', value: 'signal is aborted without reason' },
+              { type: 'Error', value: 'Upload failed' },
+            ],
+          },
+        },
+        { originalException: new Error('Upload failed') },
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps transport failures, timeouts and message events', () => {
+    expect(
+      isAbortErrorEvent(
+        {
+          exception: {
+            values: [{ type: 'TypeError', value: 'Failed to fetch' }],
+          },
+        },
+        { originalException: new TypeError('Failed to fetch') },
+      ),
+    ).toBe(false);
+    expect(
+      isAbortErrorEvent({
+        exception: {
+          values: [{ type: 'TimeoutError', value: 'signal timed out' }],
+        },
+      }),
+    ).toBe(false);
+    expect(isAbortErrorEvent({ message: 'AbortError' })).toBe(false);
+    expect(
+      isAbortErrorEvent({
+        message: 'Failed to load releases: Error: boom',
+        extra: { arguments: ['Failed to load releases:', new Error('boom')] },
+      }),
+    ).toBe(false);
   });
 });

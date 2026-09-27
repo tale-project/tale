@@ -10,7 +10,12 @@
  * single-event issue groups on the demo project). Stripping the volatile
  * token restores one-issue-per-root-cause grouping; the function path and the
  * underlying error text stay, so issues remain actionable.
+ *
+ * It also recognizes the events that report no failure at all — a cancelled
+ * request (`isAbortErrorEvent`) — so `beforeSend` can drop them.
  */
+
+import { isAbortError } from '@/lib/utils/abort-error';
 
 /** `[Request ID: …]` plus the whitespace that follows it. */
 const REQUEST_ID_RE = /\[Request ID: [^\]]*\]\s*/g;
@@ -27,7 +32,8 @@ export function stripConvexRequestId(text: string): string {
 interface NormalizableSentryEvent {
   message?: string;
   logentry?: { message?: string; params?: unknown[] };
-  exception?: { values?: { value?: string }[] };
+  exception?: { values?: { type?: string; value?: string }[] };
+  extra?: Record<string, unknown>;
   request?: {
     url?: string;
     query_string?: unknown;
@@ -89,4 +95,37 @@ export function normalizeConvexSentryEvent<
     }
   }
   return event;
+}
+
+/** `AbortError`, alone or as the head of `AbortError: <message>`. */
+const ABORT_ERROR_TEXT_RE = /^AbortError(?::|$)/;
+
+/**
+ * A cancelled request is no failure, so it must never open an issue: the
+ * backstop behind the fetch seam, which already treats an abort as the
+ * caller's own doing. TanStack Query aborts every read still in flight when
+ * a navigation unmounts its page; whichever handler then hands the rejection
+ * to the SDK, the event is dropped here. Recognized by the thrown value
+ * itself, by a value a console-promoted event logged (an error boundary's
+ * logger passes the error's fields, not the error), else by the two shapes
+ * the SDK builds from Chromium's `DOMException`: `AbortError: signal is
+ * aborted without reason`, and — the stackless one an abort mid-body raises,
+ * which the SDK can only stringify — `Error: AbortError: The user aborted a
+ * request.`.
+ */
+export function isAbortErrorEvent(
+  event: NormalizableSentryEvent,
+  hint?: { originalException?: unknown },
+): boolean {
+  if (isAbortError(hint?.originalException)) return true;
+  const logged = event.extra?.arguments;
+  if (Array.isArray(logged) && logged.some(isAbortError)) return true;
+  const values = event.exception?.values ?? [];
+  // The last value is the thrown error; any before it are its causes.
+  const thrown = values.at(-1);
+  if (thrown === undefined) return false;
+  return (
+    thrown.type === 'AbortError' ||
+    (typeof thrown.value === 'string' && ABORT_ERROR_TEXT_RE.test(thrown.value))
+  );
 }
