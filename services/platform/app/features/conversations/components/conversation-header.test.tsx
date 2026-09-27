@@ -226,24 +226,34 @@ describe('ConversationHeader', () => {
     expect(screen.getByText('2 min ago')).toHaveClass('whitespace-nowrap');
   });
 
-  it('keeps the contact email on the meta line for desktop widths only', () => {
+  it('orders the context line by what matters: name, time, email, source', () => {
     render(
       <ConversationHeader
-        conversation={makeConversation()}
+        conversation={makeConversation({
+          channel: 'api',
+          connectorName: 'helpdesk',
+          metadata: {},
+        })}
         organizationId="org-1"
       />,
     );
 
-    expect(screen.getByText('Sarah Johnson')).toBeInTheDocument();
-    const email = screen.getByText('sarah@company.com');
-    expect(email).toBeInTheDocument();
-    // Mobile hides the sender email (contact info already has it); md+ keeps
-    // it — the wrapper that also holds its separator carries the breakpoint.
-    // oxlint-disable-next-line testing-library/no-node-access -- the responsive wrapper is structural, not a queryable role
-    expect(email.parentElement).toHaveClass('hidden', 'md:inline-flex');
+    // A narrow header drops items from the end of the line, so the order is
+    // the priority: the time outlasts the email and the source.
+    const items = [
+      'Sarah Johnson',
+      '2 min ago',
+      'sarah@company.com',
+      'API: helpdesk',
+    ].map((text) => screen.getByText(text));
+    items.slice(1).forEach((item, i) => {
+      expect(items[i]?.compareDocumentPosition(item)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
   });
 
-  it('hides the email together with its separator on small screens', () => {
+  it('keeps each separator with the item it introduces', () => {
     render(
       <ConversationHeader
         conversation={makeConversation()}
@@ -251,14 +261,12 @@ describe('ConversationHeader', () => {
       />,
     );
 
-    // A lone separator left between the name and the time would read "· ·".
-    // `md:inline-flex`, not `md:inline`: the meta row is a flex box, and an
-    // inline child would ride off the text midline.
-    const email = screen.getByText('sarah@company.com');
-    // oxlint-disable-next-line testing-library/no-node-access -- the responsive wrapper is structural, not a queryable role
-    const group = email.parentElement;
-    expect(group).toHaveClass('hidden', 'md:inline-flex');
-    expect(group?.textContent).toContain('·');
+    // An item that no longer fits leaves the line with its dot — a separator
+    // left behind would end the line on a lone "·".
+    expect(screen.getByText('sarah@company.com').textContent).toBe(
+      '·sarah@company.com',
+    );
+    expect(screen.getByText('2 min ago').textContent).toBe('·2 min ago');
   });
 
   it('does not render a back control (back lives in the page header)', () => {
