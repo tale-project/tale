@@ -33,7 +33,7 @@ export const Route = createFileRoute(
 });
 
 /**
- * Project metrics stay project-scoped (the rollups are per project), so this
+ * Project metrics stay project-scoped (the figures fold per project), so this
  * section is a project picker over the SAME `ProjectMetricsPage` the project's
  * own Metrics sub-view renders — one component, two homes (#2382). The picker
  * is the page's SUBJECT, so it sits in the toolbar as its own always-visible
@@ -126,6 +126,7 @@ function ProjectsMetricsRoute() {
         <Skeletonize loading={projectsLoading}>
           <ProjectMetricsPage
             scopeControl={scopeSelect}
+            organizationId={organizationId}
             projectId={selectedProjectId}
             periodDays={periodDays}
             onChangePeriod={handleChangePeriod}

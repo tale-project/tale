@@ -27,37 +27,13 @@ import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { AlertTriangle, BarChart3 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
-interface ProjectMetricsDay {
-  dateKey: string;
-  tasksCreated: number;
-  tasksCompleted: number;
-  tasksCancelled: number;
-  cycleTimeSumMs: number;
-  cycleTimeCount: number;
-  leadTimeSumMs: number;
-  leadTimeCount: number;
-  statusCountsEod: {
-    backlog: number;
-    todo: number;
-    in_progress: number;
-    in_review: number;
-  };
-  wipEod: number;
-  overdueEod: number;
-  staleEod: number;
-  agentCompleted: number;
-  humanCompleted: number;
-  agentRunsStarted: number;
-  agentRunsFailed: number;
-  totalCostCents: number;
-  reviewsPassed: number;
-  reviewsChangesRequested: number;
-  escalations: number;
-  capped: boolean;
-}
+type ProjectMetricsDay =
+  ReturnsOf<'tasks/queries:getProjectTaskMetrics'>['daily'][number];
 
 interface ProjectTotals {
   created: number;
@@ -121,16 +97,22 @@ function shortDay(dateKey: string): string {
   return dateKey.slice(5);
 }
 
+/** Any task open at that day's end — the cumulative flow has a band. */
+function hasFlow(day: ProjectMetricsDay): boolean {
+  const counts = day.statusCountsEod;
+  return (
+    counts.backlog + counts.todo + counts.in_progress + counts.in_review > 0
+  );
+}
+
 interface ProjectMetricsPageProps {
-  /** Kept in the contract for the rollup rebuild — the page currently has no
-   *  per-project data source to feed it to (see the component comment). */
+  organizationId: string;
   projectId: string;
   periodDays: MetricsPeriodDays;
   onChangePeriod: (period: MetricsPeriodDays) => void;
   /** The host's scope picker (the project select on Settings → Metrics →
-   *  Projects), rendered in the toolbar ahead of the period filter. The
-   *  project's own Metrics tab is already scoped by its route, so it passes
-   *  nothing. */
+   *  Projects), rendered in the toolbar ahead of the period filter. A host
+   *  already scoped by its route passes nothing. */
   scopeControl?: ReactNode;
 }
 
@@ -139,16 +121,20 @@ interface ProjectMetricsPageProps {
  * period switcher, paired-KPI stat cards honoring the KPI pairing contract
  * with period-over-period deltas, and the task charts — cumulative flow,
  * created-vs-completed throughput, the cycle-time trend, agent-vs-human
- * completions, and daily spend. Read from the per-project `taskMetricsDaily`
- * rollups until the 0.4 baseline reset dropped that table; with no
- * replacement rollup yet, the page renders its designed empty state
- * permanently (zeroed stat cards, empty charts) so the layout is ready for
- * the rollup rebuild to swap a data source back in. All charts share the
- * chart-theme tokens (theme-aware in dark mode). Padding-agnostic like every
- * metrics page — the host route owns the outer container and any surrounding
- * chrome (back link, picker).
+ * completions, and daily spend. Reads the window's day rows from
+ * `tasks/queries:getProjectTaskMetrics` — the backend folds them at read
+ * time from the project's live task, run, review and ask rows, so the
+ * figures move with the board (no rollup to wait for). The window always
+ * comes back complete (one row per day), so each chart judges its OWN
+ * emptiness from its series — a board with open tasks but no moves this
+ * period still has a flow band and an empty throughput. All charts share
+ * the chart-theme tokens (theme-aware in dark mode). Padding-agnostic like
+ * every metrics page — the host route owns the outer container and any
+ * surrounding chrome (back link, picker).
  */
 export function ProjectMetricsPage({
+  organizationId,
+  projectId,
   periodDays,
   onChangePeriod,
   scopeControl,
@@ -156,11 +142,13 @@ export function ProjectMetricsPage({
   const { t } = useT('tasks');
   const { formatCostCents } = useFormatNumber();
 
-  // No rollup source exists on 0.4 (see the component doc comment) — the
-  // honest fresh-deploy state is the empty series, never fabricated numbers.
-  const isLoading = false;
-  const daily: ProjectMetricsDay[] = [];
-  const previousDaily: ProjectMetricsDay[] = [];
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:getProjectTaskMetrics',
+    { organizationId, projectId, periodDays },
+    { enabled: organizationId !== '' && projectId !== '' },
+  );
+  const daily: ProjectMetricsDay[] = data?.daily ?? [];
+  const previousDaily: ProjectMetricsDay[] = data?.previousDaily ?? [];
 
   const totals = reduceTotals(daily);
   const prev = reduceTotals(previousDaily);
@@ -198,10 +186,12 @@ export function ProjectMetricsPage({
     cost: Number((day.totalCostCents / 100).toFixed(2)),
   }));
 
-  const noDays = daily.length === 0;
+  const noFlow = !daily.some(hasFlow);
+  const noThroughput = totals.created === 0 && totals.completed === 0;
   const noCycleTimes = !daily.some((day) => day.cycleTimeCount > 0);
+  const noCompletions = totals.completed === 0;
+  const noCost = totals.runs === 0 && totals.cost === 0;
   const emptyTitle = t('metrics.noData');
-  const emptyDescription = t('metrics.noDataDescription');
 
   const flowSeries: ChartSeries[] = [
     {
@@ -291,7 +281,7 @@ export function ProjectMetricsPage({
                   })}
                 </Text>
               </SkeletonBox>
-              {daily.length > 1 ? (
+              {totals.completed > 0 && daily.length > 1 ? (
                 <Sparkline
                   data={daily.map((day) => day.tasksCompleted)}
                   filled
@@ -369,10 +359,10 @@ export function ProjectMetricsPage({
           title={t('metrics.cumulativeFlow')}
           bodyClassName="h-52"
           loading={isLoading}
-          isEmpty={noDays}
+          isEmpty={noFlow}
           emptyIcon={BarChart3}
           emptyTitle={emptyTitle}
-          emptyDescription={emptyDescription}
+          emptyDescription={t('metrics.noFlowDescription')}
           legend={<ChartLegend items={seriesToLegend(flowSeries)} />}
         >
           <TrendAreaChart
@@ -391,10 +381,10 @@ export function ProjectMetricsPage({
               title={t('metrics.throughput')}
               bodyClassName="h-44"
               loading={isLoading}
-              isEmpty={noDays}
+              isEmpty={noThroughput}
               emptyIcon={BarChart3}
               emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
+              emptyDescription={t('metrics.noThroughputDescription')}
               legend={<ChartLegend items={seriesToLegend(throughputSeries)} />}
             >
               <TrendBarChart
@@ -412,7 +402,7 @@ export function ProjectMetricsPage({
               isEmpty={noCycleTimes}
               emptyIcon={BarChart3}
               emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
+              emptyDescription={t('metrics.noCycleTimeDescription')}
             >
               <TrendLineChart
                 data={cycleTimeData}
@@ -439,10 +429,10 @@ export function ProjectMetricsPage({
               title={t('metrics.agentVsHuman')}
               bodyClassName="h-44"
               loading={isLoading}
-              isEmpty={noDays}
+              isEmpty={noCompletions}
               emptyIcon={BarChart3}
               emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
+              emptyDescription={t('metrics.noCompletionsDescription')}
               legend={<ChartLegend items={seriesToLegend(completionsSeries)} />}
             >
               <TrendBarChart
@@ -457,10 +447,10 @@ export function ProjectMetricsPage({
               title={t('metrics.costTrend')}
               bodyClassName="h-44"
               loading={isLoading}
-              isEmpty={noDays}
+              isEmpty={noCost}
               emptyIcon={BarChart3}
               emptyTitle={emptyTitle}
-              emptyDescription={emptyDescription}
+              emptyDescription={t('metrics.noCostDescription')}
             >
               <TrendBarChart
                 data={costData}

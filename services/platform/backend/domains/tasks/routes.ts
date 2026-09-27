@@ -47,6 +47,7 @@ import {
   startWorkflowForTask,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
+import { getProjectTaskMetrics } from './metrics.ts';
 import { TaskReviewError } from './reviews.ts';
 import {
   addTaskDependency,
@@ -303,6 +304,28 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const auth = await authCtx(c);
       return c.json(
         await getTaskOpsIndicatorsForAccessibleProjects(deps.sql, auth),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The project metrics page: the window's day rows folded at read time
+  // from the live task, run, review and ask rows (see `./metrics.ts`).
+  app.get('/metrics/by-project/:projectId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const periodRaw = Number(c.req.query('periodDays') ?? '30');
+      const periodDays =
+        periodRaw === 7
+          ? (7 as const)
+          : periodRaw === 90
+            ? (90 as const)
+            : (30 as const);
+      return c.json(
+        await getProjectTaskMetrics(deps.sql, auth, c.req.param('projectId'), {
+          periodDays,
+        }),
       );
     } catch (error) {
       return handleError(c, error);

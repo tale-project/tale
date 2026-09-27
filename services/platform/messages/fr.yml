@@ -7406,10 +7406,14 @@ tasks:
     description:
       Indicateurs de livraison, d'intervention et de coût pour les tâches
       de ce projet.
-    cappedNotice: Certains jours ont atteint la limite de scan du rollup — les
-      totaux de cette période peuvent être sous-estimés.
+    cappedNotice: Affichage des 5 000 dernières lignes de chaque source pour
+      cette période — l'activité plus ancienne n'est pas comptée.
     noData: Aucune donnée
-    noDataDescription: Les métriques apparaissent après le premier rollup quotidien.
+    noFlowDescription: Aucune tâche n'était ouverte à la fin d'une journée de cette période.
+    noThroughputDescription: Aucune tâche n'a été créée ou terminée pendant cette période.
+    noCycleTimeDescription: Aucune tâche n'est passée de En cours à Terminé pendant cette période.
+    noCompletionsDescription: Aucune tâche n'a été terminée pendant cette période.
+    noCostDescription: Aucune exécution d'agent n'a démarré pendant cette période.
     completed: Terminées ({days} j)
     completedDetail: '{agent} par les agents · {human} par les humains'
     cycleTime: Temps de cycle moyen
