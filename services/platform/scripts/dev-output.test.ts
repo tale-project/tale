@@ -149,3 +149,53 @@ describe('pipeChild with stderrIsSignal', () => {
     ]);
   });
 });
+
+/**
+ * A step's failure dump is read once the child has exited, but `exit` can
+ * arrive before the pipes are drained, and the lines still in flight are the
+ * ones that name the failure. `done` is what the dump waits for.
+ */
+describe('pipeChild done', () => {
+  it('waits for the last line a child writes as it exits', async () => {
+    const { child, stdout, stderr } = fakeChild();
+    const handle = pipeChild(child, { label: 'wait-on' });
+    let drained = false;
+    void handle.done.then(() => {
+      drained = true;
+    });
+
+    await emit(stderr, 'Error: connect ECONNREFUSED 127.0.0.1:3005');
+    // The child's last words carry no newline, so they land only when its
+    // stream ends; a dump read at this point, on `exit`, would miss them.
+    stderr.end('Error: Timed out waiting for: tcp:127.0.0.1:3005');
+    expect(handle.signal()).toEqual([
+      'Error: connect ECONNREFUSED 127.0.0.1:3005',
+    ]);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(drained).toBe(false);
+
+    stdout.end();
+    await handle.done;
+
+    const lines = [
+      'Error: connect ECONNREFUSED 127.0.0.1:3005',
+      'Error: Timed out waiting for: tcp:127.0.0.1:3005',
+    ];
+    expect(handle.signal()).toEqual(lines);
+    expect(handle.tail(15)).toEqual(lines);
+  });
+
+  it('rejects when a read fails, keeping every line read before it', async () => {
+    const { child, stdout, stderr } = fakeChild();
+    const handle = pipeChild(child, { label: 'wait-on' });
+
+    await emit(stderr, 'Error: connect ECONNREFUSED 127.0.0.1:3005');
+    stderr.destroy(new Error('read failed'));
+    stdout.end();
+
+    await expect(handle.done).rejects.toThrow('read failed');
+    expect(handle.signal()).toEqual([
+      'Error: connect ECONNREFUSED 127.0.0.1:3005',
+    ]);
+  });
+});

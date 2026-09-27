@@ -67,6 +67,14 @@ export interface PipeChildHandle {
   tail(n?: number): string[];
   /** Cleaned text of the warn/error lines seen (the real signal for a dump). */
   signal(): string[];
+  /**
+   * Settles once both streams have been read to the end, when `tail()` and
+   * `signal()` hold every line the child wrote; rejects if a read fails, after
+   * handling every line it got. A child's `exit` can arrive while its last
+   * lines are still in the pipe, so a failure dump waits for this rather than
+   * reading on `exit`.
+   */
+  readonly done: Promise<void>;
 }
 
 export interface PipeChildOptions {
@@ -141,15 +149,17 @@ export function pipeChild(
     // info/progress/noise: collapsed — milestones duplicate the READY view.
   };
 
+  const reads: Promise<void>[] = [];
   if (child.stdout) {
-    void pipeNodeStream(child.stdout, (raw) => handle(raw, 'stdout'));
+    reads.push(pipeNodeStream(child.stdout, (raw) => handle(raw, 'stdout')));
   }
   if (child.stderr) {
-    void pipeNodeStream(child.stderr, (raw) => handle(raw, 'stderr'));
+    reads.push(pipeNodeStream(child.stderr, (raw) => handle(raw, 'stderr')));
   }
 
   return {
     tail: (n = cap) => ring.tail(n),
     signal: () => signalLines.toArray(),
+    done: Promise.all(reads).then(() => undefined),
   };
 }

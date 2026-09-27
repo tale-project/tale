@@ -402,16 +402,23 @@ function runCommand(
         resolve();
         return;
       }
-      // Prefer the classified warn/error lines (the real cause); fall back to a
-      // raw tail with BuildKit `#N` progress filtered out so a failure dump is
-      // signal, not the build firehose.
-      const signal = piped.signal();
-      const lines =
-        signal.length > 0
-          ? signal.slice(-15)
-          : piped.tail(15).filter((line) => !/^#\d+\s/.test(line));
-      if (lines.length > 0) detailLines(lines);
-      reject(new Error(`${cmd} exited with code ${code}`));
+      const fail = (): void => {
+        // Prefer the classified warn/error lines (the real cause); fall back to a
+        // raw tail with BuildKit `#N` progress filtered out so a failure dump is
+        // signal, not the build firehose.
+        const signal = piped.signal();
+        const lines =
+          signal.length > 0
+            ? signal.slice(-15)
+            : piped.tail(15).filter((line) => !/^#\d+\s/.test(line));
+        if (lines.length > 0) detailLines(lines);
+        reject(new Error(`${cmd} exited with code ${code}`));
+      };
+      // `exit` can arrive while the child's last lines, the ones most likely
+      // to name the failure, are still in the pipe, so the dump waits until
+      // both streams are read. A failed read has handled every line it got,
+      // so the dump goes ahead either way.
+      piped.done.then(fail, fail);
     });
     child.on('error', (err) => {
       stepChildren.delete(child);
