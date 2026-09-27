@@ -110,9 +110,14 @@ beside the task; `--force` re-runs it locally. A task whose result depends on an
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache. A test that reads a file outside its
 workspace declares that file in the workspace's `turbo.json` `test.inputs` (`$TURBO_EXTENDS$`,
-`$TURBO_DEFAULT$`, then `$TURBO_ROOT$/<path>`), as `services/platform/turbo.json` does for the
-root `.env.example`, `knip.config.ts` and the tale-db init scripts; without it, an edit to that
-file alone replays the cached verdict.
+`$TURBO_DEFAULT$`, then `$TURBO_ROOT$/<path>`); without it, an edit to that file alone replays
+the cached verdict. `services/platform/turbo.json` declares what the platform's `test` task
+reads (`configs/platform/`, the compose files, the tale-db init scripts and knowledge-db
+migrations, among others), and `services/platform/tests/guards/turbo-inputs.guard.test.ts` asks
+`turbo --dry=json` whether each of those paths is hashed; a suite that starts reading another
+outside file adds it to both. The sources of a workspace package the task depends on
+(`packages/*`) are a separate gap: no `test` task depends on `^…`, so an edit there alone
+replays the consumers' cached verdicts too.
 
 ## Skills index
 
