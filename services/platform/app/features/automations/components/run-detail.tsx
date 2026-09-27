@@ -108,19 +108,28 @@ export function RunDetail({
   const starterLabel = useRunStarterLabel(organizationId);
 
   const projection = useMemo(() => projectRun(run), [run]);
+  // The version read has SETTLED with nothing to draw — the automation (or
+  // this version of it) is gone. Never true while the read is pending or on
+  // a transient failure, so the trace canvas below never flashes in front
+  // of the real document.
+  const versionMissing = isMissingAutomationRead(versionQuery);
+  const versionPending =
+    versionQuery.data === undefined && !versionQuery.isError;
   const automation = useMemo(() => {
     const document = readDocument(versionQuery.data?.document);
-    if (document !== null || run === null) return document;
+    if (document !== null || run === null || !versionMissing) return document;
     // No document to draw: the run's trace names every node it reached and
-    // its type, which is enough for a canvas of what happened.
-    return readDocument({
-      name: run.name,
-      nodes: projection.trace.map((entry) => ({
-        id: entry.node,
-        type: entry.type,
-      })),
-    });
-  }, [versionQuery.data?.document, run, projection.trace]);
+    // its type, which is enough for a canvas of what happened. A node the
+    // run passed more than once (a repeat) is drawn once.
+    const seen = new Set<string>();
+    const nodes: { id: string; type: string }[] = [];
+    for (const entry of projection.trace) {
+      if (seen.has(entry.node)) continue;
+      seen.add(entry.node);
+      nodes.push({ id: entry.node, type: entry.type });
+    }
+    return readDocument({ name: run.name, nodes });
+  }, [versionQuery.data?.document, run, projection.trace, versionMissing]);
   // The heading names the automation the way the breadcrumb above it does,
   // not by the slug the store addresses it with.
   const { locale } = useLocale();
@@ -157,7 +166,7 @@ export function RunDetail({
       </ContentArea>
     );
   }
-  if (!run) {
+  if (!run || versionPending) {
     return (
       <ContentArea variant="narrow">
         <Text as="p" variant="muted" className="text-sm">

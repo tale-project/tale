@@ -16,6 +16,7 @@ const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
       nodes: [],
     } as unknown,
     versionError: undefined as unknown,
+    versionPending: false,
   },
   resolveApproval: vi.fn(),
   readApproval: vi.fn(),
@@ -36,9 +37,11 @@ vi.mock('../hooks/queries', () => ({
     },
   }),
   useAutomation: () =>
-    state.versionError === undefined
-      ? { data: { document: state.versionDocument }, isError: false }
-      : { data: undefined, isError: true, error: state.versionError },
+    state.versionPending
+      ? { data: undefined, isError: false, error: null }
+      : state.versionError === undefined
+        ? { data: { document: state.versionDocument }, isError: false }
+        : { data: undefined, isError: true, error: state.versionError },
   useNodeTypeCatalog: () => ({ data: [], isError: false }),
   useRunPendingAsk: () => ({ data: null }),
   useRunApproval: (organizationId: string, approvalId: string) => {
@@ -113,6 +116,7 @@ beforeEach(() => {
   state.trace = null;
   state.versionDocument = { name: 'docs-approval-proof', nodes: [] };
   state.versionError = undefined;
+  state.versionPending = false;
   vi.clearAllMocks();
 });
 
@@ -281,6 +285,44 @@ describe('RunDetail without a version document', () => {
     expect(canvas).toHaveTextContent('draft (llm): ok');
     expect(canvas).toHaveTextContent('send (imap-smtp.send): ok');
     expect(screen.getByText(/^Started by/)).toBeVisible();
+  });
+
+  it('draws each repeated node once', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [
+      { node: 'draft', type: 'llm', status: 'ok' },
+      { node: 'check', type: 'transform', status: 'ok' },
+      { node: 'draft', type: 'llm', status: 'ok' },
+    ];
+    state.versionError = {
+      data: { code: 'AUTOMATION_DELETED', deletedAt: 1789363170729 },
+    };
+    renderRun();
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas.querySelectorAll('li')).toHaveLength(2);
+    expect(canvas).toHaveTextContent('draft (llm): ok');
+    expect(canvas).toHaveTextContent('check (transform): ok');
+  });
+
+  // The fallback used to kick in whenever the document was missing — while
+  // the version was still LOADING too — so every run page first drew a
+  // throwaway trace canvas and then jumped to the real one.
+  it('shows the loading state, not the trace canvas, while the version loads', () => {
+    state.trace = [{ node: 'draft', type: 'llm', status: 'ok' }];
+    state.versionPending = true;
+    renderRun();
+    expect(screen.queryByTestId('canvas')).toBeNull();
+    expect(screen.getByText('Loading the run…')).toBeInTheDocument();
+  });
+
+  it('does not draw the trace canvas on a transient version read failure', () => {
+    state.trace = [{ node: 'draft', type: 'llm', status: 'ok' }];
+    state.versionError = new Error('network down');
+    renderRun();
+    expect(screen.getByTestId('canvas')).not.toHaveTextContent('draft');
   });
 
   it('prefers the version document when it exists', () => {
