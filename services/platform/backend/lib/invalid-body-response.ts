@@ -39,6 +39,10 @@ export function invalidBodyResponse<E extends Env>(
   return invalidBodyIssuesResponse(c, bodyIssues(error));
 }
 
+/** How many issues one refusal lists — the REST door's bound: enough to fix
+ * a body in one round trip, never a hostile body echoed back at length. */
+const MAX_BODY_ISSUES = 20;
+
 /**
  * The same 400 for a refusal no schema raised: a body that is not JSON
  * (`path: 'body'`), or a rule the route checks after the parse.
@@ -47,11 +51,12 @@ export function invalidBodyIssuesResponse<E extends Env>(
   c: Context<E>,
   issues: readonly BodyIssue[],
 ): Response {
+  const listed = issues.slice(0, MAX_BODY_ISSUES);
   return c.json(
     {
       error: 'invalid body',
-      message: describeBodyIssues(issues),
-      data: { issues },
+      message: describeBodyIssues(listed),
+      data: { issues: listed },
     },
     400,
   );

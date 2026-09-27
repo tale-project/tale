@@ -51,6 +51,24 @@ describe('invalidBodyResponse', () => {
 });
 
 describe('invalidBodyIssuesResponse', () => {
+  it('lists at most twenty issues, as the REST door does', async () => {
+    const wide = z.object(
+      Object.fromEntries(
+        Array.from({ length: 30 }, (_, i) => [`f${i}`, z.string()]),
+      ),
+    );
+    const outcome = wide.safeParse({});
+    if (outcome.success) throw new Error('expected a failed parse');
+    const app = new Hono().post('/', (c) =>
+      invalidBodyResponse(c, outcome.error),
+    );
+    const body = (await (
+      await app.request('/', { method: 'POST' })
+    ).json()) as Refusal;
+    expect(body.data.issues).toHaveLength(20);
+    expect(body.message.split('; ')).toHaveLength(20);
+  });
+
   it('answers a refusal no schema raised in the same shape', async () => {
     const app = new Hono().post('/', (c) =>
       invalidBodyIssuesResponse(c, [{ path: 'body', message: 'must be JSON' }]),
