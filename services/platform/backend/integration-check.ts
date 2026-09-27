@@ -2743,11 +2743,14 @@ async function checkTasks(
     ).json(),
   );
   const archProjectId = archProj.success ? archProj.data.projectId : '';
-  const mkTask = async (title: string): Promise<string> => {
+  const mkTask = async (
+    title: string,
+    inProject: string = archProjectId,
+  ): Promise<string> => {
     const made = z.object({ taskId: z.string() }).safeParse(
       await (
         await send('POST', `/api/app/tasks?orgId=${orgId}`, {
-          projectId: archProjectId,
+          projectId: inProject,
           title,
           status: 'todo',
         })
@@ -2845,12 +2848,25 @@ async function checkTasks(
   // displacing one. Archiving bumps `updated_at_ms`, so a recency-only sort
   // puts the archived row first. At exactly 25 field hits the comment leg —
   // and with it the merge sort — never runs, leaving the SQL key alone.
+  // The crowd needs a live project of its own: the one above is archived by
+  // now, and an archived project refuses new tasks (`PROJECT_ARCHIVED`).
+  const crowdProj = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Crowd Project',
+      })
+    ).json(),
+  );
+  const crowdProjectId = crowdProj.success ? crowdProj.data.projectId : '';
   const CAP = 25;
   const crowdIds: string[] = [];
   for (let i = 0; i < CAP; i += 1) {
-    crowdIds.push(await mkTask(`Crowdable live ${i}`));
+    crowdIds.push(await mkTask(`Crowdable live ${i}`, crowdProjectId));
   }
-  const crowdArchivedId = await mkTask('Crowdable archived');
+  const crowdArchivedId = await mkTask('Crowdable archived', crowdProjectId);
+  const crowdCreated =
+    crowdIds.filter((id) => id !== '').length +
+    (crowdArchivedId !== '' ? 1 : 0);
   await send(
     'POST',
     `/api/app/tasks/${crowdArchivedId}/archive?orgId=${orgId}`,
@@ -2861,10 +2877,11 @@ async function checkTasks(
   const crowdedRows = crowded.success ? crowded.data.results : [];
   record(
     'a capped page keeps live tasks and drops the archived one (#2999)',
-    crowdedRows.length === CAP &&
+    crowdCreated === CAP + 1 &&
+      crowdedRows.length === CAP &&
       !crowdedRows.some((h) => h.taskId === crowdArchivedId) &&
       crowdIds.every((id) => crowdedRows.some((h) => h.taskId === id)),
-    `rows=${crowdedRows.length} (want ${CAP}), archivedPresent=${crowdedRows.some((h) => h.taskId === crowdArchivedId)} (want false), liveMissing=${crowdIds.filter((id) => !crowdedRows.some((h) => h.taskId === id)).length} (want 0)`,
+    `project=${crowdProjectId === '' ? 'ERR' : 'ok'}, created=${crowdCreated} (want ${CAP + 1}), rows=${crowdedRows.length} (want ${CAP}), archivedPresent=${crowdedRows.some((h) => h.taskId === crowdArchivedId)} (want false), liveMissing=${crowdIds.filter((id) => !crowdedRows.some((h) => h.taskId === id)).length} (want 0)`,
   );
 }
 
