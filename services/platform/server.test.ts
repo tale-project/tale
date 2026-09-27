@@ -1198,6 +1198,49 @@ describe('SPA shell SITE_URL', () => {
   });
 });
 
+/**
+ * The error displays' "contact support" link reads the deployment's own
+ * support page from `window.__ENV__`; the web tier puts it there from
+ * `TALE_CONTACT_SUPPORT_URL` only when it is an absolute http(s) URL.
+ */
+describe('SPA shell TALE_CONTACT_SUPPORT_URL', () => {
+  const indexHtml =
+    "<!doctype html><html><head></head><body><script>window.__ENV__ = '__ENV_PLACEHOLDER__';</script></body></html>";
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  async function pageEnvWith(value: string | undefined) {
+    vi.stubEnv('SITE_URL', 'https://tale.example.com');
+    vi.stubEnv('TALE_CONTACT_SUPPORT_URL', value);
+    const app = createApp(undefined, { indexHtml });
+    const res = await app.fetch(new Request('http://platform:3000/'));
+    expect(res.status).toBe(200);
+    const injected = /window\.__ENV__ = (\{[^<]*\});/.exec(await res.text());
+    return JSON.parse(injected?.[1] ?? '{}') as Record<string, unknown>;
+  }
+
+  test('hands the page the configured support URL', async () => {
+    const env = await pageEnvWith('https://support.example.com/help');
+    expect(env.TALE_CONTACT_SUPPORT_URL).toBe(
+      'https://support.example.com/help',
+    );
+  });
+
+  test('leaves it out when unset', async () => {
+    const env = await pageEnvWith(undefined);
+    expect(env).not.toHaveProperty('TALE_CONTACT_SUPPORT_URL');
+  });
+
+  test('leaves out a value that is not an http(s) URL', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const env = await pageEnvWith('javascript:alert(1)');
+    expect(env).not.toHaveProperty('TALE_CONTACT_SUPPORT_URL');
+  });
+});
+
 describe('unrouted /api paths', () => {
   test('answer the JSON 404 envelope instead of the SPA shell', async () => {
     const app = createApp(baseEnv);

@@ -7,18 +7,37 @@
  * only the audio branch, so a document attached in chat sat with a NULL
  * `rag_status` forever and every turn told the model the file was "not
  * machine-readable". These tests pin the enqueue — and the three shapes that
- * must NOT take it.
+ * must NOT take it. A file no lane will index and no extractor reads (a
+ * `.doc`, a `.zip`, a hand-uploaded `.loop`) lands on the terminal state the
+ * indexer and a sync import give it, while audio, video, chat-bound and
+ * opted-out files, and a `.log` the indexer reads, keep an empty status.
  */
 
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../auth/auth.ts';
+import { RAG_ERROR_UNSUPPORTED_TYPE } from '../../core/knowledge/rag_error_codes.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import { createFileRoutes } from './routes.ts';
 import { registerUpload, stampImageVisionMetadata } from './service.ts';
 import { queueTranscription } from './transcription.ts';
+
+/** The register transaction, recording what runs on it. The queue marker and
+ * the page-shape stamp stay mocked, so an `UPDATE app.file_metadata` here is
+ * the status writer's, run for real. */
+const db = vi.hoisted(() => {
+  const statements: { text: string; values: unknown[] }[] = [];
+  const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('$');
+    statements.push({ text, values });
+    return Promise.resolve(
+      text.includes('RETURNING org_id') ? [{ orgId: 'org_1' }] : [],
+    );
+  };
+  return { statements, tx };
+});
 
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
@@ -49,7 +68,7 @@ vi.mock('../../lib/rate-limit.ts', () => ({
 }));
 vi.mock('@tale/shared/db/serializable', () => ({
   transactSerializable: vi.fn(
-    (_sql: unknown, run: (tx: unknown) => Promise<unknown>) => run('tx'),
+    (_sql: unknown, run: (tx: unknown) => Promise<unknown>) => run(db.tx),
   ),
 }));
 vi.mock('./service.ts', async (importOriginal) => {
@@ -62,7 +81,8 @@ vi.mock('./service.ts', async (importOriginal) => {
     stampImageVisionMetadata: vi.fn(() => Promise.resolve()),
   };
 });
-vi.mock('../knowledge/service.ts', () => ({
+vi.mock('../knowledge/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
   markRagQueued: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({
@@ -92,8 +112,17 @@ function register(body: Record<string, unknown>) {
   );
 }
 
+const statusWrites = () =>
+  db.statements.filter((s) => s.text.includes('UPDATE app.file_metadata'));
+
+const hints = () =>
+  db.statements.filter((s) =>
+    s.text.includes('INSERT INTO app_realtime.outbox'),
+  );
+
 afterEach(() => {
   vi.clearAllMocks();
+  db.statements.length = 0;
 });
 
 describe('POST /files/register', () => {
@@ -115,8 +144,8 @@ describe('POST /files/register', () => {
 
     expect(res.status).toBe(200);
     expect(registerUpload).toHaveBeenCalledTimes(1);
-    expect(markRagQueued).toHaveBeenCalledWith('tx', 'file_1');
-    expect(addJobInTx).toHaveBeenCalledWith('tx', 'rag.index_file', {
+    expect(markRagQueued).toHaveBeenCalledWith(db.tx, 'file_1');
+    expect(addJobInTx).toHaveBeenCalledWith(db.tx, 'rag.index_file', {
       fileId: 'file_1',
     });
     expect(queueTranscription).not.toHaveBeenCalled();
@@ -131,7 +160,7 @@ describe('POST /files/register', () => {
     expect(res.status).toBe(200);
     expect(markRagQueued).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
-    expect(stampImageVisionMetadata).toHaveBeenCalledWith('tx', 'file_1');
+    expect(stampImageVisionMetadata).toHaveBeenCalledWith(db.tx, 'file_1');
   });
 
   it('sends audio to transcription, never to the corpus', async () => {
@@ -152,11 +181,94 @@ describe('POST /files/register', () => {
     expect(res.status).toBe(200);
     expect(registerUpload).toHaveBeenCalledWith(
       expect.anything(),
-      'tx',
+      db.tx,
       { organizationId: 'org_1', userId: 'user_1' },
       expect.objectContaining({ skipRagIndexing: true }),
       { kind: 'app', purpose: 'file' },
     );
+    expect(markRagQueued).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /files/register — a file no lane will index', () => {
+  it.each([
+    ['a hand-uploaded Loop page', 'standup.loop', 'application/octet-stream'],
+    ['a legacy Word file', 'minutes.doc', 'application/msword'],
+    ['an archive', 'bundle.zip', 'application/zip'],
+  ])(
+    'lands %s on unsupported_type with the indexer’s sentence, never queued',
+    async (_label, fileName, contentType) => {
+      const res = await register({ fileName, contentType });
+
+      expect(res.status).toBe(200);
+      const writes = statusWrites();
+      expect(writes).toHaveLength(1);
+      expect(writes[0]?.values).toEqual(
+        expect.arrayContaining([
+          'unsupported',
+          `No text extractor exists for "${fileName}".`,
+          RAG_ERROR_UNSUPPORTED_TYPE,
+          'file_1',
+        ]),
+      );
+      // The open document lists refetch, as for any status the indexer writes.
+      expect(hints().map((s) => s.values)).toEqual([
+        ['org_1', null, 'document', null],
+      ]);
+      expect(markRagQueued).not.toHaveBeenCalled();
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(queueTranscription).not.toHaveBeenCalled();
+    },
+  );
+
+  // `isSupported` is false for media too: without the exclusion a recording
+  // would read "Not supported" while its transcript is being made.
+  it.each([
+    ['audio', 'memo.m4a', 'audio/mp4'],
+    ['video', 'standup.mp4', 'video/mp4'],
+  ])(
+    'leaves %s to the transcription lane',
+    async (_label, fileName, contentType) => {
+      const res = await register({ fileName, contentType });
+
+      expect(res.status).toBe(200);
+      expect(statusWrites()).toEqual([]);
+      expect(queueTranscription).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('leaves a chat-bound file to the chat', async () => {
+    const res = await register({
+      fileName: 'standup.loop',
+      contentType: 'application/octet-stream',
+      threadId: 'thread_1',
+    });
+
+    expect(res.status).toBe(200);
+    expect(statusWrites()).toEqual([]);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('leaves an opted-out file alone', async () => {
+    const res = await register({
+      fileName: 'standup.loop',
+      contentType: 'application/octet-stream',
+      skipRagIndexing: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(statusWrites()).toEqual([]);
+  });
+
+  it('keeps a `.log` on its empty status: the indexer reads it, so it is not terminal', async () => {
+    const res = await register({
+      fileName: 'server.log',
+      contentType: 'text/plain',
+    });
+
+    expect(res.status).toBe(200);
+    expect(statusWrites()).toEqual([]);
     expect(markRagQueued).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
   });

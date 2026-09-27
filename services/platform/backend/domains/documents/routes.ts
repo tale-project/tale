@@ -1,4 +1,5 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -532,7 +533,9 @@ export function createDocumentRoutes(deps: {
         expectedFileId: z.string().min(1),
         fileName: z.string().min(1).max(512),
         contentType: z.string().max(255).optional(),
-        lastModified: z.number().optional(),
+        // Stored as the document's modified date: an instant a `Date`
+        // can hold, which any number is not.
+        lastModified: epochMsSchema.optional(),
       })
       .safeParse(await c.req.json());
     if (!body.success) {

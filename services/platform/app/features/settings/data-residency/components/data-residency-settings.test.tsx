@@ -79,6 +79,12 @@ const fixtures = vi.hoisted(() => ({
     dimensions: number;
     recommended: boolean;
   }>,
+  // Each provider's declared embedding support, as the recommendations read
+  // reports it beside the picks. A provider missing here reads as unknown.
+  embeddingSupport: [] as Array<{
+    providerSlug: string;
+    support: 'supported' | 'unsupported' | 'unknown';
+  }>,
   backfill: null as unknown,
   credentials: [] as Array<{
     id: string;
@@ -133,7 +139,10 @@ vi.mock('../hooks/queries', () => ({
     error: null,
   }),
   useEmbeddingRecommendations: () => ({
-    data: fixtures.embeddingRecommendations,
+    data: {
+      recommendations: fixtures.embeddingRecommendations,
+      providers: fixtures.embeddingSupport,
+    },
     isPending: false,
     isError: false,
     error: null,
@@ -257,6 +266,7 @@ describe('DataResidencySettings', () => {
     setKnowledgeFixture({ configured: false });
     setEmbeddingFixture({ configured: false });
     fixtures.embeddingRecommendations = [];
+    fixtures.embeddingSupport = [];
     fixtures.backfill = null;
     fixtures.credentials = [];
     fixtures.catalogs = [];
@@ -704,16 +714,28 @@ describe('DataResidencySettings', () => {
     });
   });
 
-  it('refuses a shipped provider whose catalog lists no embedding model', async () => {
+  it('refuses a provider declared unable to embed, whatever its listing carries', async () => {
     fixtures.credentials = [
-      { id: 'cred-1', providerSlug: 'deepseek', name: 'API key' },
+      { id: 'cred-1', providerSlug: 'anthropic', name: 'API key' },
+    ];
+    fixtures.embeddingSupport = [
+      { providerSlug: 'anthropic', support: 'unsupported' },
     ];
     fixtures.catalogs = [
       {
-        name: 'deepseek',
+        name: 'anthropic',
         origin: 'shipped',
         catalogSource: 'static',
-        models: [{ id: 'deepseek-v4', tags: ['chat'] }],
+        // Even an embedding-tagged entry cannot overrule the declaration: a
+        // listing can outlive the vendor's embeddings API.
+        models: [
+          { id: 'claude-sonnet-5', tags: ['chat'] },
+          {
+            id: 'stale-embedding',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
       },
     ];
 
@@ -726,20 +748,22 @@ describe('DataResidencySettings', () => {
     await user.click(
       within(section).getByRole('combobox', { name: 'Provider' }),
     );
-    await user.click(screen.getByRole('option', { name: 'deepseek' }));
+    await user.click(screen.getByRole('option', { name: 'anthropic' }));
 
-    // Nothing to type into: the row says so, and the shared Save stays off.
-    // The provider select carries no second line about it.
+    // Nothing to pick or type: the row says the provider cannot embed, and
+    // the shared Save stays off. The provider select carries no second line.
     expect(
       within(section).queryByRole('textbox', { name: 'Model' }),
     ).not.toBeInTheDocument();
     expect(
       within(section).queryByRole('combobox', { name: 'Model' }),
     ).not.toBeInTheDocument();
-    expect(within(section).getByText('No embedding model')).toBeInTheDocument();
+    expect(within(section).getByRole('status')).toHaveTextContent(
+      'Cannot embed',
+    );
     expect(
       within(section).getByText(
-        'The deepseek catalog lists no embedding model. Choose a provider that serves one.',
+        'anthropic offers no embedding model. Choose a provider that serves one.',
       ),
     ).toBeInTheDocument();
     expect(capture.current?.isDirty).toBe(true);
@@ -747,6 +771,67 @@ describe('DataResidencySettings', () => {
     expect(
       within(section).getByRole('combobox', { name: 'Provider' }),
     ).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('asks for the model and its width by hand where no curated width ships', async () => {
+    // A shipped catalog that lists no embedding model says nothing about the
+    // vendor — only that no width is known here. Refusing it would block a
+    // provider that may well embed; the admin enters both instead.
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'deepseek', name: 'API key' },
+    ];
+    fixtures.embeddingSupport = [
+      { providerSlug: 'deepseek', support: 'unknown' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'deepseek',
+        origin: 'shipped',
+        catalogSource: 'static',
+        models: [{ id: 'deepseek-v4', tags: ['chat'] }],
+      },
+    ];
+    saveEmbedding.mockResolvedValue(null);
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'deepseek' }));
+
+    expect(within(section).queryByText('Cannot embed')).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        "Tale knows no vector width for deepseek's embedding models. Enter the model tag and its vector width exactly as the provider documents them.",
+      ),
+    ).toBeInTheDocument();
+    await user.type(
+      within(section).getByRole('textbox', { name: 'Model' }),
+      'example-embedding',
+    );
+    await user.type(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+      '1024',
+    );
+    expect(capture.current?.isValid).toBe(true);
+
+    await act(async () => {
+      await capture.current?.save();
+    });
+
+    expect(saveEmbedding).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      providerSlug: 'deepseek',
+      credentialId: undefined,
+      model: 'example-embedding',
+      dimensions: 1024,
+      baseUrl: undefined,
+    });
   });
 
   it('refuses a shipped provider whose catalog could not be loaded', async () => {
@@ -820,7 +905,7 @@ describe('DataResidencySettings', () => {
     ).not.toBeInTheDocument();
     expect(
       within(section).getByText(
-        'No listing can tell whether this provider serves embeddings, so enter the tag exactly as the provider spells it.',
+        "Tale knows no vector width for local-embedding's embedding models. Enter the model tag and its vector width exactly as the provider documents them.",
       ),
     ).toBeInTheDocument();
     await user.type(
@@ -868,12 +953,10 @@ describe('DataResidencySettings', () => {
     expect(
       within(section).getByRole('textbox', { name: 'Model' }),
     ).toBeInTheDocument();
-    expect(
-      within(section).queryByText('No embedding model'),
-    ).not.toBeInTheDocument();
+    expect(within(section).queryByText('Cannot embed')).not.toBeInTheDocument();
     expect(
       within(section).getByText(
-        'No listing can tell whether this provider serves embeddings, so enter the tag exactly as the provider spells it.',
+        "Tale knows no vector width for azure's embedding models. Enter the model tag and its vector width exactly as the provider documents them.",
       ),
     ).toBeInTheDocument();
   });

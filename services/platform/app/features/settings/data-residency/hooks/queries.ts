@@ -39,10 +39,12 @@ export function useOrgKnowledgeEmbedding(organizationId: string) {
 /**
  * Embedding models the org could adopt — curated picks from the catalogs its
  * direct credentials already unlock, each carrying the vector width an admin
- * would otherwise have to look up by hand. Feeds the one-click form fill in
- * the embedding section; the admin's Save remains the write. Keyed under the
- * credential entity: the picks change with the credentials, not with the
- * embedding config.
+ * would otherwise have to look up by hand — and every provider's declared
+ * embedding support, which tells the form's "cannot embed" refusal apart
+ * from "no curated width, enter the model and dimensions". Feeds the
+ * one-click form fill in the embedding section; the admin's Save remains the
+ * write. Keyed under the credential entity: the picks change with the
+ * credentials, not with the embedding config.
  */
 export function useEmbeddingRecommendations(
   organizationId: string,

@@ -44,7 +44,7 @@ what is there, and the page shows the one thing you opened.
   by time (Pinned, Today, Yesterday, Previous 7 days, Earlier). Every row has one anatomy: a 20px
   glyph that says what the item is (chat bubble, task status, contact initials), the title, a
   compact age, and a line of context (project, task key and status, contact and preview), with the
-  blue unread dot in the same place for every kind; an item whose composer holds unsent text says
+  accent unread dot in the same place for every kind; an item whose composer holds unsent text says
   **Draft** on its context line. The Inbox view adds the status switch, search, facets and
   multi-select with bulk verbs. The panel stays mounted across every Home route; on a phone it is the
   Home screen itself. From the keyboard, ⌘\ folds it, ⌥↑/⌥↓ open the previous or next item of the

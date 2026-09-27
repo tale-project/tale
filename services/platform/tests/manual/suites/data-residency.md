@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 22 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 23 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -89,8 +89,8 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   in a tooltip) (add one under **Settings > AI providers** first if none — the
   section says so), then the model from the **Model** dropdown — the vector
   width fills itself from the catalog (a provider whose catalog lists no
-  embedding model is refused instead; only an org-defined provider or Azure
-  takes a typed tag — see `DATA-F2c`) → **Save** in the header. Then remove it via the
+  embedding model takes a typed tag and width instead — see `DATA-F2c`; one
+  that cannot embed is refused — see `DATA-F12`) → **Save** in the header. Then remove it via the
   section's **Remove** button and re-add it. → Badge flips to **Configured**
   and the warning disappears;
   `$TALE_CONFIG_DIR/{orgSlug}/knowledge/embedding.json` exists with exactly
@@ -100,24 +100,23 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   the warning returns.
 - [ ] `DATA-F2c` · **Embedding model: the catalog decides** — With
   credentials for a shipped provider whose catalog lists embedding models
-  (OpenAI, OpenRouter or Z.ai), one whose catalog lists none (DeepSeek,
-  Anthropic) and an org-defined provider (Settings > AI providers > custom
-  definition, `models-endpoint` or no catalog), toggle **Embedding model** on
+  (OpenAI, OpenRouter or Z.ai), one whose catalog lists none (DeepSeek) and
+  an org-defined provider (Settings > AI providers > custom definition,
+  `models-endpoint` or no catalog), toggle **Embedding model** on
   → Shipped-with-models: **Model** is a closed dropdown listing only that
   provider's embedding models (no chat model, no **Other model…**), hint
   `settings.dataResidency.orgEmbedding.modelCatalogHint`; picking one fills
   **Vector width** with the catalog's width (`1536` for every shipped pick),
-  which stays editable. Shipped-without-models: no field at all — the row
-  says `…orgEmbedding.modelNone` with the hint `…orgEmbedding.modelNoneHint`,
-  nothing appears under the **Provider** select, and the header **Save**
-  stays disabled. Org-defined:
+  which stays editable. Shipped-without-models: the plain **Model** field
+  with the hint `…orgEmbedding.modelUncuratedHint` naming the provider; a
+  typed tag and width save as entered. Org-defined:
   when its listing tags embedding models the dropdown adds **Other model…**
   (`…orgEmbedding.modelCustom`, hint `…orgEmbedding.modelCatalogCustomHint`)
   which reveals an empty **Model tag** field (`…orgEmbedding.modelTag`, hint
   `…orgEmbedding.modelHint`; Save with it empty pins
   `…orgEmbedding.errors.modelRequired` there); when its listing carries none
-  the plain **Model** field shows with `…orgEmbedding.modelUnlistedHint`, and
-  a typed tag saves as entered. Switching the provider empties the model
+  the plain **Model** field shows with `…orgEmbedding.modelUncuratedHint`,
+  and a typed tag saves as entered. Switching the provider empties the model
   (placeholder `…orgEmbedding.modelPlaceholder`) while the width stays.
 - [ ] `DATA-F3` · **BYO object storage: save + test** — Enable **Object
   storage** → region `us-east-1`, endpoint `http://127.0.0.1:9100`, path-style
@@ -175,6 +174,19 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   (SOPS-encrypted when an age key is configured, plaintext otherwise).
   Hand-editing the JSON (e.g. change `prefix`) is reflected in the panel after
   reload — same file, two writers.
+
+- [ ] `DATA-F12` · **Embedding model: "cannot embed" is not "no curated
+  width"** — With API-key credentials for Anthropic (its connector declares
+  `embedding: unsupported`) and DeepSeek (`unknown`), toggle **Embedding
+  model** on and pick `anthropic` → the **Model** row holds no field; it
+  reads `settings.dataResidency.orgEmbedding.modelUnsupported` beside the
+  hint `…orgEmbedding.modelUnsupportedHint`, nothing appears under the
+  **Provider** select, and the header **Save** stays disabled. Pick
+  `deepseek` instead → the plain **Model** field and the hint
+  `…orgEmbedding.modelUncuratedHint`; type a tag and a width and the header
+  **Save** enables. Repeat in German and French: both states read in the
+  locale, and the two rows never share a sentence. The one-click
+  recommendation above the form never names Anthropic.
 
 ## Boundary / error
 

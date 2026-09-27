@@ -66,6 +66,8 @@ Le taux d’échantillonnage concerne les traces de performance du navigateur. L
 
 Un redémarrage de la base de données n’est pas signalé comme une erreur : une mise à niveau gérée recrée la base à chaque version. Tant qu’elle est injoignable, les requêtes répondent `503 DATABASE_UNAVAILABLE` avec `Retry-After`, les tâches d’arrière-plan échouent puis sont relancées selon la politique de leur file, et les flux de mise à jour en direct ouverts patientent puis reprennent. Chacun écrit un avertissement dans le journal à la place. La file des tâches n’en écrit qu’un pour toute la panne, et non un à chaque interrogation échouée. Si la base reste injoignable plus d’une minute environ, un processus API ayant des flux ouverts envoie un seul événement de niveau « warning » pour cette panne.
 
+Le backend ne signale pas non plus une requête abandonnée par son client, par exemple quand tu fermes un onglet ou annules un téléversement pendant que son corps arrive encore. La requête reçoit le statut `499`, compte parmi les erreurs client dans les métriques de requêtes et laisse une seule ligne de débogage dans le journal. Toute autre erreur survenue dans une requête dont le client s’est déconnecté reste signalée. Une requête de l’application dont le corps JSON est vide ou tronqué reçoit `400 INVALID_JSON` et n’est pas signalée.
+
 Le navigateur ne signale pas les erreurs qui ne révèlent aucun défaut de Tale :
 
 - les erreurs provenant d’une extension du navigateur

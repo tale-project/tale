@@ -132,7 +132,7 @@ describe('SearchableSelect', () => {
       const appleOption = screen.getByRole('option', { name: /Apple/i });
       expect(appleOption.getAttribute('aria-selected')).toBe('true');
       expect(appleOption.className).toContain('bg-muted/60');
-      expect(appleOption.querySelector('span.bg-blue-600')).toBeInTheDocument();
+      expect(appleOption.querySelector('span.bg-primary')).toBeInTheDocument();
     });
   });
 

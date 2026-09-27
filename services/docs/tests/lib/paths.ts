@@ -32,3 +32,7 @@ export const REPO_ROOT = path.resolve(DOCS_ROOT, '..', '..');
 
 /** `docs/` — the content tree the docs site reads from. */
 export const CONTENT_ROOT = path.join(REPO_ROOT, 'docs');
+
+/** A repo-root README — `README.md` or a `README.<locale>.md` mirror; group 1
+ *  is the locale. */
+export const README_PATTERN = /^README(?:\.([a-z]{2}(?:-[A-Z]{2})?))?\.md$/;

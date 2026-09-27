@@ -8,9 +8,16 @@ import { useRouter } from '@tanstack/react-router';
 import { AlertTriangle, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { useSupportUrl } from '../core/support-url';
+
 interface GlobalErrorDisplayProps {
   error: Error;
   reset?: () => void;
+  /**
+   * Support page the "contact support" link opens. Defaults to the nearest
+   * `SupportUrlProvider`, else `https://tale.dev/contact`.
+   */
+  supportUrl?: string;
 }
 
 // Hardcoded English copy used only when `useT` / the i18n bundle isn't
@@ -67,10 +74,15 @@ function useFallbackTranslator() {
   }
 }
 
-export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
+export function GlobalErrorDisplay({
+  error,
+  reset,
+  supportUrl,
+}: GlobalErrorDisplayProps) {
   const router = useRouter();
   const [showError, setShowError] = useState(false);
   const t = useFallbackTranslator();
+  const supportHref = useSupportUrl(supportUrl);
 
   useEffect(() => {
     reportBrowserError(error);
@@ -155,7 +167,7 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
         <p className="text-muted-foreground mt-6 text-xs">
           {t('persistsProblem')}{' '}
           <a
-            href="https://tale.dev/contact"
+            href={supportHref}
             target="_blank"
             rel="noopener noreferrer"
             className="text-foreground underline underline-offset-2 hover:no-underline"

@@ -17,6 +17,7 @@ import {
   resolveUserOrganization,
 } from '../domains/organizations/service.ts';
 import {
+  clientAbortResponse,
   databaseUnavailableResponse,
   reportRequestError,
   requestIdOf,
@@ -150,7 +151,9 @@ export function createRestV1Routes(deps: {
   // request id a caller can quote. A thrown HTTPException (a body-size
   // middleware's 413, say) keeps its status but speaks the envelope too,
   // and an unavailable database answers its unreported 503
-  // `DATABASE_UNAVAILABLE` with `Retry-After`, as on the app doors.
+  // `DATABASE_UNAVAILABLE` with `Retry-After`, as on the app doors. The one
+  // answer without the envelope is the unreported 499 of a caller that hung
+  // up mid-body: nobody is left to read it.
   app.onError((err, c) => {
     const requestId = requestIdOf(c);
     if ('getResponse' in err) {
@@ -176,6 +179,8 @@ export function createRestV1Routes(deps: {
     }
     const unavailable = databaseUnavailableResponse(err, c);
     if (unavailable !== undefined) return unavailable;
+    const abandoned = clientAbortResponse(err, c);
+    if (abandoned !== undefined) return abandoned;
     reportRequestError(err, c);
     return c.json(
       {

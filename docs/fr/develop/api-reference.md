@@ -75,7 +75,7 @@ Avant de proposer une opération, vérifie le rôle et l’accès à la ressourc
 
 ### Valider le JSON et les paramètres de requête
 
-Envoie du JSON en UTF-8. L’API refuse l’UTF-8 invalide, les caractères NUL, les substituts UTF-16 non appariés dans les clés ou les valeurs et les entiers au-delà de 2^53 − 1 avec `400 INVALID_BODY`. Représente les grands identifiants par des chaînes. Les erreurs imbriquées donnent le chemin complet, comme `messages.0.createdAt`. Les IDs sont des chaînes et les dates des horodatages Unix en millisecondes. Le `updatedAt` d’un skill correspond à l’écriture de son `SKILL.md`.
+Envoie du JSON en UTF-8. L’API refuse l’UTF-8 invalide, les caractères NUL, les substituts UTF-16 non appariés dans les clés ou les valeurs et les entiers au-delà de 2^53 − 1 avec `400 INVALID_BODY`. Représente les grands identifiants par des chaînes. Les erreurs imbriquées donnent le chemin complet, comme `messages.0.createdAt`. Les IDs sont des chaînes et les dates des horodatages Unix en millisecondes. Un horodatage envoyé est un nombre entier de millisecondes de `0` à `8640000000000000` (13/09/275760, le dernier instant qu’une `Date` JavaScript peut représenter) ; toute autre valeur renvoie `400 INVALID_BODY`. Le `updatedAt` d’un skill correspond à l’écriture de son `SKILL.md`.
 
 | Entrée | Règle |
 | --- | --- |
@@ -464,7 +464,7 @@ curl -sS --compressed -X POST "$TALE_ORIGIN/api/app/governance/competences?orgId
   -d "$GRANT_BODY"
 ```
 
-La réponse est **201** avec `{ "recordId": "…" }`. Ajoute `expiresAt` en millisecondes Unix pour que l’attribution prenne fin d’elle-même ; sans ce champ, elle n’expire pas. Tant qu’une attribution est active, l’accorder de nouveau renvoie **409** `COMPETENCE_ALREADY_GRANTED`. Tout autre nom sous `tale:` renvoie **400** `COMPETENCE_CAPABILITY_UNKNOWN`, un utilisateur extérieur à l’organisation **400** `COMPETENCE_USER_NOT_MEMBER`, et une session sans rôle Propriétaire ou Admin **403** `COMPETENCE_FORBIDDEN`. Avant la première page, vérifie avec la clé du service que `GET /api/v1/me` indique `capabilities.notificationExport: true`.
+La réponse est **201** avec `{ "recordId": "…" }`. Ajoute `expiresAt`, un instant futur en millisecondes Unix entières jusqu’à `8640000000000000` au plus, pour que l’attribution prenne fin d’elle-même ; sans ce champ, elle n’expire pas. Un instant passé renvoie **400** `COMPETENCE_EXPIRY_IN_PAST`, et une valeur qui n’est pas un entier dans cette plage **400** `invalid body`. Tant qu’une attribution est active, l’accorder de nouveau renvoie **409** `COMPETENCE_ALREADY_GRANTED`. Tout autre nom sous `tale:` renvoie **400** `COMPETENCE_CAPABILITY_UNKNOWN`, un utilisateur extérieur à l’organisation **400** `COMPETENCE_USER_NOT_MEMBER`, et une session sans rôle Propriétaire ou Admin **403** `COMPETENCE_FORBIDDEN`. Avant la première page, vérifie avec la clé du service que `GET /api/v1/me` indique `capabilities.notificationExport: true`.
 
 Pour retirer ce droit, trouve l’`id` de l’attribution dans `GET /api/app/governance/competences?orgId=<orgId>&userId=<userId>` avec la même session, puis envoie `POST /api/app/governance/competences/<recordId>/revoke?orgId=<orgId>`. La requête d’export suivante du service renvoie `403 ROLE_FORBIDDEN`. Une attribution révoquée reste dans la liste comme piste d’audit ; accorde de nouveau la capacité pour rétablir l’export.
 

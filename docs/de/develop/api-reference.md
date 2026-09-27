@@ -75,7 +75,7 @@ Prüfe vor einer Operation sowohl die Rolle als auch den Zugriff auf die Ressour
 
 ### JSON und Query-Parameter validieren
 
-Sende JSON in UTF-8. Ungültiges UTF-8, NUL-Zeichen, ungepaarte UTF-16-Surrogate in Schlüsseln oder Werten sowie Ganzzahlen über 2^53 − 1 führen zu `400 INVALID_BODY`. Übertrage große Kennungen als Strings. Bei verschachtelten Werten nennt `data.issues` den vollständigen Pfad, etwa `messages.0.createdAt`. IDs sind Strings, Zeitstempel Unixzeit in Millisekunden. `updatedAt` eines Skills bezeichnet den Schreibzeitpunkt seiner `SKILL.md`.
+Sende JSON in UTF-8. Ungültiges UTF-8, NUL-Zeichen, ungepaarte UTF-16-Surrogate in Schlüsseln oder Werten sowie Ganzzahlen über 2^53 − 1 führen zu `400 INVALID_BODY`. Übertrage große Kennungen als Strings. Bei verschachtelten Werten nennt `data.issues` den vollständigen Pfad, etwa `messages.0.createdAt`. IDs sind Strings, Zeitstempel Unixzeit in Millisekunden. Ein gesendeter Zeitstempel ist eine ganze Zahl von Millisekunden von `0` bis `8640000000000000` (13.09.275760, der späteste Zeitpunkt, den ein JavaScript-`Date` darstellen kann); jeder andere Wert führt zu `400 INVALID_BODY`. `updatedAt` eines Skills bezeichnet den Schreibzeitpunkt seiner `SKILL.md`.
 
 | Eingabe | Regel |
 | --- | --- |
@@ -425,7 +425,7 @@ curl -sS --compressed -X POST "$TALE_ORIGIN/api/app/governance/competences?orgId
   -d "$GRANT_BODY"
 ```
 
-Die Antwort ist **201** mit `{ "recordId": "…" }`. Mit `expiresAt` in Unixzeit-Millisekunden endet die Berechtigung von selbst; ohne das Feld läuft sie nicht ab. Solange eine Berechtigung gültig ist, liefert eine erneute Erteilung **409** `COMPETENCE_ALREADY_GRANTED`. Ein anderer Name unter `tale:` liefert **400** `COMPETENCE_CAPABILITY_UNKNOWN`, ein Benutzer außerhalb der Organisation **400** `COMPETENCE_USER_NOT_MEMBER` und eine Sitzung ohne Inhaber- oder Admin-Rolle **403** `COMPETENCE_FORBIDDEN`. Prüfe vor der ersten Seite mit dem Schlüssel des Dienstes, dass `GET /api/v1/me` `capabilities.notificationExport: true` meldet.
+Die Antwort ist **201** mit `{ "recordId": "…" }`. Mit `expiresAt`, einem künftigen Zeitpunkt in ganzen Unixzeit-Millisekunden bis höchstens `8640000000000000`, endet die Berechtigung von selbst; ohne das Feld läuft sie nicht ab. Ein vergangener Zeitpunkt liefert **400** `COMPETENCE_EXPIRY_IN_PAST`, ein Wert, der keine ganze Zahl in diesem Bereich ist, **400** `invalid body`. Solange eine Berechtigung gültig ist, liefert eine erneute Erteilung **409** `COMPETENCE_ALREADY_GRANTED`. Ein anderer Name unter `tale:` liefert **400** `COMPETENCE_CAPABILITY_UNKNOWN`, ein Benutzer außerhalb der Organisation **400** `COMPETENCE_USER_NOT_MEMBER` und eine Sitzung ohne Inhaber- oder Admin-Rolle **403** `COMPETENCE_FORBIDDEN`. Prüfe vor der ersten Seite mit dem Schlüssel des Dienstes, dass `GET /api/v1/me` `capabilities.notificationExport: true` meldet.
 
 Um die Berechtigung zu entziehen, suche mit derselben Sitzung ihre `id` in `GET /api/app/governance/competences?orgId=<orgId>&userId=<userId>` und sende `POST /api/app/governance/competences/<recordId>/revoke?orgId=<orgId>`. Die nächste Exportanfrage des Dienstes liefert `403 ROLE_FORBIDDEN`. Ein widerrufener Eintrag bleibt als Prüfpfad in der Liste; erteile die Berechtigung neu, um den Export wieder zu erlauben.
 

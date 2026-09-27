@@ -258,10 +258,10 @@ export const adminDataResidencyActionQueries: Record<
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return () =>
-      backendFetch<{ recommendations: EmbeddingRecommendationsResult }>(
+      backendFetch<EmbeddingRecommendationsResult>(
         '/knowledge/embedding/recommendations',
         { orgId },
-      ).then((body) => body.recommendations);
+      );
   },
 };
 

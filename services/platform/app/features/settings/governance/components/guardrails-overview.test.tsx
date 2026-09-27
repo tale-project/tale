@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -16,7 +16,9 @@ vi.mock('@tale/ui/use-format-date', () => ({
 
 // Mutable, hoisted so the mock factories can read it. A single `isLoading`
 // toggle drives BOTH the three policy reads (status cards) and the events read
-// (table), since the overview's loading state covers all of them.
+// (table), since the overview's loading state covers all of them. A source or
+// kind filter narrows the events on the server, so a filtered read answers
+// `filteredEvents` instead; `eventsLoading` holds the events read alone.
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
@@ -24,6 +26,8 @@ const { state } = vi.hoisted(() => ({
       | Record<string, unknown>
       | undefined,
     events: [] as unknown[],
+    filteredEvents: [] as unknown[],
+    eventsLoading: false,
   },
 }));
 
@@ -36,11 +40,28 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({
-    data: state.isLoading ? undefined : state.events,
-    isLoading: state.isLoading,
+  useBackendQuery: (_name: string, args: Record<string, unknown>) => ({
+    data:
+      state.isLoading || state.eventsLoading
+        ? undefined
+        : 'filterName' in args || 'kind' in args
+          ? state.filteredEvents
+          : state.events,
+    isLoading: state.isLoading || state.eventsLoading,
   }),
 }));
+
+const EVENT = {
+  _id: 'event-1',
+  organizationId: 'org-1',
+  sanitizationRunId: 'run-1',
+  threadId: 'thread-abc-999',
+  filterName: 'pii',
+  direction: 'input',
+  kind: 'detected',
+  categoryIds: [],
+  createdAt: Date.now(),
+};
 
 function setLoaded() {
   state.isLoading = false;
@@ -57,6 +78,11 @@ function setLoading() {
   state.policy = undefined;
   state.events = [];
 }
+
+beforeEach(() => {
+  state.filteredEvents = [];
+  state.eventsLoading = false;
+});
 
 describe('GuardrailsOverview', () => {
   describe('loaded state', () => {
@@ -156,19 +182,7 @@ describe('GuardrailsOverview', () => {
     it('surfaces the localized "copy failed" message, not the raw clipboard error', async () => {
       setLoaded();
       toastSpy.mockClear();
-      state.events = [
-        {
-          _id: 'event-1',
-          organizationId: 'org-1',
-          sanitizationRunId: 'run-1',
-          threadId: 'thread-abc-999',
-          filterName: 'pii',
-          direction: 'input',
-          kind: 'detected',
-          categoryIds: [],
-          createdAt: Date.now(),
-        },
-      ];
+      state.events = [EVENT];
 
       const { user } = render(<GuardrailsOverview organizationId="org-1" />);
 
@@ -194,6 +208,52 @@ describe('GuardrailsOverview', () => {
       });
       const [call] = toastSpy.mock.calls.at(-1) ?? [];
       expect(call?.title).not.toContain('NotAllowedError');
+    });
+  });
+
+  // The events filter sits above its table, so it is disabled from here: no
+  // event recorded and nothing narrowing the list leaves nothing to filter.
+  describe('recent events filter', () => {
+    const filterButton = () => screen.getByRole('button', { name: 'Filter' });
+
+    it('is offered over recorded events', () => {
+      setLoaded();
+      state.events = [EVENT];
+      render(<GuardrailsOverview organizationId="org-1" />);
+      expect(filterButton()).toBeEnabled();
+    });
+
+    it('is disabled while no event is recorded and no filter is set', () => {
+      setLoaded();
+      render(<GuardrailsOverview organizationId="org-1" />);
+      expect(filterButton()).toBeDisabled();
+    });
+
+    it('stays usable while the events load', () => {
+      setLoaded();
+      state.eventsLoading = true;
+      render(<GuardrailsOverview organizationId="org-1" />);
+      expect(filterButton()).toBeEnabled();
+    });
+
+    it('stays usable when a filter narrows the events to nothing', async () => {
+      setLoaded();
+      state.events = [EVENT];
+      const { user } = render(<GuardrailsOverview organizationId="org-1" />);
+
+      await user.click(filterButton());
+      await user.click(
+        await screen.findByRole('button', {
+          name: (name) => name.startsWith('Kind'),
+        }),
+      );
+      await user.click(await screen.findByRole('radio', { name: 'Blocked' }));
+      await user.keyboard('{Escape}');
+
+      expect(
+        screen.getByRole('heading', { name: /no events yet/i }),
+      ).toBeInTheDocument();
+      expect(filterButton()).toBeEnabled();
     });
   });
 });

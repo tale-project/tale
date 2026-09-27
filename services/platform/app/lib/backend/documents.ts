@@ -7,6 +7,7 @@
  * pass through, and the folder rows get their `id` → `_id` projection here.
  */
 
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
@@ -955,7 +956,10 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
             ...(typeof args.contentType === 'string'
               ? { contentType: args.contentType }
               : {}),
-            ...(typeof args.lastModified === 'number'
+            // The door holds the file date to the epoch bound; a stamp
+            // the file system reported outside it is left out, and the
+            // replacement is dated when it lands.
+            ...(isEpochMs(args.lastModified)
               ? { lastModified: args.lastModified }
               : {}),
           },
