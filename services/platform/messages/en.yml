@@ -578,8 +578,11 @@ automations:
       new one.
     equipmentLabel: Equipment
     timezoneInvalid: Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).
-    webhookHint: You'll get the webhook URL on the automation's Trigger card
-      after it's created.
+    webhookHint: The webhook URL is shown once, right after the automation is
+      created — copy it before opening the editor.
+    stepWebhook: Copy the webhook URL — it is shown only now.
+    copyWebhookUrl: Copy the webhook URL
+    openAutomation: Open the automation
     enableNow: Enable now
     enableNowHint: Off keeps the trigger paused — nothing starts until you switch it on from the Trigger card.
     triggerFailed: 'The automation was created, but its trigger could not be

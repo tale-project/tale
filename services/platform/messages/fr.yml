@@ -616,8 +616,11 @@ automations:
       créer une tâche pour chaque nouvelle.
     equipmentLabel: Équipement
     timezoneInvalid: Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).
-    webhookHint: Tu obtiendras l'URL du webhook sur la carte Trigger de
-      l'automatisation une fois créée.
+    webhookHint: L’URL du webhook s’affiche une seule fois, juste après la
+      création — copie-la avant d’ouvrir l’éditeur.
+    stepWebhook: Copie l’URL du webhook — elle n’est affichée que maintenant.
+    copyWebhookUrl: Copier l’URL du webhook
+    openAutomation: Ouvrir l’automatisation
     enableNow: Activer maintenant
     enableNowHint: Décoché, le déclencheur reste en pause — rien ne démarre tant que tu ne l’actives pas depuis la carte Déclencheur.
     triggerFailed: "L'automatisation a été créée, mais son trigger n'a pas pu

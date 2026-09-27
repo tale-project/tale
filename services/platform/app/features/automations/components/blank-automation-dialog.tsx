@@ -13,6 +13,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
+import { CopyableField } from '@tale/ui/copyable-field';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
@@ -22,6 +23,7 @@ import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
+import { KeyRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -130,6 +132,13 @@ export function BlankAutomationDialog({
   // Off by default: the trigger is created paused, the way the panel does
   // it, so nothing starts before the author has looked at the result.
   const [enableNow, setEnableNow] = useState(false);
+  // The webhook token the create minted — the server shows it exactly once,
+  // and this dialog is the only place that sees the mint, so it stays open
+  // on a copy screen until the author has taken the URL.
+  const [minted, setMinted] = useState<{
+    token: string;
+    automationSlug: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -147,6 +156,7 @@ export function BlankAutomationDialog({
     setTimezone('UTC');
     setEventName('');
     setEnableNow(false);
+    setMinted(null);
   }, [open]);
 
   // The grantable platform tools, labelled per name with a read/write badge
@@ -242,6 +252,25 @@ export function BlankAutomationDialog({
             : t('blank.timezoneInvalid')))
       : undefined;
 
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  const webhookUrl = (token: string): string =>
+    `${origin}/api/automations/webhook/${token}`;
+
+  const openAutomation = (automationSlug: string): void => {
+    onOpenChange(false);
+    if (projectId !== undefined) {
+      void navigate({
+        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+        params: { id: organizationId, projectId, automationSlug },
+      });
+    } else {
+      void navigate({
+        to: '/dashboard/$id/automations/$automationSlug',
+        params: { id: organizationId, automationSlug },
+      });
+    }
+  };
+
   const doCreate = async (): Promise<void> => {
     if (creatingRef.current) return;
     creatingRef.current = true;
@@ -284,10 +313,12 @@ export function BlankAutomationDialog({
         create: true,
         ...(projectId !== undefined ? { projectId } : {}),
       });
-      // Set the trigger the wizard collected. A webhook mints a token shown
-      // once on the detail page's Trigger card, so it is not surfaced here.
+      // Set the trigger the wizard collected. A webhook mints its token
+      // HERE, and the server never shows it again — so the dialog holds it
+      // on a copy screen instead of navigating past it.
+      let token: string | undefined;
       try {
-        await setTrigger({
+        const bound = await setTrigger({
           organizationId,
           name: saved.name,
           trigger: {
@@ -299,6 +330,7 @@ export function BlankAutomationDialog({
             ...(triggerKind === 'event' ? { event: eventName.trim() } : {}),
           },
         });
+        token = bound?.token;
       } catch (error) {
         // The automation exists; only the trigger failed — land on the detail
         // page (where the Trigger card lets them retry) with a warning.
@@ -310,18 +342,12 @@ export function BlankAutomationDialog({
         });
       }
       const automationSlug = automationSlugToParam(saved.name);
-      onOpenChange(false);
-      if (projectId !== undefined) {
-        void navigate({
-          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-          params: { id: organizationId, projectId, automationSlug },
-        });
-      } else {
-        void navigate({
-          to: '/dashboard/$id/automations/$automationSlug',
-          params: { id: organizationId, automationSlug },
-        });
+      if (triggerKind === 'webhook' && token !== undefined) {
+        setMinted({ token, automationSlug });
+        setSubmitting(false);
+        return;
       }
+      openAutomation(automationSlug);
     } catch (error) {
       // The store refuses a create whose name already has versions, or whose
       // first segment the platform keeps for its own pages, with a typed
@@ -343,6 +369,7 @@ export function BlankAutomationDialog({
 
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
+    if (minted !== null) return;
     if (step === 0) {
       if (canSubmitStep1) setStep(1);
       return;
@@ -351,54 +378,80 @@ export function BlankAutomationDialog({
     void doCreate();
   };
 
-  const footer = (
-    <>
-      {step === 0 ? (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onOpenChange(false)}
-          disabled={submitting}
-        >
-          {t('blank.cancel')}
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setStep(0)}
-          disabled={submitting}
-        >
-          {t('blank.back')}
-        </Button>
-      )}
-      {step === 0 ? (
-        <Button type="submit" disabled={!canSubmitStep1}>
-          {t('blank.next')}
-        </Button>
-      ) : (
-        <Button
-          type="submit"
-          disabled={!canSubmitStep2}
-          {...(step2DisabledReason !== undefined && !canSubmitStep2
-            ? { disabledReason: step2DisabledReason }
-            : {})}
-          isLoading={submitting}
-        >
-          {submitting ? t('blank.submitting') : t('blank.submit')}
-        </Button>
-      )}
-    </>
-  );
+  const footer =
+    minted !== null ? (
+      <Button
+        type="button"
+        onClick={() => {
+          openAutomation(minted.automationSlug);
+        }}
+      >
+        {t('blank.openAutomation')}
+      </Button>
+    ) : (
+      <>
+        {step === 0 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            {t('blank.cancel')}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setStep(0)}
+            disabled={submitting}
+          >
+            {t('blank.back')}
+          </Button>
+        )}
+        {step === 0 ? (
+          <Button type="submit" disabled={!canSubmitStep1}>
+            {t('blank.next')}
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            disabled={!canSubmitStep2}
+            {...(step2DisabledReason !== undefined && !canSubmitStep2
+              ? { disabledReason: step2DisabledReason }
+              : {})}
+            isLoading={submitting}
+          >
+            {submitting ? t('blank.submitting') : t('blank.submit')}
+          </Button>
+        )}
+      </>
+    );
 
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        // Closing the copy screen any other way still lands on the
+        // automation — the URL is gone from the page either way.
+        if (!next && minted !== null) {
+          openAutomation(minted.automationSlug);
+          return;
+        }
+        onOpenChange(next);
+      }}
       title={t('blank.title')}
-      description={step === 0 ? t('blank.stepAgent') : t('blank.stepTrigger')}
+      description={
+        minted !== null
+          ? t('blank.stepWebhook')
+          : step === 0
+            ? t('blank.stepAgent')
+            : t('blank.stepTrigger')
+      }
       isSubmitting={submitting}
-      isDirty={name.trim().length > 0 || prompt.trim().length > 0}
+      isDirty={
+        minted === null && (name.trim().length > 0 || prompt.trim().length > 0)
+      }
       confirmDiscardOnDirty
       onSubmit={handleSubmit}
       customFooter={footer}
@@ -410,7 +463,23 @@ export function BlankAutomationDialog({
           label: step === 0 ? t('blank.stepAgent') : t('blank.stepTrigger'),
         })}
       </div>
-      {step === 0 ? (
+      {minted !== null ? (
+        <Stack gap={4}>
+          <Alert
+            variant="warning"
+            icon={KeyRound}
+            title={t('trigger.tokenTitle')}
+            description={t('trigger.tokenHint')}
+          />
+          <CopyableField
+            label={t('trigger.webhookEndpointLabel')}
+            value={webhookUrl(minted.token)}
+            mono
+            copyAriaLabel={t('blank.copyWebhookUrl')}
+            description={t('trigger.webhookHowto')}
+          />
+        </Stack>
+      ) : step === 0 ? (
         <Stack gap={4}>
           <Input
             id="blank-automation-name"

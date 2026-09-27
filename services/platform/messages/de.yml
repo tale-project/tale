@@ -609,8 +609,11 @@ automations:
       neue eine Aufgabe anlegen.
     equipmentLabel: Ausrüstung
     timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
-    webhookHint: Die Webhook-URL bekommst du nach dem Anlegen auf der
-      Trigger-Karte der Automatisierung.
+    webhookHint: Die Webhook-URL erscheint genau einmal, direkt nach dem
+      Anlegen — kopiere sie, bevor du den Editor öffnest.
+    stepWebhook: Kopiere die Webhook-URL — sie wird nur jetzt angezeigt.
+    copyWebhookUrl: Webhook-URL kopieren
+    openAutomation: Automatisierung öffnen
     enableNow: Jetzt aktivieren
     enableNowHint: Aus lässt den Trigger pausiert — es startet nichts, bis du ihn auf der Trigger-Karte einschaltest.
     triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ

@@ -235,6 +235,56 @@ describe('BlankAutomationDialog display name', () => {
   });
 });
 
+/**
+ * A webhook's token is minted by the create and shown by the server exactly
+ * once — the wizard used to navigate straight past it, leaving Rotate as the
+ * only way to a usable URL (2026-09-26 evaluation, D-13).
+ */
+describe('BlankAutomationDialog webhook URL', () => {
+  it('shows the minted URL with a copy button before opening the automation', async () => {
+    setTrigger.mockResolvedValueOnce({ token: 'wht_once_1' });
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    await user.click(screen.getByRole('combobox', { name: /Trigger type/i }));
+    await user.click(screen.getByRole('option', { name: 'Webhook' }));
+    expect(screen.getByText(/shown once, right after/)).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+
+    expect(await screen.findByText('Webhook URL — copy it now')).toBeVisible();
+    expect(
+      screen.getByText(/\/api\/automations\/webhook\/wht_once_1$/),
+    ).toBeVisible();
+    // The copy control is the pill itself, named by its label and value.
+    expect(
+      screen.getByRole('button', {
+        name: /Webhook endpoint .*\/api\/automations\/webhook\/wht_once_1/,
+      }),
+    ).toBeVisible();
+    expect(navigate).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Open the automation' }),
+    );
+    expect(navigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ automationSlug: 'triage' }),
+      }),
+    );
+  });
+
+  it('opens the automation straight away for a schedule', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Webhook URL — copy it now')).toBeNull();
+  });
+});
+
 describe('BlankAutomationDialog model pin', () => {
   it('offers one option per (provider, model) pair, harness-filtered', async () => {
     const { user } = renderDialog();

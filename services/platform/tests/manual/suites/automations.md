@@ -482,6 +482,15 @@ output:
       URL was revoked, and a POST to the old URL answers 404. **Rotate
       token** → confirm dialog (`automations.trigger.rotateConfirm.title`)
       before any new URL is minted; Cancel leaves the old URL working.
+- [ ] `AUTO-F47` · **Blank wizard hands over the webhook URL** — **Blank**
+      wizard, step 2 **Trigger type** Webhook → the hint reads
+      `automations.blank.webhookHint`; **Create automation** → the dialog
+      stays open on `automations.trigger.tokenTitle` with the full URL and a
+      copy button (`automations.blank.copyWebhookUrl`); the copied URL
+      answers 202 to a POST (after Deploy); **Open the automation**
+      (`automations.blank.openAutomation`) lands in the editor, whose Trigger
+      card says a token is active (`automations.trigger.hasToken`) — no
+      Rotate needed. Closing the dialog with Escape also lands there.
 
 ## Boundary & error tests
 
