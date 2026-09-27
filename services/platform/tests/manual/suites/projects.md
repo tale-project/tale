@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 47 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 48 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -158,6 +158,22 @@ projects-list row ⋯ menu.
   the task leaves In review when the rerun starts — the pending review is
   withdrawn (chip + bells clear) and the next settle asks afresh. Dragging the
   card to any other column also withdraws the request.
+- [ ] `PROJ-F32` · **Hand a waiting review to someone else** — Two sessions,
+  A and B, both project editors. As the OWNER, set a task's **Reviewer**
+  (`tasks.fields.reviewer`) to A and move it to **In review**
+  (`tasks.status.in_review`) — reaching the column opens the review, no agent
+  run needed — then, while A's **Review requested**
+  (`inbox.taskReviewRequested`) bell is still unread, pick B as **Reviewer** →
+  B's bell gets **Review requested** with your name in its text
+  (`inbox.taskReviewRequestedByBody`), not the **You're the reviewer**
+  heads-up (`inbox.taskReviewerAssigned`), and A's stops ringing; the card's
+  chip reads **Waiting on you** (`tasks.review.waitingOnYou`) on B's board
+  and **Waiting on {name}** naming B (`tasks.review.waitingOn`) on A's, and
+  **Needs my review** (`tasks.review.needsMyReview`) keeps the card for B and
+  drops it for A — both boards follow without a reload. **Clear reviewer**
+  (`tasks.reviewer.clear`) → the chip names the task creator (you: **Waiting
+  on you**) and B's request bell clears. Before this, the open review stayed
+  with A until someone moved the card.
 - [ ] `PROJ-F14` · **Archive** — Projects list → row ⋯
   (`common.actions.openMenu`) → **Archive**; toggle the archived view;
   **Unarchive** → Archived project leaves the active list and appears under

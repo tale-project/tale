@@ -31,6 +31,7 @@ vi.mock('./reviews.ts', () => ({
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
   requestTaskReview: vi.fn(),
+  retargetPendingTaskReview: vi.fn(),
 }));
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),

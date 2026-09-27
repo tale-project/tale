@@ -21495,6 +21495,166 @@ async function checkTasksCollabIntegrity(
       bogusBody.data.error === 'TASK_REVIEWER_INVALID',
     `designate → ${designated.status}, bell=${reviewerBell[0]?.count} (want 1), follows=${reviewerFollows[0]?.count} (want 1), hint=${reviewerHint[0]?.count} (want ≥1); self bell=${selfBell[0]?.count} (want 0); non-member → ${bogus.status}/${bogusBody.success ? bogusBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_INVALID)`,
   );
+
+  // ---- a reviewer changed mid-review takes the open review along ----------
+  // The board chip ("Waiting on {name}" / "Waiting on you") and the "Needs
+  // my review" facet read the pending approval's `requestedFor`, which the
+  // mint stamps once. Designating B while the card sits In review must hand
+  // B that SAME review — on the chip, in B's queue, as B's actionable bell —
+  // and take it out of A's; a clear hands it back to the resolved default,
+  // the human task creator (here the acting owner, so nobody is belled).
+  const reviewerA = 'integrity-reviewer-a';
+  const reviewerB = 'integrity-reviewer-b';
+  for (const id of [reviewerA, reviewerB]) {
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (${id}, ${id}, ${`${id}@example.com`}, true, ${new Date()},
+              ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+    // Editors: the gate only ever routes to someone who can edit the project.
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-${orgId}-${id}`}, ${orgId}, ${id}, 'editor', ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+  }
+  const handedTask = await newTask('Handed over mid-review');
+  // What the app derives from its two reads: the chip names the open
+  // review's `requestedFor`, and a viewer waits on it when that is them or
+  // when the card sits In review with them designated (`taskAwaitsMyReview`).
+  const boardView = async (): Promise<{
+    chip: string | null | undefined;
+    waitsOn: (user: string) => boolean;
+  }> => {
+    const headers = { cookie, origin: base };
+    const indicators = z
+      .object({
+        pendingReviews: z.array(
+          z
+            .object({
+              taskId: z.string(),
+              requestedFor: z.string().optional(),
+            })
+            .loose(),
+        ),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/tasks/ops-indicators/by-project/${projectId}?orgId=${orgId}`,
+            { headers },
+          )
+        ).json(),
+      );
+    const detail = z
+      .object({
+        task: z
+          .object({
+            status: z.string(),
+            reviewerUserId: z.string().nullable(),
+          })
+          .loose(),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/tasks/${handedTask}?orgId=${orgId}`, {
+            headers,
+          })
+        ).json(),
+      );
+    const entry = indicators.success
+      ? indicators.data.pendingReviews.find((row) => row.taskId === handedTask)
+      : undefined;
+    const chip = entry === undefined ? undefined : (entry.requestedFor ?? null);
+    return {
+      chip,
+      waitsOn: (user) =>
+        chip === user ||
+        (detail.success &&
+          detail.data.task.status === 'in_review' &&
+          detail.data.task.reviewerUserId === user),
+    };
+  };
+  const reviewBells = (
+    user: string,
+  ): Promise<{ type: string; read: boolean; resourceId: string }[]> =>
+    sql<{ type: string; read: boolean; resourceId: string }[]>`
+      SELECT type, read, resource_id AS "resourceId"
+      FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${user}
+        AND task_id = ${handedTask}
+        AND type IN ('task_review_requested', 'task_reviewer_assigned')
+    `;
+  await post(`/api/app/tasks/${handedTask}?orgId=${orgId}`, {
+    reviewerUserId: reviewerA,
+  });
+  await post(`/api/app/tasks/${handedTask}/status?orgId=${orgId}`, {
+    status: 'in_review',
+  });
+  const mintedGate = await pendingGate(handedTask);
+  const handedApproval = mintedGate[0]?.id ?? 'MISSING';
+  const viewBefore = await boardView();
+  const handedOver = await post(`/api/app/tasks/${handedTask}?orgId=${orgId}`, {
+    reviewerUserId: reviewerB,
+  });
+  const handedGate = await pendingGate(handedTask);
+  const viewAfter = await boardView();
+  const bellsA = await reviewBells(reviewerA);
+  const bellsB = await reviewBells(reviewerB);
+  const bellText = (bells: { type: string; read: boolean }[]): string =>
+    bells
+      .map((bell) => `${bell.type}:${bell.read ? 'read' : 'unread'}`)
+      .join(',') || 'none';
+  record(
+    'tasks/collab: changing the reviewer mid-review moves the open review — chip, queue and bell go from A to B',
+    mintedGate.length === 1 &&
+      mintedGate[0]?.metadata?.requestedFor === reviewerA &&
+      viewBefore.chip === reviewerA &&
+      viewBefore.waitsOn(reviewerA) &&
+      handedOver.ok &&
+      handedGate.length === 1 &&
+      handedGate[0]?.id === handedApproval &&
+      handedGate[0]?.metadata?.requestedFor === reviewerB &&
+      viewAfter.chip === reviewerB &&
+      viewAfter.waitsOn(reviewerB) &&
+      !viewAfter.waitsOn(reviewerA) &&
+      bellsB.length === 1 &&
+      bellsB.every(
+        (bell) =>
+          bell.type === 'task_review_requested' &&
+          !bell.read &&
+          bell.resourceId === handedApproval,
+      ) &&
+      bellsA.length > 0 &&
+      bellsA.every((bell) => bell.read),
+    `minted=${mintedGate.length} for ${String(mintedGate[0]?.metadata?.requestedFor)} (want 1 for A); chip before=${String(viewBefore.chip)} (want A); handover → ${handedOver.status}, gate=${handedGate.length} same=${handedGate[0]?.id === handedApproval} for ${String(handedGate[0]?.metadata?.requestedFor)} (want 1/true/B); chip after=${String(viewAfter.chip)} (want B), waiting on B=${viewAfter.waitsOn(reviewerB)} A=${viewAfter.waitsOn(reviewerA)} (want true/false); bells B=${bellText(bellsB)} (want task_review_requested:unread on the same approval), A=${bellText(bellsA)} (want all read)`,
+  );
+  const clearedOver = await post(
+    `/api/app/tasks/${handedTask}?orgId=${orgId}`,
+    { reviewerUserId: null },
+  );
+  const clearedGate = await pendingGate(handedTask);
+  const viewCleared = await boardView();
+  const bellsBCleared = await reviewBells(reviewerB);
+  const bellsCreator = await reviewBells(userId);
+  record(
+    'tasks/collab: clearing the reviewer mid-review hands the open review back to the task creator',
+    clearedOver.ok &&
+      clearedGate.length === 1 &&
+      clearedGate[0]?.id === handedApproval &&
+      clearedGate[0]?.metadata?.requestedFor === userId &&
+      viewCleared.chip === userId &&
+      viewCleared.waitsOn(userId) &&
+      !viewCleared.waitsOn(reviewerB) &&
+      bellsBCleared.every((bell) => bell.read) &&
+      bellsCreator.length === 0,
+    `clear → ${clearedOver.status}, gate=${clearedGate.length} same=${clearedGate[0]?.id === handedApproval} for creator=${clearedGate[0]?.metadata?.requestedFor === userId} (want 1/true/true); chip=${viewCleared.chip === userId ? 'creator' : String(viewCleared.chip)} (want creator), waiting on B=${viewCleared.waitsOn(reviewerB)} (want false); bells B=${bellText(bellsBCleared)} (want all read), creator=${bellText(bellsCreator)} (want none: they cleared it themselves)`,
+  );
   // ---- a mention directory that cannot be listed fails the surface -------
   // Against the real schema: the same resolution with the agent-instance
   // leg failing rejects (MENTION_DIRECTORY_UNAVAILABLE, 503) instead of

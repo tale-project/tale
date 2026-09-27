@@ -34,6 +34,8 @@ Read the report, open the deliverables, and compare them with the completion cri
 
 **Reviewer** routes the notification and review queue. It does not exclude other project editors from accepting the result, and changing the reviewer does not reassign the work away from the agent.
 
+Changing **Reviewer** while the task waits in **In review** hands the pending request to the new reviewer: it leaves the previous reviewer's queue, and the new reviewer receives the notification and, when email delivery is configured, an email. **Clear reviewer** returns the request to the task creator or project creator.
+
 ## Ask for changes
 
 Add a task comment that names what needs to change and **@mention the assigned agent**. The mention is an instruction: an active agent can receive it during its run, and an idle agent starts a rework run that continues the previous conversation. The result returns to **In review**.

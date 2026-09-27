@@ -34,6 +34,8 @@ Lies den Bericht, öffne die Dateien und vergleiche sie mit den Abschlusskriteri
 
 **Reviewer** steuert Benachrichtigung und Prüfwarteschlange. Andere Projektmitglieder mit Bearbeitungsrechten dürfen das Ergebnis ebenfalls annehmen. Ein Wechsel des Reviewers ändert nicht die Zuständigkeit des Agenten.
 
+Wechselst du den **Reviewer**, solange die Aufgabe unter **In Prüfung** wartet, wandert die offene Anfrage mit: Sie verschwindet aus der Prüfwarteschlange des bisherigen Reviewers, und der neue erhält die Benachrichtigung und bei eingerichtetem E-Mail-Versand auch eine E-Mail. **Reviewer entfernen** gibt die Anfrage an den Ersteller der Aufgabe oder des Projekts zurück.
+
 ## Änderungen anfordern
 
 Beschreibe die nötige Änderung in einem Aufgabenkommentar und **erwähne den zuständigen Agenten mit @**. Die Erwähnung ist eine Anweisung: Ein aktiver Agent kann sie während seines Laufs erhalten. Ein wartender Agent beginnt einen Überarbeitungslauf, der das bisherige Gespräch fortsetzt. Das Ergebnis landet erneut unter **In Prüfung**.
