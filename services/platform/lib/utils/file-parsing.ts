@@ -252,28 +252,52 @@ function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
   });
 }
 
+/** One data row of a sheet: its record (header keys lower-cased) and the
+ * spreadsheet line it sits on — the one-based row number a person sees. */
+export interface ExcelRecord {
+  record: Record<string, unknown>;
+  line: number;
+}
+
 /**
- * Parse an Excel file and return the data as array of records.
+ * The records of a worksheet with the line each one came from. SheetJS
+ * skips blank rows, so a record's index is not its row: an import error
+ * reported as `index + 2` named the wrong line once a blank row sat above
+ * it. Every object `sheet_to_json` answers carries the sheet's own
+ * zero-based row index as `__rowNum__`, so the line is read from that.
+ */
+export function excelRecords(
+  XLSX: typeof import('xlsx'),
+  worksheet: import('xlsx').WorkSheet,
+): ExcelRecord[] {
+  const rows = XLSX.utils.sheet_to_json<
+    Record<string, unknown> & { __rowNum__?: number }
+  >(worksheet);
+  return rows.map((row, index) => ({
+    record: Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [
+        key.trim().toLowerCase(),
+        value,
+      ]),
+    ),
+    // `__rowNum__` is non-enumerable, so it never lands in the record; the
+    // index fallback (header + 1) is for a build without it.
+    line: (row.__rowNum__ ?? index + 1) + 1,
+  }));
+}
+
+/**
+ * Parse an Excel file and return its rows with their lines.
  * Dynamically imports xlsx to reduce initial bundle size.
  */
-async function parseExcelFile(
-  file: File,
-): Promise<Array<Record<string, unknown>>> {
+async function parseExcelFile(file: File): Promise<ExcelRecord[]> {
   const XLSX = await import('xlsx');
   const buffer = await readFileAsArrayBuffer(file);
   const data = new Uint8Array(buffer);
   const workbook = XLSX.read(data, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
-  return rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).map(([key, value]) => [
-        key.trim().toLowerCase(),
-        value,
-      ]),
-    ),
-  );
+  return excelRecords(XLSX, worksheet);
 }
 
 function isCSVFile(file: File): boolean {
@@ -309,16 +333,15 @@ export async function parseImportFile<T>(
 
       // Validate the header row (the keys of the first record) so a
       // mismatched schema fails loudly rather than dropping data silently.
-      const headerKeys = records.length > 0 ? Object.keys(records[0]) : [];
+      const headerKeys =
+        records.length > 0 ? Object.keys(records[0].record) : [];
       const missing = detectMissingColumns(headerKeys, options.requiredColumns);
       if (missing.length > 0) {
         return emptyResult([missingColumnsError(missing, headerKeys)]);
       }
 
       const result = emptyResult<T>();
-      records.forEach((record, index) => {
-        // `sheet_to_json` reads the header from the sheet's first row.
-        const line = index + 2;
+      records.forEach(({ record, line }) => {
         try {
           const mapped = excelMapper(record);
           if (mapped !== null) {
