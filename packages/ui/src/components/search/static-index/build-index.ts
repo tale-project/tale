@@ -14,8 +14,9 @@ export interface SearchDoc {
   title: string;
   /** Concatenated h2/h3 headings — boosted at search time. */
   headings: string;
-  /** Plain-text body (markdown stripped). Truncated for the stored copy used
-   *  to render result snippets — full body is still indexed for retrieval. */
+  /** Plain-text body (markdown stripped). Indexed in full for retrieval;
+   *  never stored — the stored copy is the `snippet` the build cuts from it
+   *  (see `StoredSearchDoc`). */
   body: string;
   /** Site-relative URL of the page. */
   url: string;
@@ -27,9 +28,18 @@ export interface SearchDoc {
   weight?: number;
 }
 
+/** What the index stores per page: everything but the body, plus the
+ *  snippet cut from its head. The full body lives only in the inverted
+ *  index. */
+export type StoredSearchDoc = Omit<SearchDoc, 'body' | 'headings'> & {
+  /** The first `STORED_SNIPPET_LIMIT` characters of the stripped body,
+   *  snapped to a word — what a result row renders and centres on. */
+  snippet: string;
+};
+
 export interface SerializedIndex {
   index: AsPlainObject;
-  docs: SearchDoc[];
+  docs: StoredSearchDoc[];
 }
 
 export const SEARCH_FIELDS = ['title', 'headings', 'body'] as const;
@@ -38,14 +48,15 @@ export const SEARCH_STORE_FIELDS = [
   'url',
   'section',
   'locale',
-  'body',
+  'snippet',
   'weight',
 ] as const;
 
-/** Maximum number of body characters retained in the stored copy. The full
- *  body is indexed for retrieval — this only caps the in-memory text used
- *  to render snippets so the index JSON stays slim. */
-const STORED_BODY_LIMIT = 1500;
+/** Maximum number of body characters kept as the stored snippet. The FULL
+ *  body is indexed for retrieval (an error code on the last screen of the
+ *  API reference is still a hit); only the text a result row renders is
+ *  capped, so the index JSON stays slim. */
+export const STORED_SNIPPET_LIMIT = 1500;
 
 /** Per-token tuning lifted out of `createMiniSearch` so the runtime client and
  *  the build-time index agree on matching behaviour. Override via spread when
@@ -82,22 +93,33 @@ export function createMiniSearch(): MiniSearch<SearchDoc> {
   });
 }
 
+/** Index every page's full body; store only its snippet. `body` is a
+ *  search field and `snippet` a store field, so MiniSearch tokenises the
+ *  whole text and serialises only the head of it. */
 export function buildSearchIndex(docs: readonly SearchDoc[]): SerializedIndex {
   const ms = createMiniSearch();
-  const trimmed = docs.map((doc) => ({
-    ...doc,
-    body: truncateBody(doc.body),
-  }));
-  ms.addAll(trimmed);
-  return { index: ms.toJSON(), docs: trimmed };
+  const stored: StoredSearchDoc[] = [];
+  ms.addAll(
+    docs.map((doc) => {
+      const { body, headings: _headings, ...rest } = doc;
+      const entry: StoredSearchDoc = { ...rest, snippet: cutSnippet(body) };
+      stored.push(entry);
+      return { ...doc, snippet: entry.snippet };
+    }),
+  );
+  return { index: ms.toJSON(), docs: stored };
 }
 
-/** Strip markdown to plain text. Keeps inline links' visible text. */
+/** Strip markdown to plain text. Keeps inline links' visible text and the
+ *  text of inline code — an error code, a header name or an environment
+ *  variable is exactly what a developer searches for. Emphasis markers go
+ *  only where they delimit a word (`*bold*`, `_em_`, `~del~`); an underscore
+ *  inside an identifier (`ORG_SLUG_REQUIRED`) is part of the name. */
 export function stripMarkdown(md: string): string {
   return (
     md
       .replace(/```[\s\S]*?```/g, ' ')
-      .replace(/`[^`]*`/g, ' ')
+      .replace(/`([^`]*)`/g, ' $1 ')
       .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/<[^>]+>/g, ' ')
@@ -111,18 +133,22 @@ export function stripMarkdown(md: string): string {
       // snippet reads like prose instead of `| col1 | col2 |`.
       .replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/gm, ' ')
       .replace(/\|/g, ' ')
-      .replace(/[*_~]/g, '')
+      // List bullets, then emphasis delimiters: an opening run after a
+      // space or bracket, a closing run before space or punctuation.
+      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/(^|[\s([{])[*_~]{1,3}(?=\S)/g, '$1')
+      .replace(/(?<=\S)[*_~]{1,3}(?=[\s)\]}.,;:!?]|$)/g, '')
       .replace(/\s+/g, ' ')
       .trim()
   );
 }
 
-function truncateBody(body: string): string {
-  if (body.length <= STORED_BODY_LIMIT) return body;
+function cutSnippet(body: string): string {
+  if (body.length <= STORED_SNIPPET_LIMIT) return body;
   // Snap to a word boundary to avoid cutting mid-word.
-  const sliced = body.slice(0, STORED_BODY_LIMIT);
+  const sliced = body.slice(0, STORED_SNIPPET_LIMIT);
   const lastSpace = sliced.lastIndexOf(' ');
-  return lastSpace > STORED_BODY_LIMIT * 0.8
+  return lastSpace > STORED_SNIPPET_LIMIT * 0.8
     ? sliced.slice(0, lastSpace)
     : sliced;
 }

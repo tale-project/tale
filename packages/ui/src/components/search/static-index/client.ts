@@ -22,7 +22,7 @@ const indexCache = new Map<string, Promise<MiniSearch<SearchDoc>>>();
 const AND_MIN_RESULTS = 5;
 
 /** Snippet-window proximity rerank kicks in when the query has ≥2 tokens.
- *  These thresholds are character distances within the truncated body. */
+ *  These thresholds are character distances within the stored snippet. */
 const PROXIMITY_TIGHT = 60;
 const PROXIMITY_NEAR = 200;
 
@@ -150,7 +150,9 @@ export function rerank(
       const matchedTerms: string[] = Array.isArray(hit.terms) ? hit.terms : [];
       const match: Record<string, string[]> =
         hit.match && typeof hit.match === 'object' ? hit.match : {};
-      const body: string = typeof hit.body === 'string' ? hit.body : '';
+      // The stored text is the page's snippet (its head); the body itself
+      // is indexed, never stored.
+      const body: string = typeof hit.snippet === 'string' ? hit.snippet : '';
       const url: string = typeof hit.url === 'string' ? hit.url : '';
 
       const hitTokens = new Set(queryTerms.map((t) => t.toLowerCase()));
@@ -199,7 +201,7 @@ export function rerank(
     .sort((a, b) => b.score - a.score);
 }
 
-/** Proximity heuristic — find each token's first occurrence in the body and
+/** Proximity heuristic — find each token's first occurrence in the snippet and
  *  measure the spread. Small spreads imply phrase-like matches. Tokens
  *  are lowercased defensively so callers can pass either form. */
 export function proximityBoost(

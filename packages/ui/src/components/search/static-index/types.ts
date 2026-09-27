@@ -12,7 +12,9 @@ export interface StaticSearchHit {
   section?: string;
   /** Locale tag (e.g. "en", "de", "fr") when the site indexes per locale. */
   locale?: string;
-  /** Stripped body — used to render snippets and count secondary matches. */
+  /** The stored snippet (the head of the stripped body, ≤ 1500 chars) —
+   *  used to render snippets and count secondary matches. A term matched
+   *  past it is still a hit; the row then falls back to the page start. */
   body?: string;
   /** Final score after rerank (coverage + proximity + body-only penalty). */
   score: number;

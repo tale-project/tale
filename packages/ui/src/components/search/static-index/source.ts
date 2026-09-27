@@ -4,9 +4,9 @@ import { useStaticSearch } from './use-static-search';
 
 /** Map a MiniSearch hit onto the shared, normalised result shape the palette
  *  renders. `url → href`, `section → group`; the rich fields
- *  (`body`/`matchedTerms`/`queryTerms`/`match`) flow through so the shared row
- *  still extracts + highlights a snippet and picks the title/heading/body
- *  icon. */
+ *  (`body` — the stored snippet — /`matchedTerms`/`queryTerms`/`match`) flow
+ *  through so the shared row still extracts + highlights a snippet and picks
+ *  the title/heading/body icon. */
 function toSharedResult(hit: StaticSearchHit): SearchResult {
   return {
     id: hit.id,

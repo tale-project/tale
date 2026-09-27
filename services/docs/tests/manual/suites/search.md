@@ -63,6 +63,13 @@ index in its `dev` script). Clear the recents key for a clean SEARCH-F5 run.
   pages (e.g. **Episode 1 — Welcome to Tale**) that open `/tutorials/videos/…`
   correctly — the index is rebuilt with the corpus (`build-search-index.ts`
   runs on `dev`/`build`), never stale.
+- [ ] `SEARCH-F8` · **Deep-page terms** — Search `ORG_SLUG_REQUIRED`, then
+  `WEBDAV_MAX_PUT_BYTES`, then `Idempotency-Key` → Each returns hits and the
+  **API reference** (`/develop/api-reference`) or the **environment
+  reference** (`/self-hosted/configuration/environment-reference`) is among
+  the first three rows — the whole page body is indexed, not only its intro,
+  and inline-code words survive; a hit whose term sits past the stored
+  snippet still opens the page (the row shows the page's opening text).
 
 ## Boundary & error tests
 

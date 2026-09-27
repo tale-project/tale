@@ -15,8 +15,27 @@ describe('stripMarkdown', () => {
     expect(stripMarkdown(md)).toBe('before after');
   });
 
-  it('drops inline code', () => {
-    expect(stripMarkdown('use the `cli` to deploy')).toBe('use the to deploy');
+  it('keeps the text of inline code — codes, headers and env vars are searched for', () => {
+    expect(stripMarkdown('use the `cli` to deploy')).toBe(
+      'use the cli to deploy',
+    );
+    expect(
+      stripMarkdown(
+        'answers `400` with `ORG_SLUG_REQUIRED`; send `Idempotency-Key`.',
+      ),
+    ).toBe('answers 400 with ORG_SLUG_REQUIRED ; send Idempotency-Key .');
+  });
+
+  it('strips emphasis only at word boundaries, so identifiers survive', () => {
+    expect(stripMarkdown('**Settings > API** then _save_')).toBe(
+      'Settings > API then save',
+    );
+    expect(stripMarkdown('set WEBDAV_MAX_PUT_BYTES or __automation__')).toBe(
+      'set WEBDAV_MAX_PUT_BYTES or automation',
+    );
+    expect(stripMarkdown('- item one\n* item two\n+ item three')).toBe(
+      'item one item two item three',
+    );
   });
 
   it('keeps visible text from inline links, drops the URL', () => {
@@ -176,7 +195,7 @@ describe('buildSearchIndex', () => {
     const json = JSON.stringify(built.index);
     const restored = MiniSearch.loadJSON(json, {
       fields: ['title', 'headings', 'body'],
-      storeFields: ['title', 'url', 'section', 'locale', 'body', 'weight'],
+      storeFields: ['title', 'url', 'section', 'locale', 'snippet', 'weight'],
       searchOptions: DEFAULT_SEARCH_OPTIONS,
     });
 
@@ -185,29 +204,60 @@ describe('buildSearchIndex', () => {
     expect(hits[0]?.title).toBe('Configuration');
   });
 
-  it('returns the same docs as input plus body truncation if needed', () => {
+  it('returns one stored doc per input, without the body', () => {
     const built = buildSearchIndex(SAMPLE_DOCS);
     expect(built.docs).toHaveLength(SAMPLE_DOCS.length);
     expect(built.docs[0]?.title).toBe(SAMPLE_DOCS[0].title);
+    expect(built.docs[0]).not.toHaveProperty('body');
+    expect(built.docs[0]).not.toHaveProperty('headings');
   });
 
-  it('truncates oversized bodies and snaps to a word boundary', () => {
+  it('stores a snippet of at most 1500 characters, snapped to a word', () => {
     const longBody = 'word '.repeat(400).trim();
     expect(longBody.length).toBeGreaterThan(1500);
     const built = buildSearchIndex([
       { id: 'big', title: 'Big', headings: '', body: longBody, url: '/big' },
     ]);
-    const stored = built.docs[0].body;
+    const stored = built.docs[0].snippet;
     expect(stored.length).toBeLessThanOrEqual(1500);
     // Word boundary: should not end mid-token. Each token is "word" so the
     // last 4 chars should be "word" — never a partial like "wo" or "wor".
     expect(stored.endsWith('word')).toBe(true);
+    // The serialised index stores the snippet, never the full body.
+    const serialised = JSON.parse(JSON.stringify(built.index)) as {
+      storedFields: Record<string, Record<string, unknown>>;
+    };
+    expect(serialised.storedFields['0']).toHaveProperty('snippet', stored);
+    expect(serialised.storedFields['0']).not.toHaveProperty('body');
   });
 
-  it('leaves a short body untouched', () => {
+  it('indexes the full body: a term past the snippet is still a hit', () => {
+    const longBody =
+      'filler '.repeat(400) + 'WEBDAV_MAX_PUT_BYTES caps the upload';
+    const built = buildSearchIndex([
+      {
+        id: 'ref',
+        title: 'Reference',
+        headings: '',
+        body: longBody,
+        url: '/r',
+      },
+    ]);
+    expect(built.docs[0].snippet).not.toContain('WEBDAV_MAX_PUT_BYTES');
+    const restored = MiniSearch.loadJSON(JSON.stringify(built.index), {
+      fields: ['title', 'headings', 'body'],
+      storeFields: ['title', 'url', 'section', 'locale', 'snippet', 'weight'],
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+    });
+    const hits = restored.search('WEBDAV_MAX_PUT_BYTES');
+    expect(hits.map((h) => h.id)).toEqual(['ref']);
+    expect(hits[0]?.snippet).toBe(built.docs[0].snippet);
+  });
+
+  it('leaves a short body untouched as the snippet', () => {
     const built = buildSearchIndex([
       { id: 's', title: 'S', headings: '', body: 'short body', url: '/' },
     ]);
-    expect(built.docs[0].body).toBe('short body');
+    expect(built.docs[0].snippet).toBe('short body');
   });
 });
