@@ -5,6 +5,7 @@
  * shape in exactly one place here (`id` → `_id`, null → omitted-optional).
  */
 
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -123,11 +124,14 @@ function taskView(row: TaskWire): TaskItem {
     ...(row.sourceDiscussionThreadId !== null
       ? { sourceDiscussionThreadId: row.sourceDiscussionThreadId }
       : {}),
-    ...(row.startDate !== null ? { startDate: row.startDate } : {}),
+    // A start or due date stored before the doors held it to the epoch
+    // bound can be a number no `Date` holds: it reads as none, so the card
+    // and the date picker never format an invalid date.
+    ...(isEpochMs(row.startDate) ? { startDate: row.startDate } : {}),
     ...(row.startNotifiedAt !== null
       ? { startNotifiedAt: row.startNotifiedAt }
       : {}),
-    ...(row.dueDate !== null ? { dueDate: row.dueDate } : {}),
+    ...(isEpochMs(row.dueDate) ? { dueDate: row.dueDate } : {}),
     ...(row.slaLevel !== null ? { slaLevel: row.slaLevel } : {}),
     ...(row.slaLevelAt !== null ? { slaLevelAt: row.slaLevelAt } : {}),
     ...(row.statusChangedAt !== null

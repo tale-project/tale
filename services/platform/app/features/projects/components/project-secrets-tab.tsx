@@ -61,7 +61,7 @@ export function ProjectSecretsTab({
   const isAccessDenied =
     accessErrorCode === 'PROJECT_FORBIDDEN' ||
     accessErrorCode === 'PROJECT_NOT_FOUND' ||
-    accessErrorCode === 'UNAUTHENTICATED';
+    accessErrorCode === 'UNAUTHORIZED';
 
   if (isAccessDenied) {
     return (

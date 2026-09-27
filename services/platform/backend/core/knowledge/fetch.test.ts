@@ -276,6 +276,42 @@ describe('fetchDocumentByFileId — access scope', () => {
     expect(served?.text).toBe('SCOPED BODY');
   });
 
+  it('never loads an email body for a door that did not ask for one', async () => {
+    // The sandbox bridge, the MCP door and the org-wide callers read the
+    // same corpus but never wrap mail as untrusted, so a `msg:` ref is the
+    // same miss as nothing there — without a corpus read or a re-check.
+    corpusWith({ team_id: null, project_id: null, conversation_id: 'conv_1' });
+    for (const access of [
+      undefined,
+      { ...SCOPED, includeConversationScoped: true },
+    ]) {
+      const doc = await fetchDocumentByFileId('acme', 'msg:m-1', access);
+      expect(doc).toBeNull();
+    }
+    expect(unsafe).not.toHaveBeenCalled();
+    expect(validateLiveFile).not.toHaveBeenCalled();
+  });
+
+  it('hands an email body to the re-check for the door that asked, saying so', async () => {
+    corpusWith({ team_id: null, project_id: null, conversation_id: 'conv_1' });
+    const doc = await fetchDocumentByFileId('acme', 'msg:m-1', {
+      ...SCOPED,
+      userId: 'u-1',
+      includeConversationScoped: true,
+      includeConversationMessages: true,
+    });
+    expect(doc).toMatchObject({
+      text: 'SCOPED BODY',
+      conversationId: 'conv_1',
+    });
+    const [, filterArgs] = validateLiveFile.mock.calls[0] ?? [];
+    expect(filterArgs).toMatchObject({
+      fileIds: ['msg:m-1'],
+      userId: 'u-1',
+      access: { includeConversationMessages: true },
+    });
+  });
+
   it('selects the conversation column for a scoped caller', async () => {
     corpusWith({ team_id: null, project_id: null });
     await fetchDocumentByFileId('acme', 'file_9', SCOPED);

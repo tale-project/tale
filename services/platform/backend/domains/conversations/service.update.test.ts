@@ -13,7 +13,13 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(async () => undefined),
 }));
+vi.mock('./message-corpus.ts', () => ({
+  indexedMessageRefsOf: vi.fn(async () => []),
+  queueMessageRefRelease: vi.fn(async () => undefined),
+  queueSpamVerdictCorpusJobs: vi.fn(async () => undefined),
+}));
 
+import { queueSpamVerdictCorpusJobs } from './message-corpus.ts';
 import {
   ConversationError,
   statusChangeStamps,
@@ -29,7 +35,9 @@ const STORED_METADATA = {
 
 /** A transaction double: answers the SELECT with `row`, records the UPDATE's
  * parameters (json/unsafe are identity so the metadata object is inspectable). */
-function txDouble(row: { id: string; metadata: unknown } | null) {
+function txDouble(
+  row: { id: string; status?: string | null; metadata: unknown } | null,
+) {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (
     strings: TemplateStringsArray,
@@ -116,6 +124,33 @@ describe('updateConversation (the PATCH door)', () => {
     );
   });
 
+  it('hands every status flip, with the status it left, to the email-body corpus', async () => {
+    // A spam verdict releases the conversation's indexed email bodies and
+    // lifting it indexes them again (`message-corpus.ts`); the flip's own
+    // transaction queues both, so a rolled-back PATCH queues nothing.
+    vi.mocked(queueSpamVerdictCorpusJobs).mockClear();
+    const { tx } = txDouble({
+      id: 'c1',
+      status: 'open',
+      metadata: STORED_METADATA,
+    });
+    await updateConversation(tx, ORG, 'c1', { status: 'spam' }, actor);
+    expect(queueSpamVerdictCorpusJobs).toHaveBeenCalledWith(tx, ORG, [
+      { conversationId: 'c1', from: 'open', to: 'spam' },
+    ]);
+
+    vi.mocked(queueSpamVerdictCorpusJobs).mockClear();
+    const renamed = txDouble({ id: 'c1', status: 'spam', metadata: null });
+    await updateConversation(
+      renamed.tx,
+      ORG,
+      'c1',
+      { subject: 'Renamed' },
+      actor,
+    );
+    expect(queueSpamVerdictCorpusJobs).not.toHaveBeenCalled();
+  });
+
   it('a metadata patch MERGES onto the stored object instead of replacing it', async () => {
     const { tx, statements } = txDouble({
       id: 'c1',
@@ -168,7 +203,9 @@ describe('updateConversation (the PATCH door)', () => {
     ): Promise<unknown[]> => {
       const text = strings.join('?').replace(/\s+/g, ' ').trim();
       statements.push({ text, values });
-      if (text.startsWith('SELECT id, metadata FROM app.conversations')) {
+      if (
+        text.startsWith('SELECT id, status, metadata FROM app.conversations')
+      ) {
         return Promise.resolve([{ id: 'c1', metadata: STORED_METADATA }]);
       }
       if (text.startsWith('SELECT id FROM app.contacts')) {

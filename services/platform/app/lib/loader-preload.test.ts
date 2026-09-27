@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { QueryClient } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BackendApiError } from '@/app/lib/backend/api-client';
+import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import type { QueryName } from '@/app/lib/backend/contract';
 import {
   memberContextQuery,
@@ -10,8 +10,9 @@ import {
 } from '@/app/lib/backend/org';
 import { AppError } from '@/lib/shared/errors/app-error';
 
-// The registry is swapped for one controllable row: these tests cover the
-// loader helpers' wiring (lane, retry, ability gate), not a shipped row.
+// The registry is swapped for one controllable row, also standing in for the
+// policy read `ensureGovernancePolicies` names: these tests cover the loader
+// helpers' wiring (lane, retry, ability gate), not a shipped row.
 const { row, queryFn } = vi.hoisted(() => {
   const fetchRow = vi.fn<() => Promise<unknown>>();
   return {
@@ -21,13 +22,14 @@ const { row, queryFn } = vi.hoisted(() => {
 });
 vi.mock('@/app/lib/backend/adapters', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/app/lib/backend/adapters')>()),
-  READ_ADAPTERS: { 'fake:adapted': row },
+  READ_ADAPTERS: { 'fake:adapted': row, 'governance/queries:getPolicy': row },
   activeOrganizationId: () => 'org-1',
 }));
 
 import {
   cachedAbility,
   ensureConvexQuery,
+  ensureGovernancePolicies,
   ensureOrgSettingsQuery,
 } from './loader-preload';
 
@@ -122,5 +124,51 @@ describe('ensureOrgSettingsQuery', () => {
     });
     expect(cachedAbility(ctx, 'org-1')).toBeNull();
     expect(queryFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ensureGovernancePolicies', () => {
+  function answer(status: number, body: unknown) {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    queryFn.mockImplementation(() =>
+      backendFetch('/governance/policies/default_models', { orgId: 'org-1' }),
+    );
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // The session door answers a lapsed session with the flat envelope's
+  // `UNAUTHORIZED`. The preload waited for the Convex-era `UNAUTHENTICATED`
+  // — and the client read the sentence as the code — so every such 401
+  // reached the route's "failed to preload" warning.
+  it("swallows the session door's 401", async () => {
+    answer(401, {
+      error:
+        'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
+      code: 'UNAUTHORIZED',
+    });
+
+    await expect(
+      ensureGovernancePolicies(context(), 'org-1', ['default_models']),
+    ).resolves.toEqual([undefined]);
+    expect(queryFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates any other refusal', async () => {
+    answer(403, {
+      error: 'RBAC_FORBIDDEN',
+      message: 'Your role cannot perform this action in this organization.',
+    });
+
+    await expect(
+      ensureGovernancePolicies(context(), 'org-1', ['default_models']),
+    ).rejects.toMatchObject({ data: { code: 'RBAC_FORBIDDEN' } });
   });
 });

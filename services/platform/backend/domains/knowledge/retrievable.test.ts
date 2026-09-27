@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  decideMessageRetrievable,
   decideRetrievable,
   type DocCandidate,
+  type MessageCandidate,
   type UnboundFileCandidate,
 } from './retrievable.ts';
 
@@ -306,5 +308,109 @@ describe('decideRetrievable — the conversation branch', () => {
         'Reports',
       ),
     ).toBe(false);
+  });
+});
+
+/**
+ * An email BODY (`msg:` ref) has no document and no file row: it is decided
+ * by the message's conversation, on the same assignment privacy as an
+ * attachment — and only for a door that asked for message bodies, because a
+ * body is text an outsider wrote and only a door that wraps it as untrusted
+ * may serve it.
+ */
+describe('decideMessageRetrievable', () => {
+  const message = (
+    overrides: Partial<MessageCandidate> = {},
+  ): MessageCandidate => ({
+    conversationId: 'conv_1',
+    conversationLifecycleStatus: null,
+    conversationStatus: 'open',
+    ...overrides,
+  });
+  const optedIn = {
+    conversationIds: ['conv_1'],
+    includeConversationScoped: true,
+    includeConversationMessages: true,
+  };
+
+  it('admits an email whose conversation the caller may read, for a door that asked', () => {
+    expect(decideMessageRetrievable(message(), optedIn)).toBe(true);
+    // A closed or archived conversation is still history worth citing.
+    for (const conversationStatus of ['closed', 'archived', null]) {
+      expect(
+        decideMessageRetrievable(message({ conversationStatus }), optedIn),
+      ).toBe(true);
+    }
+  });
+
+  it('denies every door that did not ask for message bodies', () => {
+    const { includeConversationMessages: _asked, ...notAsked } = optedIn;
+    expect(decideMessageRetrievable(message(), notAsked)).toBe(false);
+    expect(
+      decideMessageRetrievable(message(), {
+        ...optedIn,
+        includeConversationMessages: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('denies the scopeless caller, unlike an attachment', () => {
+    // Nothing without a person reads bodies through the filter; admitting
+    // here would only let a door that never opted in serve unwrapped mail.
+    expect(decideMessageRetrievable(message(), undefined)).toBe(false);
+  });
+
+  it('denies an email whose conversation the caller may not read', () => {
+    expect(
+      decideMessageRetrievable(message({ conversationId: 'conv_2' }), optedIn),
+    ).toBe(false);
+    expect(
+      decideMessageRetrievable(message(), {
+        ...optedIn,
+        conversationIds: [],
+        // Document scope says nothing about an inbox row.
+        teamIds: ['team_a'],
+        projectIds: ['proj_a'],
+        includeHub: true,
+        isAdmin: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('honours the conversation-scoped opt-out', () => {
+    expect(
+      decideMessageRetrievable(message(), {
+        ...optedIn,
+        includeConversationScoped: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('denies a message no inbound email holds — deleted, malformed or foreign', () => {
+    expect(decideMessageRetrievable(undefined, optedIn)).toBe(false);
+  });
+
+  it('darkens a trashed or expired conversation at once, like a trashed document', () => {
+    for (const conversationLifecycleStatus of ['trashed', 'expired']) {
+      expect(
+        decideMessageRetrievable(
+          message({ conversationLifecycleStatus }),
+          optedIn,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it('never answers from a conversation the organization marked as spam', () => {
+    expect(
+      decideMessageRetrievable(
+        message({ conversationStatus: 'spam' }),
+        optedIn,
+      ),
+    ).toBe(false);
+  });
+
+  it('never surfaces an email under a folder filter', () => {
+    expect(decideMessageRetrievable(message(), optedIn, 'Reports')).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import {
   PROJECT_AGENT_NAME_MAX,
   PROJECT_DESCRIPTION_MAX,
@@ -140,14 +141,7 @@ const projectAgentBody = projectAgentInputSchema
  * the caller last read, and a save against a changed agent answers 409
  * `PROJECT_AGENT_STALE` (the contacts/products/documents idiom). */
 const projectAgentUpdateBody = projectAgentBody
-  .extend({
-    expectedUpdatedAt: z
-      .number()
-      .int()
-      .min(0)
-      .max(Number.MAX_SAFE_INTEGER)
-      .optional(),
-  })
+  .extend({ expectedUpdatedAt: epochMsSchema.optional() })
   .strict();
 const projectCreateBody = z
   .object({

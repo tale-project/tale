@@ -33,8 +33,17 @@ let bossInstance: PgBoss | null = null;
  *
  * One level is enough. pg-boss keeps `created_on` as the tiebreak, so
  * interactive work is still fair among itself, and the backlog still drains
- * whenever no one is waiting — no reserved slot, no second queue, no starving
- * the sources.
+ * whenever no one is waiting — no reserved slot, no second file queue, no
+ * starving the sources.
+ *
+ * Inbound email bodies are the one source with a queue of their own
+ * (`rag.index_message`), so a mailbox's first sync never stands in front of
+ * a file in `rag.index_file`. That order holds at the queue only: past it,
+ * every indexing batch — file, email or crawl — waits for the
+ * organization's embedding limiter (`maxConcurrentRequests`) in arrival
+ * order, and only a search query goes ahead there. A lower limiter priority
+ * for email would starve it behind a long sync until its jobs gave up, and
+ * nothing re-queues a message the way a file's retry does.
  */
 export const PRIORITY_INTERACTIVE = 10;
 

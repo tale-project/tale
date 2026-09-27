@@ -21,6 +21,7 @@
  * anything should get an honest miss.
  */
 
+import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   PUBLIC_WEB_SCHEMA,
@@ -66,10 +67,10 @@ export interface FetchedDocument {
   readonly modifiedAt: number | null;
   readonly text: string;
   /**
-   * The conversation an emailed attachment arrived on; null for everything
-   * else. Already read here to decide the scope branch — surfaced so a caller
-   * can tell that this text is attacker-controlled and must be wrapped as
-   * untrusted before a model reads it.
+   * The conversation an emailed attachment or an email body arrived on; null
+   * for everything else. Already read here to decide the scope branch —
+   * surfaced so a caller can tell that this text is attacker-controlled and
+   * must be wrapped as untrusted before a model reads it.
    */
   readonly conversationId: string | null;
 }
@@ -111,6 +112,7 @@ export function retrievableFilterArgs(
     projectIds: string[];
     includeHub: boolean;
     includeConversationScoped?: boolean;
+    includeConversationMessages?: boolean;
     threadIds?: string[];
   };
 } {
@@ -129,6 +131,12 @@ export function retrievableFilterArgs(
             includeHub: access.includeHub,
             ...(access.includeConversationScoped !== undefined
               ? { includeConversationScoped: access.includeConversationScoped }
+              : {}),
+            ...(access.includeConversationMessages !== undefined
+              ? {
+                  includeConversationMessages:
+                    access.includeConversationMessages,
+                }
               : {}),
             ...(access.threadIds !== undefined
               ? { threadIds: [...access.threadIds] }
@@ -163,6 +171,16 @@ export async function fetchDocumentByFileId(
   ctx: ActionCtx,
   args: FetchDocumentByFileIdArgs,
 ): Promise<FetchedDocument | null> {
+  // An email body reaches only a door that asked for one (see
+  // `KnowledgeAccessScope.includeConversationMessages`); for any other its
+  // ref is the same honest miss as a ref nothing holds. The re-check below
+  // would refuse it too — this spares the corpus read.
+  if (
+    isMessageRef(args.fileId) &&
+    args.access?.includeConversationMessages !== true
+  ) {
+    return null;
+  }
   const sql = await getKnowledgePoolForOrg(args.orgSlug);
   // The scope columns are selected only for a scoped caller, so an org-wide
   // read of a corpus that predates the scope migrations keeps working.

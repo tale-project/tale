@@ -195,6 +195,18 @@ describe('describeDatabaseError', () => {
     ).toBe('connect ECONNREFUSED 10.0.0.5:5432');
     expect(describeDatabaseError('plain')).toBe('plain');
   });
+
+  it('reads a plain copy of an error’s fields, as pg-boss re-emits one', () => {
+    expect(
+      describeDatabaseError({
+        code: '57P01',
+        message: 'terminating connection due to administrator command',
+        queue: 'rag.index_file',
+      }),
+    ).toBe('57P01 terminating connection due to administrator command');
+    expect(describeDatabaseError({ code: '57P01' })).toBe('57P01');
+    expect(describeDatabaseError({})).toBe('');
+  });
 });
 
 describe('a database error a library swallowed', () => {
