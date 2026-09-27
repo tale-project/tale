@@ -55,6 +55,7 @@ import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
+import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
@@ -63,6 +64,7 @@ import { checkInboundEmailBodies } from './domains/knowledge/message-index.integ
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
+import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
@@ -54584,6 +54586,10 @@ async function main(): Promise<void> {
         'checkAutomationTriggerDelivery',
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
+      [
+        'checkDeletedOrgSchedules',
+        () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
         'checkRetiredBuilderRoute',
@@ -54937,6 +54943,10 @@ async function main(): Promise<void> {
       [
         'checkTeamScopeRetirement',
         () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkOrphanedOrgRowsBackfill',
+        () => checkOrphanedOrgRowsBackfill(sql, authCtx, record),
       ],
       [
         'checkOrganizationLifecycle',
