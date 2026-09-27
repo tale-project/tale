@@ -100,6 +100,7 @@ import {
 } from './lib/http-hygiene.ts';
 import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
+import { checkOrgSlugRefusals } from './rest/org-slug-refusals.integration.ts';
 
 const noopPayloadSchema = z.object({
   seq: z.number().optional(),
@@ -54953,6 +54954,16 @@ async function main(): Promise<void> {
         () => checkRetiredBuilderRoute(baseUrl, authCtx),
       ],
       ['checkRestDoor', () => checkRestDoor(sql, baseUrl, authCtx)],
+      [
+        'checkOrgSlugRefusals',
+        async () =>
+          checkOrgSlugRefusals(
+            sql,
+            baseUrl,
+            await signUpUser(baseUrl, 'slug-refusals'),
+            record,
+          ),
+      ],
       ['checkRestProjectAgents', () => checkRestProjectAgents(sql, baseUrl)],
       [
         'checkRestMachineJourney',
