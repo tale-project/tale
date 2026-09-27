@@ -106,13 +106,17 @@ describe('FeedbackMetricsPage', () => {
     const { container, unmount } = render(
       <FeedbackMetricsPage {...baseProps} />,
     );
-    expect(container.querySelector('.bg-blue-500')).toBeNull();
+    expect(
+      container.querySelector('[data-slot="active-filter-dot"]'),
+    ).toBeNull();
     unmount();
 
     const other = render(
       <FeedbackMetricsPage {...baseProps} period={'30' as FeedbackPeriod} />,
     );
-    expect(other.container.querySelector('.bg-blue-500')).not.toBeNull();
+    expect(
+      other.container.querySelector('[data-slot="active-filter-dot"]'),
+    ).not.toBeNull();
   });
 
   it('still renders the heading on the empty-org teaching panel', () => {

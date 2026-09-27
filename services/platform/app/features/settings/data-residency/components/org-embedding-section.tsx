@@ -14,6 +14,7 @@
  * carries a secret itself.
  */
 
+import type { ProviderEmbeddingSupport } from '@tale/shared/schemas/providers';
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -100,42 +101,58 @@ interface ProviderEmbeddingCatalog {
 const EMPTY_CATALOG_MODELS: EmbeddingCatalogModel[] = [];
 
 /**
- * The shape the Model row takes for the chosen provider — decided by what its
- * catalog can vouch for:
+ * The shape the Model row takes for the chosen provider — decided by what
+ * its connector declares and what its catalog can vouch for:
  *
+ *  - `unsupported` — the provider cannot embed at all. The form says so and
+ *    refuses it, whatever its listing carries: a model picked here would
+ *    only fail later, at index time.
  *  - `pick` — the catalog lists embedding models: a select over them. A
  *    shipped catalog is authoritative, so the select is closed; a listing the
  *    organization defined itself may be incomplete (a bare `/models` answer
  *    tags nothing as an embedding model), so it keeps an "Other model…"
  *    escape into the free tag field.
- *  - `free` — no listing can tell: a provider the organization defined
- *    without any embedding entry, a shipped provider without a catalog at all
- *    (`none`: Azure deployments carry the admin's own names), or a provider
- *    the listing does not know. The tag is typed, and the width with it.
- *  - `none` — a shipped, resolved catalog that lists no embedding model. The
- *    form says so and refuses the provider: a tag typed here would only fail
- *    later, at index time, as a runtime error.
- *  - `unavailable` — a shipped catalog that could not be loaded; refused as
- *    well, with the remedy named, since nothing is known either way.
+ *  - `free` — no curated width to offer: a shipped catalog that lists no
+ *    embedding model, a provider the organization defined without any
+ *    embedding entry, a shipped provider without a catalog at all (`none`:
+ *    Azure deployments carry the admin's own names), or a provider the
+ *    listing does not know. The tag is typed, and the width with it.
+ *  - `unavailable` — a shipped catalog that could not be loaded; refused,
+ *    with the remedy named, since it may list the models to pick from.
  */
 type ModelRowShape =
   | { kind: 'pick'; allowCustom: boolean }
   | { kind: 'free' }
-  | { kind: 'none' }
+  | { kind: 'unsupported' }
   | { kind: 'unavailable' };
 
 function modelRowShape(
   catalog: ProviderEmbeddingCatalog | undefined,
+  /** What the connector declares, as the recommendations read reports it.
+   *  Absent (not listed, or the read has not answered) reads as `unknown`:
+   *  a provider is never refused for want of evidence. */
+  support: ProviderEmbeddingSupport | undefined,
 ): ModelRowShape {
+  if (support === 'unsupported') return { kind: 'unsupported' };
   if (catalog === undefined) return { kind: 'free' };
   if (catalog.models.length > 0) {
     return { kind: 'pick', allowCustom: catalog.origin === 'organization' };
   }
-  if (catalog.origin === 'organization' || catalog.catalogSource === 'none') {
-    return { kind: 'free' };
+  if (
+    catalog.origin === 'shipped' &&
+    catalog.catalogSource !== 'none' &&
+    catalog.catalogError !== undefined
+  ) {
+    return { kind: 'unavailable' };
   }
-  if (catalog.catalogError !== undefined) return { kind: 'unavailable' };
-  return { kind: 'none' };
+  return { kind: 'free' };
+}
+
+/** The shapes that refuse the provider — the shared Save stays off. */
+function isRefusal(
+  shape: ModelRowShape,
+): shape is { kind: 'unsupported' } | { kind: 'unavailable' } {
+  return shape.kind === 'unsupported' || shape.kind === 'unavailable';
 }
 
 /**
@@ -259,19 +276,34 @@ export function OrgEmbeddingSection({
     }
     return byProvider;
   }, [catalogsQuery.data]);
-  // Providers the form refuses, with the reason — read by the schema so the
-  // shared Save stays off while one is chosen, and by the provider select to
-  // say why.
-  const refusedProviders = useMemo(() => {
-    const refused = new Map<string, 'none' | 'unavailable'>();
-    for (const [slug, catalog] of embeddingCatalogs) {
-      const shape = modelRowShape(catalog);
-      if (shape.kind === 'none' || shape.kind === 'unavailable') {
-        refused.set(slug, shape.kind);
-      }
-    }
-    return refused;
-  }, [embeddingCatalogs]);
+  // Each provider's declared embedding support, from the recommendations
+  // read: "cannot embed" (refused) and "no curated width here" (typed by
+  // hand) are different answers, and only the declaration can tell them
+  // apart. Editable states only, like the catalogs.
+  const recommendationsQuery = useEmbeddingRecommendations(organizationId, {
+    enabled: catalogsEnabled,
+  });
+  const embeddingSupport = useMemo(
+    () =>
+      new Map<string, ProviderEmbeddingSupport>(
+        (recommendationsQuery.data?.providers ?? []).map((entry) => [
+          entry.providerSlug,
+          entry.support,
+        ]),
+      ),
+    [recommendationsQuery.data],
+  );
+  const supportSettled =
+    !catalogsEnabled ||
+    recommendationsQuery.data !== undefined ||
+    recommendationsQuery.isError;
+  // The Model row's shape for a provider — read by the schema so the shared
+  // Save stays off while a refused one is chosen, and by the row to say why.
+  const shapeOf = useCallback(
+    (slug: string) =>
+      modelRowShape(embeddingCatalogs.get(slug), embeddingSupport.get(slug)),
+    [embeddingCatalogs, embeddingSupport],
+  );
   // The baseline waits for the catalogs: whether a stored tag is a catalog
   // pick or a hand-typed one is decided once, when the form adopts its data
   // — never re-decided under a form the admin is already editing, which
@@ -328,19 +360,22 @@ export function OrgEmbeddingSection({
               message: t('dataResidency.orgEmbedding.errors.providerRequired'),
             });
           }
-          // A provider whose shipped catalog lists no embedding model (or
-          // could not be read) is refused at the point of choosing — the
-          // alternative is a tag that fails later, at index time. The issue
-          // sits on the model, whose row already says so: it keeps the
-          // shared Save off without a second line under the provider pick.
-          const refusal = refusedProviders.get(values.providerSlug);
-          if (refusal !== undefined) {
+          // A provider that cannot embed (or whose shipped catalog could not
+          // be read) is refused at the point of choosing — the alternative is
+          // a tag that fails later, at index time. The issue sits on the
+          // model, whose row already says so: it keeps the shared Save off
+          // without a second line under the provider pick.
+          const refusal =
+            values.providerSlug === ''
+              ? undefined
+              : shapeOf(values.providerSlug);
+          if (refusal !== undefined && isRefusal(refusal)) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: ['model'],
               message: t(
-                refusal === 'none'
-                  ? 'dataResidency.orgEmbedding.modelNoneHint'
+                refusal.kind === 'unsupported'
+                  ? 'dataResidency.orgEmbedding.modelUnsupportedHint'
                   : 'dataResidency.orgEmbedding.modelCatalogUnavailableHint',
                 { provider: values.providerSlug },
               ),
@@ -368,7 +403,7 @@ export function OrgEmbeddingSection({
             });
           }
         }),
-    [t, configured, refusedProviders],
+    [t, configured, shapeOf],
   );
 
   const data = useMemo(
@@ -468,7 +503,7 @@ export function OrgEmbeddingSection({
   // See `modelRowShape` for the four shapes the Model row takes.
   const modelValue = watch('model');
   const providerCatalog = embeddingCatalogs.get(selectedProvider);
-  const shape = modelRowShape(providerCatalog);
+  const shape = shapeOf(selectedProvider);
   const catalogModels = providerCatalog?.models ?? EMPTY_CATALOG_MODELS;
   // The free tag field behind "Other model…" — only where the listing may
   // be incomplete; on a closed select a stored tag the catalog does not list
@@ -529,12 +564,13 @@ export function OrgEmbeddingSection({
     [catalogModels, clearErrors, setValue],
   );
 
-  // What the row's hint may claim follows the shape: only a resolved shipped
-  // listing gets to say "lists none"; an unsettled listing keeps the neutral
-  // spelling hint.
+  // What the row's hint may claim follows the shape: only a declaration says
+  // "cannot embed", and only once the listing and the declarations have
+  // answered does a free field say "no curated width" — before that, and
+  // before a provider is chosen, it keeps the neutral spelling hint.
   const modelRowHint =
-    shape.kind === 'none'
-      ? t('dataResidency.orgEmbedding.modelNoneHint', {
+    shape.kind === 'unsupported'
+      ? t('dataResidency.orgEmbedding.modelUnsupportedHint', {
           provider: selectedProvider,
         })
       : shape.kind === 'unavailable'
@@ -542,8 +578,10 @@ export function OrgEmbeddingSection({
             provider: selectedProvider,
           })
         : shape.kind === 'free'
-          ? catalogsSettled
-            ? t('dataResidency.orgEmbedding.modelUnlistedHint')
+          ? catalogsSettled && supportSettled && selectedProvider !== ''
+            ? t('dataResidency.orgEmbedding.modelUncuratedHint', {
+                provider: selectedProvider,
+              })
             : t('dataResidency.orgEmbedding.modelHint')
           : !shape.allowCustom
             ? t('dataResidency.orgEmbedding.modelCatalogHint')
@@ -592,10 +630,8 @@ export function OrgEmbeddingSection({
   // A curated pick from the catalogs the org's credentials already unlock —
   // it FILLS the form (the lookup nobody should do by hand is the vector
   // width); committing stays with the unified Save, like every other field.
-  const recommendationsQuery = useEmbeddingRecommendations(organizationId, {
-    enabled: !readOnly && !configured && readError === undefined,
-  });
-  const recommendation = recommendationsQuery.data?.[0];
+  // Offered only while nothing is configured.
+  const recommendation = recommendationsQuery.data?.recommendations[0];
   const applyRecommendation = useCallback(() => {
     if (recommendation === undefined) return;
     setEnabled(true);
@@ -896,8 +932,8 @@ export function OrgEmbeddingSection({
                       ) : null}
                       <Text role="status" variant="muted" className="text-sm">
                         {t(
-                          shape.kind === 'none'
-                            ? 'dataResidency.orgEmbedding.modelNone'
+                          shape.kind === 'unsupported'
+                            ? 'dataResidency.orgEmbedding.modelUnsupported'
                             : 'dataResidency.orgEmbedding.modelUnavailable',
                         )}
                       </Text>

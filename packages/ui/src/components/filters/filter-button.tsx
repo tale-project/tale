@@ -60,7 +60,10 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
         )}
         {!iconOnly && t('labels.filter')}
         {hasActiveFilters && !isLoading && (
-          <div className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
+          <div
+            data-slot="active-filter-dot"
+            className="bg-primary absolute -top-1 -right-1 h-2 w-2 rounded-full"
+          />
         )}
       </Button>
     );

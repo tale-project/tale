@@ -36,7 +36,6 @@ export function AuditLogTab({
   const paginatedResult = useListAuditLogsPaginated({
     organizationId,
     category,
-    initialNumItems: 30,
   });
 
   return (

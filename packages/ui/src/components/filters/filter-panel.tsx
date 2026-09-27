@@ -358,7 +358,7 @@ export function FilterPanel({
                               className={cn(
                                 'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
                                 isSelected
-                                  ? 'border-blue-600 text-blue-600'
+                                  ? 'border-primary text-primary'
                                   : 'border-primary',
                               )}
                               aria-hidden="true"

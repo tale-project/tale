@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { REPO_ROOT } from './lib/paths';
+import { README_PATTERN, REPO_ROOT } from './lib/paths';
 
 /**
  * Repo-root README parity.
@@ -26,8 +26,6 @@ interface Readme {
   filename: string;
   content: string;
 }
-
-const README_PATTERN = /^README(?:\.([a-z]{2}(?:-[A-Z]{2})?))?\.md$/;
 
 function discoverReadmes(): Readme[] {
   const readmes: Readme[] = [];
