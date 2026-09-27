@@ -5,9 +5,9 @@ import { t } from '../helpers/i18n';
 /**
  * Automations smoke over the one lane that needs no AI provider: upload a
  * minimal workflow package, decline the deploy offer, open the draft from the
- * list row, prove the detail header's breadcrumb leaf is the entity switcher
- * (the same pattern the project detail carries), then delete the probe so the
- * worker org leaves the spec as it entered.
+ * list row, walk its tabs, prove the detail header's breadcrumb leaf is the
+ * entity switcher (the same pattern the project detail carries), then delete
+ * the probe so the worker org leaves the spec as it entered.
  */
 
 const PROBE_SLUG = 'switcher-probe';
@@ -85,15 +85,26 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
     { timeout: TIMEOUT.NAV },
   );
 
-  // The detail is tabbed like a project detail: Editor (active), Versions,
-  // Runs. Walk the strip — Versions lists the uploaded draft as v1, whose
-  // row deep-links the Editor to that version; Runs says nothing ran yet.
+  // The detail is tabbed like a project detail: Editor (active), General,
+  // Versions, Runs. Walk the strip — General carries the trigger; Versions
+  // lists the uploaded draft as v1, whose row deep-links the Editor to that
+  // version; Runs says nothing ran yet.
   const tabs = page.getByRole('navigation', {
     name: t('common.aria.automationsNavigation'),
   });
   await expect(
     tabs.getByRole('link', { name: t('automations.navigation.editor') }),
   ).toHaveAttribute('aria-current', 'page');
+  await tabs
+    .getByRole('link', { name: t('automations.navigation.general') })
+    .click();
+  await page.waitForURL(
+    new RegExp(`/automations/${PROBE_SLUG}/general(?:[?#]|$)`),
+    { timeout: TIMEOUT.NAV },
+  );
+  await expect(
+    page.getByRole('heading', { name: t('automations.trigger.title') }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await tabs
     .getByRole('link', { name: t('automations.navigation.versions') })
     .click();

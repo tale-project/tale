@@ -1,7 +1,12 @@
 import { automationSlugToParam } from '@/lib/automations/slug';
 
 /** The detail tabs every automation carries — a sibling switch keeps the open one. */
-const PORTABLE_AUTOMATION_SEGMENTS = new Set(['editor', 'versions', 'runs']);
+const PORTABLE_AUTOMATION_SEGMENTS = new Set([
+  'editor',
+  'general',
+  'versions',
+  'runs',
+]);
 
 /** Default landing when the current path is bare or automation-specific. */
 const DEFAULT_AUTOMATION_SUFFIX = '/editor';
@@ -9,7 +14,7 @@ const DEFAULT_AUTOMATION_SUFFIX = '/editor';
 /**
  * The root pathname of one automation's detail pages — under its project
  * shell when a project is given, on the org area otherwise. The tabs hang off
- * it (`/editor`, `/versions`, `/runs`), as does a run's own page.
+ * it (`/editor`, `/general`, `/versions`, `/runs`), as does a run's own page.
  */
 export function automationDetailPathname({
   organizationId,

@@ -8,9 +8,7 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import {
-  EditorActions,
   EditorSaveCancelledError,
-  useActiveEditor,
   useRegisterActiveEditor,
   useRegisterDirtySource,
   type EditorController,
@@ -54,6 +52,7 @@ import {
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { automationDetailPathname } from '../lib/detail-paths';
+import { DOCUMENT_DIRTY_KEY } from '../lib/dirty-keys';
 import { readDocument, readPositions } from '../lib/document';
 import {
   automationErrorCode,
@@ -68,12 +67,12 @@ import {
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
 } from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
+import { AutomationEditorActions } from './automation-editor-actions';
 import {
   AutomationRunDialog,
   type AutomationRunRequest,
 } from './automation-run-dialog';
 import { NodeInspector } from './node-inspector';
-import { WorkflowSettings } from './workflow-settings';
 
 /**
  * Every field of a node a patch may clear. Spelling them out keeps the unset
@@ -134,22 +133,7 @@ function patchNode(
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** A draft diverges from the stored version as one thing — its document. */
-const DOCUMENT_DIRTY_KEYS: ReadonlySet<string> = new Set(['document']);
-
-/**
- * The page's Save/Discard cluster.
- *
- * It reads the ACTIVE editor from the shell's registry instead of taking the
- * controller as a prop, so the shell that mounts `ActiveEditorProvider` owns
- * the one cluster on screen: the automation detail shell mounts a provider
- * around every tab and renders no cluster of its own, so exactly one — this
- * one, portaled into the tab strip — is ever on screen.
- */
-function AutomationEditorActions() {
-  const controller = useActiveEditor();
-  if (!controller) return null;
-  return <EditorActions controller={controller} entityKind="automation" />;
-}
+const DOCUMENT_DIRTY_KEYS: ReadonlySet<string> = new Set([DOCUMENT_DIRTY_KEY]);
 
 interface AutomationEditorProps {
   organizationId: string;
@@ -183,8 +167,8 @@ export function AutomationEditor(props: AutomationEditorProps) {
 
 /**
  * The Editor tab: one automation's document on the canvas beside its node
- * inspector, with the trigger and project bindings in the panel until a node
- * is selected. The version history and the run log are their own tabs.
+ * inspector. The automation's own settings (trigger, project bindings) are
+ * the General tab; the version history and the run log are their own tabs.
  *
  * The canvas always shows a stored VERSION — versions are immutable, so what
  * is drawn is exactly what was saved and exactly what a run of that version
@@ -783,29 +767,34 @@ function AutomationEditorScope({
           </div>
         }
       />
-      {/* Full width rather than the `narrow` configuration measure: this tab is
-          a workbench, not a form — the canvas and its inspector are a
-          two-column grid, and constraining them to the settings measure would
-          stack everything into one 48rem column and make the graph
-          unreadable. From `lg` up, `flex-1 lg:min-h-0` hands the grid the
-          height the header and tab strip leave, so the workbench fills the
-          window. Below `lg` the canvas and inspector stack, and this area
-          grows with them so the page scrolls: held to the window, the stack
-          would squeeze the canvas row under the canvas's own floor and clip
-          the zoom controls in its bottom corner. */}
-      <ContentArea className="flex-1 lg:min-h-0" gap={4}>
+      {/* Edge to edge: this tab is a workbench, not a page of content — the
+          canvas runs to the tab strip, the section panel and the window's
+          edges, and the inspector stands against its side as a panel (a design
+          tool's layout), never a card floating in an inset. From `lg` up,
+          `flex-1 lg:min-h-0` hands the grid the height the header and tab strip
+          leave, so the workbench fills the window. Below `lg` the canvas and
+          inspector stack, and this area grows with them so the page scrolls:
+          held to the window, the stack would squeeze the canvas row under the
+          canvas's own floor and clip the zoom controls in its bottom corner.
+          The one inset kept is a phone's floating-dock allowance. */}
+      <div className="flex min-w-0 flex-1 flex-col pb-[length:var(--mobile-floating-actions-pad,0px)] lg:min-h-0">
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
-            it concerns. Save feedback goes through the editor cluster instead. */}
-        {refusal !== null && (
-          <Alert variant="destructive" description={refusal} />
-        )}
-        {deployRefusal !== null && (
-          <Alert
-            variant="destructive"
-            title={t('versions.deployRefused')}
-            description={deployRefusal}
-          />
+            it concerns. Save feedback goes through the editor cluster instead.
+            The alerts keep the page inset, in a band above the workbench. */}
+        {(refusal !== null || deployRefusal !== null) && (
+          <div className="border-border flex flex-col gap-3 border-b p-4">
+            {refusal !== null && (
+              <Alert variant="destructive" description={refusal} />
+            )}
+            {deployRefusal !== null && (
+              <Alert
+                variant="destructive"
+                title={t('versions.deployRefused')}
+                description={deployRefusal}
+              />
+            )}
+          </div>
         )}
 
         <div className={AUTOMATION_EDITOR_WORKBENCH_GRID}>
@@ -841,11 +830,13 @@ function AutomationEditorScope({
               selectedNodeId={selectedNodeId}
               onSelectNode={setSelectedNodeId}
               inspectorId={inspectorId}
+              framed={false}
               {...(runStatusByNode !== undefined && { runStatusByNode })}
             />
           </div>
           <NodeInspector
             id={inspectorId}
+            variant="panel"
             node={selectedNode}
             nodeType={nodeTypes.find((def) => def.type === selectedNode?.type)}
             catalogUnavailable={catalogQuery.isError}
@@ -859,17 +850,9 @@ function AutomationEditorScope({
             organizationId={organizationId}
             {...(projectId !== undefined && { projectId })}
             onDeselect={deselectNode}
-            workflow={
-              <WorkflowSettings
-                organizationId={organizationId}
-                name={automationSlug}
-                canEdit={canAuthor}
-                deployedVersion={meta?.deployedVersion}
-              />
-            }
           />
         </div>
-      </ContentArea>
+      </div>
 
       {/* Saving APPENDS a version, so the one thing the author is asked for is
           the line that will stand in the history beside it. */}

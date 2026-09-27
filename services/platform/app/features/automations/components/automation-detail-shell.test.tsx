@@ -4,14 +4,14 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { AutomationDetailShell } from './automation-detail-shell';
 
 /**
  * The shell is the automation twin of the project detail layout: breadcrumb
- * row, then a tab strip — Editor, Versions, Runs — whose trailing slot the
- * editor fills. These tests pin the strip's shape and where its tabs lead on
+ * row, then a tab strip — Editor, General, Versions, Runs — whose trailing
+ * slot the open tab fills. These tests pin the strip's shape and where its tabs lead on
  * both route families, and the not-found state that keeps the trail.
  */
 
@@ -154,14 +154,25 @@ beforeEach(() => {
 });
 
 describe('AutomationDetailShell', () => {
-  it('carries the Editor, Versions and Runs tabs on the org route', () => {
+  it('carries the Editor, General, Versions and Runs tabs on the org route', () => {
     renderShell();
     const strip = screen.getByRole('navigation', {
       name: 'Automations navigation',
     });
+    // General sits right of Editor: the workbench first, then the
+    // automation's own settings.
+    expect(
+      within(strip)
+        .getAllByRole('link')
+        .map((tab) => tab.textContent),
+    ).toEqual(['Editor', 'General', 'Versions', 'Runs']);
     expect(screen.getByRole('link', { name: 'Editor' })).toHaveAttribute(
       'href',
       '/dashboard/org-1/automations/billing__dunning/editor',
+    );
+    expect(screen.getByRole('link', { name: 'General' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/automations/billing__dunning/general',
     );
     expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
       'href',
@@ -188,6 +199,7 @@ describe('AutomationDetailShell', () => {
     renderShell({ projectId: 'proj-1' });
     for (const [label, tab] of [
       ['Editor', 'editor'],
+      ['General', 'general'],
       ['Versions', 'versions'],
       ['Runs', 'runs'],
     ] as const) {
@@ -213,10 +225,30 @@ describe('AutomationDetailShell', () => {
       'data-dirty',
       'true',
     );
+    expect(screen.getByRole('link', { name: 'General' })).toHaveAttribute(
+      'data-dirty',
+      'false',
+    );
     expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
       'data-dirty',
       'false',
     );
+  });
+
+  it("lights the General tab's dot for an unsaved trigger or project set", () => {
+    for (const key of ['trigger', 'projects']) {
+      fixtures.dirtyKeys = new Set([key]);
+      const { unmount } = renderShell();
+      expect(screen.getByRole('link', { name: 'General' })).toHaveAttribute(
+        'data-dirty',
+        'true',
+      );
+      expect(screen.getByRole('link', { name: 'Editor' })).toHaveAttribute(
+        'data-dirty',
+        'false',
+      );
+      unmount();
+    }
   });
 
   it('shows not-found under the trail, with the divider and no tabs', () => {

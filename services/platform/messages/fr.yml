@@ -576,6 +576,7 @@ automations:
   entityLabelOne: automatisation
   navigation:
     editor: Éditeur
+    general: Général
     versions: Versions
     runs: Exécutions
   switcher:
@@ -691,6 +692,7 @@ automations:
       failed: Impossible de supprimer l’automatisation
   trigger:
     title: Déclencheur
+    description: Ce qui démarre cette automatisation. Un déclencheur exécute toujours la version en service.
     none: Aucun déclencheur — cette automatisation ne s’exécute que lancée à la main ou via l’API.
     add: Ajouter un déclencheur
     kindLabel: Type de déclencheur
@@ -714,10 +716,7 @@ automations:
     eventLabel: Nom de l’événement
     eventPlaceholder: Choisir un événement
     enabledLabel: Actif
-    unsavedBadge: Non enregistré
     lastFired: 'Dernier déclenchement {at}'
-    nothingToSave: La liaison correspond à ce qui est enregistré.
-    save: Enregistrer
     remove: Retirer le déclencheur
     removeTitle: Retirer le déclencheur ?
     removeBody: Supprime le déclencheur. L’automatisation et son historique de versions ne sont pas touchés.
@@ -767,7 +766,6 @@ automations:
       onError: continuer en cas d’erreur
   editor:
     title: Nœud
-    workflowTitle: Workflow
     noSelection: Sélectionne un nœud sur le canvas pour voir et modifier ce qu’il fait.
     noSelectionReadOnly: Sélectionne un nœud sur le canvas pour voir ce qu’il fait.
     unknownType: 'Type de nœud inconnu : {type}'
@@ -828,9 +826,6 @@ automations:
       forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
       repeatUntil: Répéter jusqu’à
       repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
-  workflow:
-    save: Enregistrer les réglages
-    nothingToSave: Rien à enregistrer
   bindings:
     title: Projets
     countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
@@ -839,9 +834,6 @@ automations:
     searchPlaceholder: Rechercher des projets
     empty: Aucun projet ne correspond
     noProjects: Cette organisation n’a pas encore de projets.
-    save: Enregistrer
-    unsavedBadge: Non enregistré
-    nothingToSave: Aucune modification à enregistrer
   versions:
     title: Versions
     description: Chaque version enregistrée, la plus récente en premier — ouvre-la pour l'afficher sur le canvas. Une seule est en service à la fois.

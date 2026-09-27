@@ -15,7 +15,7 @@ La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour compa
 
 ## Choisir un point de départ
 
-Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Versions** présente les versions enregistrées, et **Exécutions**, les derniers lancements. Le panneau **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation.
+Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Général** regroupe son déclencheur et ses projets : **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation. **Versions** présente les versions enregistrées, et **Exécutions**, les derniers lancements.
 
 Le menu **Créer une automatisation** propose deux parcours :
 
@@ -51,7 +51,7 @@ Choisis **Créer une automatisation > Téléverser un paquet**. Ajoute le workfl
 
 <Step title="Choisir la destination">
 
-Sous **Installer dans**, sélectionne **Organisation** ou un projet existant. Un manifeste déclarant `scope: project` exige un projet. Importer une automatisation existante dans un autre projet ajoute cette association sans retirer les précédentes. Le panneau **Projets** permet ensuite de modifier l’ensemble des associations.
+Sous **Installer dans**, sélectionne **Organisation** ou un projet existant. Un manifeste déclarant `scope: project` exige un projet. Importer une automatisation existante dans un autre projet ajoute cette association sans retirer les précédentes. La section **Projets** de l’onglet **Général** de l’automatisation permet ensuite de modifier l’ensemble des associations.
 
 <Frame caption="Téléverser un paquet — les fichiers ou un zip, et où l’automatisation s’installe.">
 

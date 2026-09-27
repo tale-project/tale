@@ -37,6 +37,9 @@ describe('automationSwitchPathname', () => {
     expect(automationSwitchPathname(`${from}/runs`, from, to)).toBe(
       `${to}/runs`,
     );
+    expect(automationSwitchPathname(`${from}/general`, from, to)).toBe(
+      `${to}/general`,
+    );
   });
 
   it("resets a run's own page to the sibling's Runs list", () => {

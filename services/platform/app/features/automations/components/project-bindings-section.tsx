@@ -1,85 +1,85 @@
 'use client';
 
-import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
+import {
+  useRegisterDirtySource,
+  useRegisterGroupedEditor,
+  type EditorController,
+} from '@tale/ui/editor';
 import { MultiSelect } from '@tale/ui/multi-select';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetAutomationProjects } from '../hooks/mutations';
 import { useAutomationProjects } from '../hooks/queries';
+import { PROJECTS_DIRTY_KEY } from '../lib/dirty-keys';
 import { automationErrorMessage } from '../lib/errors';
 
-/** Imperative surface for {@link WorkflowSettings}' single Save footer. */
-export type ProjectBindingsController = {
-  dirty: boolean;
-  pending: boolean;
-  save: () => void;
-};
+const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
+/** What the General tab's strip lights its unsaved dot for. */
+const PROJECTS_DIRTY_KEYS: ReadonlySet<string> = new Set([PROJECTS_DIRTY_KEY]);
+
+function sameSelection(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
 
 /**
  * The automation's project bindings: which projects' task boards see it.
  *
  * The binding SET is the scope — none means the automation is org-level and
  * every project's board sees it, one or more means exactly those projects —
- * so the panel edits the whole selection and saves it in one reconcile
- * (`setAutomationProjects`), the same one-row-of-truth shape as the trigger
- * panel. Deleting a project refuses while an automation is bound to it, so
- * removals happen here first, deliberately.
+ * so the section edits the whole selection and saves it in one reconcile
+ * (`setAutomationProjects`), the same one-row-of-truth shape as the trigger.
+ * Deleting a project refuses while an automation is bound to it, so removals
+ * happen here first, deliberately.
  *
- * Stacked under the trigger in the inspector when no node is selected.
- * Prefer {@link WorkflowSettings} for the production surface (one Save).
+ * A section of the automation's General tab: its edits join the page's one
+ * Save/Discard cluster in the tab strip, and leaving the tab with an unsaved
+ * selection asks first.
  */
 export function ProjectBindingsSection({
   organizationId,
   name,
   /** Authoring is developer-gated server-side; readers still see the set. */
   canEdit,
-  /**
-   * When false, the Save button is omitted — the parent owns it through
-   * `onControllerChange` (the workflow inspector footer).
-   */
-  showActions = true,
-  onControllerChange,
 }: {
   organizationId: string;
   name: string;
   canEdit: boolean;
-  showActions?: boolean;
-  onControllerChange?: (controller: ProjectBindingsController | null) => void;
 }) {
   const { t } = useT('automations');
-  const headingId = useId();
 
   const boundQuery = useAutomationProjects(organizationId, name);
   const { projects } = useProjects(organizationId);
   const setProjects = useSetAutomationProjects();
 
-  const stored = useMemo(() => boundQuery.data ?? [], [boundQuery.data]);
+  const stored = useMemo(
+    () => (boundQuery.data ?? []).map(String),
+    [boundQuery.data],
+  );
   const [selection, setSelection] = useState<string[]>([]);
-  const [refusal, setRefusal] = useState<string | null>(null);
 
-  // The rows are the truth; local state only carries unsaved edits. The
-  // functional update returns the CURRENT array when the content already
-  // matches, so React bails out of the re-render — the sync must not depend
-  // on the query data being referentially stable.
+  // The rows are the truth; local state only carries unsaved edits. Keyed on
+  // the set's content, not on the array, so a refetch that answers the same
+  // set never wipes a selection in progress; and the functional update
+  // returns the CURRENT array when the content already matches, so React
+  // bails out of the re-render.
+  const storedRef = useRef(stored);
+  storedRef.current = stored;
+  const storedKey = stored.join(',');
   useEffect(() => {
-    const next = stored.map(String);
-    setSelection((current) =>
-      current.length === next.length &&
-      next.every((value, index) => value === current[index])
-        ? current
-        : next,
-    );
-  }, [stored]);
+    const next = storedRef.current;
+    setSelection((current) => (sameSelection(current, next) ? current : next));
+  }, [storedKey]);
 
   const dirty = useMemo(() => {
     if (selection.length !== stored.length) return true;
-    const current = new Set(stored.map(String));
+    const current = new Set(stored);
     return selection.some((projectId) => !current.has(projectId));
   }, [selection, stored]);
 
@@ -88,69 +88,59 @@ export function ProjectBindingsSection({
     label: project.name,
   }));
 
-  const save = () => {
-    setRefusal(null);
-    setProjects.mutate(
-      {
+  /** Write the selection as the automation's binding set. */
+  const persist = async (): Promise<void> => {
+    try {
+      await setProjects.mutateAsync({
         organizationId,
         name,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every value came from the projects listing
         projectIds: selection,
-      },
-      {
-        onError: (error) => {
-          setRefusal(automationErrorMessage(error));
-        },
-      },
-    );
+      });
+    } catch (error) {
+      // The store's refusal names the problem and the fix; the cluster
+      // raises it as the save's one failure toast.
+      throw new Error(automationErrorMessage(error), { cause: error });
+    }
   };
 
-  const saveRef = useRef(save);
-  saveRef.current = save;
+  // The group keeps the controller it registered until one of its status
+  // flags changes, so save and discard read the latest selection through
+  // refs.
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
 
-  useEffect(() => {
-    if (onControllerChange === undefined) return undefined;
-    onControllerChange({
-      dirty,
-      pending: setProjects.isPending,
-      save: () => {
-        saveRef.current();
+  const controller = useMemo<EditorController>(
+    () => ({
+      isDirty: dirty,
+      isSaving: setProjects.isPending,
+      isValid: true,
+      isLoading: boundQuery.isPending,
+      dirtyKeys: dirty ? PROJECTS_DIRTY_KEYS : NO_DIRTY_KEYS,
+      save: () => persistRef.current(),
+      reset: () => {
+        setSelection(storedRef.current);
       },
-    });
-    return () => {
-      onControllerChange(null);
-    };
-  }, [onControllerChange, dirty, setProjects.isPending]);
+    }),
+    [dirty, setProjects.isPending, boundQuery.isPending],
+  );
+  useRegisterGroupedEditor(controller, { enabled: canEdit });
+  // The draft lives in this section only, so leaving the tab would drop it.
+  useRegisterDirtySource(canEdit && dirty);
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="border-border flex min-w-0 flex-col gap-4 border-t pt-4"
-    >
-      <header className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 id={headingId} className="text-sm font-semibold">
-            {t('bindings.title')}
-          </h3>
-          {boundQuery.data !== undefined && stored.length > 0 && (
+    <Skeletonize loading={boundQuery.isPending} label={t('bindings.title')}>
+      <SettingsSection
+        title={t('bindings.title')}
+        description={t('bindings.hint')}
+        {...(stored.length > 0 && {
+          action: (
             <Badge variant="blue">
               {t('bindings.countBadge', { count: stored.length })}
             </Badge>
-          )}
-          {dirty && canEdit && (
-            <Badge variant="orange">{t('bindings.unsavedBadge')}</Badge>
-          )}
-        </div>
-        <Text as="p" variant="muted" className="text-xs">
-          {t('bindings.hint')}
-        </Text>
-      </header>
-
-      <div className="flex flex-col gap-3">
-        {refusal !== null && (
-          <Alert variant="destructive" description={refusal} />
-        )}
-
+          ),
+        })}
+      >
         {options.length === 0 ? (
           <Text as="p" variant="muted" className="text-sm italic">
             {t('bindings.noProjects')}
@@ -165,26 +155,12 @@ export function ProjectBindingsSection({
             emptyText={t('bindings.empty')}
             aria-label={t('bindings.title')}
             disabled={!canEdit}
-            // Bound sets can be long; keep the panel height honest next to
-            // Trigger and surface overflow with a scroll cue.
+            // Bound sets can be long; keep the section's height honest and
+            // surface overflow with a scroll cue.
             chipsMaxHeightClassName="max-h-40"
           />
         )}
-      </div>
-
-      {canEdit && showActions && options.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            isLoading={setProjects.isPending}
-            disabled={!dirty}
-            disabledReason={t('bindings.nothingToSave')}
-            onClick={save}
-          >
-            {t('bindings.save')}
-          </Button>
-        </div>
-      )}
-    </section>
+      </SettingsSection>
+    </Skeletonize>
   );
 }

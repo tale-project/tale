@@ -3,7 +3,7 @@ title: Start automations automatically
 description: Configure schedules, webhooks and platform events, match their input shape and diagnose missed starts.
 ---
 
-Use the automation’s **Trigger** panel when work should start on a schedule or in response to an event. Every trigger starts the deployed version in live mode. Before enabling one, test the workflow with the input shape it will receive and check that its external actions are ready.
+Use the **Trigger** section on the automation’s **General** tab when work should start on a schedule or in response to an event. Every trigger starts the deployed version in live mode. Before enabling one, test the workflow with the input shape it will receive and check that its external actions are ready.
 
 ## Choose how the automation starts
 
@@ -23,7 +23,7 @@ An API or MCP client can also start work without a configured trigger. Its API k
 
 <Step title="Open the trigger settings">
 
-Open the automation and its **Trigger** panel. Without a binding it says that the automation runs only when started by hand or through the API; choose **Add trigger**, then **Schedule** under **Trigger type**. A new trigger starts with **Enabled** off — keep it off while preparing a workflow that should not start yet.
+Open the automation, then its **General** tab. Without a binding, the **Trigger** section says that the automation runs only when started by hand or through the API; choose **Add trigger**, then **Schedule** under **Trigger type**. A new trigger starts with **Enabled** off — keep it off while preparing a workflow that should not start yet.
 
 </Step>
 
@@ -35,7 +35,7 @@ Fill **Cron** and choose **Timezone**. A cron expression has five fields: minute
 
 <Step title="Check and save">
 
-Review the next occurrence shown for a valid expression, then save the settings. Confirm that the workflow’s deployed version accepts the schedule input above. When ready, enable the trigger and save. Check the next started run under **Runs**.
+Review the next occurrence shown for a valid expression, then click **Save** beside the tabs. Confirm that the workflow’s deployed version accepts the schedule input above. When ready, turn on **Enabled** and save again. Check the next started run under **Runs**.
 
 </Step>
 
@@ -54,7 +54,7 @@ Local time follows the timezone’s daylight-saving rules. A 09:00 Zurich schedu
 
 ## Receive a webhook
 
-Choose **Webhook**, then save to generate the credential. Copy the full URL when it appears: the token is shown once and only its hash is stored. The panel supplies an organization URL and a project URL pattern. Use the project URL for an active project in which the automation is installed; an automation with project bindings cannot run through the organization-only URL.
+Choose **Webhook**, then save to generate the credential. Copy the full URL when it appears: the token is shown once and only its hash is stored. The section supplies an organization URL and a project URL pattern. Use the project URL for an active project in which the automation is installed; an automation with project bindings cannot run through the organization-only URL.
 
 Post a small payload to the URL. JSON becomes `payload` inside the input wrapper, not the workflow’s top-level input. Other request bodies pass through as text. The limit is 256 KiB; upload large documents separately. An accepted request returns a run ID without waiting for completion.
 
@@ -79,7 +79,7 @@ The URL authorizes a run. Store it as a credential and share it only with the se
 
 Choose **Platform event**, select **Event name**, then save and enable when ready. Match the workflow’s schema to the `trigger`, `event` and `payload` wrapper in the table. Events raised by automation runs do not fire triggers, preventing a workflow from repeatedly starting itself through its own changes.
 
-A workflow expecting required top-level fields such as `owner` and `repo` cannot accept schedule metadata or a wrapped webhook unchanged. Adapt its input schema and references, or use an API-started run that supplies those fields. The trigger panel does not provide arbitrary saved input fields.
+A workflow expecting required top-level fields such as `owner` and `repo` cannot accept schedule metadata or a wrapped webhook unchanged. Adapt its input schema and references, or use an API-started run that supplies those fields. The trigger settings do not provide arbitrary saved input fields.
 
 ## Diagnose a missing start
 

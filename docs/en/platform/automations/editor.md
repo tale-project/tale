@@ -10,10 +10,11 @@ Open **Automations**, then select an automation. It opens on **Editor**. To crea
 | Tab | Use it to |
 | --- | --- |
 | **Editor** | Change the workflow, test a saved version and choose what runs live. |
+| **General** | Choose what starts the automation and which projects can use it. |
 | **Versions** | Read saved version messages and test results, then select a row to open that version in the editor. |
 | **Runs** | Inspect recent executions and open a run’s full record. |
 
-On **Editor**, the version picker and run actions sit beside the tabs, together with **Save** and **Discard**. A dot on **Editor** marks unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
+On **Editor**, the version picker and run actions sit beside the tabs, together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
 
 <Frame caption="Select a node to inspect its fields. The actions beside the tabs control testing, saving, and deployment.">
 
@@ -33,7 +34,7 @@ Badges show conditions and loops: `when`, `else of`, `for each`, `repeat until`,
 
 Select a box to open its fields. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has harness and equipment. The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but validation warns that a live run would fail at that node until its provider is connected. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
 
-Open **Control flow** for conditions and iteration. Click the empty canvas, **Close**, or press Escape outside a text field to return to trigger and project settings. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
+Open **Control flow** for conditions and iteration. Click the empty canvas, **Close**, or press Escape outside a text field to close the node's fields. The automation's trigger and project settings are on the **General** tab. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
 
 ## Save and test a version
 

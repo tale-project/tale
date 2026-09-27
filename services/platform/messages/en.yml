@@ -538,6 +538,7 @@ automations:
   entityLabelOne: automation
   navigation:
     editor: Editor
+    general: General
     versions: Versions
     runs: Runs
   switcher:
@@ -652,6 +653,7 @@ automations:
       failed: Could not delete the automation
   trigger:
     title: Trigger
+    description: What starts this automation. A trigger always runs the live version.
     none: No trigger — this automation runs only when started by hand or through the API.
     add: Add trigger
     kindLabel: Trigger type
@@ -675,10 +677,7 @@ automations:
     eventLabel: Event name
     eventPlaceholder: Select an event
     enabledLabel: Enabled
-    unsavedBadge: Unsaved
     lastFired: 'Last fired {at}'
-    nothingToSave: The binding matches what is stored.
-    save: Save
     remove: Remove trigger
     removeTitle: Remove the trigger?
     removeBody: Removes the trigger. The automation and its version history are unaffected.
@@ -725,7 +724,6 @@ automations:
       onError: continue on error
   editor:
     title: Node
-    workflowTitle: Workflow
     noSelection: Select a node on the canvas to see and edit what it does.
     noSelectionReadOnly: Select a node on the canvas to see what it does.
     unknownType: 'Unknown node type: {type}'
@@ -780,9 +778,6 @@ automations:
       forEachDescription: Run once per item of the array the expression resolves to.
       repeatUntil: Repeat until
       repeatUntilDescription: Re-run this node until the expression is truthy.
-  workflow:
-    save: Save settings
-    nothingToSave: Nothing to save
   bindings:
     title: Projects
     countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
@@ -791,9 +786,6 @@ automations:
     searchPlaceholder: Search projects
     empty: No projects match
     noProjects: This organization has no projects yet.
-    save: Save
-    unsavedBadge: Unsaved
-    nothingToSave: No changes to save
   versions:
     title: Versions
     description: Every saved version, newest first — open one to show it on the canvas. Exactly one is live at a time.

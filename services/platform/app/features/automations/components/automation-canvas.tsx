@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
 import {
   FLOW_EDGE_COLORS,
@@ -59,6 +60,14 @@ export interface AutomationCanvasProps {
   /** Id of the inspector region a node button expands. */
   inspectorId: string;
   runStatusByNode?: ReadonlyMap<string, NodeRunStatus>;
+  /**
+   * Draw the canvas as a bordered, rounded frame (a run's page, where it sits
+   * in the page inset). The Editor tab's edge-to-edge workbench turns it off:
+   * there the canvas meets the tab strip, the window and the inspector at
+   * their own borders.
+   * @default true
+   */
+  framed?: boolean;
 }
 
 const EMPTY_STATUSES: ReadonlyMap<string, NodeRunStatus> = new Map();
@@ -70,6 +79,7 @@ function CanvasInner({
   onSelectNode,
   inspectorId,
   runStatusByNode = EMPTY_STATUSES,
+  framed = true,
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
   const { setCenter, getZoom } = useReactFlow();
@@ -216,14 +226,19 @@ function CanvasInner({
           icon={AlertTriangle}
           title={t('canvas.cycle.title')}
           description={t('canvas.cycle.description')}
-          className="mb-3"
+          // Unframed, the canvas has no inset of its own: the warning keeps
+          // the page's instead of running into the edges.
+          className={framed ? 'mb-3' : 'm-4 mb-0'}
         />
       )}
       <div
         // A definite height at mount matters: React Flow measures its frame
         // once, and a `flex-1` box inside a scrolling column can start at
         // zero — which paints an empty canvas that never re-fits.
-        className="border-border relative h-full min-h-[24rem] flex-1 overflow-hidden rounded-lg border"
+        className={cn(
+          'relative h-full min-h-[24rem] flex-1 overflow-hidden',
+          framed && 'border-border rounded-lg border',
+        )}
         role="group"
         aria-label={t('canvas.ariaLabel')}
         aria-busy={isLayouting}

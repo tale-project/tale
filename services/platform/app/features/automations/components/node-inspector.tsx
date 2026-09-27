@@ -10,7 +10,7 @@ import { Input } from '@tale/ui/input';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Textarea } from '@tale/ui/textarea';
 import { AlertTriangle, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
@@ -214,29 +214,24 @@ export interface NodeInspectorProps {
    * catalogs are org-scoped, widened to the project when authored in one). */
   organizationId: string;
   projectId?: string;
-  /**
-   * What the panel shows when no node is selected — the automation's trigger
-   * and project bindings. Hidden (not unmounted) while a node is selected so
-   * unsaved trigger/project edits survive a click on the canvas. The run page
-   * omits this and keeps the empty prompt.
-   */
-  workflow?: ReactNode;
   /** Clears the canvas selection — Close, Escape, and click-again share this. */
   onDeselect?: () => void;
+  /**
+   * `card` (default) — a bordered, rounded card in the page inset, as a run's
+   * page shows it. `panel` — flush against the canvas in the Editor tab's
+   * edge-to-edge workbench, bordered only on the side that meets it.
+   */
+  variant?: 'card' | 'panel';
 }
 
 /**
  * The inspector beside the canvas.
  *
- * With no node selected it shows the automation (trigger, projects) when the
- * page hands that in — Figma's "the file, until you click a layer". Clicking a
- * box swaps to that node's fields; clicking the same box again, Close, Escape
- * (when not typing), or the empty canvas returns to the automation. Focus moves
- * into this panel on select so Tab reaches the
- * fields next. The workflow slot stays mounted and hidden so unsaved trigger
- * edits are not dropped.
- * A recorded run omits the slot and the empty prompt asks the reader to pick
- * a node.
+ * With no node selected it asks the reader to pick one — the automation's own
+ * settings (trigger, projects) are its General tab. Clicking a box shows that
+ * node's fields; clicking the same box again, Close, Escape (when not typing),
+ * or the empty canvas returns to the prompt. Focus moves into this panel on
+ * select so Tab reaches the fields next.
  *
  * It edits the document, not a model of it: the id and type identify the node,
  * the control-flow fields are the engine's own declarative branching and
@@ -253,14 +248,12 @@ export function NodeInspector({
   onChange,
   organizationId,
   projectId,
-  workflow,
   onDeselect,
+  variant = 'card',
 }: NodeInspectorProps) {
   const { t } = useT('automations');
   const headingId = useId();
   const sectionRef = useRef<HTMLElement>(null);
-  const showingWorkflow = node === null && workflow !== undefined;
-  const showingEmpty = node === null && workflow === undefined;
   const selectedNodeId = node?.id;
 
   useDeselectOnEscape(selectedNodeId !== undefined, onDeselect);
@@ -279,16 +272,17 @@ export function NodeInspector({
       ref={sectionRef}
       id={id}
       tabIndex={-1}
-      aria-labelledby={showingWorkflow ? undefined : headingId}
-      aria-label={showingWorkflow ? t('editor.workflowTitle') : undefined}
+      aria-labelledby={headingId}
       className={cn(
-        'border-border bg-card flex h-full max-h-[70dvh] min-h-0 w-full flex-col gap-4 rounded-lg border p-4 outline-none lg:max-h-none',
-        // Workflow mode pins Save to the bottom of the column; scrolling stays
-        // on the fields. Node editing scrolls the whole panel as before.
-        showingWorkflow ? 'overflow-hidden' : 'overflow-y-auto',
+        'border-border flex h-full max-h-[70dvh] min-h-0 w-full flex-col gap-4 overflow-y-auto p-4 outline-none lg:max-h-none',
+        variant === 'card'
+          ? 'bg-card rounded-lg border'
+          : // Its one border faces the canvas: above the panel where the two
+            // stack, beside it from `lg` up.
+            'bg-background border-t lg:border-t-0 lg:border-l',
       )}
     >
-      {showingEmpty && (
+      {node === null && (
         <SectionHeader
           as="h3"
           size="sm"
@@ -301,11 +295,6 @@ export function NodeInspector({
         />
       )}
 
-      {workflow !== undefined && (
-        <div hidden={node !== null} className="flex min-h-0 flex-1 flex-col">
-          {workflow}
-        </div>
-      )}
       {node !== null && (
         <NodeFields
           headingId={headingId}

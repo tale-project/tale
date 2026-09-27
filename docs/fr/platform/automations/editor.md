@@ -10,10 +10,11 @@ Ouvre **Automatisations**, puis sélectionne une automatisation. Elle s’ouvre 
 | Onglet | Utilisation |
 | --- | --- |
 | **Éditeur** | Modifier le workflow, tester une version enregistrée et choisir celle à mettre en service. |
+| **Général** | Choisir ce qui démarre l’automatisation et les projets qui peuvent l’utiliser. |
 | **Versions** | Lire les messages de version et les résultats des tests enregistrés, puis ouvrir une version dans l’éditeur en sélectionnant sa ligne. |
 | **Exécutions** | Examiner les derniers lancements et ouvrir le détail d’une exécution. |
 
-Dans **Éditeur**, le sélecteur de version et les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner**. Un point sur l’onglet **Éditeur** signale des modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
+Dans **Éditeur**, le sélecteur de version et les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner** ; dans **Général**, seuls **Enregistrer** et **Abandonner** y figurent. Un point sur un onglet signale ses modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
 
 <Frame caption="Sélectionne un nœud pour examiner ses champs. Les commandes à côté des onglets permettent de tester, d’enregistrer et de mettre en service.">
 
@@ -33,7 +34,7 @@ Les badges indiquent les conditions et boucles : `when`, `else of`, `for each`,
 
 Sélectionne un bloc pour ouvrir ses champs. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais la validation avertit qu’une exécution en direct échouerait à ce nœud tant que son fournisseur n’est pas connecté. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
 
-Ouvre **Contrôle du flux** pour les conditions et répétitions. Clique sur le fond du canvas, sur **Fermer** ou appuie sur Échap hors d’un champ de texte pour revenir aux réglages du déclencheur et des projets. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
+Ouvre **Contrôle du flux** pour les conditions et répétitions. Clique sur le fond du canvas, sur **Fermer** ou appuie sur Échap hors d’un champ de texte pour refermer les champs du nœud. Les réglages du déclencheur et des projets se trouvent dans l’onglet **Général**. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
 
 ## Enregistrer et tester une version
 

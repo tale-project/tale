@@ -1,15 +1,15 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 70 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 71 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
 one **deployed** (live) version, a trigger bound to the name, project
 bindings, and a record of every run (mock or live). Tested here: the org list
-with its create menu (blank or upload a pack), the detail page's
-tabs — **Editor** (canvas + node inspector + trigger + bindings),
-**Versions** and **Runs** — the run-detail page (status, effects, agent log,
-approval/ask cards), and the metrics redirect. The Inbox that deployed email-sync packs open has its own
+with its create menu (blank or upload a pack), the detail page's tabs —
+**Editor** (canvas + node inspector), **General** (trigger + project
+bindings), **Versions** and **Runs** — the run-detail page (status, effects,
+agent log, approval/ask cards), and the metrics redirect. The Inbox that deployed email-sync packs open has its own
 plan: [conversations.md](conversations.md).
 
 ## Scope & routes
@@ -28,11 +28,12 @@ as `__` (`billing__dunning-reminder`, lossless codec in
 | Automations (org list)    | `/dashboard/{org}/automations`                                                                                                               |
 | Automation detail (alias) | `/dashboard/{org}/automations/{slug}` → forwards to `…/{slug}/editor`                                                                        |
 | Editor tab (default)      | `/dashboard/{org}/automations/{slug}/editor` — `?version={n}` pins a stored version on the canvas                                            |
+| General tab               | `/dashboard/{org}/automations/{slug}/general`                                                                                                |
 | Versions tab              | `/dashboard/{org}/automations/{slug}/versions`                                                                                               |
 | Runs tab                  | `/dashboard/{org}/automations/{slug}/runs`                                                                                                   |
 | Run detail                | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                                                           |
 | Project-scoped list       | `/dashboard/{org}/projects/{projectId}/automations`                                                                                          |
-| Project-scoped detail     | `/dashboard/{org}/projects/{projectId}/automations/{slug}` → forwards to `…/{slug}/editor`; carries the same Editor, Versions and Runs tabs |
+| Project-scoped detail     | `/dashboard/{org}/projects/{projectId}/automations/{slug}` → forwards to `…/{slug}/editor`; carries the same four tabs            |
 | Project-scoped run        | `/dashboard/{org}/projects/{projectId}/automations/{slug}/runs/{runId}`                                                                      |
 | Metrics (redirect)        | `/dashboard/{org}/automations/metrics` → `/dashboard/{org}/settings/metrics/automations` (keeps query)                                       |
 
@@ -179,8 +180,8 @@ output:
 - [ ] `AUTO-F11` · **Upload — install target** — In the upload dialog set
       **Install into** (`automations.upload.targetLabel`) to a project instead of
       **Organization** (`automations.upload.targetOrg`) → upload → The automation
-      arrives bound to that project — its detail page's Projects panel shows the
-      binding (`automations.bindings.countBadge`), and the list row carries the
+      arrives bound to that project — its **General** tab's **Projects** section
+      shows the binding (`automations.bindings.countBadge`), and the list row carries the
       project chip; bindings stay editable afterwards (AUTO-F30)
 - [ ] `AUTO-F12` · **Detail workbench renders** —
       `/dashboard/{org}/automations/{slug}` for a seeded pack → The URL lands on
@@ -189,18 +190,21 @@ output:
       when looking === live (no version number in the badge); the row draws no
       divider of its own — the tab strip under it carries the line, exactly as
       a project detail. Tab strip (`common.aria.automationsNavigation`):
-      **Editor** / **Versions** / **Runs** (`automations.navigation.editor` /
+      **Editor** / **General** / **Versions** / **Runs**
+      (`automations.navigation.editor` / `automations.navigation.general` /
       `automations.navigation.versions` / `automations.navigation.runs`), Editor
       active; at its right end the **Version** button
       (`automations.detail.versionSelect`) showing
       `automations.versions.versionLabel`, **Deploy this version**
       (`automations.detail.deployThis`) when looking ≠ live, **Test run**, **Run
       live**, **Discard**, **Save** — nothing sits in the title row's right
-      half. Body: canvas + inspector two-column grid filling the window under
-      the strip (canvas does not grow with inspector content). With no node
-      selected the inspector shows **Trigger** (`automations.trigger.title`) and
-      **Projects** (`automations.bindings.title`). Versions and runs are the
-      other two tabs (AUTO-F35), not panels under the canvas.
+      half. Body: canvas + inspector two-column grid filling the tab edge to
+      edge under the strip (AUTO-F37; canvas does not grow with inspector
+      content). With no node selected the inspector asks for one
+      (`automations.editor.title` + `automations.editor.noSelection`); the
+      trigger and the project bindings are the **General** tab (AUTO-F51),
+      versions and runs the last two tabs (AUTO-F35) — none of them panels
+      beside or under the canvas.
 - [ ] `AUTO-F13` · **Canvas graph** — On the workbench, inspect the canvas →
       Region labelled **Automation canvas** (`automations.canvas.ariaLabel`); each
       node is a box naming its type and inputs it reads
@@ -212,7 +216,8 @@ output:
       First click opens the node's fields, rings the box, and moves focus into the
       inspector (Tab reaches the fields next; scroll is at the top). **Close**,
       Escape (not while typing in a field), a second click on the same box, and
-      empty canvas all restore **Trigger** / **Projects**. Canvas height stays
+      empty canvas all return the inspector to its prompt
+      (`automations.editor.noSelection`). Canvas height stays
       put; extra node fields scroll inside the inspector. Inspector heading is the
       node id with a type badge (catalog copy is not dumped into the header).
       Typed fields come first (e.g. **Prompt**), then **Input**
@@ -306,15 +311,16 @@ output:
   **Your answer** (`automations.runs.ask.answerLabel`); **Send answer &
   resume** (`automations.runs.ask.submit`) resumes the SAME agent session —
   status leaves **Waiting** without reload.
-- [ ] `AUTO-F27` · **Trigger — schedule** — Open the workbench **Trigger**
-  panel on an automation with a schedule → **Trigger type**
+- [ ] `AUTO-F27` · **Trigger — schedule** — Open the **General** tab's
+  **Trigger** section on an automation with a schedule → **Trigger type**
   (`automations.trigger.kindLabel`) is Schedule; **Cron**
   (`automations.trigger.cronLabel`), **Timezone**, and the **Enabled** switch
   (`automations.trigger.enabledLabel`) reflect the stored trigger. Edit the
-  cron → **Save settings** (`automations.workflow.save`) persists on reload;
-  an unchanged form disables Save with `automations.workflow.nothingToSave`.
+  cron → the **General** tab's unsaved dot lights, and **Save**
+  (`common.actions.save`) in the strip persists it on reload; an unchanged form
+  leaves **Save** and **Discard** (`common.actions.discard`) disabled.
 - [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Trigger type** to
-  Webhook → **Save settings** → The warning
+  Webhook → **Save** → The warning
   `automations.trigger.tokenTitle` shows the full webhook URL once. The
   **Webhook endpoint** section (`automations.trigger.webhookEndpointLabel`)
   shows its POST command; after reload it uses a token placeholder and says
@@ -322,26 +328,26 @@ output:
   (`automations.trigger.rotate`) reveals a new URL and the old URL stops
   working.
 - [ ] `AUTO-F29` · **Trigger — remove** — **Remove trigger**
-      (`automations.trigger.remove`) → confirm (`automations.trigger.removeTitle`)
-      → The panel reads `automations.trigger.none` with an **Add trigger**
-      button (`automations.trigger.add`) — no Trigger type, Cron or Enabled
-      switch is drawn — immediately and after reload; versions and run
-      history untouched.
-- [ ] `AUTO-F30` · **Project bindings** — Inspector **Projects** (no node
-  selected) → select project(s) → **Save settings**
-  (`automations.workflow.save`) → The bound-count badge
+      (`automations.trigger.remove`, at the right of the **Trigger** section's
+      title) → confirm (`automations.trigger.removeTitle`) → The section reads
+      `automations.trigger.none` with an **Add trigger** button
+      (`automations.trigger.add`) — no Trigger type, Cron or Enabled switch is
+      drawn, and **Save** stays disabled (nothing is left as an unsaved edit) —
+      immediately and after reload; versions and run history untouched.
+- [ ] `AUTO-F30` · **Project bindings** — **General** tab → **Projects** →
+  select project(s) → **Save** (`common.actions.save`) → The bound-count badge
   (`automations.bindings.countBadge`) shows the saved number after reload;
   an empty selection shows no count badge and keeps the scope hint
   (`automations.bindings.hint`). The list row gains the project chip;
-  unchanged settings disable Save (`automations.workflow.nothingToSave`);
+  unchanged settings leave **Save** disabled;
   a bound project cannot be deleted while the binding stands.
 - [ ] `AUTO-F31` · **Project-scoped surface** —
       `/dashboard/{org}/projects/{projectId}/automations` then a bound
       automation's detail and one of its runs → The index lists only that
       project's automations inside the project shell; the detail carries the
-      same **Editor** / **Versions** / **Runs** strip and the run page the same
-      run UI under the Automations chrome; every tab, row and run link stays
-      inside `/dashboard/{org}/projects/{projectId}/…`
+      same **Editor** / **General** / **Versions** / **Runs** strip and the run
+      page the same run UI under the Automations chrome; every tab, row and run
+      link stays inside `/dashboard/{org}/projects/{projectId}/…`
 - [ ] `AUTO-F32` · **Task-board integration** — (env-gated: a pack whose
       manifest declares a task contract, e.g. the triage packs, deployed and run)
       Open the automation-created task on the project board → The task modal shows
@@ -366,6 +372,9 @@ output:
       strip (`common.aria.automationsNavigation`) → The bare
       `/dashboard/{org}/automations/{slug}` forwards to `…/{slug}/editor`;
       **Editor** (`automations.navigation.editor`) is the canvas workbench;
+      **General** (`automations.navigation.general`) →
+      `/dashboard/{org}/automations/{slug}/general` carries the trigger and the
+      project bindings (AUTO-F51);
       **Versions** (`automations.navigation.versions`) →
       `/dashboard/{org}/automations/{slug}/versions` lists every version newest
       first under `automations.versions.title` +
@@ -373,7 +382,8 @@ output:
       and no per-row deploy control; **Runs** (`automations.navigation.runs`) →
       `/dashboard/{org}/automations/{slug}/runs`; the active tab carries the
       underline and `aria-current="page"`; the action cluster (Version / Deploy
-      / Test run / Run live / Discard / Save) shows on the Editor tab only; the
+      / Test run / Run live / Discard / Save) shows on the Editor tab only, and
+      **General** shows **Discard** / **Save** alone; the
       breadcrumb switcher opens the same tab on the sibling automation (a run
       page switches to the sibling's Runs list); the project-scoped detail
       carries the identical strip.
@@ -383,13 +393,16 @@ output:
       same `?version=` opens the same picture; `?version=abc` opens the latest
       instead of erroring; after **Save version** the URL loses `?version=` and
       the canvas shows the new latest.
-- [ ] `AUTO-F37` · **The workbench sits in one even inset** — On the
-      **Editor** tab at a desktop width, measure the frame around the canvas
-      (DevTools, or the console one-liner below) → Every gap reads **16px**:
-      above the canvas, left of it, between canvas and inspector, right of the
-      inspector, and below them both. Switch to **Versions** and back: the
-      content does not shift up or down. The same even inset holds on the
-      Automations list and on a run's page.
+- [ ] `AUTO-F37` · **The Editor runs edge to edge** — On the **Editor** tab
+      at a desktop width, measure the workbench (DevTools, or the console
+      one-liner below) → Every gap reads **0px**: the canvas starts right under
+      the tab strip and at the page's left edge, draws no border of its own,
+      and meets the inspector at the inspector's left border; the
+      inspector ends at the window's right and bottom edges (a classic
+      scrollbar's reserved gutter aside). A refused run or deploy shows its
+      alert in a padded band above the workbench. The Automations list, the
+      **General** tab and a run's page keep the even 16px inset, and switching
+      tabs moves nothing up or down.
 
       ```js
       const canvas = document.querySelector('main .grid > :first-child');
@@ -407,9 +420,10 @@ output:
       ```
 
 - [ ] `AUTO-F38` · **The mobile dock still clears the last control** — At
-      phone width on the **Editor** tab, scroll the page to its end → The
-      inspector's last control (**Save settings**) sits clear ABOVE the
-      floating action dock, not under it; the dock's own row is fully
+      phone width on the **General** tab, and on the **Editor** tab with a node
+      selected, scroll the page to its end → The last control (the **Projects**
+      picker; the node's last field) sits clear ABOVE the floating action dock
+      (**Discard** / **Save**), not under it; the dock's own row is fully
       readable. Repeat on **Settings > Account** and on a project's Tasks
       board, which reserve the same clearance.
 - [ ] `AUTO-F39` · **Starters and waiting reasons read as words** — Start a
@@ -424,12 +438,12 @@ output:
       `automations.runs.waiting.repeat` (naming the step), never
       `approval:<uuid>` or `repeat:tick`; a failed run's row and header keep
       its failure sentence; a succeeded run's row shows its starter only.
-- [ ] `AUTO-F40` · **One cron validator** — In the **Trigger** panel on a
-      schedule, type a four-field cron (`*/1 * * *`), then a six-field one and
+- [ ] `AUTO-F40` · **One cron validator** — In the **General** tab's **Trigger**
+      section on a schedule, type a four-field cron (`*/1 * * *`), then a six-field one and
       `0 9 * * MON` → Each shows the refusal with the validator's own sentence
       under the field (`automations.trigger.cronInvalidReason`, e.g. "got 4")
-      and NO "Next run" line; **Save settings** is disabled with that reason;
-      nothing is sent to the server. A five-field cron restores the preview
+      and NO "Next run" line; **Save** in the tab strip stays disabled; nothing
+      is sent to the server. A five-field cron restores the preview
       (`automations.trigger.cronNext`).
 - [ ] `AUTO-F41` · **Blank wizard validates the schedule before creating** —
       **Create automation** › **Blank** › step 2 with **Schedule** → The
@@ -460,14 +474,14 @@ output:
 - [ ] `AUTO-F44` · **A schedule says what it will do** — On a deployed
       automation with an enabled schedule the Cron line reads the pattern and
       `automations.trigger.cronNext`. Switch **Enabled** off → the line reads
-      `automations.trigger.paused` with no next run, before and after **Save
-      settings** + reload. Open a not-deployed automation with a schedule (a
+      `automations.trigger.paused` with no next run, before and after **Save** +
+      reload. Open a not-deployed automation with a schedule (a
       fresh upload, or a built-in pack) → the line reads
       `automations.trigger.notDeployed` naming the would-be occurrence, never
       a bare "Next run"; deploy a version → the plain next run returns.
 - [ ] `AUTO-F45` · **A new trigger starts off** — On an automation with no
       trigger, **Add trigger** (`automations.trigger.add`) → the form opens
-      with **Enabled** OFF; type a cron and **Save settings** → after reload
+      with **Enabled** OFF; type a cron and **Save** → after reload
       the switch is still off and the Cron line reads
       `automations.trigger.paused`; nothing fires at the cron's minute. In the
       **Blank** wizard step 2, **Enable now** (`automations.blank.enableNow`)
@@ -475,7 +489,7 @@ output:
       check it → the trigger is on.
 - [ ] `AUTO-F46` · **Revoking a webhook asks first** — On an automation with
       a live webhook (AUTO-F28), switch **Trigger type** to Platform event and
-      **Save settings** → a confirm dialog
+      **Save** → a confirm dialog
       (`automations.trigger.revokeConfirm.title`) names the revocation;
       Cancel saves nothing and the old URL still answers 202; confirm → the
       binding changes, a toast (`automations.trigger.revokedToast`) says the
@@ -488,8 +502,8 @@ output:
       stays open on `automations.trigger.tokenTitle` with the full URL and a
       copy button (`automations.blank.copyWebhookUrl`); the copied URL
       answers 202 to a POST (after Deploy); **Open the automation**
-      (`automations.blank.openAutomation`) lands in the editor, whose Trigger
-      card says a token is active (`automations.trigger.hasToken`) — no
+      (`automations.blank.openAutomation`) lands in the editor, whose **General**
+      tab's Trigger section says a token is active (`automations.trigger.hasToken`) — no
       Rotate needed. Closing the dialog with Escape also lands there.
 - [ ] `AUTO-F48` · **Stopping a run asks first and keeps what ran** — On a
       live run parked on an approval (AUTO-F25) whose first node already ran,
@@ -528,6 +542,19 @@ output:
       `model` (no `modelProvider`), and a live run of that node succeeds.
       **Type a model that is not listed** (`automations.editor.llm.typeUnlisted`)
       shows the id box for free text.
+- [ ] `AUTO-F51` · **General tab** — Open
+      `/dashboard/{org}/automations/{slug}/general` with the developer
+      capability, edit the cron and add a project, leave for **Editor**,
+      stay, then **Save** → Two sections on the settings measure: **Trigger**
+      (`automations.trigger.title` + `automations.trigger.description`) with
+      **Enabled**, **Trigger type** and that kind's fields, then **Projects**
+      (`automations.bindings.title` + `automations.bindings.hint`) below a
+      divider. ONE **Discard** / **Save** cluster sits in the tab strip; an
+      edit lights the **General** tab's unsaved dot; leaving raises the
+      unsaved-changes dialog (`common.unsavedChanges.title`); **Save** writes
+      both sections and the dot clears; **Discard** puts both back. A member
+      without the capability sees the same settings read-only, with no
+      cluster and no **Remove trigger**.
 
 ## Boundary & error tests
 
