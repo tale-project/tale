@@ -408,7 +408,8 @@ describe('project-scoped task intake', () => {
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
-      error: 'Folder "Setup" does not exist in this project yet',
+      error:
+        'No root folder of this project carries that setup folder name yet',
       code: 'SETUP_FOLDER_MISSING',
     });
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
