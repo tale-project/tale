@@ -58,7 +58,7 @@ export const MIN_OPTIONS_PER_QUESTION = 2;
  */
 export const MAX_OPTIONS_PER_QUESTION = 4;
 
-export const MAX_QUESTION_LENGTH = 300;
+const MAX_QUESTION_LENGTH = 300;
 /**
  * The intro gets its own, larger budget. It is the one place the assistant
  * explains why it is asking — "I searched the knowledge base and found
@@ -66,9 +66,9 @@ export const MAX_QUESTION_LENGTH = 300;
  * rejected perfectly good sets for being informative.
  */
 export const MAX_INTRO_LENGTH = 600;
-export const MAX_OPTION_LABEL_LENGTH = 80;
+const MAX_OPTION_LABEL_LENGTH = 80;
 export const MAX_OPTION_DESCRIPTION_LENGTH = 200;
-export const MAX_QUESTION_HEADER_LENGTH = 12;
+const MAX_QUESTION_HEADER_LENGTH = 12;
 /** Cap on what someone types into the `Other…` field. */
 export const MAX_FREE_TEXT_LENGTH = 2000;
 

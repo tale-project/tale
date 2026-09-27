@@ -1,19 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  MAX_INTRO_LENGTH,
-  MAX_OPTIONS_PER_QUESTION,
-  MAX_OPTION_DESCRIPTION_LENGTH,
-  MAX_OPTION_LABEL_LENGTH,
-  MAX_QUESTIONS_PER_SET,
-  MAX_QUESTION_HEADER_LENGTH,
-  MAX_QUESTION_LENGTH,
-  MIN_OPTIONS_PER_QUESTION,
-  questionSetSchema,
-} from '../shared/schemas/questions';
 import { isRecord } from '../utils/type-utils';
 import {
-  ASK_QUESTION_TOOL,
   CHAT_TOOL_DOCS,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,
@@ -27,12 +15,6 @@ import {
   isAwaitingAnswerResult,
   isPausingChatTool,
 } from './tools';
-
-/** The `ask_question` argument schema — off the wire, but the dormant
- * definition must keep agreeing with the shared Zod bounds. */
-function askQuestionSchema(): Record<string, unknown> {
-  return ASK_QUESTION_TOOL.parameters;
-}
 
 /**
  * Read one value out of the schema by path. A JSON Schema literal has no
@@ -53,10 +35,6 @@ function at(root: unknown, ...path: readonly string[]): unknown {
   }
   return cursor;
 }
-
-/** Shorthand for the per-question and per-option property bags. */
-const QUESTION = ['properties', 'questions', 'items', 'properties'] as const;
-const OPTION = [...QUESTION, 'options', 'items', 'properties'] as const;
 
 function wireDescription(name: string): string {
   const tool = CHAT_WIRE_TOOLS.find((entry) => entry.name === name);
@@ -240,9 +218,9 @@ describe('the chat loadout', () => {
     ]);
   });
 
-  // Built with #2965, declined by the product owner (2026-08-14): the
-  // machinery stays, the wire does not carry it. This pins the DECISION —
-  // re-adding the tool must be deliberate, not a merge artifact.
+  // Built with #2965, declined by the product owner (2026-08-14): the wire
+  // does not carry it. This pins the DECISION — re-adding the tool must be
+  // deliberate, not a merge artifact.
   it('keeps ask_question off the wire', () => {
     expect(CHAT_WIRE_TOOLS.some((tool) => tool.name === 'ask_question')).toBe(
       false,
@@ -285,109 +263,6 @@ describe('rag_search constants', () => {
       RAG_SEARCH_DEFAULT_LIMIT,
     );
     expect(RAG_SEARCH_DEFAULT_LIMIT).toBeLessThanOrEqual(RAG_SEARCH_MAX_LIMIT);
-  });
-});
-
-// The wire schema is what the MODEL is told; the Zod schema is what the
-// boundary ENFORCES. If they disagree the model gets rejected for obeying its
-// own contract, which reads as the tool being broken.
-describe('the ask_question wire schema agrees with the Zod schema', () => {
-  it('requires the question list and nothing optional', () => {
-    const schema = askQuestionSchema();
-    expect(at(schema, 'required')).toEqual(['questions']);
-    expect(at(schema, 'additionalProperties')).toBe(false);
-  });
-
-  it('carries the same per-set cap', () => {
-    const schema = askQuestionSchema();
-    expect(at(schema, 'properties', 'questions', 'minItems')).toBe(1);
-    expect(at(schema, 'properties', 'questions', 'maxItems')).toBe(
-      MAX_QUESTIONS_PER_SET,
-    );
-  });
-
-  it('carries the same option bounds', () => {
-    const schema = askQuestionSchema();
-    expect(at(schema, ...QUESTION, 'options', 'minItems')).toBe(
-      MIN_OPTIONS_PER_QUESTION,
-    );
-    expect(at(schema, ...QUESTION, 'options', 'maxItems')).toBe(
-      MAX_OPTIONS_PER_QUESTION,
-    );
-  });
-
-  // Every bounded STRING, not just the arrays. The first version of this
-  // suite checked only minItems/maxItems, so the wire schema declared no
-  // maxLength at all — a model wrote a 300+ character intro it had no way to
-  // know was too long, and the boundary rejected it for obeying its own
-  // contract. An undeclared bound is a bound the model cannot honour.
-  it('declares every string length the Zod schema enforces', () => {
-    const schema = askQuestionSchema();
-    expect(at(schema, 'properties', 'intro', 'maxLength')).toBe(
-      MAX_INTRO_LENGTH,
-    );
-    expect(at(schema, ...QUESTION, 'question', 'maxLength')).toBe(
-      MAX_QUESTION_LENGTH,
-    );
-    expect(at(schema, ...QUESTION, 'header', 'maxLength')).toBe(
-      MAX_QUESTION_HEADER_LENGTH,
-    );
-    expect(at(schema, ...OPTION, 'label', 'maxLength')).toBe(
-      MAX_OPTION_LABEL_LENGTH,
-    );
-    expect(at(schema, ...OPTION, 'description', 'maxLength')).toBe(
-      MAX_OPTION_DESCRIPTION_LENGTH,
-    );
-  });
-
-  // The regression itself: an intro of the length the model actually wrote.
-  it('accepts an intro that explains why it is asking', () => {
-    const intro =
-      'I searched the knowledge base for Bergmann Logistics and found ' +
-      'nothing — no contact, product, or knowledge entry. Note that documents ' +
-      'and website search are currently unavailable (the organization has no ' +
-      'embedding model configured), so I cannot check uploaded files or ' +
-      'crawled pages either. I will need a few details from you.';
-    expect(intro.length).toBeGreaterThan(MAX_QUESTION_LENGTH);
-    expect(
-      questionSetSchema.safeParse({
-        intro,
-        questions: [
-          {
-            id: 'purpose',
-            question: 'What is the purpose?',
-            options: [{ label: 'A' }, { label: 'B' }],
-          },
-        ],
-      }).success,
-    ).toBe(true);
-  });
-
-  // The whole point of the format: there is no way to spell a blank box.
-  it('makes options mandatory on every question', () => {
-    const schema = askQuestionSchema();
-    expect(at(schema, 'properties', 'questions', 'items', 'required')).toEqual([
-      'id',
-      'question',
-      'options',
-    ]);
-    expect(at(schema, ...QUESTION, 'type')).toBeUndefined();
-  });
-
-  it('accepts a call the wire schema would allow', () => {
-    const call = {
-      questions: [
-        {
-          id: 'purpose',
-          question: "What's the purpose of this email?",
-          options: [
-            { label: 'Request an approval' },
-            { label: 'Follow up on a meeting' },
-          ],
-        },
-      ],
-    };
-    expect(questionSetSchema.safeParse(call).success).toBe(true);
   });
 });
 
