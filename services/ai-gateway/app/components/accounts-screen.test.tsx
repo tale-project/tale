@@ -1,9 +1,9 @@
 import { LocaleProvider } from '@tale/ui/i18n/locale-provider';
 import { TooltipProvider } from '@tale/ui/tooltip';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError, type AccountView } from '@/app/lib/api';
+import { ApiError, type AccountView, type UsageWindow } from '@/app/lib/api';
 import { i18n } from '@/lib/i18n/i18n';
 
 import { AccountsScreen } from './accounts-screen';
@@ -36,6 +36,38 @@ const account: AccountView = {
   usage: null,
 };
 
+/** An account in the pool whose reading holds these windows. */
+function reading(
+  label: string,
+  windows: Array<
+    Pick<UsageWindow, 'kind' | 'utilization'> & Partial<UsageWindow>
+  >,
+): AccountView {
+  return {
+    ...account,
+    id: label,
+    label,
+    accountEmail: null,
+    usage: {
+      windows: windows.map((window) => ({
+        label: null,
+        resetsAt: '2026-09-24T12:00:00.000Z',
+        windowSeconds: 5 * 60 * 60,
+        ...window,
+      })),
+      checkedAt: '2026-09-24T10:00:00.000Z',
+      stale: false,
+    },
+  };
+}
+
+/** The table row a label sits in. */
+function rowOf(label: string): HTMLElement {
+  const row = screen.getByText(label).closest('tr');
+  if (!row) throw new Error(`No row holds ${label}`);
+  return row;
+}
+
 const signedOut = () =>
   new ApiError('signed_out', 'The sign-in has run out.', 0);
 const unreachable = () => new ApiError('unreachable', 'Failed to fetch', 0);
@@ -67,6 +99,8 @@ describe('AccountsScreen', () => {
     // answers for the next one to receive.
     vi.resetAllMocks();
     vi.restoreAllMocks();
+    // jsdom has no clipboard; a test that lends one takes it back.
+    Reflect.deleteProperty(navigator, 'clipboard');
   });
 
   it('keeps the rows when a re-read fails, and says they may be behind', () => {
@@ -147,6 +181,58 @@ describe('AccountsScreen', () => {
     // Re-reading now puts the notice that offers to sign in again on screen
     // rather than a minute from now.
     expect(onReload).toHaveBeenCalledTimes(1);
+  });
+
+  it('greys a row whose session or weekly window is spent, and no other', () => {
+    show(
+      [
+        reading('Session spent', [
+          { kind: 'session', utilization: 100 },
+          { kind: 'weekly', utilization: 40 },
+        ]),
+        reading('Week spent', [{ kind: 'weekly', utilization: 100 }]),
+        reading('Model capped', [
+          { kind: 'session', utilization: 20 },
+          { kind: 'scoped', label: 'Fable', utilization: 100 },
+        ]),
+        reading('Nearly spent', [{ kind: 'session', utilization: 99.6 }]),
+      ],
+      null,
+    );
+
+    expect(rowOf('Session spent').className).toContain('opacity-60');
+    expect(rowOf('Week spent').className).toContain('opacity-60');
+    expect(rowOf('Model capped').className).not.toContain('opacity');
+    expect(rowOf('Nearly spent').className).not.toContain('opacity');
+  });
+
+  it('keeps every action on a spent row working', async () => {
+    api.command.mockResolvedValueOnce('claude');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    show([reading('Week spent', [{ kind: 'weekly', utilization: 100 }])], null);
+
+    fireEvent.keyDown(
+      within(rowOf('Week spent')).getByRole('button', {
+        name: 'Account actions',
+      }),
+      { key: 'Enter' },
+    );
+    await act(async () => {
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: 'Copy CLI command' }),
+      );
+    });
+
+    expect(api.command).toHaveBeenCalledWith('Week spent');
+    expect(writeText).toHaveBeenCalledWith('claude');
+    expect(toast).toHaveBeenCalledWith({
+      title: 'The command for Week spent is on your clipboard.',
+      variant: 'success',
+    });
   });
 
   it('keeps an action’s own failure for anything else', async () => {

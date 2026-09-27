@@ -16,7 +16,7 @@ import { TableDateCell } from '@tale/ui/table-date-cell';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef, Row } from '@tanstack/react-table';
 import { Copy, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -27,6 +27,7 @@ import {
   type ProviderId,
 } from '@/app/lib/api';
 import { reloadPage } from '@/app/lib/leave-for';
+import { planSpent } from '@/app/lib/usage-windows';
 import { useT } from '@/lib/i18n/client';
 
 import { AddAccountDialog, type AddAccountTarget } from './add-account-dialog';
@@ -39,6 +40,22 @@ import { UsageCell } from './usage-cell';
 
 /** The order the status filter offers, worst last. */
 const STATUS_ORDER = ['active', 'expired', 'error'] as const;
+
+/**
+ * An account whose session or weekly window is spent recedes the way a
+ * disabled row does, until that window rolls over.
+ *
+ * Only the look changes. Nothing about the account is switched off: it keeps
+ * its place in the order, its figures stay readable — the reason it is spent,
+ * and the countdown to when it is not — and its menu keeps full strength,
+ * because every action in it still works. The menu is the last column, so the
+ * dim stops one cell short of the end of the row.
+ */
+function spentRowClassName(row: Row<AccountView>): string {
+  return planSpent(row.original.usage?.windows ?? [])
+    ? '[&>td:not(:last-child)]:opacity-60'
+    : '';
+}
 
 interface AccountsScreenProps {
   /** The list as last read; `null` until a read has succeeded. */
@@ -468,6 +485,7 @@ export function AccountsScreen({
               // with a session that ran out, only a page load gets back in.
               error={accounts === null ? error : null}
               onRetry={signedOut ? reloadPage : onReload}
+              rowClassName={spentRowClassName}
             />
           </ContentArea>
         </PageLayout>

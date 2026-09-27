@@ -74,6 +74,7 @@ Change-scoped, by area:
 | copy or catalogs (any locale) | `SMOKE-4` |
 | controls, focus, geometry | `SMOKE-5` · [`automation.md`](reference/automation.md) first |
 | how the panel reads a failed request (`app/lib/api.ts`, the list's re-read) | `ACCT-19`, `ACCT-45`, `ACCT-46` |
+| how the panel draws a reading (`app/lib/usage-tint.ts`, `app/lib/usage-windows.ts`, the Usage and Resets in cells, a spent row) | `ACCT-25`, `ACCT-26`, `ACCT-30`, `ACCT-31`, `ACCT-35`, `ACCT-36`, `ACCT-47` |
 
 ## How a box works
 
