@@ -1,5 +1,5 @@
 import { FileIcon, ImageIcon, MusicIcon, VideoIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { Dispatch, ReactNode, SetStateAction } from 'react';
 
 import type { Message as ConversationMessage } from '../../types';
 
@@ -58,12 +58,18 @@ export interface MessageEditorProps {
   pendingMessage?: Pick<ConversationMessage, 'id' | 'content'> & {
     attachments?: AttachedFile[];
   };
+  /** Keep live files with the caller when it switches between reply editors. */
+  attachments?: AttachedFile[];
+  onAttachmentsChange?: Dispatch<SetStateAction<AttachedFile[]>>;
+  /** Fired once a seed is applied, so it cannot overwrite later draft edits. */
+  onPendingMessageApplied?: (
+    message: NonNullable<MessageEditorProps['pendingMessage']>,
+  ) => void;
   /**
-   * Fired on a successful send, before the editor remounts. Callers that seed
-   * via `pendingMessage` (undo-send restore) must clear that seed here so the
-   * remount does not re-initialize from a still-present draft — send runs
-   * inside `startTransition`, so clearing the seed at send-start can lag the
-   * remount.
+   * Fired on a successful send, before the editor remounts. A caller keeping
+   * its seed until send completes can clear it here in the same React batch
+   * as the remount. Undo drafts instead clear on application so navigation
+   * preserves subsequent edits.
    */
   onPendingMessageConsumed?: () => void;
   hasMessageHistory?: boolean;

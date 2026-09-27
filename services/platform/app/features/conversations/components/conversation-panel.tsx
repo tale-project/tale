@@ -17,7 +17,13 @@ import {
   RefreshCwIcon,
   ShieldAlertIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from 'react';
 
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
@@ -180,19 +186,15 @@ export function ConversationPanel({
   const { mutate: retrySendMessage } = useRetrySendMessage();
   const { mutate: discardOutboundMessage } = useDiscardOutboundMessage();
 
-  // Draft handed back by an undo-send: seeds the composer's pendingMessage so
-  // the message the user just cancelled reappears exactly as they wrote it —
-  // its text and its files. Cleared via
-  // MessageEditor.onPendingMessageConsumed on a successful resend (same turn
-  // as the editor remount) so the remount cannot re-seed from it. It seeds
-  // only the conversation it was undone in: the panel outlives a switch, and
-  // another thread's reply must never pick up this one's text or files.
-  const [restoredDraft, setRestoredDraft] = useState<
-    | (NonNullable<MessageEditorProps['pendingMessage']> & {
-        conversationId: string;
-      })
-    | undefined
-  >(undefined);
+  // An undo is a one-time seed. Once applied, the editor persists its body
+  // and this panel keeps its live files per conversation, including removals.
+  // Null records a consumed undo so a still-cached approval cannot replace it.
+  const [restoredDrafts, setRestoredDrafts] = useState<
+    Record<string, NonNullable<MessageEditorProps['pendingMessage']> | null>
+  >({});
+  const [draftAttachments, setDraftAttachments] = useState<
+    Record<string, AttachedFile[]>
+  >({});
 
   const { formatDate } = useFormatDate();
 
@@ -354,12 +356,14 @@ export function ConversationPanel({
           // alone are the draft.
           const files = (attachments ?? []).map(storedAttachedFile);
           if (sourceMarkdown || files.length > 0) {
-            setRestoredDraft({
-              id: messageId,
-              content: sourceMarkdown ?? '',
-              attachments: files,
-              conversationId,
-            });
+            setRestoredDrafts((drafts) => ({
+              ...drafts,
+              [conversationId]: {
+                id: messageId,
+                content: sourceMarkdown ?? '',
+                attachments: files,
+              },
+            }));
           }
         },
         onError: (error) => {
@@ -666,15 +670,27 @@ export function ConversationPanel({
                     onSelectedConversationChange(null);
                   }}
                   pendingMessage={
-                    restoredDraft?.conversationId === conversation.id
-                      ? restoredDraft
+                    conversation.id in restoredDrafts
+                      ? (restoredDrafts[conversation.id] ?? undefined)
                       : pendingMessage
                   }
-                  onPendingMessageConsumed={() =>
-                    setRestoredDraft((draft) =>
-                      draft?.conversationId === conversation.id
-                        ? undefined
-                        : draft,
+                  attachments={draftAttachments[conversation.id] ?? []}
+                  onAttachmentsChange={(next: SetStateAction<AttachedFile[]>) =>
+                    setDraftAttachments((current) => ({
+                      ...current,
+                      [conversation.id]:
+                        typeof next === 'function'
+                          ? next(current[conversation.id] ?? [])
+                          : next,
+                    }))
+                  }
+                  onPendingMessageApplied={(
+                    applied: NonNullable<MessageEditorProps['pendingMessage']>,
+                  ) =>
+                    setRestoredDrafts((current) =>
+                      current[conversation.id] === applied
+                        ? { ...current, [conversation.id]: null }
+                        : current,
                     )
                   }
                   hasMessageHistory={displayMessages.length > 0}

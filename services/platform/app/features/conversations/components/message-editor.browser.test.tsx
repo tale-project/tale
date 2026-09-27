@@ -12,26 +12,16 @@ import '@/app/globals.css';
 
 import { useSendMessageViaConnector } from '../hooks/mutations';
 import { MessageEditor } from './message-editor';
-import { storedAttachedFile } from './message-editor/types';
-
-const persisted = vi.hoisted(() => ({ body: '' }));
+import {
+  storedAttachedFile,
+  messageDraftKeys,
+  type AttachedFile,
+  type MessageEditorProps,
+} from './message-editor/types';
 
 vi.mock('@/app/hooks/use-session-user', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/app/hooks/use-session-user')>()),
   useAuth: () => ({ user: { userId: 'user1' } }),
-}));
-vi.mock('@/app/hooks/use-persisted-state', () => ({
-  usePersistedState: (_key: string, initial: string) => {
-    const [value, setValue] = useState(initial);
-    return [
-      value,
-      (next: string) => {
-        persisted.body = next;
-        setValue(next);
-      },
-      () => setValue(initial),
-    ];
-  },
 }));
 vi.mock('../hooks/actions', () => ({
   useImproveMessage: () => ({ mutateAsync: vi.fn() }),
@@ -48,6 +38,7 @@ vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  window.localStorage.clear();
 });
 
 describe('Inbox real rich-text editor', () => {
@@ -63,7 +54,11 @@ describe('Inbox real rich-text editor', () => {
     await user.click(textbox);
     await user.keyboard('A named message');
     expect(textbox).toHaveTextContent('A named message');
-    await waitFor(() => expect(persisted.body).toContain('A named message'));
+    await waitFor(() =>
+      expect(
+        window.localStorage.getItem(messageDraftKeys('user1', undefined).body),
+      ).toContain('A named message'),
+    );
   });
 });
 
@@ -247,4 +242,105 @@ describe('Inbox reply that carries only a file', () => {
     });
     expect(toast).not.toHaveBeenCalled();
   });
+});
+
+// The panel keeps live files per conversation and consumes each undo seed
+// once applied; the body keeps using the real persisted draft hook.
+it('keeps removed files removed and edited text after leaving an undo draft', async () => {
+  const invoice = storedAttachedFile({
+    storageId: 's3:org1/invoice',
+    fileName: 'invoice.pdf',
+    contentType: 'application/pdf',
+    size: 8,
+  });
+  const receipt = storedAttachedFile({
+    storageId: 's3:org1/receipt',
+    fileName: 'receipt.pdf',
+    contentType: 'application/pdf',
+    size: 9,
+  });
+  const onSave = vi.fn().mockResolvedValue(undefined);
+  function Conversations() {
+    const [id, setId] = useState('c1');
+    const [seeds, setSeeds] = useState<
+      Record<string, MessageEditorProps['pendingMessage']>
+    >({
+      c1: { id: 'm1', content: 'Original invoice', attachments: [invoice] },
+      c2: { id: 'm2', content: 'Other reply', attachments: [receipt] },
+    });
+    const [files, setFiles] = useState<Record<string, AttachedFile[]>>({});
+    return (
+      <>
+        <button onClick={() => setId('c1')}>First conversation</button>
+        <button onClick={() => setId('c2')}>Second conversation</button>
+        <MessageEditor
+          key={id}
+          organizationId="org1"
+          messageId={id}
+          placeholder="Write your message…"
+          pendingMessage={seeds[id]}
+          onSave={onSave}
+          attachments={files[id] ?? []}
+          onAttachmentsChange={(next) =>
+            setFiles((current) => ({
+              ...current,
+              [id]: typeof next === 'function' ? next(current[id] ?? []) : next,
+            }))
+          }
+          onPendingMessageApplied={() =>
+            setSeeds((current) => ({ ...current, [id]: undefined }))
+          }
+        />
+      </>
+    );
+  }
+  const { user } = render(<Conversations />);
+  await screen.findByRole('textbox', { name: 'Write your message…' });
+  await user.click(
+    await screen.findByRole('button', { name: 'Remove invoice.pdf' }),
+  );
+  await page
+    .getByRole('textbox', { name: 'Write your message…' })
+    .fill('Edited reply');
+  await waitFor(() =>
+    expect(
+      window.localStorage.getItem(messageDraftKeys('user1', 'c1').body),
+    ).toContain('Edited reply'),
+  );
+  await user.click(screen.getByRole('button', { name: 'Second conversation' }));
+  expect(
+    await screen.findByRole('button', { name: 'Remove receipt.pdf' }),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'First conversation' }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole('textbox', { name: 'Write your message…' }),
+    ).toHaveTextContent('Edited reply'),
+  );
+  expect(
+    screen.queryByRole('button', { name: 'Remove invoice.pdf' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Remove receipt.pdf' }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Send message' }));
+  await waitFor(() =>
+    expect(onSave).toHaveBeenCalledWith(
+      expect.stringContaining('Edited reply'),
+      [],
+      expect.stringContaining('Edited reply'),
+    ),
+  );
+  await user.click(screen.getByRole('button', { name: 'Second conversation' }));
+  expect(
+    await screen.findByRole('button', { name: 'Remove receipt.pdf' }),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Send message' }));
+  await waitFor(() =>
+    expect(onSave).toHaveBeenLastCalledWith(
+      expect.stringContaining('Other reply'),
+      [receipt],
+      expect.stringContaining('Other reply'),
+    ),
+  );
 });

@@ -1,3 +1,4 @@
+import { act } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -230,5 +231,91 @@ describe('ConversationPanel — undoing a reply', () => {
 
     await waitFor(() => expect(editor?.pendingMessage).toBeUndefined());
     expect(screen.queryByText('invoice.pdf')).not.toBeInTheDocument();
+  });
+
+  it("keeps each conversation's edited files after applying its undo seed", async () => {
+    undone = { sourceMarkdown: 'Original invoice', attachments: [INVOICE] };
+    const { rerender, user } = await renderAndUndo();
+    await waitFor(() =>
+      expect(editor?.pendingMessage?.attachments).toHaveLength(1),
+    );
+
+    await act(async () => {
+      const seed = editor?.pendingMessage;
+      if (!seed) throw new Error('Undo did not seed the editor');
+      editor?.onAttachmentsChange?.(seed.attachments ?? []);
+      editor?.onPendingMessageApplied?.(seed);
+    });
+    await waitFor(() => expect(editor?.pendingMessage).toBeUndefined());
+    await act(async () => editor?.onAttachmentsChange?.([]));
+
+    conversation = conversationFixture('c2');
+    rerender(
+      <ConversationPanel
+        selectedConversationId="c2"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    const receipt = {
+      ...INVOICE,
+      storageId: 's3:org1/receipt',
+      fileName: 'receipt.pdf',
+    };
+    undone = { sourceMarkdown: 'Other reply', attachments: [receipt] };
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(editor?.pendingMessage?.content).toBe('Other reply'),
+    );
+    await act(async () => {
+      const seed = editor?.pendingMessage;
+      if (!seed) throw new Error('Undo did not seed the editor');
+      editor?.onAttachmentsChange?.(seed.attachments ?? []);
+      editor?.onPendingMessageApplied?.(seed);
+    });
+
+    conversation = conversationFixture('c1');
+    rerender(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(editor?.conversationId).toBe('c1'));
+    expect(editor?.pendingMessage).toBeUndefined();
+    expect(editor?.attachments).toEqual([]);
+    await editor?.onSave?.(
+      '<p>Edited reply</p>',
+      editor.attachments,
+      'Edited reply',
+    );
+    expect(sendMessageViaConnector).toHaveBeenLastCalledWith({
+      conversationId: 'c1',
+      organizationId: 'org1',
+      content: '<p>Edited reply</p>',
+      sourceMarkdown: 'Edited reply',
+    });
+
+    conversation = conversationFixture('c2');
+    rerender(
+      <ConversationPanel
+        selectedConversationId="c2"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(editor?.conversationId).toBe('c2'));
+    expect(editor?.pendingMessage).toBeUndefined();
+    expect(editor?.attachments?.map(attachedFileName)).toEqual(['receipt.pdf']);
+    await editor?.onSave?.(
+      '<p>Other reply</p>',
+      editor.attachments,
+      'Other reply',
+    );
+    expect(sendMessageViaConnector).toHaveBeenLastCalledWith({
+      conversationId: 'c2',
+      organizationId: 'org1',
+      content: '<p>Other reply</p>',
+      sourceMarkdown: 'Other reply',
+      attachments: [receipt],
+    });
   });
 });

@@ -53,6 +53,9 @@ function MilkdownEditorInner({
   conversationId: _conversationId,
   onConversationResolved: _onConversationResolved,
   pendingMessage,
+  attachments,
+  onAttachmentsChange,
+  onPendingMessageApplied,
   hasMessageHistory = false,
   onMessageSent,
   organizationId,
@@ -74,13 +77,18 @@ function MilkdownEditorInner({
   const [improveInstruction, setImproveInstruction, clearImproveInstruction] =
     usePersistedState(draftKeys.improveInstruction, '');
 
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [localAttachedFiles, setLocalAttachedFiles] = useState<AttachedFile[]>(
+    [],
+  );
+  const attachedFiles = attachments ?? localAttachedFiles;
+  const setAttachedFiles = onAttachmentsChange ?? setLocalAttachedFiles;
   const [isImproveMode, setIsImproveMode] = useState(false);
   const [isImproving, startImprovingTransition] = useTransition();
   const [isSending, startSendingTransition] = useTransition();
   const [isFocused, setIsFocused] = useState(false);
 
-  const initialHasContent = (pendingMessage?.content?.trim().length ?? 0) > 0;
+  const initialHasContent =
+    (message || pendingMessage?.content || '').trim().length > 0;
   const [hasContent, setHasContent] = useState(initialHasContent);
 
   const [savedEditorContent, setSavedEditorContent] = useState('');
@@ -177,7 +185,16 @@ function MilkdownEditorInner({
         ),
       ]);
     }
-  }, [pendingId, pendingContent, pendingAttachments, setMessage]);
+    if (pendingMessage) onPendingMessageApplied?.(pendingMessage);
+  }, [
+    pendingId,
+    pendingContent,
+    pendingAttachments,
+    pendingMessage,
+    setMessage,
+    setAttachedFiles,
+    onPendingMessageApplied,
+  ]);
 
   const handleOpenInstructionTextarea = useCallback(() => {
     setSavedEditorContent(message);
@@ -291,16 +308,23 @@ function MilkdownEditorInner({
     clearMessage,
     clearImproveInstruction,
     onMessageSent,
+    setAttachedFiles,
     tConversations,
   ]);
 
-  const handleFileAttach = useCallback((file: AttachedFile) => {
-    setAttachedFiles((prev) => [...prev, file]);
-  }, []);
+  const handleFileAttach = useCallback(
+    (file: AttachedFile) => {
+      setAttachedFiles((prev) => [...prev, file]);
+    },
+    [setAttachedFiles],
+  );
 
-  const handleRemoveFile = useCallback((fileId: string) => {
-    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId));
-  }, []);
+  const handleRemoveFile = useCallback(
+    (fileId: string) => {
+      setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId));
+    },
+    [setAttachedFiles],
+  );
 
   const handleCloseImproveMode = useCallback(() => {
     setIsImproveMode(false);
