@@ -209,6 +209,24 @@ describe('ProjectOverview', () => {
     );
   });
 
+  // The Instructions section IS its one field: the section header is the
+  // textarea's label and hint, so the body is the bare textarea and its
+  // counter — no nested, unnamed form group between the two.
+  it('frames the instructions textarea by its section alone', () => {
+    renderOverview();
+
+    const textarea = screen.getByRole('textbox', { name: 'Instructions' });
+    const section = textarea.closest('[data-settings-section]');
+    expect(section).toHaveAccessibleName('Instructions');
+    for (
+      let el = textarea.parentElement;
+      el && el !== section;
+      el = el.parentElement
+    ) {
+      expect(el).not.toHaveAttribute('role', 'group');
+    }
+  });
+
   describe('save feedback', () => {
     it('places a name the server refused under its own field, with no toast', async () => {
       mockUpdateIdentity.mockRejectedValueOnce(

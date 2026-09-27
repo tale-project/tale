@@ -4,6 +4,7 @@ import {
 } from '@tale/ui/analytics/browser';
 import { AppShell } from '@tale/ui/app-shell';
 import { loadDayjsLocale } from '@tale/ui/date';
+import { SupportUrlProvider } from '@tale/ui/error-boundaries/support-url';
 import { SwUpdateToasts } from '@tale/ui/pwa/sw-update-toasts';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
@@ -17,6 +18,7 @@ import { BackupCodesDialogProvider } from '@/app/features/settings/account/compo
 import { useSessionUser } from '@/app/hooks/use-session-user';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { installStaleBundleRecovery } from '@/app/lib/stale-bundle-recovery';
+import { getEnv } from '@/lib/env';
 import { i18n } from '@/lib/i18n/i18n';
 import { SiteUrlProvider } from '@/lib/site-url-context';
 
@@ -85,25 +87,29 @@ function App() {
   return (
     <StrictMode>
       <SiteUrlProvider>
-        <AppShell
-          i18n={i18n}
-          locale={{ mode: 'client', onChange: loadDayjsLocale }}
-          theme
-        >
-          <QueryClientProvider client={queryClient}>
-            <ColdLoadProbe />
-            <LazyMotion features={domAnimation} strict>
-              <BrandingProvider>
-                <BackupCodesDialogProvider>
-                  <OnlineGate>
-                    <RouterProvider router={router} />
-                  </OnlineGate>
-                  <SwUpdateToasts />
-                </BackupCodesDialogProvider>
-              </BrandingProvider>
-            </LazyMotion>
-          </QueryClientProvider>
-        </AppShell>
+        {/* The operator's support page for every error display, the router's
+            default error component included (TALE_CONTACT_SUPPORT_URL). */}
+        <SupportUrlProvider url={getEnv('TALE_CONTACT_SUPPORT_URL')}>
+          <AppShell
+            i18n={i18n}
+            locale={{ mode: 'client', onChange: loadDayjsLocale }}
+            theme
+          >
+            <QueryClientProvider client={queryClient}>
+              <ColdLoadProbe />
+              <LazyMotion features={domAnimation} strict>
+                <BrandingProvider>
+                  <BackupCodesDialogProvider>
+                    <OnlineGate>
+                      <RouterProvider router={router} />
+                    </OnlineGate>
+                    <SwUpdateToasts />
+                  </BackupCodesDialogProvider>
+                </BrandingProvider>
+              </LazyMotion>
+            </QueryClientProvider>
+          </AppShell>
+        </SupportUrlProvider>
       </SiteUrlProvider>
     </StrictMode>
   );

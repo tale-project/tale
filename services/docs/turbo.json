@@ -1,0 +1,22 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/docs/**",
+        "$TURBO_ROOT$/README*.md"
+      ]
+    },
+    "build": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**"]
+    },
+    "typecheck": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/*.json"]
+    },
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/*.json"]
+    }
+  }
+}

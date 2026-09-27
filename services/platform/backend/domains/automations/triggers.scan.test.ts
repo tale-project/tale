@@ -8,10 +8,12 @@
  * transaction, so `lastFiredAt` and `lastRunId` move only when a run was
  * inserted and an undeployed automation records a skip instead; a refused
  * start keeps its claim and records `start_refused`; an unusable expression
- * records `unusable_cron` and is left out of the next page; and the
- * undeployed schedules are summarised in one line, not one per trigger. The
- * real-Postgres probe (`integration-check.ts`) proves the fairness count and
- * the overlapping-scan exactly-once on the actual schema.
+ * records `unusable_cron` and is left out of the next page; a schedule
+ * whose organization no longer exists is never claimed, only disabled and
+ * named once; and the undeployed schedules are summarised in one line, not
+ * one per trigger. The real-Postgres probe (`integration-check.ts`) proves
+ * the fairness count and the overlapping-scan exactly-once on the actual
+ * schema.
  */
 
 import type { Sql } from 'postgres';
@@ -55,18 +57,21 @@ function triggerRow(id: string, now: number): Record<string, unknown> {
     lastSkipReason: null,
     createdAt: now - 600_000,
     updatedAt: now - 600_000,
+    orgMissing: false,
   };
 }
 
 /**
- * Scripted `sql`: page queries pop from `pages`; inside `begin` the claim
- * UPDATE pops from `claims` and every other statement answers no rows;
- * `beginRunInTx` is mocked per test. The scan's own contract is what is
- * under test — the run store's is its own.
+ * Scripted `sql`: page queries pop from `pages`; the disable of orphaned
+ * schedules pops from `retired`; inside `begin` the claim UPDATE pops from
+ * `claims` and every other statement answers no rows; `beginRunInTx` is
+ * mocked per test. The scan's own contract is what is under test — the run
+ * store's is its own.
  */
 function fakeScan(script: {
   pages: Record<string, unknown>[][];
   claims: { id: string }[][];
+  retired?: { organizationId: string; name: string }[][];
 }): FakeScan {
   const statements: Statement[] = [];
   const transactions: Statement[][] = [];
@@ -75,6 +80,9 @@ function fakeScan(script: {
     statements.push({ text, values });
     if (text.startsWith('SELECT')) {
       return Promise.resolve(script.pages.shift() ?? []);
+    }
+    if (text.includes('SET enabled = false')) {
+      return Promise.resolve(script.retired?.shift() ?? []);
     }
     return Promise.resolve([]);
   };
@@ -105,6 +113,8 @@ const fireStamps = (fake: FakeScan): Statement[] =>
   fake.statements.filter((s) => s.text.includes('SET last_fired_at_ms'));
 const skipStamps = (fake: FakeScan): Statement[] =>
   fake.statements.filter((s) => s.text.includes('SET last_skipped_at_ms'));
+const retirements = (fake: FakeScan): Statement[] =>
+  fake.statements.filter((s) => s.text.includes('SET enabled = false'));
 
 beforeEach(() => {
   vi.mocked(beginRunInTx).mockReset();
@@ -142,6 +152,7 @@ describe('scanScheduledTriggers', () => {
       undeployed: 1,
       refused: 0,
       unusable: 0,
+      orphaned: 0,
     });
     // Only the WON claims reached the run store.
     expect(beginRunInTx).toHaveBeenCalledTimes(3);
@@ -172,8 +183,14 @@ describe('scanScheduledTriggers', () => {
         "last_skip_reason IS DISTINCT FROM 'unusable_cron'",
       );
       expect(query.text).toContain('updated_at_ms > last_skipped_at_ms');
+      // Every row says whether its organization still exists.
+      expect(query.text).toContain(
+        'NOT EXISTS ( SELECT 1 FROM "organization" o WHERE o."id" = t.org_id ) AS "orgMissing"',
+      );
       expect(query.values).toContain(3);
     }
+    // Every organization exists here: nothing is disabled.
+    expect(retirements(fake)).toHaveLength(0);
     // The second page starts after the last id of the first.
     expect(pageQueries[0]?.values).toContain(null);
     expect(pageQueries[1]?.values).toContain('t3');
@@ -316,6 +333,7 @@ describe('scanScheduledTriggers', () => {
       undeployed: 0,
       refused: 0,
       unusable: 0,
+      orphaned: 0,
     });
     expect(beginRunInTx).not.toHaveBeenCalled();
     expect(fake.statements).toHaveLength(1);
@@ -372,6 +390,7 @@ describe('scanScheduledTriggers', () => {
       undeployed: 0,
       refused: 0,
       unusable: 1,
+      orphaned: 0,
     });
     const skipped = skipStamps(fake);
     expect(skipped).toHaveLength(1);
@@ -410,6 +429,101 @@ describe('scanScheduledTriggers', () => {
 
     expect(result.unusable).toBe(1);
     expect(skipStamps(fake)).toHaveLength(1);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('disables a schedule whose organization is gone — never claimed, never run — and names it in one line', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const now = Date.now();
+    const orphan = (id: string): Record<string, unknown> => ({
+      ...triggerRow(id, now),
+      organizationId: 'org_gone',
+      orgMissing: true,
+    });
+    const fake = fakeScan({
+      pages: [
+        [orphan('t1'), triggerRow('t2', now)],
+        // An orphan whose expression cannot parse is disabled all the same:
+        // nothing about it is read before its organization is.
+        [{ ...orphan('t3'), cron: 'not a cron' }],
+      ],
+      claims: [[{ id: 't2' }]],
+      retired: [
+        [{ organizationId: 'org_gone', name: 'sched/t1' }],
+        [{ organizationId: 'org_gone', name: 'sched/t3' }],
+      ],
+    });
+    vi.mocked(beginRunInTx).mockResolvedValueOnce({ runId: 'r2', version: 1 });
+
+    const result = await scanScheduledTriggers(fake.sql, { pageSize: 2 });
+
+    expect(result).toEqual({
+      examined: 3,
+      fired: 1,
+      pages: 2,
+      undeployed: 0,
+      refused: 0,
+      unusable: 0,
+      orphaned: 2,
+    });
+    // Only the live organization's schedule was claimed and run.
+    expect(beginRunInTx).toHaveBeenCalledTimes(1);
+    expect(beginRunInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ name: 'sched/t2' }),
+    );
+    const claims = claimsOf(fake);
+    expect(claims).toHaveLength(1);
+    expect(claims[0]?.values).toContain('t2');
+    expect(skipStamps(fake)).toHaveLength(0);
+
+    // One conditional disable per page, outside any claim's transaction: it
+    // re-checks the organization and the switch at the write.
+    const retired = retirements(fake);
+    expect(retired.map((statement) => statement.values[0])).toEqual([
+      ['t1'],
+      ['t3'],
+    ]);
+    for (const statement of retired) {
+      expect(statement.text).toContain('t.enabled = true');
+      expect(statement.text).toContain(
+        'NOT EXISTS ( SELECT 1 FROM "organization" o WHERE o."id" = t.org_id )',
+      );
+      expect(statement.text).toContain('RETURNING');
+    }
+    expect(fake.transactions.flat()).not.toContainEqual(retired[0]);
+
+    // One line for the scan, naming each binding it disabled.
+    const lines = warn.mock.calls.filter((call) =>
+      String(call[0]).includes('whose organization no longer exists'),
+    );
+    expect(lines).toHaveLength(1);
+    expect(String(lines[0]?.[0])).toContain('disabled 2 schedule(s)');
+    expect(String(lines[0]?.[0])).toContain('org_gone/sched/t1');
+    expect(String(lines[0]?.[0])).toContain('org_gone/sched/t3');
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes('unusable schedule'),
+      ),
+    ).toBe(false);
+  });
+
+  it('stays silent about an orphan another scan disabled first', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const now = Date.now();
+    const fake = fakeScan({
+      pages: [[{ ...triggerRow('t1', now), orgMissing: true }]],
+      claims: [],
+      // The overlapping scan's write matched it first: nothing comes back.
+      retired: [[]],
+    });
+
+    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+
+    expect(result).toMatchObject({ examined: 1, fired: 0, orphaned: 0 });
+    expect(retirements(fake)).toHaveLength(1);
+    expect(claimsOf(fake)).toHaveLength(0);
+    expect(beginRunInTx).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
 });

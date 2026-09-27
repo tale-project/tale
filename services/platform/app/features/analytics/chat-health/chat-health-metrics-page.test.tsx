@@ -118,7 +118,9 @@ describe('ChatHealthMetricsPage', () => {
         onChangePeriod={() => undefined}
       />,
     );
-    expect(container.querySelector('.bg-blue-500')).toBeNull();
+    expect(
+      container.querySelector('[data-slot="active-filter-dot"]'),
+    ).toBeNull();
     unmount();
 
     const other = render(
@@ -128,7 +130,9 @@ describe('ChatHealthMetricsPage', () => {
         onChangePeriod={() => undefined}
       />,
     );
-    expect(other.container.querySelector('.bg-blue-500')).not.toBeNull();
+    expect(
+      other.container.querySelector('[data-slot="active-filter-dot"]'),
+    ).not.toBeNull();
   });
 
   it('passes axe audit in its loaded state', async () => {

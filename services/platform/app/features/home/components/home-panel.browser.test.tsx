@@ -7,7 +7,7 @@ import type {
   ChatProjectSummary,
   ChatThreadSummary,
 } from '@/app/features/chat/types';
-import { cleanup, render, screen } from '@/tests/utils/render';
+import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
 import type { HomeItem } from '../lib/home-items';
@@ -115,6 +115,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  document.documentElement.style.removeProperty('--primary');
   backend.move.mockClear();
   backend.setArchived.mockClear();
   // The view, the projects disclosure and the drawer persist in localStorage.
@@ -158,13 +159,14 @@ function chatList(count: number): ChatThreadSummary[] {
 function homeData(
   projects: ChatProjectSummary[],
   threads: ChatThreadSummary[],
+  unread: readonly string[] = [],
 ): HomeData {
   const items: HomeItem[] = threads.map((thread) => ({
     kind: 'chat',
     id: thread.id,
     title: thread.title ?? '',
     activityAt: thread.updatedAt,
-    unread: false,
+    unread: unread.includes(thread.id),
     generating: false,
     shared: false,
   }));
@@ -192,13 +194,15 @@ function renderHome({
   projects = [],
   threads = [],
   openThreadId = 'chat-0',
+  unread = [],
 }: {
   height?: number;
   projects?: ChatProjectSummary[];
   threads?: ChatThreadSummary[];
   openThreadId?: string;
+  unread?: readonly string[];
 }) {
-  backend.home = homeData(projects, threads);
+  backend.home = homeData(projects, threads, unread);
   backend.location = {
     pathname: `/dashboard/${ORG}/chat/${openThreadId}`,
     search: {},
@@ -508,5 +512,20 @@ describe('Home panel in Chromium', () => {
 
     expect(backend.setArchived).not.toHaveBeenCalled();
     expect(backend.move).not.toHaveBeenCalled();
+  });
+
+  it("marks an unread chat with a dot in the organization's accent", () => {
+    // `--primary` is what the branding provider sets from an org's accent;
+    // the dot once stayed a fixed blue whatever the org picked.
+    document.documentElement.style.setProperty('--primary', '300 100% 32%');
+    renderHome({ threads: chatList(3), unread: ['chat-1'] });
+
+    const dot = within(chatRow('chat-1')).getByText(
+      'Unread',
+    ).nextElementSibling;
+    expect(dot).toBeInstanceOf(HTMLElement);
+    expect(getComputedStyle(dot as HTMLElement).backgroundColor).toBe(
+      'rgb(163, 0, 163)',
+    );
   });
 });

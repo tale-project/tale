@@ -11,6 +11,7 @@
  * backend/rest/* adapters over the domain services), not an aspiration.
  */
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import {
   PROJECT_AGENT_BINDINGS_MAX,
   PROJECT_AGENT_MODEL_MAX,
@@ -393,6 +394,13 @@ const epochMs: Json = {
   minimum: 0,
   description: 'Epoch milliseconds',
 };
+/** A timestamp a request carries, held to the bound every door holds it to
+ * (`epochMsSchema`): whole epoch milliseconds a `Date` can hold. */
+const epochMsInput: Json = {
+  type: 'integer',
+  minimum: 0,
+  maximum: EPOCH_MS_MAX,
+};
 const int: Json = { type: 'integer' };
 
 /** The keys of a run — the `Run` schema in full, and the `RunProjection` a
@@ -752,9 +760,7 @@ const projectAgentUpdateSpec: Json = {
       ? projectAgentInputSpec.properties
       : {}),
     expectedUpdatedAt: {
-      type: 'integer',
-      minimum: 0,
-      maximum: Number.MAX_SAFE_INTEGER,
+      ...epochMsInput,
       description:
         'The `updatedAt` last read; a save against an agent that changed ' +
         'since answers 409 `PROJECT_AGENT_STALE` and writes nothing. ' +
@@ -917,9 +923,7 @@ const productInputProperties: Record<string, Json> = {
 
 /** The `updatedAt` precondition a CRM patch may carry. */
 const expectedUpdatedAtProperty: Json = {
-  type: 'integer',
-  minimum: 0,
-  maximum: Number.MAX_SAFE_INTEGER,
+  ...epochMsInput,
   description: 'The `updatedAt` of the revision this update is based on',
 };
 
@@ -7135,8 +7139,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'Every field optional; null clears a nullable field. Applies only to Knowledge Hub documents. A patch that changes nothing writes nothing and leaves `updatedAt` alone.',
           properties: {
             expectedUpdatedAt: {
-              type: 'integer',
-              minimum: 0,
+              ...epochMsInput,
               description:
                 'The `updatedAt` last read; the update applies only while the document still carries it, else 409 `DOCUMENT_STALE`',
             },

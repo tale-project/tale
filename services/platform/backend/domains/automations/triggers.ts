@@ -41,7 +41,9 @@ import {
  *    bounded catch-up). The scan WALKS every enabled schedule (keyset pages,
  *    never a cap an arbitrary subset could hide behind) and CLAIMS each due
  *    occurrence with a conditional stamp, so a throwing run never re-fires
- *    the same minute and two overlapping scans fire it once;
+ *    the same minute and two overlapping scans fire it once. A schedule
+ *    whose organization no longer exists is never claimed: the scan
+ *    disables it and names it once;
  *  - the webhook doors for organization and explicitly named projects — the token in
  *    the path IS the credential (sha256 verifier + constant-time compare;
  *    unknown/disabled reads as a plain 404). Deliveries are IDEMPOTENT: a
@@ -61,7 +63,7 @@ import {
 const SCAN_PAGE_SIZE = 200;
 const DEFAULT_TIMEZONE = 'UTC';
 const MINUTE_MS = 60_000;
-/** How many undeployed schedules one scan names in its summary line. */
+/** How many schedules one scan names in each of its summary lines. */
 const UNDEPLOYED_NAMES_IN_LOG = 5;
 
 interface TriggerRow {
@@ -141,6 +143,33 @@ async function stampSkipped(
   `;
 }
 
+/** A row of the schedule scan's page: the binding, and whether the
+ * organization it belongs to is still there. */
+interface ScheduleScanRow extends TriggerRow {
+  /** No `organization` row carries the binding's org id: the organization
+   * was deleted and the binding outlived it (the teardown before 0.5.9 left
+   * every automation row behind). */
+  orgMissing: boolean;
+}
+
+/** Disable schedules whose organization no longer exists. Both halves are
+ * re-checked at the write — still enabled, organization still missing — so
+ * an overlapping scan that got there first leaves this one nothing to
+ * report, and each binding is named once. */
+async function retireOrphanedSchedules(
+  sql: Sql,
+  triggerIds: string[],
+): Promise<{ organizationId: string; name: string }[]> {
+  return sql<{ organizationId: string; name: string }[]>`
+    UPDATE app.automation_triggers t SET enabled = false
+    WHERE t.id = ANY(${triggerIds}::text[]) AND t.enabled = true
+      AND NOT EXISTS (
+        SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
+      )
+    RETURNING t.org_id AS "organizationId", t.name
+  `;
+}
+
 export interface ScheduleScanResult {
   /** Enabled schedules examined — every one of them, across all pages. */
   examined: number;
@@ -154,6 +183,9 @@ export interface ScheduleScanResult {
   refused: number;
   /** Schedules whose expression or zone could not be read this scan. */
   unusable: number;
+  /** Schedules of an organization that no longer exists, disabled by this
+   * scan — never claimed, never run. */
+  orphaned: number;
 }
 
 export async function scanScheduledTriggers(
@@ -172,9 +204,11 @@ export async function scanScheduledTriggers(
     undeployed: 0,
     refused: 0,
     unusable: 0,
+    orphaned: 0,
   };
   const undeployedNames: string[] = [];
   const refusedNames: string[] = [];
+  const orphanedNames: string[] = [];
   let cursor: string | null = null;
   for (;;) {
     // A keyset walk in id order: deterministic, complete, and bounded per
@@ -185,8 +219,14 @@ export async function scanScheduledTriggers(
     // image still claims on `last_fired_at_ms` alone during a roll (0096).
     // A schedule stamped unusable stays out of the page until it is edited
     // — re-parsing a broken expression every minute told nobody anything.
-    const page: TriggerRow[] = await sql<TriggerRow[]>`
-      SELECT ${sql.unsafe(TRIGGER_COLUMNS)} FROM app.automation_triggers
+    // Each row says whether its organization still exists: a binding the
+    // organization's deletion left behind must not start a run in its name.
+    const page: ScheduleScanRow[] = await sql<ScheduleScanRow[]>`
+      SELECT ${sql.unsafe(TRIGGER_COLUMNS)},
+        NOT EXISTS (
+          SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
+        ) AS "orgMissing"
+      FROM app.automation_triggers t
       WHERE kind = 'schedule' AND enabled = true
         AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
              OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${floor})
@@ -199,7 +239,15 @@ export async function scanScheduledTriggers(
     `;
     result.pages++;
     result.examined += page.length;
+    const orphans: string[] = [];
     for (const trigger of page) {
+      if (trigger.orgMissing) {
+        // Whatever its expression says, nothing may start in the name of
+        // an organization that is gone; disabled with the page's other
+        // orphans below, so it never comes back into a page.
+        orphans.push(trigger.id);
+        continue;
+      }
       if (trigger.cron === null || trigger.cron === '') continue;
       const stamps = [trigger.lastDueAt, trigger.lastFiredAt].filter(
         (stamp): stamp is number => stamp !== null,
@@ -296,6 +344,14 @@ export async function scanScheduledTriggers(
           break;
       }
     }
+    if (orphans.length > 0) {
+      for (const retired of await retireOrphanedSchedules(sql, orphans)) {
+        result.orphaned++;
+        if (orphanedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
+          orphanedNames.push(`${retired.organizationId}/${retired.name}`);
+        }
+      }
+    }
     if (page.length < pageSize) break;
     const last = page.at(-1);
     if (last === undefined) break;
@@ -313,6 +369,14 @@ export async function scanScheduledTriggers(
     const more = result.refused - refusedNames.length;
     console.warn(
       `[automations] trigger scan: ${result.refused} due schedule(s) were refused by their deployed version: ${refusedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
+    );
+  }
+  if (result.orphaned > 0) {
+    // Written once per binding: a disabled schedule never enters a page
+    // again, and only the scan whose write disabled it names it.
+    const more = result.orphaned - orphanedNames.length;
+    console.warn(
+      `[automations] trigger scan: disabled ${result.orphaned} schedule(s) whose organization no longer exists: ${orphanedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
     );
   }
   return result;

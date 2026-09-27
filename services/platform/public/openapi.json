@@ -37973,6 +37973,7 @@
           "expectedUpdatedAt": {
             "type": "integer",
             "minimum": 0,
+            "maximum": 8640000000000000,
             "description": "The `updatedAt` last read; the update applies only while the document still carries it, else 409 `DOCUMENT_STALE`"
           },
           "title": {
@@ -38842,7 +38843,7 @@
           "expectedUpdatedAt": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 9007199254740991,
+            "maximum": 8640000000000000,
             "description": "The `updatedAt` of the revision this update is based on"
           }
         }
@@ -39281,7 +39282,7 @@
           "expectedUpdatedAt": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 9007199254740991,
+            "maximum": 8640000000000000,
             "description": "The `updatedAt` of the revision this update is based on"
           }
         }
@@ -41287,7 +41288,7 @@
           "expectedUpdatedAt": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 9007199254740991,
+            "maximum": 8640000000000000,
             "description": "The `updatedAt` last read; a save against an agent that changed since answers 409 `PROJECT_AGENT_STALE` and writes nothing. Omitted, the save is unconditional."
           }
         },

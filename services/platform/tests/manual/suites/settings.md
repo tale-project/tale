@@ -351,6 +351,17 @@ any toggled setting after the run.
   **Branding preview** (`settings.branding.preview`) re-tints live while
   editing; Saved flash, no toast; the hex survives reload; primary buttons and
   the sidebar highlight pick up the accent in light **and** dark themes.
+- [ ] `SET-F28a` · **A hard accent in both themes** — Same page → **Accent
+  color** → save `#F5F5F0`, then `#0B0B2A`, then `#FF00FF`; after each, look
+  at a chat with a cited reply, the Home panel with an unread item, and this
+  page, in **Light theme** and **Dark theme** (`auth.userButton.themeLight` /
+  `…themeDark`) → The **Branding preview** shows what the app shows; primary
+  buttons and the chat's send button wear the accent, rimmed in it, with a
+  legible label or arrow; Tab onto one draws a ring inside it in its label's
+  colour; Home's unread dots and the view switcher's attention dots wear the
+  accent, never a fixed blue; a citation, a link and the open settings row
+  stay readable — a deeper shade of the accent on the light theme, a lighter
+  one on the dark — and nothing set in the accent reads pale on the page.
 - [ ] `SET-F29` · **Branding images & reset** — Same page → **Upload logo**
   (`settings.branding.uploadLogo`) / **Upload favicon**
   (`settings.branding.uploadFavicon`); then the header's **Reset** action

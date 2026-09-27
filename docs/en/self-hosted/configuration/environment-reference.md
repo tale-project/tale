@@ -227,6 +227,14 @@ A workspace rollout temporarily runs both colors. Plan capacity for that overlap
 
 Leave it unset to keep the default session lifetime. When set, an idle session expires server-side once the window elapses, while an active one keeps sliding forward on each request. Org admins can tighten the effective window per organisation — never loosen it past this cap — via the [session idle timeout governance policy](/platform/admin/governance/policies-and-limits); idle sessions under that policy are revoked by a sweep that runs about every five minutes.
 
+## Support link
+
+| Name                       | Default                    | Description |
+| -------------------------- | -------------------------- | ----------- |
+| `TALE_CONTACT_SUPPORT_URL` | `https://tale.dev/contact` | **Optional, read by the `platform` service.** Where the **contact support** link on the app's error screens points. An absolute `http://` or `https://` URL. |
+
+Set it to your own help desk so people who hit an error reach the team that runs your deployment. Where the error screen knows the organization, the link adds `organizationId=<id>` to the query string, after any query the URL already carries. Any other value, such as `mailto:` or a URL without a scheme, is ignored with a warning in the `platform` service's log, and the link keeps the default.
+
 ## Sandbox infrastructure
 
 The sandbox spawner reads the settings below. Pass them into its environment and recreate that service after a change. `SANDBOX_MAX_SESSIONS` sets the capacity shared by all organizations; an organization's three workload limits add up automatically and cannot be saved above that capacity. Manage those limits in [Sandboxes](/platform/admin/sandboxes), where actual runtime counts and host measurements appear separately from workload allocations.

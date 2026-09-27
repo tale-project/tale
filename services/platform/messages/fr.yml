@@ -6518,6 +6518,7 @@ settings:
         notification.retention_deleted: Notification supprimée (rétention)
         file_metadata.retention_deleted: Fichier supprimé (rétention)
         sandbox_ledger.retention_deleted: Journal du sandbox supprimé (rétention)
+        chat_filter_event.retention_deleted: Événement de filtre de chat supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
         login_lockout: Verrouillage de connexion

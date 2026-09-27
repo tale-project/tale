@@ -299,3 +299,29 @@ describe('updateTask — activity row per changed field', () => {
     ]);
   });
 });
+
+/**
+ * A start date stored before the doors held a date to the epoch bound
+ * (`9e15`: a safe integer, and no `Date` holds it) reads as no start date on
+ * the board. It must not also hold every due date hostage: the schedule
+ * check compared it as a number, so no due date could be set (400
+ * `TASK_SCHEDULE_INVALID`) until a start date the board did not show was
+ * cleared.
+ */
+describe('updateTask — a stored date no Date can hold', () => {
+  it('reads as none in the schedule check, so a due date can still be set', async () => {
+    const { tx, statements } = fakeTx(taskRow({ startDate: 9e15 }));
+    await updateTask(tx, auth, { taskId: 't-1', dueDate: 3_000 });
+
+    expect(activityRows(statements)).toEqual([
+      { action: 'dueDate.changed', fromValue: '2000', toValue: '3000' },
+    ]);
+  });
+
+  it('still refuses a start date after the due date', async () => {
+    const { tx } = fakeTx(taskRow());
+    await expect(
+      updateTask(tx, auth, { taskId: 't-1', startDate: 5_000 }),
+    ).rejects.toMatchObject({ code: 'TASK_SCHEDULE_INVALID' });
+  });
+});

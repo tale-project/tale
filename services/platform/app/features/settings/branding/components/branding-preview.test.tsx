@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
+import { deriveAccentPalette } from '@/lib/utils/color';
 import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
 
@@ -103,13 +104,26 @@ describe('BrandingPreview', () => {
   });
 
   it('marks the open Home section with the accent, as the live rail does', () => {
-    // #0066CC already clears 3:1 against the (mocked light) background, so the
-    // theme adjustment is a no-op and the exact color is applied.
+    // The live rail tints its open tile with the branding context's accent —
+    // the palette's text shade — and so does the preview.
     render(<BrandingPreview data={{ accentColor: '#0066CC' }} />);
 
+    const { text } = deriveAccentPalette('#0066CC', 'light');
     const tile = screen.getByTestId('preview-rail-active');
-    expect(tile).toHaveStyle({ backgroundColor: '#0066CC26' });
-    expect(tile.querySelector('svg')).toHaveStyle({ color: '#0066CC' });
+    expect(tile).toHaveStyle({ backgroundColor: `${text}26` });
+    expect(tile.querySelector('svg')).toHaveStyle({ color: text });
+  });
+
+  it('draws the send button as the primary button the composer shows', () => {
+    // The live send is a primary button: the accent as a surface, its ink on
+    // top. The preview once drew it in the neutral foreground.
+    render(<BrandingPreview data={{ accentColor: '#FF00FF' }} />);
+
+    const { base, fg } = deriveAccentPalette('#FF00FF', 'light');
+    expect(screen.getByTestId('preview-send')).toHaveStyle({
+      backgroundColor: base,
+      color: fg,
+    });
   });
 
   it('renders browser chrome dots', () => {
@@ -144,10 +158,13 @@ describe('BrandingPreview', () => {
       <BrandingPreview data={{ appName: 'ACME', accentColor: '#FF0000' }} />,
     );
 
-    // #FF0000 already clears contrast on the light theme, so it's applied as-is.
+    // The wordmark is text: #FF0000 clears 3:1 as a surface on the light
+    // page but reads 3.9:1 as letters, so it wears the deeper text shade.
+    const { text } = deriveAccentPalette('#FF0000', 'light');
+    expect(text).not.toBe('#ff0000');
     const wordmark = container.querySelector('.font-bold');
     expect(wordmark).not.toBeNull();
-    expect(wordmark).toHaveStyle({ color: '#FF0000' });
+    expect(wordmark).toHaveStyle({ color: text });
   });
 
   describe('accessibility', () => {
