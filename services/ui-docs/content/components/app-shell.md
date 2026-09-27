@@ -125,6 +125,8 @@ import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
 
 It keeps the page header's `h-13` height and bottom rule; pass `floating` to draw it over scrolling content without the rule, as the chat does. The title slot takes a heading or an in-place editor for the name — the page supplies its single `h1`.
 
+The row is a size container named `thread-header`, so what you put in it answers to the header's width rather than the window's: beside the rail and a section panel the header is only ~435px wide in a 768px window. Show an action's label from `@xl/thread-header:` and leave it icon-only below. Order the context line by importance, and when its items don't all fit, drop the last ones whole rather than truncating every item to a letter: a wrapping row clipped to one line (`flex-wrap` with a one-line height and `overflow-hidden`) keeps what fits and hides the rest, with each separator grouped with the item it introduces.
+
 When the page opens another item in the same place — the next chat, task or conversation — let the swap read as new content rather than a flicker with `useSwapFade` (`@tale/ui/use-swap-fade`). Give it the open item's key and put its ref on the view that shows the item:
 
 ```tsx

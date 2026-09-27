@@ -26,6 +26,11 @@ export interface ThreadHeaderProps {
  * panel header, with the same anatomy everywhere: identity, title, one line of
  * context, then the actions. What differs between the kinds is only what fills
  * the slots, so moving between them never changes where to look.
+ *
+ * The row is a size container named `thread-header`. What a page puts in it —
+ * an action's label, an optional item of the context line — answers to the
+ * header's own width (`@xl/thread-header:`), not the window's: beside the rail
+ * and a section panel the header is ~435px wide in a 768px window.
  */
 export function ThreadHeader({
   leading,
@@ -39,7 +44,7 @@ export function ThreadHeader({
   return (
     <div
       className={cn(
-        'relative flex h-13 shrink-0 items-center gap-3 px-4',
+        '@container/thread-header relative flex h-13 shrink-0 items-center gap-3 px-4',
         !floating && 'border-border bg-background border-b',
         className,
       )}
