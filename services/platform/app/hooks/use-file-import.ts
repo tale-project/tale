@@ -148,9 +148,9 @@ function getNumber(value: unknown): number | undefined {
 }
 
 /**
- * A product's count or amount from a cell — the create form's rule, in the
- * server's `field: reason` voice: blank means "not given", and anything
- * that is not a non-negative number within the safe range is a row error,
+ * A product's count or amount from a cell — the create form's rule: blank
+ * means "not given", and anything that is not a non-negative number within
+ * the safe range is a row error the dialog lists in the reader's language,
  * never silently `0` (`notanumber` used to import as a free product).
  */
 function productNumber(
@@ -166,16 +166,16 @@ function productNumber(
         ? Number(value.trim())
         : Number.NaN;
   if (!Number.isFinite(parsed)) {
-    throw new ImportRowRefusal(`${field}: must be a number`);
+    throw new ImportRowRefusal(field, 'notNumber');
   }
   if (parsed < 0) {
-    throw new ImportRowRefusal(`${field}: must be 0 or more`);
+    throw new ImportRowRefusal(field, 'negative');
   }
   if (parsed > Number.MAX_SAFE_INTEGER) {
-    throw new ImportRowRefusal(`${field}: is too large`);
+    throw new ImportRowRefusal(field, 'tooLarge');
   }
   if (field === 'stock' && !Number.isInteger(parsed)) {
-    throw new ImportRowRefusal(`${field}: must be a whole number`);
+    throw new ImportRowRefusal(field, 'notInteger');
   }
   return parsed;
 }
@@ -298,7 +298,7 @@ export const contactMappers = {
    * email is a row error the dialog lists, not a row that vanishes. */
   excel: (record: Record<string, unknown>) => {
     const email = pickField(record, EMAIL_HEADER_ALIASES);
-    if (!email) throw new ImportRowRefusal('email: must not be blank');
+    if (!email) throw new ImportRowRefusal('email', 'blank');
 
     return {
       email,
@@ -344,9 +344,9 @@ export const productMappers = {
     const lowerValue = value.trim().toLowerCase();
     const match = validStatuses.find((s) => s === lowerValue);
     if (match === undefined) {
-      throw new ImportRowRefusal(
-        `status: must be one of ${validStatuses.join(', ')}`,
-      );
+      throw new ImportRowRefusal('status', 'notOneOf', {
+        options: validStatuses.join(', '),
+      });
     }
     return match;
   },
@@ -371,16 +371,14 @@ export const productMappers = {
   },
   /** Record-based mapper used by both CSV (with headers) and Excel imports.
    * A row the catalog would refuse — no name, a price or stock that is not a
-   * number, a currency that is not ISO 4217 — is a row error carrying the
-   * server's own `field: reason` voice, so the dialog lists it by line. */
+   * number, a currency that is not ISO 4217 — is a row error carrying its
+   * field and reason keys, so the dialog lists it by line, translated. */
   record: (record: Record<string, unknown>) => {
     const name = getString(record.name) || getString(record.title);
-    if (!name) throw new ImportRowRefusal('name: must not be blank');
+    if (!name) throw new ImportRowRefusal('name', 'blank');
     const currency = getString(record.currency);
     if (currency !== undefined && !isIso4217Currency(currency.toUpperCase())) {
-      throw new ImportRowRefusal(
-        'currency: must be a three-letter ISO 4217 currency code',
-      );
+      throw new ImportRowRefusal('currency', 'notCurrency');
     }
 
     return {

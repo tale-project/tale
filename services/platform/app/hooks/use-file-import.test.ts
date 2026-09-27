@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { parseCSVWithMapper } from '@/lib/utils/file-parsing';
+import { ImportRowRefusal, parseCSVWithMapper } from '@/lib/utils/file-parsing';
 
 import {
   contactMappers,
@@ -121,7 +121,7 @@ describe('contactMappers.excel', () => {
 
   it('refuses a row without an email instead of dropping it', () => {
     expect(() => contactMappers.excel({ name: 'Acme Corp' })).toThrow(
-      'email: must not be blank',
+      expect.objectContaining({ field: 'email', reason: 'blank' }),
     );
   });
 
@@ -229,25 +229,32 @@ describe('productMappers.record', () => {
 
   it('refuses a row without a name instead of dropping it', () => {
     expect(() => productMappers.record({ description: 'orphan' })).toThrow(
-      'name: must not be blank',
+      expect.objectContaining({ field: 'name', reason: 'blank' }),
     );
   });
 
   // `notanumber` used to import as a free product with no stock; a row
   // the catalog would refuse is a row error in the door's own voice.
+  // The refusal carries field + reason KEYS (translated by the dialog), never
+  // an English sentence.
   it.each([
-    [{ name: 'X', price: 'notanumber' }, 'price: must be a number'],
-    [{ name: 'X', stock: 'many' }, 'stock: must be a number'],
-    [{ name: 'X', price: '-5' }, 'price: must be 0 or more'],
-    [{ name: 'X', stock: -3 }, 'stock: must be 0 or more'],
-    [{ name: 'X', stock: '1.5' }, 'stock: must be a whole number'],
-    [{ name: 'X', price: '1e20' }, 'price: is too large'],
-    [
-      { name: 'X', currency: 'EURO' },
-      'currency: must be a three-letter ISO 4217 currency code',
-    ],
-  ])('refuses %j as a row error', (record, message) => {
-    expect(() => productMappers.record(record)).toThrow(message);
+    [{ name: 'X', price: 'notanumber' }, 'price', 'notNumber'],
+    [{ name: 'X', stock: 'many' }, 'stock', 'notNumber'],
+    [{ name: 'X', price: '-5' }, 'price', 'negative'],
+    [{ name: 'X', stock: -3 }, 'stock', 'negative'],
+    [{ name: 'X', stock: '1.5' }, 'stock', 'notInteger'],
+    [{ name: 'X', price: '1e20' }, 'price', 'tooLarge'],
+    [{ name: 'X', currency: 'EURO' }, 'currency', 'notCurrency'],
+    [{ price: 1 }, 'name', 'blank'],
+  ])('refuses %j as a row error', (record, field, reason) => {
+    let thrown: unknown;
+    try {
+      productMappers.record(record);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ImportRowRefusal);
+    expect(thrown).toMatchObject({ field, reason });
   });
 
   it('accepts a blank price or stock as not given and uppercases the currency', () => {
@@ -297,7 +304,13 @@ describe('productMappers.validateStatus', () => {
   it('refuses an unknown status instead of importing it as the default', () => {
     expect(() =>
       productMappers.validateStatus('flying', statuses, 'draft'),
-    ).toThrow('status: must be one of active, draft');
+    ).toThrow(
+      expect.objectContaining({
+        field: 'status',
+        reason: 'notOneOf',
+        values: { options: 'active, draft' },
+      }),
+    );
   });
 });
 
@@ -396,8 +409,8 @@ describe('product import row accounting', () => {
     // Line 1 is the header, so the first data row is line 2.
     expect(result.rows).toEqual([2, 5]);
     expect(result.rowErrors).toEqual([
-      { row: 3, message: 'name: must not be blank' },
-      { row: 4, message: 'price: must be a number' },
+      { row: 3, field: 'name', reason: 'blank' },
+      { row: 4, field: 'price', reason: 'notNumber' },
     ]);
   });
 });

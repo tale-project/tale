@@ -1617,6 +1617,21 @@ common:
     rowErrorsTitle: '{count, plural, one {# ligne n''a pas été importée} other {# lignes n''ont pas été importées}}'
     rowError: 'Ligne {row} : {message}'
     moreRows: '… et {count} de plus'
+    fields:
+      name: Nom
+      price: Prix
+      stock: Stock
+      currency: Devise
+      status: Statut
+      email: Courriel
+    reasons:
+      blank: '{field} ne doit pas être vide'
+      notNumber: '{field} doit être un nombre'
+      negative: '{field} doit être supérieur ou égal à 0'
+      tooLarge: '{field} est trop grand'
+      notInteger: '{field} doit être un nombre entier'
+      notCurrency: '{field} doit être un code devise ISO 4217 à trois lettres'
+      notOneOf: '{field} doit être l''une de ces valeurs : {options}'
   or: ou
   units:
     stock: '{count, plural, one {# unité} other {# unités}}'

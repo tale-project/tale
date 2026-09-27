@@ -4,7 +4,7 @@ import { Alert } from '@tale/ui/alert';
 
 import { useT } from '@/lib/i18n/client';
 
-import type { ImportRowError } from './import-row-errors';
+import { type ImportRowError, importRowErrorLine } from './import-row-errors';
 
 /** How many refused rows the banner lists before it counts the rest. */
 const LISTED_ROWS = 10;
@@ -31,10 +31,7 @@ export function ImportRowErrorsAlert({
       <ul className="list-outside list-disc space-y-1 pl-4 text-sm">
         {listed.map((entry, position) => (
           <li key={`${entry.row}-${position}`}>
-            {tCommon('import.rowError', {
-              row: entry.row,
-              message: entry.message,
-            })}
+            {importRowErrorLine(tCommon, entry)}
           </li>
         ))}
         {rest > 0 ? (

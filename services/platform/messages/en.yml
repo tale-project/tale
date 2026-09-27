@@ -1557,6 +1557,21 @@ common:
     rowErrorsTitle: '{count, plural, one {# row was not imported} other {# rows were not imported}}'
     rowError: 'Row {row}: {message}'
     moreRows: '…and {count} more'
+    fields:
+      name: Name
+      price: Price
+      stock: Stock
+      currency: Currency
+      status: Status
+      email: Email
+    reasons:
+      blank: '{field} must not be blank'
+      notNumber: '{field} must be a number'
+      negative: '{field} must be 0 or more'
+      tooLarge: '{field} is too large'
+      notInteger: '{field} must be a whole number'
+      notCurrency: '{field} must be a three-letter ISO 4217 currency code'
+      notOneOf: '{field} must be one of {options}'
   or: or
   units:
     stock: '{count, plural, one {# unit} other {# units}}'

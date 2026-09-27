@@ -1608,6 +1608,21 @@ common:
     rowErrorsTitle: '{count, plural, one {# Zeile wurde nicht importiert} other {# Zeilen wurden nicht importiert}}'
     rowError: 'Zeile {row}: {message}'
     moreRows: '… und {count} weitere'
+    fields:
+      name: Name
+      price: Preis
+      stock: Bestand
+      currency: Währung
+      status: Status
+      email: E-Mail
+    reasons:
+      blank: '{field} darf nicht leer sein'
+      notNumber: '{field} muss eine Zahl sein'
+      negative: '{field} muss 0 oder mehr sein'
+      tooLarge: '{field} ist zu groß'
+      notInteger: '{field} muss eine ganze Zahl sein'
+      notCurrency: '{field} muss ein dreistelliger ISO-4217-Währungscode sein'
+      notOneOf: '{field} muss einer dieser Werte sein: {options}'
   or: oder
   units:
     stock: '{count, plural, one {# Einheit} other {# Einheiten}}'

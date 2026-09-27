@@ -5,9 +5,43 @@
 
 import { isSpreadsheet } from '@/lib/shared/file-types';
 
+/** The columns a record mapper can refuse — each a label key under
+ * `common.import.fields`. */
+export const IMPORT_ROW_FIELDS = [
+  'name',
+  'price',
+  'stock',
+  'currency',
+  'status',
+  'email',
+] as const;
+export type ImportRowField = (typeof IMPORT_ROW_FIELDS)[number];
+
+/** Why a record mapper refused a cell — each a sentence key under
+ * `common.import.reasons`, taking `{field}` plus the listed values. */
+export const IMPORT_ROW_REASONS = [
+  'blank',
+  'notNumber',
+  'negative',
+  'tooLarge',
+  'notInteger',
+  'notCurrency',
+  'notOneOf',
+] as const;
+export type ImportRowReason = (typeof IMPORT_ROW_REASONS)[number];
+
 /** A row the mapper refused, by the line the user sees in a spreadsheet
- * (the header is line 1, so the first data row is line 2). */
-export type ImportRowError = { row: number; message: string };
+ * (the header is line 1, so the first data row is line 2). The parser's own
+ * refusals carry an i18n `field` + `reason` the dialog translates; a row the
+ * server refused carries the server's text as `message`. */
+export type ImportRowError =
+  | { row: number; message: string }
+  | {
+      row: number;
+      field: ImportRowField;
+      reason: ImportRowReason;
+      values?: Record<string, string | number>;
+    };
 
 export type FileParseResult<T> = {
   data: T[];
@@ -23,10 +57,40 @@ export type FileParseResult<T> = {
 /** A refused row, thrown by a record mapper; the parser files it under the
  * row's own line instead of dropping the row or the whole file. */
 export class ImportRowRefusal extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly field: ImportRowField;
+  readonly reason: ImportRowReason;
+  readonly values: Record<string, string | number> | undefined;
+
+  constructor(
+    field: ImportRowField,
+    reason: ImportRowReason,
+    values?: Record<string, string | number>,
+  ) {
+    super(`${field}: ${reason}`);
     this.name = 'ImportRowRefusal';
+    this.field = field;
+    this.reason = reason;
+    this.values = values;
   }
+
+  /** The row error the parser files, at the given spreadsheet line. */
+  toRowError(row: number): ImportRowError {
+    return {
+      row,
+      field: this.field,
+      reason: this.reason,
+      ...(this.values ? { values: this.values } : {}),
+    };
+  }
+}
+
+/** The row error for whatever a mapper threw at the given line. */
+function refusedRow(row: number, error: unknown): ImportRowError {
+  if (error instanceof ImportRowRefusal) return error.toRowError(row);
+  return {
+    row,
+    message: error instanceof Error ? error.message : 'Unknown error',
+  };
 }
 
 function emptyResult<T>(errors: string[] = []): FileParseResult<T> {
@@ -200,10 +264,7 @@ export function parseCSVWithMapper<T>(
         result.rows.push(line);
       }
     } catch (error) {
-      result.rowErrors.push({
-        row: line,
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
+      result.rowErrors.push(refusedRow(line, error));
     }
   });
 
@@ -349,10 +410,7 @@ export async function parseImportFile<T>(
             result.rows.push(line);
           }
         } catch (error) {
-          result.rowErrors.push({
-            row: line,
-            message: error instanceof Error ? error.message : 'Unknown error',
-          });
+          result.rowErrors.push(refusedRow(line, error));
         }
       });
       return result;

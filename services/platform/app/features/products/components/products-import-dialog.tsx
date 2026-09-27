@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import {
   type ImportRowError,
+  importRowErrorLine,
   mergeImportRowErrors,
 } from '@/app/features/shared/import/import-row-errors';
 import { ImportRowErrorsAlert } from '@/app/features/shared/import/import-row-errors-alert';
@@ -173,7 +174,7 @@ export function ProductsImportDialog({
           toast({
             title: t('noneImported'),
             description: failedRows[0]
-              ? tCommon('import.rowError', failedRows[0])
+              ? importRowErrorLine(tCommon, failedRows[0])
               : t('import.errorCodes.unknown'),
             variant: 'destructive',
           });
