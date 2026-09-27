@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 62 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 63 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -540,6 +540,19 @@ loaded, and reads **No teams** for an account in none.
   (`connectivity.newVersion.later`). It stays until one is pressed, and
   nothing reloads again on its own; **Reload** reloads once, and the toast
   comes back while the block is on.
+- [ ] `NAV-B14` · **Contact support goes to the operator's page** — Start
+  the platform with
+  `TALE_CONTACT_SUPPORT_URL=https://support.example.com/help?source=tale`
+  (mode A: prefix it to `bun scripts/dev.ts`; a deployment: its `.env`, then
+  recreate the `platform` service). In DevTools, block
+  `GET /api/app/projects/overview` and open `/dashboard/{org}/projects` →
+  After the retries the error state's **contact support** link
+  (`common.errors.contactSupport`) points at
+  `https://support.example.com/help?source=tale&organizationId={orgId}` and
+  opens in a new tab. Restart with
+  `TALE_CONTACT_SUPPORT_URL=mailto:help@example.com` → the platform's log
+  warns once that it ignored `TALE_CONTACT_SUPPORT_URL`, and the same link
+  points at `https://tale.dev/contact?organizationId={orgId}`.
 
 ## Accessibility (WCAG 2.1 AA)
 

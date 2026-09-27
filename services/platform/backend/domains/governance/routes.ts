@@ -1,5 +1,6 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import {
   DEFAULT_SANDBOX_QUOTA,
   dsarGovernanceConfigSchema,
@@ -340,7 +341,7 @@ export function createGovernanceRoutes(deps: {
       .object({
         userId: z.string().min(1).max(128),
         competence: z.string().min(1).max(200),
-        expiresAt: z.number().finite().optional(),
+        expiresAt: epochMsSchema.optional(),
         evidence: z.string().max(4000).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));

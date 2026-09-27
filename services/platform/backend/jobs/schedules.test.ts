@@ -57,6 +57,17 @@ describe('the realtime outbox has a reclaimer that needs no browser', () => {
   });
 });
 
+describe('expired auth sessions have a reaper', () => {
+  test('the expired-session sweep is scheduled once a day', () => {
+    // Better Auth deletes an expired session only when it is presented
+    // again; without this entry one nobody comes back with stays for good.
+    const entry = SCHEDULES.find(
+      (row) => row.name === 'maintenance.expired_sessions',
+    );
+    expect(entry?.cron).toMatch(/^\d+ \d+ \* \* \*$/);
+  });
+});
+
 describe('the schedule roster is well formed', () => {
   test('every name is unique', () => {
     const names = SCHEDULES.map((row) => row.name);

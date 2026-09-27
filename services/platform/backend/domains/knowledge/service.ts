@@ -796,13 +796,15 @@ async function writeRagStatus(
 /**
  * Land a file no text extractor reads on its terminal state: `unsupported`
  * with `unsupported_type`. The indexer writes it when such a file reaches the
- * job; a lane that can tell from the name alone (a sync import's `.loop`)
- * writes the same state instead of queueing a job the indexer would only
- * refuse — and instead of leaving the status empty, which the document list
- * reads as "Not indexed" with a retry that can never succeed and REST as
- * `pending`. One writer, so both lanes carry the same sentence and code.
+ * job; a lane that can tell from the name alone (a sync import's `.loop`, an
+ * upload's `.zip`, a replaced `.doc`) writes the same state through
+ * {@link markRagUnsupportedIfNoExtractor} instead of queueing a job the
+ * indexer would only refuse — and instead of leaving the status empty, which
+ * the document list reads as "Not indexed" with a retry that can never
+ * succeed and REST as `pending`. One writer, so every lane carries the same
+ * sentence and code.
  */
-export async function markRagUnsupportedType(
+async function markRagUnsupportedType(
   sql: Sql,
   fileId: string,
   fileName: string,
@@ -812,6 +814,25 @@ export async function markRagUnsupportedType(
     ragError: `No text extractor exists for "${fileName}".`,
     ragErrorCode: RAG_ERROR_UNSUPPORTED_TYPE,
   });
+}
+
+/**
+ * The status a lane leaves on a file it stores without queueing it for
+ * indexing — a sync import, an upload's registration, a controlled-record
+ * replacement. A file no extractor reads lands on the terminal state above.
+ * A file the indexer CAN read but the platform does not index by itself
+ * (`.log`) keeps its empty status: a Reindex of it succeeds, and
+ * `unsupported` promises that a retry reproduces the answer. Judged by the
+ * stored file name, the one the indexer reads. One decision for every such
+ * lane, so a `.loop` or a `.log` reads the same whichever lane stored it.
+ */
+export async function markRagUnsupportedIfNoExtractor(
+  sql: Sql,
+  fileId: string,
+  fileName: string,
+): Promise<void> {
+  if (isSupported(fileName)) return;
+  await markRagUnsupportedType(sql, fileId, fileName);
 }
 
 /**

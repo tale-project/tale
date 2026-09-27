@@ -18,7 +18,7 @@ import path from 'node:path';
 import { BASE_URL } from '../../e2e/helpers/env';
 import type { EpisodeSpec, Locale } from './episode';
 import { ffmpegBin } from './ffmpeg';
-import { REPO_ROOT, SCREENSHOTS_STATE_DIR, STATE_DIR } from './paths';
+import { DEV_ENV_FILE, SCREENSHOTS_STATE_DIR, STATE_DIR } from './paths';
 
 type DoctorStatus = 'ok' | 'warn' | 'fail';
 
@@ -168,7 +168,7 @@ function checkElevenLabsKey(mockTts: boolean): DoctorCheck {
     detail: mockTts
       ? 'not set — fine for --mock-tts, required for real narration'
       : 'not set — the tts stage bills through this key',
-    fix: `echo 'ELEVENLABS_API_KEY=…' >> ${path.join(REPO_ROOT, '.env.dev')}   # gitignored dev-tooling secrets`,
+    fix: `echo 'ELEVENLABS_API_KEY=…' >> ${DEV_ENV_FILE}   # gitignored dev-tooling secrets`,
   };
 }
 

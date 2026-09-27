@@ -10,9 +10,40 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { parseRenderResults, RENDER_WORKER_SOURCE } from './render_fetch';
+import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
+import type { ActionCtx } from '../../lib/ctx';
+import { sessionIdForRender } from '../../sandbox/session_naming';
+import { SessionDuplicateError } from './helpers/session_client';
+import {
+  parseRenderResults,
+  RENDER_WORKER_SOURCE,
+  RenderCapacityError,
+  renderUrlsInSandbox,
+} from './render_fetch';
+
+// The spawner verbs the render lane calls. The worker tests below use none
+// of them, so replacing them for the whole file changes nothing there.
+const spawner = vi.hoisted(() => ({
+  sessionCreate: vi.fn(),
+  sessionDestroy: vi.fn(),
+  sessionDestroyIfIdle: vi.fn(),
+  sessionStageFiles: vi.fn(),
+  sessionReadFile: vi.fn(),
+  runStepsInSession: vi.fn(),
+}));
+vi.mock('./helpers/session_client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./helpers/session_client')>()),
+  sessionCreate: spawner.sessionCreate,
+  sessionDestroy: spawner.sessionDestroy,
+  sessionDestroyIfIdle: spawner.sessionDestroyIfIdle,
+  sessionStageFiles: spawner.sessionStageFiles,
+  sessionReadFile: spawner.sessionReadFile,
+}));
+vi.mock('./session_exec', () => ({
+  runStepsInSession: spawner.runStepsInSession,
+}));
 
 /**
  * The worker↔engine protocol, pinned: what the crawl engine does with a page
@@ -88,6 +119,304 @@ describe('parseRenderResults', () => {
       const results = parseRenderResults(payload, URLS);
       expect(results.get('https://a.ch/x')).toEqual({ kind: 'not_attempted' });
     }
+  });
+});
+
+/**
+ * The render session's lifecycle against a scripted spawner. What is pinned:
+ * a batch tears down only the session it created; a failed create's row reads
+ * `failed` and is NEVER settled `destroyed` (the sandbox watchdog's COLLECT
+ * pass reaches only unstamped `failed` rows); a create that failed outright
+ * destroys what the spawner holds, idle only; and a create refused as a
+ * duplicate destroys nothing, because the id may be the session another run
+ * of the same batch is rendering in.
+ */
+const BATCH = {
+  organizationId: 'org_1',
+  urls: ['https://a.ch/x'],
+  batchKey: 'a.ch:2026-09-27T00:00:00.000Z:1:1',
+  execTimeoutMs: 120_000,
+};
+
+function renderRun(rowId: string) {
+  const events: string[] = [];
+  const runMutation = vi.fn(
+    async (ref: unknown, _args: unknown): Promise<string | null> => {
+      const name = functionRefName(ref).split(':')[1] ?? 'unknown';
+      events.push(name);
+      return name === 'reserveSessionSlotAndInsert' ? rowId : null;
+    },
+  );
+  const ctx = { runMutation } as unknown as ActionCtx;
+  return {
+    events,
+    runMutation,
+    render: () => renderUrlsInSandbox(ctx, BATCH),
+    mutationArgs: (name: string) =>
+      runMutation.mock.calls
+        .filter(([ref]) => functionRefName(ref).split(':')[1] === name)
+        .map(([, args]) => args),
+  };
+}
+
+/** Every spawner verb records itself in `events` and succeeds. */
+function scriptSpawner(events: string[]): void {
+  spawner.sessionCreate.mockImplementation(async () => {
+    events.push('create');
+    return { session: {} };
+  });
+  spawner.sessionDestroy.mockImplementation(async () => {
+    events.push('destroy');
+    return true;
+  });
+  spawner.sessionDestroyIfIdle.mockImplementation(async () => {
+    events.push('destroyIfIdle');
+    return { destroyed: true, busy: false };
+  });
+  spawner.sessionStageFiles.mockImplementation(async () => {
+    events.push('stage');
+  });
+  spawner.runStepsInSession.mockImplementation(async () => {
+    events.push('exec');
+    return { status: 'completed', exitCode: 0, stdout: '', stderr: '' };
+  });
+  spawner.sessionReadFile.mockImplementation(async () => {
+    events.push('read');
+    const payload = JSON.stringify({
+      pages: [
+        {
+          url: 'https://a.ch/x',
+          attempted: true,
+          status: 200,
+          html: '<html>ok</html>',
+        },
+      ],
+    });
+    return {
+      bytes: new TextEncoder().encode(payload).buffer,
+      contentType: 'application/json',
+    };
+  });
+}
+
+describe('renderUrlsInSandbox — the session lifecycle', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('tears down the session it created and settles its row after the batch', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+
+    const results = await run.render();
+
+    expect(results.get('https://a.ch/x')).toMatchObject({
+      kind: 'ok',
+      status: 200,
+    });
+    expect(run.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'setSessionStatus',
+      'stage',
+      'exec',
+      'read',
+      'destroy',
+      'markSessionRowDestroyed',
+    ]);
+    expect(spawner.sessionDestroyIfIdle).not.toHaveBeenCalled();
+  });
+
+  it('a failure after the create still tears the session down', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    const error = new Error('stage failed (502)');
+    spawner.sessionStageFiles.mockRejectedValue(error);
+
+    await expect(run.render()).rejects.toBe(error);
+
+    expect(run.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'setSessionStatus',
+      'destroy',
+      'markSessionRowDestroyed',
+    ]);
+  });
+
+  it('a reservation the quota refuses creates, destroys and settles nothing', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    run.runMutation.mockRejectedValueOnce(
+      Object.assign(new Error('At most 2 render sandbox sessions'), {
+        code: 'QUOTA_EXCEEDED',
+      }),
+    );
+
+    await expect(run.render()).rejects.toBeInstanceOf(RenderCapacityError);
+
+    expect(spawner.sessionCreate).not.toHaveBeenCalled();
+    expect(spawner.sessionDestroy).not.toHaveBeenCalled();
+    expect(spawner.sessionDestroyIfIdle).not.toHaveBeenCalled();
+    expect(run.runMutation).toHaveBeenCalledTimes(1);
+  });
+
+  // The regression: the failed create's row was settled `destroyed` in the
+  // `finally` and the spawner was never asked, so a container the create cut
+  // short (Docker state `created`) had no owner and no pass that reached it.
+  it('destroys what a failed create left, idle only, before its row reads failed — and leaves the row to the watchdog', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+    const error = new Error('runnerd did not become ready');
+    spawner.sessionCreate.mockImplementation(async () => {
+      run.events.push('create');
+      throw error;
+    });
+
+    await expect(run.render()).rejects.toBe(error);
+
+    expect(spawner.sessionDestroyIfIdle).toHaveBeenCalledTimes(1);
+    expect(spawner.sessionDestroyIfIdle).toHaveBeenCalledWith(
+      sessionIdForRender(BATCH.batchKey),
+    );
+    // The destroy runs while the still-`creating` row holds the batch's slot.
+    expect(run.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'destroyIfIdle',
+      'setSessionStatus',
+    ]);
+    expect(run.mutationArgs('setSessionStatus')).toEqual([
+      { rowId: 'row_1', status: 'failed' },
+    ]);
+    // Never settled `destroyed`: that stamps `destroyed_at_ms` on every row
+    // under the id, and the COLLECT pass would never see this one.
+    expect(run.mutationArgs('markSessionRowDestroyed')).toEqual([]);
+    expect(spawner.sessionDestroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'fails',
+      () =>
+        spawner.sessionDestroyIfIdle.mockRejectedValue(
+          new Error('sandbox session destroy failed (502)'),
+        ),
+      'destroy after failed create',
+    ],
+    [
+      'answers busy',
+      () =>
+        spawner.sessionDestroyIfIdle.mockResolvedValue({
+          destroyed: false,
+          busy: true,
+        }),
+      'runs an exec after this failed create',
+    ],
+  ])(
+    'a destroy that %s is logged, never thrown: the row reads failed and the create error survives',
+    async (_label, script, logged) => {
+      const run = renderRun('row_1');
+      scriptSpawner(run.events);
+      const error = new Error('sandbox session create failed (500)');
+      spawner.sessionCreate.mockRejectedValue(error);
+      script();
+
+      await expect(run.render()).rejects.toBe(error);
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining(logged),
+        ...(logged.startsWith('destroy') ? [expect.anything()] : []),
+      );
+      expect(run.mutationArgs('setSessionStatus')).toEqual([
+        { rowId: 'row_1', status: 'failed' },
+      ]);
+      expect(run.mutationArgs('markSessionRowDestroyed')).toEqual([]);
+    },
+  );
+
+  it('a duplicate create destroys nothing and leaves its failed row to the watchdog', async () => {
+    const run = renderRun('row_2');
+    scriptSpawner(run.events);
+    spawner.sessionCreate.mockImplementation(
+      async (body: { sessionId: string }) => {
+        run.events.push('create');
+        throw new SessionDuplicateError(body.sessionId);
+      },
+    );
+
+    await expect(run.render()).rejects.toBeInstanceOf(SessionDuplicateError);
+
+    expect(run.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'setSessionStatus',
+    ]);
+    expect(run.mutationArgs('setSessionStatus')).toEqual([
+      { rowId: 'row_2', status: 'failed' },
+    ]);
+    expect(run.mutationArgs('markSessionRowDestroyed')).toEqual([]);
+    expect(spawner.sessionDestroyIfIdle).not.toHaveBeenCalled();
+    expect(spawner.sessionDestroy).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('already exists spawner-side'),
+    );
+  });
+
+  // The batch key is deterministic, so a link that runs twice asks for the
+  // same session id. The second run's create is refused while the first run
+  // holds the session — between its create and its exec, where the session
+  // is idle and an `if_idle` destroy would not spare it.
+  it('a retried batch refused as a duplicate never destroys the session the first run renders in', async () => {
+    const first = renderRun('row_1');
+    const retry = renderRun('row_2');
+    const events: string[] = [];
+    scriptSpawner(events);
+    let creates = 0;
+    spawner.sessionCreate.mockImplementation(
+      async (body: { sessionId: string }) => {
+        creates += 1;
+        events.push(creates === 1 ? 'first:create' : 'retry:create');
+        if (creates > 1) throw new SessionDuplicateError(body.sessionId);
+        return { session: {} };
+      },
+    );
+    // The first run pauses between its create and its exec.
+    const staging = Promise.withResolvers<void>();
+    const resume = Promise.withResolvers<void>();
+    spawner.sessionStageFiles.mockImplementation(async () => {
+      events.push('first:stage');
+      staging.resolve();
+      await resume.promise;
+    });
+
+    const firstResult = first.render();
+    await staging.promise;
+    await expect(retry.render()).rejects.toBeInstanceOf(SessionDuplicateError);
+    resume.resolve();
+    await expect(firstResult).resolves.toBeInstanceOf(Map);
+
+    const sessionId = sessionIdForRender(BATCH.batchKey);
+    expect(spawner.sessionCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ sessionId }),
+    );
+    // The retry destroyed nothing; the only destroy is the first run's own
+    // teardown, after its exec and read.
+    expect(spawner.sessionDestroyIfIdle).not.toHaveBeenCalled();
+    expect(events).toEqual([
+      'first:create',
+      'first:stage',
+      'retry:create',
+      'exec',
+      'read',
+      'destroy',
+    ]);
+    expect(retry.mutationArgs('setSessionStatus')).toEqual([
+      { rowId: 'row_2', status: 'failed' },
+    ]);
+    expect(retry.mutationArgs('markSessionRowDestroyed')).toEqual([]);
   });
 });
 
