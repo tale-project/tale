@@ -59,23 +59,29 @@ describe('message refs', () => {
 });
 
 describe('isIndexedMessage', () => {
-  it('holds inbound email only', () => {
+  const MAIL = {
+    direction: 'inbound',
+    channel: 'email',
+    connectorName: 'imap-smtp',
+  } as const;
+
+  it('holds inbound email a connector delivered only', () => {
     expect(INDEXED_MESSAGE_DIRECTION).toBe('inbound');
     expect(INDEXED_MESSAGE_CHANNEL).toBe('email');
-    expect(isIndexedMessage({ direction: 'inbound', channel: 'email' })).toBe(
-      true,
-    );
+    expect(isIndexedMessage(MAIL)).toBe(true);
   });
 
   it('leaves our own replies and mirrored conversations out', () => {
-    expect(isIndexedMessage({ direction: 'outbound', channel: 'email' })).toBe(
-      false,
-    );
-    expect(isIndexedMessage({ direction: 'inbound', channel: 'api' })).toBe(
-      false,
-    );
-    expect(isIndexedMessage({ direction: 'inbound', channel: null })).toBe(
-      false,
-    );
+    expect(isIndexedMessage({ ...MAIL, direction: 'outbound' })).toBe(false);
+    expect(isIndexedMessage({ ...MAIL, channel: 'api' })).toBe(false);
+    expect(isIndexedMessage({ ...MAIL, channel: null })).toBe(false);
+  });
+
+  it('leaves out a message a member logged by hand, whatever it claims', () => {
+    // `POST /conversations/:id/messages` may say `isCustomer: true`; it never
+    // names a connector, so a member's words never index as inbound mail.
+    expect(isIndexedMessage({ ...MAIL, connectorName: null })).toBe(false);
+    expect(isIndexedMessage({ ...MAIL, connectorName: undefined })).toBe(false);
+    expect(isIndexedMessage({ ...MAIL, connectorName: '' })).toBe(false);
   });
 });

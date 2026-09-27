@@ -30,7 +30,7 @@ import {
  * An indexed email body is keyed by MESSAGE ref instead (`msg:<message id>`,
  * `lib/knowledge/message-ref.ts`): it has no bytes and no file row, so it
  * gets one verdict of its own, `assessMessageRefLiveness` — live while its
- * inbound email row exists.
+ * inbound email row exists and its conversation is not marked spam.
  *
  * `release.ts` acts on both verdicts. The indexer asks the first one
  * (`isCorpusRefLive`) before it pays for a download or an embedding, and
@@ -128,21 +128,21 @@ export async function isCorpusRefLive(
 
 /**
  * Corpus-liveness for email MESSAGE refs (`msg:`): the corpus may hold a
- * message's rows while its inbound email row exists — whatever its
- * conversation's lifecycle or status, the way a trashed document stays
- * restorable while the retrievability filter hides it. A message has no
- * bytes, so there is no blob verdict to give; a malformed ref names nothing
- * and is dead.
- *
- * `excludeConversationIds` names conversations being purged in the same
- * operation, whose messages must not keep their own refs alive.
+ * message's rows while its inbound email row exists (`isIndexedMessage`) —
+ * whatever its conversation's lifecycle, the way a trashed document stays
+ * restorable while the retrievability filter hides it — unless its
+ * conversation is marked spam. Spam is the organization's own verdict that
+ * an outsider's mail is junk, so its copy is released rather than kept dark
+ * (the status flip queues the release, and queues the index again when the
+ * verdict is lifted), and a spam body is never embedded to begin with. A
+ * message has no bytes, so there is no blob verdict to give; a malformed ref
+ * names nothing and is dead.
  */
 export async function assessMessageRefLiveness(
   sql: Sql,
   args: {
     organizationId: string;
     refs: readonly string[];
-    excludeConversationIds?: readonly string[];
   },
 ): Promise<{ ref: string; corpusLive: boolean }[]> {
   const idsByRef = new Map<string, string | null>(
@@ -155,11 +155,14 @@ export async function assessMessageRefLiveness(
   if (messageIds.length > 0) {
     const rows = await sql<{ id: string }[]>`
       SELECT m.id FROM app.conversation_messages m
+      JOIN app.conversations c
+        ON c.id = m.conversation_id AND c.org_id = m.org_id
       WHERE m.org_id = ${args.organizationId}
         AND m.id = ANY(${messageIds}::text[])
         AND m.direction = ${INDEXED_MESSAGE_DIRECTION}
         AND m.channel = ${INDEXED_MESSAGE_CHANNEL}
-        AND m.conversation_id <> ALL(${[...(args.excludeConversationIds ?? [])]}::text[])
+        AND m.connector_name <> ''
+        AND c.status IS DISTINCT FROM 'spam'
     `;
     for (const row of rows) live.add(row.id);
   }

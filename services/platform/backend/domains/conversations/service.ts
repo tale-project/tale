@@ -1,12 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  INDEXED_MESSAGE_CHANNEL,
-  INDEXED_MESSAGE_DIRECTION,
-  isIndexedMessage,
-  isMessageId,
-  messageRef,
-} from '../../../lib/knowledge/message-ref.ts';
+import { isIndexedMessage } from '../../../lib/knowledge/message-ref.ts';
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
@@ -27,6 +21,11 @@ import {
 import { emitEvent } from '../events/emit.ts';
 import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
+import {
+  indexedMessageRefsOf,
+  queueMessageRefRelease,
+  queueSpamVerdictCorpusJobs,
+} from './message-corpus.ts';
 import {
   mailboxFilterSql,
   resolveHeldThreadCredential,
@@ -359,10 +358,18 @@ export async function addMessageToConversation(
   // transaction: a rolled-back insert queues nothing, and the loser of an
   // ingest race (the unique Message-ID refusal) rolls its job back with it.
   // Which messages qualify is `isIndexedMessage` — the same answer the
-  // indexer, the retrievable filter and the ref release give. An empty body
-  // is never queued; the indexer re-checks after reading HTML down to text.
+  // indexer, the retrievable filter and the ref release give: mail a
+  // connector delivered, never a message a member logged by hand. An empty
+  // body is never queued; the indexer re-checks after reading HTML down to
+  // text. Nor is mail landing on a conversation already marked spam: junk is
+  // never embedded, and lifting the verdict queues it (`message-corpus.ts`).
   if (
-    isIndexedMessage({ direction, channel: conversation.channel }) &&
+    isIndexedMessage({
+      direction,
+      channel: conversation.channel,
+      connectorName: args.connectorName,
+    }) &&
+    conversation.status !== 'spam' &&
     args.content.trim() !== ''
   ) {
     await addJobInTx(tx, 'rag.index_message', { messageId });
@@ -863,9 +870,13 @@ export async function updateConversation(
   actor: { userId: string },
 ): Promise<void> {
   const rows = await tx<
-    { id: string; metadata: Record<string, unknown> | null }[]
+    {
+      id: string;
+      status: string | null;
+      metadata: Record<string, unknown> | null;
+    }[]
   >`
-    SELECT id, metadata FROM app.conversations
+    SELECT id, status, metadata FROM app.conversations
     WHERE id = ${conversationId} AND org_id = ${organizationId} LIMIT 1
   `;
   const row = rows[0];
@@ -914,6 +925,11 @@ export async function updateConversation(
       metadata = ${nextMetadata !== undefined ? tx.json(toJson(nextMetadata)) : tx.unsafe('metadata')}
     WHERE id = ${conversationId}
   `;
+  if (updates.status !== undefined) {
+    await queueSpamVerdictCorpusJobs(tx, organizationId, [
+      { conversationId, from: row.status, to: updates.status },
+    ]);
+  }
   await emitHintInTx(tx, {
     orgId: organizationId,
     entity: 'conversation',
@@ -1255,9 +1271,13 @@ export async function bulkSetConversationStatus(
   };
   const now = Date.now();
   await sql.begin(async (tx) => {
+    const flips: { conversationId: string; from: string | null; to: string }[] =
+      [];
     for (const conversationId of args.conversationIds) {
-      const rows = await tx<{ metadata: Record<string, unknown> | null }[]>`
-        SELECT metadata FROM app.conversations
+      const rows = await tx<
+        { status: string | null; metadata: Record<string, unknown> | null }[]
+      >`
+        SELECT status, metadata FROM app.conversations
         WHERE id = ${conversationId} AND org_id = ${args.organizationId}
         LIMIT 1
       `;
@@ -1274,8 +1294,10 @@ export async function bulkSetConversationStatus(
           metadata = ${tx.json(toJson({ ...row.metadata, ...stamps }))}
         WHERE id = ${conversationId}
       `;
+      flips.push({ conversationId, from: row.status, to: target.status });
       result.successCount += 1;
     }
+    await queueSpamVerdictCorpusJobs(tx, args.organizationId, flips);
     if (result.successCount > 0) {
       await createAuditLog(tx, {
         organizationId: args.organizationId,
@@ -1331,22 +1353,11 @@ export async function deleteConversation(
       );
     }
     await assertNotHeld(tx, organizationId, 'conversation', conversationId);
-    const indexed = await tx<{ id: string }[]>`
-      SELECT id FROM app.conversation_messages
-      WHERE conversation_id = ${conversationId} AND org_id = ${organizationId}
-        AND direction = ${INDEXED_MESSAGE_DIRECTION}
-        AND channel = ${INDEXED_MESSAGE_CHANNEL}
-    `;
+    const refs = await indexedMessageRefsOf(tx, organizationId, [
+      conversationId,
+    ]);
     await tx`DELETE FROM app.conversations WHERE id = ${conversationId}`;
-    const refs = indexed
-      .filter((message) => isMessageId(message.id))
-      .map((message) => messageRef(message.id));
-    if (refs.length > 0) {
-      await addJobInTx(tx, 'knowledge.release_refs', {
-        organizationId,
-        refs,
-      });
-    }
+    await queueMessageRefRelease(tx, organizationId, refs);
   });
 }
 

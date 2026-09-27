@@ -4,12 +4,6 @@ import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
-  INDEXED_MESSAGE_CHANNEL,
-  INDEXED_MESSAGE_DIRECTION,
-  isMessageId,
-  messageRef,
-} from '../../../lib/knowledge/message-ref.ts';
-import {
   retentionDefaultsConfigSchema,
   type RetentionCategory,
 } from '../../../lib/shared/schemas/retention.ts';
@@ -27,6 +21,10 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  indexedMessageRefsOf,
+  queueMessageRefRelease,
+} from '../conversations/message-corpus.ts';
 import { emitDocumentChangeHints } from '../documents/hints.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
 import {
@@ -1170,9 +1168,14 @@ async function sweepContacts(
  * guard `sweepTempFiles` uses.
  *
  * Nor do the corpus copies of the inbound email bodies (`rag.index_message`,
- * keyed by `msg:` ref): they live in the knowledge database, so they are
- * released through the same seam before the conversation goes, and a failed
- * release keeps the conversation for the next sweep.
+ * keyed by `msg:` ref): they live in the knowledge database, so their
+ * release is queued in the transaction that deletes the conversations — the
+ * posture `deleteConversation` takes. The job runs once the rows are gone
+ * (pg-boss retries it, the daily corpus reconcile finishes one that gives
+ * up, and the retrievable filter refuses a deleted message's rows
+ * meanwhile), so a knowledge database that cannot be reached never holds
+ * the window back, and a body indexed late — by a job in flight while the
+ * sweep ran — is released by it too.
  */
 async function sweepExternalConversations(
   sql: Sql,
@@ -1261,55 +1264,9 @@ async function sweepExternalConversations(
       trail.tally.deleted += 1;
     }
   }
-  // The inbound email bodies the corpus indexed (`rag.index_message`): their
-  // copies live in the knowledge database, where the messages' own cascade
-  // cannot reach, so they are released BEFORE the rows that keep them live —
-  // the same seam, run synchronously like the attachments above, with the
-  // conversations being purged excluded from the liveness answer. A failed
-  // release keeps its conversation, and so the message, for the next sweep:
-  // the window must never delete a body while its indexed copy lives on.
-  const releasable = doomedIds.filter((id) => !stranded.has(id));
-  const indexed =
-    releasable.length === 0
-      ? []
-      : await sql<{ id: string; conversationId: string }[]>`
-          SELECT id, conversation_id AS "conversationId"
-          FROM app.conversation_messages
-          WHERE org_id = ${org.organizationId}
-            AND conversation_id IN ${sql(releasable)}
-            AND direction = ${INDEXED_MESSAGE_DIRECTION}
-            AND channel = ${INDEXED_MESSAGE_CHANNEL}
-        `;
-  const conversationByRef = new Map(
-    indexed
-      .filter((message) => isMessageId(message.id))
-      .map((message) => [messageRef(message.id), message.conversationId]),
-  );
-  if (conversationByRef.size > 0) {
-    const orgSlug = await resolveOrgSlug(sql, org.organizationId);
-    if (orgSlug !== null) {
-      const outcome = await releaseRefs(sql, {
-        organizationId: org.organizationId,
-        orgSlug,
-        refs: [...conversationByRef.keys()],
-        excludeConversationIds: releasable,
-      });
-      if (outcome.failures.length > 0) {
-        console.warn(
-          `[retention] conversation-message release failed — keeping those conversations for the next sweep:`,
-          outcome.failures,
-        );
-        for (const failure of outcome.failures) {
-          const conversationId = conversationByRef.get(failure.ref);
-          if (conversationId !== undefined) stranded.add(conversationId);
-        }
-      }
-    }
-  }
   trail.tally.failed += stranded.size;
-  // A conversation whose attachment or indexed body could not be released
-  // stays too: deleting the parent would orphan the file row behind a
-  // dangling pointer, or leave the body's copy answering searches, which is
+  // A conversation whose attachment could not be released stays too: deleting
+  // the parent would orphan the file row behind a dangling pointer, which is
   // the failure this cascade exists to prevent.
   const deletable = doomedIds.filter((id) => !stranded.has(id));
   if (deletable.length === 0 && attachmentsDeleted === 0) return;
@@ -1317,6 +1274,12 @@ async function sweepExternalConversations(
   // note); the conversations — and with them every email body — go in the
   // transaction that writes the category's row.
   const conversations = await sql.begin(async (tx) => {
+    // Read before the rows go: the refs are the messages' ids.
+    const bodyRefs = await indexedMessageRefsOf(
+      tx,
+      org.organizationId,
+      deletable,
+    );
     const removed =
       deletable.length === 0
         ? []
@@ -1324,6 +1287,7 @@ async function sweepExternalConversations(
             DELETE FROM app.conversations WHERE id IN ${tx(deletable)}
             RETURNING id
           `;
+    await queueMessageRefRelease(tx, org.organizationId, bodyRefs);
     await recordDestruction(tx, trail, {
       deleted: removed.length + attachmentsDeleted,
       counts: {

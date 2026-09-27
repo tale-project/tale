@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * An indexed email body rides the release seam under its MESSAGE ref: dead
- * once its inbound email row is gone, released by deleting its corpus rows —
+ * once its inbound email row is gone or its conversation is marked spam,
+ * released by deleting its corpus rows —
  * and never handed to the blob stage, where `parseBlobRef` would coerce the
  * ref into a storage id instead of refusing it. The corpus reconcile walks
  * message refs apart from blob refs, from a random start, so neither a large
@@ -59,11 +60,13 @@ interface Statement {
 
 /**
  * The app database as the liveness predicates read it: `messages` maps each
- * inbound email that still exists to its conversation; `liveBlobs` are the
- * blob refs something still references.
+ * inbound email that still exists to its conversation, `spam` names the
+ * conversations marked spam; `liveBlobs` are the blob refs something still
+ * references.
  */
 function fakeSql(state: {
   messages?: Record<string, string>;
+  spam?: string[];
   liveBlobs?: string[];
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
@@ -72,13 +75,13 @@ function fakeSql(state: {
     statements.push({ text, values });
     if (text.includes('FROM app.conversation_messages m')) {
       const ids = values[1] as string[];
-      const excluded = values[4] as string[];
       return Promise.resolve(
         ids
           .filter((id) => {
             const conversationId = state.messages?.[id];
             return (
-              conversationId !== undefined && !excluded.includes(conversationId)
+              conversationId !== undefined &&
+              !(state.spam ?? []).includes(conversationId)
             );
           })
           .map((id) => ({ id })),
@@ -142,18 +145,21 @@ describe('releaseRefs — email message refs', () => {
     const read = statements.find((s) =>
       s.text.includes('FROM app.conversation_messages m'),
     );
-    expect(read?.values).toEqual(['org-1', [DEAD_ID], 'inbound', 'email', []]);
+    expect(read?.values).toEqual(['org-1', [DEAD_ID], 'inbound', 'email']);
+    // Only mail a connector delivered was ever indexed, and a spam
+    // conversation's is not kept.
+    expect(read?.text).toContain("m.connector_name <> ''");
+    expect(read?.text).toContain("c.status IS DISTINCT FROM 'spam'");
+    expect(read?.text).toContain('c.org_id = m.org_id');
   });
 
-  it('does not let a conversation being purged keep its own messages alive', async () => {
-    // The retention purge releases BEFORE it deletes the conversation, so
-    // the message row is still there; the exclusion is what reads it dead.
-    const { sql } = fakeSql({ messages: { [LIVE_ID]: 'conv-doomed' } });
-    const outcome = await releaseRefs(sql, {
-      ...ORG,
-      refs: [ref(LIVE_ID)],
-      excludeConversationIds: ['conv-doomed'],
+  it('releases the email of a conversation marked spam', async () => {
+    // The verdict queues this release; lifting it queues the index again.
+    const { sql } = fakeSql({
+      messages: { [LIVE_ID]: 'conv-junk' },
+      spam: ['conv-junk'],
     });
+    const outcome = await releaseRefs(sql, { ...ORG, refs: [ref(LIVE_ID)] });
     expect(outcome.released).toEqual([ref(LIVE_ID)]);
   });
 

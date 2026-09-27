@@ -34,11 +34,11 @@ import { reconcileDocumentScopeStamps } from './service.ts';
  * failed purge into a false "done".
  *
  * An indexed email body rides the same seam under its MESSAGE ref (`msg:`):
- * corpus-dead once its inbound email row is gone (`assessMessageRefLiveness`),
- * and corpus rows are its only surface — it never reaches the blob stage. The
- * conversation delete enqueues the release job for its messages; the
- * retention purge releases them synchronously and keeps a conversation whose
- * release failed.
+ * corpus-dead once its inbound email row is gone or its conversation is
+ * marked spam (`assessMessageRefLiveness`), and corpus rows are its only
+ * surface — it never reaches the blob stage. Every lane that kills one —
+ * the conversation delete, the retention purge, a spam verdict — enqueues
+ * the release job in its own transaction (`conversations/message-corpus.ts`).
  *
  * Rotation points enqueue the durable `knowledge.release_refs` job (network
  * I/O never runs inside their transaction; pg-boss retries); purge lanes
@@ -69,9 +69,6 @@ export interface ReleaseRefsArgs {
   refs: readonly (string | null | undefined)[];
   excludeDocumentId?: string;
   excludeFileMetadataId?: string;
-  /** Conversations being purged in the same operation — their messages must
-   * not keep their own `msg:` refs alive. */
-  excludeConversationIds?: readonly string[];
 }
 
 /** The distinct, non-empty refs of a release, split by vocabulary: blob refs
@@ -96,7 +93,8 @@ function splitReleaseRefs(refs: ReleaseRefsArgs['refs']): {
 
 /**
  * Release the corpus rows of every email message ref nothing holds any more
- * (`assessMessageRefLiveness`: the inbound email row is gone). A message has
+ * (`assessMessageRefLiveness`: the inbound email row is gone, or its
+ * conversation is marked spam). A message has
  * no bytes, so this is the whole of its release — the same step in a full
  * release and in a corpus-only one. Failures land on the outcome, never
  * thrown.
@@ -111,9 +109,6 @@ async function releaseMessageRefs(
   const liveness = await assessMessageRefLiveness(sql, {
     organizationId: args.organizationId,
     refs,
-    ...(args.excludeConversationIds !== undefined
-      ? { excludeConversationIds: args.excludeConversationIds }
-      : {}),
   });
   const dead = liveness
     .filter((entry) => !entry.corpusLive)

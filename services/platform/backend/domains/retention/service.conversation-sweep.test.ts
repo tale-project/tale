@@ -5,17 +5,26 @@
  * correspondent's mail: deleting a conversation deletes its message rows by
  * cascade, but the corpus copies of its inbound email bodies
  * (`rag.index_message`, keyed by `msg:` ref) live in the knowledge database,
- * where no cascade reaches. So the sweep releases them through the ref seam
- * BEFORE it deletes, with the doomed conversations excluded from the
- * liveness answer, and keeps any conversation whose release failed — the
- * window must never delete a body while its indexed copy lives on.
+ * where no cascade reaches. So the sweep queues their release in the
+ * transaction that deletes the conversations — as `deleteConversation`
+ * does: the job runs once the rows are gone, pg-boss retries it and the
+ * corpus reconcile finishes it, so an unreachable knowledge database never
+ * holds the window back, and a body a late job indexed is released too.
  */
 
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const { addJobInTx } = vi.hoisted(() => ({
+  addJobInTx: vi.fn(
+    async (_tx: unknown, _name: string, _payload: unknown) => 'job-1',
+  ),
+}));
+
 import { releaseRefs } from '../knowledge/release.ts';
 import { sweepOrgPhase2 } from './service.ts';
+
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: vi.fn(() => Promise.resolve(null)),
@@ -63,6 +72,7 @@ function isFragment(value: unknown): value is Fragment {
 function fakeSweep(script: {
   doomed: string[];
   messages: { id: string; conversationId: string }[];
+  attachments?: { id: string; storageRef: string; conversationId: string }[];
   events: string[];
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
@@ -100,10 +110,12 @@ function fakeSweep(script: {
       rows = script.doomed.map((id) => ({ id }));
     } else if (
       text.includes('FROM app.conversation_messages') &&
-      text.includes('conversation_id IN')
+      text.includes('conversation_id = ANY')
     ) {
-      const ids = new Set(flat.slice(1, -2));
+      const ids = new Set(flat[1] as string[]);
       rows = script.messages.filter((m) => ids.has(m.conversationId));
+    } else if (text.includes('FROM app.file_metadata')) {
+      rows = script.attachments ?? [];
     } else if (text.startsWith('DELETE FROM app.conversations')) {
       rows = flat.map((id) => ({ id }));
     }
@@ -131,12 +143,16 @@ afterEach(() => {
 });
 
 describe('sweepOrgPhase2 — the conversation window releases indexed email bodies', () => {
-  it('releases the doomed conversations’ inbound email refs before it deletes them', async () => {
-    const events: string[] = [];
-    releaseRefsMock.mockImplementation(async () => {
-      events.push('releaseRefs');
-      return { released: [ref('m-1'), ref('m-2')], kept: [], failures: [] };
+  function recordEnqueues(events: string[]): void {
+    addJobInTx.mockImplementation(async (_tx: unknown, name: string) => {
+      events.push(`enqueue ${name}`);
+      return 'job-1';
     });
+  }
+
+  it('queues the release of the purged conversations’ email refs in the delete’s transaction', async () => {
+    const events: string[] = [];
+    recordEnqueues(events);
     const fake = fakeSweep({
       doomed: ['conv-1', 'conv-2'],
       messages: [
@@ -152,42 +168,57 @@ describe('sweepOrgPhase2 — the conversation window releases indexed email bodi
     const messageRead = fake.statements.find((s) =>
       s.text.includes('FROM app.conversation_messages'),
     );
-    // Only what the corpus can hold: inbound email.
-    expect(messageRead?.values).toEqual([
+    // Only what the corpus can hold: inbound email a connector delivered.
+    expect(messageRead?.values.slice(0, 4)).toEqual([
       'org_1',
-      'conv-1',
-      'conv-2',
+      ['conv-1', 'conv-2'],
       'inbound',
       'email',
     ]);
-    expect(releaseRefsMock).toHaveBeenCalledTimes(1);
-    expect(releaseRefsMock).toHaveBeenCalledWith(fake.sql, {
-      organizationId: 'org_1',
-      orgSlug: 'acme',
-      refs: [ref('m-1'), ref('m-2')],
-      excludeConversationIds: ['conv-1', 'conv-2'],
-    });
-    expect(events.indexOf('releaseRefs')).toBeLessThan(
+    expect(messageRead?.text).toContain("connector_name <> ''");
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'knowledge.release_refs',
+      { organizationId: 'org_1', refs: [ref('m-1'), ref('m-2')] },
+    );
+    // Read before the rows go, queued after them: the job runs once the
+    // transaction commits and finds the refs dead.
+    expect(fake.statements.indexOf(messageRead as Statement)).toBeLessThan(
+      fake.statements.findIndex((s) =>
+        s.text.startsWith('DELETE FROM app.conversations'),
+      ),
+    );
+    expect(events.indexOf('enqueue knowledge.release_refs')).toBeGreaterThan(
       events.indexOf('DELETE FROM app.conversations'),
     );
+    // The knowledge database is never asked while the window runs, so one
+    // that cannot be reached strands nothing.
+    expect(releaseRefsMock).not.toHaveBeenCalled();
     const purge = fake.statements.find((s) =>
       s.text.startsWith('DELETE FROM app.conversations'),
     );
     expect(purge?.values).toEqual(['conv-1', 'conv-2']);
   });
 
-  it('keeps a conversation whose email release failed, and purges the rest', async () => {
+  it('releases no body of a conversation kept for its attachment', async () => {
+    // An attachment whose bytes could not be released keeps its
+    // conversation — and the conversation keeps its messages, so their
+    // corpus copies stay with them for the next sweep.
     releaseRefsMock.mockResolvedValue({
-      released: [ref('m-2')],
+      released: [],
       kept: [],
-      failures: [{ ref: ref('m-1'), stage: 'corpus', message: 'corpus down' }],
+      failures: [{ ref: 's3:a', stage: 'blob', message: 'store down' }],
     });
+    recordEnqueues([]);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const fake = fakeSweep({
       doomed: ['conv-1', 'conv-2'],
       messages: [
         { id: 'm-1', conversationId: 'conv-1' },
         { id: 'm-2', conversationId: 'conv-2' },
+      ],
+      attachments: [
+        { id: 'f-1', storageRef: 's3:a', conversationId: 'conv-1' },
       ],
       events: [],
     });
@@ -199,7 +230,11 @@ describe('sweepOrgPhase2 — the conversation window releases indexed email bodi
       s.text.startsWith('DELETE FROM app.conversations'),
     );
     expect(purge?.values).toEqual(['conv-2']);
-    expect(warn).toHaveBeenCalled();
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'knowledge.release_refs',
+      { organizationId: 'org_1', refs: [ref('m-2')] },
+    );
     warn.mockRestore();
   });
 
@@ -209,6 +244,6 @@ describe('sweepOrgPhase2 — the conversation window releases indexed email bodi
     const stats = await sweepOrgPhase2(fake.sql, org, holds);
 
     expect(stats.externalConversations).toBe(1);
-    expect(releaseRefsMock).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 });

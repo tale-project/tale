@@ -2,9 +2,12 @@
  * the mailbox ingest queues `rag.index_message` in the insert's own
  * transaction, the live worker indexes the body under its message ref with
  * its conversation stamped, retrieval serves it to whoever may read that
- * conversation — through the door that asks for bodies, and no other — and
- * deleting the conversation releases its corpus rows. Needs no object store:
- * a message has no bytes. */
+ * conversation — through the door that asks for bodies, and no other — the
+ * organization's PII policy masks the sender's address in the chunk header
+ * and the stored name as well as the body, a spam verdict releases the
+ * corpus rows and lifting it indexes them again, and deleting the
+ * conversation releases them. Needs no object store: a message has no
+ * bytes. */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -16,9 +19,14 @@ import { z } from 'zod';
 
 import { messageRef } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
+import { NO_SUBJECT } from '../../core/conversations/ingest/constants.ts';
 import { getKnowledgePoolForOrg } from '../../core/knowledge/pool.ts';
+import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import { resolveAccessScope } from '../chat/shim.ts';
-import { deleteConversation } from '../conversations/service.ts';
+import {
+  deleteConversation,
+  updateConversation,
+} from '../conversations/service.ts';
 import { conversationShimHandlers } from '../conversations/shim.ts';
 import {
   createCredential,
@@ -77,10 +85,17 @@ export async function checkInboundEmailBodies(
       return null;
     },
   );
+  const piiPolicyPath = path.join(
+    process.env.TALE_CONFIG_DIR ?? '',
+    orgSlug,
+    'governance',
+    'pii-config.yml',
+  );
   const scope = { organizationId: orgId, userId, role: 'owner' };
   const memberId = randomUUID();
   let credentialId = '';
   let conversationId = '';
+  let maskedConversationId = '';
   try {
     // A key for the fake endpoint — unless an earlier lane left one the
     // model already resolves (the full run), so the lane also runs alone.
@@ -180,24 +195,27 @@ export async function checkInboundEmailBodies(
     `;
     const ref = messageRef(created.messageId);
     const pool = await getKnowledgePoolForOrg(orgSlug);
-    const corpusRow = async () =>
+    const corpusRowOf = async (fileId: string) =>
       (
         await pool.unsafe<
           {
             status: string;
             conversationId: string | null;
+            filename: string | null;
             chunk: string | null;
           }[]
         >(
-          `SELECT d.status, d.conversation_id AS "conversationId",
-                  (SELECT c.chunk_content FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
-                    WHERE c.document_id = d.id AND c.org_slug = d.org_slug
-                    ORDER BY c.chunk_index LIMIT 1) AS chunk
+          `SELECT d.status, d.conversation_id AS "conversationId", d.filename,
+                  (SELECT string_agg(c.chunk_content, E'\n' ORDER BY c.chunk_index)
+                     FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+                    WHERE c.document_id = d.id AND c.org_slug = d.org_slug)
+                    AS chunk
              FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
             WHERE d.org_slug = $1 AND d.file_id = $2`,
-          [orgSlug, ref],
+          [orgSlug, fileId],
         )
       )[0];
+    const corpusRow = () => corpusRowOf(ref);
     const indexed = await waitFor(
       async () => (await corpusRow())?.status === 'completed',
       20_000,
@@ -271,11 +289,82 @@ export async function checkInboundEmailBodies(
       `admin=${admin.refs.length} (want 1) member=${member.refs.length} (want 0) doorThatDidNotAsk=${otherDoor.refs.length} (want 0) orgWide=${orgWide.refs.length} (want 0) fetched=${fetched !== null}`,
     );
 
-    await sql`UPDATE app.conversations SET status = 'spam' WHERE id = ${conversationId}`;
+    // The organization's PII policy reaches the chunk header and the
+    // stored name, not just the body: the sender's address never reaches
+    // the embedding provider or the corpus.
+    await mkdir(path.dirname(piiPolicyPath), { recursive: true });
+    await writeFile(
+      piiPolicyPath,
+      ['enabled: true', 'mode: mask', 'enabledPatterns:', '  - email'].join(
+        '\n',
+      ),
+    );
+    clearOrgConfigCaches();
+    const maskedAddress = `pii.${memberId.slice(0, 8)}@ext.test`;
+    const maskedBody = `<p>Please reply to ${maskedAddress} about the ${phrase} role.</p>`;
+    const masked = z
+      .object({ conversationId: z.string(), messageId: z.string() })
+      .parse(
+        await create({
+          organizationId: orgId,
+          direction: 'inbound',
+          channel: 'email',
+          connectorName: 'imap-smtp',
+          // No subject, as the mail lane stores one: the stored name is
+          // then who wrote — the address the policy must mask.
+          subject: NO_SUBJECT,
+          initialMessage: {
+            sender: maskedAddress,
+            content: maskedBody,
+            isCustomer: true,
+            metadata: {
+              html: maskedBody,
+              text: null,
+              from: [{ name: 'Pii Applicant', address: maskedAddress }],
+            },
+          },
+        }),
+      );
+    maskedConversationId = masked.conversationId;
+    const maskedRef = messageRef(masked.messageId);
+    const maskedIndexed = await waitFor(
+      async () => (await corpusRowOf(maskedRef))?.status === 'completed',
+      20_000,
+    );
+    const maskedRow = await corpusRowOf(maskedRef);
+    const maskedStored = `${maskedRow?.filename ?? ''}\n${maskedRow?.chunk ?? ''}`;
+    await rm(piiPolicyPath, { force: true });
+    clearOrgConfigCaches();
+    record(
+      "inbound email body: a mask PII policy keeps the sender's address out of the header, the chunks and the stored name",
+      maskedIndexed &&
+        (maskedRow?.chunk ?? '').includes('Email from Pii Applicant') &&
+        (maskedRow?.filename ?? '').includes('Email from Pii Applicant') &&
+        maskedStored.includes('[EMAIL]') &&
+        !maskedStored.includes(maskedAddress),
+      `indexed=${maskedIndexed} raw=${maskedStored.includes(maskedAddress)} (want false) token=${maskedStored.includes('[EMAIL]')} filename=${JSON.stringify(maskedRow?.filename ?? '')}`,
+    );
+
+    // A spam verdict releases the copy (never kept dark at rest); lifting
+    // it indexes the body again.
+    const flip = (status: 'spam' | 'open') =>
+      sql.begin((tx) =>
+        updateConversation(tx, orgId, conversationId, { status }, { userId }),
+      );
+    await flip('spam');
     const spam = await found({
       ...adminScope,
       includeConversationMessages: true,
     });
+    const spamReleased = await waitFor(
+      async () => (await corpusRow()) === undefined,
+      20_000,
+    );
+    await flip('open');
+    const reindexed = await waitFor(
+      async () => (await corpusRow())?.status === 'completed',
+      20_000,
+    );
     await deleteConversation(sql, orgId, conversationId);
     conversationId = '';
     const released = await waitFor(
@@ -283,11 +372,23 @@ export async function checkInboundEmailBodies(
       20_000,
     );
     record(
-      'inbound email body: a spam verdict darkens it, and deleting the conversation releases its corpus rows',
-      !spam.refs.includes(ref) && released,
-      `spam=${spam.refs.length} (want 0) released=${released}`,
+      'inbound email body: a spam verdict releases it, lifting the verdict indexes it again, and deleting the conversation releases its corpus rows',
+      !spam.refs.includes(ref) && spamReleased && reindexed && released,
+      `spam=${spam.refs.length} (want 0) spamReleased=${spamReleased} reindexed=${reindexed} released=${released}`,
     );
   } finally {
+    await rm(piiPolicyPath, { force: true });
+    clearOrgConfigCaches();
+    if (maskedConversationId !== '') {
+      await deleteConversation(sql, orgId, maskedConversationId).catch(
+        (error: unknown) => {
+          console.warn(
+            '[itest] the email-bodies PII conversation stayed:',
+            error,
+          );
+        },
+      );
+    }
     if (conversationId !== '') {
       await deleteConversation(sql, orgId, conversationId).catch(
         (error: unknown) => {

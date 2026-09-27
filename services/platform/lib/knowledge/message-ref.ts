@@ -81,9 +81,16 @@ export function parseMessageRef(ref: string): string | null {
  * over the API (`channel: 'api'`) is another system's record and stays out
  * too.
  *
+ * And only mail a connector delivered: a row stamped with the connector it
+ * came through (`connector_name`). The mailbox sync always stamps one; a
+ * member logging a message by hand (`POST /conversations/:id/messages`,
+ * which may say `isCustomer: true` and bring its own `from` and `subject`)
+ * never does, so a member's words never index as a customer's mail.
+ *
  * The ingest enqueue, the indexer, the retrievable filter and the ref release
- * all read these two values — the SQL halves bind them as parameters — so the
- * lanes cannot disagree about which rows a message ref may name.
+ * all read these values — the SQL halves bind the two constants as
+ * parameters beside `connector_name <> ''` (false for NULL) — so the lanes
+ * cannot disagree about which rows a message ref may name.
  */
 export const INDEXED_MESSAGE_DIRECTION = 'inbound';
 export const INDEXED_MESSAGE_CHANNEL = 'email';
@@ -91,9 +98,12 @@ export const INDEXED_MESSAGE_CHANNEL = 'email';
 export function isIndexedMessage(message: {
   readonly direction: string;
   readonly channel: string | null;
+  readonly connectorName: string | null | undefined;
 }): boolean {
   return (
     message.direction === INDEXED_MESSAGE_DIRECTION &&
-    message.channel === INDEXED_MESSAGE_CHANNEL
+    message.channel === INDEXED_MESSAGE_CHANNEL &&
+    typeof message.connectorName === 'string' &&
+    message.connectorName !== ''
   );
 }

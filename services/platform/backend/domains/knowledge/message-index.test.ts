@@ -74,9 +74,11 @@ interface MessageRow {
   conversationId: string;
   channel: string;
   direction: string;
+  connectorName: string | null;
   content: string;
   metadata: unknown;
   sentAt: number;
+  conversationStatus: string | null;
   conversationSubject: string | null;
   contactName: string | null;
   contactEmail: string | null;
@@ -88,6 +90,7 @@ function row(overrides: Partial<MessageRow> = {}): MessageRow {
     conversationId: 'conv_1',
     channel: 'email',
     direction: 'inbound',
+    connectorName: 'imap-smtp',
     content: HTML,
     metadata: {
       html: HTML,
@@ -96,6 +99,7 @@ function row(overrides: Partial<MessageRow> = {}): MessageRow {
       from: [{ name: 'Bob Example', address: 'bob@example.test' }],
     },
     sentAt: SENT_AT,
+    conversationStatus: 'open',
     conversationSubject: 'Application: field sales agent',
     contactName: 'Robert Example',
     contactEmail: 'bob@example.test',
@@ -167,10 +171,35 @@ describe('indexConversationMessage', () => {
       sourceCreatedAt: new Date(SENT_AT),
       sourceModifiedAt: new Date(SENT_AT),
     });
-    // The secret scan reads what would be indexed.
+    // The secret scan reads what would be indexed — the header included, so
+    // a code in a subject line is refused like one in the body.
     expect(new TextDecoder().decode(args.bytes as Uint8Array)).toBe(
-      'Applying for the field sales agent role.',
+      'Application: field sales agent — from Bob Example <bob@example.test>\n\n' +
+        'Applying for the field sales agent role.',
     );
+    // No policy: the body and the header index as they are.
+    expect(mocks.readGovernancePolicy).toHaveBeenCalledWith(
+      'acme',
+      'pii_config',
+    );
+    expect(args.piiConfig).toBeNull();
+  });
+
+  it('hands the organization’s PII policy to the indexer', async () => {
+    // `prepareDocument` applies it to the body, the chunk header and the
+    // stored name alike (indexing.test.ts); here the policy must reach it.
+    mocks.readGovernancePolicy.mockResolvedValue({
+      enabled: true,
+      mode: 'mask',
+      enabledPatterns: ['email'],
+    });
+    const { sql } = fakeSql(row());
+    await indexConversationMessage(sql, MESSAGE_ID);
+    expect(indexedArgs().piiConfig).toMatchObject({
+      enabled: true,
+      mode: 'mask',
+      enabledPatterns: ['email'],
+    });
   });
 
   it('asks the message’s own liveness after the corpus row is claimed', async () => {
@@ -214,13 +243,17 @@ describe('indexConversationMessage', () => {
     });
   });
 
-  it('indexes nothing for a message that is gone, ours, mirrored, or empty', async () => {
+  it('indexes nothing for a message that is gone, ours, mirrored, logged by hand, spam, or empty', async () => {
     // Markup and images alone: an HTML body with no text left to index.
     const pixelOnly = '<div><img src="https://example.test/x.gif"></div>';
     for (const message of [
       null,
       row({ direction: 'outbound' }),
       row({ channel: 'api' }),
+      // A member's `POST /conversations/:id/messages` names no connector.
+      row({ connectorName: null }),
+      // Junk an outsider wrote is never sent to the embedding provider.
+      row({ conversationStatus: 'spam' }),
       row({ content: pixelOnly, metadata: { html: pixelOnly, text: null } }),
       row({ content: ' \n ', metadata: { html: null, text: ' \n ' } }),
     ]) {

@@ -296,6 +296,7 @@ async function filterRetrievableRagFileIds(
             AND m.id = ANY(${messageIds})
             AND m.direction = ${INDEXED_MESSAGE_DIRECTION}
             AND m.channel = ${INDEXED_MESSAGE_CHANNEL}
+            AND m.connector_name <> ''
         `;
   // Which of the CANDIDATES' conversations this caller may read. Bounded by
   // the candidate set, never enumerated for the caller: an admin sees every

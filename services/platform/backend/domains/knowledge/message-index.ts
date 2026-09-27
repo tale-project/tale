@@ -60,7 +60,10 @@ import { knowledgeShimHandlers } from './service.ts';
  *    passwords as often as a file carries keys, and a credential in the corpus
  *    is read back into a model's context — so the body goes through the same
  *    refusal as an upload. It scans what would be indexed, not the raw HTML:
- *    a token in a tracking pixel never reaches the corpus anyway.
+ *    a token in a tracking pixel never reaches the corpus anyway. The chunk
+ *    header (subject and sender) is indexed text too, so it is scanned with
+ *    the body, and the PII policy masks or refuses it like the body
+ *    (`prepareDocument`).
  *  - Liveness is the message row's (`isMessageCorpusLive`), asked after the
  *    corpus row is claimed: a conversation deleted while the job waited is
  *    never indexed back.
@@ -81,19 +84,22 @@ export async function indexConversationMessage(
       conversationId: string;
       channel: string;
       direction: string;
+      connectorName: string | null;
       content: string;
       metadata: unknown;
       sentAt: number;
+      conversationStatus: string | null;
       conversationSubject: string | null;
       contactName: string | null;
       contactEmail: string | null;
     }[]
   >`
     SELECT m.org_id AS "organizationId", m.conversation_id AS "conversationId",
-           m.channel, m.direction, m.content, m.metadata,
+           m.channel, m.direction, m.connector_name AS "connectorName",
+           m.content, m.metadata,
            coalesce(m.sent_at_ms, m.delivered_at_ms, m.created_at_ms)::float8
              AS "sentAt",
-           c.subject AS "conversationSubject",
+           c.status AS "conversationStatus", c.subject AS "conversationSubject",
            ct.name AS "contactName", ct.email AS "contactEmail"
     FROM app.conversation_messages m
     JOIN app.conversations c
@@ -105,8 +111,13 @@ export async function indexConversationMessage(
   `;
   const message = rows[0];
   // Gone before the job ran (the conversation was deleted), or not a message
-  // the corpus holds — nothing to index, nothing to retry.
+  // the corpus holds — nothing to index, nothing to retry. Nor is mail the
+  // organization has marked spam: junk an outsider wrote is never sent to
+  // the embedding provider, and lifting the verdict queues it again
+  // (`conversations/message-corpus.ts`). A verdict that lands while this job
+  // runs is seen by the liveness check after the claim.
   if (!message || !isIndexedMessage(message)) return;
+  if (message.conversationStatus === 'spam') return;
   const text = messageBodyText(message.content, message.metadata);
   // An empty body — no text, or markup and images alone — matches nothing
   // and would cost a corpus row.
@@ -151,7 +162,10 @@ export async function indexConversationMessage(
       fileId: messageRef(messageId),
       filename: names.filename,
       text,
-      bytes: new TextEncoder().encode(text),
+      // The header is indexed text too (`prepareDocument`), so the subject
+      // is scanned with the body: a reset code in a subject line would
+      // otherwise head every chunk.
+      bytes: new TextEncoder().encode(`${names.title}\n\n${text}`),
       embedder,
       piiConfig: parsePiiConfig(piiPolicy),
       folderPath: null,
