@@ -70,12 +70,17 @@ export function parseDavPath(pathname: string): ParsedPath | null {
 // before `parseDavPath` runs (`isValidSegment` never saw the `..` a client
 // sent, and a PUT through `<folder>/%2E%2E/x` landed one level up), so
 // the check runs on the request line as the wire carried it, never on a
-// parsed URL. Only the path is judged; the query is not a path. A name
-// that merely contains dots (`..foo`, `foo.`) is a legal name.
+// parsed URL. A raw backslash is a segment boundary too: for an http URL
+// the WHATWG parser reads `\` as `/`, so `a\..\x` folds exactly like
+// `a/../x` (a `%5C` stays a literal, it is not decoded). Only the path is
+// judged; the query is not a path. A name that merely contains dots
+// (`..foo`, `foo.`) is a legal name.
 export function hasDotSegment(rawTarget: string): boolean {
   const end = rawTarget.search(/[?#]/);
   const path = end === -1 ? rawTarget : rawTarget.slice(0, end);
-  return path.split('/').some((segment) => /^(?:%2e|\.){1,2}$/i.test(segment));
+  return path
+    .split(/[/\\]/)
+    .some((segment) => /^(?:%2e|\.){1,2}$/i.test(segment));
 }
 
 // Build the wire URL for a resource (used in PROPFIND `<href>` and in

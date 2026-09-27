@@ -254,6 +254,14 @@ describe('hasDotSegment', () => {
     '/dav/myorg/documents/folder/..',
     '/dav/myorg/documents/folder/..?depth=1',
     '/x/../dav/myorg/documents/plain',
+    // A raw backslash is a separator to the WHATWG parser (`\` reads as
+    // `/` in an http URL), so these fold exactly like their slash twins.
+    '/dav/myorg/documents/a\\..\\x',
+    '/dav/myorg/documents/a\\%2e%2e\\x',
+    '/dav/myorg/documents/a\\.\\x',
+    '/dav/myorg/documents/a/..\\x',
+    '/dav/myorg/documents/a\\../x',
+    '/dav/myorg/documents/a\\..',
   ])('refuses %s', (target) => {
     expect(hasDotSegment(target)).toBe(true);
   });
@@ -266,6 +274,11 @@ describe('hasDotSegment', () => {
     '/dav/myorg/documents/a.b/c..d',
     '/dav/myorg/documents/%252e%252e/x',
     '/dav/myorg/documents/plain?next=../up',
+    // `%5C` is not decoded by the parser, so it is no separator: the dots
+    // stay inside one (illegal, later refused) name and fold nothing.
+    '/dav/myorg/documents/a%5C..%5Cx',
+    '/dav/myorg/documents/a\\..foo\\x',
+    '/dav/myorg/documents/plain?next=..\\up',
   ])('keeps %s', (target) => {
     expect(hasDotSegment(target)).toBe(false);
   });

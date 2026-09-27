@@ -15,7 +15,7 @@ Cette référence s'adresse aux développeurs de clients. Vérifie d'abord une l
 | `/dav/<orgSlug>/.trash/<path>` | Lecture seule | Documents dans la corbeille |
 | `/dav/<orgSlug>/` | Lecture seule | Les deux collections ci-dessus |
 
-Encode chaque segment séparément. L'analyseur normalise Unicode en NFC et retire les espaces en début et fin de nom. Il refuse les noms vides, `.` et `..`, `/`, `\`, les caractères de contrôle et les noms de plus de 255 unités de code UTF-16. Il ne s'agit donc pas d'une limite de 255 octets. Le slug d'organisation respecte `[a-zA-Z0-9_-]{1,64}`. Un segment `.` ou `..` dans la ligne de requête, brut ou encodé (`%2e%2e`, `.%2e`), est refusé avec `404` avant le routage et n'est jamais résolu vers le dossier parent.
+Encode chaque segment séparément. L'analyseur normalise Unicode en NFC et retire les espaces en début et fin de nom. Il refuse les noms vides, `.` et `..`, `/`, `\`, les caractères de contrôle et les noms de plus de 255 unités de code UTF-16. Il ne s'agit donc pas d'une limite de 255 octets. Le slug d'organisation respecte `[a-zA-Z0-9_-]{1,64}`. Un segment `.` ou `..` dans la ligne de requête, brut ou encodé (`%2e%2e`, `.%2e`), est refusé avec `404` avant le routage et n'est jamais résolu vers le dossier parent. Une barre oblique inverse brute compte comme séparateur de segment pour ce contrôle (`a\..\x` se lit comme `a/../x`) ; encodée (`%5C`), c'est un caractère de nom ordinaire, refusé.
 
 Ajoute une barre oblique finale aux dossiers, mais pas aux fichiers. Les réponses renvoient des URL canoniques. Pour accéder à un élément existant, reprends son `href` au lieu de le reconstruire à partir du nom affiché, surtout si plusieurs documents d'un dossier portent le même titre.
 

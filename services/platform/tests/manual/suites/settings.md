@@ -422,7 +422,9 @@ any toggled setting after the run.
   <site>/dav/<org>/documents/dotprobe/%2E%2E/escape.txt` and the same with a
   raw `../` → both answer `404`; `PROPFIND Depth: 1` on `/dav/<org>/documents/`
   lists no `escape.txt`, and the Document Hub shows no stray file either;
-  `dotprobe/` deletes cleanly afterwards.
+  `dotprobe/` deletes cleanly afterwards. Repeat the raw spelling with
+  backslashes (`dotprobe\..\escape.txt`, sent as-is) → `404` as well, and
+  still no `escape.txt` anywhere.
 - [ ] `SET-F53` · **WebDAV organization root** — with a SET-F34
   app-password, `curl --user <email>:<password> -X PROPFIND -H 'Depth: 1'
   <site>/dav/<org>/` → `207` whose first `href` is `/dav/<org>/` (a
