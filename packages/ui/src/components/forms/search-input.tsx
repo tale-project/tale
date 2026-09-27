@@ -24,8 +24,14 @@ import { Label } from './label';
  * one — `DataTableFilters` and `CatalogToolbar` — cannot drift apart again; the
  * catalog's search was 16rem while every table page's was 18rem, so the same
  * "search + Filter" pair measured differently depending on the surface.
+ *
+ * 18rem is the box's width when the toolbar has room, not a floor
+ * (`sm:flex-initial`, `min-w-0`): in a column too narrow for the search, its
+ * filter and the page's action, the search yields width before anything is
+ * pushed past the edge.
  */
-export const TOOLBAR_SEARCH_WRAPPER = 'flex-1 sm:flex-none w-auto sm:w-[18rem]';
+export const TOOLBAR_SEARCH_WRAPPER =
+  'flex-1 sm:flex-initial w-auto sm:w-[18rem] min-w-0';
 
 interface SearchInputProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,

@@ -105,6 +105,45 @@ export interface DataTableFiltersProps {
 
 const EMPTY_FILTERS: FilterConfig[] = [];
 
+export interface DataTableToolbarProps {
+  /** The controls that narrow the list — a `DataTableFilters`, a view switch. */
+  children: ReactNode;
+  /** The page's primary action (Create, Add …), opposite the controls. */
+  action?: ReactNode;
+  className?: string;
+}
+
+/**
+ * The list pages' toolbar row — `DataTable`'s header, and every list that
+ * builds its own (the task board): the controls on the left, the primary
+ * action on the right at their h-9 height. On a phone the action takes a
+ * full-width row of its own beneath them.
+ *
+ * It WRAPS rather than overflows. The column a list lives in is often far
+ * narrower than the viewport — at 768px the rail and a section panel leave it
+ * ~400px — and search + filter + a labelled action don't fit there on one
+ * line: the action used to be pushed past the page's edge. Now, when the line
+ * can't hold both, the action moves to a line of its own, still on the right;
+ * and the controls shrink (the search box first) before anything overflows.
+ */
+export function DataTableToolbar({
+  children,
+  action,
+  className,
+}: DataTableToolbarProps) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col justify-between gap-4 sm:flex-row sm:flex-wrap sm:items-center',
+        className,
+      )}
+    >
+      <div className="flex min-w-0 flex-col">{children}</div>
+      {action ? <div className="flex flex-col sm:ml-auto">{action}</div> : null}
+    </div>
+  );
+}
+
 /**
  * Composable filter bar for DataTable.
  *
@@ -164,8 +203,11 @@ export function DataTableFilters({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="flex min-w-0 items-center gap-3">
+      {/* On a phone the search row spans the bar (`self-stretch`), so the
+          search box fills what its filter button leaves instead of stopping
+          at its own intrinsic width. */}
+      <div className="flex min-w-0 flex-col items-start gap-3 self-stretch sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center sm:self-auto">
+        <div className="flex min-w-0 items-center gap-3 self-stretch sm:self-auto">
           {search && (
             <SearchInput
               placeholder={search.placeholder ?? t('search.placeholder')}

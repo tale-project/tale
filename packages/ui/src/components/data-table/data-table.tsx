@@ -61,6 +61,7 @@ import {
 } from './data-table-empty-state';
 import {
   DataTableFilters,
+  DataTableToolbar,
   isFilterActive,
   type FilterConfig,
 } from './data-table-filters';
@@ -620,7 +621,7 @@ export function DataTable<TData, TValue = unknown>({
 
   // Build the header content
   const headerContent = hasHeader ? (
-    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <DataTableToolbar action={primaryAction}>
       <DataTableFilters
         search={search ? { ...search, disabled: searchDisabled } : undefined}
         filters={filters}
@@ -633,8 +634,7 @@ export function DataTable<TData, TValue = unknown>({
       >
         {filtersContent}
       </DataTableFilters>
-      {primaryAction}
-    </div>
+    </DataTableToolbar>
   ) : null;
 
   const colSpan = columns.length + (enableExpanding ? 1 : 0);
