@@ -22,11 +22,13 @@ import { ShieldAlert } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
+import { useProject } from '../hooks/queries';
 import {
   useDeleteProjectSecret,
   useProjectSecrets,
   useSetProjectSecret,
 } from '../hooks/secrets';
+import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSecretsLayout } from './project-secrets-layout';
 
 export function ProjectSecretsTab({
@@ -45,6 +47,11 @@ export function ProjectSecretsTab({
   } = useProjectSecrets(projectId);
   const setSecret = useSetProjectSecret();
   const deleteSecret = useDeleteProjectSecret();
+  // An archived project is read-only for everyone, its secrets included:
+  // the backend refuses every write with PROJECT_ARCHIVED, so the editor's
+  // write controls are gated here too (restore the project first).
+  const { project } = useProject(projectId);
+  const isArchived = project?.archivedAt !== undefined;
 
   // The tab is gated on `project.canAdminister` in the project layout, but a
   // non-admin can still reach this page via a direct URL. Surface the backend's
@@ -86,10 +93,12 @@ export function ProjectSecretsTab({
 
   return (
     <ProjectSecretsLayout>
+      {isArchived ? <ProjectReadOnlyBanner reason="archived" /> : null}
       <EnvVarListEditor
         forceSecret
         rows={rows}
         isLoading={isLoading}
+        disabled={isArchived}
         onSet={async ({ key, value }) => {
           await setSecret.mutateAsync({
             organizationId,

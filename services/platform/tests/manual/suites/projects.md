@@ -365,6 +365,15 @@ projects-list row ⋯ menu.
   the archived-project sentence (backend `PROJECT_ARCHIVED` 403), the file
   stays in the project, no comment lands, the binding and run list are
   unchanged; **Restore** → every one of them goes through.
+- [ ] `PROJ-B8` · **Archived project's Secrets are read-only** — As an
+  admin open the project's **Secrets** tab in a second tab, archive the
+  project on **General**, then reload the Secrets tab → the **This project
+  is archived** banner (`projects.readOnlyBanner.archivedTitle`) sits above
+  the list, the stored names still read, and **Add variable**, every name
+  field and every row's remove control are disabled; in the STALE tab
+  **Add variable** → NAME + value → **Save** is refused with the
+  archived-project sentence (backend `PROJECT_ARCHIVED` 403) and nothing
+  lands; **Restore** → the same save goes through.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)
