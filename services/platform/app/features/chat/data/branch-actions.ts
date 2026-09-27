@@ -32,7 +32,9 @@ import { invalidateBudgetStanding, useChatQueryClient } from './chat-backend';
  * How a fork resolved. A fork is the first half of a turn, so the door
  * measures the sender's budget before forking: a reached cap answers 429
  * `BUDGET_EXCEEDED` with nothing created, and the surface names it exactly
- * like a refused send. Anything else that fails is `failed`.
+ * like a refused send. Anything else that fails is `failed` — carrying the
+ * door's own words (its sentence, else its code) when it refused the fork,
+ * nothing for a fault.
  */
 export type BranchForkResult =
   | {
@@ -49,7 +51,7 @@ export type BranchForkResult =
       readonly reason: string;
       readonly code?: string;
     }
-  | { readonly status: 'failed' };
+  | { readonly status: 'failed'; readonly reason?: string };
 
 /** The outcome of the regenerate turn — the send handle's outcome shape. */
 export interface RegenerateOutcome {
@@ -71,7 +73,9 @@ function forkResultOf(error: unknown): BranchForkResult {
       ...(error.code !== undefined ? { code: error.code } : {}),
     };
   }
-  return { status: 'failed' };
+  // A legal hold, a message that is gone: the door said why.
+  const reason = backendRefusalDetail(error);
+  return { status: 'failed', ...(reason !== undefined ? { reason } : {}) };
 }
 
 export interface BranchActions {

@@ -1054,6 +1054,20 @@ function ChatSurfaceInner({
     });
   };
 
+  // A send request the door refused outright — a body it would not take, a
+  // thread it cannot find, a full tray of parked sends, an archived project
+  // refusing a new chat — says why in its own words: they are the
+  // platform's, not a provider's, so they are shown as they are. A fault (a
+  // 5xx, a network failure) says nothing beyond the title.
+  const sendFailedToast = (error: unknown) => {
+    const detail = backendRefusalDetail(error);
+    toast({
+      title: t('toast.sendFailed'),
+      ...(detail !== undefined ? { description: detail } : {}),
+      variant: 'destructive',
+    });
+  };
+
   // Stop asks the turn to settle with what already streamed: the flag lands
   // on the generation row, the loop reads it back on its next progress write
   // or cancel poll and aborts the in-flight model call. The click itself
@@ -1242,14 +1256,16 @@ function ChatSurfaceInner({
             setStagedAttachments(consumedAttachments);
           }
           // A reached cap refuses the park itself: name it as a refused send
-          // would be named, not as a bare "Send failed".
+          // would be named, not as a bare "Send failed". Any other refusal
+          // (a full tray, too many attachments, a thread it cannot find)
+          // says why in the door's own words; a fault says nothing.
           if (
             error instanceof BackendApiError &&
             isBudgetRefusalCode(error.code)
           ) {
             refusalToast(error.message, error.code);
           } else {
-            toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+            sendFailedToast(error);
           }
         }
       })();
@@ -1365,16 +1381,7 @@ function ChatSurfaceInner({
                 fork.restoreTo,
               );
             }
-            // A request the door refused outright (a body it would not
-            // take, a thread it cannot find) says why in its own words —
-            // they are the platform's, not a provider's, so they are shown
-            // as they are. A fault says nothing.
-            const detail = backendRefusalDetail(error);
-            toast({
-              title: t('toast.sendFailed'),
-              ...(detail !== undefined ? { description: detail } : {}),
-              variant: 'destructive',
-            });
+            sendFailedToast(error);
           },
         );
         if (threadId === undefined) {
@@ -1395,7 +1402,9 @@ function ChatSurfaceInner({
         }
         // A turn that never started wrote nothing into the sibling.
         if (fork !== undefined) abandonBranch(fork);
-        toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+        // The thread the first message needed (an archived project refuses
+        // it) or the video links it binds were refused before any turn.
+        sendFailedToast(error);
       }
     })();
   };
@@ -1451,7 +1460,11 @@ function ChatSurfaceInner({
       return false;
     }
     if (forked.status === 'failed') {
-      toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+      toast({
+        title: t('toast.sendFailed'),
+        ...(forked.reason !== undefined ? { description: forked.reason } : {}),
+        variant: 'destructive',
+      });
       return false;
     }
     // The fork point is the server's: a "try again" sibling on screen is
@@ -1503,7 +1516,13 @@ function ChatSurfaceInner({
           return;
         }
         if (forked.status === 'failed') {
-          toast({ title: t('regenerateFailed'), variant: 'destructive' });
+          toast({
+            title: t('regenerateFailed'),
+            ...(forked.reason !== undefined
+              ? { description: forked.reason }
+              : {}),
+            variant: 'destructive',
+          });
           return;
         }
         const branchId = forked.id;

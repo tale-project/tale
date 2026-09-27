@@ -11,6 +11,9 @@ import {
   videoJobsUnboundQuery,
 } from './chat';
 
+/** zod's sentence for a string past its `max`, as the send door words it. */
+const TOO_BIG = 'Too big: expected string to have <=200000 characters';
+
 /**
  * A refusal's toast used to be picked by matching its English sentence; a
  * reached budget cap now names itself with a code, and the send hands that
@@ -48,6 +51,8 @@ describe('sendChatTurn', () => {
   // A 4xx that is no turn refusal — the door refusing the request itself —
   // used to become "Turn request failed with status 400", dropping the
   // door's own code and message.
+  // The body is the door's own answer (`invalidBodyResponse`) to a text
+  // past the send schema's 200,000 characters.
   it("throws a request the door refused with the door's code and message", async () => {
     vi.stubGlobal(
       'fetch',
@@ -55,7 +60,8 @@ describe('sendChatTurn', () => {
         Response.json(
           {
             error: 'invalid body',
-            message: 'text: the message is longer than a turn takes',
+            message: `text: ${TOO_BIG}`,
+            data: { issues: [{ path: 'text', message: TOO_BIG }] },
           },
           { status: 400 },
         ),
@@ -70,7 +76,28 @@ describe('sendChatTurn', () => {
       expect(error).toMatchObject({
         status: 400,
         code: 'invalid body',
-        message: 'text: the message is longer than a turn takes',
+        message: `text: ${TOO_BIG}`,
+        data: { issues: [{ path: 'text', message: TOO_BIG }] },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('carries a bare code as the message when the door sends no sentence', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({ error: 'thread not found' }, { status: 404 }),
+      ),
+    );
+    try {
+      await expect(
+        sendChatTurn('org1', 't1', { text: 'hello', modelId: 'model-a' }),
+      ).rejects.toMatchObject({
+        status: 404,
+        code: 'thread not found',
+        message: 'thread not found',
       });
     } finally {
       vi.unstubAllGlobals();

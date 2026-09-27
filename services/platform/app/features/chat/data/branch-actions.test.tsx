@@ -106,6 +106,29 @@ describe('useBranchActions forks', () => {
     expect(error).toHaveBeenCalled();
     error.mockRestore();
   });
+
+  // A fork the door refused for any reason but a cap used to collapse into
+  // a bare `failed`, and the surface toasted "Couldn't send message" with
+  // nothing the door had said.
+  it("carries the door's own words on a fork it refused", async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    branchChatThreadForRegenerate.mockRejectedValueOnce(
+      new BackendApiError(
+        404,
+        'thread or message not found',
+        'thread or message not found',
+      ),
+    );
+    const { result } = renderHook(() => useBranchActions('org_1'));
+    await expect(
+      result.current.branchForRegenerate('t1', 'm2'),
+    ).resolves.toEqual({
+      status: 'failed',
+      reason: 'thread or message not found',
+    });
+    expect(invalidateBudgetStanding).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
 });
 
 describe('useBranchActions regenerate + discard', () => {
