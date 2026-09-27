@@ -9,7 +9,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * restart, so this is an operational event, not a defect: a request answers
  * a retryable 503 (`error-reporting.ts`), the `/events` stream backs off
  * (`realtime/sse.ts`), a job fails for pg-boss to retry (`jobs/runner.ts`),
- * and none of them reports an error.
+ * pg-boss's failing polls log one line per outage (`jobs/boss.ts`), and none
+ * of them reports an error.
  *
  * Deliberately narrower than its two neighbours. `isTransientDbError`
  * (`@tale/shared/db/retry`) decides whether to rerun an operation in place
@@ -111,13 +112,15 @@ function stampedByPostgresJs(error: object): boolean {
 }
 
 /** One line for a log: the code, when the message does not already name
- * it, then the message. */
+ * it, then the message. Reads any object that carries a message — pg-boss
+ * re-emits an error as a plain copy of its fields (`jobs/boss.ts`). */
 export function describeDatabaseError(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
+  if (error === null || typeof error !== 'object') return String(error);
+  const rawMessage: unknown = Reflect.get(error, 'message');
+  const message = typeof rawMessage === 'string' ? rawMessage : '';
   const code: unknown = Reflect.get(error, 'code');
-  return typeof code === 'string' && !error.message.includes(code)
-    ? `${code} ${error.message}`
-    : error.message;
+  if (typeof code !== 'string' || message.includes(code)) return message;
+  return message === '' ? code : `${code} ${message}`;
 }
 
 /**

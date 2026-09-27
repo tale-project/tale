@@ -3,6 +3,10 @@ import type { Sql } from 'postgres';
 
 import { appPoolMax } from '../db/sql.ts';
 import { resolvePostgresConnection } from '../db/ssl.ts';
+import {
+  describeDatabaseError,
+  isDatabaseUnavailable,
+} from '../db/unavailable.ts';
 import { TASK_QUEUE_OPTIONS } from './tasks.ts';
 
 /**
@@ -35,13 +39,78 @@ export function createBoss(
     useListenNotify: true,
     supervise: options.supervise,
   });
-  boss.on('error', (error) => {
-    console.error('[backend] pg-boss error:', error);
-  });
+  logErrors(boss);
   boss.on('warning', (warning) => {
     console.warn('[backend] pg-boss warning:', warning);
   });
   return boss;
+}
+
+/**
+ * Log pg-boss's `error` event. pg-boss emits every failure of its own
+ * database work — each queue's worker polls every two seconds, beside the
+ * queue cache, the cron clock and the LISTEN connection — so a database
+ * restart fails them all, again and again: hundreds of full error dumps in a
+ * 20 s restart, burying every other line. An unavailable database
+ * (`db/unavailable.ts`) is therefore one warn line per outage: the first
+ * failure logs it, the rest stay quiet until a poll succeeds again, and that
+ * re-arms the line for the next outage. Any other error is logged in full.
+ */
+function logErrors(boss: PgBoss): void {
+  /** When the running outage was logged; `null` before the first one. */
+  let loggedAt: number | null = null;
+  boss.on('error', (error) => {
+    const failure = withoutWorkerSuffix(error);
+    // Everything pg-boss emits comes from its own node-postgres pool, so a
+    // bare socket error is the database's.
+    if (!isDatabaseUnavailable(failure, { fromDatabase: true })) {
+      console.error('[backend] pg-boss error:', error);
+      return;
+    }
+    if (loggedAt !== null && !polledSince(boss, loggedAt)) return;
+    loggedAt = Date.now();
+    console.warn(
+      `[backend] pg-boss: database unavailable, polls fail quietly until one succeeds: ${describeDatabaseError(failure)}`,
+    );
+  });
+}
+
+/**
+ * Whether a pg-boss worker has fetched from the database since `since`.
+ * Every role has one: the cron clock's own worker counts, and it runs
+ * wherever pg-boss starts.
+ */
+function polledSince(boss: PgBoss, since: number): boolean {
+  return boss
+    .getWipData({ includeInternal: true })
+    .some(
+      (worker) => worker.lastFetchedOn !== null && worker.lastFetchedOn > since,
+    );
+}
+
+/**
+ * The failure behind a pg-boss worker's error. The worker appends
+ * ` (Queue: <name>, Worker: <id>)` to the message and re-emits a plain copy
+ * of the error's fields with `queue` and `worker` beside them — which hides
+ * node-postgres's code-less `Connection terminated unexpectedly`, known by
+ * its exact message, from the classifier.
+ */
+function withoutWorkerSuffix(error: unknown): unknown {
+  if (error === null || typeof error !== 'object') return error;
+  const message: unknown = Reflect.get(error, 'message');
+  const queue: unknown = Reflect.get(error, 'queue');
+  const worker: unknown = Reflect.get(error, 'worker');
+  if (
+    typeof message !== 'string' ||
+    typeof queue !== 'string' ||
+    typeof worker !== 'string'
+  ) {
+    return error;
+  }
+  const suffix = ` (Queue: ${queue}, Worker: ${worker})`;
+  return message.endsWith(suffix)
+    ? { ...error, message: message.slice(0, -suffix.length) }
+    : error;
 }
 
 /**

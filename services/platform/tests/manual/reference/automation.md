@@ -308,6 +308,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [performance](../suites/performance.md) | `PERF-P1`–`PERF-P4`, `PERF-P6`, `PERF-P7` | ⛔ manual-only | — (no load-timing assertions in e2e; the chat specs that proved P2/P3 functionally retired in #2857) |
 | [performance](../suites/performance.md) | `PERF-B4` (provider error) | ⛔ manual-only | — (the `chat-scenarios` spec retired in #2857) |
 | [performance](../suites/performance.md) | `PERF-B1`–`PERF-B3`, `PERF-A1`, `PERF-A2` | ⛔ manual-only | — (load characteristics / DOM attributes, not asserted) |
+| [performance](../suites/performance.md) | `PERF-B6` (job queue log through a database restart) | 🔶 partial | `backend/jobs/boss.test.ts` (a restart's burst of failed pg-boss polls, built from real node-postgres refusals, is one warning; any other pg-boss error is logged in full; the warning is re-armed once a poll succeeds); what pg-boss emits during a real restart remains the box |
 | [projects](../suites/projects.md) | `PROJ-F1`, `PROJ-F9`, `PROJ-F12`, `PROJ-F16`, `PROJ-F19` | ✅ automated | `projects.spec.ts` (create→task in both views→backlog column→delete) |
 | [projects](../suites/projects.md) | `PROJ-F2`, `PROJ-F6` | ✅ automated | `projects-depth.spec.ts` (rename + instructions persist) |
 | [projects](../suites/projects.md) | `PROJ-F7` | ✅ automated | `projects-depth.spec.ts` (secret create then delete) |
