@@ -47,3 +47,5 @@ Wähle im Bereich der Kettenintegrität **Jetzt prüfen**, um die gespeicherte A
 Eine erfolgreiche Prüfung gilt für die aufbewahrten Datensätze, die sie untersucht hat. Sie belegt keinen unabhängig signierten Ursprung der Historie. Die [Integritätsanleitung für den Betrieb](/de/self-hosted/operate/security/audit-log-integrity) erklärt die Prüfungen und ihre Grenzen.
 
 Die Hash-Verkettung hilft, Veränderungen gespeicherter Datensätze zu erkennen. Sie beweist nicht, dass jede mögliche Aktion protokolliert wurde. Die Audit-Aufbewahrung ist unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) einstellbar. Prüfe die aktive Richtlinie und Deployment-Grenzen, statt eine feste Dauer anzunehmen. Wiederherstellbare Audit-Einträge können im [Papierkorb](/de/platform/admin/governance/trash) erscheinen. Endgültige Bereinigung begrenzt die verfügbare Historie.
+
+Die geplante Aufbewahrungsbereinigung hält hier jeden ihrer Läufe als Systemereignisse der Kategorie **Daten** fest: wann der Lauf begonnen hat, wie viele Datensätze er je Kategorie gelöscht hat und ob er abgeschlossen wurde oder fehlgeschlagen ist.

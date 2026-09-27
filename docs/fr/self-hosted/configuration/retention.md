@@ -51,6 +51,8 @@ Le worker backend effectue le nettoyage planifié par organisation. Les threads,
 
 La conservation des journaux d’audit est aussi propre à chaque organisation. Elle supprime le début éligible de sa chaîne d’audit, du plus ancien au plus récent, et s’arrête lorsqu’une ligne sous gel doit rester. La durée plus courte d’un tenant ne réduit pas l’historique d’un autre.
 
+Chaque nettoyage est consigné dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) de l’organisation sous forme d’événements système de la catégorie Données. Il commence par **Cycle de rétention démarré**, ajoute un seul événement par catégorie où il a supprimé des éléments, avec leur nombre plutôt qu’un événement par élément, et se termine par **Cycle de rétention terminé**. Un cycle qui s’arrête sur une erreur, ou qui conserve des éléments arrivés à échéance parce que leur suppression a échoué, se termine plutôt par **Cycle de rétention en échec** ; le prochain nettoyage planifié tente à nouveau de les supprimer. Tous les événements d’un même cycle désignent le même cycle de rétention comme cible, et un cycle qui ne trouve rien à supprimer consigne tout de même son début et sa fin.
+
 `TALE_RETENTION_DISABLED=true` suspend le nettoyage planifié pendant une maintenance contrôlée par l’opérateur. Cette variable ne restaure pas les données et ne désactive pas les autres voies de suppression. Consigne son activation et retire-la à la fin de la maintenance.
 
 ## Préserver les données sous gel

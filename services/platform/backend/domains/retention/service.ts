@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
+
 import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   retentionDefaultsConfigSchema,
@@ -42,7 +44,8 @@ import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
  * direct delete past `retention + grace` for these row-level categories —
  * the same end state; the visible-trash pass matters for THREADS and
  * DOCUMENTS, which ride the next phase with their own lifecycle columns.
- * `TALE_RETENTION_DISABLED=true` is the operator kill-switch.
+ * `TALE_RETENTION_DISABLED=true` is the operator kill-switch. Every org run
+ * writes its own audit trail — see "the audit trail" below.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -256,6 +259,261 @@ async function clampedPolicyFor(
   };
 }
 
+// ------------------------------------------------------- the audit trail
+
+/**
+ * Every org run leaves its evidence on that org's audit chain, written as
+ * the `system` actor under the `data` category: `retention.run_started`
+ * (the clamped policy the run enforces), ONE `<entity>.retention_deleted`
+ * row per category that destroyed anything — with its counts, never a row
+ * per record — and `retention.run_completed` or `retention.run_failed` with
+ * every category's tally. The names are the 0.4 ones (`retention_runs.ts`
+ * and its per-record deletes); the categories 0.4 never audited take the
+ * same `<entity>.retention_deleted` shape. Every row names its run
+ * (`retention_run` + the run's id), so one run reads back whole.
+ *
+ * A category whose deletes are plain SQL appends its row in the SAME
+ * transaction, so the evidence commits or rolls back with the destruction
+ * it describes. The purge lanes — documents, chat lineages, temp files —
+ * cannot: each record's corpus rows and blobs are released over the network
+ * before its rows are deleted in a transaction of its own, and holding a
+ * batch's row deletes back for one closing transaction would let two records
+ * that share a blob each find the other still holding it (`releaseRefs`
+ * excludes only the record being purged), so the blob would outlive both.
+ * Their row follows the batch and counts only the purges that committed.
+ */
+
+type SweepCategory = keyof SweepStats | keyof Phase2Stats;
+
+const DELETED_ACTION: Record<SweepCategory, string> = {
+  usageLedger: 'usage_ledger.retention_deleted',
+  messageFeedback: 'message_feedback.retention_deleted',
+  notifications: 'notification.retention_deleted',
+  documents: 'document.retention_deleted',
+  chatHistory: 'chat_history.retention_deleted',
+  contacts: 'contact.retention_deleted',
+  externalConversations: 'external_conversation.retention_deleted',
+  agentRuns: 'agent_run.retention_deleted',
+  automationRuns: 'automation_run.retention_deleted',
+  auditLogs: 'audit_log.retention_deleted',
+  tempFiles: 'file_metadata.retention_deleted',
+  sandboxLedgers: 'sandbox_ledger.retention_deleted',
+};
+
+/** What one category did in one run. */
+interface CategoryTally {
+  /** Rows destroyed. */
+  deleted: number;
+  /** Rows the expiry pass moved into the admin Trash — restorable, so not
+   * destruction: counted on the run's closing row only. */
+  expired: number;
+  /** Due rows kept because their purge failed; the next run retries. */
+  failed: number;
+}
+
+/** One org's cleanup run, as its audit chain records it. */
+interface RetentionRun {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly startedAt: number;
+  /** Booked as each category's work commits — also when one throws midway,
+   * so the failure row still counts what was destroyed before it. */
+  readonly tallies: Partial<Record<SweepCategory, CategoryTally>>;
+  /** The category in flight: what a thrown error is charged to. */
+  current: SweepCategory | null;
+}
+
+/** One category's share of a run: its tally, and where its row goes. */
+interface CategoryTrail {
+  readonly run: RetentionRun;
+  readonly category: SweepCategory;
+  readonly tally: CategoryTally;
+}
+
+/** What a category's destruction row says. */
+interface Destruction {
+  deleted: number;
+  /** The split by table (or by source) when the category spans several. */
+  counts?: Record<string, number>;
+  /** Due rows a failed purge kept for the next run. */
+  failed?: number;
+  /** Evidence particular to the category (the audit prefix's cut). */
+  detail?: Record<string, unknown>;
+}
+
+const MAX_RUN_ERROR_CHARS = 500;
+
+function newRetentionRun(organizationId: string): RetentionRun {
+  return {
+    id: randomUUID(),
+    organizationId,
+    startedAt: Date.now(),
+    tallies: {},
+    current: null,
+  };
+}
+
+/** The frame every row of one run shares. */
+function runAuditFields(run: RetentionRun) {
+  return {
+    organizationId: run.organizationId,
+    actorId: 'system',
+    actorType: 'system',
+    category: 'data',
+    resourceType: 'retention_run',
+    resourceId: run.id,
+  } as const;
+}
+
+/** Run one category under its own tally; answers its figure in the
+ * cleanup's result — rows destroyed or moved to the Trash. */
+async function sweepCategory(
+  run: RetentionRun,
+  category: SweepCategory,
+  sweep: (trail: CategoryTrail) => Promise<void>,
+): Promise<number> {
+  const tally: CategoryTally = { deleted: 0, expired: 0, failed: 0 };
+  run.tallies[category] = tally;
+  run.current = category;
+  await sweep({ run, category, tally });
+  run.current = null;
+  return tally.deleted + tally.expired;
+}
+
+/** Append a category's destruction row inside the caller's transaction.
+ * Nothing destroyed, no row: the run's closing row carries the zeros. */
+async function recordDestruction(
+  tx: TransactionSql,
+  trail: CategoryTrail,
+  destruction: Destruction,
+): Promise<void> {
+  if (destruction.deleted <= 0) return;
+  await createAuditLog(tx, {
+    ...runAuditFields(trail.run),
+    action: DELETED_ACTION[trail.category],
+    status: 'success',
+    metadata: {
+      category: trail.category,
+      deleted: destruction.deleted,
+      ...(destruction.counts !== undefined
+        ? { counts: destruction.counts }
+        : {}),
+      ...(destruction.failed !== undefined && destruction.failed > 0
+        ? { failed: destruction.failed }
+        : {}),
+      ...destruction.detail,
+    },
+  });
+}
+
+/** A plain-SQL category: its deletes and its row in ONE transaction, the
+ * count booked once that transaction has committed. */
+async function destroyInTx(
+  sql: Sql,
+  trail: CategoryTrail,
+  deletes: (tx: TransactionSql) => Promise<Destruction>,
+): Promise<void> {
+  const destruction = await sql.begin(async (tx) => {
+    const done = await deletes(tx);
+    await recordDestruction(tx, trail, done);
+    return done;
+  });
+  trail.tally.deleted += destruction.deleted;
+}
+
+/** A purge lane's row, written once its per-record transactions are done. */
+async function recordPurgedBatch(
+  sql: Sql,
+  trail: CategoryTrail,
+  destruction: Destruction,
+): Promise<void> {
+  if (destruction.deleted <= 0) return;
+  await sql.begin((tx) => recordDestruction(tx, trail, destruction));
+}
+
+async function recordRunStarted(
+  sql: Sql,
+  run: RetentionRun,
+  policy: OrgPolicy,
+  holds: ActiveHolds,
+): Promise<void> {
+  await sql.begin((tx) =>
+    createAuditLog(tx, {
+      ...runAuditFields(run),
+      action: 'retention.run_started',
+      status: 'success',
+      metadata: {
+        policy: policy.config,
+        holds: {
+          organization: holds.orgHeld,
+          custodians: holds.userMembershipIds.size,
+        },
+      },
+    }),
+  );
+}
+
+/**
+ * The run's closing row: `retention.run_completed`, or `retention.run_failed`
+ * when the run threw or a due record's purge failed (0.4's rule: a category
+ * that could not finish fails the run). Never throws — the chain may be the
+ * very thing that is down — so a row it cannot write is logged instead.
+ */
+async function recordRunFinished(
+  sql: Sql,
+  run: RetentionRun,
+  thrown?: { error: unknown },
+): Promise<void> {
+  let deleted = 0;
+  const categories: Record<string, Record<string, number>> = {};
+  const keptBack: string[] = [];
+  for (const [category, tally] of Object.entries(run.tallies)) {
+    deleted += tally.deleted;
+    const nonZero = Object.fromEntries(
+      Object.entries(tally).filter(([, count]) => count > 0),
+    );
+    if (Object.keys(nonZero).length > 0) categories[category] = nonZero;
+    if (tally.failed > 0) {
+      keptBack.push(`${category}: ${tally.failed} kept after a failed purge`);
+    }
+  }
+  const errorMessage =
+    thrown !== undefined
+      ? (thrown.error instanceof Error
+          ? thrown.error.message
+          : String(thrown.error)
+        ).slice(0, MAX_RUN_ERROR_CHARS)
+      : keptBack.length > 0
+        ? keptBack.join('; ')
+        : null;
+  try {
+    await sql.begin((tx) =>
+      createAuditLog(tx, {
+        ...runAuditFields(run),
+        action:
+          errorMessage === null
+            ? 'retention.run_completed'
+            : 'retention.run_failed',
+        status: errorMessage === null ? 'success' : 'failure',
+        ...(errorMessage !== null ? { errorMessage } : {}),
+        metadata: {
+          durationMs: Date.now() - run.startedAt,
+          deleted,
+          categories,
+          ...(thrown !== undefined && run.current !== null
+            ? { failedCategory: run.current }
+            : {}),
+        },
+      }),
+    );
+  } catch (error) {
+    console.error(
+      `[retention] org ${run.organizationId}: could not record the end of run ${run.id}:`,
+      error,
+    );
+  }
+}
+
 interface SweepStats {
   usageLedger: number;
   messageFeedback: number;
@@ -274,6 +532,7 @@ async function sweepOrg(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
+  run: RetentionRun,
 ): Promise<SweepStats> {
   const stats: SweepStats = {
     usageLedger: 0,
@@ -286,93 +545,139 @@ async function sweepOrg(
     );
     return stats;
   }
-  const graceDays = org.config.deletionGraceDays ?? 0;
-  const protectedIds = [...holds.userMembershipIds];
-
-  if (org.config.usageLedgerEnabled === true) {
-    const cutoff = cutoffFor(org.config.usageLedgerRetentionDays, graceDays);
-    if (cutoff !== null) {
-      const rows = await sql<{ id: string }[]>`
-        DELETE FROM app.usage_ledger
-        WHERE ctid IN (
-          SELECT ctid FROM app.usage_ledger
-          WHERE org_id = ${org.organizationId}
-            AND updated_at_ms < ${cutoff}
-            AND (${protectedIds.length === 0}
-                 OR user_id <> ALL(${protectedIds}))
-          LIMIT ${BATCH_LIMIT}
-        )
-        RETURNING org_id AS id
-      `;
-      stats.usageLedger = rows.length;
-      // The retired per-turn rows the chat lane wrote beside the ledger (no
-      // reader; the table goes in a later release) age out on the same clock.
-      await sql`
-        DELETE FROM app.usage_events
-        WHERE ctid IN (
-          SELECT ctid FROM app.usage_events
-          WHERE org_id = ${org.organizationId}
-            AND created_at_ms < ${cutoff}
-            AND (${protectedIds.length === 0}
-                 OR user_id <> ALL(${protectedIds}))
-          LIMIT ${BATCH_LIMIT}
-        )
-      `;
-    }
-  }
-
-  if (org.config.messageFeedbackEnabled === true) {
-    const cutoff = cutoffFor(
-      org.config.messageFeedbackRetentionDays,
-      graceDays,
-    );
-    if (cutoff !== null) {
-      const rows = await sql<{ id: string }[]>`
-        DELETE FROM app.message_feedback
-        WHERE id IN (
-          SELECT id FROM app.message_feedback
-          WHERE org_id = ${org.organizationId}
-            AND created_at_ms < ${cutoff}
-            AND (${protectedIds.length === 0}
-                 OR user_id <> ALL(${protectedIds}))
-          LIMIT ${BATCH_LIMIT}
-        )
-        RETURNING id
-      `;
-      stats.messageFeedback = rows.length;
-    }
-  }
-
-  if (org.config.notificationsEnabled === true) {
-    const cutoff = cutoffFor(org.config.notificationsRetentionDays, graceDays);
-    if (cutoff !== null) {
-      const orgRows = await sql<{ id: string }[]>`
-        DELETE FROM app.notifications
-        WHERE id IN (
-          SELECT id FROM app.notifications
-          WHERE org_id = ${org.organizationId}
-            AND created_at_ms < ${cutoff}
-          LIMIT ${BATCH_LIMIT}
-        )
-        RETURNING id
-      `;
-      const userRows = await sql<{ id: string }[]>`
-        DELETE FROM app.user_notifications
-        WHERE id IN (
-          SELECT id FROM app.user_notifications
-          WHERE org_id = ${org.organizationId}
-            AND created_at_ms < ${cutoff}
-            AND (${protectedIds.length === 0}
-                 OR user_id <> ALL(${protectedIds}))
-          LIMIT ${BATCH_LIMIT}
-        )
-        RETURNING id
-      `;
-      stats.notifications = orgRows.length + userRows.length;
-    }
-  }
-
+  stats.usageLedger = await sweepCategory(run, 'usageLedger', (trail) =>
+    sweepUsageLedger(sql, org, holds, trail),
+  );
+  stats.messageFeedback = await sweepCategory(run, 'messageFeedback', (trail) =>
+    sweepMessageFeedback(sql, org, holds, trail),
+  );
+  stats.notifications = await sweepCategory(run, 'notifications', (trail) =>
+    sweepNotifications(sql, org, holds, trail),
+  );
   return stats;
+}
+
+async function sweepUsageLedger(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.usageLedgerEnabled !== true) return;
+  const cutoff = cutoffFor(
+    org.config.usageLedgerRetentionDays,
+    org.config.deletionGraceDays ?? 0,
+  );
+  if (cutoff === null) return;
+  const protectedIds = [...holds.userMembershipIds];
+  await destroyInTx(sql, trail, async (tx) => {
+    const ledger = await tx<{ id: string }[]>`
+      DELETE FROM app.usage_ledger
+      WHERE ctid IN (
+        SELECT ctid FROM app.usage_ledger
+        WHERE org_id = ${org.organizationId}
+          AND updated_at_ms < ${cutoff}
+          AND (${protectedIds.length === 0}
+               OR user_id <> ALL(${protectedIds}))
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING org_id AS id
+    `;
+    // The retired per-turn rows the chat lane wrote beside the ledger (no
+    // reader; the table goes in a later release) age out on the same clock.
+    const events = await tx<{ id: string }[]>`
+      DELETE FROM app.usage_events
+      WHERE ctid IN (
+        SELECT ctid FROM app.usage_events
+        WHERE org_id = ${org.organizationId}
+          AND created_at_ms < ${cutoff}
+          AND (${protectedIds.length === 0}
+               OR user_id <> ALL(${protectedIds}))
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    return {
+      deleted: ledger.length + events.length,
+      counts: { usageLedger: ledger.length, usageEvents: events.length },
+    };
+  });
+}
+
+async function sweepMessageFeedback(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.messageFeedbackEnabled !== true) return;
+  const cutoff = cutoffFor(
+    org.config.messageFeedbackRetentionDays,
+    org.config.deletionGraceDays ?? 0,
+  );
+  if (cutoff === null) return;
+  const protectedIds = [...holds.userMembershipIds];
+  await destroyInTx(sql, trail, async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      DELETE FROM app.message_feedback
+      WHERE id IN (
+        SELECT id FROM app.message_feedback
+        WHERE org_id = ${org.organizationId}
+          AND created_at_ms < ${cutoff}
+          AND (${protectedIds.length === 0}
+               OR user_id <> ALL(${protectedIds}))
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    return { deleted: rows.length };
+  });
+}
+
+async function sweepNotifications(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.notificationsEnabled !== true) return;
+  const cutoff = cutoffFor(
+    org.config.notificationsRetentionDays,
+    org.config.deletionGraceDays ?? 0,
+  );
+  if (cutoff === null) return;
+  const protectedIds = [...holds.userMembershipIds];
+  await destroyInTx(sql, trail, async (tx) => {
+    const orgRows = await tx<{ id: string }[]>`
+      DELETE FROM app.notifications
+      WHERE id IN (
+        SELECT id FROM app.notifications
+        WHERE org_id = ${org.organizationId}
+          AND created_at_ms < ${cutoff}
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    const userRows = await tx<{ id: string }[]>`
+      DELETE FROM app.user_notifications
+      WHERE id IN (
+        SELECT id FROM app.user_notifications
+        WHERE org_id = ${org.organizationId}
+          AND created_at_ms < ${cutoff}
+          AND (${protectedIds.length === 0}
+               OR user_id <> ALL(${protectedIds}))
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    return {
+      deleted: orgRows.length + userRows.length,
+      counts: {
+        notifications: orgRows.length,
+        userNotifications: userRows.length,
+      },
+    };
+  });
 }
 
 /** The daily entry point: every org with a valid clamped policy sweeps. */
@@ -388,19 +693,41 @@ export async function runRetentionCleanup(
   `;
   const results: Record<string, SweepStats & Phase2Stats> = {};
   for (const org of orgs) {
-    try {
-      const policy = await clampedPolicyFor(sql, org.id);
-      if (policy === null) continue;
-      const holds = await loadActiveHolds(sql, org.id);
-      const rowStats = await sweepOrg(sql, policy, holds);
-      const phase2 = await sweepOrgPhase2(sql, policy, holds);
-      results[org.id] = { ...rowStats, ...phase2 };
-    } catch (error) {
-      // One org's failure must not starve the rest of the fleet.
-      console.error(`[retention] org ${org.id} sweep failed:`, error);
-    }
+    const stats = await runOrgRetention(sql, org.id);
+    if (stats !== null) results[org.id] = stats;
   }
   return results;
+}
+
+/**
+ * One org's run between its audit rows: `retention.run_started`, the
+ * categories (each appending its own destruction row), then the closing
+ * row. An org with no valid clamped policy has nothing to run and writes
+ * nothing; any failure — reading the policy included — closes the run as
+ * failed.
+ */
+async function runOrgRetention(
+  sql: Sql,
+  organizationId: string,
+): Promise<(SweepStats & Phase2Stats) | null> {
+  const run = newRetentionRun(organizationId);
+  let stats: SweepStats & Phase2Stats;
+  try {
+    const policy = await clampedPolicyFor(sql, organizationId);
+    if (policy === null) return null;
+    const holds = await loadActiveHolds(sql, organizationId);
+    await recordRunStarted(sql, run, policy, holds);
+    const rowStats = await sweepOrg(sql, policy, holds, run);
+    const phase2 = await sweepOrgPhase2(sql, policy, holds, run);
+    stats = { ...rowStats, ...phase2 };
+  } catch (error) {
+    // One org's failure must not starve the rest of the fleet.
+    console.error(`[retention] org ${organizationId} sweep failed:`, error);
+    await recordRunFinished(sql, run, { error });
+    return null;
+  }
+  await recordRunFinished(sql, run);
+  return stats;
 }
 
 // ------------------------------------------------------- phase-2 sweeps
@@ -484,14 +811,14 @@ async function sweepDocuments(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
-): Promise<number> {
-  if (org.config.documentsEnabled !== true) return 0;
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.documentsEnabled !== true) return;
   const days = org.config.documentsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
+  if (typeof days !== 'number' || days <= 0) return;
   const cutoff = Date.now() - days * DAY_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
   const protectedIds = [...holds.userMembershipIds];
-  let processed = 0;
 
   // The custodian filter lives in SQL, on every pass: a held creator's rows
   // are never candidates, so they cannot fill the batch. Skipping them in
@@ -515,7 +842,7 @@ async function sweepDocuments(
   // rows go dark at once, and an entry must never stay listed, counted and
   // served to the agent leg for the whole grace window while they are.
   if (graceDays > 0) {
-    processed += await sql.begin(async (tx) => {
+    const expired = await sql.begin(async (tx) => {
       const flipped = await tx<{ id: string; projectId: string | null }[]>`
         UPDATE app.documents SET
           lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
@@ -546,6 +873,7 @@ async function sweepDocuments(
       }
       return flipped.length;
     });
+    trail.tally.expired += expired;
   }
 
   // Pass B: hard-delete rows whose grace elapsed (or, no grace, active
@@ -594,9 +922,8 @@ async function sweepDocuments(
             AND ${custodianFree}
           LIMIT ${BATCH_LIMIT}
         `;
-  if (passB.length === 0) return processed;
+  if (passB.length === 0) return;
   const orgSlug = await resolveOrgSlug(sql, org.organizationId);
-  let purged = 0;
   let purgedProjectId: string | null = null;
   for (const doc of passB) {
     try {
@@ -610,24 +937,28 @@ async function sweepDocuments(
       // The row is kept (purgeDocument releases before it deletes), so the
       // next daily run retries; one stuck document must not starve the rest.
       console.warn(`[retention] purge failed for document ${doc.id}:`, error);
+      trail.tally.failed += 1;
       continue;
     }
-    processed += 1;
-    purged += 1;
+    trail.tally.deleted += 1;
     purgedProjectId ??= doc.projectId;
   }
-  if (purged > 0) {
+  if (trail.tally.deleted > 0) {
     // Rows are gone from the Files lists and from a bound folder's task
-    // facts — one batch-level hint per family, after the purges committed.
-    await sql.begin((tx) =>
-      emitDocumentChangeHints(tx, {
+    // facts — one batch-level hint per family, after the purges committed —
+    // and the batch's one destruction row rides the same transaction.
+    await sql.begin(async (tx) => {
+      await emitDocumentChangeHints(tx, {
         orgId: org.organizationId,
         entityId: null,
         projectId: purgedProjectId,
-      }),
-    );
+      });
+      await recordDestruction(tx, trail, {
+        deleted: trail.tally.deleted,
+        failed: trail.tally.failed,
+      });
+    });
   }
-  return processed;
 }
 
 /** Purge one CHAT thread and its lineage: messages, generations, feedback,
@@ -664,14 +995,14 @@ async function sweepChatHistory(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
-): Promise<number> {
-  if (org.config.chatHistoryEnabled !== true) return 0;
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.chatHistoryEnabled !== true) return;
   const days = org.config.chatHistoryRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
+  if (typeof days !== 'number' || days <= 0) return;
   const cutoff = Date.now() - days * DAY_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
   const protectedIds = [...holds.userMembershipIds];
-  let processed = 0;
 
   // Custodian filter in SQL (see sweepDocuments): a held owner's threads
   // are never candidates, so they cannot fill a batch and starve the rest.
@@ -702,7 +1033,7 @@ async function sweepChatHistory(
           status = 'expired', status_changed_at_ms = ${Date.now()}
         WHERE thread_id = ${thread.threadId}
       `;
-      processed += 1;
+      trail.tally.expired += 1;
     }
   }
 
@@ -736,27 +1067,30 @@ async function sweepChatHistory(
           LIMIT ${BATCH_LIMIT}
         `;
   for (const thread of passB) {
-    processed += await purgeThreadLineage(
+    const purged = await purgeThreadLineage(
       sql,
       org.organizationId,
       thread.threadId,
     );
+    trail.tally.deleted += purged;
   }
-  return processed;
+  // Each lineage was purged in a transaction of its own (its voice blobs go
+  // inside it); the batch's one row follows them.
+  await recordPurgedBatch(sql, trail, { deleted: trail.tally.deleted });
 }
 
 async function sweepContacts(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
-): Promise<number> {
-  if (org.config.contactsEnabled !== true) return 0;
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.contactsEnabled !== true) return;
   const days = org.config.contactsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) return 0;
+  if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) return;
   const cutoff = Date.now() - days * DAY_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
-  let processed = 0;
   if (graceDays > 0) {
     const flipped = await sql<{ id: string }[]>`
       UPDATE app.contacts SET
@@ -770,34 +1104,36 @@ async function sweepContacts(
       )
       RETURNING id
     `;
-    processed += flipped.length;
+    trail.tally.expired += flipped.length;
   }
-  const removed =
-    graceDays > 0
-      ? await sql<{ id: string }[]>`
-          DELETE FROM app.contacts
-          WHERE id IN (
-            SELECT id FROM app.contacts
-            WHERE org_id = ${org.organizationId}
-              AND lifecycle_status IN ('trashed', 'expired')
-              AND status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
-            LIMIT ${BATCH_LIMIT}
-          )
-          RETURNING id
-        `
-      : await sql<{ id: string }[]>`
-          DELETE FROM app.contacts
-          WHERE id IN (
-            SELECT id FROM app.contacts
-            WHERE org_id = ${org.organizationId}
-              AND (lifecycle_status IN ('trashed', 'expired')
-                   OR (lifecycle_status IS NULL
-                       AND updated_at_ms < ${cutoff}))
-            LIMIT ${BATCH_LIMIT}
-          )
-          RETURNING id
-        `;
-  return processed + removed.length;
+  await destroyInTx(sql, trail, async (tx) => {
+    const removed =
+      graceDays > 0
+        ? await tx<{ id: string }[]>`
+            DELETE FROM app.contacts
+            WHERE id IN (
+              SELECT id FROM app.contacts
+              WHERE org_id = ${org.organizationId}
+                AND lifecycle_status IN ('trashed', 'expired')
+                AND status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
+              LIMIT ${BATCH_LIMIT}
+            )
+            RETURNING id
+          `
+        : await tx<{ id: string }[]>`
+            DELETE FROM app.contacts
+            WHERE id IN (
+              SELECT id FROM app.contacts
+              WHERE org_id = ${org.organizationId}
+                AND (lifecycle_status IN ('trashed', 'expired')
+                     OR (lifecycle_status IS NULL
+                         AND updated_at_ms < ${cutoff}))
+              LIMIT ${BATCH_LIMIT}
+            )
+            RETURNING id
+          `;
+    return { deleted: removed.length };
+  });
 }
 
 /**
@@ -831,14 +1167,14 @@ async function sweepExternalConversations(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
-): Promise<number> {
-  if (org.config.externalConversationsEnabled !== true) return 0;
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.externalConversationsEnabled !== true) return;
   const days = org.config.externalConversationsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) return 0;
+  if (typeof days !== 'number' || days <= 0) return;
+  if (holds.orgHeld) return;
   const cutoff = Date.now() - days * DAY_MS;
   const graceDays = org.config.deletionGraceDays ?? 0;
-  let processed = 0;
   if (graceDays > 0) {
     const flipped = await sql<{ id: string }[]>`
       UPDATE app.conversations SET
@@ -852,7 +1188,7 @@ async function sweepExternalConversations(
       )
       RETURNING id
     `;
-    processed += flipped.length;
+    trail.tally.expired += flipped.length;
   }
   const doomed =
     graceDays > 0
@@ -872,7 +1208,7 @@ async function sweepExternalConversations(
                      AND coalesce(status_changed_at_ms, 0) < ${cutoff}))
           LIMIT ${BATCH_LIMIT}
         `;
-  if (doomed.length === 0) return processed;
+  if (doomed.length === 0) return;
   const doomedIds = doomed.map((row) => row.id);
   const attachments = await sql<
     { id: string; storageRef: string; conversationId: string }[]
@@ -885,6 +1221,7 @@ async function sweepExternalConversations(
       AND document_id IS NULL
   `;
   const stranded = new Set<string>();
+  let attachmentsDeleted = 0;
   if (attachments.length > 0) {
     const orgSlug = await resolveOrgSlug(sql, org.organizationId);
     for (const file of attachments) {
@@ -909,44 +1246,68 @@ async function sweepExternalConversations(
         }
       }
       await sql`DELETE FROM app.file_metadata WHERE id = ${file.id}`;
+      attachmentsDeleted += 1;
+      trail.tally.deleted += 1;
     }
   }
+  trail.tally.failed += stranded.size;
   // A conversation whose attachment could not be released stays too: deleting
   // the parent would orphan the file row behind a dangling pointer, which is
   // the failure this cascade exists to prevent.
   const deletable = doomedIds.filter((id) => !stranded.has(id));
-  if (deletable.length === 0) return processed;
-  const removed = await sql<{ id: string }[]>`
-    DELETE FROM app.conversations WHERE id IN ${sql(deletable)} RETURNING id
-  `;
-  return processed + removed.length;
+  if (deletable.length === 0 && attachmentsDeleted === 0) return;
+  // The attachments went one by one with their bytes (see the audit-trail
+  // note); the conversations — and with them every email body — go in the
+  // transaction that writes the category's row.
+  const conversations = await sql.begin(async (tx) => {
+    const removed =
+      deletable.length === 0
+        ? []
+        : await tx<{ id: string }[]>`
+            DELETE FROM app.conversations WHERE id IN ${tx(deletable)}
+            RETURNING id
+          `;
+    await recordDestruction(tx, trail, {
+      deleted: removed.length + attachmentsDeleted,
+      counts: {
+        conversations: removed.length,
+        attachments: attachmentsDeleted,
+      },
+      failed: stranded.size,
+    });
+    return removed.length;
+  });
+  trail.tally.deleted += conversations;
 }
 
 async function sweepAgentRuns(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
-): Promise<number> {
-  if (org.config.agentRunsEnabled !== true) return 0;
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.agentRunsEnabled !== true) return;
   const days = org.config.agentRunsRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
+  if (typeof days !== 'number' || days <= 0) return;
   const cutoff =
     Date.now() - (days + (org.config.deletionGraceDays ?? 0)) * DAY_MS;
   const protectedIds = [...holds.userMembershipIds];
-  const rows = await sql<{ id: string }[]>`
-    DELETE FROM app.project_agent_runs
-    WHERE id IN (
-      SELECT id FROM app.project_agent_runs
-      WHERE org_id = ${org.organizationId}
-        AND status IN ('settled', 'failed', 'cancelled')
-        AND settled_at_ms < ${cutoff}
-        AND (${protectedIds.length === 0}
-             OR started_by <> ALL(${protectedIds}))
-      LIMIT ${BATCH_LIMIT}
-    )
-    RETURNING id
-  `;
-  return rows.length;
+  await destroyInTx(sql, trail, async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      DELETE FROM app.project_agent_runs
+      WHERE id IN (
+        SELECT id FROM app.project_agent_runs
+        WHERE org_id = ${org.organizationId}
+          AND status IN ('settled', 'failed', 'cancelled')
+          AND settled_at_ms < ${cutoff}
+          AND (${protectedIds.length === 0}
+               OR started_by <> ALL(${protectedIds}))
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    return { deleted: rows.length };
+  });
 }
 
 /**
@@ -962,24 +1323,30 @@ async function sweepAgentRuns(
  * the org-wide hold (checked by the caller before any category runs) is the
  * whole custodian story; removing one subject's runs is erasure's job.
  */
-async function sweepAutomationRuns(sql: Sql, org: OrgPolicy): Promise<number> {
-  if (org.config.workflowLogEnabled !== true) return 0;
+async function sweepAutomationRuns(
+  sql: Sql,
+  org: OrgPolicy,
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.workflowLogEnabled !== true) return;
   const days = org.config.workflowLogRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
+  if (typeof days !== 'number' || days <= 0) return;
   const cutoff =
     Date.now() - (days + (org.config.deletionGraceDays ?? 0)) * DAY_MS;
-  const rows = await sql<{ id: string }[]>`
-    DELETE FROM app.automation_runs
-    WHERE id IN (
-      SELECT id FROM app.automation_runs
-      WHERE org_id = ${org.organizationId}
-        AND status IN ('success', 'failed', 'cancelled')
-        AND coalesce(finished_at_ms, started_at_ms) < ${cutoff}
-      LIMIT ${BATCH_LIMIT}
-    )
-    RETURNING id
-  `;
-  return rows.length;
+  await destroyInTx(sql, trail, async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      DELETE FROM app.automation_runs
+      WHERE id IN (
+        SELECT id FROM app.automation_runs
+        WHERE org_id = ${org.organizationId}
+          AND status IN ('success', 'failed', 'cancelled')
+          AND coalesce(finished_at_ms, started_at_ms) < ${cutoff}
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    return { deleted: rows.length };
+  });
 }
 
 /** The audit-log sweep's cutoff for one clamped policy: rows with `ts`
@@ -1016,51 +1383,64 @@ export async function auditLogRetentionCutoff(
  * inside the window that must be preserved — a custodian-held user's row,
  * whether they ACTED (actor) or were acted UPON (`resource_type = 'user'`,
  * the same two-sided definition the erasure scrub uses for a subject's
- * rows) — the spoliation duty wins over the retention window.
+ * rows) — the spoliation duty wins over the retention window. The prefix
+ * goes in one transaction with its destruction row, and the row records the
+ * cut: the hash of the newest row removed is the `previous_hash` the
+ * surviving chain now anchors on.
  */
 async function sweepAuditLogs(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
-): Promise<number> {
+  trail: CategoryTrail,
+): Promise<void> {
   const cutoff = auditLogCutoffFor(org.config);
-  if (cutoff === null) return 0;
+  if (cutoff === null) return;
   // Refuse to delete the very table that records why the hold exists.
-  if (holds.orgHeld) return 0;
-  const candidates = await sql<
-    {
-      id: string;
-      actorId: string | null;
-      resourceType: string;
-      resourceId: string | null;
-      ts: number;
-    }[]
-  >`
-    SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
-           resource_id AS "resourceId", ts::float8 AS ts
-    FROM app.audit_logs
-    WHERE org_id = ${org.organizationId} AND ts < ${cutoff}
-    ORDER BY ts ASC, id ASC
-    LIMIT ${BATCH_LIMIT}
-  `;
-  const prefix: string[] = [];
-  for (const row of candidates) {
-    const heldActor =
-      row.actorId !== null && holds.userMembershipIds.has(row.actorId);
-    const heldSubject =
-      row.resourceType === 'user' &&
-      row.resourceId !== null &&
-      holds.userMembershipIds.has(row.resourceId);
-    if (heldActor || heldSubject) {
-      break; // preserve from here on — no mid-chain holes
+  if (holds.orgHeld) return;
+  await destroyInTx(sql, trail, async (tx) => {
+    const candidates = await tx<
+      {
+        id: string;
+        actorId: string | null;
+        resourceType: string;
+        resourceId: string | null;
+        ts: number;
+        integrityHash: string;
+      }[]
+    >`
+      SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
+             resource_id AS "resourceId", ts::float8 AS ts,
+             integrity_hash AS "integrityHash"
+      FROM app.audit_logs
+      WHERE org_id = ${org.organizationId} AND ts < ${cutoff}
+      ORDER BY ts ASC, id ASC
+      LIMIT ${BATCH_LIMIT}
+    `;
+    const prefix: string[] = [];
+    let lastDeletedHash: string | null = null;
+    for (const row of candidates) {
+      const heldActor =
+        row.actorId !== null && holds.userMembershipIds.has(row.actorId);
+      const heldSubject =
+        row.resourceType === 'user' &&
+        row.resourceId !== null &&
+        holds.userMembershipIds.has(row.resourceId);
+      if (heldActor || heldSubject) {
+        break; // preserve from here on — no mid-chain holes
+      }
+      prefix.push(row.id);
+      lastDeletedHash = row.integrityHash;
     }
-    prefix.push(row.id);
-  }
-  if (prefix.length === 0) return 0;
-  const removed = await sql<{ id: string }[]>`
-    DELETE FROM app.audit_logs WHERE id IN ${sql(prefix)} RETURNING id
-  `;
-  return removed.length;
+    if (prefix.length === 0) return { deleted: 0 };
+    const removed = await tx<{ id: string }[]>`
+      DELETE FROM app.audit_logs WHERE id IN ${tx(prefix)} RETURNING id
+    `;
+    return {
+      deleted: removed.length,
+      detail: { olderThan: cutoff, lastDeletedHash },
+    };
+  });
 }
 
 /**
@@ -1083,40 +1463,69 @@ async function sweepSandboxLedgers(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
-): Promise<number> {
+  trail: CategoryTrail,
+): Promise<void> {
   const cutoff = auditLogCutoffFor(org.config);
-  if (cutoff === null) return 0;
+  if (cutoff === null) return;
   const protectedIds = [...holds.userMembershipIds];
-  const toolCalls = await sql<{ id: string }[]>`
-    DELETE FROM app.sandbox_tool_calls
-    WHERE id IN (
-      SELECT id FROM app.sandbox_tool_calls
-      WHERE org_id = ${org.organizationId}
-        AND created_at_ms < ${cutoff}
-        AND (${protectedIds.length === 0}
-             OR user_id IS NULL OR user_id <> ALL(${protectedIds}))
-      LIMIT ${BATCH_LIMIT}
-    )
-    RETURNING id
-  `;
-  const credentialAccess = await sql<{ id: string }[]>`
-    DELETE FROM app.sandbox_credential_access
-    WHERE id IN (
-      SELECT id FROM app.sandbox_credential_access
-      WHERE org_id = ${org.organizationId}
-        AND fetched_at_ms < ${cutoff}
-      LIMIT ${BATCH_LIMIT}
-    )
-    RETURNING id
-  `;
-  return toolCalls.length + credentialAccess.length;
+  await destroyInTx(sql, trail, async (tx) => {
+    const toolCalls = await tx<{ id: string }[]>`
+      DELETE FROM app.sandbox_tool_calls
+      WHERE id IN (
+        SELECT id FROM app.sandbox_tool_calls
+        WHERE org_id = ${org.organizationId}
+          AND created_at_ms < ${cutoff}
+          AND (${protectedIds.length === 0}
+               OR user_id IS NULL OR user_id <> ALL(${protectedIds}))
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    const credentialAccess = await tx<{ id: string }[]>`
+      DELETE FROM app.sandbox_credential_access
+      WHERE id IN (
+        SELECT id FROM app.sandbox_credential_access
+        WHERE org_id = ${org.organizationId}
+          AND fetched_at_ms < ${cutoff}
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    return {
+      deleted: toolCalls.length + credentialAccess.length,
+      counts: {
+        toolCalls: toolCalls.length,
+        credentialAccess: credentialAccess.length,
+      },
+    };
+  });
 }
 
+/** The loose user and agent uploads past their hour windows: one row for
+ * both sources, once both batches are through. */
 async function sweepTempFiles(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+  trail: CategoryTrail,
+): Promise<void> {
+  const userTemp = await sweepTempFileSource(sql, org, 'user', holds, trail);
+  const agentTemp = await sweepTempFileSource(sql, org, 'agent', holds, trail);
+  // Each file was released and deleted on its own (see the audit-trail
+  // note); the category's one row follows both batches.
+  await recordPurgedBatch(sql, trail, {
+    deleted: userTemp + agentTemp,
+    counts: { userTemp, agentTemp },
+    failed: trail.tally.failed,
+  });
+}
+
+async function sweepTempFileSource(
   sql: Sql,
   org: OrgPolicy,
   source: 'user' | 'agent',
   holds: ActiveHolds,
+  trail: CategoryTrail,
 ): Promise<number> {
   const enabled =
     source === 'user'
@@ -1162,20 +1571,25 @@ async function sweepTempFiles(
           `[retention] temp-file release failed for ${row.id} — keeping the row for the next sweep:`,
           outcome.failures,
         );
+        trail.tally.failed += 1;
         continue;
       }
     }
     await sql`DELETE FROM app.file_metadata WHERE id = ${row.id}`;
+    trail.tally.deleted += 1;
     removed += 1;
   }
   return removed;
 }
 
-/** The phase-2 categories, run after the row-level ones per org. */
+/** The phase-2 categories, run after the row-level ones per org. Swept on
+ * its own (outside `runRetentionCleanup`), the destruction rows still land,
+ * under a run that writes no start or end row. */
 export async function sweepOrgPhase2(
   sql: Sql,
   org: OrgPolicy,
   holds: ActiveHolds,
+  run: RetentionRun = newRetentionRun(org.organizationId),
 ): Promise<Phase2Stats> {
   const stats: Phase2Stats = {
     documents: 0,
@@ -1189,20 +1603,25 @@ export async function sweepOrgPhase2(
     sandboxLedgers: 0,
   };
   if (holds.orgHeld) return stats;
-  stats.documents = await sweepDocuments(sql, org, holds);
-  stats.chatHistory = await sweepChatHistory(sql, org, holds);
-  stats.contacts = await sweepContacts(sql, org, holds);
-  stats.externalConversations = await sweepExternalConversations(
-    sql,
-    org,
-    holds,
-  );
-  stats.agentRuns = await sweepAgentRuns(sql, org, holds);
-  stats.automationRuns = await sweepAutomationRuns(sql, org);
-  stats.auditLogs = await sweepAuditLogs(sql, org, holds);
-  stats.tempFiles =
-    (await sweepTempFiles(sql, org, 'user', holds)) +
-    (await sweepTempFiles(sql, org, 'agent', holds));
-  stats.sandboxLedgers = await sweepSandboxLedgers(sql, org, holds);
+  const categories: [
+    keyof Phase2Stats,
+    (trail: CategoryTrail) => Promise<void>,
+  ][] = [
+    ['documents', (trail) => sweepDocuments(sql, org, holds, trail)],
+    ['chatHistory', (trail) => sweepChatHistory(sql, org, holds, trail)],
+    ['contacts', (trail) => sweepContacts(sql, org, holds, trail)],
+    [
+      'externalConversations',
+      (trail) => sweepExternalConversations(sql, org, holds, trail),
+    ],
+    ['agentRuns', (trail) => sweepAgentRuns(sql, org, holds, trail)],
+    ['automationRuns', (trail) => sweepAutomationRuns(sql, org, trail)],
+    ['auditLogs', (trail) => sweepAuditLogs(sql, org, holds, trail)],
+    ['tempFiles', (trail) => sweepTempFiles(sql, org, holds, trail)],
+    ['sandboxLedgers', (trail) => sweepSandboxLedgers(sql, org, holds, trail)],
+  ];
+  for (const [category, sweep] of categories) {
+    stats[category] = await sweepCategory(run, category, sweep);
+  }
   return stats;
 }

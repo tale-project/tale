@@ -6399,6 +6399,12 @@ settings:
         workflow_execution.retention_deleted: Automatisierungslauf per Aufbewahrung gelöscht
         workflow_trigger_log.retention_deleted: Automatisierungs-Trigger-Log per Aufbewahrung gelöscht
         audit_log.retention_deleted: Audit-Log per Aufbewahrung gelöscht
+        automation_run.retention_deleted: Automatisierungslauf per Aufbewahrung gelöscht
+        agent_run.retention_deleted: Agentenlauf per Aufbewahrung gelöscht
+        message_feedback.retention_deleted: Nachrichten-Feedback per Aufbewahrung gelöscht
+        notification.retention_deleted: Benachrichtigung per Aufbewahrung gelöscht
+        file_metadata.retention_deleted: Datei per Aufbewahrung gelöscht
+        sandbox_ledger.retention_deleted: Sandbox-Protokoll per Aufbewahrung gelöscht
         policy_acknowledged: Richtlinie bestätigt
         login_attempt: Anmeldeversuch
         login_lockout: Anmeldesperre

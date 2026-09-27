@@ -47,3 +47,5 @@ Use **Verify now** in **Chain integrity** to check the stored audit chain. The p
 A successful check covers the retained records it examined; it does not establish an independently signed origin for the history. The [operator integrity guide](/self-hosted/operate/security/audit-log-integrity) explains the checks and their limits.
 
 Hash chaining helps detect changes to stored records; it does not prove that every possible action was logged. Audit retention is configurable under [Policies and limits](/platform/admin/governance/policies-and-limits). Check the active policy and deployment bounds instead of assuming a fixed retention period. Recoverable audit records can appear in [Trash](/platform/admin/governance/trash); permanent cleanup limits the history available here.
+
+Scheduled retention cleanup records each of its runs here as system events in the **Data** category: when the run started, how many records each category deleted, and whether the run completed or failed.
