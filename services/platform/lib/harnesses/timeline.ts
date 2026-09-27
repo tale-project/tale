@@ -7,9 +7,9 @@
  * bounded, possibly much shorter view of the turn: entries routinely vanish
  * from its head, and a fresh window can open with almost nothing. Every
  * holder of a transcript therefore MERGES flushes instead of replacing —
- * the op row in Convex (`upsertSessionOp`) and the run views' client
- * accumulator both fold each flush in through this module, so neither ever
- * loses an entry it already held.
+ * the op row (`upsertSessionOp`, under its row lock) and the run views'
+ * client accumulator both fold each flush in through this module, so neither
+ * ever loses an entry it already held.
  *
  * The merge only ever updates or appends: a tool entry is identified by its
  * `toolCallId` and updated in place as it moves input→output; a text block
@@ -164,4 +164,21 @@ export function boundTimelineParts(
     from += 1;
   }
   return parts.slice(from);
+}
+
+/**
+ * The stored-transcript merge: fold one flush into a persisted parts array
+ * and re-bound it. This is what keeps the op row's `liveTimeline` monotonic
+ * across drain windows — a fresh window's short first flush lands as an
+ * update, never as a wipe.
+ */
+export function mergeTimelineParts(
+  existing: readonly TimelinePart[] | undefined,
+  incoming: readonly TimelinePart[],
+): TimelinePart[] {
+  const merged = mergeTimelineEntries(
+    entriesFromStoredParts(existing ?? []),
+    incoming,
+  );
+  return boundTimelineParts(merged.map((entry) => entry.part));
 }
