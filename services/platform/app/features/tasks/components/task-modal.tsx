@@ -116,6 +116,7 @@ import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
 import { TaskPageLayout } from './task-page-layout';
+import { TaskParentLink } from './task-parent-link';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
@@ -1423,6 +1424,13 @@ export function EditTaskBody({
 
   const headerNode = (
     <Stack gap={2}>
+      {task.parentTaskId && (
+        <TaskParentLink
+          parentTaskId={task.parentTaskId}
+          projectKey={projectKey}
+          onOpenTask={onOpenTask}
+        />
+      )}
       {identifier && (
         <Text
           as="span"

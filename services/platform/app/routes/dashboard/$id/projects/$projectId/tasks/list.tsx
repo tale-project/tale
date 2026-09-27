@@ -6,6 +6,7 @@ import { useProject } from '@/app/features/projects/hooks/queries';
 import { TasksPageSkeleton } from '@/app/features/tasks/components/tasks-skeleton';
 import {
   isAllProjectsSearch,
+  openTaskNavigation,
   persistTaskView,
   TASK_VIEW_ROUTES,
   type TaskView,
@@ -76,15 +77,7 @@ function TasksListPage() {
       }}
       openTaskParam={search.task}
       onOpenTaskParamChange={(taskId: string | null) => {
-        void navigate({
-          search: (prev) => {
-            const next = { ...prev };
-            if (taskId) next.task = taskId;
-            else delete next.task;
-            return next;
-          },
-          replace: true,
-        });
+        void navigate(openTaskNavigation(taskId));
       }}
     />
   );

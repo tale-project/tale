@@ -74,3 +74,25 @@ export function validateTaskSearch(search: Record<string, unknown>): {
 export function isAllProjectsSearch(search: { projects?: 'all' }): boolean {
   return search.projects === 'all';
 }
+
+/**
+ * The `navigate()` options that open (`taskId`) or close (`null`) the
+ * `?task=` detail sheet. Opening a task — or stepping from a task into its
+ * subtask — PUSHES a history entry, so browser Back returns to the previous
+ * task or to the bare board instead of leaving the page; closing REPLACES,
+ * so Back/Forward never resurrects a dialog the reader already dismissed.
+ */
+export function openTaskNavigation(taskId: string | null): {
+  search: <S extends { task?: string }>(prev: S) => S;
+  replace: boolean;
+} {
+  return {
+    search: (prev) => {
+      const next = { ...prev };
+      if (taskId) next.task = taskId;
+      else delete next.task;
+      return next;
+    },
+    replace: taskId === null,
+  };
+}
