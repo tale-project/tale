@@ -155,6 +155,38 @@ describe('backendFetch', () => {
     expect(isBackendReachable()).toBe(false);
   });
 
+  it('rethrows a cancelled request without marking the backend unreachable', async () => {
+    // TanStack Query aborts the signal of a read whose last observer
+    // unmounted; the browser then rejects the fetch with the signal's reason.
+    vi.spyOn(window, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(init.signal?.reason);
+          });
+        }),
+    );
+    const controller = new AbortController();
+    const request = backendFetch('/chat/threads', {
+      orgId: 'org1',
+      signal: controller.signal,
+    });
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(isBackendReachable()).toBe(true);
+  });
+
+  it('leaves an unreachable verdict standing when a request is cancelled', async () => {
+    reportBackendUnreachable();
+    vi.spyOn(window, 'fetch').mockRejectedValue(
+      new DOMException('signal is aborted without reason', 'AbortError'),
+    );
+    await expect(
+      backendFetch('/tasks', { orgId: 'org1' }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(isBackendReachable()).toBe(false);
+  });
+
   it('returns undefined for a 204', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       new Response(null, { status: 204 }),

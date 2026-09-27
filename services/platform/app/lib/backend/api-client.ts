@@ -10,6 +10,8 @@
  * recovery) can act on.
  */
 
+import { isAbortError } from '@/lib/utils/abort-error';
+
 import {
   reportBackendReachable,
   reportBackendUnreachable,
@@ -87,6 +89,12 @@ export async function backendFetch<T>(
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
     });
   } catch (error) {
+    // A cancelled request — TanStack Query aborting a read whose last
+    // observer unmounted on navigation — was withdrawn by its caller, not
+    // lost by the network: it says nothing about reachability either way.
+    if (isAbortError(error)) {
+      throw error;
+    }
     // No HTTP response (refused, DNS, offline). Statused replies — including
     // 5xx — still mean the server is reachable; the offline overlay must not
     // fire for those.
