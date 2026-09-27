@@ -84,6 +84,24 @@ export class ImportRowRefusal extends Error {
   }
 }
 
+/** A cell nobody filled: missing, or a string of nothing but whitespace. */
+function isBlankCell(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'string' && value.trim() === '')
+  );
+}
+
+/** A row of nothing but blank cells (`,,,,`) — a spreadsheet's trailing
+ * lines, never a record the mapper should refuse. */
+export function isBlankRecord(cells: Iterable<unknown>): boolean {
+  for (const cell of cells) {
+    if (!isBlankCell(cell)) return false;
+  }
+  return true;
+}
+
 /** The row error for whatever a mapper threw at the given line. */
 function refusedRow(row: number, error: unknown): ImportRowError {
   if (error instanceof ImportRowRefusal) return error.toRowError(row);
@@ -248,6 +266,8 @@ export function parseCSVWithMapper<T>(
   const firstLine = headers ? 2 : 1;
   rows.forEach((row, index) => {
     const line = firstLine + index;
+    // `,,,,` is not a record: skipped like an empty line, never refused.
+    if (isBlankRecord(row)) return;
     try {
       let mapped: T | null;
       if (headers && recordMapper) {
@@ -403,6 +423,7 @@ export async function parseImportFile<T>(
 
       const result = emptyResult<T>();
       records.forEach(({ record, line }) => {
+        if (isBlankRecord(Object.values(record))) return;
         try {
           const mapped = excelMapper(record);
           if (mapped !== null) {

@@ -392,6 +392,26 @@ describe('customerMappers.csv', () => {
 });
 
 describe('product import row accounting', () => {
+  // A row of empty cells (a spreadsheet's trailing lines) is not a record
+  // the mapper refuses — it is skipped like an empty line.
+  it('skips an all-blank row instead of refusing it', () => {
+    const csv = [
+      'name,price,stock',
+      'Kettle,10,1',
+      ',,',
+      ' , , ',
+      'Mixer,5,2',
+    ].join('\n');
+    const result = parseCSVWithMapper(csv, productMappers.csv, {
+      recordMapper: productMappers.record,
+      requiredColumns: PRODUCT_REQUIRED_COLUMNS,
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([]);
+    expect(result.data.map((row) => row.name)).toEqual(['Kettle', 'Mixer']);
+    expect(result.rows).toEqual([2, 5]);
+  });
+
   it('files a refused row under its spreadsheet line and keeps the rest', () => {
     const csv = [
       'name,price,stock',
