@@ -18,6 +18,7 @@ import { SettingsFieldList } from '@/app/features/settings/components/settings-f
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { useT } from '@/lib/i18n/client';
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 import { adjustColorForTheme, isHexColor } from '@/lib/utils/color';
 import {
   deriveFaviconPngBase64,
@@ -305,11 +306,14 @@ export function BrandingForm({
         setValue('logoFilename', '', opts);
         setValue('faviconLightFilename', '', opts);
         setValue('faviconDarkFilename', '', opts);
+        // `save` wraps the backend failure as its `cause`; the localized
+        // title stays the title and the server's own sentence (when it
+        // wrote one) goes underneath — never a raw error message as title.
+        const cause =
+          err instanceof Error && err.cause !== undefined ? err.cause : err;
         toast({
-          title:
-            err instanceof Error
-              ? err.message
-              : tToast('error.brandingUpdateFailed.title'),
+          title: tToast('error.brandingUpdateFailed.title'),
+          description: backendRefusalReason(cause),
           variant: 'destructive',
         });
         return;

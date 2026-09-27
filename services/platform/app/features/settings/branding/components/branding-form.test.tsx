@@ -16,9 +16,10 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-// Mock toast
+// Mock toast (one shared spy, so a failure toast is assertable)
+const mockToast = vi.hoisted(() => vi.fn());
 vi.mock('@tale/ui/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: mockToast }),
 }));
 
 // Mock branding mutations
@@ -290,6 +291,41 @@ describe('BrandingForm', () => {
   // clear — the page raised the unsaved-changes prompt and a reload showed
   // the old colour until a further Save. The confirm now commits everything.
   describe('Reset', () => {
+    // The failure toast used to put the raw error message in the title.
+    it('reports a failed reset save under the localized title, with the refusal beneath', async () => {
+      // The structured shape the app's BackendError carries.
+      mockMutateAsync.mockRejectedValueOnce({
+        data: {
+          code: 'BRANDING_INVALID',
+          message: 'accentColor: must be a hex colour',
+        },
+      });
+      render(
+        <ActiveEditorProvider>
+          <BrandingForm
+            {...defaultProps}
+            branding={{ accentColor: '#E11D48', logoUrl: '/logo.png' }}
+          />
+        </ActiveEditorProvider>,
+      );
+      const reset = registeredActions.current.find((a) => a.label === 'Reset');
+      act(() => reset?.onClick());
+      fireEvent.click(await screen.findByRole('button', { name: 'Reset' }));
+
+      await waitFor(() =>
+        expect(mockToast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Couldn't update branding",
+            description: 'accentColor: must be a hex colour',
+            variant: 'destructive',
+          }),
+        ),
+      );
+      expect(mockToast).not.toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'accentColor: must be a hex colour' }),
+      );
+    });
+
     it('deletes the images, saves the cleared config and leaves nothing unsaved', async () => {
       render(
         <ActiveEditorProvider>
