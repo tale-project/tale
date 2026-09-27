@@ -25,7 +25,7 @@ export type AuditLogTableVariant = 'audit' | 'errors';
  * The tabs' first backend request asks for the same thirty rows, so the first
  * paint is exactly the window the table renders; keep the two equal.
  */
-export const LOG_PAGE_SIZE = 30;
+const LOG_PAGE_SIZE = 30;
 
 interface AuditLogTableConfig {
   columns: ColumnDef<AuditLog>[];
