@@ -9,6 +9,7 @@ import {
 import { Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { FileText } from 'lucide-react';
@@ -223,7 +224,7 @@ export function RequestsListSection({
           // button outside the table border.
           infiniteScroll={{
             hasMore: status === 'CanLoadMore',
-            onLoadMore: () => loadMore(25),
+            onLoadMore: () => loadMore(DEFAULT_LIST_PAGE_SIZE),
             isLoadingMore,
             isInitialLoading,
             entityLabel: {

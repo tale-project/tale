@@ -13,6 +13,20 @@ type AuditLog = AuditLogDoc;
 
 export type AuditLogTableVariant = 'audit' | 'errors';
 
+/**
+ * Rows per page of the audit and error logs — the one deliberate exception to
+ * `DEFAULT_LIST_PAGE_SIZE`, which every other settings list takes. The other
+ * lists are embedded in a settings page and mostly window a set that arrives
+ * whole; these two tabs are a page of their own (full width, a sticky frame
+ * the height of the viewport) over an unbounded, append-only trail that is
+ * fetched from the server page by page and read by scrolling back through
+ * time. The larger page buys fewer round trips per stretch of history.
+ *
+ * The tabs' first backend request asks for the same thirty rows, so the first
+ * paint is exactly the window the table renders; keep the two equal.
+ */
+export const LOG_PAGE_SIZE = 30;
+
 interface AuditLogTableConfig {
   columns: ColumnDef<AuditLog>[];
   stickyLayout: boolean;
@@ -193,5 +207,5 @@ export function useAuditLogTableConfig(
       : [...timestampActionActor, ...auditDetail, ...statusColumn];
   }, [t, resolveEmail, variant]);
 
-  return { columns, stickyLayout: true, pageSize: 30 };
+  return { columns, stickyLayout: true, pageSize: LOG_PAGE_SIZE };
 }
