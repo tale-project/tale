@@ -105,10 +105,14 @@ export const BrandingPreview = memo(function BrandingPreview({
   // Mirror the live app: the one picked accent is normalized into the same
   // theme-legible palette the BrandingProvider injects. Only a complete hex
   // is derived — a value still being typed is not a color yet.
-  const accentColor =
+  const palette =
     data.accentColor && isHexColor(data.accentColor)
-      ? deriveAccentPalette(data.accentColor, resolvedTheme).base
+      ? deriveAccentPalette(data.accentColor, resolvedTheme)
       : undefined;
+  // The rail's open section and the wordmark wear the accent the way the
+  // live rail does — its text shade (the branding context's `accentColor`);
+  // the send button is a primary button, the accent as a surface.
+  const accentColor = palette?.text;
 
   return (
     <Row
@@ -284,8 +288,16 @@ export const BrandingPreview = memo(function BrandingPreview({
                 className="border-border h-12 rounded-xl border px-3"
               >
                 <div className="bg-foreground/[0.07] h-1.5 w-1/3 rounded-sm" />
-                <div className="bg-foreground flex size-5 items-center justify-center rounded-full">
-                  <ArrowUp className="text-background size-3" />
+                <div
+                  className="bg-foreground text-background flex size-5 items-center justify-center rounded-full"
+                  style={
+                    palette
+                      ? { backgroundColor: palette.base, color: palette.fg }
+                      : undefined
+                  }
+                  data-testid="preview-send"
+                >
+                  <ArrowUp className="size-3" />
                 </div>
               </Row>
             </div>

@@ -34,7 +34,7 @@ interface TrailRow {
 const DAY_MS = 24 * 3_600_000;
 
 /** Every category the bounds walk requires, with the compliance floors. */
-const BOUNDS_FILE = [
+export const BOUNDS_FILE = [
   ['documents', 1, 'days'],
   ['userTempHours', 1, 'hours'],
   ['agentTempHours', 1, 'hours'],
@@ -82,6 +82,8 @@ const POLICY_FILE = [
   'messageFeedbackRetentionDays: 7',
   'notificationsEnabled: true',
   'notificationsRetentionDays: 7',
+  'chatFilterEventsEnabled: true',
+  'chatFilterEventsRetentionDays: 7',
   'deletionGraceDays: 0',
 ].join('\n');
 
@@ -95,6 +97,7 @@ const EXPECTED_ROWS: [string, number, Record<string, number> | null][] = [
     3,
     { notifications: 1, userNotifications: 2 },
   ],
+  ['chat_filter_event.retention_deleted', 2, null],
   ['document.retention_deleted', 2, null],
   ['chat_history.retention_deleted', 2, null],
   ['contact.retention_deleted', 2, null],
@@ -256,6 +259,7 @@ export async function checkRetentionAuditTrail(
         agedRows: 0,
         freshFeedback: 1,
         freshContacts: 1,
+        freshChatFilterEvents: 1,
         runningAutomation: 1,
       }),
     `actions=${sweep.map((row) => row.action).join(',')}, mismatches=${mismatches.join('; ') || 'none'}, framed=${framed}, total=${String(closing?.metadata?.deleted)} (want ${totalDeleted}), survivors=${JSON.stringify(survivors)}`,
@@ -402,6 +406,18 @@ async function seedSweep(
        'system', true, ${ancient}),
       (${userId}, ${orgId}, 'task_commented', 'x', 'y', 'task', 'rta-fresh',
        'system', true, ${now})
+  `;
+  await sql`
+    INSERT INTO app.chat_filter_events (
+      org_id, sanitization_run_id, thread_id, filter_name, direction, kind,
+      category_ids, created_at_ms
+    ) VALUES
+      (${orgId}, ${`rta-${tag}-cfe-1`}, ${`rta-${tag}`}, 'pii', 'input',
+       'detected', ${['email']}::text[], ${ancient}),
+      (${orgId}, ${`rta-${tag}-cfe-2`}, ${`rta-${tag}`}, 'chat_filter',
+       'output', 'blocked', ${['itest']}::text[], ${ancient}),
+      (${orgId}, ${`rta-${tag}-cfe-3`}, ${`rta-${tag}`}, 'pii', 'input',
+       'detected', ${['email']}::text[], ${now})
   `;
   // No file refs: a document without bytes purges without the object store,
   // so the lane holds wherever the harness runs.
@@ -554,6 +570,7 @@ async function sweepSurvivors(
       agedRows: number;
       freshFeedback: number;
       freshContacts: number;
+      freshChatFilterEvents: number;
       runningAutomation: number;
     }[]
   >`
@@ -565,6 +582,8 @@ async function sweepSurvivors(
       + (SELECT count(*) FROM app.notifications WHERE org_id = ${orgId})
       + (SELECT count(*) FROM app.user_notifications
          WHERE org_id = ${orgId} AND resource_id <> 'rta-fresh')
+      + (SELECT count(*) FROM app.chat_filter_events
+         WHERE org_id = ${orgId} AND created_at_ms < ${Date.now() - DAY_MS})
       + (SELECT count(*) FROM app.documents WHERE org_id = ${orgId})
       + (SELECT count(*) FROM app.threads WHERE org_id = ${orgId})
       + (SELECT count(*) FROM app.messages WHERE org_id = ${orgId})
@@ -587,6 +606,9 @@ async function sweepSurvivors(
         AS "freshFeedback",
       (SELECT count(*) FROM app.contacts
        WHERE org_id = ${orgId} AND name = 'Fresh')::int AS "freshContacts",
+      (SELECT count(*) FROM app.chat_filter_events
+       WHERE org_id = ${orgId} AND created_at_ms >= ${Date.now() - DAY_MS})::int
+        AS "freshChatFilterEvents",
       (SELECT count(*) FROM app.automation_runs
        WHERE org_id = ${orgId} AND status = 'running')::int
         AS "runningAutomation"
@@ -596,6 +618,7 @@ async function sweepSurvivors(
       agedRows: -1,
       freshFeedback: -1,
       freshContacts: -1,
+      freshChatFilterEvents: -1,
       runningAutomation: -1,
     }
   );
@@ -609,6 +632,7 @@ function categoriesOf(
     'usage_ledger.retention_deleted': 'usageLedger',
     'message_feedback.retention_deleted': 'messageFeedback',
     'notification.retention_deleted': 'notifications',
+    'chat_filter_event.retention_deleted': 'chatFilterEvents',
     'document.retention_deleted': 'documents',
     'chat_history.retention_deleted': 'chatHistory',
     'contact.retention_deleted': 'contacts',

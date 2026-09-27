@@ -6508,6 +6508,7 @@ settings:
         notification.retention_deleted: Notification supprimée (rétention)
         file_metadata.retention_deleted: Fichier supprimé (rétention)
         sandbox_ledger.retention_deleted: Journal du sandbox supprimé (rétention)
+        chat_filter_event.retention_deleted: Événement de filtre de chat supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
         login_lockout: Verrouillage de connexion
@@ -6806,13 +6807,14 @@ settings:
       modelCatalogCustomHint:
         Modèles d’embedding de la liste de ce fournisseur ; choisis « Autre modèle »
         pour saisir un tag qui n’y figure pas.
-      modelUnlistedHint:
-        'Aucune liste ne permet de savoir si ce fournisseur sert des embeddings :
-        saisis le tag exactement comme le fournisseur l’écrit.'
-      modelNoneHint:
-        Le catalogue de {provider} ne liste aucun modèle d’embedding. Choisis un
-        fournisseur qui en sert un.
-      modelNone: Aucun modèle d’embedding
+      modelUncuratedHint:
+        Tale ne connaît aucune largeur de vecteurs pour les modèles d’embedding
+        de {provider}. Saisis le tag du modèle et la largeur des vecteurs
+        exactement comme le fournisseur les documente.
+      modelUnsupportedHint:
+        '{provider} ne propose aucun modèle d’embedding. Choisis un fournisseur
+        qui en sert un.'
+      modelUnsupported: Ne propose pas d’embeddings
       modelCatalogUnavailableHint:
         Le catalogue de {provider} n’a pas pu être chargé. Actualise les
         catalogues sous Paramètres → Fournisseurs IA, puis réessaie.

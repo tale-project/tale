@@ -4,7 +4,7 @@
 // cwd-safety check at a temp dir so the happy path is hermetic.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { PassThrough } from 'node:stream';
 
@@ -124,6 +124,28 @@ describe('ExecManager', () => {
     const { events, emit } = collect();
     await mgr.run({ ...base, execId: 'e2', shell: 'exit 3', cwd: ROOT }, emit);
     expect(events[events.length - 1]).toMatchObject({ t: 'exit', exitCode: 3 });
+  });
+
+  test('runs beforeSpawn ahead of every child (the built-in skill links)', async () => {
+    let calls = 0;
+    const marker = `${ROOT}/before-spawn-marker`;
+    const mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {
+        calls += 1;
+        writeFileSync(marker, `call ${calls}\n`);
+      },
+    );
+    for (const execId of ['bs1', 'bs2']) {
+      const { events, emit } = collect();
+      await mgr.run(
+        { ...base, execId, command: ['cat', marker], cwd: ROOT },
+        emit,
+      );
+      expect(decode(events, 'stdout')).toBe(`call ${calls}\n`);
+    }
+    expect(calls).toBe(2);
   });
 
   test('per-exec env overlay reaches the child; deny-list blocked', async () => {

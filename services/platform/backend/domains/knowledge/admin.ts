@@ -14,11 +14,15 @@ import {
   type KnowledgeEmbeddingConfig,
   type KnowledgeEmbeddingWrite,
 } from '@tale/shared/schemas/knowledge';
+import type { ProviderEmbeddingSupport } from '@tale/shared/schemas/providers';
 import type { Sql } from 'postgres';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
-import { pickEmbeddingRecommendations } from '../../../lib/shared/providers/embedding_recommendations.ts';
+import {
+  pickEmbeddingRecommendations,
+  providerEmbeddingOptions,
+} from '../../../lib/shared/providers/embedding_recommendations.ts';
 import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
 import {
   testDatastoreConnection,
@@ -474,7 +478,27 @@ export interface EmbeddingRecommendation {
   recommended: boolean;
 }
 
-/** Curated embedding picks from providers the org holds a DIRECT key for. */
+/** What one provider the org can choose declares about embeddings. */
+export interface EmbeddingProviderSupport {
+  providerSlug: string;
+  /** `unsupported` blocks the choice; `unknown` means no curated width here,
+   *  so the model and its dimensions are entered by hand. */
+  support: ProviderEmbeddingSupport;
+}
+
+export interface EmbeddingRecommendationsView {
+  /** Curated picks, best first, from providers the org holds a DIRECT key
+   *  for — never from one declared unable to embed. */
+  recommendations: EmbeddingRecommendation[];
+  /** Every provider the org resolves (shipped and its own), by slug. */
+  providers: EmbeddingProviderSupport[];
+}
+
+/**
+ * Curated embedding picks from providers the org holds a DIRECT key for, and
+ * the declared embedding support of every provider it can choose — so the
+ * form can tell "cannot embed" from "no curated width here".
+ */
 export async function listEmbeddingRecommendationsForOrg(
   orgSlug: string,
   credentials: Array<{
@@ -482,7 +506,8 @@ export async function listEmbeddingRecommendationsForOrg(
     authMethod: string;
     providerSlug: string;
   }>,
-): Promise<EmbeddingRecommendation[]> {
+): Promise<EmbeddingRecommendationsView> {
+  const connectors = resolveProvidersForOrg(orgSlug);
   const directProviders = new Set(
     credentials
       .filter(
@@ -493,13 +518,12 @@ export async function listEmbeddingRecommendationsForOrg(
       )
       .map((credential) => credential.providerSlug),
   );
-  if (directProviders.size === 0) return [];
 
   const catalogs: Array<{
     providerSlug: string;
     entries: Awaited<ReturnType<typeof getProviderCatalog>>;
   }> = [];
-  for (const connector of resolveProvidersForOrg(orgSlug)) {
+  for (const connector of connectors) {
     if (!directProviders.has(connector.name)) continue;
     try {
       catalogs.push({
@@ -514,10 +538,28 @@ export async function listEmbeddingRecommendationsForOrg(
       );
     }
   }
-  return pickEmbeddingRecommendations(
+  const picks = pickEmbeddingRecommendations(
     catalogs.map((catalog) => ({
       providerSlug: catalog.providerSlug,
       entries: [...catalog.entries],
     })),
   );
+  const options = providerEmbeddingOptions(
+    connectors.map((connector) => ({
+      slug: connector.name,
+      embedding: connector.embedding,
+    })),
+    picks,
+  );
+  // The declaration is the authority: a pick the options did not keep (its
+  // provider does not declare `supported`) is never offered as a one-click
+  // fill — a shipped curated width without that declaration fails a guard.
+  const kept = new Set(options.flatMap((option) => option.recommendations));
+  return {
+    recommendations: picks.filter((pick) => kept.has(pick)),
+    providers: options.map((option) => ({
+      providerSlug: option.providerSlug,
+      support: option.support,
+    })),
+  };
 }

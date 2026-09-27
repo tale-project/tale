@@ -3,6 +3,10 @@
 import { Button } from '@tale/ui/button';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
+import {
+  isFilterActive,
+  isFilterAffordanceDisabled,
+} from '@tale/ui/filters/filter-panel';
 import { Tabs } from '@tale/ui/tabs';
 import { useToast } from '@tale/ui/use-toast';
 import { ChevronDown, Download } from 'lucide-react';
@@ -15,6 +19,10 @@ import { AuditLogTab } from '@/app/features/settings/audit-logs/components/audit
 import { BlockCountersTable } from '@/app/features/settings/audit-logs/components/block-counters-table';
 import { ErrorLogTable } from '@/app/features/settings/audit-logs/components/error-log-table';
 import { LogsTableBoundary } from '@/app/features/settings/audit-logs/components/logs-table-boundary';
+import {
+  useListAuditLogsPaginated,
+  useListErrorLogsPaginated,
+} from '@/app/features/settings/audit-logs/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -50,6 +58,7 @@ export function AuditLogsPage({
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
+  const accessDenied = !abilityLoading && ability.cannot('read', 'orgSettings');
   const memberContext = useCurrentMemberContext(organizationId);
   const memberRole = memberContext.data?.role;
   const isAdminUser = memberRole === 'admin' || memberRole === 'owner';
@@ -124,6 +133,27 @@ export function AuditLogsPage({
     [category, t, handleCategoryChange],
   );
 
+  // The category filter sits above the active tab's table, so the emptiness
+  // that table computes for itself never reaches it. Watch the listing the tab
+  // reads — the same query, so one cache entry answers both and no second
+  // request goes out — and disable the filter over an empty, unfiltered trail.
+  const listedOrganizationId = accessDenied ? undefined : organizationId;
+  const auditListing = useListAuditLogsPaginated({
+    organizationId: activeTab === 'audit' ? listedOrganizationId : undefined,
+    category,
+  });
+  const errorListing = useListErrorLogsPaginated({
+    organizationId: activeTab === 'errors' ? listedOrganizationId : undefined,
+    category,
+  });
+  const activeListing = activeTab === 'errors' ? errorListing : auditListing;
+  const categoryFilterDisabled = isFilterAffordanceDisabled({
+    isLoading: activeListing.status === 'LoadingFirstPage',
+    itemCount: activeListing.results.length,
+    hasActiveFilters: auditFilterConfigs.some(isFilterActive),
+    filters: auditFilterConfigs,
+  });
+
   const { toast } = useToast();
 
   const exportAction = useBackendAction('audit_logs/actions:requestExport', {
@@ -160,7 +190,7 @@ export function AuditLogsPage({
   // page (with its self-skeletonizing DataTable) stands in — no denied-flash on
   // warm entry, and no separate skeleton whose tab strip / column widths could
   // drift from the real pill `Tabs` + `DataTable`.
-  if (!abilityLoading && ability.cannot('read', 'orgSettings')) {
+  if (accessDenied) {
     return <AccessDenied message={tAccess('organization')} />;
   }
 
@@ -235,6 +265,7 @@ export function AuditLogsPage({
                 {...(showCategoryFilter && {
                   filters: auditFilterConfigs,
                   onClearAll: handleClearFilters,
+                  disabled: categoryFilterDisabled,
                 })}
                 actions={exportControl}
               />
