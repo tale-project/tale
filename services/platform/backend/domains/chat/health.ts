@@ -61,7 +61,11 @@ export function foldModelCounts(
 ): Array<{ provider: string; model: string; count: number }> {
   const rows = entries
     .filter((entry) => entry.provider !== '')
-    .map((entry) => ({ ...entry }));
+    .map((entry) => ({
+      provider: entry.provider,
+      model: entry.model,
+      count: entry.count,
+    }));
   const byModel = new Map<string, typeof rows>();
   for (const row of rows) {
     byModel.set(row.model, [...(byModel.get(row.model) ?? []), row]);
