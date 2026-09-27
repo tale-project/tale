@@ -133,8 +133,17 @@ describe('Convex V8 import boundary', () => {
   });
 
   it('the guard actually detects a node dependency (positive control)', () => {
-    // A server-only helper that value-imports `node:fs`.
-    const hashing = readFileSync(resolve(SRC, 'utils/hashing.ts'), 'utf8');
-    expect(valueImportsNodeRuntime(hashing)).not.toBeNull();
+    // Inline sources, so the control never rests on what some module in the
+    // package happens to import today.
+    for (const source of [
+      "import { spawn } from 'node:child_process';",
+      "import 'node:fs';",
+      "const os = await import('node:os');",
+    ]) {
+      expect(valueImportsNodeRuntime(source)).not.toBeNull();
+    }
+    expect(
+      valueImportsNodeRuntime("import type { Stats } from 'node:fs';"),
+    ).toBeNull();
   });
 });

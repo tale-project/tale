@@ -71,8 +71,8 @@ process and terminal dependencies out of frontend bundles.
 
 ### Utils
 
-- **`@tale/shared/utils/hashing`** — SHA-256 helpers for dedup:
-  `computeFileHash(path)` (streaming) and `computeContentHash(string | Uint8Array)`.
+- **`@tale/shared/utils/hashing`** — `computeContentHash(string | Uint8Array)`, the SHA-256
+  hex digest the knowledge index dedups content by.
 
 ## Development
 
