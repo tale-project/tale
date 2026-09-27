@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import {
   PROBE_INTERVAL_MS,
+  PROBE_SOON_MIN_GAP_MS,
+  PROBE_TIMEOUT_MS,
+  probeBackendSoon,
   reportBackendReachable,
   reportBackendUnreachable,
 } from '@/app/lib/backend/connection-state';
@@ -141,5 +144,66 @@ describe('useBackendConnectionState', () => {
       await vi.advanceTimersByTimeAsync(PROBE_INTERVAL_MS * 2);
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // The hint stream's `error` fires on every reconnect attempt; each one
+  // used to probe /api/health while nothing was in doubt.
+  it('throttles the hint-stream probe while reachable and online', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(new Response('ok', { status: 200 }));
+    renderHook(() => useBackendConnectionState());
+
+    await act(async () => {
+      probeBackendSoon();
+      probeBackendSoon();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PROBE_SOON_MIN_GAP_MS / 2);
+      probeBackendSoon();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PROBE_SOON_MIN_GAP_MS / 2);
+      probeBackendSoon();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives a slow backend the whole probe window before flagging it', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-06-01T00:00:00Z'));
+    // A fetch that answers only when aborted — the probe's own timeout.
+    vi.spyOn(window, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('aborted', 'AbortError'));
+          });
+        }),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { result } = renderHook(() => useBackendConnectionState());
+
+    await act(async () => {
+      probeBackendSoon();
+      await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS - 1);
+    });
+    expect(PROBE_TIMEOUT_MS).toBeGreaterThanOrEqual(8_000);
+    expect(result.current.isWebSocketConnected).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(result.current.isWebSocketConnected).toBe(false);
+    expect(warn).toHaveBeenCalled();
   });
 });

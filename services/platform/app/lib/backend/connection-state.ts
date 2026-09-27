@@ -23,12 +23,18 @@ import { useEffect, useState } from 'react';
 let reachable = true;
 const listeners = new Set<() => void>();
 
-/** A probe that gets no response within this window counts as unreachable. */
-const PROBE_TIMEOUT_MS = 4_000;
+/** A probe that gets no response within this window counts as unreachable
+ * — long enough that a slow answer (a cold pod, a busy proxy) is not
+ * read as an outage. */
+export const PROBE_TIMEOUT_MS = 8_000;
 /** How often the backend is re-probed while offline or unreachable. */
 export const PROBE_INTERVAL_MS = 5_000;
+/** While reachable and online, {@link probeBackendSoon} probes at most
+ * this often — the hint stream fires `error` on every reconnect attempt. */
+export const PROBE_SOON_MIN_GAP_MS = 10_000;
 
 let inflightProbe: Promise<boolean> | undefined;
+let lastProbeStartedAt = Number.NEGATIVE_INFINITY;
 let watchTimer: ReturnType<typeof setTimeout> | undefined;
 let windowListenersAttached = false;
 
@@ -68,6 +74,7 @@ function isDeviceOffline(): boolean {
 export function probeBackend(): Promise<boolean> {
   if (inflightProbe !== undefined) return inflightProbe;
   const basePath = window.__ENV__?.BASE_PATH ?? '';
+  lastProbeStartedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => {
     controller.abort();
@@ -94,12 +101,20 @@ export function probeBackend(): Promise<boolean> {
 }
 
 /**
- * Probe unless one is in flight or the watch loop is about to — the entry
- * point for noisy signals such as the hint stream's `error`, which fires on
- * every failed reconnect attempt.
+ * Probe unless one is in flight, the watch loop is about to, or — while
+ * nothing is in doubt (reachable, device online) — one ran within
+ * {@link PROBE_SOON_MIN_GAP_MS}: the entry point for noisy signals such as
+ * the hint stream's `error`, which fires on every failed reconnect attempt.
  */
 export function probeBackendSoon(): void {
   if (inflightProbe !== undefined || watchTimer !== undefined) return;
+  if (
+    reachable &&
+    !isDeviceOffline() &&
+    Date.now() - lastProbeStartedAt < PROBE_SOON_MIN_GAP_MS
+  ) {
+    return;
+  }
   void probeBackend();
 }
 
