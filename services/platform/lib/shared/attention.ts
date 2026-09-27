@@ -29,6 +29,10 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   // A member is blocked by a usage limit until an owner or admin raises it,
   // and the member cannot reach them from inside Tale — so it emails too.
   'usage_credits_requested',
+  // A schedule paused itself after repeated failures and starts nothing
+  // until an owner or admin fixes it and turns it back on — the work it did
+  // has silently stopped, so it leaves the app too.
+  'automation_failed',
 ] as const;
 
 const ACTIONABLE_SET = new Set<string>(ACTIONABLE_NOTIFICATION_TYPES);

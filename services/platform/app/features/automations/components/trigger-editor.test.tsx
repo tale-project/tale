@@ -1,7 +1,7 @@
 import { ActiveEditorProvider, EditorGroup } from '@tale/ui/editor';
 import { within } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
+import type { AnchorHTMLAttributes, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -23,8 +23,39 @@ let triggersData:
       hasToken: boolean;
       enabled: boolean;
       lastFiredAt?: number;
+      lastSkipReason?: string | null;
+      consecutiveFailures?: number;
+      lastFailedAt?: number | null;
+      lastFailureCode?: string | null;
+      lastFailedRunId?: string | null;
     }>
   | undefined;
+
+interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  to?: string;
+  params?: Record<string, string>;
+}
+
+// The failure notice links the last failed run; outside a router the link
+// renders as the path it would open. React is imported inside the factory:
+// the mock is hoisted above the file's imports, and `@tale/ui` reaches the
+// router before a top-level React binding exists.
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const { createElement, forwardRef } = await import('react');
+  return {
+    ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+    Link: forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
+      { to, params, children, ...rest },
+      ref,
+    ) {
+      const path = Object.entries(params ?? {}).reduce(
+        (acc, [key, value]) => acc.replace(`$${key}`, value),
+        to ?? '',
+      );
+      return createElement('a', { ref, href: path, ...rest }, children);
+    }),
+  };
+});
 
 vi.mock('../hooks/queries', () => ({
   useAutomationTriggers: () => ({ data: triggersData, isPending: false }),
@@ -74,6 +105,7 @@ function renderTrigger(
   name = 'gmail-triage-inbox',
   canEdit = true,
   deployedVersion?: number,
+  projectId?: string,
 ) {
   return render(
     <GeneralTab>
@@ -82,6 +114,7 @@ function renderTrigger(
         name={name}
         canEdit={canEdit}
         deployedVersion={deployedVersion}
+        projectId={projectId}
       />
     </GeneralTab>,
   );
@@ -471,5 +504,122 @@ describe('TriggerEditor', () => {
     expect(screen.getByRole('button', { name: 'Add trigger' })).toBeVisible();
     expect(screen.queryByLabelText('Cron')).toBeNull();
     expect(saveButton()).toBeDisabled();
+  });
+  // A schedule that kept failing for a reason a retry won't fix turns itself
+  // off (`trigger-failures.ts`); the section says so, names the last failure
+  // and opens its run — and counts a streak before it gets there.
+  describe('the failure streak', () => {
+    const LAST_FAILED_AT = Date.UTC(2026, 8, 27, 9, 0);
+
+    it('shows a schedule its failures paused, with the last failure and its run', () => {
+      triggersData = [
+        {
+          ...SCHEDULE_ROW,
+          name: 'ops/nightly',
+          enabled: false,
+          lastSkipReason: 'paused_after_failures',
+          consecutiveFailures: 5,
+          lastFailedAt: LAST_FAILED_AT,
+          lastFailureCode: 'connector_error',
+          lastFailedRunId: 'run-5',
+        },
+      ];
+      renderTrigger('ops/nightly');
+
+      expect(screen.getByText('Paused after repeated failures')).toBeVisible();
+      expect(
+        screen.getByText(
+          "5 runs in a row failed with an error a retry won't fix, so the schedule turned itself off. Fix the automation, then turn the trigger back on and save.",
+        ),
+      ).toBeVisible();
+      expect(screen.getByText('connector_error')).toBeVisible();
+      expect(screen.getByRole('link', { name: 'View run' })).toHaveAttribute(
+        'href',
+        '/dashboard/org-1/automations/ops__nightly/runs/run-5',
+      );
+      // A standing state, not news: no live region on every visit.
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('opens the last failed run under the project the tab is shown in', () => {
+      triggersData = [
+        {
+          ...SCHEDULE_ROW,
+          name: 'ops/nightly',
+          enabled: false,
+          lastSkipReason: 'paused_after_failures',
+          consecutiveFailures: 5,
+          lastFailedAt: LAST_FAILED_AT,
+          lastFailureCode: 'connector_error',
+          lastFailedRunId: 'run-5',
+        },
+      ];
+      renderTrigger('ops/nightly', true, undefined, 'proj-1');
+
+      expect(screen.getByRole('link', { name: 'View run' })).toHaveAttribute(
+        'href',
+        '/dashboard/org-1/projects/proj-1/automations/ops__nightly/runs/run-5',
+      );
+    });
+
+    it('counts failing runs on a live schedule before it pauses', () => {
+      triggersData = [
+        {
+          ...SCHEDULE_ROW,
+          consecutiveFailures: 2,
+          lastFailedAt: LAST_FAILED_AT,
+          lastFailureCode: 'auth_error',
+          lastFailedRunId: 'run-2',
+        },
+      ];
+      renderTrigger();
+
+      expect(
+        screen.getByText(
+          "The last 2 runs failed with an error a retry won't fix. After 5 in a row, the schedule turns itself off.",
+        ),
+      ).toBeVisible();
+      expect(screen.getByText('auth_error')).toBeVisible();
+      expect(screen.queryByText('Paused after repeated failures')).toBeNull();
+    });
+
+    it('counts a webhook streak without promising a pause', () => {
+      triggersData = [
+        {
+          name: 'gmail-triage-inbox',
+          kind: 'webhook',
+          hasToken: true,
+          enabled: true,
+          consecutiveFailures: 1,
+          lastFailedAt: LAST_FAILED_AT,
+          lastFailureCode: 'node_error',
+          lastFailedRunId: 'run-1',
+        },
+      ];
+      renderTrigger();
+
+      expect(
+        screen.getByText(
+          "The last run failed with an error a retry won't fix.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText(/turns itself off/)).toBeNull();
+    });
+
+    it('says nothing while the streak is empty', () => {
+      triggersData = [
+        {
+          ...SCHEDULE_ROW,
+          consecutiveFailures: 0,
+          lastFailedAt: LAST_FAILED_AT,
+          lastFailureCode: 'node_error',
+          lastFailedRunId: 'run-1',
+        },
+      ];
+      renderTrigger();
+
+      expect(screen.queryByText(/a retry won't fix/)).toBeNull();
+      expect(screen.queryByRole('link', { name: 'View run' })).toBeNull();
+    });
   });
 });

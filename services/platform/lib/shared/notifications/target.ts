@@ -95,6 +95,12 @@ export type NotificationTarget =
       to: '/dashboard/$id/automations/$automationSlug/runs/$runId';
       params: { id: string; automationSlug: string; runId: string };
     }
+  // An automation's General tab — its Trigger section shows a schedule that
+  // paused itself, the last failure, and the switch that turns it back on.
+  | {
+      to: '/dashboard/$id/automations/$automationSlug/general';
+      params: { id: string; automationSlug: string };
+    }
   | {
       to: '/dashboard/$id/settings/governance/security-monitoring';
       params: { id: string };
@@ -223,6 +229,16 @@ export function personalNotificationTarget(args: {
     return {
       to: '/dashboard/$id/settings/governance/policies-limits',
       params: { id },
+    };
+  }
+
+  // A paused schedule (`automation_failed`) opens its automation's General
+  // tab, where the trigger is turned back on. Mirrors
+  // `buildPersonalNotificationUrl`.
+  if (params?.trigger === true && typeof params.name === 'string') {
+    return {
+      to: '/dashboard/$id/automations/$automationSlug/general',
+      params: { id, automationSlug: automationSlugToParam(params.name) },
     };
   }
 

@@ -160,6 +160,12 @@ any toggled setting after the run.
   delivery** section (`notificationPreferences.deliveryTitle`) carries the
   **Email me actionable alerts** toggle
   (`notificationPreferences.fields.actionableEmail.label`)
+- [ ] `SET-F61` · **Automation alerts for owners and admins** — Open
+  `/dashboard/{org}/settings/notifications` as an owner or admin → the
+  **Automation alerts** toggle
+  (`notificationPreferences.fields.automationAlerts.label`) sits after
+  **Agent escalations**, on by default; flip it off → the state persists
+  across reload. As a member, editor or developer → no such toggle.
 - [ ] `SET-F11` · **Theme & language (Manage account)** — Click the **Manage
   account** trigger (top-right user icon, `auth.userButton.manageAccount`) →
   theme tabs (`auth.userButton.themeSystem` / `…themeLight` / `…themeDark`);

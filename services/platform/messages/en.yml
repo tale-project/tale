@@ -680,6 +680,13 @@ automations:
     eventPlaceholder: Select an event
     enabledLabel: Enabled
     lastFired: 'Last fired {at}'
+    failures:
+      pausedTitle: 'Paused after repeated failures'
+      pausedBody: '{count, plural, one {# run} other {# runs}} in a row failed with an error a retry won''t fix, so the schedule turned itself off. Fix the automation, then turn the trigger back on and save.'
+      streak: '{count, plural, one {The last run} other {The last # runs}} failed with an error a retry won''t fix.'
+      streakSchedule: 'After {limit} in a row, the schedule turns itself off.'
+      last: 'Last failure {at}:'
+      viewRun: 'View run'
     remove: Remove trigger
     removeTitle: Remove the trigger?
     removeBody: Removes the trigger. The automation and its version history are unaffected.
@@ -4488,6 +4495,9 @@ notificationPreferences:
     escalation:
       label: Agent escalations
       description: When an agent asks you a question or escalates a task to a human.
+    automationAlerts:
+      label: Automation alerts
+      description: When an automation's schedule pauses itself because its runs keep failing.
     conversationMessages:
       label: Conversation messages
       description: When a contact message arrives in Conversations.
@@ -6562,6 +6572,7 @@ settings:
         model_access.denied: Model access denied
         ai.completion: AI completion
         ai.budget_blocked: AI budget blocked
+        automation.trigger.paused: Automation schedule paused
         create_connector: Created connector
         delete_connector: Deleted connector
         update_credential: Updated credential
@@ -6671,6 +6682,7 @@ settings:
         agent: Agent
         workflow: Automation
         workflow_run: Automation run
+        automation_trigger: Automation trigger
         workflow_creation: Automation creation
         workflow_update: Automation update
         customer: Contact
@@ -7028,6 +7040,8 @@ inbox:
   cloudSyncNeedsReauthBody: 'Tale can no longer access {provider} with your account, so "{itemName}" stopped syncing. Reconnect {provider} from Documents to resume.'
   usageCreditsRequested: Usage credits requested
   usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
+  automationTriggerPaused: Schedule paused
+  automationTriggerPausedBody: '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.

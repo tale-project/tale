@@ -1,6 +1,6 @@
 # Notifications (bell)
 
-> **Prefix** `NOTIF-` · **Reset** none · **Cost** 29 boxes
+> **Prefix** `NOTIF-` · **Reset** none · **Cost** 30 boxes
 
 Exercise the notification center (the **bell** in the app sidebar's footer +
 its popover panel). Review decisions happen on the task itself (Status →
@@ -175,6 +175,16 @@ their own action, so a single account cannot generate those rows.
   (`inbox.usageCreditsRequestedBody`) that opens **Settings → Governance →
   Policies & limits**, and an email; another plain member's bell shows nothing.
   A second click while the row is unread rewrites it instead of adding a row.
+- [ ] `NOTIF-F19` · **A paused schedule tells owners and admins only** — Let
+  a schedule pause itself after repeated failures (AUTO-F52) → each owner and
+  admin gets an unread personal row **Schedule paused**
+  (`inbox.automationTriggerPaused`) naming the automation, the failure count
+  and the code (`inbox.automationTriggerPausedBody`), which opens
+  `/dashboard/{org}/automations/{slug}/general`, and an email when actionable
+  email is on; a plain member's bell shows nothing. With **Automation alerts**
+  (`notificationPreferences.fields.automationAlerts.label`) off, that admin
+  gets no row. Save the trigger (on or off) → every admin's row turns read
+  with no click and no reload.
 - [ ] `NOTIF-F18` · **Delegated export without an admin seat** — As an
   Admin, grant a Developer member `tale:notifications.export` through
   `POST /api/app/governance/competences` (API reference: "Delegate the export

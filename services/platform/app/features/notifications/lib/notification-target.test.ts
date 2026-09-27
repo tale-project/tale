@@ -221,6 +221,24 @@ describe('personalNotificationTarget', () => {
     });
   });
 
+  it('opens the General tab of an automation whose schedule paused itself', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: {
+          name: 'billing/dunning-reminder',
+          failures: 5,
+          code: 'node_error',
+          trigger: true,
+        },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/automations/$automationSlug/general',
+      params: { id: ORG, automationSlug: 'billing__dunning-reminder' },
+    });
+  });
+
   it('falls back to the org home for non-record params (never a dead row)', () => {
     expect(
       personalNotificationTarget({

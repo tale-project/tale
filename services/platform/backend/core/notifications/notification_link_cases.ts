@@ -127,6 +127,19 @@ export const PERSONAL_LINK_CASES: Record<
     },
     path: `/dashboard/${ORG}/documents?folderId=fld_1`,
   },
+  // The automation's General tab, where the Trigger section shows the pause
+  // and the last failure, and the owner or admin turns the schedule back on.
+  automation_failed: {
+    row: {
+      params: {
+        name: 'billing/dunning-reminder',
+        failures: 5,
+        code: 'node_error',
+        trigger: true,
+      },
+    },
+    path: `/dashboard/${ORG}/automations/billing__dunning-reminder/general`,
+  },
   // The budget rules, where the owner or admin raises the requester's limit.
   usage_credits_requested: {
     row: { params: { name: 'Sam Rivera', budgets: true } },
