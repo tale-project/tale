@@ -775,7 +775,7 @@ function SearchableSelectOptionItem({
       {isSwitcher && isSelected && (
         <span
           aria-hidden="true"
-          className="absolute inset-y-0 left-0 w-0.5 bg-blue-600"
+          className="bg-primary absolute inset-y-0 left-0 w-0.5"
         />
       )}
       {showRadio && (
@@ -791,12 +791,12 @@ function SearchableSelectOptionItem({
           <span
             className={cn(
               'border-border bg-background flex size-4 items-center justify-center rounded-full border',
-              isSelected && 'border-blue-600',
+              isSelected && 'border-primary',
             )}
           >
             {isSelected && (
               <Circle
-                className="size-2.5 fill-blue-600 text-blue-600"
+                className="fill-primary text-primary size-2.5"
                 aria-hidden="true"
               />
             )}
@@ -809,7 +809,7 @@ function SearchableSelectOptionItem({
           className="flex size-4 shrink-0 items-center justify-center"
         >
           {isSelected ? (
-            <Check className="size-4 text-blue-600" />
+            <Check className="text-primary size-4" />
           ) : (
             <span className="size-4" />
           )}

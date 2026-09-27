@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 62 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 63 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -296,7 +296,7 @@ loaded, and reads **No teams** for an account in none.
   conversations whichever status the Inbox view was last left on (pick
   **Closed** in the Inbox view's status menu, then **All** again). A view
   holding something that needs you (an unread chat, a task waiting for your
-  review, an unread conversation) carries a small blue dot announced as
+  review, an unread conversation) carries a small accent dot announced as
   `home.aria.attention`.
 - [ ] `NAV-F27` · **Time bands and ages** — With chats, a task assigned to you
   and an open conversation whose last activity is today, yesterday, three days
@@ -321,7 +321,7 @@ loaded, and reads **No teams** for an account in none.
   last-message preview, and it opens
   `/dashboard/{org}/conversations/{status}?conversation={id}`. Whatever needs
   you (a chat with a reply you have not read, a task waiting for your review,
-  an unread conversation) shows a bold title and a blue dot named **Unread**
+  an unread conversation) shows a bold title and an accent dot named **Unread**
   (`home.row.unread`) in the same place on every kind. A title too long for
   the panel ends in an ellipsis, and hovering it shows the whole title.
 - [ ] `NAV-F29` · **The open item stays in sight** — Paste the URL of a chat, a
@@ -540,6 +540,19 @@ loaded, and reads **No teams** for an account in none.
   (`connectivity.newVersion.later`). It stays until one is pressed, and
   nothing reloads again on its own; **Reload** reloads once, and the toast
   comes back while the block is on.
+- [ ] `NAV-B14` · **Contact support goes to the operator's page** — Start
+  the platform with
+  `TALE_CONTACT_SUPPORT_URL=https://support.example.com/help?source=tale`
+  (mode A: prefix it to `bun scripts/dev.ts`; a deployment: its `.env`, then
+  recreate the `platform` service). In DevTools, block
+  `GET /api/app/projects/overview` and open `/dashboard/{org}/projects` →
+  After the retries the error state's **contact support** link
+  (`common.errors.contactSupport`) points at
+  `https://support.example.com/help?source=tale&organizationId={orgId}` and
+  opens in a new tab. Restart with
+  `TALE_CONTACT_SUPPORT_URL=mailto:help@example.com` → the platform's log
+  warns once that it ignored `TALE_CONTACT_SUPPORT_URL`, and the same link
+  points at `https://tale.dev/contact?organizationId={orgId}`.
 
 ## Accessibility (WCAG 2.1 AA)
 

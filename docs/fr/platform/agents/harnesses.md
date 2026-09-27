@@ -45,6 +45,8 @@ Un agent de projet réutilise son espace de travail persistant entre ses tâches
 
 Les bundles de skills sont préparés sous forme de fichiers et cités dans les instructions de l’exécution. Examine leurs consignes et scripts avant de les accorder. [Skills des agents](/fr/platform/agents/skills) explique cette préparation et la visibilité.
 
+Chaque programme trouve aussi le skill intégré `visual-aspect-analyzer` parmi ses propres skills, sans que tu aies à l’équiper. Il pilote un vrai navigateur sur une modification d’interface terminée et signale les décalages de mise en page, le scintillement et les autres régressions visuelles. Un skill du même nom dans les dossiers `.claude/skills` et `.agents/skills` du dépôt de l’espace de travail le remplace dans chaque programme qui lit les skills d’un dépôt.
+
 Le broker de connectors garde les identifiants ordinaires dans Tale et renvoie les résultats des actions. Il propose les lectures aux agents et refuse les écritures par cette voie. Utilise un nœud connector d’automatisation pour une écriture soumise aux règles de Tale. Les outils GitHub et les secrets explicitement accordés suivent d’autres voies : la restriction du broker n’interdit donc pas toutes les écritures depuis le shell.
 
 L’accès sortant autorise normalement l’installation de paquets et le clonage de dépôts, tout en bloquant les adresses privées et les services de métadonnées cloud. Les opérateurs peuvent restreindre davantage les hôtes permis. Lorsqu’un service est inaccessible, examine les règles réseau avant de conclure que les identifiants sont incorrects.

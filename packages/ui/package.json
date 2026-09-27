@@ -110,6 +110,7 @@
     "./error-boundaries/error-scope": "./src/components/error-boundaries/core/error-scope.tsx",
     "./error-boundaries/global-error-display": "./src/components/error-boundaries/displays/global-error-display.tsx",
     "./error-boundaries/layout-error-boundary": "./src/components/error-boundaries/boundaries/layout-error-boundary.tsx",
+    "./error-boundaries/support-url": "./src/components/error-boundaries/core/support-url.tsx",
     "./error-boundaries/suspense-boundary": "./src/components/error-boundaries/core/suspense-boundary.tsx",
     "./error-boundaries/types": "./src/components/error-boundaries/core/types.ts",
     "./error-boundaries/use-error-logger": "./src/components/error-boundaries/hooks/use-error-logger.ts",

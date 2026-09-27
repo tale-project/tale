@@ -1,11 +1,13 @@
 // @vitest-environment node
 
+import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { resolveSystemConfigRoot } from '../../../../lib/shared/config/system-root';
 import { buildHarnessTable } from '../../../../lib/shared/providers/resolve_execution';
 import { HNSW_DIMENSION_LIMIT } from '../../knowledge/dimensions';
 import {
@@ -330,6 +332,52 @@ describe('shipped static model catalogs', () => {
       'openrouter/qwen/qwen3-embedding-8b',
       'zai/embedding-3',
     ]);
+  });
+
+  // The embedding form acts on each provider's `embedding` declaration:
+  // `unsupported` refuses the provider at the point of choosing, anything
+  // else lets the admin enter a model and its width. `supported` is what a
+  // curated width in the shipped catalog establishes, so the two must agree.
+  // `unsupported` is a claim about the vendor's API that this repo cannot
+  // derive, so it carries the vendor's own docs in the comment above it — a
+  // refusal nobody can trace back to evidence is the guess the declaration
+  // exists to replace.
+  it('declares embedding support only as the catalogs and vendor docs establish', () => {
+    const curated = new Set<string>();
+    for (const [provider, entries] of loadStaticCatalogs()) {
+      if (entries.some((entry) => entry.embedding !== undefined)) {
+        curated.add(provider);
+      }
+    }
+    const root = resolveSystemConfigRoot();
+    if (root === null) throw new Error('no shipped config tree');
+    const declared: Record<string, string | undefined> = {};
+    const uncited: string[] = [];
+    for (const provider of loadProviderDefinitions()) {
+      declared[provider.name] = provider.embedding;
+      if (provider.embedding !== 'unsupported') continue;
+      const lines = readFileSync(
+        path.join(root, 'providers', provider.name, 'provider.yml'),
+        'utf8',
+      ).split('\n');
+      const at = lines.findIndex((line) =>
+        /^embedding:\s*unsupported\b/.test(line),
+      );
+      const comment: string[] = [];
+      for (let i = at - 1; i >= 0 && lines[i]?.startsWith('#'); i -= 1) {
+        comment.push(lines[i] ?? '');
+      }
+      if (!comment.some((line) => line.includes('https://'))) {
+        uncited.push(provider.name);
+      }
+    }
+
+    expect(uncited).toEqual([]);
+    expect(
+      Object.keys(declared).filter((name) => declared[name] === 'supported'),
+    ).toEqual([...curated].sort());
+    // Anthropic's docs: "Anthropic does not offer its own embedding model."
+    expect(declared.anthropic).toBe('unsupported');
   });
 
   // A declared knob names a WIRE PARAMETER, so it is only meaningful on a

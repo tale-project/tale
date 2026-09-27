@@ -20,7 +20,10 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
-import { markRagQueued } from '../knowledge/service.ts';
+import {
+  markRagQueued,
+  markRagUnsupportedIfNoExtractor,
+} from '../knowledge/service.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 import {
   assertFileReadable,
@@ -227,6 +230,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
       };
+      const media = isAudioOrVideo(body.data.contentType);
       const result = await transactSerializable(deps.sql, async (tx) => {
         const registered = await registerUpload(
           deps.sql,
@@ -256,12 +260,30 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           // lane refuses it before any byte is fetched — so the honest page
           // shape is stamped here instead (0.4 parity).
           await stampImageVisionMetadata(tx, registered.fileId);
+        } else if (
+          body.data.skipRagIndexing !== true &&
+          body.data.threadId === undefined &&
+          !media
+        ) {
+          // A file this lane never queues and no extractor reads — a `.doc`,
+          // a `.zip`, a hand-uploaded `.loop` — gets the terminal state a sync
+          // import and the indexer give it, not an empty status that reads
+          // as indexing never started; a `.log`, which the indexer reads,
+          // keeps its empty status. Audio and video are the transcription
+          // lane's, below. A chat-bound file is the chat's own: the turn reads
+          // its status and starts a row that is still empty
+          // (`queueRagIndexIfUnstarted`).
+          await markRagUnsupportedIfNoExtractor(
+            tx,
+            registered.fileId,
+            body.data.fileName,
+          );
         }
         return registered;
       });
       // Audio/video uploads transcribe server-side (the 0.4 saveFileMetadata
       // audio branch): stamp queued + enqueue the pipeline job.
-      if (isAudioOrVideo(body.data.contentType)) {
+      if (media) {
         await queueTranscription(deps.sql, {
           organizationId: scope.organizationId,
           storageRef: body.data.storageRef,

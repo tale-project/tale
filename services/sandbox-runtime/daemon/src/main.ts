@@ -21,6 +21,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ActivityGate } from './activity-gate.ts';
+import { reconcileBakedSkills } from './baked-skills.ts';
 import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import {
@@ -67,7 +68,11 @@ if (process.env.TALE_SESSION_ENV) {
   }
 }
 const envStore = new EnvStore(seedEnv);
-const execManager = new ExecManager(envStore, touch);
+// Every exec first brings the built-in skill links in line with the
+// workspace, so the repository's own copy of a skill decides each turn.
+const execManager = new ExecManager(envStore, touch, () =>
+  reconcileBakedSkills(),
+);
 const activity = new ActivityGate(() => execManager.liveCount());
 
 function tokenOk(req: IncomingMessage): boolean {
@@ -511,6 +516,10 @@ if (
       setTimeout(() => process.exit(0), 2_000);
     });
   }
+
+  // Every harness finds the image's built-in skills among its own from the
+  // session's first moment, not only after its first exec.
+  reconcileBakedSkills();
 
   server.listen(RUNNERD_PORT, '0.0.0.0', () => {
     console.log(

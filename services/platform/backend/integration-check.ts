@@ -55,6 +55,7 @@ import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
+import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
@@ -63,6 +64,7 @@ import { checkInboundEmailBodies } from './domains/knowledge/message-index.integ
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
+import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
@@ -74,6 +76,7 @@ import { checkTaskDescriptionMentions } from './domains/tasks/description-mentio
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -3578,6 +3581,65 @@ async function checkFiles(
       optOutJobs === 0,
     `heal=${String(restarted)} (want queued), second=${String(restartedAgain)} (want null), optOut=${String(optOutRestart)} (want null), jobs=${restartedJobs} (want 2: the register one plus this) optOutJobs=${optOutJobs} (want 0)`,
   );
+
+  // A file this door never queues and no extractor reads — a hand-uploaded
+  // Loop page — used to keep an empty status, which reads as indexing never
+  // started. It now lands on the terminal state a sync import and the
+  // indexer give it, with no job. A `.log`, which a Reindex can index, keeps
+  // its empty status, and so does a chat-bound `.loop`: the chat reads its
+  // own attachments.
+  const loopUpload = await registerStaged(
+    'standup.loop',
+    'application/octet-stream',
+    'loop v1',
+  );
+  const logUpload = await registerStaged(
+    'server.log',
+    'text/plain',
+    'GET /health 200',
+  );
+  const chatLoopUpload = await registerStaged(
+    'chat.loop',
+    'application/octet-stream',
+    'loop v1',
+    { threadId: 'itest-attachment-thread' },
+  );
+  const ragStateOf = async (id: string) =>
+    (
+      await sql<
+        {
+          ragStatus: string | null;
+          ragErrorCode: string | null;
+          ragError: string | null;
+        }[]
+      >`
+        SELECT rag_status AS "ragStatus", rag_error_code AS "ragErrorCode",
+               rag_error AS "ragError"
+        FROM app.file_metadata WHERE id = ${id} LIMIT 1
+      `
+    )[0];
+  const loopRow = await ragStateOf(loopUpload.fileId);
+  const logRow = await ragStateOf(logUpload.fileId);
+  const chatLoopRow = await ragStateOf(chatLoopUpload.fileId);
+  const unqueuedJobs =
+    (await indexJobsFor(loopUpload.fileId)) +
+    (await indexJobsFor(logUpload.fileId)) +
+    (await indexJobsFor(chatLoopUpload.fileId));
+  const loopSentence = 'No text extractor exists for "standup.loop".';
+  record(
+    'register lands a file no extractor reads on unsupported_type; a .log and a chat-bound file keep an empty status',
+    loopUpload.fileId !== '' &&
+      loopRow?.ragStatus === 'unsupported' &&
+      loopRow.ragErrorCode === 'unsupported_type' &&
+      loopRow.ragError === loopSentence &&
+      logUpload.fileId !== '' &&
+      logRow?.ragStatus === null &&
+      logRow.ragErrorCode === null &&
+      chatLoopUpload.fileId !== '' &&
+      chatLoopRow?.ragStatus === null &&
+      unqueuedJobs === 0,
+    `loop=${loopRow?.ragStatus ?? 'null'}/${loopRow?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${loopRow?.ragError === loopSentence}, log=${logRow?.ragStatus ?? 'null'} (want null), chat-bound loop=${chatLoopRow?.ragStatus ?? 'null'} (want null), jobs=${unqueuedJobs} (want 0)`,
+  );
 }
 
 /**
@@ -5443,6 +5505,136 @@ async function checkDocuments(
       (afterRace[0]?.historyFiles ?? []).includes(fileIdAfter) &&
       chainIntact,
     `parked=${bothParked}, responses=${raceCodes.join('/')} (want ok + DOCUMENT_RECORD_VERSION_MISMATCH), bound=${raceWinners.length} (want 1), loser=${raceLoser?.state ?? 'none'} (want failed), currentIsWinner=${afterRace[0]?.fileRef === raceWinners[0]?.finalRef}, previousRetained=${(afterRace[0]?.historyFiles ?? []).includes(fileIdAfter)}, chainIntact=${chainIntact}`,
+  );
+
+  // A replacement no extractor reads — the upload allowlist's `.ac2`, whose
+  // opaque bytes the attester admits — used to insert its file row as a bare
+  // `unsupported`, with no code and no sentence: the view carried no
+  // `ragErrorCode` for the badge to explain, and the retry door refused with
+  // a generic sentence. It now carries the state an upload or a sync gives
+  // such a file, and no index job is queued for it.
+  const ledgerUpload = z.object({ storageId: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/files/upload?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/octet-stream',
+          cookie,
+          origin: base,
+        },
+        body: 'ledger v1',
+      })
+    ).json(),
+  );
+  const ledgerDoc = z.object({ documentId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
+        storageRef: ledgerUpload.success ? ledgerUpload.data.storageId : '',
+        fileName: 'ledger.ac2',
+        contentType: 'application/octet-stream',
+      })
+    ).json(),
+  );
+  const ledgerId = ledgerDoc.success ? ledgerDoc.data.documentId : '';
+  const ledgerMark = await send(
+    'POST',
+    `/api/app/documents/${ledgerId}/record/mark-controlled?orgId=${orgId}`,
+    {},
+  );
+  const ledgerBefore = z
+    .object({ document: z.object({ fileId: z.string() }) })
+    .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
+  const ledgerBegin = z
+    .object({ intentId: z.string(), url: z.string().url() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${ledgerId}/replacement-upload/begin?orgId=${orgId}`,
+          {
+            expectedRecordState: 'draft',
+            expectedVersion: 1,
+            expectedFileId: ledgerBefore.success
+              ? ledgerBefore.data.document.fileId
+              : '',
+            fileName: 'ledger.ac2',
+            contentType: 'application/octet-stream',
+          },
+        )
+      ).json(),
+    );
+  if (ledgerBegin.success) {
+    await fetch(ledgerBegin.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: 'ledger v2',
+    });
+  }
+  const ledgerFinalize = await send(
+    'POST',
+    `/api/app/documents/replacement-uploads/${ledgerBegin.success ? ledgerBegin.data.intentId : ''}/finalize?orgId=${orgId}`,
+    {},
+  );
+  const ledgerAfter = z
+    .object({
+      document: z.object({
+        fileId: z.string(),
+        ragStatus: z.string().optional(),
+        ragErrorCode: z.string().optional(),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
+  const ledgerFile = (
+    await sql<
+      {
+        id: string;
+        ragStatus: string | null;
+        ragErrorCode: string | null;
+        ragError: string | null;
+      }[]
+    >`
+      SELECT id, rag_status AS "ragStatus", rag_error_code AS "ragErrorCode",
+             rag_error AS "ragError"
+      FROM app.file_metadata
+      WHERE org_id = ${orgId}
+        AND storage_ref = ${ledgerAfter.success ? ledgerAfter.data.document.fileId : ''}
+      LIMIT 1
+    `
+  )[0];
+  const ledgerJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'rag.index_file' AND data->>'fileId' = ${ledgerFile?.id ?? ''}
+  `;
+  // Reindex asked for anyway — hiding the action is no gate, the door is.
+  const ledgerRetry = z
+    .object({ success: z.boolean(), error: z.string().optional() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${ledgerId}/retry-rag?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const ledgerSentence = 'No text extractor exists for "ledger.ac2".';
+  record(
+    'replacement no extractor reads (.ac2): terminal unsupported_type with the sentence, never queued, retry refused',
+    ledgerMark.ok &&
+      ledgerFinalize.ok &&
+      ledgerAfter.success &&
+      ledgerBefore.success &&
+      ledgerAfter.data.document.fileId !== ledgerBefore.data.document.fileId &&
+      ledgerFile?.ragStatus === 'unsupported' &&
+      ledgerFile.ragErrorCode === 'unsupported_type' &&
+      ledgerFile.ragError === ledgerSentence &&
+      Number(ledgerJobs[0]?.count ?? '0') === 0 &&
+      ledgerAfter.data.document.ragStatus === 'unsupported' &&
+      ledgerAfter.data.document.ragErrorCode === 'unsupported_type' &&
+      ledgerRetry.success &&
+      !ledgerRetry.data.success &&
+      ledgerRetry.data.error === ledgerSentence,
+    `mark → ${ledgerMark.status}, finalize → ${ledgerFinalize.status}, file=${ledgerFile?.ragStatus ?? 'null'}/${ledgerFile?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${ledgerFile?.ragError === ledgerSentence}, jobs=${ledgerJobs[0]?.count ?? '?'} (want 0), view=${ledgerAfter.success ? `${ledgerAfter.data.document.ragStatus}/${ledgerAfter.data.document.ragErrorCode}` : 'ERR'}, retry=${ledgerRetry.success ? `${ledgerRetry.data.success}: ${ledgerRetry.data.error}` : 'ERR'} (want refused with the sentence)`,
   );
 
   // Hard delete removes the row and the hub listing entry.
@@ -46323,7 +46515,12 @@ async function checkDataResidencyConfig(
       await (await get(`/api/app/knowledge/embedding?orgId=${orgId}`)).json(),
     );
   const recs = z
-    .object({ recommendations: z.array(z.object({}).loose()) })
+    .object({
+      recommendations: z.array(z.object({}).loose()),
+      providers: z.array(
+        z.object({ providerSlug: z.string(), support: z.string() }),
+      ),
+    })
     .safeParse(
       await (
         await get(`/api/app/knowledge/embedding/recommendations?orgId=${orgId}`)
@@ -46368,11 +46565,17 @@ async function checkDataResidencyConfig(
       embView.data.providerSlug === 'openai' &&
       embView.data.dimensions === 1536 &&
       recs.success &&
+      // Anthropic's connector declares it cannot embed (its docs are cited in
+      // provider.yml), so the form refuses it instead of failing at index time.
+      recs.data.providers.some(
+        (entry) =>
+          entry.providerSlug === 'anthropic' && entry.support === 'unsupported',
+      ) &&
       embGone.success &&
       !embGone.data.configured &&
       knGone.success &&
       !knGone.data.configured,
-    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? recs.data.recommendations.length : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
+    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? `${recs.data.recommendations.length}/${recs.data.providers.map((entry) => `${entry.providerSlug}:${entry.support}`).join(',')}` : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
   );
 }
 
@@ -54394,6 +54597,10 @@ async function main(): Promise<void> {
         'checkAutomationTriggerDelivery',
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
+      [
+        'checkDeletedOrgSchedules',
+        () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
         'checkRetiredBuilderRoute',
@@ -54725,6 +54932,10 @@ async function main(): Promise<void> {
       ],
       ['checkWatchdogs', () => checkWatchdogs(sql, baseUrl, authCtx)],
       [
+        'checkRenderFailedCreate',
+        () => checkRenderFailedCreate(sql, authCtx, record),
+      ],
+      [
         'checkDocumentWriteGuards',
         () => checkDocumentWriteGuards(sql, baseUrl, authCtx),
       ],
@@ -54743,6 +54954,10 @@ async function main(): Promise<void> {
       [
         'checkTeamScopeRetirement',
         () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkOrphanedOrgRowsBackfill',
+        () => checkOrphanedOrgRowsBackfill(sql, authCtx, record),
       ],
       [
         'checkOrganizationLifecycle',

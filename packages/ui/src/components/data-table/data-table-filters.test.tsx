@@ -120,7 +120,9 @@ describe('DataTableFilters', () => {
 
       const { container } = render(<DataTableFilters filters={[filter]} />);
 
-      expect(container.querySelector('.bg-blue-500')).toBeNull();
+      expect(
+        container.querySelector('[data-slot="active-filter-dot"]'),
+      ).toBeNull();
     });
 
     it('shows the active indicator once the selection leaves the default', () => {
@@ -131,7 +133,9 @@ describe('DataTableFilters', () => {
 
       const { container } = render(<DataTableFilters filters={[filter]} />);
 
-      expect(container.querySelector('.bg-blue-500')).not.toBeNull();
+      expect(
+        container.querySelector('[data-slot="active-filter-dot"]'),
+      ).not.toBeNull();
     });
 
     it('clear-all restores the default instead of emptying the filter', async () => {

@@ -363,12 +363,11 @@ export function createKnowledgeRoutes(deps: {
       email: session.user.email,
       role: c.get('orgMember').role,
     });
-    return c.json({
-      recommendations: await listEmbeddingRecommendationsForOrg(
-        orgSlug,
-        credentials,
-      ),
-    });
+    // `{recommendations, providers}` — the curated picks and each
+    // provider's declared embedding support.
+    return c.json(
+      await listEmbeddingRecommendationsForOrg(orgSlug, credentials),
+    );
   });
 
   return app;

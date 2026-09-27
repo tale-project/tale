@@ -9,7 +9,11 @@ apiFormat: anthropic
 baseUrl: https://api.anthropic.com
 catalog:
   source: static
-embedding: unknown
+# No embedding model: "Anthropic does not offer its own embedding model."
+# (https://platform.claude.com/docs/en/build-with-claude/embeddings, read
+# 2026-09-27; the page points to Voyage AI instead). The embedding form
+# refuses this provider at the point of choosing.
+embedding: unsupported
 auth:
   - method: api-key
   - method: env

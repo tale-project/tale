@@ -72,7 +72,7 @@ export function NotificationRow({
         aria-hidden
         className={cn(
           'mt-1.5 size-2 shrink-0 rounded-full',
-          read ? 'bg-transparent' : 'bg-blue-500',
+          read ? 'bg-transparent' : 'bg-primary',
         )}
       />
       <div className="min-w-0 flex-1">

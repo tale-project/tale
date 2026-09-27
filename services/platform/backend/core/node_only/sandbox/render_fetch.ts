@@ -21,7 +21,9 @@
  *    come back as `failed` and are charged to that page alone.
  *
  * One session per batch, destroyed in `finally` — a session never spans
- * loop iterations or scan continuation links.
+ * loop iterations or scan continuation links. A batch whose create failed
+ * never had a session to destroy there: its row is left `failed` for the
+ * sandbox watchdog to collect (`settleFailedCreate`).
  */
 
 import { z } from 'zod';
@@ -31,8 +33,10 @@ import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { sessionIdForRender } from '../../sandbox/session_naming';
 import {
+  SessionDuplicateError,
   sessionCreate,
   sessionDestroy,
+  sessionDestroyIfIdle,
   sessionReadFile,
   sessionStageFiles,
 } from './helpers/session_client';
@@ -187,15 +191,7 @@ export async function renderUrlsInSandbox(
       });
       created = true;
     } catch (error) {
-      // Roll the reserved row out of the way so the freed slot wakes any
-      // parked waiter and a retry is not blocked by the per-owner cap.
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.setSessionStatus,
-        {
-          rowId,
-          status: 'failed',
-        },
-      );
+      await settleFailedCreate(ctx, { rowId, sessionId, error });
       throw error;
     }
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
@@ -256,6 +252,10 @@ export async function renderUrlsInSandbox(
     const payload: unknown = JSON.parse(new TextDecoder().decode(file.bytes));
     return parseRenderResults(payload, args.urls);
   } finally {
+    // Only a session this batch created is torn down here. A failed create's
+    // row already reads `failed`: settling it `destroyed` would hide it from
+    // the watchdog's COLLECT pass, the one pass that reaches what the create
+    // may have left behind.
     if (created) {
       try {
         await sessionDestroy(sessionId);
@@ -265,19 +265,76 @@ export async function renderUrlsInSandbox(
           error instanceof Error ? error.message : error,
         );
       }
-    }
-    try {
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.markSessionRowDestroyed,
-        { organizationId: args.organizationId, sessionId },
-      );
-    } catch (error) {
-      console.warn(
-        `[render] session ${sessionId} row flip failed:`,
-        error instanceof Error ? error.message : error,
-      );
+      try {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.markSessionRowDestroyed,
+          { organizationId: args.organizationId, sessionId },
+        );
+      } catch (error) {
+        console.warn(
+          `[render] session ${sessionId} row flip failed:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
     }
   }
+}
+
+/**
+ * Settle the reserved row of a render create that failed: it reads `failed`
+ * with `destroyed_at_ms` unset, which frees the batch's slot and leaves the
+ * row to the sandbox watchdog's COLLECT pass — the only pass that reaches a
+ * `failed` row. A create cut short between Docker's create and start leaves a
+ * container in state `created` that the spawner never adopts, and it pins its
+ * runtime image through every later deploy until something destroys it.
+ *
+ * Before the flip, while the still-`creating` row holds the batch's one slot
+ * (once it reads `failed`, a second run of the same batch may reserve the id
+ * and create, and a later destroy would hit that run's session):
+ *  - a DUPLICATE (409) destroys nothing. This create made nothing: the
+ *    spawner already holds the id, or is creating it, for another run. The
+ *    batch key is deterministic (domain, scan start, link, batch number), so
+ *    a link that runs twice (a job retry, or a continuation enqueued twice)
+ *    asks for the same id. And the spawner answers a probe with 404 while it
+ *    is still creating a session, so the reconcile pass may already have
+ *    settled the other run's row while that run renders in the session.
+ *    Between its create and its exec that session is idle, so `if_idle`
+ *    would not spare it. The COLLECT pass settles this row past its grace:
+ *    without a spawner call while a newer or live row carries the id, and
+ *    otherwise with the same idle-only destroy.
+ *  - any other failure asks the spawner to destroy what it holds under the
+ *    id, when idle, as the agent lane does. Best-effort: a busy answer or a
+ *    failed destroy is logged and left to the COLLECT pass, and never masks
+ *    the create's error.
+ */
+async function settleFailedCreate(
+  ctx: ActionCtx,
+  args: { rowId: string; sessionId: string; error: unknown },
+): Promise<void> {
+  const { rowId, sessionId } = args;
+  if (args.error instanceof SessionDuplicateError) {
+    console.warn(
+      `[render] session ${sessionId} already exists spawner-side; this batch destroys nothing and the watchdog collects its failed row`,
+    );
+  } else {
+    await sessionDestroyIfIdle(sessionId)
+      .then(({ busy }) => {
+        if (busy)
+          console.warn(
+            `[render] session ${sessionId} runs an exec after this failed create; the watchdog collects it once idle`,
+          );
+      })
+      .catch((destroyError: unknown) => {
+        console.warn(
+          `[render] destroy after failed create of ${sessionId} failed (the watchdog collects it):`,
+          destroyError instanceof Error ? destroyError.message : destroyError,
+        );
+      });
+  }
+  await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
+    rowId,
+    status: 'failed',
+  });
 }
 
 /**

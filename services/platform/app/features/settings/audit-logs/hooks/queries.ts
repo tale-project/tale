@@ -1,34 +1,45 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 
+/**
+ * Rows per page of the Audit and Error listings. Held here rather than passed
+ * in: the logs page's filter bar watches the same listing its active tab reads,
+ * and one cache entry has to be fetched with one page size.
+ */
+const LOGS_PAGE_SIZE = 30;
+
 interface ListAuditLogsPaginatedArgs {
-  organizationId: string;
+  /** `undefined` skips the read. */
+  organizationId: string | undefined;
   category?: string;
   resourceType?: string;
-  initialNumItems: number;
 }
 
-export function useListAuditLogsPaginated(args: ListAuditLogsPaginatedArgs) {
-  const { initialNumItems, ...queryArgs } = args;
+export function useListAuditLogsPaginated({
+  organizationId,
+  ...filters
+}: ListAuditLogsPaginatedArgs) {
   return useCachedPaginatedQuery(
     'audit_logs/queries:listAuditLogsPaginated',
-    queryArgs,
-    { initialNumItems },
+    organizationId === undefined ? 'skip' : { organizationId, ...filters },
+    { initialNumItems: LOGS_PAGE_SIZE },
   );
 }
 
 interface ListErrorLogsPaginatedArgs {
-  organizationId: string;
+  /** `undefined` skips the read. */
+  organizationId: string | undefined;
   category?: string;
-  initialNumItems: number;
 }
 
-export function useListErrorLogsPaginated(args: ListErrorLogsPaginatedArgs) {
-  const { initialNumItems, ...queryArgs } = args;
+export function useListErrorLogsPaginated({
+  organizationId,
+  ...filters
+}: ListErrorLogsPaginatedArgs) {
   return useCachedPaginatedQuery(
     'audit_logs/queries:listErrorLogsPaginated',
-    queryArgs,
-    { initialNumItems },
+    organizationId === undefined ? 'skip' : { organizationId, ...filters },
+    { initialNumItems: LOGS_PAGE_SIZE },
   );
 }
 

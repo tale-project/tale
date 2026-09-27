@@ -8,7 +8,6 @@ import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { audienceMirror } from '../../core/lib/audience.ts';
-import { isSupported } from '../../core/lib/knowledge/extraction/router.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -32,7 +31,7 @@ import {
 } from '../folders/paths.ts';
 import {
   markRagQueued,
-  markRagUnsupportedType,
+  markRagUnsupportedIfNoExtractor,
   syncRagDocumentScope,
 } from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
@@ -603,16 +602,12 @@ async function scheduleDocumentRagIndexing(
     // A file no extractor reads — a Loop page (`.loop`, served as
     // `application/octet-stream`), a legacy `.doc` — gets the terminal state
     // the indexer would give it; its empty status used to read "Not indexed"
-    // with a Reindex that could never succeed. Judged by the stored file
-    // name, the one the indexer reads: the document title can be renamed on
-    // its own (a title of "Minutes 27.09" reads as extension `09`), and a
-    // readable file must never be made terminal by its title. A file the
-    // indexer CAN read but the platform does not index by itself (`.log`) is
-    // not terminal either: a Reindex of it succeeds, so it keeps the empty
-    // status.
-    if (!isSupported(file.fileName)) {
-      await markRagUnsupportedType(sql, file.id, file.fileName);
-    }
+    // with a Reindex that could never succeed. A `.log`, which a Reindex can
+    // index, keeps its empty status. Judged by the stored file name, the one
+    // the indexer reads: the document title can be renamed on its own (a
+    // title of "Minutes 27.09" reads as extension `09`), and a readable file
+    // must never be made terminal by its title.
+    await markRagUnsupportedIfNoExtractor(sql, file.id, file.fileName);
     return false;
   }
   await sql.begin(async (tx) => {
