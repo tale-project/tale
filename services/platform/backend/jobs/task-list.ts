@@ -250,6 +250,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       `;
       console.log(`[maintenance] rate_limit_gc removed ${deleted.count} rows`);
     },
+    'maintenance.expired_sessions': async (_payload, context) => {
+      const { reapExpiredSessions } =
+        await import('../auth/expired-sessions.ts');
+      const { deleted, drained } = await reapExpiredSessions(deps.sql, {
+        signal: context?.signal,
+      });
+      console.log(
+        `[maintenance] expired_sessions removed ${deleted} rows${drained ? '' : ' (stopped before draining; the next run carries on)'}`,
+      );
+    },
     'realtime.reclaim_outbox': async () => {
       const { OUTBOX_RECLAIM_CRON_MAX_BATCHES, reclaimOutbox } =
         await import('../realtime/outbox.ts');
