@@ -34,7 +34,10 @@ page, the budget gate, erasure and retention are its readers.
    `request.userId` (`lib/chat/turn.ts`, `recordUsage`). Managed turns — reservation
    (`domains/sandbox/turn-budget.ts`) and settlement (`domains/sandbox/spend-settlement.ts`)
    alike — resolve their subject through `resolveSessionOpAttribution`
-   (`domains/sandbox/op-attribution.ts`). A run's `started_by` is parsed only by
+   (`domains/sandbox/op-attribution.ts`). The same subject decides whom a task turn's connector
+   calls act for: the connectors bridge (`domains/connectors/bridge-routes.ts`) resolves it on
+   every call from the live run on the exec the turn's token names (`scope.connectorCaller`),
+   so a call is booked, audited and run for one person. A run's `started_by` is parsed only by
    `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter anywhere else is
    a defect.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
@@ -74,6 +77,10 @@ page, the budget gate, erasure and retention are its readers.
 - `domains/sandbox/op-attribution.test.ts` — the subject per lane, sentinel, key, stamp fallback.
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
+- `core/tasks/agent_run_host.connector_caller.test.ts`, `domains/connectors/bridge-routes.test.ts`
+  — a task turn's connector calls act for the run's starter while the run is live, and for
+  nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an
+  auto-retry keeps the failed run's starter.
 - `domains/governance/budget-gate.test.ts` — an impersonal subject binds no personal cap.
 - `domains/governance/usage-metrics.test.ts`, `app/features/analytics/usage/usage-metrics-page.test.tsx`
   — the sentinel is labelled and excluded from active users; a project agent shows its name.

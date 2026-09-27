@@ -12,6 +12,7 @@
 
 import { useCallback, useMemo } from 'react';
 
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import {
   regenerateChatTurn,
@@ -31,7 +32,9 @@ import { invalidateBudgetStanding, useChatQueryClient } from './chat-backend';
  * How a fork resolved. A fork is the first half of a turn, so the door
  * measures the sender's budget before forking: a reached cap answers 429
  * `BUDGET_EXCEEDED` with nothing created, and the surface names it exactly
- * like a refused send. Anything else that fails is `failed`.
+ * like a refused send. Anything else that fails is `failed` — carrying the
+ * door's own words (its sentence, else its code) when it refused the fork,
+ * nothing for a fault.
  */
 export type BranchForkResult =
   | {
@@ -48,7 +51,7 @@ export type BranchForkResult =
       readonly reason: string;
       readonly code?: string;
     }
-  | { readonly status: 'failed' };
+  | { readonly status: 'failed'; readonly reason?: string };
 
 /** The outcome of the regenerate turn — the send handle's outcome shape. */
 export interface RegenerateOutcome {
@@ -70,7 +73,9 @@ function forkResultOf(error: unknown): BranchForkResult {
       ...(error.code !== undefined ? { code: error.code } : {}),
     };
   }
-  return { status: 'failed' };
+  // A legal hold, a message that is gone: the door said why.
+  const reason = backendRefusalDetail(error);
+  return { status: 'failed', ...(reason !== undefined ? { reason } : {}) };
 }
 
 export interface BranchActions {
@@ -226,9 +231,11 @@ export function useBranchActions(organizationId: string): BranchActions {
         };
       } catch (error) {
         // The request failed, not the turn: whether it landed is unknown,
-        // so `persisted` stays absent and the caller keeps the sibling.
+        // so `persisted` stays absent and the caller keeps the sibling. A
+        // door that refused the request says why.
         console.error('[chat] the regenerate turn failed', error);
-        return { refused: true };
+        const reason = backendRefusalDetail(error);
+        return { refused: true, ...(reason !== undefined ? { reason } : {}) };
       }
     },
     [queryClient, organizationId],

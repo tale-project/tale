@@ -1,8 +1,10 @@
+import { isSerializationFailure } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { hasProjectAccess } from '../../core/projects/access.ts';
 import {
+  addedMentions,
   extractMentions,
   findUnresolvedMentionTokens,
   type MentionDirectoryEntry,
@@ -12,7 +14,8 @@ import { listAutomations } from '../automations/store.ts';
 
 /**
  * The mention DIRECTORY on Postgres — who `@handle` can name on a task
- * surface, and the resolution that turns comment text into mentions.
+ * surface, and the resolution that turns a comment's or a task
+ * description's text into mentions.
  *
  * The 0.4 rules, kept exactly:
  *
@@ -31,7 +34,7 @@ import { listAutomations } from '../automations/store.ts';
  *    automation run, and nothing tells the author. The "quiet refusal"
  *    contract covers PERMISSION misses (an outsider is not mentionable),
  *    never infrastructure failures; the surface fails loudly and the comment
- *    is posted again.
+ *    (or the task) is saved again.
  *
  * The scanning itself (`extractMentions`, `findUnresolvedMentionTokens`,
  * `parseMentionTokens`) is REUSED from the 0.4 pure module: one grammar for
@@ -45,9 +48,10 @@ export interface MentionDirectory {
 export type MentionDirectoryLeg = 'members' | 'automations' | 'agents';
 
 /**
- * A directory leg could not be listed. The task-comment door maps it to a
- * 503 with this code so the composer shows a failure the author can retry,
- * instead of a posted comment whose mentions silently did nothing.
+ * A directory leg could not be listed. The task doors (a comment, a task
+ * created or edited with a description that names someone) map it to a 503
+ * with this code so the author sees a failure they can retry, instead of a
+ * saved text whose mentions silently did nothing.
  */
 export class MentionDirectoryError extends Error {
   readonly code = 'MENTION_DIRECTORY_UNAVAILABLE';
@@ -61,10 +65,11 @@ export class MentionDirectoryError extends Error {
   }
 }
 
-function directoryUnavailable(
-  leg: MentionDirectoryLeg,
-  cause: unknown,
-): MentionDirectoryError {
+function directoryUnavailable(leg: MentionDirectoryLeg, cause: unknown): Error {
+  // A serialization conflict is not an outage but the transaction's own
+  // retry signal. `transactSerializable` reads the SQLSTATE off the error it
+  // catches, so a wrapped one surfaced as a 503 instead of a rerun.
+  if (cause instanceof Error && isSerializationFailure(cause)) return cause;
   console.error(`[collab] mention directory: ${leg} listing failed`, cause);
   return new MentionDirectoryError(leg, cause);
 }
@@ -247,21 +252,42 @@ function presentationName(presentation: unknown): string | undefined {
 
 export interface SurfaceMentionResolution {
   mentions: ResolvedMention[];
+  /** The mentions the body makes that `previousBody` did not — all of
+   * `mentions` when no previous text was given. */
+  added: ResolvedMention[];
   unresolvedMentionTokens: string[];
 }
 
 /** Scan one surface's body against its directory — the 0.4
- * `resolveSurfaceMentions`. */
+ * `resolveSurfaceMentions`. An EDIT passes the text it replaces as
+ * `previousBody`: both texts are read against this one directory, so
+ * `added` holds only who the edit newly names. Rewording prose around an
+ * existing `@handle` must not fire it again, and a handle that resolves
+ * today in both texts is not new just because it did not resolve when the
+ * old text was saved. */
 export async function resolveSurfaceMentions(
   sql: Sql | TransactionSql,
-  args: { organizationId: string; body: string; projectId?: string },
+  args: {
+    organizationId: string;
+    body: string;
+    projectId?: string;
+    previousBody?: string;
+  },
 ): Promise<SurfaceMentionResolution> {
   const directory = await buildMentionDirectory(sql, {
     organizationId: args.organizationId,
     projectId: args.projectId ?? null,
   });
+  const mentions = extractMentions(args.body, directory.entries);
   return {
-    mentions: extractMentions(args.body, directory.entries),
+    mentions,
+    added:
+      args.previousBody === undefined
+        ? mentions
+        : addedMentions(
+            extractMentions(args.previousBody, directory.entries),
+            mentions,
+          ),
     unresolvedMentionTokens: findUnresolvedMentionTokens(
       args.body,
       directory.entries,

@@ -117,6 +117,44 @@ describe('searchKnowledge live document validation', () => {
     );
   });
 
+  it('carries a door’s request for email bodies, and its caller, into the re-check', async () => {
+    // The admission rebuilds the scope field by field for the wire; a flag
+    // it dropped would deny every email body, and one it invented would
+    // admit them for a door that never asked.
+    retrieveMock.mockImplementationOnce(
+      async (deps: { admit: (hits: unknown[]) => Promise<unknown[]> }) => ({
+        hits: await deps.admit([hit('documents', 'msg:m-1')]),
+        diagnostics: {},
+      }),
+    );
+    const runQuery = vi.fn(async () => ['msg:m-1']);
+    await searchKnowledge({ runQuery } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'field sales agent role',
+      access: {
+        teamIds: [],
+        projectIds: [],
+        includeHub: true,
+        includeConversationScoped: true,
+        includeConversationMessages: true,
+        userId: 'user_1',
+      },
+    });
+    expect(runQuery).toHaveBeenCalledWith('filterRetrievableRagFileIds', {
+      organizationId: 'org_1',
+      fileIds: ['msg:m-1'],
+      userId: 'user_1',
+      access: {
+        teamIds: [],
+        projectIds: [],
+        includeHub: true,
+        includeConversationScoped: true,
+        includeConversationMessages: true,
+      },
+    });
+  });
+
   it('admits a pool with no document hits without a re-check', async () => {
     retrieveMock.mockImplementationOnce(
       async (deps: { admit: (hits: unknown[]) => Promise<unknown[]> }) => ({

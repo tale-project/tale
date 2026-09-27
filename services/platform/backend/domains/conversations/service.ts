@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { isIndexedMessage } from '../../../lib/knowledge/message-ref.ts';
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
@@ -10,6 +11,7 @@ import {
 } from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -19,6 +21,11 @@ import {
 import { emitEvent } from '../events/emit.ts';
 import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
+import {
+  indexedMessageRefsOf,
+  queueMessageRefRelease,
+  queueSpamVerdictCorpusJobs,
+} from './message-corpus.ts';
 import {
   mailboxFilterSql,
   resolveHeldThreadCredential,
@@ -347,6 +354,26 @@ export async function addMessageToConversation(
   `;
   const messageId = inserted[0]?.id;
   if (!messageId) throw new Error('conversation message insert failed');
+  // An inbound email's body is indexed for retrieval, queued in THIS
+  // transaction: a rolled-back insert queues nothing, and the loser of an
+  // ingest race (the unique Message-ID refusal) rolls its job back with it.
+  // Which messages qualify is `isIndexedMessage` — the same answer the
+  // indexer, the retrievable filter and the ref release give: mail a
+  // connector delivered, never a message a member logged by hand. An empty
+  // body is never queued; the indexer re-checks after reading HTML down to
+  // text. Nor is mail landing on a conversation already marked spam: junk is
+  // never embedded, and lifting the verdict queues it (`message-corpus.ts`).
+  if (
+    isIndexedMessage({
+      direction,
+      channel: conversation.channel,
+      connectorName: args.connectorName,
+    }) &&
+    conversation.status !== 'spam' &&
+    args.content.trim() !== ''
+  ) {
+    await addJobInTx(tx, 'rag.index_message', { messageId });
+  }
 
   const lastMessageAt = nextConversationLastMessageAt(
     conversation.lastMessageAt ?? undefined,
@@ -843,9 +870,13 @@ export async function updateConversation(
   actor: { userId: string },
 ): Promise<void> {
   const rows = await tx<
-    { id: string; metadata: Record<string, unknown> | null }[]
+    {
+      id: string;
+      status: string | null;
+      metadata: Record<string, unknown> | null;
+    }[]
   >`
-    SELECT id, metadata FROM app.conversations
+    SELECT id, status, metadata FROM app.conversations
     WHERE id = ${conversationId} AND org_id = ${organizationId} LIMIT 1
   `;
   const row = rows[0];
@@ -894,6 +925,11 @@ export async function updateConversation(
       metadata = ${nextMetadata !== undefined ? tx.json(toJson(nextMetadata)) : tx.unsafe('metadata')}
     WHERE id = ${conversationId}
   `;
+  if (updates.status !== undefined) {
+    await queueSpamVerdictCorpusJobs(tx, organizationId, [
+      { conversationId, from: row.status, to: updates.status },
+    ]);
+  }
   await emitHintInTx(tx, {
     orgId: organizationId,
     entity: 'conversation',
@@ -1235,9 +1271,13 @@ export async function bulkSetConversationStatus(
   };
   const now = Date.now();
   await sql.begin(async (tx) => {
+    const flips: { conversationId: string; from: string | null; to: string }[] =
+      [];
     for (const conversationId of args.conversationIds) {
-      const rows = await tx<{ metadata: Record<string, unknown> | null }[]>`
-        SELECT metadata FROM app.conversations
+      const rows = await tx<
+        { status: string | null; metadata: Record<string, unknown> | null }[]
+      >`
+        SELECT status, metadata FROM app.conversations
         WHERE id = ${conversationId} AND org_id = ${args.organizationId}
         LIMIT 1
       `;
@@ -1254,8 +1294,10 @@ export async function bulkSetConversationStatus(
           metadata = ${tx.json(toJson({ ...row.metadata, ...stamps }))}
         WHERE id = ${conversationId}
       `;
+      flips.push({ conversationId, from: row.status, to: target.status });
       result.successCount += 1;
     }
+    await queueSpamVerdictCorpusJobs(tx, args.organizationId, flips);
     if (result.successCount > 0) {
       await createAuditLog(tx, {
         organizationId: args.organizationId,
@@ -1283,7 +1325,16 @@ export async function bulkSetConversationStatus(
 
 // ---------------------------------------------------------------- delete
 
-/** Hard delete (0.4 semantics): messages cascade; org-level holds block. */
+/**
+ * Hard delete (0.4 semantics): messages cascade; org-level holds block.
+ *
+ * The corpus copies of its inbound email bodies live in another database, so
+ * no cascade reaches them: the ref release is queued in THIS transaction and
+ * runs once the rows are gone, when `assessMessageRefLiveness` reads the
+ * refs as dead (the network I/O never runs inside the delete). A job that
+ * exhausts its retries is the daily corpus reconcile's to finish, and the
+ * retrievable filter refuses a deleted message's rows meanwhile.
+ */
 export async function deleteConversation(
   sql: Sql,
   organizationId: string,
@@ -1302,7 +1353,11 @@ export async function deleteConversation(
       );
     }
     await assertNotHeld(tx, organizationId, 'conversation', conversationId);
+    const refs = await indexedMessageRefsOf(tx, organizationId, [
+      conversationId,
+    ]);
     await tx`DELETE FROM app.conversations WHERE id = ${conversationId}`;
+    await queueMessageRefRelease(tx, organizationId, refs);
   });
 }
 

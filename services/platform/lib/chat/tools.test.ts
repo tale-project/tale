@@ -162,6 +162,20 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toMatch(/comments, subtasks and blockers/i);
   });
 
+  // An email body answers as the conversation it arrived on, with a ref the
+  // fetch reads the whole email by — the model must be told both halves, or
+  // it would cite a snippet as the whole mail or never fetch it.
+  it('names the email ref on both tools: a conversation row it can fetch and cite', () => {
+    const search = wireDescription('rag_search');
+    expect(search).toMatch(/text of the emails they received/i);
+    expect(search).toMatch(/conversation row that an email matched/i);
+    expect(search).toMatch(/cite the conversation/i);
+    expect(wireDescription('rag_fetch')).toMatch(/an email ref/i);
+    expect(
+      String(at(wireSchema('rag_fetch'), 'properties', 'ref', 'description')),
+    ).toMatch(/"msg:" value a conversation row carried/i);
+  });
+
   it('rag_search explains the score as ordering, not similarity', () => {
     expect(wireDescription('rag_search')).toMatch(
       /"score"\s+orders hits within one response only/i,

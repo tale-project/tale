@@ -19,7 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../auth/auth.ts';
 import { createFileRoutes } from './routes.ts';
-import { deleteOrgBlobRefs, putOrgBlobBytes } from './service.ts';
+import { deleteOrgBlobRefs, FileError, putOrgBlobBytes } from './service.ts';
 import { recordUploadIntent } from './upload-intents.ts';
 
 vi.mock('../../auth/session.ts', () => ({
@@ -160,6 +160,37 @@ describe('POST /files/upload', () => {
     expect(deleteOrgBlobRefs).toHaveBeenCalledWith(expect.anything(), 'org_1', [
       's3:blobs/acme/minted',
     ]);
+  });
+
+  // The door used to answer the bare code, so an uploader could only be told
+  // `FILE_SIZE_INVALID`; the sentence written for them now rides beside it.
+  it("answers a refusal with its code and the uploader's sentence", async () => {
+    vi.mocked(putOrgBlobBytes).mockRejectedValueOnce(
+      new FileError('FILE_SIZE_INVALID', 'Invalid blob size'),
+    );
+
+    const res = await upload();
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'FILE_SIZE_INVALID',
+      message: 'Invalid blob size',
+    });
+  });
+
+  it("keeps a fault's message off the wire", async () => {
+    vi.mocked(putOrgBlobBytes).mockRejectedValueOnce(
+      new FileError(
+        'OBJECT_STORE_UNAVAILABLE',
+        'The object store did not serve the file: ECONNREFUSED 10.0.0.7:9000',
+        503,
+      ),
+    );
+
+    const res = await upload();
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'OBJECT_STORE_UNAVAILABLE' });
   });
 });
 

@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 52 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 55 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -107,6 +107,21 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   respond** (`tasks.mentionPreview.willRespond`); an edited comment is marked
   (`tasks.comment.edited`); delete confirms (`tasks.comment.deleteConfirm`);
   the thread survives reload (`tasks.detail.comments`)
+- [ ] `TASK-F34` · **Mentions in the description** — With a second member B
+  and a project agent: **Create task** (`tasks.actions.create`) with a
+  **Description** (`tasks.fields.description`) that mentions the agent, then
+  open the task, edit the description to add `@B` and save; then reword the
+  text around both mentions and save again → Before the create, the chip
+  **{slug} will respond** (`tasks.mentionPreview.willRespond`) shows under the
+  field; the new task is assigned to the agent and moves to **In progress**
+  (`tasks.status.in_progress`) with a run (the run itself is env-gated: mark
+  **ENVIRONMENT** without a runnable harness); after the first edit B's bell
+  shows **You were mentioned** (`inbox.mention`) and the row opens the task;
+  the rewording shows no chip while editing, and brings B no second row and the
+  agent no second run. Then **Create task** straight into **In review**
+  (`tasks.status.in_review`) with a description that mentions the agent → the
+  card lands in **In progress** with a run, and the reviewer gets no review
+  request that is withdrawn again
 - [ ] `TASK-F9` · **Attachments** — Sheet → **Attachments**
   (`tasks.attachments.label`) → add via **Add attachments**
   (`tasks.attachments.add`) or the drop hint (`tasks.attachments.dropHint`);
@@ -208,6 +223,21 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
   after unticking the unavailable skill in the agent dialog, **Retry**
   starts a run that reaches the harness.
+- [ ] `TASK-F36` · **A connector on the agent runs for the run's starter** —
+  Give the organization an active credential for a connector with a read
+  action (GlitchTip or GitHub) under **Settings > Connectors**
+  (`navigation.connectors`) and equip it on a project agent under **Skills,
+  connectors & tools** (`projects.agents.equipmentLabel`). Signed in as a
+  second member with project edit access, **Start agent**
+  (`tasks.agentRun.start`) on a task that asks the agent to call that read
+  action and report what came back → In **Details** (`tasks.run.details`)
+  the agent's `connectors` tool call answers `ok` with the service's data,
+  never `unavailable` / `no_user_context`, and the report quotes it; on
+  `/dashboard/{org}/settings/governance/logs` the **Audit logs** tab
+  (`settings.logs.auditLogs`) lists the call as a **Connector** row
+  (`settings.logs.audit.resourceTypeLabels.connector`) whose actor is the
+  member who started the run, not the task's creator — env-gated: mark
+  **ENVIRONMENT** without a runnable harness and a connector credential.
 - [ ] `TASK-F30` · **A Claude Code agent on Claude Opus 5.5 and Fable 5.1** —
   With a provider credential that serves `claude-opus-5-5` (the Anthropic
   connector, or a Claude Code subscription broker), set a project agent's
@@ -418,6 +448,17 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   The comment posts and the teammate gets the mention; a toast **Mention not
   recognized** (`common.mentions.unresolvedTitle`) names `@nobody-here` and
   says no notification was sent (`common.mentions.unresolvedDescription`).
+- [ ] `TASK-B10` · **A starter who left is not acted for** — Set up as in
+  TASK-F36 and start the run as the second member; while it works, remove
+  that member on `/dashboard/{org}/settings/members` (**Remove member**,
+  `settings.organization.removeMember`), then @mention the agent in a comment
+  asking for the same read → The agent's next `connectors` call answers
+  `unavailable` with the code `access_denied`, and the agent relays that the
+  member it acts for is no longer active and that a current member can cancel
+  the run (or let it finish) and start it again; that call adds no
+  **Connector** row to the audit log. After **Cancel run**
+  (`tasks.agentRun.cancel`), your own **Start agent** (`tasks.agentRun.start`)
+  gives a run whose call succeeds and is logged under you.
 
 ## Accessibility (WCAG 2.1 AA)
 

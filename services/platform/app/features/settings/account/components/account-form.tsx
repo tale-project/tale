@@ -25,8 +25,10 @@ import {
   usePasswordValidation,
 } from '@/app/hooks/use-password-validation';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
+import { USER_NAME_MAX_LENGTH } from '@/lib/shared/constants/user-name';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
@@ -97,6 +99,7 @@ function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
 
 function ProfileSection() {
   const { t: tSettings } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { user } = useAuth();
   const { mutateAsync: updateUserName } = useUpdateUserName();
@@ -107,9 +110,18 @@ function ProfileSection() {
         name: z
           .string()
           .trim()
-          .min(1, tSettings('account.profile.nameRequired')),
+          .min(1, tSettings('account.profile.nameRequired'))
+          // The server's own cap: past it the save would fail on a generic
+          // toast, so the field names the limit instead.
+          .max(
+            USER_NAME_MAX_LENGTH,
+            tCommon('validation.maxLength', {
+              field: tSettings('account.profile.name'),
+              max: USER_NAME_MAX_LENGTH,
+            }),
+          ),
       }),
-    [tSettings],
+    [tSettings, tCommon],
   );
 
   const data = useMemo<ProfileFormData | undefined>(() => {
@@ -126,8 +138,9 @@ function ProfileSection() {
 
   // Save feedback belongs to the settings header's Save/Discard cluster: it
   // flashes "Saved" on success and raises the single destructive toast on
-  // failure. The password, two-factor and passkey dialogs below own their own
-  // submits and keep their toasts.
+  // failure — naming why when the server refused the save (its sentence,
+  // else its code); a fault keeps the bare line. The password, two-factor
+  // and passkey dialogs below own their own submits and keep their toasts.
   const save = useCallback(
     async (values: ProfileFormData) => {
       const name = values.name.trim();
@@ -135,9 +148,13 @@ function ProfileSection() {
         await updateUserName({ name });
       } catch (err) {
         console.error('[account] profile save failed', err);
-        throw new Error(tToast('error.profileUpdateFailed.title'), {
-          cause: err,
-        });
+        const reason = backendRefusalDetail(err);
+        throw new Error(
+          reason === undefined
+            ? tToast('error.profileUpdateFailed.title')
+            : tToast('error.profileUpdateFailed.withReason', { reason }),
+          { cause: err },
+        );
       }
     },
     [tToast, updateUserName],

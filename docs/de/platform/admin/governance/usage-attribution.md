@@ -16,7 +16,7 @@ Die Regel ist überall dieselbe: Eine Anfrage zählt für die Person, die die Ar
 | Arbeit | Zählt für | Zählt zusätzlich für | Erscheint in der Nutzungsanalyse als |
 | --- | --- | --- | --- |
 | Eine Chatantwort oder der Titel eines neuen Chats | Das Mitglied, das die Nachricht gesendet hat | Den API-Schlüssel, wenn die Nachricht über die REST-API kam | Der verwendete Assistent; ein Titel unter `thread-title` |
-| Ein Agentenlauf zu einer Aufgabe | Das Mitglied, das den Lauf aus der Aufgabe oder mit einem Kommentar gestartet hat, der den Agenten erwähnt | — | Der Name des Agenten unter **Top-Assistenten** |
+| Ein Agentenlauf zu einer Aufgabe | Das Mitglied, das den Lauf aus der Aufgabe gestartet hat oder mit einem Kommentar oder einer Aufgabenbeschreibung, die den Agenten erwähnt | — | Der Name des Agenten unter **Top-Assistenten** |
 | Ein Automatisierungslauf, den jemand gestartet hat | Das Mitglied, das ihn aus der Laufliste, dem Builder, einem Chat, einer Aufgabe, über die REST-API oder den MCP-Endpoint gestartet hat | Den API-Schlüssel, wenn der Lauf mit einem gestartet wurde | Der Name der Automatisierung unter **Top-Assistenten** |
 | Ein Automatisierungslauf, den ein Trigger gestartet hat | Niemanden: Hinter einem Zeitplan, einem Webhook oder einem Ereignis steht keine Person | — | Die Zeile **Automatisierungen (Trigger)** unter **Nutzung pro Benutzer** |
 | Sprachausgabe oder eine Transkription | Das Mitglied, das sie angefordert hat | — | **Sprachausgabe** oder **Transkription** unter **Top-Assistenten**; Sprachausgabe zusätzlich unter **Top-Sprachmodelle** |
@@ -34,7 +34,7 @@ Ist ein Limit erreicht, lehnt Tale die nächste Anfrage vor der Ausführung ab u
 
 ## Drei Situationen, die du kennen solltest
 
-**Ein Teammitglied erwähnt deinen Agenten in einem Aufgabenkommentar.** Der Kommentar startet einen Lauf, und dieser zählt für das Teammitglied, das den Kommentar geschrieben hat, nicht für dich als Ersteller des Agenten.
+**Ein Teammitglied erwähnt deinen Agenten in einem Aufgabenkommentar oder in einer Aufgabenbeschreibung.** Der gesendete Kommentar oder die gespeicherte Beschreibung startet einen Lauf, und dieser zählt für das Teammitglied, von dem der Text stammt, nicht für dich als Ersteller des Agenten.
 
 **Eine geplante Automatisierung gibt jede Nacht Geld aus.** Ihre Läufe erscheinen in der Zeile **Automatisierungen (Trigger)**. Sie erhöhen weder die persönliche Nutzung von jemandem noch die Zahl der aktiven Benutzer, und nur die Organisationslimits können sie stoppen. Lege ein Kosten- oder Anfragelimit für die Organisation fest, wenn du eine Obergrenze dafür brauchst.
 
