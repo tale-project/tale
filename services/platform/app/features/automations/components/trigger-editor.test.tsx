@@ -105,6 +105,7 @@ function renderTrigger(
   name = 'gmail-triage-inbox',
   canEdit = true,
   deployedVersion?: number,
+  projectId?: string,
 ) {
   return render(
     <GeneralTab>
@@ -113,6 +114,7 @@ function renderTrigger(
         name={name}
         canEdit={canEdit}
         deployedVersion={deployedVersion}
+        projectId={projectId}
       />
     </GeneralTab>,
   );
@@ -537,6 +539,27 @@ describe('TriggerEditor', () => {
       );
       // A standing state, not news: no live region on every visit.
       expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('opens the last failed run under the project the tab is shown in', () => {
+      triggersData = [
+        {
+          ...SCHEDULE_ROW,
+          name: 'ops/nightly',
+          enabled: false,
+          lastSkipReason: 'paused_after_failures',
+          consecutiveFailures: 5,
+          lastFailedAt: LAST_FAILED_AT,
+          lastFailureCode: 'connector_error',
+          lastFailedRunId: 'run-5',
+        },
+      ];
+      renderTrigger('ops/nightly', true, undefined, 'proj-1');
+
+      expect(screen.getByRole('link', { name: 'View run' })).toHaveAttribute(
+        'href',
+        '/dashboard/org-1/projects/proj-1/automations/ops__nightly/runs/run-5',
+      );
     });
 
     it('counts failing runs on a live schedule before it pauses', () => {

@@ -10,6 +10,7 @@ import {
   type EditorController,
 } from '@tale/ui/editor';
 import { Field } from '@tale/ui/field';
+import { InlineCode } from '@tale/ui/inline-code';
 import { Input } from '@tale/ui/input';
 import {
   SearchableSelect,
@@ -90,6 +91,7 @@ export function TriggerEditor({
   /** Authoring is developer-gated server-side; readers still see the binding. */
   canEdit,
   deployedVersion,
+  projectId,
 }: {
   organizationId: string;
   name: string;
@@ -97,6 +99,9 @@ export function TriggerEditor({
   /** The version triggers start — undefined while nothing is deployed, when
    * the section says a schedule will not start rather than when it will. */
   deployedVersion?: number | undefined;
+  /** The project whose route shows the section, if any: a run it links
+   * opens under the same project, as the run list's rows do. */
+  projectId?: string | undefined;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -381,6 +386,7 @@ export function TriggerEditor({
         {stored !== undefined && (
           <TriggerFailureNotice
             organizationId={organizationId}
+            projectId={projectId}
             name={name}
             trigger={stored}
           />
@@ -610,10 +616,12 @@ export function TriggerEditor({
  */
 function TriggerFailureNotice({
   organizationId,
+  projectId,
   name,
   trigger,
 }: {
   organizationId: string;
+  projectId: string | undefined;
   name: string;
   trigger: StoredTrigger;
 }) {
@@ -632,17 +640,29 @@ function TriggerFailureNotice({
             at: formatDate(new Date(trigger.lastFailedAt), 'long'),
           })}
         </span>
-        <code className="bg-muted rounded px-1 py-0.5 text-xs">
-          {trigger.lastFailureCode}
-        </code>
+        <InlineCode>{trigger.lastFailureCode}</InlineCode>
         {trigger.lastFailedRunId != null && (
           <Link
-            to="/dashboard/$id/automations/$automationSlug/runs/$runId"
-            params={{
-              id: organizationId,
-              automationSlug: automationSlugToParam(name),
-              runId: trigger.lastFailedRunId,
-            }}
+            // The run opens where the section is shown: under the project
+            // when the tab is, as the run list's rows open it.
+            {...(projectId
+              ? {
+                  to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId' as const,
+                  params: {
+                    id: organizationId,
+                    projectId,
+                    automationSlug: automationSlugToParam(name),
+                    runId: trigger.lastFailedRunId,
+                  },
+                }
+              : {
+                  to: '/dashboard/$id/automations/$automationSlug/runs/$runId' as const,
+                  params: {
+                    id: organizationId,
+                    automationSlug: automationSlugToParam(name),
+                    runId: trigger.lastFailedRunId,
+                  },
+                })}
             className="text-foreground focus-visible:ring-ring rounded-sm underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
           >
             {t('trigger.failures.viewRun')}
@@ -670,16 +690,20 @@ function TriggerFailureNotice({
   }
 
   return (
-    <div className="text-muted-foreground flex flex-col gap-0.5 text-xs">
-      <p>
+    <div className="flex flex-col gap-0.5">
+      <Text as="p" variant="muted" className="text-xs">
         {t('trigger.failures.streak', { count })}
         {trigger.kind === 'schedule' &&
           trigger.enabled &&
           ` ${t('trigger.failures.streakSchedule', {
             limit: PERMANENT_FAILURES_BEFORE_PAUSE,
           })}`}
-      </p>
-      {lastFailure}
+      </Text>
+      {lastFailure !== null && (
+        <Text as="div" variant="muted" className="text-xs">
+          {lastFailure}
+        </Text>
+      )}
     </div>
   );
 }
