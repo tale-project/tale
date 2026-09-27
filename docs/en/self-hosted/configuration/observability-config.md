@@ -66,6 +66,8 @@ The trace sample rate applies to browser performance traces. The backend sends e
 
 A database restart is not reported as an error; a managed upgrade recreates the database on every release. While it is unreachable, requests answer `503 DATABASE_UNAVAILABLE` with `Retry-After`, background jobs fail and retry under their queue's policy, and open live-update streams back off and resume. Each logs a warning line instead. The job queue logs one for the whole outage, not one for every failed poll. When the database stays unreachable for more than about a minute, an API process with live-update streams open sends one warning-level event for that outage.
 
+The backend does not report a request its client abandoned either, for example when you close a tab or cancel an upload while its body is still arriving. The request is answered with status `499`, counted among the client errors in the request metrics, and logged as a single debug line. Any other error in a request whose client has disconnected is still reported. An app request whose JSON body is empty or cut short is answered with `400 INVALID_JSON` and is not reported.
+
 The browser leaves out errors that do not indicate a defect in Tale:
 
 - errors thrown inside a browser extension

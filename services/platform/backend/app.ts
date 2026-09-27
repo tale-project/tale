@@ -86,6 +86,7 @@ import {
 } from './domains/webdav/routes.ts';
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler } from './error-reporting.ts';
+import { appJsonBody } from './lib/app-json-body.ts';
 import { conditionalGet } from './lib/conditional-get.ts';
 import {
   apiKeyHeaderGuard,
@@ -263,6 +264,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // validated-read directive replaces there.
   app.use('/api/app/*', conditionalGet());
   app.use('/api/v1/*', conditionalGet({ replaceDoorDefault: 'no-store' }));
+  // The app door's JSON bodies read through one reader: an empty or
+  // truncated body answers 400 `INVALID_JSON` instead of a reported 500
+  // (lib/app-json-body.ts). Ahead of every `/api/app` route.
+  app.use('/api/app/*', appJsonBody());
   // Better Auth owns everything under its basePath (sign-up/in/out, session,
   // organization plugin endpoints, api-key/two-factor/passkey, …).
   // The OAuth/OIDC answers under /api/auth/oauth2/* in their RFC envelopes
