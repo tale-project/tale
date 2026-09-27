@@ -42,7 +42,9 @@ export function TopMatchupsFeedbackTable({
             </Text>
           </div>
         ),
-        size: 420,
+        // The first column takes the slack; this is its floor. A pair of long
+        // model slugs wraps.
+        size: 240,
       },
       {
         id: 'score',
@@ -58,6 +60,8 @@ export function TopMatchupsFeedbackTable({
             {formatNumber(row.original.rightWins)}
           </div>
         ),
+        // A score of four-digit win counts, "1,234–1,234".
+        size: 112,
         meta: { align: 'right' as const },
       },
       {
@@ -72,6 +76,8 @@ export function TopMatchupsFeedbackTable({
             {formatNumber(row.original.ties)}
           </div>
         ),
+        // The German header "Unentschieden" over a count.
+        size: 128,
         meta: { align: 'right' as const },
       },
       {
@@ -86,6 +92,8 @@ export function TopMatchupsFeedbackTable({
             {formatNumber(row.original.bothBad)}
           </div>
         ),
+        // The French header "Les deux mauvais" over a count.
+        size: 148,
         meta: { align: 'right' as const },
       },
       {
@@ -100,6 +108,8 @@ export function TopMatchupsFeedbackTable({
             {formatNumber(row.original.total)}
           </div>
         ),
+        // The header "Verdicts" over a count.
+        size: 80,
         meta: { align: 'right' as const },
       },
     ],

@@ -64,9 +64,9 @@ export function ReleaseHistorySection({
     [t],
   );
 
-  // Column sizes double as the table's min-width floor (DataTable sums them).
-  // Keep the total ≤ 940px so the table fits the settings content column on
-  // common laptop widths instead of clipping behind a horizontal scroll.
+  // Column sizes double as the table's min-width floor (DataTable sums them):
+  // ~990px, just under the settings content column of a 1366px laptop. Target
+  // and reason split what the fixed columns leave.
   const columns = useMemo<ColumnDef<HistoryRow>[]>(
     () => [
       {
@@ -90,20 +90,35 @@ export function ReleaseHistorySection({
             </Text>
           </Stack>
         ),
-        meta: { skeleton: { type: 'badge-text' } },
-        size: 180,
+        meta: { flex: true, skeleton: { type: 'badge-text' } },
+        // A flex column; this is its floor, with room for the widest type
+        // badge, "Organization".
+        size: 144,
       },
       {
         accessorKey: 'requestedByName',
         header: t('legalHold.columns.requestedBy'),
-        cell: ({ row }) => row.original.requestedByName,
-        size: 130,
+        // `block truncate`: a requester who has left shows as their id, one
+        // unbreakable token that would otherwise run into the next column.
+        cell: ({ row }) => (
+          <Text
+            as="span"
+            truncate
+            className="block"
+            title={row.original.requestedByName}
+          >
+            {row.original.requestedByName}
+          </Text>
+        ),
+        // A name such as "Alexandra Schneider"; a longer one truncates.
+        size: 168,
       },
       {
         accessorKey: 'requestedAt',
         header: t('legalHold.columns.requestedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.requestedAt} />,
-        size: 120,
+        // A short date such as "09/27/2026".
+        size: 108,
       },
       {
         accessorKey: 'status',
@@ -122,37 +137,61 @@ export function ReleaseHistorySection({
           </Badge>
         ),
         meta: { skeleton: { type: 'badge' as const } },
-        size: 110,
+        // The widest status, German "Ausstehend", in its outlined badge.
+        size: 116,
       },
       {
         accessorKey: 'approvedByName',
         header: t('legalHold.columns.approvedBy'),
-        cell: ({ row }) =>
-          row.original.approvedByName ?? row.original.rejectedByName ?? '—',
-        size: 130,
+        cell: ({ row }) => {
+          const decidedBy =
+            row.original.approvedByName ?? row.original.rejectedByName;
+          return decidedBy ? (
+            <Text as="span" truncate className="block" title={decidedBy}>
+              {decidedBy}
+            </Text>
+          ) : (
+            '—'
+          );
+        },
+        // A name such as "Alexandra Schneider"; a longer one truncates.
+        size: 168,
       },
       {
         accessorKey: 'reason',
         header: t('legalHold.columns.reason'),
+        meta: { flex: true },
         cell: ({ row }) => (
-          <Text as="span" truncate title={row.original.reason}>
+          <Text
+            as="span"
+            truncate
+            className="block"
+            title={row.original.reason}
+          >
             {row.original.reason}
           </Text>
         ),
-        size: 130,
+        // A flex column; this is its floor.
+        size: 144,
       },
       {
         accessorKey: 'rejectReason',
         header: t('legalHold.columns.rejectReason'),
         cell: ({ row }) =>
           row.original.rejectReason ? (
-            <Text as="span" truncate title={row.original.rejectReason}>
+            <Text
+              as="span"
+              truncate
+              className="block"
+              title={row.original.rejectReason}
+            >
               {row.original.rejectReason}
             </Text>
           ) : (
             '—'
           ),
-        size: 140,
+        // The German header "Ablehnungsgrund"; a longer reason truncates.
+        size: 144,
       },
     ],
     [t],

@@ -42,29 +42,37 @@ export function RecentFeedbackTable({
   const { t: tAnalytics } = useT('analytics');
   const { t: tChat } = useT('chat');
 
+  // Column sizes double as the table's min-width floor (DataTable sums them):
+  // 996px with the expand column, inside the settings content column of a
+  // 1366px laptop. The comment takes the slack.
   const columns = useMemo<ColumnDef<RecentFeedbackItem>[]>(
     () => [
       {
         id: 'time',
         header: tAnalytics('feedback.recent.columns.time'),
         cell: ({ row }) => (
-          <TableDateCell date={row.original.createdAt} preset="relative" />
+          // `truncate`: "a few seconds ago", shown for the first 45 seconds,
+          // runs past the column in every locale and clips instead of
+          // painting over the user.
+          <TableDateCell
+            date={row.original.createdAt}
+            preset="relative"
+            className="block truncate"
+          />
         ),
-        size: 120,
+        // A relative time up to "vor einem Monat".
+        size: 136,
       },
       {
         id: 'user',
         header: tAnalytics('feedback.recent.columns.user'),
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="label"
-            className="block max-w-[180px] truncate text-sm"
-          >
+          <Text as="span" variant="label" className="block truncate text-sm">
             {row.original.userDisplayName}
           </Text>
         ),
-        size: 180,
+        // A full name such as "Andrea Zimmermann"; a longer one truncates.
+        size: 168,
       },
       {
         id: 'type',
@@ -79,7 +87,8 @@ export function RecentFeedbackTable({
             )}
           </Badge>
         ),
-        size: 100,
+        // The wider badge, "Arena".
+        size: 80,
       },
       {
         id: 'rating',
@@ -100,7 +109,9 @@ export function RecentFeedbackTable({
               aria-label={tAnalytics('feedback.recent.notHelpfulAria')}
             />
           ),
-        size: 100,
+        // The German verdict "Unentschieden", the longest word; the French
+        // "Les deux sont mauvais" wraps onto a second line.
+        size: 112,
       },
       {
         id: 'agent',
@@ -113,7 +124,8 @@ export function RecentFeedbackTable({
             {row.original.agentSlug ?? '—'}
           </Text>
         ),
-        size: 140,
+        // A slug such as "customer-support"; a longer one wraps.
+        size: 128,
       },
       {
         id: 'model',
@@ -142,17 +154,22 @@ export function RecentFeedbackTable({
             </Text>
           );
         },
-        size: 200,
+        // A model slug such as "anthropic/claude-sonnet-4.5" on one line; an
+        // arena pair wraps.
+        size: 188,
       },
       {
         id: 'comment',
         header: tAnalytics('feedback.recent.columns.comment'),
+        // The comment, not the leading time column, takes the slack; this is
+        // its floor. The expanded row shows it in full.
+        meta: { flex: true },
         cell: ({ row }) => (
-          <Text as="span" className="block max-w-[300px] truncate text-sm">
+          <Text as="span" className="block truncate text-sm">
             {row.original.comment ?? '—'}
           </Text>
         ),
-        size: 300,
+        size: 136,
       },
     ],
     [tAnalytics, tChat],

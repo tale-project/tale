@@ -22,9 +22,8 @@ function LegalHoldRoute() {
 
   return (
     // `fullWidth`: these four sections' `DataTable`s declare explicit
-    // column-size floors from ~940px up to ~1440px (release requests) —
-    // wider than the `max-w-3xl` other settings pages standardized on
-    // (#2567).
+    // column-size floors up to ~990px (release history) — wider than the
+    // `max-w-3xl` other settings pages standardized on (#2567).
     <SettingsPage fullWidth>
       <div id="active-holds">
         <ActiveHoldsSection organizationId={organizationId} />

@@ -23,10 +23,10 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
     {
       accessorKey: 'name',
       header: tTables('headers.product'),
-      size: 400,
+      size: 240,
       // Name soaks leftover width so stock/price/updated stay at their
       // declared px — otherwise those columns grow and empty dashes float
-      // away from their headers (same defect as contacts locale/Added).
+      // away from their headers.
       meta: { flex: true, skeleton: { type: 'avatar-text', lines: 1 } },
       cell: ({ row }) => (
         <HStack gap={3}>
@@ -51,7 +51,8 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
           {tTables('headers.stock')}
         </span>
       ),
-      size: 80,
+      // The German header "Bestand" over a count.
+      size: 88,
       meta: { headerLabel: tTables('headers.stock'), align: 'right' },
       cell: ({ row }) => (
         <span
@@ -70,7 +71,8 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
           {tTables('headers.price')}
         </span>
       ),
-      size: 100,
+      // A price such as "CHF 12,345.00".
+      size: 112,
       meta: { headerLabel: tTables('headers.price'), align: 'right' },
       cell: ({ row }) => (
         <span className="text-muted-foreground block text-right text-xs">
@@ -93,7 +95,8 @@ export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
     {
       accessorKey: 'status',
       header: tTables('headers.status'),
-      size: 110,
+      // The widest status, German "Archiviert".
+      size: 104,
       meta: { skeleton: { type: 'badge', badge: { variant: 'blue' } } },
       cell: ({ row }) =>
         row.original.status ? (

@@ -91,9 +91,8 @@ function UsageRoute() {
   );
 
   return (
-    // `fullWidth`: `UsersTable`'s columns declare an explicit ~900px
-    // size floor, wider than the `max-w-3xl` other settings pages
-    // standardized on (#2567).
+    // `fullWidth`, like every Metrics page: a dashboard of charts and usage
+    // tables, and moving between Metrics pages no longer resizes the column.
     <SettingsPage fullWidth>
       <UsageMetricsPage
         organizationId={organizationId}

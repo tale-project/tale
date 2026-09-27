@@ -116,15 +116,18 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     [t, toast],
   );
 
-  // Column sizes fit each header label in every shipped locale (the widest:
-  // fr "Espace de travail", de "Aktuelle Aufgaben") and sum to the settings
+  // Every fixed column fits its header and content in every shipped locale
+  // (the widest: de "Aktuelle Aufgaben", fr "En pause (budget)"); the
+  // workspace column takes the rest. The sizes sum to under the settings
   // pane's width, so the table neither clips a header nor scrolls sideways.
   const columns = useMemo<ColumnDef<SandboxRow>[]>(
     () => [
       {
         accessorKey: 'createdBy',
         header: t('columns.owner'),
-        size: 150,
+        // Its floor; at the settings pane's width it gets room for the French
+        // header "Espace de travail".
+        size: 136,
         meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
           const s = row.original;
@@ -151,7 +154,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'agentKind',
         header: t('columns.agent'),
-        size: 90,
+        // A harness id up to "claude-code".
+        size: 104,
         // A harness id (`claude-code`), so it reads like the run ids below.
         cell: ({ row }) =>
           row.original.agentKind === null ? (
@@ -162,7 +166,9 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       },
       {
         id: 'status',
-        size: 150,
+        // The widest badge, French "En pause (budget)"; badges and the quota
+        // line wrap below it.
+        size: 152,
         header: t('columns.status'),
         meta: { skeleton: { type: 'badge-text', lineGap: 1 } },
         cell: ({ row }) => {
@@ -200,7 +206,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       },
       {
         id: 'task',
-        size: 150,
+        // The German header "Aktuelle Aufgaben"; the task lines wrap.
+        size: 148,
         header: t('columns.task'),
         // Every turn executing in this workspace: a project agent runs its
         // tasks concurrently in the one workspace it owns, so a single
@@ -252,7 +259,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {
         accessorKey: 'createdAt',
         header: t('columns.created'),
-        size: 100,
+        // A short date such as "09/27/2026".
+        size: 96,
         cell: ({ row }) => <TableDateCell date={row.original.createdAt} />,
       },
       {

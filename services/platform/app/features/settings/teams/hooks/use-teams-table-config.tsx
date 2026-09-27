@@ -39,9 +39,10 @@ export function useTeamsTableConfig(
         accessorKey: 'name',
         header: tSettings('teams.columns.name'),
         // The name carries the row, and synced IdP group names run long
-        // (`Department.Platform.Editors`): give it most of the width, and a
-        // native `title` so a name that still truncates reads in full on hover.
-        size: 320,
+        // (`Department.Platform.Editors`): as the first column it takes all
+        // the slack, and a native `title` lets a name that still truncates
+        // read in full on hover.
+        size: 240,
         cell: ({ row }) => (
           <HStack gap={2} align="center" className="min-w-0">
             <Text
@@ -65,7 +66,8 @@ export function useTeamsTableConfig(
       {
         accessorKey: 'memberCount',
         header: tSettings('teams.columns.members'),
-        size: 140,
+        // A count such as "128 Mitglieder".
+        size: 112,
         cell: ({ row }) => (
           <Text as="span" variant="caption">
             {tSettings('teams.memberCount', {
@@ -81,7 +83,8 @@ export function useTeamsTableConfig(
             {tSettings('teams.columns.created')}
           </span>
         ),
-        size: 140,
+        // A relative time up to "vor einem Monat".
+        size: 136,
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.createdAt}

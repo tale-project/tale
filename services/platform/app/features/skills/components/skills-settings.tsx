@@ -147,9 +147,10 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       : []),
   ];
 
-  // The four sizes add up to the settings column's width, so every column
-  // shows at once: summed past it, the table ran wider than the page and cut
-  // the Labels column off at the frame while the name truncated to a stub.
+  // Name and description split what the badge columns leave. The four sizes
+  // are floors that add up to under the settings column's width, so every
+  // column shows at once: summed past it, the table ran wider than the page
+  // and cut the Labels column off at the frame.
   const columns = useMemo<ColumnDef<SkillRow>[]>(
     () => [
       {
@@ -157,7 +158,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         accessorKey: 'slug',
         header: t('columns.name'),
         size: 200,
-        meta: { skeleton: tableIconCellSkeleton() },
+        meta: { flex: true, skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => (
           <TableIconCell
             icon={<SkillIcon icon={row.original.icon} />}
@@ -185,7 +186,8 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         id: 'description',
         accessorKey: 'description',
         header: t('columns.description'),
-        size: 290,
+        size: 240,
+        meta: { flex: true },
         cell: ({ row }) => (
           <span className="text-muted-foreground line-clamp-2 text-sm">
             {row.original.description}
@@ -195,7 +197,9 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       {
         id: 'visibility',
         header: t('columns.visibility'),
-        size: 140,
+        // "Organization", or a team with a count ("Marketing +2"); a longer
+        // team name truncates inside its badge.
+        size: 144,
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const skill = row.original;
@@ -215,7 +219,11 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
                   team: names[0],
                   count: names.length - 1,
                 });
-          return <Badge variant="outline">{label}</Badge>;
+          return (
+            <Badge variant="outline" className="max-w-full">
+              {label}
+            </Badge>
+          );
         },
       },
       {

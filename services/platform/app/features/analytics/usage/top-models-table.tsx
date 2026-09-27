@@ -48,16 +48,21 @@ export function TopModelsTable({
         header: t('usage.tables.topModels.model'),
         meta: { skeleton: { type: 'text-badge' } },
         cell: ({ row }) => (
-          <div className="flex max-w-[260px] items-center gap-2">
+          // The provider badge sits right after the name; a long model slug
+          // truncates before the badge gives way.
+          <div className="flex items-center gap-2">
             <DrilldownButton
               name={row.original.model}
               onSelect={() => onSelectModel(row.original.model)}
-              className="flex-1"
             />
-            <Badge variant="outline">{row.original.provider}</Badge>
+            <Badge variant="outline" className="shrink-0">
+              {row.original.provider}
+            </Badge>
           </div>
         ),
-        size: 260,
+        // The first column takes the slack; this is its floor, room for a
+        // model slug beside its provider badge.
+        size: 240,
       },
       {
         id: 'requests',
@@ -71,6 +76,8 @@ export function TopModelsTable({
             {formatNumber(row.original.requests)}
           </div>
         ),
+        // A seven-digit count, "1,234,567", just wider than the header.
+        size: 92,
         meta: { align: 'right' as const },
       },
       {
@@ -83,6 +90,8 @@ export function TopModelsTable({
             {formatNumber(row.original.tokens)}
           </div>
         ),
+        // A ten-digit count, "1,234,567,890".
+        size: 120,
         meta: { align: 'right' as const },
       },
       {
@@ -95,6 +104,8 @@ export function TopModelsTable({
             {formatCostCents(row.original.costCents)}
           </div>
         ),
+        // Five dollar digits in French, "12 345,67 $US".
+        size: 120,
         meta: { align: 'right' as const },
       },
     ],

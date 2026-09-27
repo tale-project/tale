@@ -69,9 +69,9 @@ export function ActiveHoldsSection({
     [t],
   );
 
-  // Column sizes double as the table's min-width floor (DataTable sums them).
-  // Keep the total ≤ 940px so the table fits the settings content column on
-  // common laptop widths instead of clipping behind a horizontal scroll.
+  // Column sizes double as the table's min-width floor (DataTable sums them):
+  // ~940px, under the settings content column of a 1366px laptop. Target and
+  // reason, the free-text columns, split what the fixed columns leave.
   const columns = useMemo<ColumnDef<LegalHoldRow>[]>(
     () => [
       {
@@ -79,14 +79,21 @@ export function ActiveHoldsSection({
         header: t('legalHold.columns.type'),
         cell: ({ row }) => {
           const isLegacy = LEGACY_TARGET_TYPES.has(row.original.targetType);
+          const label = t(`legalHold.targetTypes.${row.original.targetType}`);
+          // One string, so a truncated legacy label keeps its full text as
+          // the badge's title.
           return (
-            <Badge variant={isLegacy ? 'outline' : 'blue'}>
-              {t(`legalHold.targetTypes.${row.original.targetType}`)}
-              {isLegacy ? ` ${t('legalHold.columns.legacy')}` : ''}
+            <Badge
+              variant={isLegacy ? 'outline' : 'blue'}
+              className="max-w-full"
+            >
+              {isLegacy ? `${label} ${t('legalHold.columns.legacy')}` : label}
             </Badge>
           );
         },
         meta: { skeleton: { type: 'badge' as const } },
+        // The widest current type, "Organization"; the rare legacy types,
+        // such as German "Ausführung (Altbestand)", truncate.
         size: 120,
       },
       {
@@ -108,12 +115,14 @@ export function ActiveHoldsSection({
             </Text>
           </Stack>
         ),
-        meta: { skeleton: { type: 'two-line' as const } },
-        size: 180,
+        meta: { flex: true, skeleton: { type: 'two-line' as const } },
+        // A flex column; this is its floor.
+        size: 160,
       },
       {
         accessorKey: 'reason',
         header: t('legalHold.columns.reason'),
+        meta: { flex: true },
         // `truncate` is overflow:hidden + ellipsis, and neither does anything to
         // an INLINE span — so a long reason painted straight over the Matter,
         // Placed by and Placed columns. The min-w-0 block wrapper is what gives
@@ -125,7 +134,8 @@ export function ActiveHoldsSection({
             </Text>
           </Stack>
         ),
-        size: 130,
+        // A flex column; this is its floor.
+        size: 160,
       },
       {
         accessorKey: 'matterName',
@@ -148,7 +158,8 @@ export function ActiveHoldsSection({
             )}
           </Stack>
         ),
-        size: 120,
+        // A matter name such as "Acme v. Globex"; a longer one truncates.
+        size: 144,
       },
       {
         accessorKey: 'placedByName',
@@ -160,13 +171,15 @@ export function ActiveHoldsSection({
             </Text>
           </Stack>
         ),
-        size: 130,
+        // A name such as "Alexandra Schneider"; a longer one truncates.
+        size: 168,
       },
       {
         accessorKey: 'placedAt',
         header: t('legalHold.columns.placedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.placedAt} />,
-        size: 120,
+        // A short date such as "09/27/2026", under the German "Gesetzt am".
+        size: 108,
       },
       {
         id: 'actions',
@@ -191,7 +204,8 @@ export function ActiveHoldsSection({
             />
           </Row>
         ),
-        size: 140,
+        // The German header "Aktionen" over the one release button.
+        size: 84,
       },
     ],
     [t],

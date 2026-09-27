@@ -213,6 +213,9 @@ export function CompetencesPage({ organizationId }: Props) {
     }
   };
 
+  // Member and evidence, the two free-text columns, split the slack; every
+  // other column holds its widest value in every shipped locale. The sizes
+  // sum to under the settings column of a 1366px laptop.
   const columns = useMemo<ColumnDef<CompetenceRow>[]>(
     () => [
       {
@@ -238,7 +241,8 @@ export function CompetencesPage({ organizationId }: Props) {
               )}
           </div>
         ),
-        size: 150,
+        // A flex column; this is its floor.
+        size: 160,
       },
       {
         id: 'competence',
@@ -263,14 +267,17 @@ export function CompetencesPage({ organizationId }: Props) {
             </Text>
           </div>
         ),
-        size: 200,
+        // The widest capability, German "Für ein anderes Mitglied handeln";
+        // a longer qualification name truncates.
+        size: 240,
       },
       {
         id: 'status',
         header: t('competences.columns.status'),
         cell: ({ row }) => <CompetenceStatusCell row={row.original} />,
         meta: { skeleton: { type: 'badge' as const } },
-        size: 170,
+        // The widest line under the badge, French "Jusqu'au 27/09/2026".
+        size: 148,
       },
       {
         id: 'granted',
@@ -292,11 +299,14 @@ export function CompetencesPage({ organizationId }: Props) {
             </Text>
           </div>
         ),
-        size: 150,
+        // A grantor line such as "von Alexandra Schneider" under the date; a
+        // longer name truncates.
+        size: 168,
       },
       {
         id: 'evidence',
         header: t('competences.columns.evidence'),
+        meta: { flex: true },
         cell: ({ row }) => (
           <Text
             as="span"
@@ -308,6 +318,7 @@ export function CompetencesPage({ organizationId }: Props) {
             {row.original.record.evidence ?? '—'}
           </Text>
         ),
+        // A flex column; this is its floor.
         size: 120,
       },
       {
@@ -316,9 +327,8 @@ export function CompetencesPage({ organizationId }: Props) {
           <span className="sr-only">{t('competences.columns.actions')}</span>
         ),
         meta: { isAction: true },
-        // Sized for the widest label across locales ("Widerrufen", ~154px
-        // rendered with its icon and the cell padding).
-        size: 160,
+        // The widest Revoke button, German "Widerrufen", with its icon.
+        size: 156,
         cell: ({ row }) =>
           row.original.status === 'active' ? (
             <Button

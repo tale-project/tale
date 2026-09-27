@@ -88,11 +88,7 @@ export function TopAgentsTable({
           // Synthetic buckets are not agents to drill into; they stay plain
           // labels, as their rows stay plain rows.
           isSyntheticAgentSlug(row.original.agentSlug) ? (
-            <Text
-              as="span"
-              variant="label"
-              className="block max-w-[260px] truncate text-sm"
-            >
+            <Text as="span" variant="label" className="block truncate text-sm">
               {row.original.displayName ?? resolveName(row.original.agentSlug)}
             </Text>
           ) : (
@@ -101,10 +97,11 @@ export function TopAgentsTable({
                 row.original.displayName ?? resolveName(row.original.agentSlug)
               }
               onSelect={() => onSelectAgent(row.original.agentSlug)}
-              className="max-w-[260px]"
+              className="max-w-full"
             />
           ),
-        size: 260,
+        // The first column takes the slack; this is its floor.
+        size: 200,
       },
       {
         id: 'requests',
@@ -118,6 +115,8 @@ export function TopAgentsTable({
             {formatNumber(row.original.requests)}
           </div>
         ),
+        // A seven-digit count, "1,234,567", just wider than the header.
+        size: 92,
         meta: { align: 'right' as const },
       },
       {
@@ -130,6 +129,8 @@ export function TopAgentsTable({
             {formatNumber(row.original.tokens)}
           </div>
         ),
+        // A ten-digit count, "1,234,567,890".
+        size: 120,
         meta: { align: 'right' as const },
       },
       {
@@ -142,6 +143,8 @@ export function TopAgentsTable({
             {formatCostCents(row.original.costCents)}
           </div>
         ),
+        // Five dollar digits in French, "12 345,67 $US".
+        size: 120,
         meta: { align: 'right' as const },
       },
     ],

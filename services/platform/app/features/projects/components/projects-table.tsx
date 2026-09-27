@@ -241,9 +241,8 @@ export function ProjectsTable({
       {
         accessorKey: 'name',
         header: t('list.columnName'),
-        // Implicit first-column flex + a larger size ratio than Activity so
-        // names lead without a fixed-px or meta.flex pin (those either
-        // truncated names or clustered Overdue…Activity on the far right).
+        // The first content column is the table's flex column: it takes the
+        // room the metadata columns, sized to their content, leave over.
         size: 240,
         meta: {
           skeleton: {
@@ -294,8 +293,7 @@ export function ProjectsTable({
       {
         id: 'tasks',
         header: t('list.columnTasks'),
-        // Proportional sibling — grows with the row so metadata columns aren't
-        // packed against the right edge behind a flex Tasks canyon.
+        // Fixed, so the progress bar keeps one length on every screen.
         size: 152,
         enableSorting: false,
         cell: ({ row }) => {
@@ -323,7 +321,7 @@ export function ProjectsTable({
       {
         id: 'overdue',
         header: t('list.columnOverdue'),
-        size: 92,
+        size: 96,
         // Always shown — compact badge/dash. Agents/sharing/activity still
         // progressive-disclose below so Name keeps room on small screens.
         enableSorting: false,
@@ -349,7 +347,7 @@ export function ProjectsTable({
       {
         id: 'agents',
         header: t('list.columnAgents'),
-        size: 80,
+        size: 88,
         meta: { className: 'hidden md:table-cell' },
         enableSorting: false,
         cell: ({ row }) => (
@@ -364,7 +362,7 @@ export function ProjectsTable({
       {
         accessorKey: 'sharing',
         header: t('list.columnSharing'),
-        size: 160,
+        size: 168,
         meta: {
           className: 'hidden md:table-cell',
           skeleton: { type: 'badge' },
@@ -390,8 +388,8 @@ export function ProjectsTable({
       {
         accessorKey: 'updatedAt',
         header: t('list.columnActivity'),
-        // Below TanStack's default 150 so Last activity doesn't rival Name.
-        size: 136,
+        // Fits "Letzte Aktivität" and a relative time like "vor 3 Wochen".
+        size: 140,
         meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
           <span className="text-muted-foreground text-xs whitespace-nowrap">

@@ -207,6 +207,8 @@ export function CredentialTable<
         id: 'name',
         accessorKey: 'name',
         header: t('credentials.columns.name'),
+        // The first column takes the slack; this is its floor.
+        size: 200,
         cell: ({ row }) => {
           const { credential } = row.original;
           const status = adapter.statusLabel(t, credential.status);
@@ -230,11 +232,14 @@ export function CredentialTable<
                   </Badge>
                 )}
               </div>
-              {detail !== undefined && detail !== null && (
-                <Text as="p" variant="muted" className="text-xs">
-                  {detail}
-                </Text>
-              )}
+              {detail !== undefined &&
+                detail !== null && (
+                  // `break-words`: a detail can carry a raw error payload with
+                  // no space to wrap at, which would run into the next column.
+                  <Text as="p" variant="muted" className="text-xs break-words">
+                    {detail}
+                  </Text>
+                )}
             </div>
           );
         },
@@ -243,7 +248,9 @@ export function CredentialTable<
         id: 'vendor',
         accessorKey: 'vendorName',
         header: labels.vendorColumn,
-        size: 200,
+        // The vendor's mark and name, with room for the French "Personnalisé"
+        // tag beside a custom provider's name.
+        size: 224,
         meta: { skeleton: tableIconCellSkeleton() },
         // The vendor's own mark takes the slot plain — a brand logo does not
         // belong in the muted tile a monochrome glyph needs — but the slot and
@@ -282,7 +289,9 @@ export function CredentialTable<
       {
         id: 'method',
         header: t('credentials.columns.method'),
-        size: 160,
+        // Fits the German header "Authentifizierung" and one-line methods up
+        // to "Username & password"; longer translations wrap.
+        size: 176,
         cell: ({ row }) => (
           <span className="text-sm">
             {adapter.methodLabel(t, row.original.credential.authMethod)}

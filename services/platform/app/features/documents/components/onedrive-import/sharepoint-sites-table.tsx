@@ -32,6 +32,8 @@ export function SharePointSitesTable({
       {
         id: 'name',
         header: tTables('headers.name'),
+        // The first column takes the slack; this is its floor.
+        size: 240,
         meta: { skeleton: { type: 'avatar-text', lines: 2 } },
         cell: ({ row }) => {
           const site = row.original;
@@ -49,12 +51,7 @@ export function SharePointSitesTable({
                   {site.displayName}
                 </div>
                 {site.description && (
-                  <Text
-                    as="div"
-                    variant="caption"
-                    truncate
-                    className="max-w-md"
-                  >
+                  <Text as="div" variant="caption" truncate>
                     {site.description}
                   </Text>
                 )}
@@ -66,6 +63,9 @@ export function SharePointSitesTable({
       {
         id: 'url',
         header: t('microsoft365.siteUrl'),
+        // A site path such as "/sites/Qualitaetsmanagement"; a longer one
+        // truncates, and the full URL rides on the tooltip.
+        size: 224,
         meta: { align: 'right' as const },
         cell: ({ row }) => (
           <Text

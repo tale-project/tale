@@ -31,26 +31,24 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
   const { t } = useT('analytics');
   const { formatNumber, formatCostCents } = useFormatNumber();
 
-  // Column sizes double as the table's min-width floor (DataTable sums them).
-  // Keep the total ≤ 940px so the table fits the settings content column on
-  // common laptop widths instead of clipping behind a horizontal scroll.
+  // Column sizes double as the table's min-width floor (DataTable sums them):
+  // 644px, inside the settings content column down to a 1024px window. The
+  // numbers hold their widest value at their declared px; the user column
+  // takes the rest.
   const columns = useMemo<ColumnDef<UserRow>[]>(
     () => [
       {
         id: 'user',
         header: t('usage.tables.users.user'),
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="label"
-            className="block max-w-[220px] truncate text-sm"
-          >
+          <Text as="span" variant="label" className="block truncate text-sm">
             {isAutomationSubject(row.original.userId)
               ? t('usage.tables.users.automations')
               : row.original.displayName}
           </Text>
         ),
-        size: 220,
+        // The first column takes the slack; this is its floor.
+        size: 160,
       },
       {
         id: 'inputTokens',
@@ -65,7 +63,8 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
-        size: 130,
+        // The German header "Eingabe-Tokens", wider than a ten-digit count.
+        size: 132,
       },
       {
         id: 'outputTokens',
@@ -80,7 +79,8 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
-        size: 136,
+        // The German header "Ausgabe-Tokens", wider than a ten-digit count.
+        size: 140,
       },
       {
         id: 'cost',
@@ -93,7 +93,8 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
-        size: 130,
+        // Five dollar digits in French, "12 345,67 $US".
+        size: 120,
       },
       {
         id: 'requests',
@@ -106,7 +107,8 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
           </div>
         ),
         meta: { align: 'right' as const },
-        size: 130,
+        // A seven-digit count, "1,234,567", just wider than the header.
+        size: 92,
       },
     ],
     [t, formatNumber, formatCostCents],
