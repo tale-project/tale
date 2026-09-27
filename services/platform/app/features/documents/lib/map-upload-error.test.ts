@@ -150,6 +150,10 @@ describe('mapUploadError', () => {
         }),
       ),
     ).toBe(false);
+    // A lapsed session (the session door's 401) refuses the same bytes again.
+    expect(isUploadErrorRetryable(new AppError({ code: 'UNAUTHORIZED' }))).toBe(
+      false,
+    );
     expect(isUploadErrorRetryable(new AppError({ code: 'RATE_LIMITED' }))).toBe(
       true,
     );

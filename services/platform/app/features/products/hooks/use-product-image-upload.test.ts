@@ -128,6 +128,30 @@ describe('useProductImageUpload', () => {
     });
   });
 
+  // A lapsed session answers the flat envelope: the sentence in `error`, the
+  // code beside it. The field reads `UNAUTHORIZED`, not the sentence.
+  it("carries the flat envelope's code, not its sentence", async () => {
+    mutation.mockResolvedValue('https://upload.example/post');
+    const sentence =
+      'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1';
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { error: sentence, code: 'UNAUTHORIZED' },
+            { status: 401 },
+          ),
+        ),
+    );
+
+    const { result } = renderHook(() => useProductImageUpload());
+    await expect(result.current.uploadImage(file())).rejects.toMatchObject({
+      data: { code: 'UNAUTHORIZED', message: sentence },
+    });
+  });
+
   it('throws when the response has no stable image URL', async () => {
     mutation.mockResolvedValue('https://upload.example/post');
     vi.stubGlobal(

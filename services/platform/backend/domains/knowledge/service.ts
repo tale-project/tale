@@ -794,6 +794,27 @@ async function writeRagStatus(
 }
 
 /**
+ * Land a file no text extractor reads on its terminal state: `unsupported`
+ * with `unsupported_type`. The indexer writes it when such a file reaches the
+ * job; a lane that can tell from the name alone (a sync import's `.loop`)
+ * writes the same state instead of queueing a job the indexer would only
+ * refuse — and instead of leaving the status empty, which the document list
+ * reads as "Not indexed" with a retry that can never succeed and REST as
+ * `pending`. One writer, so both lanes carry the same sentence and code.
+ */
+export async function markRagUnsupportedType(
+  sql: Sql,
+  fileId: string,
+  fileName: string,
+): Promise<void> {
+  await writeRagStatus(sql, fileId, {
+    ragStatus: 'unsupported',
+    ragError: `No text extractor exists for "${fileName}".`,
+    ragErrorCode: RAG_ERROR_UNSUPPORTED_TYPE,
+  });
+}
+
+/**
  * A failure of the indexing job, recorded on BOTH rows that describe it: the
  * file's status (what the document list shows) and the corpus document (what
  * the RAG watchdog consults). Recording only the first left the corpus row at
@@ -948,11 +969,7 @@ export async function indexUploadedFile(
   }
 
   if (!isSupported(file.fileName)) {
-    await writeRagStatus(sql, fileId, {
-      ragStatus: 'unsupported',
-      ragError: `No text extractor exists for "${file.fileName}".`,
-      ragErrorCode: RAG_ERROR_UNSUPPORTED_TYPE,
-    });
+    await markRagUnsupportedType(sql, fileId, file.fileName);
     return;
   }
   // Images route to the vision extractor, and the vision seam is retired

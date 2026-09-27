@@ -55,6 +55,7 @@ import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
@@ -31185,6 +31186,127 @@ async function checkOneDriveSync(
         Number(nohashReleases[0]?.count ?? '0') === 1,
       `import=${nohashImport.success ? nohashImport.data.successCount : 'ERR'}/1 hash=${String(nohashV1?.contentHash)} (want null), idle: refStable=${nohashIdle?.fileRef === nohashV1?.fileRef} history=${nohashIdle?.historyFiles.length}/0 status=${nohashIdleConfig?.lastSyncStatus}; edit: refChanged=${nohashV2?.fileRef !== nohashV1?.fileRef} history=${nohashV2?.historyFiles.length}/1 oldKept=${nohashV2?.historyFiles[0] === nohashV1?.fileRef} releaseJobs=${nohashReleases[0]?.count}/1`,
     );
+
+    // 13. A file no extractor reads — a Microsoft Loop page arrives as
+    //     `.loop`, `application/octet-stream` — used to be left with no
+    //     indexing status: the list read "Not indexed" with a Reindex that
+    //     could never succeed, and REST `pending`. The sync now lands it on
+    //     the terminal `unsupported` state without queueing a job; the
+    //     retry door refuses it, and a rescan (which re-offers every
+    //     unchanged file) leaves it there.
+    seed({
+      id: 'f-loop',
+      name: 'standup.loop',
+      content: 'loop v1',
+      hash: 'h-loop-v1',
+      mime: 'application/octet-stream',
+    });
+    const loopImport = importResultSchema.safeParse(
+      await (
+        await post('/import', {
+          importType: 'sync',
+          items: [
+            {
+              id: 'f-loop',
+              name: 'standup.loop',
+              size: 7,
+              relativePath: 'standup.loop',
+              isDirectlySelected: true,
+            },
+          ],
+        })
+      ).json(),
+    );
+    const loopDoc = (await docsByExternalId('f-loop'))[0];
+    const loopFileRow = async () =>
+      (
+        await sql<
+          {
+            id: string;
+            ragStatus: string | null;
+            ragErrorCode: string | null;
+            ragError: string | null;
+          }[]
+        >`
+          SELECT id, rag_status AS "ragStatus",
+                 rag_error_code AS "ragErrorCode", rag_error AS "ragError"
+          FROM app.file_metadata
+          WHERE org_id = ${orgId} AND storage_ref = ${loopDoc?.fileRef ?? ''}
+          LIMIT 1
+        `
+      )[0];
+    const loopFile = await loopFileRow();
+    const loopIndexJobs = async (): Promise<number> => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'rag.index_file' AND data->>'fileId' = ${loopFile?.id ?? ''}
+      `;
+      return Number(rows[0]?.count ?? '0');
+    };
+    const loopJobsAfterImport = await loopIndexJobs();
+    // What the Documents list renders: `unsupported` hides Reindex.
+    const loopView = z
+      .object({
+        document: z.object({
+          ragStatus: z.string().optional(),
+          ragErrorCode: z.string().optional(),
+        }),
+      })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/documents/${loopDoc?.id ?? ''}?orgId=${orgId}`,
+            { headers: { cookie, origin: base } },
+          )
+        ).json(),
+      );
+    // Reindex asked for anyway — hiding the action is no gate, the door is.
+    const loopRetry = z
+      .object({ success: z.boolean(), error: z.string().optional() })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/documents/${loopDoc?.id ?? ''}/retry-rag?orgId=${orgId}`,
+            {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                cookie,
+                origin: base,
+              },
+              body: '{}',
+            },
+          )
+        ).json(),
+      );
+    const loopConfig = await configByItem('f-loop');
+    await runConfig(loopConfig?.id ?? '');
+    const loopRescanned = await loopFileRow();
+    const loopRescanConfig = await configByItem('f-loop');
+    const loopJobsAfterRescan = await loopIndexJobs();
+    if (loopConfig !== null) {
+      await post(`/sync-configs/${loopConfig.id}/cancel`, {});
+    }
+    const loopSentence = 'No text extractor exists for "standup.loop".';
+    record(
+      'onedrive file no extractor reads (.loop): terminal unsupported, never queued, retry refused',
+      loopImport.success &&
+        loopImport.data.successCount === 1 &&
+        loopFile?.ragStatus === 'unsupported' &&
+        loopFile.ragErrorCode === 'unsupported_type' &&
+        loopFile.ragError === loopSentence &&
+        loopJobsAfterImport === 0 &&
+        loopView.success &&
+        loopView.data.document.ragStatus === 'unsupported' &&
+        loopView.data.document.ragErrorCode === 'unsupported_type' &&
+        loopRetry.success &&
+        !loopRetry.data.success &&
+        loopRetry.data.error === loopSentence &&
+        loopRescanConfig?.lastSyncStatus === 'success' &&
+        loopRescanned?.ragStatus === 'unsupported' &&
+        loopJobsAfterRescan === 0,
+      `import=${loopImport.success ? loopImport.data.successCount : 'ERR'}/1, file=${loopFile?.ragStatus}/${loopFile?.ragErrorCode} (want unsupported/unsupported_type), jobs=${loopJobsAfterImport}/0, view=${loopView.success ? `${loopView.data.document.ragStatus}/${loopView.data.document.ragErrorCode}` : 'ERR'}, retry=${loopRetry.success ? `${loopRetry.data.success}: ${loopRetry.data.error}` : 'ERR'} (want refused with the sentence), rescan=${loopRescanConfig?.lastSyncStatus}: ${loopRescanned?.ragStatus} jobs=${loopJobsAfterRescan}/0`,
+    );
   } finally {
     globalThis.fetch = realFetch;
     if (savedEnv.tenant === undefined) {
@@ -49294,21 +49416,34 @@ async function checkAutoRetryAndKickPlan(
   }
   await sleep(700); // budget_exhausted must add nothing after the cascade
   const finalCascade = await sql<
-    { status: string; trigger: string | null; attempt: number | null }[]
+    {
+      status: string;
+      trigger: string | null;
+      attempt: number | null;
+      startedBy: string;
+    }[]
   >`
-    SELECT status, trigger, auto_retry_attempt AS attempt
+    SELECT status, trigger, auto_retry_attempt AS attempt,
+           started_by AS "startedBy"
     FROM app.project_agent_runs
     WHERE task_id = ${retryTask}
     ORDER BY started_at_ms
   `;
   const retries = finalCascade.filter((r) => r.trigger === 'auto_retry');
+  // A retry continues its failed run's kick: every attempt names the
+  // person who started the first run (whom the spend and a task run's
+  // connector calls are for), never someone else.
+  const firstStarter = finalCascade[0]?.startedBy;
   record(
     'auto-retry cascade: 3 stamped attempts then budget exhausted',
     finalCascade.length === 4 &&
       finalCascade.every((r) => r.status === 'failed') &&
       retries.length === 3 &&
-      retries.map((r) => r.attempt).join(',') === '1,2,3',
-    `runs=${finalCascade.length} statuses=${finalCascade.map((r) => r.status).join(',')} attempts=${retries.map((r) => r.attempt).join(',')}`,
+      retries.map((r) => r.attempt).join(',') === '1,2,3' &&
+      firstStarter !== undefined &&
+      firstStarter !== '' &&
+      finalCascade.every((r) => r.startedBy === firstStarter),
+    `runs=${finalCascade.length} statuses=${finalCascade.map((r) => r.status).join(',')} attempts=${retries.map((r) => r.attempt).join(',')} startedBy=${finalCascade.map((r) => (r.startedBy === firstStarter ? 'first' : r.startedBy)).join(',')} (want every one the first run's)`,
   );
 
   // --- arm + guard negatives ---------------------------------------------
@@ -54402,6 +54537,10 @@ async function main(): Promise<void> {
       [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
+      ],
+      [
+        'checkTaskRunConnectorCaller',
+        () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskExternalIssueSync',
