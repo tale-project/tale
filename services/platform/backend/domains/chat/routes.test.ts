@@ -30,6 +30,8 @@ const {
   cancelDeferredSendsForThread,
   emitHintInTx,
   bulkUpdateThreads,
+  loadProjectSharedThread,
+  projectSharedViewLeaf,
 } = vi.hoisted(() => ({
   trashThread: vi.fn(),
   listArchivedThreads: vi.fn(),
@@ -49,6 +51,8 @@ const {
   cancelDeferredSendsForThread: vi.fn(),
   emitHintInTx: vi.fn(),
   bulkUpdateThreads: vi.fn(),
+  loadProjectSharedThread: vi.fn(),
+  projectSharedViewLeaf: vi.fn(),
 }));
 
 vi.mock('./bulk.ts', () => ({ bulkUpdateThreads }));
@@ -61,6 +65,8 @@ vi.mock('./threads.ts', async (importOriginal) => ({
   branchForRegenerate,
   shareThread,
   setBranchSelection,
+  loadProjectSharedThread,
+  projectSharedViewLeaf,
 }));
 vi.mock('./budget-admission.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./budget-admission.ts')>()),
@@ -517,6 +523,106 @@ describe('POST /threads/:threadId/trash', () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: false });
     expect(cancelDeferredSendsForThread).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A project reader holds the ROOT's id alone. The door answers the root's
+ * view with the rows of the leaf the owner's screen shows — never the
+ * root's own rows once an edit or retry replaced them.
+ */
+describe('GET /threads/:threadId/messages for a project reader', () => {
+  interface Statement {
+    text: string;
+    values: unknown[];
+  }
+  /** A fake `sql` answering the door's three reads by statement shape. */
+  function fakeSql(): { sql: unknown; statements: Statement[] } {
+    const statements: Statement[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      statements.push({ text, values });
+      // Not the caller's own thread.
+      if (text.includes('t.user_id = ?')) return Promise.resolve([]);
+      // The root's view, by id.
+      if (text.includes('tm.generation_status AS "generationStatus"')) {
+        return Promise.resolve([
+          {
+            id: 'root',
+            title: 'Launch plan',
+            projectId: 'p1',
+            generationStatus: 'idle',
+            createdAt: 1,
+            updatedAt: 2,
+          },
+        ]);
+      }
+      if (text.includes('FROM app.messages')) {
+        return Promise.resolve([
+          {
+            id: 'm-leaf',
+            role: 'assistant',
+            parts: [{ type: 'text', text: 'the retried reply' }],
+            sequence: 1,
+            model: null,
+            providerSlug: null,
+            usage: null,
+            blockedReason: null,
+            error: null,
+            status: 'complete',
+            createdAt: 3,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    };
+    tag.unsafe = (text: string) => text;
+    return { sql: tag, statements };
+  }
+
+  it('answers the root’s view with the rows of the leaf on the owner’s screen', async () => {
+    const { sql, statements } = fakeSql();
+    loadProjectSharedThread.mockResolvedValue({
+      id: 'root',
+      organizationId: 'o1',
+      userId: 'owner',
+    });
+    projectSharedViewLeaf.mockResolvedValue('leaf');
+
+    const res = await makeApp(sql).request('/threads/root/messages?orgId=o1');
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      thread: { id: string };
+      messages: { id: string }[];
+    };
+    expect(body.thread.id).toBe('root');
+    expect(body.messages.map((row) => row.id)).toEqual(['m-leaf']);
+    expect(loadProjectSharedThread).toHaveBeenCalledWith(
+      sql,
+      'o1',
+      'u1',
+      'root',
+    );
+    expect(projectSharedViewLeaf).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ id: 'root', userId: 'owner' }),
+    );
+    // The rows come from the LEAF, the view from the ROOT.
+    const rows = statements.find(({ text }) =>
+      text.includes('FROM app.messages'),
+    );
+    expect(rows?.values).toEqual(['leaf', 'o1']);
+  });
+
+  it('answers 404 when the root is not shared with a project the caller reads', async () => {
+    const { sql } = fakeSql();
+    loadProjectSharedThread.mockResolvedValue(null);
+
+    const res = await makeApp(sql).request('/threads/root/messages?orgId=o1');
+
+    expect(res.status).toBe(404);
+    expect(projectSharedViewLeaf).not.toHaveBeenCalled();
   });
 });
 
