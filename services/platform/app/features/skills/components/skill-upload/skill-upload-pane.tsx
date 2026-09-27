@@ -7,11 +7,9 @@ import { toast } from '@tale/ui/use-toast';
 import { useCallback, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { isAbortError } from '@/lib/utils/abort-error';
 
-import {
-  isAbortError,
-  useSkillBundleUpload,
-} from './hooks/use-skill-bundle-upload';
+import { useSkillBundleUpload } from './hooks/use-skill-bundle-upload';
 import { useUploadSkill } from './hooks/use-upload-skill';
 import { PreviewStep } from './steps/preview-step';
 import { UploadStep } from './steps/upload-step';

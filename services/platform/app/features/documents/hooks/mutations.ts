@@ -8,6 +8,7 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
+import { isAbortError } from '@/lib/utils/abort-error';
 import { calculateFileHash } from '@/lib/utils/file-hash';
 
 import {
@@ -91,13 +92,6 @@ interface UploadOptions {
 interface UploadOperation {
   controller: AbortController;
   cancellable: boolean;
-}
-
-function isAbortError(error: unknown): boolean {
-  return (
-    (error instanceof Error && error.name === 'AbortError') ||
-    (error instanceof DOMException && error.name === 'AbortError')
-  );
 }
 
 class ReplacementUploadStateError extends Error {

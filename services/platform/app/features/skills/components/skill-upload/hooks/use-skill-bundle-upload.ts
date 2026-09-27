@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
+import { isAbortError } from '@/lib/utils/abort-error';
 import { fetchJson } from '@/lib/utils/type-utils';
 
 import {
@@ -88,8 +89,4 @@ export function useSkillBundleUpload(organizationId: string) {
   );
 
   return { upload, abort, isMountedRef };
-}
-
-export function isAbortError(err: unknown): boolean {
-  return err instanceof DOMException && err.name === 'AbortError';
 }
