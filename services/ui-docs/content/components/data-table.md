@@ -59,6 +59,8 @@ Activate **Search automations**, then type `Weekly`: only **Weekly digest** rema
 
 When an initially empty table has no search/filter toolbar, `addAction` moves into the empty state. With toolbar controls present, it stays in the header. Pass the permission-dependent disabled state from your service; the table does not decide access.
 
+The toolbar wraps rather than overflows. When its column cannot hold the controls and the primary action on one line, the action moves to a line of its own on the right, and the search box gives up width before anything is pushed past the edge; on a phone the action takes a full-width row. A list that builds its own toolbar outside a table uses the same `DataTableToolbar` from `@tale/ui/data-table/data-table-filters`.
+
 When a `DataTableActionMenu` item opens a dialog, pass a stable button ref as `triggerRef` and pass the same ref to the dialog's `restoreFocusRef`. The menu item disappears when the dialog opens; the toolbar button remains the keyboard user's return point after closing it.
 
 ## Decide what scrolls

@@ -65,6 +65,6 @@ Other native input attributes pass through, except native `size`; `prefix` is re
 
 ## Layout and related controls
 
-`ContentArea variant="narrow"` selects the shared settings field layout: stacked on small screens, label beside control from `sm`. See [Settings page](/docs/patterns/settings-page) before adding per-field widths.
+`ContentArea variant="narrow"` selects the shared settings field layout: stacked until the surface is 36rem wide, label beside control from there. See [Settings page](/docs/patterns/settings-page) before adding per-field widths.
 
 Use `Textarea` for multiple lines, `Select` for a fixed set, `SearchableSelect` for a searchable set, `JsonInput` for structured JSON, and `CopyableField` for a value primarily meant to be copied. A table search belongs in [`DataTable.search`](/docs/components/data-table), where it can stay associated with the filtered results.

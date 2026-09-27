@@ -37,7 +37,7 @@ export function SectionLayout() {
 
 The full scale is `0`, `1`, `2`, `3`, `4`, `5`, `6`, `8`, `10`, `12`. Prefer the recommended steps for new app layouts; `5`, `10`, and `12` remain for existing compositions. `Stack`, `Row`, and `Grid` accept a semantic `as` element or `asChild` for one child. Choose one, rather than combining them.
 
-`Row` does not wrap by default. Enable `wrap` for action groups that should form another line; give flexible text children `min-w-0` where truncation or wrapping must work. `Grid` accepts `sm`, `md`, `lg`, and `xl` column overrides.
+`Row` does not wrap by default. Enable `wrap` for action groups that should form another line; give flexible text children `min-w-0` where truncation or wrapping must work. `Grid` accepts `sm`, `md`, `lg`, and `xl` column overrides, which follow the viewport. Inside a page, choose columns by the grid's own width instead — wrap it in an `@container` element and use container variants such as `@2xl:grid-cols-2` — because a page column beside the rail and a section panel is far narrower than the window.
 
 ## Choose the content measure
 
@@ -49,7 +49,7 @@ The full scale is `0`, `1`, `2`, `3`, `4`, `5`, `6`, `8`, `10`, `12`. Prefer the
 | `NarrowContainer` | A centered form column capped at 544px. |
 | `Container` | Generic width-constrained content, with `md`, `lg`, `xl`, or `full` sizing. |
 
-`ContentArea` defaults to `page` and `gap={6}`. Its narrow variant also declares the `FieldShell` row layout: stacked labels on small screens and a shared control column from `sm`. It includes bottom clearance for mobile floating actions; avoid replacing that clearance with ad hoc padding.
+`ContentArea` defaults to `page` and `gap={6}`. Its narrow variant also declares the `FieldShell` row layout: the element becomes a `field-layout` size container, and its fields stack until it is 36rem wide, then share one control column. It includes bottom clearance for mobile floating actions; avoid replacing that clearance with ad hoc padding.
 
 ## Use Card for a bordered object
 

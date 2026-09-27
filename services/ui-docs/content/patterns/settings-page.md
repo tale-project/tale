@@ -29,7 +29,7 @@ export function SettingsLayoutExample() {
 }
 ```
 
-This layout-only example has uncontrolled fields; use an editor controller for a persisted form. The narrow container caps content at `max-w-3xl` and declares the shared field layout. `FieldShell` stacks labels and controls on small screens and places them beside one another from `sm`, with a consistent control column.
+This layout-only example has uncontrolled fields; use an editor controller for a persisted form. The narrow container caps content at `max-w-3xl` and declares the shared field layout. `FieldShell` stacks labels and controls until the settings surface is 36rem wide and places them beside one another from there, with a consistent control column. The width is the surface's own, not the window's: beside the rail and a section panel a 768px window leaves the column about 400px, and its fields stack.
 
 If a field does not align, first check whether it uses `FieldShell`. Use `wideControl` deliberately for content that needs the available width. Group related settings with `FormSection`; reserve cards for distinct objects such as a connected account, rather than wrapping every input in a separate panel.
 
