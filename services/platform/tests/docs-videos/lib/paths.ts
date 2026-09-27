@@ -22,6 +22,9 @@ export const STATE_DIR = path.join(PIPELINE_DIR, '.state');
 
 export const REPO_ROOT = path.resolve(PIPELINE_DIR, '../../../..');
 
+/** The gitignored repo-root `.env.dev` — dev-tooling secrets (ElevenLabs key, …). */
+export const DEV_ENV_FILE = path.join(REPO_ROOT, '.env.dev');
+
 /** Where produced episodes ship: `services/docs/public/`. */
 export const DOCS_PUBLIC_DIR = path.join(REPO_ROOT, 'services/docs/public');
 

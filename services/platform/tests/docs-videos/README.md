@@ -118,10 +118,10 @@ by `--stage check`).
   `--doctor` verifies both.
 - **`docs:videos` is a ROOT script** — from inside a workspace directory bun reports
   "Script not found"; run it from the repo root.
-- **A root `.env` line hides `.env.dev`** — bun loads the repo-root `.env` first and
-  `lib/dev-env.ts` never overrides a variable that is already set, so an `ELEVENLABS_API_KEY` line
-  there, even an empty one (older copies of the root `.env.example` carry it), makes the doctor
-  report the key as not set. Delete that line; the key lives in `.env.dev` alone.
+- **A root `.env` value beats `.env.dev`** — bun loads the repo-root `.env` (and your shell
+  exports) first, and `lib/dev-env.ts` never overrides a non-empty variable, so a stale
+  `ELEVENLABS_API_KEY` there wins. An empty one, as older copies of the root `.env.example` carry,
+  counts as unset. Keep the key in `.env.dev` alone.
 - **The gateway process env carries the stream pace** — restarting it drops
   `TALE_MOCK_STREAM_PACE_MS`; set it again or streamed answers race past the camera (the doctor
   reminds you; it cannot see another process's env).
