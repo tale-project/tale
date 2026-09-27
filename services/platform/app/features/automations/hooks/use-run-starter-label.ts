@@ -17,10 +17,9 @@ export interface RunStarterFacts {
  * (`user:<id>`, `api-key:<id>`, `trigger:<id>`), which is addressing, never
  * a label: the member's name (or e-mail) for a person, "you" for the reader,
  * "(API)" beside the key's owner, and the trigger's kind for a binding. A
- * raw id never reaches the page — a member the directory no longer lists
- * reads as a former member, a starter this reader cannot name at all
- * reads as unknown, and a person is left unnamed (an empty label) until
- * the member list has loaded.
+ * raw id never reaches the page — a member the directory (once it has
+ * answered) no longer lists reads as a former member, and a starter this
+ * reader cannot name at all reads as unknown.
  */
 export function useRunStarterLabel(
   organizationId: string,
@@ -40,10 +39,9 @@ export function useRunStarterLabel(
           if (starter.userId === currentUserId) {
             return t(isApi ? 'runs.starter.youApi' : 'runs.starter.you');
           }
-          // Nothing is said while the member list loads — better a moment
-          // of silence than a flash of "a former member" for someone the
-          // directory simply has not answered yet.
-          if (members === undefined) return '';
+          // Until the directory has answered (loading, or failed) nobody is
+          // a former member yet — the neutral wording, never a verdict.
+          if (members === undefined) return t('runs.starter.unknown');
           const member = members.find((m) => m.userId === starter.userId);
           const name = member ? member.displayName || member.email : null;
           if (name === null || name === '' || name === undefined) {

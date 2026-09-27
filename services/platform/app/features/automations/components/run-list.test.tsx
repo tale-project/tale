@@ -102,7 +102,7 @@ describe('RunList starters', () => {
     expect(screen.queryByText(/user-gone/)).toBeNull();
   });
 
-  it('says nothing about a person until the member list has loaded', () => {
+  it('never calls a person a former member before the list has loaded', () => {
     const members = directory.members;
     directory.members = undefined;
     try {
@@ -114,9 +114,11 @@ describe('RunList starters', () => {
     } finally {
       directory.members = members;
     }
-    // The reader and a trigger need no directory; a member does.
+    // The reader and a trigger need no directory; a member does — until it
+    // has answered, the neutral wording, never a verdict.
     expect(screen.getByText('Started by you')).toBeVisible();
     expect(screen.getByText('Started by the schedule')).toBeVisible();
+    expect(screen.getByText('Starter not recorded')).toBeVisible();
     expect(screen.queryByText(/Started by Dana|former member/)).toBeNull();
     expect(screen.queryByText(/user-dana/)).toBeNull();
   });
