@@ -3,7 +3,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  publicBaseUrl,
   publicBaseUrlFor,
   publicHttpApiUrlFor,
   publicOrigin,
@@ -97,7 +96,7 @@ describe('publicOrigin — browser-facing origin behind the reverse proxy', () =
   });
 });
 
-describe('siteOrigins / publicBaseUrl', () => {
+describe('siteOrigins / publicBaseUrlFor', () => {
   it('lists the canonical origin first, then the additional ones', () => {
     process.env.SITE_URL = 'https://tale.example.com/';
     process.env.ADDITIONAL_SITE_URLS =
@@ -117,21 +116,11 @@ describe('siteOrigins / publicBaseUrl', () => {
     process.env.SITE_URL = 'https://tale.example.com';
     process.env.ADDITIONAL_SITE_URLS = 'https://tale.partner.example';
     process.env.BASE_PATH = '/app/';
-    expect(publicBaseUrl(proxied('tale.partner.example'))).toBe(
-      'https://tale.partner.example/app',
-    );
-    expect(publicBaseUrl(new Request(INTERNAL_URL))).toBe(
-      'https://tale.example.com/app',
-    );
     expect(publicBaseUrlFor('https://tale.partner.example')).toBe(
       'https://tale.partner.example/app',
     );
     expect(publicHttpApiUrlFor('https://tale.partner.example')).toBe(
       'https://tale.partner.example/app/http_api',
     );
-  });
-
-  it('refuses a base URL when SITE_URL is unset (no guessing from the request)', () => {
-    expect(publicBaseUrl(proxied('tale.example.com'))).toBeNull();
   });
 });

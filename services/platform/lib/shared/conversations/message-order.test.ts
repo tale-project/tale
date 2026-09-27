@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  compareConversationMessages,
-  type ConversationMessageSortable,
   getConversationMessageSortTime,
   nextConversationLastMessageAt,
 } from './message-order';
@@ -75,51 +73,5 @@ describe('nextConversationLastMessageAt', () => {
         sentAt: newer,
       }),
     ).toBe(newer);
-  });
-});
-
-describe('compareConversationMessages', () => {
-  it('orders by sentAt when deliveredAt would scramble the thread', () => {
-    const messages: ConversationMessageSortable[] = [
-      {
-        _id: 'inbound_latest',
-        _creationTime: 4,
-        sentAt: 1_752_406_542_000,
-        deliveredAt: 1_752_406_542_000,
-      },
-      {
-        _id: 'outbound_mid',
-        _creationTime: 2,
-        sentAt: 1_752_405_895_085,
-      },
-      {
-        _id: 'outbound_early',
-        _creationTime: 1,
-        sentAt: 1_752_405_527_413,
-      },
-      {
-        _id: 'inbound_yesterday',
-        _creationTime: 3,
-        sentAt: 1_752_315_109_000,
-        deliveredAt: 1_752_315_109_000,
-      },
-    ];
-
-    const sorted = [...messages].sort(compareConversationMessages);
-
-    expect(sorted.map((m) => m._id)).toEqual([
-      'inbound_yesterday',
-      'outbound_early',
-      'outbound_mid',
-      'inbound_latest',
-    ]);
-  });
-
-  it('tie-breaks on _id when sort times are equal', () => {
-    const a = { _id: 'b', _creationTime: 100, sentAt: 200 };
-    const b = { _id: 'a', _creationTime: 100, sentAt: 200 };
-
-    expect(compareConversationMessages(a, b)).toBeGreaterThan(0);
-    expect(compareConversationMessages(b, a)).toBeLessThan(0);
   });
 });

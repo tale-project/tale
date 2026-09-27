@@ -67,18 +67,6 @@ export function basePath(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
- * `<origin><BASE_PATH>` — the browser-facing base every absolute app URL is
- * built on — for the request's public origin. Null when `SITE_URL` is unset:
- * the OAuth doors refuse to derive a callback from an unconfigured
- * deployment rather than guess one from the request (guessing is what makes
- * `Host`-header injection work).
- */
-export function publicBaseUrl(req: Request): string | null {
-  if (siteOrigins().length === 0) return null;
-  return `${publicOrigin(req)}${basePath()}`;
-}
-
-/**
  * `<origin><BASE_PATH>` for one configured origin (the admin surfaces list
  * the URLs to register for every domain a deployment answers on).
  */

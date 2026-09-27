@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  convexStorageId,
   encodeS3Ref,
   isS3Ref,
   parseBlobRef,
@@ -18,11 +17,6 @@ describe('blob_ref encoding', () => {
     const parsed = parseBlobRef('kg2abc123');
     expect(parsed.backend).toBe('convex');
     expect(isS3Ref('kg2abc123')).toBe(false);
-    expect(convexStorageId('kg2abc123')).toBe('kg2abc123');
-  });
-
-  it('convexStorageId is null for s3 refs', () => {
-    expect(convexStorageId('s3:acme/uuid')).toBeNull();
   });
 });
 

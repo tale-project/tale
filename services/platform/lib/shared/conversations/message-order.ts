@@ -20,19 +20,6 @@ export function getConversationMessageSortTime(
   return message.sentAt ?? message.deliveredAt ?? message._creationTime;
 }
 
-/** Ascending comparator for chronological thread display. */
-export function compareConversationMessages(
-  a: ConversationMessageSortable,
-  b: ConversationMessageSortable,
-): number {
-  const timeDiff =
-    getConversationMessageSortTime(a) - getConversationMessageSortTime(b);
-  if (timeDiff !== 0) {
-    return timeDiff;
-  }
-  return a._id.localeCompare(b._id);
-}
-
 /**
  * Advance a conversation's indexed `lastMessageAt` from an incoming message.
  * Uses sentAt-first ordering (same as list timestamps) and never moves the

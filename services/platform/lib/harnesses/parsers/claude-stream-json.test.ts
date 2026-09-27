@@ -8,12 +8,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { collectEvents, readFixture } from '../test-helpers';
-import {
-  buildSteerStdinPayload,
-  createParser,
-  STEER_STDIN_TEXT_CAP,
-  truncateToUtf8Bytes,
-} from './claude-stream-json';
+import { createParser } from './claude-stream-json';
 
 describe('claude-stream-json parser', () => {
   it('normalizes the issue-to-pr stream (usage deduped by message id)', () => {
@@ -509,31 +504,5 @@ describe('claude-stream-json parser', () => {
       { type: 'raw', harness: 'claude-code', payload: unknown },
       { type: 'raw', harness: 'claude-code', payload: apiRetry },
     ]);
-  });
-});
-
-describe('claude-stream-json steer stdin helpers', () => {
-  it('wraps a steer batch in one sentinel-tagged user-message line', () => {
-    const line = buildSteerStdinPayload([
-      { messageId: 'm1', text: 'Also update the docs.' },
-      { messageId: 'm2', text: 'And bump the version.' },
-    ]);
-    expect(line.endsWith('\n')).toBe(true);
-    const parsed = JSON.parse(line);
-    const text: string = parsed.message.content[0].text;
-    expect(text.startsWith('[TALE_STEER ids=m1,m2]')).toBe(true);
-    expect(text).toContain('Also update the docs.');
-    expect(text).toContain('And bump the version.');
-  });
-
-  it('caps the steer text by BYTES without splitting a codepoint', () => {
-    expect(truncateToUtf8Bytes('hello', 10)).toBe('hello');
-    // 'ab' (2 bytes) + 🙂 (4 bytes): a 5-byte cap must back off to 'ab'
-    // rather than emit half an emoji.
-    expect(truncateToUtf8Bytes('ab🙂', 5)).toBe('ab');
-    const bigRow = [{ messageId: 'm1', text: '🙂'.repeat(10_000) }];
-    const parsed = JSON.parse(buildSteerStdinPayload(bigRow));
-    const bytes = new TextEncoder().encode(parsed.message.content[0].text);
-    expect(bytes.length).toBeLessThanOrEqual(STEER_STDIN_TEXT_CAP);
   });
 });

@@ -38,12 +38,6 @@ export function isS3Ref(ref: BlobRef): boolean {
   return ref.startsWith(S3_PREFIX);
 }
 
-/** The legacy storage id of a convex-backed ref, or null for an S3 ref. */
-export function convexStorageId(ref: BlobRef): string | null {
-  const parsed = parseBlobRef(ref);
-  return parsed.backend === 'convex' ? parsed.storageId : null;
-}
-
 /**
  * TENANT ISOLATION — does an S3 object key sit in `orgSlug`'s own namespace?
  *

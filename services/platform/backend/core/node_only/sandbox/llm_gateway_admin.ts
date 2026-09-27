@@ -501,17 +501,6 @@ export async function readVirtualKeySpend(
   return { status: 'ok', cents: Math.max(...usages) * 100 };
 }
 
-/** The cumulative spend as a plain figure, or null when the gateway could
- * not give one (unavailable, key gone, or unmetered). */
-export async function getVirtualKeySpendCents(
-  keyId: string,
-): Promise<number | null> {
-  const reading = await readVirtualKeySpend(keyId);
-  return reading.status === 'ok' && reading.unmetered !== true
-    ? reading.cents
-    : null;
-}
-
 /** The price the gateway should bill one model at, in the catalog's unit
  * (cents per million tokens). */
 export interface ModelPricingOverride {
