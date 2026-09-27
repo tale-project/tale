@@ -110,23 +110,32 @@ beside the task; `--force` re-runs it locally. A task whose result depends on an
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
 cacheable, and the fix is the determinism, not the cache.
 
-Turbo hashes only the files of a task's own workspace, so a task that reads a file outside it
-replays its cached verdict when only that file changes. Such a task lists the file in its
-workspace's `turbo.json` `inputs`: `$TURBO_EXTENDS$` (keeps the root task's inputs, which a
-workspace list otherwise replaces), `$TURBO_DEFAULT$` (keeps the workspace's own files), then
-`$TURBO_ROOT$/<path>`. [`services/platform/turbo.json`](../services/platform/turbo.json) gives
-`@tale/platform`'s tests the root `.env.example`, `knip.config.ts` and the tale-db init scripts;
-[`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
-tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
-i18n catalogs and test framework (test); [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives
-`@tale/cli`'s tests the CLI install pages. `services/docs/tests/turbo-inputs.test.ts` and
-`tools/cli/src/lib/config/platform-docs.test.ts` ask `turbo --dry=json` whether those files are
-hashed and hold the two-entry prefix. Beyond such a declared file, an edit under `packages/`
-leaves every dependent workspace's `test`, `typecheck` and `lint` hash unchanged, because none of
-those tasks depends on `^…`: a package change is judged only by that package's own tasks until
-the consumer's own files change. The i18n suites of `services/platform`, `services/web`,
-`services/ui-docs`, `services/ai-gateway` and `packages/marketing-ui` are still in that gap: they
-run `@tale/ui`'s i18n test framework (the first three also read the package catalogs) unhashed.
+Turbo's default source inputs cover a task's own workspace. A task that reads a file outside
+it lists the file in its workspace's `turbo.json` `inputs`; otherwise an edit to that file
+alone replays the cached verdict. Open the list with `$TURBO_EXTENDS$` (keeps the root task's
+inputs, which a workspace list otherwise replaces) and `$TURBO_DEFAULT$` (keeps the workspace's
+own files), then list the outside files as `$TURBO_ROOT$/<path>`:
+
+- [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
+  tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
+  knowledge-db migrations and other outside files. Its guard is
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
+- [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
+  tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
+  i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
+- [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
+  pages. Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
+
+These guards ask `turbo --dry=json` whether the files are hashed; the docs and CLI guards also
+hold the two-entry prefix. A suite that starts reading another outside file adds it to both
+the task's inputs and its guard.
+
+Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
+`test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
+package change is judged only by that package's own tasks until the consumer's own files
+change. The i18n suites of `services/platform`, `services/web`, `services/ui-docs`,
+`services/ai-gateway` and `packages/marketing-ui` are still in that gap: they run `@tale/ui`'s
+i18n test framework (the first three also read the package catalogs) unhashed.
 
 ## Skills index
 
