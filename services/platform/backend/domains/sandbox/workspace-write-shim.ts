@@ -48,7 +48,13 @@ import {
  * postgres.js failure carries a SQLSTATE `code` and no status. Both halves
  * are checked precisely so a serialization failure or a dead connection stays
  * a plain error — relabelling one as a coded refusal would tell the agent its
- * ARGUMENTS were wrong when the database was simply unavailable.
+ * ARGUMENTS were wrong when the database was simply unavailable. For the same
+ * reason only a CLIENT refusal (a 4xx status, the set `isDomainError` in
+ * `rest/shared.ts` lets through) is translated: a coded 5xx — the mention
+ * directory's `MENTION_DIRECTORY_UNAVAILABLE` on a comment, the files
+ * domain's `OBJECT_STORE_UNCONFIGURED` on `document_create` — is an
+ * infrastructure failure that says "try again", so it stays a plain error
+ * and the bridge answers it as `error`, never `invalid_args`.
  */
 function asAppError(error: unknown): unknown {
   if (
@@ -56,7 +62,9 @@ function asAppError(error: unknown): unknown {
     'code' in error &&
     typeof error.code === 'string' &&
     'status' in error &&
-    typeof error.status === 'number'
+    typeof error.status === 'number' &&
+    error.status >= 400 &&
+    error.status < 500
   ) {
     return new AppError({ code: error.code, message: error.message });
   }
@@ -166,7 +174,8 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
       // session); this writer is the trusted lower half, so it runs with an
       // administrative auth attributed to the agent actor. Coded like its
       // siblings: a comment over the limit is the agent's `invalid_args`,
-      // not an `error` that reads as a transient failure.
+      // not an `error` that reads as a transient failure — while a mention
+      // directory that could not be listed (a coded 503) stays that `error`.
       return coded(() =>
         sql.begin(async (tx) => {
           const { messageId, threadId } = await addTaskComment(

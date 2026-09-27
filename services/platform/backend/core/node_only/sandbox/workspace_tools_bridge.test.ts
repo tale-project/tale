@@ -1058,6 +1058,45 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     });
   });
 
+  it('task_comment answers a mention-directory outage as error, not invalid_args', async () => {
+    const { dispatch } = await getActions();
+    // What the write shim hands on for a CODED 5xx: the domain error itself,
+    // untranslated (`asAppError` translates 4xx refusals only). A directory
+    // leg that could not be listed is an outage to retry, never a refused
+    // argument — and the audit trail says so too.
+    const outage = Object.assign(
+      new Error('mention directory: members listing failed'),
+      { code: 'MENTION_DIRECTORY_UNAVAILABLE', status: 503 },
+    );
+    const runMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>((ref) =>
+      fnName(ref).includes('agentAddComment')
+        ? Promise.reject(outage)
+        : Promise.resolve(null),
+    );
+    const { ctx } = createCtx({
+      actionContext: PROJECT_CTX,
+      readQuery: vi.fn((ref: unknown) =>
+        fnName(ref).includes('getTaskByIdInternal')
+          ? Promise.resolve({ _id: 'task_1', projectId: 'proj_1' })
+          : Promise.resolve(null),
+      ),
+      runMutation,
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_comment',
+      callArgs: { taskId: 'task_1', body: 'Checked.' },
+    });
+    expect(result).toEqual({
+      status: 'error',
+      message: 'mention directory: members listing failed',
+    });
+    const audit = runMutation.mock.calls.find((call) =>
+      fnName(call[0]).includes('recordToolCall'),
+    );
+    expect(audit?.[1]).toMatchObject({ outcome: 'error' });
+  });
+
   it('relays only the domain’s sentence, never a payload beside it', async () => {
     const { dispatch } = await getActions();
     const { ctx } = refusingCtx('agentCreateTask', {
