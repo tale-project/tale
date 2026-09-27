@@ -10,12 +10,14 @@ import { describe, expect, it } from 'vitest';
  * to the root `.env` — which Bun loads into every process started from the
  * repo root, `bun run docs:videos` included. The docs-video pipeline takes its
  * ElevenLabs key from the gitignored root `.env.dev` through `loadDevEnv()`,
- * which never overrides a variable that is already set: the empty
- * `ELEVENLABS_API_KEY=` the template once carried hid the real key, and the
- * doctor reported it missing. The marketing site's `WEB_*` keys have their own
- * template, `services/web/.env.example`. This guard keeps both families out of
- * the root template, commented-out assignments included (the template's way
- * of offering an optional variable); naming a key in prose stays allowed.
+ * which never overrides a non-empty variable: a key in the root `.env` wins
+ * over `.env.dev`. The empty `ELEVENLABS_API_KEY=` the template once carried
+ * hid the real key until the loader learned to read an empty value as unset
+ * (`tests/docs-videos/lib/dev-env.test.ts`). The marketing site's `WEB_*` keys
+ * have their own template, `services/web/.env.example`. This guard keeps both
+ * families out of the root template, commented-out assignments included (the
+ * template's way of offering an optional variable, bulleted or not); naming a
+ * key in prose stays allowed.
  * `services/platform/turbo.json` makes the template an input of this
  * workspace's `test` task, so an edit to it alone reruns the guard instead of
  * replaying a cached pass.
@@ -34,8 +36,9 @@ const FOREIGN_KEY_FAMILIES = [
   { prefix: 'WEB_', home: 'services/web/.env.example' },
 ] as const;
 
-/** `KEY=…`, `export KEY=…`, and either one behind a `#`. */
-const ASSIGNMENT_RE = /^\s*(?:#\s*)?(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
+/** `KEY=…` or `export KEY=…`, bare or commented out (`#`, `##`, `#   - `). */
+const ASSIGNMENT_RE =
+  /^\s*(?:#+\s*(?:[-*]\s+)?)?(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
 
 function declaredKeys(source: string): { key: string; line: number }[] {
   return source.split(/\r?\n/).flatMap((text, index) => {
@@ -62,7 +65,10 @@ describe('root .env.example', () => {
       'ELEVENLABS_API_KEY=',
       'export WEB_FORMS_REQUIRED=true',
       '#   WEB_DISCORD_WEBHOOK_URL=',
+      '#   - WEB_FORMS_REQUIRED=false',
+      '## ELEVENLABS_MODEL=eleven_v3',
       '# ELEVENLABS_API_KEY goes in the repo-root .env.dev, never here.',
+      '#   - WEB_* keys live in services/web/.env.example.',
       'WEBHOOK_SECRET=',
     ].join('\n');
     expect(
@@ -71,6 +77,8 @@ describe('root .env.example', () => {
       [2, 'ELEVENLABS_API_KEY'],
       [3, 'WEB_FORMS_REQUIRED'],
       [4, 'WEB_DISCORD_WEBHOOK_URL'],
+      [5, 'WEB_FORMS_REQUIRED'],
+      [6, 'ELEVENLABS_MODEL'],
     ]);
   });
 
