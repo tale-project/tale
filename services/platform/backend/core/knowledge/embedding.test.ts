@@ -4,6 +4,8 @@ import { getEventListeners } from 'node:events';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
+
 /**
  * The budgets the embedder hands its provider client. The module's own
  * `request()` loop is the ONE retry policy: the SDK's defaults (a ten-minute
@@ -321,6 +323,50 @@ describe('account refusals from the provider', () => {
     expect(classifyEmbeddingFailure(new Error('a programming error'))).toBe(
       null,
     );
+  });
+});
+
+describe('credential refusals before any provider call', () => {
+  // The resolver refuses the credential the settings select before a
+  // request is built. Unclassified, the refusal reached indexing's catch-all
+  // (five retries, each reported as the platform's fault) and search as a
+  // bare 500. Every one of these holds until an admin acts.
+  it.each([
+    'CREDENTIAL_NONE_CONFIGURED',
+    'CREDENTIAL_NOT_FOUND',
+    'CREDENTIAL_PROVIDER_MISMATCH',
+    'CREDENTIAL_DISABLED',
+    'CREDENTIAL_KEY_ROTATED',
+    'CREDENTIAL_SHAPE_INVALID',
+    'CREDENTIAL_ENV_NAME_INVALID',
+    'CREDENTIAL_ENV_UNSET',
+  ])('classifies %s as unresolved', (code) => {
+    expect(
+      classifyEmbeddingFailure(new AppError({ code, message: 'refused' })),
+    ).toBe('unresolved');
+  });
+
+  // A broker pool cooling down after a rate limit, or a broker that is
+  // briefly unreachable, heals by itself: both stay with the caller's
+  // retries.
+  it.each(['CREDENTIAL_BROKER_EXHAUSTED', 'CREDENTIAL_BROKER_FETCH_FAILED'])(
+    'leaves the transient %s unclassified',
+    (code) => {
+      expect(
+        classifyEmbeddingFailure(new AppError({ code, message: 'wait' })),
+      ).toBe(null);
+    },
+  );
+
+  it('reads the code, not the words', () => {
+    expect(
+      classifyEmbeddingFailure(new Error('CREDENTIAL_NONE_CONFIGURED')),
+    ).toBe(null);
+    expect(
+      classifyEmbeddingFailure(
+        new AppError({ code: 'NOT_A_CREDENTIAL', message: 'x' }),
+      ),
+    ).toBe(null);
   });
 });
 

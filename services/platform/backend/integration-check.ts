@@ -9219,6 +9219,276 @@ async function checkIndexingReleaseRace(
 }
 
 /**
+ * An organization whose embedding model names a provider with no credential
+ * behind it. The credential resolver refuses before any provider call
+ * (`CREDENTIAL_NONE_CONFIGURED`); unclassified, that refusal threw the
+ * indexing job into its five retries — each one reported as the platform's
+ * fault — and answered REST search with a bare 500. On the real worker:
+ *
+ *   1. indexing ends on the first attempt: the file `failed` with
+ *      `embedding_provider_refused` and the resolver's remedy, its
+ *      `rag.index_file` job `completed` with no retry;
+ *   2. REST knowledge search answers the documented 409
+ *      `EMBEDDING_CREDENTIAL_REJECTED` (the app door its 503 with the same
+ *      code), and no provider call is made;
+ *   3. adding the credential through the settings door re-queues the file,
+ *      which then indexes, and search answers again.
+ */
+async function checkEmbeddingCredentialRefusal(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'embedding credential refusal (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  let embedCalls = 0;
+  const embedServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      embedCalls += 1;
+      res.setHeader('content-type', 'application/json');
+      res.end(fakeEmbeddingsPayload(body));
+    });
+  });
+  await new Promise<void>((resolve) => {
+    embedServer.listen(0, '127.0.0.1', resolve);
+  });
+  const embedAddress = embedServer.address();
+  const embedPort =
+    embedAddress !== null && typeof embedAddress === 'object'
+      ? embedAddress.port
+      : 0;
+  // A provider nothing in the organization holds a credential for.
+  const providerSlug = 'itest-embed-nocred';
+  const configPath = path.join(
+    process.env.TALE_CONFIG_DIR ?? '',
+    orgSlug,
+    'knowledge',
+    'embedding.json',
+  );
+  // The earlier lanes' model is restored afterwards, so the lanes that follow
+  // find the organization as this one found it.
+  const previousConfig = await readFile(configPath, 'utf8').catch(
+    (error: unknown) => {
+      console.warn('[itest] no earlier embedding config to restore:', error);
+      return null;
+    },
+  );
+  const send = (
+    method: 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const searchQuery = { query: 'credential gate probe' };
+  let credentialId = '';
+
+  try {
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        providerSlug,
+        model: 'itest-embed',
+        dimensions: 8,
+        baseUrl: `http://127.0.0.1:${embedPort}/v1`,
+      }),
+    );
+    // Idempotent; lets the lane run alone under ITEST_LANES.
+    const { ensureDefaultCorpusSchema } =
+      await import('./domains/knowledge/service.ts');
+    await ensureDefaultCorpusSchema();
+
+    const handoff = z.object({ s3Ref: z.string(), url: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+    if (!handoff.success) {
+      record('embedding credential refusal', false, 'upload handoff failed');
+      return;
+    }
+    await fetch(handoff.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'The credential gate probe: a document for a provider nobody holds a key for.',
+    });
+    // The bind registers the file row and enqueues `rag.index_file`.
+    await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
+      storageRef: handoff.data.s3Ref,
+      fileName: 'credential-gate.txt',
+      contentType: 'text/plain',
+    });
+    const fileRows = await sql<{ id: string }[]>`
+      SELECT id FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref = ${handoff.data.s3Ref}
+      LIMIT 1
+    `;
+    const fileId = fileRows[0]?.id ?? '';
+    const ragRow = async (): Promise<{
+      status: string | null;
+      error: string | null;
+      code: string | null;
+    }> => {
+      const rows = await sql<
+        { status: string | null; error: string | null; code: string | null }[]
+      >`
+        SELECT rag_status AS status, rag_error AS error,
+               rag_error_code AS code
+        FROM app.file_metadata WHERE id = ${fileId}
+      `;
+      return rows[0] ?? { status: null, error: null, code: null };
+    };
+    /** Every `rag.index_file` job for the file, oldest first — pg-boss's
+     * table is internal; pinned to the shape `jobOf` reads. */
+    const jobs = (): Promise<{ state: string; retryCount: number }[]> =>
+      sql<{ state: string; retryCount: number }[]>`
+        SELECT state, retry_count AS "retryCount" FROM pgboss.job
+        WHERE name = 'rag.index_file' AND data->>'fileId' = ${fileId}
+        ORDER BY created_on ASC
+      `;
+    const settled = (state: string | undefined): boolean =>
+      state === 'completed' || state === 'failed' || state === 'cancelled';
+
+    // 1. The first attempt ends the job, with the remedy on the file.
+    const refused = await waitFor(
+      async () =>
+        (await ragRow()).status === 'failed' &&
+        settled((await jobs())[0]?.state),
+      60_000,
+    );
+    const refusedRow = await ragRow();
+    const firstJobs = await jobs();
+    record(
+      'embedding credential refusal: indexing fails once with the remedy, no job retry',
+      refused &&
+        refusedRow.code === 'embedding_provider_refused' &&
+        (refusedRow.error ?? '').includes(
+          `No default credential is configured for provider "${providerSlug}"`,
+        ) &&
+        (refusedRow.error ?? '').includes('Settings → AI providers') &&
+        !(refusedRow.error ?? '').includes('"code"') &&
+        firstJobs.length === 1 &&
+        firstJobs[0]?.state === 'completed' &&
+        firstJobs[0].retryCount === 0 &&
+        embedCalls === 0,
+      `settled=${refused} status=${refusedRow.status}/failed code=${refusedRow.code ?? 'NULL'}/embedding_provider_refused jobs=${JSON.stringify(firstJobs)}/[completed, 0 retries] providerCalls=${embedCalls}/0 prose=${JSON.stringify((refusedRow.error ?? '').slice(0, 140))}`,
+    );
+
+    // 2. Search answers the documented refusal, never a 500.
+    const apiKey = await mintRestKey(
+      base,
+      cookie,
+      'itest-embedding-credential',
+    );
+    const restSearch = (): Promise<Response> =>
+      fetch(`${base}/api/v1/knowledge/search`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'x-organization-slug': orgSlug,
+        },
+        body: JSON.stringify(searchQuery),
+      });
+    const rest = await restSearch();
+    const restBody = z
+      .looseObject({ code: z.string(), error: z.string() })
+      .safeParse(await rest.json().catch(() => null));
+    const app = await send(
+      'POST',
+      `/api/app/knowledge/search?orgId=${orgId}`,
+      searchQuery,
+    );
+    const appBody = z
+      .looseObject({ error: z.string() })
+      .safeParse(await app.json().catch(() => null));
+    record(
+      'embedding credential refusal: REST search answers 409 EMBEDDING_CREDENTIAL_REJECTED',
+      rest.status === 409 &&
+        rest.headers.get('retry-after') === null &&
+        restBody.success &&
+        restBody.data.code === 'EMBEDDING_CREDENTIAL_REJECTED' &&
+        restBody.data.error.includes(providerSlug) &&
+        app.status === 503 &&
+        appBody.success &&
+        appBody.data.error === 'EMBEDDING_CREDENTIAL_REJECTED' &&
+        embedCalls === 0,
+      `rest=${rest.status}/409 code=${restBody.success ? restBody.data.code : 'n/a'} retryAfter=${rest.headers.get('retry-after') ?? 'none'} app=${app.status}/503 appCode=${appBody.success ? appBody.data.error : 'n/a'} providerCalls=${embedCalls}/0`,
+    );
+
+    // 3. The credential the error asked for re-queues the file.
+    const created = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug,
+          authMethod: 'api-key',
+          name: 'Embedding probe key',
+          secret: 'sk-itest-embedding-credential',
+        })
+      ).json(),
+    );
+    credentialId = created.success ? created.data.credentialId : '';
+    // The door re-queues before it answers: the refusal is gone at once.
+    const requeuedRow = await ragRow();
+    const indexed = await waitFor(
+      async () => (await ragRow()).status === 'completed',
+      60_000,
+    );
+    const laterJobs = await jobs();
+    const recovered = await restSearch();
+    record(
+      'embedding credential refusal: adding the credential re-queues and indexes the file',
+      created.success &&
+        requeuedRow.status !== 'failed' &&
+        requeuedRow.code === null &&
+        indexed &&
+        laterJobs.length === 2 &&
+        laterJobs.every((job) => job.state === 'completed') &&
+        embedCalls > 0 &&
+        recovered.status === 200,
+      `created=${created.success} afterSave=${requeuedRow.status}/queued code=${requeuedRow.code ?? 'NULL'} indexed=${indexed} jobs=${JSON.stringify(laterJobs)}/2 completed providerCalls=${embedCalls}/>0 search=${recovered.status}/200`,
+    );
+  } finally {
+    if (previousConfig === null) await rm(configPath, { force: true });
+    else await writeFile(configPath, previousConfig);
+    if (credentialId !== '') {
+      // Unused again once the earlier model is back, so the delete passes.
+      const removed = await send(
+        'DELETE',
+        `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+      );
+      if (!removed.ok) {
+        console.warn(
+          `[itest] the embedding probe credential was not removed: ${removed.status}`,
+        );
+      }
+    }
+    await new Promise<void>((resolve) => {
+      embedServer.close(() => resolve());
+    });
+  }
+}
+
+/**
  * Corpus-purge consistency: deleted/replaced content leaves EVERYWHERE it
  * lives (corpus rows, blobs) and the retrievable set follows lifecycle
  * truth; purge failures are never reported as success.
@@ -53661,6 +53931,16 @@ async function main(): Promise<void> {
         'checkIndexingReleaseRace',
         () =>
           checkIndexingReleaseRace(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkEmbeddingCredentialRefusal',
+        () =>
+          checkEmbeddingCredentialRefusal(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+          ),
       ],
       [
         'checkChat',

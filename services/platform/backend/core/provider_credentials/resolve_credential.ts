@@ -135,8 +135,8 @@ type CredentialError = AppError<{ code: string; message: string }>;
  * The resolver's refusal code carried by an error (`CREDENTIAL_NOT_FOUND`,
  * `CREDENTIAL_NONE_CONFIGURED`, …), or null when the error is not one of
  * its refusals. Duck-typed on `data.code`: the callers that turn a refusal
- * into a stable platform answer (indexing, the chat assistant) may hold
- * another copy of `AppError`.
+ * into a stable platform answer (indexing, search, the chat assistant) may
+ * hold another copy of `AppError`.
  */
 export function credentialRefusalCode(error: unknown): string | null {
   if (error === null || typeof error !== 'object' || !('data' in error)) {
@@ -152,13 +152,54 @@ export function credentialRefusalCode(error: unknown): string | null {
     : null;
 }
 
-/** The credential a selection names is gone, or the provider has no default
- * to fall back on: nothing heals by waiting, an admin restores a key. */
-export function isCredentialMissing(error: unknown): boolean {
+/**
+ * The refusals no wait lifts: the selection names nothing usable (deleted,
+ * of another provider, no default left), or the row cannot yield its secret
+ * (disabled, encrypted under a rotated key, an env var that is unset or
+ * outside the namespace, a payload missing for its method). An admin fixes
+ * each one — in Settings → AI providers, or on the deployment — and every
+ * retry until then answers the same refusal. An allowlist, so a refusal
+ * added later is not terminal until someone says so. The broker's own
+ * refusals stay out: an exhausted pool cools down
+ * (`CREDENTIAL_BROKER_EXHAUSTED`) and an unreachable broker comes back
+ * (`CREDENTIAL_BROKER_FETCH_FAILED`).
+ */
+const TERMINAL_CREDENTIAL_REFUSALS: ReadonlySet<string> = new Set([
+  'CREDENTIAL_NOT_FOUND',
+  'CREDENTIAL_NONE_CONFIGURED',
+  'CREDENTIAL_PROVIDER_MISMATCH',
+  'CREDENTIAL_DISABLED',
+  'CREDENTIAL_KEY_ROTATED',
+  'CREDENTIAL_SHAPE_INVALID',
+  'CREDENTIAL_ENV_NAME_INVALID',
+  'CREDENTIAL_ENV_UNSET',
+]);
+
+/** Whether a resolver refusal holds until an admin acts (see
+ * {@link TERMINAL_CREDENTIAL_REFUSALS}). */
+export function isTerminalCredentialRefusal(error: unknown): boolean {
   const code = credentialRefusalCode(error);
-  return (
-    code === 'CREDENTIAL_NOT_FOUND' || code === 'CREDENTIAL_NONE_CONFIGURED'
-  );
+  return code !== null && TERMINAL_CREDENTIAL_REFUSALS.has(code);
+}
+
+/** The resolver's own sentence for a refusal — the remedy it names, never a
+ * secret — or null when the error is not one of its refusals. `AppError`
+ * serializes its whole payload into `message`, so this reads `data`. */
+export function credentialRefusalMessage(error: unknown): string | null {
+  if (
+    credentialRefusalCode(error) === null ||
+    error === null ||
+    typeof error !== 'object' ||
+    !('data' in error)
+  ) {
+    return null;
+  }
+  const data = error.data;
+  if (data === null || typeof data !== 'object' || !('message' in data)) {
+    return null;
+  }
+  const message = data.message;
+  return typeof message === 'string' && message.trim() !== '' ? message : null;
 }
 
 function credentialError(code: string, message: string): CredentialError {

@@ -25,11 +25,18 @@ vi.mock('./servable_catalog', () => ({
 }));
 
 const credentialMock = vi.fn();
-vi.mock('../../provider_credentials/resolve_credential', () => ({
-  resolveProviderCredential: (...args: unknown[]) =>
-    credentialMock(...(args as [])),
-}));
+vi.mock(
+  '../../provider_credentials/resolve_credential',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../../provider_credentials/resolve_credential')
+    >()),
+    resolveProviderCredential: (...args: unknown[]) =>
+      credentialMock(...(args as [])),
+  }),
+);
 
+import { classifyTranscriptionError } from '../errors/classify_transcription_error';
 import {
   inspectTranscriptionModels,
   resolveTranscriptionModel,
@@ -421,5 +428,86 @@ describe('resolveTranscriptionModel', () => {
     expect(
       await caughtCode(resolveTranscriptionModel(ctx, { organizationId: ORG })),
     ).toBe('TRANSCRIPTION_MODEL_RESOLUTION_FAILED');
+  });
+
+  // A default credential whose secret the resolver refuses until an admin
+  // acts — re-entered after a key rotation, an env var set — used to count
+  // as a resolution failure: "temporarily unavailable" on dictation and
+  // three scheduled retries of every upload, each answering the same
+  // refusal. It serves nothing, exactly like no default credential.
+  describe('a credential the resolver refuses for good', () => {
+    const refusal = (code: string) =>
+      new AppError({ code, message: `synthetic ${code} refusal` });
+
+    it.each(['CREDENTIAL_KEY_ROTATED', 'CREDENTIAL_ENV_UNSET'])(
+      'reads %s as no model in Auto — terminal, never retried',
+      async (code) => {
+        resolveProvidersMock.mockResolvedValue([provider('openai')]);
+        catalogMock.mockResolvedValue([WHISPER]);
+        credentialMock.mockRejectedValue(refusal(code));
+
+        const thrown = await resolveTranscriptionModel(ctx, {
+          organizationId: ORG,
+        }).catch((error: unknown) => error);
+        expect(await caughtCode(Promise.reject(thrown))).toBe(
+          'NO_TRANSCRIPTION_MODEL',
+        );
+        expect(classifyTranscriptionError(thrown).shouldRetry).toBe(false);
+        expect(await inspectTranscriptionModels(ctx, ORG)).toEqual({
+          models: [],
+          pick: null,
+          error: { code: 'NO_TRANSCRIPTION_MODEL' },
+        });
+      },
+    );
+
+    it('falls through to a healthy provider in Auto', async () => {
+      resolveProvidersMock.mockResolvedValue([
+        provider('alpha'),
+        provider('zulu'),
+      ]);
+      catalogMock.mockResolvedValue([WHISPER]);
+      credentialMock.mockImplementation(
+        async (_ctx: unknown, args: { providerSlug: string }) => {
+          if (args.providerSlug === 'alpha') {
+            throw refusal('CREDENTIAL_KEY_ROTATED');
+          }
+          return apiKeyCredential();
+        },
+      );
+      expect(
+        await resolveTranscriptionModel(ctx, { organizationId: ORG }),
+      ).toMatchObject({ providerName: 'zulu' });
+    });
+
+    it('refuses the pin as unavailable, never redirecting it', async () => {
+      policy = { providerSlug: 'pinned', modelId: 'whisper-1' };
+      resolveProvidersMock.mockResolvedValue([
+        provider('alternative'),
+        provider('pinned'),
+      ]);
+      catalogMock.mockResolvedValue([WHISPER]);
+      credentialMock.mockRejectedValue(refusal('CREDENTIAL_ENV_UNSET'));
+
+      const thrown = await resolveTranscriptionModel(ctx, {
+        organizationId: ORG,
+      }).catch((error: unknown) => error);
+      expect(await caughtCode(Promise.reject(thrown))).toBe(
+        'TRANSCRIPTION_MODEL_UNAVAILABLE',
+      );
+      expect(classifyTranscriptionError(thrown).shouldRetry).toBe(false);
+    });
+
+    it('still retries a broker pool that is only cooling down', async () => {
+      resolveProvidersMock.mockResolvedValue([provider('openai')]);
+      catalogMock.mockResolvedValue([WHISPER]);
+      credentialMock.mockRejectedValue(refusal('CREDENTIAL_BROKER_EXHAUSTED'));
+
+      expect(
+        await caughtCode(
+          resolveTranscriptionModel(ctx, { organizationId: ORG }),
+        ),
+      ).toBe('TRANSCRIPTION_MODEL_RESOLUTION_FAILED');
+    });
   });
 });

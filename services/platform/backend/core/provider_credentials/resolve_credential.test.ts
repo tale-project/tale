@@ -18,7 +18,8 @@ import { encryptSecret } from '../lib/secret_box';
 import type { BrokerSelectionResult } from './broker_pool';
 import {
   credentialRefusalCode,
-  isCredentialMissing,
+  credentialRefusalMessage,
+  isTerminalCredentialRefusal,
   resolveProviderCredential,
 } from './resolve_credential';
 import { hashBrokerAccount, hashBrokerToken } from './token_hash';
@@ -256,7 +257,7 @@ describe('resolveProviderCredential — subscription-broker host policy', () => 
   });
 });
 
-describe('credentialRefusalCode / isCredentialMissing', () => {
+describe('credentialRefusalCode', () => {
   it('reads the resolver refusal code off an error, duck-typed', () => {
     expect(
       credentialRefusalCode(
@@ -270,18 +271,66 @@ describe('credentialRefusalCode / isCredentialMissing', () => {
     expect(credentialRefusalCode(new Error('plain'))).toBeNull();
     expect(credentialRefusalCode(null)).toBeNull();
   });
+});
 
-  it('says the credential is missing only for the two "nothing to resolve" codes', () => {
-    for (const code of ['CREDENTIAL_NOT_FOUND', 'CREDENTIAL_NONE_CONFIGURED']) {
-      expect(isCredentialMissing(new AppError({ code, message: 'x' }))).toBe(
-        true,
-      );
-    }
+describe('isTerminalCredentialRefusal / credentialRefusalMessage', () => {
+  // Every refusal an admin has to lift: retrying reproduces it, so the
+  // callers (indexing, search, transcription, the chat assistant's search
+  // tool) end on the first one.
+  it.each([
+    'CREDENTIAL_NOT_FOUND',
+    'CREDENTIAL_NONE_CONFIGURED',
+    'CREDENTIAL_PROVIDER_MISMATCH',
+    'CREDENTIAL_DISABLED',
+    'CREDENTIAL_KEY_ROTATED',
+    'CREDENTIAL_SHAPE_INVALID',
+    'CREDENTIAL_ENV_NAME_INVALID',
+    'CREDENTIAL_ENV_UNSET',
+  ])('holds %s terminal', (code) => {
     expect(
-      isCredentialMissing(
-        new AppError({ code: 'CREDENTIAL_DISABLED', message: 'x' }),
-      ),
+      isTerminalCredentialRefusal(new AppError({ code, message: 'x' })),
+    ).toBe(true);
+  });
+
+  // A pool cooling down after a rate limit, or a broker that is briefly
+  // unreachable, heals by itself — those keep their retries.
+  it.each([
+    'CREDENTIAL_BROKER_EXHAUSTED',
+    'CREDENTIAL_BROKER_FETCH_FAILED',
+    'CREDENTIAL_SOMETHING_NEW',
+  ])('leaves %s to the retries', (code) => {
+    expect(
+      isTerminalCredentialRefusal(new AppError({ code, message: 'x' })),
     ).toBe(false);
-    expect(isCredentialMissing(new Error('x'))).toBe(false);
+  });
+
+  it('holds nothing terminal that is not a resolver refusal', () => {
+    expect(isTerminalCredentialRefusal(new Error('CREDENTIAL_DISABLED'))).toBe(
+      false,
+    );
+    expect(isTerminalCredentialRefusal(new AppError({ code: 'OTHER' }))).toBe(
+      false,
+    );
+    expect(isTerminalCredentialRefusal(undefined)).toBe(false);
+  });
+
+  it("reads the resolver's own sentence, never the serialized payload", () => {
+    const refusal = new AppError({
+      code: 'CREDENTIAL_DISABLED',
+      message: 'Credential "Primary" is disabled — enable it.',
+    });
+    expect(refusal.message).toContain('"code"');
+    expect(credentialRefusalMessage(refusal)).toBe(
+      'Credential "Primary" is disabled — enable it.',
+    );
+    expect(
+      credentialRefusalMessage(
+        new AppError({ code: 'CREDENTIAL_DISABLED', message: '  ' }),
+      ),
+    ).toBeNull();
+    expect(
+      credentialRefusalMessage(new AppError({ code: 'OTHER', message: 'x' })),
+    ).toBeNull();
+    expect(credentialRefusalMessage(new Error('plain'))).toBeNull();
   });
 });

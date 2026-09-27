@@ -48,7 +48,10 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { directActiveCredential } from '../lib/providers/direct_credential';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
-import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import {
+  isTerminalCredentialRefusal,
+  resolveProviderCredential,
+} from '../provider_credentials/resolve_credential';
 import { assertVectorWidth } from './dimensions';
 
 /** Texts per request. Providers cap batch size — Z.ai's embedding-3 refuses
@@ -767,16 +770,27 @@ function isCredentialRefusal(err: unknown): boolean {
 
 /** How an embedding call failed: `credit` — the provider refused the account
  * (balance, plan, billing); `credential` — the configured credential cannot
- * serve direct embeddings, or the provider rejected it; `upstream` — anything
- * else (a rate limit, a 5xx, unreachable, a timeout), worth a later retry. */
-export type EmbeddingFailure = 'credit' | 'credential' | 'upstream';
+ * serve direct embeddings, or the provider rejected it; `unresolved` — the
+ * credential the settings select does not resolve at all (none configured,
+ * deleted, of another provider, disabled, a secret that cannot be read), so
+ * no call reached the provider; `upstream` — anything else (a rate limit, a
+ * 5xx, unreachable, a timeout), worth a later retry. The first three hold
+ * until an admin acts. */
+export type EmbeddingFailure =
+  | 'credit'
+  | 'credential'
+  | 'unresolved'
+  | 'upstream';
 
 /** Classify a credential refusal or provider error for the callers that turn
- * it into a stable platform code. Null for unrelated local failures. */
+ * it into a stable platform code. Null for unrelated local failures — and
+ * for a resolver refusal that heals by itself (a broker pool cooling down),
+ * which the caller's own retries are for. */
 export function classifyEmbeddingFailure(
   err: unknown,
 ): EmbeddingFailure | null {
   if (err instanceof EmbeddingCredentialUnsupported) return 'credential';
+  if (isTerminalCredentialRefusal(err)) return 'unresolved';
   if (!(err instanceof OpenAI.APIError)) return null;
   if (isCreditRefusal(err)) return 'credit';
   if (isCredentialRefusal(err)) return 'credential';

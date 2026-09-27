@@ -11,6 +11,7 @@ import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
 import {
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
   RAG_ERROR_EMBEDDING_UPSTREAM,
+  RAG_ERROR_INDEXER_ERROR,
 } from '../../core/knowledge/rag_error_codes.ts';
 import { indexUploadedFile } from './service.ts';
 
@@ -167,14 +168,27 @@ describe('indexUploadedFile — provider refusals', () => {
     },
   );
 
-  // The credential the settings resolve is gone (deleted, or no default left
-  // for the provider): no provider call happened, so the classifier never
-  // saw it and the job retried five times, reporting "the platform's side".
-  it.each(['CREDENTIAL_NOT_FOUND', 'CREDENTIAL_NONE_CONFIGURED'])(
-    'ends the job on %s naming Settings → AI providers',
+  // The credential the settings select does not resolve — none configured,
+  // deleted, of another provider, disabled, a secret that cannot be read. No
+  // provider call happened, so the classifier never saw it and the job
+  // retried five times, reporting "the platform's side" each time.
+  it.each([
+    'CREDENTIAL_NOT_FOUND',
+    'CREDENTIAL_NONE_CONFIGURED',
+    'CREDENTIAL_PROVIDER_MISMATCH',
+    'CREDENTIAL_DISABLED',
+    'CREDENTIAL_KEY_ROTATED',
+    'CREDENTIAL_SHAPE_INVALID',
+    'CREDENTIAL_ENV_NAME_INVALID',
+    'CREDENTIAL_ENV_UNSET',
+  ])(
+    'ends the job on %s with the remedy under the re-queued code',
     async (code) => {
       vi.mocked(embedderForOrg).mockRejectedValueOnce(
-        new AppError({ code, message: 'Credential not found.' }),
+        new AppError({
+          code,
+          message: `The resolver's own remedy for ${code}.`,
+        }),
       );
       const log: Query[] = [];
 
@@ -184,14 +198,41 @@ describe('indexUploadedFile — provider refusals', () => {
 
       const write = lastStatusWrite(log);
       expect(write).toContain('failed');
+      // The code `requeueEmbeddingBlockedDocuments` selects, so the save
+      // that fixes the credential brings the document back.
       expect(write).toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
       const prose = write.find(
         (value) => typeof value === 'string' && value.includes('credential'),
       );
+      expect(prose).toContain('an admin must add or fix it');
+      expect(prose).toContain(`The resolver's own remedy for ${code}.`);
       expect(prose).toContain('Settings → AI providers');
+      // The payload's sentence, never its serialized JSON.
+      expect(prose).not.toContain('"code"');
       expect(indexWholeDocument).not.toHaveBeenCalled();
+      expect(markCorpusIndexingFailed).toHaveBeenCalledTimes(1);
     },
   );
+
+  // A broker pool cooling down after a rate limit lifts by itself — that
+  // one keeps the job's retries.
+  it('keeps throwing on a transient credential refusal', async () => {
+    const cooling = new AppError({
+      code: 'CREDENTIAL_BROKER_EXHAUSTED',
+      message: 'Every account is cooling down after a rate limit.',
+    });
+    vi.mocked(embedderForOrg).mockRejectedValueOnce(cooling);
+    const log: Query[] = [];
+
+    await expect(indexUploadedFile(fakeSql(log), 'file-1')).rejects.toBe(
+      cooling,
+    );
+
+    const write = lastStatusWrite(log);
+    expect(write).toContain('failed');
+    expect(write).toContain(RAG_ERROR_INDEXER_ERROR);
+    expect(write).not.toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
+  });
 
   // A model that answers another width than the settings state — a provider
   // that ignores the requested `dimensions` — answers every retry the same

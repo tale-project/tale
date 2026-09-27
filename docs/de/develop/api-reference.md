@@ -400,7 +400,7 @@ Verzweige nach `indexing.errorCode`, nicht nach dem Wortlaut von `error`. Das Op
 | --- | --- |
 | `unsupported`: `unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed` | Ersetze die Quelle oder exportiere sie in einem unterstützten Format. Bei `not_text` brauchst du tatsächlichen UTF-8-Text. `malformed` bezeichnet derzeit ein unlesbares PDF; beschädigte Office-Dateien können stattdessen `indexer_error` liefern. Die Retry-Route überspringt dauerhafte Codes auch bei älteren Zeilen mit Status `failed`. |
 | `failed`: `embedding_upstream`, `indexer_error`, `index_rebuilding` | Der Hintergrundauftrag wiederholt diese Fehler. Prüfe den Status, bevor du selbst erneut anstößt. |
-| `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Lass Anbieter-Konfiguration, Berechtigungen oder Indexzustand vom Betreiber korrigieren und versuche es danach erneut. `embedding_provider_refused` deckt auch ein Modell ab, das Vektoren mit einer anderen Breite liefert, als die Einstellungen angeben; das Speichern korrigierter Embedding-Einstellungen stellt jedes Dokument, das am Embedding-Modell gescheitert ist, erneut in die Warteschlange. |
+| `failed`: `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Lass Anbieter-Konfiguration, Berechtigungen oder Indexzustand vom Betreiber korrigieren und versuche es danach erneut. `embedding_provider_refused` deckt auch ein Modell ab, das Vektoren mit einer anderen Breite liefert, als die Einstellungen angeben, sowie Embedding-Zugangsdaten, die die Plattform nicht verwenden kann (keine konfiguriert, gelöscht, deaktiviert oder nicht lesbar); das Speichern korrigierter Embedding-Einstellungen oder das Anlegen beziehungsweise Reparieren der Zugangsdaten, die das Embedding-Modell verwendet, stellt jedes Dokument, das am Embedding-Modell gescheitert ist, erneut in die Warteschlange. |
 | `failed`: `secret_detected`, `pii_blocked` | Korrigiere die Quelle oder die freigegebene Inhaltsrichtlinie der Organisation vor dem nächsten Versuch. |
 
 ## Benachrichtigungen eines Mitglieds spiegeln
@@ -894,7 +894,7 @@ Jeder Treffer enthält die Passage und ihre `source`. `diagnostics.cached` und `
 | --- | --- |
 | **409** `EMBEDDING_NOT_CONFIGURED` | Ein Admin muss ein Embedding-Modell konfigurieren. |
 | **409** `EMBEDDING_CREDIT_EXHAUSTED` | Guthaben, Ausgabenlimit und Tarif des Anbieterkontos prüfen. |
-| **409** `EMBEDDING_CREDENTIAL_REJECTED` | Zugangsdaten und Berechtigung für das Modell korrigieren. |
+| **409** `EMBEDDING_CREDENTIAL_REJECTED` | Zugangsdaten und Berechtigung für das Modell korrigieren. Denselben Code liefert die Suche, wenn die Plattform gar keine nutzbaren Zugangsdaten senden kann: Der Anbieter hat keinen Standard, oder die in den Embedding-Einstellungen genannten wurden gelöscht, deaktiviert oder sind nicht lesbar; `error` nennt den Grund. |
 | **503** `EMBEDDING_UPSTREAM_ERROR` | `Retry-After` beachten und mit wachsender Wartezeit erneut versuchen. |
 
 Die beiden Kontofehler sind keine Rate-Limits; Warten allein behebt sie nicht. Für sichtbare Dokumente der Wissensdatenbank und von Teams ohne Projektzuordnung sowie registrierte Websites verwendest du `POST /api/v1/knowledge/search`. Dort erlaubt `corpus` `"documents"`, `"web"` und den Standard `"all"`. Projektdateien und E-Mail-Anhänge sind ausgeschlossen. Beide Suchen finden nur dateigestützte Dokumente; Inline-`content` wird nicht indexiert.
