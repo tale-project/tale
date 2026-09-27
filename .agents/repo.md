@@ -356,6 +356,11 @@ default means deleting the override and fixing what surfaces:
   shipped may exist, and organization deletion and erasure still sweep the table. Paying it down
   means a migration that drops both once a release has run without them, with the erasure pass
   and its breakdown category going in the same change.
+- **`private_knowledge.semantic_cache` is an empty table** — the knowledge baseline creates it, and
+  `backend/core/knowledge/dimensions.ts` and `teardown.ts` still keep it in step, but the cache
+  seam that could have filled it was removed without ever shipping an implementation
+  (2026-09-27). Paying it down means a knowledge-db migration that drops it, with that upkeep
+  removed in the same change.
 - **Nine `app.projects` settings columns are retired, not dropped** — `knowledge_mode`,
   `agent_mode`, `recommended_agent_slugs`, `allowed_agent_slugs`, `model_mode`,
   `recommended_models`, `allowed_models`, `connectors_mode` and `allowed_connector_slugs` lost

@@ -166,7 +166,7 @@ export async function searchKnowledge(
     );
   };
   return retrieve(
-    { readers, embedder, orgSlug: args.orgSlug, admit },
+    { readers, embedder, admit },
     {
       query: args.query,
       ...(args.corpus !== undefined && { corpus: args.corpus }),

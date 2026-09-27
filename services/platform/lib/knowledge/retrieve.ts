@@ -13,20 +13,14 @@
  * Neither leg is safe alone, so {@link fuseByRank} combines them by rank and
  * that is the DEFAULT — there is no "hybrid: true" to remember to switch on.
  *
- * Three behaviours here exist because their absence caused real failures, and
- * they are the reason the whole thing is written against a
- * {@link CorpusReader} seam instead of inline SQL:
- *
- *  - **BM25 is optional.** A bring-your-own Postgres — RDS, Neon, Cloud SQL —
- *    cannot install ParadeDB's `pg_search`. Retrieval must return the dense
- *    results on such a database, not an error; the keyword leg reports
- *    `unavailable` and the search continues single-legged. Fusion over one leg
- *    is that leg's own ranking, so no special case is needed downstream.
- *  - **A reranker is never load-bearing.** It is off unless installed, and a
- *    failing one degrades to the fused order instead of failing the search.
- *  - **A cache is never authoritative.** It is off unless installed, is
- *    consulted only for unfiltered searches, and is keyed per organization by
- *    contract.
+ * One behaviour here exists because its absence caused real failures, and it
+ * is the reason the whole thing is written against a {@link CorpusReader}
+ * seam instead of inline SQL: **BM25 is optional.** A bring-your-own
+ * Postgres — RDS, Neon, Cloud SQL — cannot install ParadeDB's `pg_search`.
+ * Retrieval must return the dense results on such a database, not an error;
+ * the keyword leg reports `unavailable` and the search continues
+ * single-legged. Fusion over one leg is that leg's own ranking, so no special
+ * case is needed downstream.
  *
  * The organization is not a parameter here at all: a {@link CorpusReader} is
  * BOUND to one organization by whoever constructed it. That is deliberate —
@@ -36,11 +30,9 @@
  * corpus.
  */
 
-import { knowledgeCache } from './cache';
 import { dropRepeatedPassages } from './dedupe';
 import { fuseByRank } from './fusion';
 import { logger } from './logger';
-import { knowledgeReranker, type RerankCandidate } from './rerank';
 import {
   corporaFor,
   type FusedKnowledgeHit,
@@ -136,9 +128,6 @@ export interface RetrieveDeps {
   /** One reader per corpus the search may touch. */
   readonly readers: readonly CorpusReader[];
   readonly embedder: QueryEmbedder;
-  /** The organization the readers are bound to — used only to key the cache,
-   * never to choose a corpus. */
-  readonly orgSlug: string;
   /**
    * The admission re-check: which candidates the CALLER may be shown. A
    * host verifies each documents-corpus hit against its live document here
@@ -146,8 +135,7 @@ export interface RetrieveDeps {
    * they are fused, so a candidate it refuses never holds a rank: fusion
    * once ran first, and a refused candidate's rank pushed every admitted
    * one down the reciprocal-rank scale (a top hit at 0.85 was rank 12 of
-   * a pool the caller could not see). It also runs on a semantic-cache
-   * pool, which can outlive a replacement. Reads only `corpus` and
+   * a pool the caller could not see). Reads only `corpus` and
    * `source.ref`; must keep the order it is given. Absent admits
    * everything (a corpus whose rows are the truth).
    */
@@ -190,50 +178,6 @@ export async function retrieve(
 
   const embedding = await deps.embedder.embed(text);
 
-  // A cached answer cannot know which filter produced it, so a filtered search
-  // never reads or writes the cache. An access scope IS a filter — a cached
-  // answer computed under one caller's visibility must never serve a caller
-  // with a different one, in either direction — so an access-scoped search
-  // bypasses the cache the same way. Only org-wide searches are cacheable.
-  const filtered =
-    (query.refs !== undefined && query.refs.length > 0) ||
-    query.folder !== undefined ||
-    query.access !== undefined;
-  const cache = filtered ? null : knowledgeCache();
-  const cacheKey = {
-    orgSlug: deps.orgSlug,
-    query: text,
-    embedding,
-    corpus,
-  };
-
-  if (cache) {
-    const hit = await cache.lookup(cacheKey).catch((err: unknown): null => {
-      logger.warn(
-        `semantic cache "${cache.name}" lookup failed, searching the corpus: ${describe(err)}`,
-      );
-      return null;
-    });
-    if (hit) {
-      // A cached pool can outlive a document — admission decides again on
-      // the caller's live truth, then the page is cut exactly as for a
-      // fresh search.
-      const kept = await admit(hit);
-      return {
-        hits: dropRepeatedPassages(kept).slice(0, limit),
-        diagnostics: {
-          bm25: true,
-          dense: true,
-          reranked: false,
-          cached: true,
-          admitted: kept.length,
-          legs: { cache: hit.length },
-        },
-      };
-    }
-  }
-
-  const reranker = knowledgeReranker();
   const pool = candidatePool(limit);
   const legQuery: CorpusLegQuery = {
     query: text,
@@ -297,8 +241,8 @@ export async function retrieve(
   // refused candidate leaves every leg it was ranked in — so it never
   // holds a rank that pushes admitted passages down the reciprocal-rank
   // scale. Then the admitted lists are fused, deduplicated, and only then
-  // reranked and cut to `limit`, so what the caller cannot see never
-  // occupies a slot on the page it gets.
+  // cut to `limit`, so what the caller cannot see never occupies a slot on
+  // the page it gets.
   const union = new Map<string, KnowledgeHit>();
   for (const ranking of rankings) {
     for (const hit of ranking.hits) {
@@ -360,40 +304,14 @@ export async function retrieve(
     };
     candidates.push(Object.assign({ ...fusedFields }, entry.item, fusedFields));
   }
-  let hits = dropRepeatedPassages(candidates);
-
-  // The cache keeps the admitted pool in fused order — spare candidates for
-  // a later lookup, which admits again on its own live truth.
-  if (cache && hits.length > 0) {
-    await cache.store(cacheKey, hits).catch((err: unknown) => {
-      logger.warn(
-        `semantic cache "${cache.name}" store failed, the search still answered: ${describe(err)}`,
-      );
-    });
-  }
-
-  let reranked = false;
-  if (reranker && hits.length > 0) {
-    const applied = await applyRerank(
-      reranker.name,
-      hits,
-      text,
-      limit,
-      reranker,
-    );
-    if (applied !== null) {
-      hits = applied;
-      reranked = true;
-    }
-  }
-  hits = hits.slice(0, limit);
+  const hits = dropRepeatedPassages(candidates).slice(0, limit);
 
   return {
     hits,
     diagnostics: {
       bm25,
       dense: denseOk,
-      reranked,
+      reranked: false,
       cached: false,
       admitted: candidates.length,
       legs,
@@ -412,74 +330,8 @@ function admitEverything<Hit extends KnowledgeHit>(
   return Promise.resolve(hits);
 }
 
-/**
- * Reorder the fused hits with the installed reranker.
- *
- * Returns `null` when the reranker fails or returns nothing usable — the caller
- * then keeps the fused order, because a fused ranking is a good answer and a
- * failed search is not one. Ids the reranker invents are dropped rather than
- * looked up: the corpus query decided what this caller may see, and a remote
- * scorer does not get to widen that.
- */
-async function applyRerank(
-  name: string,
-  hits: readonly FusedKnowledgeHit[],
-  query: string,
-  topK: number,
-  reranker: {
-    rerank(args: {
-      query: string;
-      candidates: readonly RerankCandidate[];
-      topK: number;
-    }): Promise<readonly { id: string; score: number }[]>;
-  },
-): Promise<FusedKnowledgeHit[] | null> {
-  const byId = new Map<string, FusedKnowledgeHit>();
-  const candidates: RerankCandidate[] = [];
-  for (const hit of hits) {
-    const id = `${hit.corpus}:${hit.id}`;
-    byId.set(id, hit);
-    candidates.push({ id, text: hit.text });
-  }
-
-  let scored: readonly { id: string; score: number }[];
-  try {
-    scored = await reranker.rerank({ query, candidates, topK });
-  } catch (err) {
-    logger.warn(
-      `reranker "${name}" failed, keeping the fused ranking: ${describe(err)}`,
-    );
-    return null;
-  }
-
-  const ordered: FusedKnowledgeHit[] = [];
-  const seen = new Set<string>();
-  for (const entry of scored) {
-    const hit = byId.get(entry.id);
-    if (hit === undefined || seen.has(entry.id)) continue;
-    seen.add(entry.id);
-    ordered.push({ ...hit, rerankScore: entry.score });
-  }
-  if (ordered.length === 0) {
-    logger.warn(
-      `reranker "${name}" returned no known candidates, keeping the fused ranking`,
-    );
-    return null;
-  }
-  // A reranker asked for the top K may legitimately return fewer than it was
-  // given; the remaining fused hits keep their relative order behind them.
-  for (const hit of hits) {
-    if (!seen.has(`${hit.corpus}:${hit.id}`)) ordered.push(hit);
-  }
-  return ordered;
-}
-
 /** Keep one search's result set inside the bounds a context window can hold. */
 function clampLimit(limit: number | undefined): number {
   if (limit === undefined || !Number.isFinite(limit)) return DEFAULT_LIMIT;
   return Math.max(1, Math.min(Math.floor(limit), MAX_LIMIT));
-}
-
-function describe(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

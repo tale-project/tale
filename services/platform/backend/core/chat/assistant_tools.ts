@@ -183,11 +183,10 @@ interface SearchResultEntry {
   /** Char position of the match within the ref's full text — a rag_fetch
    * starting offset that lands on the match instead of the start. */
   readonly offset?: number;
-  /** Retrieval ranking (reranker score when one ran, else the fusion
-   * score). Orders hits within ONE response only — the fusion score is a
-   * reciprocal-rank value, not a similarity, so its absolute magnitude
-   * means nothing across searches. Absent on listed rows: a listing is
-   * ordered by recency, not relevance. */
+  /** Retrieval ranking: the fusion score. Orders hits within ONE response
+   * only — the fusion score is a reciprocal-rank value, not a similarity,
+   * so its absolute magnitude means nothing across searches. Absent on
+   * listed rows: a listing is ordered by recency, not relevance. */
   readonly score?: number;
   /** The dense leg's cosine similarity (0..1) of a corpus hit — how close
    * the passage is to the question on the embedding model's own scale;
@@ -1036,7 +1035,7 @@ export function createChatToolExecutor(
             if (kind === 'document') found.document += 1;
             else if (kind === 'mail-attachment') found.mailAttachment += 1;
             else found.webPage += 1;
-            const score = hit.rerankScore ?? hit.fusedScore;
+            const score = hit.fusedScore;
             // A document has no archive state of its own — only its project
             // does, so `projectArchived` is the only flag it can carry. It is
             // still returned and still citable; the label is the context.

@@ -580,8 +580,7 @@ describe('rag_search', () => {
           text: 'Acme shipping policy.',
           chunkIndex: 0,
           score: 0.88,
-          fusedScore: 0.015_873_1,
-          rerankScore: 0.731_5,
+          fusedScore: 0.012_345_6,
           source: { ref: 'file_2', title: 'Ops', url: null },
         },
       ],
@@ -604,9 +603,9 @@ describe('rag_search', () => {
     // hard-wiring one, and sends no floor of its own.
     expect(searchArgs.floorByDefault).toBe(true);
     expect(searchArgs.minSimilarity).toBeUndefined();
-    // The reranker's score wins when it ran; either way three decimals.
+    // The fusion score, to three decimals.
     expect(result.results?.[0]?.score).toBe(0.016);
-    expect(result.results?.[1]?.score).toBe(0.732);
+    expect(result.results?.[1]?.score).toBe(0.012);
   });
 
   it('caps each entity leg on its own — document hits never starve a contact match', async () => {

@@ -141,9 +141,6 @@ export interface FusedKnowledgeHit extends KnowledgeHit {
   /** The keyword leg's BM25 weight when it ranked the passage (unbounded,
    * corpus-relative), null when only the dense leg found it. */
   readonly keywordScore?: number | null;
-  /** Reserved for a deployment that installs a reranker — none ships, so
-   * it is never present today. */
-  readonly rerankScore?: number;
 }
 
 /**
@@ -331,11 +328,11 @@ export interface KnowledgeDiagnostics {
    * ran keyword-only — the twin of `bm25`, so a dead leg is never silent
    * (2026-09-14 evaluation, h4). */
   readonly dense: boolean;
-  /** Reserved for a deployment that installs a reranker — none ships, so
-   * this is always false today. */
+  /** Always false: no reranker ships. Kept on the wire, where the public
+   * contract documents it as reserved. */
   readonly reranked: boolean;
-  /** Reserved for a deployment that installs a semantic cache — none
-   * ships, so this is always false today. */
+  /** Always false: no semantic cache ships. Kept on the wire, where the
+   * public contract documents it as reserved. */
   readonly cached: boolean;
   /** Candidates that passed the admission re-check (the live-document check
    * of each documents-corpus hit) and were fused — before repeated passages

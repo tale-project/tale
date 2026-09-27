@@ -112,7 +112,7 @@ describe('searchKnowledge live document validation', () => {
       access,
     });
     expect(retrieveMock).toHaveBeenCalledWith(
-      expect.objectContaining({ orgSlug: 'acme', admit: expect.any(Function) }),
+      expect.objectContaining({ admit: expect.any(Function) }),
       expect.objectContaining({ query: 'policy', folder: '/current' }),
     );
   });
