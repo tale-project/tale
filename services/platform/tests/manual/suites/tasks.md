@@ -248,7 +248,7 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   task — each row with its status glyph, its title, its key (such as
   `WEB-12`, when the project has a key) and its status; the review task reads
   **Waiting for your review**
-  (`home.row.awaitingReview`) with the blue dot, and the **Tasks** option
+  (`home.row.awaitingReview`) with the accent dot, and the **Tasks** option
   carries the attention dot until you decide it. Clicking a row opens
   `/dashboard/{org}/tasks/{taskId}`.
 - [ ] `TASK-F29` · **Task details in a narrower window** — At 900 px (a

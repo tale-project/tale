@@ -296,7 +296,7 @@ loaded, and reads **No teams** for an account in none.
   conversations whichever status the Inbox view was last left on (pick
   **Closed** in the Inbox view's status menu, then **All** again). A view
   holding something that needs you (an unread chat, a task waiting for your
-  review, an unread conversation) carries a small blue dot announced as
+  review, an unread conversation) carries a small accent dot announced as
   `home.aria.attention`.
 - [ ] `NAV-F27` · **Time bands and ages** — With chats, a task assigned to you
   and an open conversation whose last activity is today, yesterday, three days
@@ -321,7 +321,7 @@ loaded, and reads **No teams** for an account in none.
   last-message preview, and it opens
   `/dashboard/{org}/conversations/{status}?conversation={id}`. Whatever needs
   you (a chat with a reply you have not read, a task waiting for your review,
-  an unread conversation) shows a bold title and a blue dot named **Unread**
+  an unread conversation) shows a bold title and an accent dot named **Unread**
   (`home.row.unread`) in the same place on every kind. A title too long for
   the panel ends in an ellipsis, and hovering it shows the whole title.
 - [ ] `NAV-F29` · **The open item stays in sight** — Paste the URL of a chat, a
