@@ -223,7 +223,7 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
   after unticking the unavailable skill in the agent dialog, **Retry**
   starts a run that reaches the harness.
-- [ ] `TASK-F34` · **A connector on the agent runs for the run's starter** —
+- [ ] `TASK-F36` · **A connector on the agent runs for the run's starter** —
   Give the organization an active credential for a connector with a read
   action (GlitchTip or GitHub) under **Settings > Connectors**
   (`navigation.connectors`) and equip it on a project agent under **Skills,
@@ -438,14 +438,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   recognized** (`common.mentions.unresolvedTitle`) names `@nobody-here` and
   says no notification was sent (`common.mentions.unresolvedDescription`).
 - [ ] `TASK-B10` · **A starter who left is not acted for** — Set up as in
-  TASK-F34 and start the run as the second member; while it works, remove
+  TASK-F36 and start the run as the second member; while it works, remove
   that member on `/dashboard/{org}/settings/members` (**Remove member**,
   `settings.organization.removeMember`), then @mention the agent in a comment
   asking for the same read → The agent's next `connectors` call answers
   `unavailable` with the code `access_denied`, and the agent relays that the
-  member it acts for is no longer active and that a current member can start
-  the run again; that call adds no **Connector** row to the audit log. Once
-  the run has finished, your own **Start agent** (`tasks.agentRun.start`)
+  member it acts for is no longer active and that a current member can cancel
+  the run (or let it finish) and start it again; that call adds no
+  **Connector** row to the audit log. After **Cancel run**
+  (`tasks.agentRun.cancel`), your own **Start agent** (`tasks.agentRun.start`)
   gives a run whose call succeeds and is logged under you.
 
 ## Accessibility (WCAG 2.1 AA)
