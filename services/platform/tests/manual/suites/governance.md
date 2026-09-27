@@ -100,7 +100,8 @@ select lists only the current admin's keys (`useApiKeys`).
 - [ ] `GOV-F4c` · **API-key budget refuses REST** — with the GOV-F4b rule
   saved at **Max requests** 1 → send twice through
   `POST /api/v1/threads/{id}/messages` with that key → The second send answers
-  429 `BUDGET_EXCEEDED` with `Retry-After` and `data.scope` `apiKey`, and
+  429 `BUDGET_EXCEEDED` with `Retry-After` and a `data` object whose `scope`
+  is `apiKey`, and
   nothing is queued; the same person's in-app chat is not refused by the key's
   cap. **Delete the rule after**
 - [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback

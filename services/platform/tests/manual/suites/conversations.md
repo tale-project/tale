@@ -280,8 +280,9 @@ subject.
   A sees no **Unassigned** option and no unassigned rows at all.
 
 - [ ] `CONV-F13` · **A drafted reply waits for a person** — With a populated
-  thread, have an automation call `conversation.draft_reply` on it (or seed one
-  pending `conversations` approval carrying `metadata.emailBody`), then open the
+  thread, have an automation call the conversation `draft_reply` operation on
+  it (or seed one pending `conversations` approval whose metadata carries
+  `emailBody`), then open the
   thread → The draft renders in the reading pane as a **pending message** below
   the thread; nothing has been sent and the customer's mailbox is untouched.
   Send from the composer → the pending message resolves into the sent reply and

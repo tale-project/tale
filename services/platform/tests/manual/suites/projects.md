@@ -62,15 +62,16 @@ projects-list row ⋯ menu.
   **Save** (`common.actions.save`) → The Save button flashes **Saved**
   (`common.actions.saved`) and settles back to a disabled **Save** — no
   success toast; after reload the Name field rehydrates to the new value.
-- [ ] `PROJ-F3` · **Sharing / visibility** — General → **Sharing** section
-  (`projects.overview.sharingHeading`) → set **Owning team**
-  (`projects.settings.owningTeam`) to a team or **Org-wide**
-  (`projects.list.sharingOrgWide`), optionally add teams under **Also shared
-  with** (`projects.settings.alsoSharedWith`) → Narrowing access opens a
-  confirmation dialog with the warning "This change narrows access…"
-  (`projects.settings.sharingNarrowingWarning`) — confirm it; the success
-  toast (`projects.settings.saveSuccess`) appears and after reload the
-  selected sharing persists.
+- [ ] `PROJ-F3` · **Sharing / visibility** — General → **Audience**
+  (`projects.settings.audience`) → pick one or more teams, or clear the
+  selection for **Org-wide** (`projects.list.sharingOrgWide`) → Narrowing
+  access (organization-wide to some teams, or dropping a team) opens the
+  **Sharing** confirmation (`projects.overview.sharingHeading`) warning "This
+  change narrows access…" (`projects.settings.sharingNarrowingWarning`) —
+  confirm it; widening saves at once. The success toast
+  (`projects.settings.saveSuccess`) appears and after reload the audience
+  persists. A member who cannot administer the project sees the read-only
+  **Effective audience** (`projects.sharing.effectiveAudience`) instead.
 - [ ] `PROJ-F4` · **Files** — Files tab (rail label **Knowledge**,
   `projects.navigation.files`; page heading **Files**, `projects.files.title`)
   → **Add file** (`projects.files.addButton`) → attach a document; row actions

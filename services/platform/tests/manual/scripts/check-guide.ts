@@ -24,8 +24,9 @@
  *    (`packages/ui/src/i18n/messages/en.yml` + `global.yml` — the row menu's
  *    `common.actions.openMenu`, the dialogs' `common.actions.save`);
  *    a trailing `.*` asserts the prefix exists as a group.
- * 2. Routes — every backticked absolute path (query strings stripped,
- *    `{param}` placeholders matched against `$param` segments) must match a
+ * 2. Routes — every backticked absolute path (query strings and `#fragment`
+ *    anchors stripped, `{param}` placeholders matched against `$param`
+ *    segments) must match a
  *    `fullPath` in `services/<service>/app/routeTree.gen.ts`.
  * 3. Spec refs — every backticked `<name>.spec.ts` must exist under
  *    `services/<service>/tests/e2e/specs/`.
@@ -156,7 +157,8 @@ function checkGuide(guidePath: string): number {
   const seenRoutes = new Set<string>();
   for (const match of text.matchAll(/`(\/[^\s`]*)`/g)) {
     let token = match[1];
-    token = token.split('?')[0];
+    // A fragment is an in-page anchor, never part of the route.
+    token = token.split('?')[0].split('#')[0];
     if (token.length > 1) token = token.replace(/\/+$/, '');
     if (
       seenRoutes.has(token) ||
