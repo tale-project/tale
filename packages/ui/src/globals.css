@@ -460,8 +460,17 @@
     counter-reset: line;
   }
 
+  /* One row per source line. Shiki joins its `.line` spans with a literal
+     newline, so a block-level row left an empty line box after every line
+     and double-spaced the file; an inline-block row ends at that newline.
+     The 3rem hanging indent (2rem gutter + 1rem gap) keeps a wrapped row's
+     continuation under its own text instead of under the numbers. */
   .code-line-numbers .line {
-    display: block;
+    display: inline-block;
+    width: 100%;
+    vertical-align: top;
+    padding-left: 3rem;
+    text-indent: -3rem;
   }
 
   .code-line-numbers .line::before {
@@ -470,6 +479,7 @@
     display: inline-block;
     min-width: 2rem;
     margin-right: 1rem;
+    text-indent: 0;
     text-align: right;
     color: hsl(var(--muted-foreground));
     user-select: none;
