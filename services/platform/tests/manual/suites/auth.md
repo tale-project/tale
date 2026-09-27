@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 47 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 48 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -317,6 +317,24 @@ compute codes from the enrollment secret.
   disabled; a new password of 20 or more characters that meets every listed
   rule enables it, and the change succeeds. Set the minimum length back
   afterwards.
+- [ ] `AUTH-B12` · **A session that ends under an open tab** — As an admin,
+  load `/dashboard/{org}/chat` in tab 1 and visit a project's **Overview** and
+  the **Documents** page; in a second tab **Log out**
+  (`auth.userButton.logOut`). Back in tab 1, without reloading, with the
+  console open and within five minutes of that load (the cached session's
+  lifetime) → (a) the project → **Environment** shows **Admin access
+  required** (`projectSecrets.errors.accessDeniedTitle`) and no editor;
+  (b) **Documents** → **Upload documents** → **From your device**
+  (`documents.upload.fromYourDevice`) → a small TXT → **Upload** → the row
+  fails with no **Retry**, and the footer has no **Retry upload**
+  (`documents.upload.retryUpload`); (c) **Settings → Data residency** reads
+  **You're not allowed to manage this organization's data residency.**
+  (`settings.dataResidency.orgStorage.errors.forbidden`), never the server's
+  English sentence; (d) **Settings → Governance → Policies & limits** leaves no
+  `Failed to preload policies-limits policies` warning; (e) **Settings →
+  Account** → change **Name** → **Save** → the error toast names **Your
+  session has ended. Sign in again.** (`common.errors.sessionEnded`), never
+  "send an API key". Reload tab 1 → `/log-in`.
 
 ## Accessibility (WCAG 2.1 AA)
 

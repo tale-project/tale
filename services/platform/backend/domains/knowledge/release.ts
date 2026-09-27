@@ -1,6 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Sql } from 'postgres';
 
-import { isMessageRef } from '../../../lib/knowledge/message-ref.ts';
+import {
+  isMessageRef,
+  messageRef,
+} from '../../../lib/knowledge/message-ref.ts';
 import {
   deleteKnowledgeDocumentsBatch,
   listKnowledgeDocumentRefs,
@@ -8,7 +13,7 @@ import {
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
-import { assessRefLiveness } from './liveness.ts';
+import { assessMessageRefLiveness, assessRefLiveness } from './liveness.ts';
 import { reconcileDocumentScopeStamps } from './service.ts';
 
 /**
@@ -27,6 +32,13 @@ import { reconcileDocumentScopeStamps } from './service.ts';
  * delete bytes for blob-dead refs, and REPORT failures instead of
  * swallowing them — a caller that deletes its rows anyway would turn a
  * failed purge into a false "done".
+ *
+ * An indexed email body rides the same seam under its MESSAGE ref (`msg:`):
+ * corpus-dead once its inbound email row is gone or its conversation is
+ * marked spam (`assessMessageRefLiveness`), and corpus rows are its only
+ * surface — it never reaches the blob stage. Every lane that kills one —
+ * the conversation delete, the retention purge, a spam verdict — enqueues
+ * the release job in its own transaction (`conversations/message-corpus.ts`).
  *
  * Rotation points enqueue the durable `knowledge.release_refs` job (network
  * I/O never runs inside their transaction; pg-boss retries); purge lanes
@@ -59,6 +71,66 @@ export interface ReleaseRefsArgs {
   excludeFileMetadataId?: string;
 }
 
+/** The distinct, non-empty refs of a release, split by vocabulary: blob refs
+ * name bytes the file lifecycle owns; message refs (`msg:`) name an email
+ * body whose only surface is its corpus rows. */
+function splitReleaseRefs(refs: ReleaseRefsArgs['refs']): {
+  blobRefs: string[];
+  messageRefs: string[];
+} {
+  const unique = [
+    ...new Set(
+      refs.filter(
+        (ref): ref is string => typeof ref === 'string' && ref.length > 0,
+      ),
+    ),
+  ];
+  return {
+    blobRefs: unique.filter((ref) => !isMessageRef(ref)),
+    messageRefs: unique.filter(isMessageRef),
+  };
+}
+
+/**
+ * Release the corpus rows of every email message ref nothing holds any more
+ * (`assessMessageRefLiveness`: the inbound email row is gone, or its
+ * conversation is marked spam). A message has
+ * no bytes, so this is the whole of its release — the same step in a full
+ * release and in a corpus-only one. Failures land on the outcome, never
+ * thrown.
+ */
+async function releaseMessageRefs(
+  sql: Sql,
+  args: ReleaseRefsArgs,
+  refs: readonly string[],
+  outcome: ReleaseOutcome,
+): Promise<void> {
+  if (refs.length === 0) return;
+  const liveness = await assessMessageRefLiveness(sql, {
+    organizationId: args.organizationId,
+    refs,
+  });
+  const dead = liveness
+    .filter((entry) => !entry.corpusLive)
+    .map((entry) => entry.ref);
+  outcome.kept.push(
+    ...liveness.filter((entry) => entry.corpusLive).map((entry) => entry.ref),
+  );
+  if (dead.length === 0) return;
+  try {
+    await deleteKnowledgeDocumentsBatch({
+      orgSlug: args.orgSlug,
+      fileIds: dead,
+    });
+    outcome.released.push(...dead);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    for (const ref of dead) {
+      outcome.failures.push({ ref, stage: 'corpus', message });
+    }
+  }
+}
+
 /**
  * Release every surface of the given refs that nothing references any more:
  * corpus rows for corpus-dead refs, bytes for blob-dead refs. Failures are
@@ -70,15 +142,10 @@ export async function releaseRefs(
   args: ReleaseRefsArgs,
 ): Promise<ReleaseOutcome> {
   const outcome: ReleaseOutcome = { released: [], kept: [], failures: [] };
-  const refs = [
-    ...new Set(
-      args.refs.filter(
-        (ref): ref is string => typeof ref === 'string' && ref.length > 0,
-      ),
-    ),
-    // Conversation-message refs (`msg:`) belong to another vocabulary — the
-    // file lifecycle never owns them.
-  ].filter((ref) => !isMessageRef(ref));
+  const { blobRefs: refs, messageRefs } = splitReleaseRefs(args.refs);
+  // An email body's ref never reaches the blob stage below: `parseBlobRef`
+  // would coerce it into a storage id rather than refuse it.
+  await releaseMessageRefs(sql, args, messageRefs, outcome);
   if (refs.length === 0) return outcome;
 
   const liveness = await assessRefLiveness(sql, {
@@ -157,13 +224,8 @@ export async function releaseCorpusRefs(
   args: ReleaseRefsArgs,
 ): Promise<ReleaseOutcome> {
   const outcome: ReleaseOutcome = { released: [], kept: [], failures: [] };
-  const refs = [
-    ...new Set(
-      args.refs.filter(
-        (ref): ref is string => typeof ref === 'string' && ref.length > 0,
-      ),
-    ),
-  ].filter((ref) => !isMessageRef(ref));
+  const { blobRefs: refs, messageRefs } = splitReleaseRefs(args.refs);
+  await releaseMessageRefs(sql, args, messageRefs, outcome);
   if (refs.length === 0) return outcome;
   const liveness = await assessRefLiveness(sql, {
     organizationId: args.organizationId,
@@ -226,26 +288,36 @@ export async function runReleaseRefsJob(
 const RECONCILE_REFS_PER_ORG = 500;
 const RECONCILE_PAGE = 100;
 
-/**
- * Walk one org's corpus and release every ref that is dead by both
- * predicates — the lazy backfill for historically stranded rows (replaced
- * versions, rotated knowledge entries, swept temp files) and the backstop
- * for a release job that exhausted its retries. Bounded per run; the daily
- * schedule drains large backlogs incrementally.
- */
-async function reconcileCorpusForOrg(
+interface ReconcileStats {
+  scanned: number;
+  released: number;
+  failures: number;
+}
+
+/** Walk one vocabulary of an org's corpus refs over one keyset range (after
+ * `after`, before `before`), releasing every dead ref, until the range ends
+ * or `budget` refs have been read. */
+async function reconcileRange(
   sql: Sql,
   args: { organizationId: string; orgSlug: string },
-): Promise<{ scanned: number; released: number; failures: number }> {
+  range: {
+    refs: 'blobs' | 'messages';
+    after: string | null;
+    before: string | null;
+  },
+  budget: number,
+): Promise<ReconcileStats> {
   let scanned = 0;
   let released = 0;
   let failures = 0;
-  let cursor: string | null = null;
-  while (scanned < RECONCILE_REFS_PER_ORG) {
+  let cursor = range.after;
+  while (scanned < budget) {
     const page: string[] = await listKnowledgeDocumentRefs({
       orgSlug: args.orgSlug,
+      refs: range.refs,
       afterFileId: cursor,
-      limit: Math.min(RECONCILE_PAGE, RECONCILE_REFS_PER_ORG - scanned),
+      beforeFileId: range.before,
+      limit: Math.min(RECONCILE_PAGE, budget - scanned),
     });
     if (page.length === 0) break;
     scanned += page.length;
@@ -265,6 +337,54 @@ async function reconcileCorpusForOrg(
     if (page.length < RECONCILE_PAGE) break;
   }
   return { scanned, released, failures };
+}
+
+/**
+ * Walk one org's corpus and release every ref that is dead by both
+ * predicates — the lazy backfill for historically stranded rows (replaced
+ * versions, rotated knowledge entries, swept temp files) and the backstop
+ * for a release job that exhausted its retries. Bounded per run; the daily
+ * schedule drains large backlogs incrementally.
+ *
+ * Email bodies (`msg:` refs) get a walk of their own with its own budget, so
+ * an inbox can never crowd the blob refs out (`listKnowledgeDocumentRefs`).
+ * That walk starts at a random point of the key space and wraps round to
+ * it: message ids are uuids, so over a few runs it visits every ref, where a
+ * walk that always started at the first key would never get past a head of
+ * live messages longer than its budget. `messagePivot` pins the start for a
+ * test.
+ */
+export async function reconcileCorpusForOrg(
+  sql: Sql,
+  args: { organizationId: string; orgSlug: string; messagePivot?: string },
+): Promise<ReconcileStats> {
+  const blobs = await reconcileRange(
+    sql,
+    args,
+    { refs: 'blobs', after: null, before: null },
+    RECONCILE_REFS_PER_ORG,
+  );
+  const pivot = args.messagePivot ?? messageRef(randomUUID());
+  const tail = await reconcileRange(
+    sql,
+    args,
+    { refs: 'messages', after: pivot, before: null },
+    RECONCILE_REFS_PER_ORG,
+  );
+  const head =
+    tail.scanned < RECONCILE_REFS_PER_ORG
+      ? await reconcileRange(
+          sql,
+          args,
+          { refs: 'messages', after: null, before: pivot },
+          RECONCILE_REFS_PER_ORG - tail.scanned,
+        )
+      : { scanned: 0, released: 0, failures: 0 };
+  return {
+    scanned: blobs.scanned + tail.scanned + head.scanned,
+    released: blobs.released + tail.released + head.released,
+    failures: blobs.failures + tail.failures + head.failures,
+  };
 }
 
 /** The `knowledge.reconcile_corpus` cron body: every org, isolated. */

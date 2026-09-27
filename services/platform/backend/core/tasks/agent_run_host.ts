@@ -50,6 +50,7 @@ import {
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   sessionCancelExec,
@@ -85,6 +86,7 @@ import {
   secretsGuidance,
 } from '../sandbox/tool_names';
 import { TASK_COMMENT_MAX } from './helpers';
+import type { MentionSource } from './mentions';
 import { classifyStartFailure } from './start_failure';
 import type { TaskRunFailureCode } from './task_auto_retry';
 import { isValidResumeHandle } from './task_kick_resume';
@@ -243,6 +245,8 @@ async function stageTaskInputs(
  * a rerun — it leads the brief's work section so the agent treats it as the
  * delta to address, not as one more line of context (the same comment closes
  * the discussion tail, so it is dropped from there rather than said twice).
+ * A description mention passes none: the Description below IS what named
+ * the agent, read as it stands now (`buildKickPrompts`).
  * `discussion` is a fresh conversation's only memory of earlier runs.
  * `inputs` names what `stageTaskInputs` landed, and the same-file-name rule
  * makes a revision REPLACE the task's deliverable instead of piling a
@@ -250,7 +254,7 @@ async function stageTaskInputs(
  * named in the user prompt (not only the system addendum) because a resumed
  * standing-session conversation happily reuses last turn's path from memory,
  * and a deliverable written outside the box is not collected. */
-function buildTaskPrompt(
+export function buildTaskPrompt(
   brief: {
     title: string;
     description?: string;
@@ -347,7 +351,11 @@ function buildTaskPrompt(
  * its start): the turn may have already seen some of them mid-run — a
  * duplicate is harmless, a silently dropped comment is not. `feedback` is
  * the comment that kicked this run, kept out of `discussion` by the caller
- * so it is not said twice. Names `outputDir` explicitly — a resumed
+ * so it is not said twice — or, for a description mention
+ * (`mentionSource: 'description'`), the description as it reads at this
+ * start: a resumed conversation does not re-read the brief, so the edit
+ * that named the agent reaches it here, said as an edit and not as a review
+ * that sent finished work back. Names `outputDir` explicitly — a resumed
  * conversation happily reuses last turn's path from memory — and, when the
  * start SWEPT the box (settled predecessor), says so and names the staged
  * read-only copies: the conversation remembers writing files the sweep just
@@ -356,6 +364,7 @@ function buildTaskPrompt(
 function buildResumeKickPrompt(args: {
   outputDir: string;
   feedback?: string;
+  mentionSource?: MentionSource;
   discussion?: Array<{ author: 'user' | 'agent'; body: string }>;
   /** What `stageTaskInputs` landed for THIS turn — same shape as the fresh
    * brief's block, because attachments and deliverables may have changed
@@ -407,7 +416,9 @@ function buildResumeKickPrompt(args: {
       : []),
     ...(feedbackText !== ''
       ? [
-          `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}\n\nThis feedback is authoritative: where it contradicts anything earlier in this conversation, the feedback wins (earlier tool results may be stale).`,
+          args.mentionSource === 'description'
+            ? `The task description was edited to mention you. It now reads:\n${feedbackText}\n\nAct on what it asks that this conversation has not done yet. Where it contradicts anything earlier in this conversation, the current description wins (earlier tool results may be stale).`
+            : `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}\n\nThis feedback is authoritative: where it contradicts anything earlier in this conversation, the feedback wins (earlier tool results may be stale).`,
         ]
       : []),
     ...(stagedLines.length > 0
@@ -439,6 +450,70 @@ function buildResumeKickPrompt(args: {
  * conversation must know the leftovers exist, or it redoes the work. */
 const FRESH_KICK_RESTART_NOTE =
   "A previous run of this task could not be continued as the same conversation, so you are starting fresh. Your workspace (/agent/workspace) and this task's delivery box may already hold work from earlier runs — inspect them and continue that work rather than starting over.";
+
+/** A kick's two opening prompts over the brief this start just read — the
+ * fresh one, and the one a resumed conversation gets. Exported for its unit
+ * test. A comment mention's text is the run's stored `feedback`. A
+ * description mention (`mentionSource: 'description'`) delivers the
+ * description as it reads NOW, never a copy taken at kick time: an edit
+ * that lands between the kick and this start (a queued run, a capacity
+ * park) names nobody new, fires nothing, and must not be contradicted by
+ * the text it replaced. A fresh conversation reads that description as its
+ * brief; a resumed one does not re-read the brief, so it gets it as the
+ * edit that named the agent. */
+export function buildKickPrompts(args: {
+  brief: {
+    title: string;
+    description?: string;
+    labels?: string[];
+    identifier?: string;
+    projectName?: string;
+    discussion: Array<{ author: 'user' | 'agent'; body: string; at: number }>;
+  };
+  feedback?: string;
+  mentionSource?: MentionSource;
+  outputDir: string;
+  inputs: StagedTaskInputs;
+  resumeDiscussionSince?: number;
+  sweep?: boolean;
+  inspectNote?: boolean;
+}): { fresh: string; resume: string } {
+  const fromDescription = args.mentionSource === 'description';
+  const base = buildTaskPrompt(
+    args.brief,
+    fromDescription ? undefined : args.feedback,
+    args.outputDir,
+    args.inputs,
+  );
+  // The resumed conversation's own memory covers everything before its
+  // predecessor's brief was read — carry the discussion posted after the
+  // predecessor STARTED (a mid-turn duplicate is harmless).
+  const since = args.resumeDiscussionSince;
+  const delta =
+    since !== undefined
+      ? args.brief.discussion.filter((entry) => entry.at > since)
+      : [];
+  const feedback = fromDescription ? args.brief.description : args.feedback;
+  return {
+    fresh:
+      (args.inspectNote ?? false)
+        ? [FRESH_KICK_RESTART_NOTE, base].join('\n\n')
+        : base,
+    resume: buildResumeKickPrompt({
+      outputDir: args.outputDir,
+      ...(feedback !== undefined ? { feedback } : {}),
+      ...(args.mentionSource !== undefined
+        ? { mentionSource: args.mentionSource }
+        : {}),
+      ...(delta.length > 0 ? { discussion: delta } : {}),
+      // The conversation remembers writing into the box; when this start
+      // swept it (settled predecessor), the prompt must say so and point at
+      // the staged read-only copies instead.
+      inputs: args.inputs,
+      boxCleared: args.sweep ?? true,
+    }),
+  };
+}
 
 /** What one turn's exec authenticates with, minted per lane. */
 interface PreparedServing {
@@ -618,6 +693,64 @@ async function mintTurnServing(
   };
 }
 
+/**
+ * Write the turn's session-token row: the capability the in-sandbox bridges
+ * authenticate. It carries the connectors and tools the agent was EQUIPPED
+ * with and, when it has connectors, the exec whose task run its connector
+ * calls act through: the bridge acts for that run's starter while the run is
+ * live. The first start and a steer restart both write through here, so a
+ * restarted turn can never lose what its first exec could do.
+ */
+export async function insertTaskTurnSessionToken(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    /** The exec the token serves (a steer restart's rotated one). */
+    execId: string;
+    harness: string;
+    connectors: readonly string[];
+    tools: readonly string[];
+    deadlineAt: number;
+    prepared: Pick<
+      PreparedServing,
+      'tokenHash' | 'mintedKeyId' | 'allowedModels' | 'budgetCents'
+    >;
+  },
+): Promise<void> {
+  // Only a turn with connectors mounts the bridge that reads the caller.
+  const connectorCaller: TurnConnectorCaller | undefined =
+    args.connectors.length > 0
+      ? { kind: 'task-run', execId: args.execId }
+      : undefined;
+  await ctx.runMutation(internal.sandbox.session_mutations.insertSessionToken, {
+    organizationId: args.organizationId,
+    sessionId: args.sessionId,
+    tokenHash: args.prepared.tokenHash,
+    ...(args.prepared.mintedKeyId !== undefined
+      ? { llmGatewayKeyId: args.prepared.mintedKeyId }
+      : {}),
+    scope: {
+      agentKind: args.harness,
+      allowedModels: args.prepared.allowedModels,
+      connectorGrants: [...args.connectors],
+      budgetCents: args.prepared.budgetCents,
+      // Baseline knowledge retrieval (visibility derives from THIS
+      // session's project binding at dispatch, so the grant alone never
+      // widens what the run can read) PLUS the agent's configured tool
+      // grants — writes included, since an explicit grant IS the
+      // standing authorization on this async lane.
+      toolGrants: [...KNOWLEDGE_READ_TOOLS, ...normalizeToolGrants(args.tools)],
+      // Read by the connectors bridge alone, and it names the exec, never
+      // the person. It is not `userId`: the workspace tools read that one as
+      // a user-keyed session, and would fall back to reading org-wide as the
+      // starter wherever this session's project binding stops resolving.
+      ...(connectorCaller !== undefined ? { connectorCaller } : {}),
+    },
+    expiresAt: args.deadlineAt,
+  });
+}
+
 /** How long a start waits for a cancelled predecessor to actually be gone
  * before launching beside it. runnerd's cancel is a process-group SIGTERM
  * with a 5 s SIGKILL grace, so a live predecessor is gone well inside this;
@@ -679,6 +812,9 @@ export interface StartTaskAgentTurnArgs extends TurnKeys {
   tools: string[];
   secrets: string[];
   feedback?: string;
+  /** Which text named the agent on a `mention` kick; `'description'` is
+   * read from the brief at this start instead of from `feedback`. */
+  mentionSource?: MentionSource;
   resume?: string;
   resumeSessionCreatedAt?: number;
   resumeDiscussionSince?: number;
@@ -883,33 +1019,16 @@ export async function startTaskAgentTurnImpl(
           brokerTokenHash: prepared.brokerTokenHash ?? null,
         },
       );
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.insertSessionToken,
-        {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          tokenHash: prepared.tokenHash,
-          ...(prepared.mintedKeyId !== undefined
-            ? { llmGatewayKeyId: prepared.mintedKeyId }
-            : {}),
-          scope: {
-            agentKind: args.harness,
-            allowedModels: prepared.allowedModels,
-            connectorGrants: [...args.connectors],
-            budgetCents: prepared.budgetCents,
-            // Baseline knowledge retrieval (visibility derives from THIS
-            // session's project binding at dispatch, so the grant alone never
-            // widens what the run can read) PLUS the agent's configured tool
-            // grants — writes included, since an explicit grant IS the
-            // standing authorization on this async lane.
-            toolGrants: [
-              ...KNOWLEDGE_READ_TOOLS,
-              ...normalizeToolGrants(args.tools),
-            ],
-          },
-          expiresAt: args.deadlineAt,
-        },
-      );
+      await insertTaskTurnSessionToken(ctx, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        harness: args.harness,
+        connectors: args.connectors,
+        tools: args.tools,
+        deadlineAt: args.deadlineAt,
+        prepared,
+      });
       await ctx.runMutation(
         internal.sandbox.session_mutations.upsertSessionOp,
         {
@@ -1037,34 +1156,22 @@ export async function startTaskAgentTurnImpl(
             }
           : {}),
       };
-      const freshPrompt = (): string => {
-        const base = buildTaskPrompt(brief, args.feedback, outputDir, inputs);
-        return (args.inspectNote ?? false)
-          ? [FRESH_KICK_RESTART_NOTE, base].join('\n\n')
-          : base;
-      };
-      const resumePrompt = (): string => {
-        // The resumed conversation's own memory covers everything before its
-        // predecessor's brief was read — carry the discussion posted after
-        // the predecessor STARTED (a mid-turn duplicate is harmless).
-        const delta =
-          args.resumeDiscussionSince !== undefined
-            ? brief.discussion.filter(
-                (entry: { at: number }) =>
-                  entry.at > (args.resumeDiscussionSince ?? 0),
-              )
-            : [];
-        return buildResumeKickPrompt({
-          outputDir,
-          ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
-          ...(delta.length > 0 ? { discussion: delta } : {}),
-          // The conversation remembers writing into the box; when this start
-          // swept it (settled predecessor), the prompt must say so and point
-          // at the staged read-only copies instead.
-          inputs,
-          boxCleared: args.sweep ?? true,
-        });
-      };
+      const prompts = buildKickPrompts({
+        brief,
+        ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
+        ...(args.mentionSource !== undefined
+          ? { mentionSource: args.mentionSource }
+          : {}),
+        outputDir,
+        inputs,
+        ...(args.resumeDiscussionSince !== undefined
+          ? { resumeDiscussionSince: args.resumeDiscussionSince }
+          : {}),
+        ...(args.sweep !== undefined ? { sweep: args.sweep } : {}),
+        ...(args.inspectNote !== undefined
+          ? { inspectNote: args.inspectNote }
+          : {}),
+      });
 
       const progress = liveProgressSink(
         ctx,
@@ -1080,7 +1187,7 @@ export async function startTaskAgentTurnImpl(
         harness: args.harness,
         start: buildExternalTurnExec({
           ...execBase,
-          prompt: resume !== undefined ? resumePrompt() : freshPrompt(),
+          prompt: resume !== undefined ? prompts.resume : prompts.fresh,
           ...(resume !== undefined ? { resume } : {}),
         }),
         onText: progress.onText,
@@ -1115,7 +1222,7 @@ export async function startTaskAgentTurnImpl(
             harness: args.harness,
             start: buildExternalTurnExec({
               ...execBase,
-              prompt: freshPrompt(),
+              prompt: prompts.fresh,
             }),
             onText: progress.onText,
             onTimeline: progress.onTimeline,
@@ -1760,23 +1867,40 @@ function steerLaneForHarness(harness: string): 'stdin' | 'restart' {
   return def?.capabilities.steering === true ? 'stdin' : 'restart';
 }
 
-/** The injected line a live turn reads for a mid-run task comment. The CLI
- * queues a mid-step stdin line to its next API boundary, exactly like
- * interactive steering, so the turn absorbs it without losing work. */
-function buildSteerCommentText(author: string, body: string): string {
+/** The injected line a live turn reads for a mid-run task comment — or,
+ * for a description that newly names the agent, for that edit (said as an
+ * edit, not as a comment). The CLI queues a mid-step stdin line to its next
+ * API boundary, exactly like interactive steering, so the turn absorbs it
+ * without losing work. Exported for its unit test. */
+export function buildSteerCommentText(
+  author: string,
+  body: string,
+  source: MentionSource = 'comment',
+): string {
   return [
-    `Task comment from ${author}, posted while you are working:`,
+    source === 'description'
+      ? `${author} edited the task description to mention you while you are working. It now reads:`
+      : `Task comment from ${author}, posted while you are working:`,
     body,
     'If this changes what you should do, adjust course now. Otherwise take it into account and cover it in your final report.',
   ].join('\n\n');
 }
 
 /** The opening prompt of a RESUMED restart — same task, same conversation,
- * continued on a fresh process with the comment in hand. */
-function buildResumeSteerPrompt(author: string, body: string): string {
+ * continued on a fresh process with the comment (or the description edit)
+ * in hand. Exported for its unit test. */
+export function buildResumeSteerPrompt(
+  author: string,
+  body: string,
+  source: MentionSource = 'comment',
+): string {
   return [
-    'Your process was restarted to deliver a task comment that arrived while you were working. This is the SAME task and the SAME conversation — continue from where you left off and do NOT redo completed work.',
-    `Task comment from ${author}:`,
+    source === 'description'
+      ? 'Your process was restarted because the task description was edited to mention you while you were working. This is the SAME task and the SAME conversation — continue from where you left off and do NOT redo completed work.'
+      : 'Your process was restarted to deliver a task comment that arrived while you were working. This is the SAME task and the SAME conversation — continue from where you left off and do NOT redo completed work.',
+    source === 'description'
+      ? `${author} edited the task description. It now reads:`
+      : `Task comment from ${author}:`,
     body,
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
   ].join('\n\n');
@@ -1788,6 +1912,12 @@ function buildResumeSteerPrompt(author: string, body: string): string {
  * interrupted attempt produced. */
 const FRESH_RESTART_NOTE =
   'You were interrupted mid-run to receive a new task comment, and the previous conversation could not be resumed. Your workspace and delivery box still hold everything already produced — inspect them and continue the work rather than starting over.';
+
+/** The same note when the interruption was a description edit that named
+ * the agent: the rebuilt brief's Description IS that edit, so the note
+ * points at it instead of at a comment the prompt does not carry. */
+const FRESH_RESTART_DESCRIPTION_NOTE =
+  'You were interrupted mid-run because the task description was edited to mention you, and the previous conversation could not be resumed. The Description below is its current text — act on what it now asks. Your workspace and delivery box still hold everything already produced — inspect them and continue the work rather than starting over.';
 
 /** Retry ladder while a turn is inside its settle window (finalize claimed,
  * terminal run state imminent): tight at first — a settle is normally
@@ -1807,7 +1937,9 @@ const STEER_MAX_ATTEMPTS = 15;
  * the mention means with no live engine — and a turn caught mid-settle is
  * retried until its run settles and takes that same fallback. The comment
  * itself posted long ago; this action only decides HOW it reaches the
- * agent.
+ * agent. A description edit that newly names the running agent rides the
+ * same lanes (`mentionSource: 'description'`), phrased as an edit, and its
+ * fallback kick reads the description as it stands when that run starts.
  */
 /** The steer's full argument shape — `turnArgs` plus the comment. */
 export interface SteerTaskAgentTurnArgs extends TurnKeys {
@@ -1819,6 +1951,9 @@ export interface SteerTaskAgentTurnArgs extends TurnKeys {
   tools: string[];
   secrets: string[];
   feedback: string;
+  /** Which text `feedback` is; absent reads as a comment (a steer queued
+   * before the field existed). */
+  mentionSource?: MentionSource;
   author: string;
   authorId: string;
   attempt: number;
@@ -1860,6 +1995,7 @@ export async function steerTaskAgentTurnImpl(
         taskId: args.taskId,
         authorId: args.authorId,
         feedback: args.feedback,
+        mentionSource: args.mentionSource ?? 'comment',
       },
     );
     return null;
@@ -1910,7 +2046,7 @@ export async function steerTaskAgentTurnImpl(
 
   if (steerLaneForHarness(args.harness) === 'stdin') {
     const line = buildStdinUserMessage(
-      buildSteerCommentText(args.author, args.feedback),
+      buildSteerCommentText(args.author, args.feedback, args.mentionSource),
     );
     try {
       // buildStdinUserMessage is already newline-terminated, and runnerd
@@ -1990,30 +2126,17 @@ export async function steerTaskAgentTurnImpl(
         brokerTokenHash: prepared.brokerTokenHash ?? null,
       },
     );
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.insertSessionToken,
-      {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        tokenHash: prepared.tokenHash,
-        ...(prepared.mintedKeyId !== undefined
-          ? { llmGatewayKeyId: prepared.mintedKeyId }
-          : {}),
-        scope: {
-          agentKind: args.harness,
-          allowedModels: prepared.allowedModels,
-          connectorGrants: [...args.connectors],
-          budgetCents: prepared.budgetCents,
-          // Baseline knowledge retrieval + configured tool grants — same
-          // grant set as the first start.
-          toolGrants: [
-            ...KNOWLEDGE_READ_TOOLS,
-            ...normalizeToolGrants(args.tools),
-          ],
-        },
-        expiresAt: args.deadlineAt,
-      },
-    );
+    // The same grant set and caller as the first start, for the rotated exec.
+    await insertTaskTurnSessionToken(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId,
+      harness: args.harness,
+      connectors: args.connectors,
+      tools: args.tools,
+      deadlineAt: args.deadlineAt,
+      prepared,
+    });
 
     const outputDir = taskOutputDir(args.taskId);
     // Same handle hygiene as the kick lane: the id is parsed CLI stdout, so
@@ -2025,7 +2148,11 @@ export async function steerTaskAgentTurnImpl(
         : undefined;
     let prompt: string;
     if (resume !== undefined) {
-      prompt = buildResumeSteerPrompt(args.author, args.feedback);
+      prompt = buildResumeSteerPrompt(
+        args.author,
+        args.feedback,
+        args.mentionSource,
+      );
     } else {
       // Killed before the harness announced its conversation id — restart
       // as a fresh conversation over the rebuilt brief; the standing
@@ -2052,10 +2179,18 @@ export async function steerTaskAgentTurnImpl(
           ...inputs.outputs,
         ]);
       }
-      prompt = [
-        FRESH_RESTART_NOTE,
-        buildTaskPrompt(brief, args.feedback, outputDir, inputs),
-      ].join('\n\n');
+      // A description edit is already the brief's Description, read fresh
+      // above: carrying it as feedback too would say it twice.
+      prompt =
+        args.mentionSource === 'description'
+          ? [
+              FRESH_RESTART_DESCRIPTION_NOTE,
+              buildTaskPrompt(brief, undefined, outputDir, inputs),
+            ].join('\n\n')
+          : [
+              FRESH_RESTART_NOTE,
+              buildTaskPrompt(brief, args.feedback, outputDir, inputs),
+            ].join('\n\n');
     }
     const visionGuidance =
       resolved.lane === 'subscription'

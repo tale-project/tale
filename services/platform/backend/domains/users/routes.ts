@@ -55,14 +55,14 @@ const setMemberPasswordSchema = z.object({
 
 function toResponse(
   error: unknown,
-): { code: string; status: 400 | 401 | 403 | 404 } | null {
+): { code: string; message: string; status: 400 | 401 | 403 | 404 } | null {
   if (
     error instanceof UserServiceError ||
     // createMember writes through the members domain (add_member audit +
     // hint); its refusals (DUPLICATE_MEMBER, …) answer with their own codes.
     error instanceof MemberServiceError
   ) {
-    return { code: error.code, status: error.status };
+    return { code: error.code, message: error.message, status: error.status };
   }
   return null;
 }
@@ -168,7 +168,11 @@ export function createUserRoutes(deps: {
     } catch (error) {
       const mapped = toResponse(error);
       if (mapped) {
-        return c.json({ error: mapped.code }, mapped.status);
+        // The account form shows the sentence under its own title.
+        return c.json(
+          { error: mapped.code, message: mapped.message },
+          mapped.status,
+        );
       }
       throw error;
     }

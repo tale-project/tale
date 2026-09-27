@@ -1003,7 +1003,9 @@ automations:
       newFolderFailed: Impossible de créer le dossier — réessaie.
       uploading: Téléversement…
       uploaded: '{count} fichier(s) téléversé(s).'
+      uploadedPartial: '{ok} fichier(s) sur {total} téléversé(s).'
       uploadFailed: Échec du téléversement — réessaie.
+      uploadFailedDetail: '{name} : {reason}'
       wrongType: 'Seuls ces types de fichiers sont acceptés : {types}'
       wrongName: Le nom du fichier ne correspond pas au motif attendu pour ce formulaire.
       tooLarge: Le fichier dépasse la limite de {max} Mo.
@@ -1202,6 +1204,7 @@ chat:
   uploadedSuccessfully: '{filename} téléversé'
   uploadFailed: Échec du téléversement
   failedToUpload: Échec du téléversement de {filename}
+  failedToUploadReason: 'Échec du téléversement de {filename} : {reason}'
   tooManyFiles: Trop de fichiers
   tooManyFilesDescription: Tu peux joindre jusqu'à {max} fichiers par message.
     {rejected} {rejected, plural, one {fichier n'a pas été ajouté} other
@@ -1684,6 +1687,7 @@ common:
   errors:
     generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
     failedToCopy: Échec de la copie dans le presse-papiers
+    sessionEnded: Ta session a pris fin. Reconnecte-toi.
   notFound:
     title: Page introuvable
     description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
@@ -6504,6 +6508,7 @@ settings:
         notification.retention_deleted: Notification supprimée (rétention)
         file_metadata.retention_deleted: Fichier supprimé (rétention)
         sandbox_ledger.retention_deleted: Journal du sandbox supprimé (rétention)
+        chat_filter_event.retention_deleted: Événement de filtre de chat supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
         login_lockout: Verrouillage de connexion
@@ -6802,13 +6807,14 @@ settings:
       modelCatalogCustomHint:
         Modèles d’embedding de la liste de ce fournisseur ; choisis « Autre modèle »
         pour saisir un tag qui n’y figure pas.
-      modelUnlistedHint:
-        'Aucune liste ne permet de savoir si ce fournisseur sert des embeddings :
-        saisis le tag exactement comme le fournisseur l’écrit.'
-      modelNoneHint:
-        Le catalogue de {provider} ne liste aucun modèle d’embedding. Choisis un
-        fournisseur qui en sert un.
-      modelNone: Aucun modèle d’embedding
+      modelUncuratedHint:
+        Tale ne connaît aucune largeur de vecteurs pour les modèles d’embedding
+        de {provider}. Saisis le tag du modèle et la largeur des vecteurs
+        exactement comme le fournisseur les documente.
+      modelUnsupportedHint:
+        '{provider} ne propose aucun modèle d’embedding. Choisis un fournisseur
+        qui en sert un.'
+      modelUnsupported: Ne propose pas d’embeddings
       modelCatalogUnavailableHint:
         Le catalogue de {provider} n’a pas pu être chargé. Actualise les
         catalogues sous Paramètres → Fournisseurs IA, puis réessaie.
@@ -7124,6 +7130,7 @@ tasks:
     uploading: Téléversement…
     dropHint: Dépose des fichiers ici, ou clique pour parcourir
     uploadFailed: Le téléversement a échoué — réessaie.
+    uploadFailedDetail: '{name} : {reason}'
     remove: 'Supprimer {name}'
     removeTitle: Supprimer ce fichier ?
     removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
@@ -7489,6 +7496,7 @@ toast:
   error:
     profileUpdateFailed:
       title: Impossible de mettre à jour le profil
+      withReason: 'Impossible de mettre à jour le profil : {reason}'
     passwordChangeFailed:
       title: Impossible de changer le mot de passe
       description: Vérifie ton mot de passe actuel et réessaie.
@@ -7925,6 +7933,7 @@ projects:
     moreSkipped: +{count} autre(s) fichier(s) ont été ignorés.
     attachPartial: '{ok, plural, one {# fichier ajouté} other {# fichiers ajoutés}} sur {total}'
     skippedList: 'Ignorés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+    failedList: 'Non ajoutés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: Ce dossier n'existe plus.
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier

@@ -14,6 +14,9 @@ interface CronSchedule {
 }
 
 export const SCHEDULES: CronSchedule[] = [
+  // Better Auth deletes an expired session only when it is presented again;
+  // one nobody comes back with stays for good. Daily sweep.
+  { name: 'maintenance.expired_sessions', cron: '0 3 * * *' },
   // Rate-limit state is per (rule, subject) — rows idle longer than any
   // window are dead weight. Daily sweep.
   { name: 'maintenance.rate_limit_gc', cron: '20 3 * * *' },

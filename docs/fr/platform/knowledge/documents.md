@@ -29,6 +29,7 @@ Un fichier enregistré n’est pas forcément interrogeable. Tale doit pouvoir e
 | PDF avec texte intégré, `.docx`, `.xlsx`, `.pptx`, `.odt`, CSV, texte brut | Extraction et indexation prises en charge. Vérifie le résultat pour le fichier concerné. |
 | Anciens formats Office `.doc`, `.xls`, `.ppt` | Stockage et téléchargement possibles. Convertis-les dans un format moderne pour l’indexation. |
 | Images comme JPG, PNG, GIF, WEBP | Stockage et téléchargement possibles. L’index de connaissances n’en extrait pas le texte. |
+| Fichiers Microsoft Loop (`.loop`) importés depuis Microsoft 365 | Import et téléchargement possibles. Tale ne peut pas en extraire le texte : leur statut est **Non pris en charge**. |
 | PDF scanné sans texte lisible | Fournis une version traitée par OCR ou contenant du texte pour rendre le contenu recherchable. |
 
 Réindexer plusieurs fois un format non pris en charge ne le rend pas interrogeable. Pour une question sur une image, consulte [Pièces jointes du chat](/fr/platform/chat/attachments) : un modèle de vision disponible peut y lire l’image directement.

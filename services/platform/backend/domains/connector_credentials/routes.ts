@@ -1,3 +1,4 @@
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -45,7 +46,9 @@ const secretInput = z.object({
   smtpPassword: z.string().max(8192).optional(),
   accessToken: z.string().max(8192).optional(),
   refreshToken: z.string().max(8192).optional(),
-  expiresAt: z.number().optional(),
+  // When the access token lapses: an instant a `Date` can hold, which any
+  // number is not.
+  expiresAt: epochMsSchema.optional(),
   scopes: z.array(z.string().max(256)).max(64).optional(),
 });
 

@@ -26,6 +26,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [accessibility](../suites/accessibility.md) | `A11Y-A12` (one page title) | ✅ automated | `page-header.spec.ts` (one `h1`, in the article; the trail leaf is a plain current marker) + `tests/prerender/seo.test.ts` |
 | [accessibility](../suites/accessibility.md) | Full-page audits (`A11Y-A1`–`A11Y-A11`) | ⛔ manual-only | — this guide (the shared `ImageZoom`/`Video` components carry `vitest-axe` in `@tale/ui`) |
 | [content](../suites/content.md) | `CONT-F1` (source shape) | ✅ automated | vitest `structure-code.test.ts` (every fence declares a language), `structure-headings.test.ts`, `links.test.ts` |
+| [content](../suites/content.md) | A docs-only change re-runs the structural suite and the docs build in CI instead of replaying a cached result | ✅ automated | vitest `turbo-inputs.test.ts` (asks `turbo --dry=json` that every page, `nav.json`, `redirects.json` and root README these tasks read is hashed) |
 | [content](../suites/content.md) | Local preview keeps the article body after a content edit or regenerated frontmatter | 🔶 unit | `lib/content/reload-content.test.ts` checks client full reload and module invalidation for content paths; editing a visible page in the dev server remains manual |
 | [content](../suites/content.md) | `CONT-F15`–`CONT-F16` (image sources) | 🔶 partial | vitest `images.test.ts` (paths resolve, alt text, size) + `image-manifest.test.ts` (manifest entry, page reference, DPR-2 dimensions) — rendered behaviour manual |
 | [content](../suites/content.md) | Frame captions and keyboard image zoom | ✅ automated | `@tale/ui` `frame.test.tsx` preserves captions, child images and following content through the real Markdown parser; `markdown.spec.ts` checks visible captions, zoom and Escape/focus restoration in EN/DE/FR. |
@@ -54,6 +55,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Per-route h1 / lang / canonical / JSON-LD / 404 | ✅ | `tests/prerender/seo.test.ts` (`bun run --filter @tale/docs test:prerender`, dependsOn build) |
 | [seo](../suites/seo.md) | Sitemap exclusion + cross-sitemap robots | ✅ | `lib/seo/build.test.ts`, `lib/seo/dev-server.test.ts` |
 | [seo](../suites/seo.md) | Precompiled artifact server | ✅ | `lib/seo/deploy-sim.test.ts` |
+| [seo](../suites/seo.md) | A path carrying a NUL or another C0 control (`/%00`, `/a%00b`, `/de/%00`) answers the real 404, never a reported 500 | ✅ automated | `packages/ui/src/server/static-paths.integration.test.ts` (`reportError` is not called) |
 | [seo](../suites/seo.md) | Security header values (`SEO-F9`) | 🔶 | `packages/ui/src/server/security-headers.test.ts` (unit) — the served response is manual |
 
 ## Seams

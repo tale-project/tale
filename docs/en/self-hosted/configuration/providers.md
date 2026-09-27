@@ -121,6 +121,7 @@ auth:
 | `baseUrl` | A fixed endpoint shared by credentials. |
 | `endpointMode: per-credential` | Use an endpoint supplied with each credential instead of `baseUrl`, as Azure OpenAI does. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint`, or `none`. Static entries use the model catalog described above. |
+| `embedding` | Whether the provider serves embeddings: `supported` when its catalog ships a curated vector width, `unsupported` when the vendor offers no embedding model, so **Settings > Data residency > Embedding model** refuses it, or `unknown`, the default, when an admin enters the model and its vector width. Declare `unsupported` only where the vendor's own documentation says so. |
 | `auth` and `constraints` | Allowed credential methods and any execution requirements, such as a named sandbox harness. |
 
 ## Environment-variable key source

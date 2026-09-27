@@ -6,6 +6,7 @@ import {
   DataTableFilters,
   type FilterConfig,
 } from '@tale/ui/data-table/data-table-filters';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
@@ -188,6 +189,15 @@ export function RequestsListSection({
       >
         <DataTableFilters
           filters={filterConfigs}
+          // The bar sits ABOVE its `DataTable`, so the emptiness the table
+          // computes for itself never reaches it: with no request filed and no
+          // status picked there is nothing to narrow.
+          disabled={isFilterAffordanceDisabled({
+            isLoading: isInitialLoading,
+            itemCount: results.length,
+            hasActiveFilters: statusFilter.length > 0,
+            filters: filterConfigs,
+          })}
           actions={
             <Button
               type="button"

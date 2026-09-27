@@ -122,4 +122,19 @@ describe('backendRefusalReason', () => {
     expect(backendRefusalReason(new Error('boom'))).toBeUndefined();
     expect(backendRefusalReason(undefined)).toBeUndefined();
   });
+
+  // The session door's sentence is guidance for an API client (send a key to
+  // the REST API), in English; a toast must not show it to a person whose
+  // session ended.
+  it("is undefined for a lapsed session's 401, never the API-key sentence", () => {
+    expect(
+      backendRefusalReason(
+        new AppError({
+          code: 'UNAUTHORIZED',
+          message:
+            'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
+        }),
+      ),
+    ).toBeUndefined();
+  });
 });

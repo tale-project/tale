@@ -4,10 +4,11 @@ import {
   findConnector,
   loadConnectorDefinitions,
 } from '../../../../lib/connectors/catalog';
+import { ConnectorError } from '../../../../lib/connectors/errors';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 /** One reason a connector (or call) cannot run, with guidance the agent
  * relays to the user verbatim. */
-interface BridgeBlocker {
+export interface BridgeBlocker {
   code: string;
   guidance: string;
 }
@@ -34,6 +35,81 @@ function readOperations(connectorSlug: string): string[] {
 }
 
 /**
+ * Whom a turn's connector calls act for, as its session token records it
+ * (`connectorCaller`). The session alone cannot say: a project agent's
+ * standing session serves every task the agent works, and each run was
+ * started by someone else.
+ *
+ * `task-run`: the calls act for the starter of the task run that this exec
+ * serves (the person its spend is booked under), and only while that run is
+ * live. The token names the exec, never the person: the bridge reads the
+ * person from the run on every call, so a token that outlives its run, or
+ * that another process on the agent's shared session read, acts for nobody.
+ */
+export type TurnConnectorCaller = { kind: 'task-run'; execId: string };
+
+/** A token scope's `connectorCaller`, or undefined when it carries none
+ * (a token minted before the field existed, or a lane that sets none). */
+export function readTurnConnectorCaller(
+  value: unknown,
+): TurnConnectorCaller | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    value.kind === 'task-run' &&
+    typeof value.execId === 'string' &&
+    value.execId !== ''
+  ) {
+    return { kind: 'task-run', execId: value.execId };
+  }
+  return undefined;
+}
+
+/** The refusal for a task run whose starter names no member (a run a
+ * trigger started): its connector calls act for nobody. */
+export function taskRunActsForNobodyBlocker(): BridgeBlocker {
+  return {
+    code: 'no_user_context',
+    guidance:
+      'This task run was not started by a member, so its connector calls act for nobody and cannot run. ' +
+      "Tell the user to have a project member cancel the run (or let it finish) and start it again (Start agent on the task, or an @mention of the agent in a comment); the agent's connector calls then run for that member.",
+  };
+}
+
+/** The refusal for a token that records no caller at all: an automation's
+ * agent node, or a task turn minted before the field existed. It cannot
+ * tell which, so it names both remedies. */
+export function noConnectorCallerBlocker(): BridgeBlocker {
+  return {
+    code: 'no_user_context',
+    guidance:
+      'This turn does not act for a member, so connector calls cannot run from it. ' +
+      "Tell the user: a project agent's task run acts for the member who starts it, so a member should cancel the run (or let it finish) and start it again from the task; " +
+      'an automation calls a connector from a connector node, not from its agent node.',
+  };
+}
+
+/** The refusal for a token whose task run is no longer live (it settled,
+ * failed or was cancelled, or a steer restart moved it to a new exec). */
+export function taskRunEndedBlocker(): BridgeBlocker {
+  return {
+    code: 'run_ended',
+    guidance:
+      'The task run this turn belongs to is no longer running (it finished, failed, was cancelled or was restarted), so its connector calls cannot run. ' +
+      'Do not retry: a member starts a new run from the task.',
+  };
+}
+
+/** The refusal for a caller who is no longer an active member of the org. */
+export function connectorCallerNotAMemberBlocker(): BridgeBlocker {
+  return {
+    code: 'access_denied',
+    guidance:
+      'The member this turn acts for (the person who started its run) is no longer an active member of this organization, so connector calls cannot run for them. ' +
+      'Tell the user: a current member can cancel the run (or let it finish) and start it again, and its connector calls then run for that member. Do not retry.',
+  };
+}
+
+/**
  * The dispatch seam: how this host runs one connector action. 0.4 passes the
  * Convex action; the 0.5 backend passes its own door. Everything else about
  * a bridge call — catalog validation, the read-only rule, how a refusal is
@@ -54,6 +130,46 @@ export type BridgeCredentialProbe = (args: {
   organizationId: string;
   connectorSlug: string;
 }) => Promise<boolean>;
+
+/** `text` ending in a full stop, whatever its source ended with. */
+function asSentence(text: string): string {
+  const trimmed = text.trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+/** A coded connector refusal in the bridge's dialect: arguments the model
+ * can correct read as `invalid_args`, a missing credential as the
+ * `no_credential` blocker the status listing names, and the rest as an
+ * error, each with the refusal's own sentence and hint. */
+function connectorRefusal(
+  displayName: string,
+  error: ConnectorError,
+): BridgeExecuteResult {
+  const message =
+    asSentence(error.message) +
+    (error.hint !== undefined && error.hint.trim() !== ''
+      ? ` ${asSentence(error.hint)}`
+      : '');
+  switch (error.code) {
+    case 'INPUT_INVALID':
+    case 'UNKNOWN_ACTION':
+      return { status: 'invalid_args', message };
+    case 'CREDENTIAL_UNRESOLVED':
+      return {
+        status: 'unavailable',
+        blockers: [
+          {
+            code: 'no_credential',
+            guidance:
+              `"${displayName}" cannot run: ${asSentence(error.message)} ` +
+              'The user can connect a credential, or mark one of its credentials as the default, under Settings → Connectors.',
+          },
+        ],
+      };
+    default:
+      return { status: 'error', message };
+  }
+}
 
 export async function runBridgeConnectorImpl(
   dispatch: BridgeDispatch,
@@ -129,9 +245,15 @@ export async function runBridgeConnectorImpl(
       isRecord(result) && 'output' in result ? result.output : result;
     return { status: 'ok', output };
   } catch (error) {
-    // The dispatcher refuses with a coded AppError (no credential,
-    // schema mismatch, vendor failure) — surface its message and hint so
-    // the agent can relay something actionable.
+    // The connector door refuses with a coded ConnectorError (arguments
+    // that do not match the action's schema, no usable credential, a vendor
+    // or egress refusal). Its sentence and hint are what let the agent fix
+    // its arguments or tell the user what to reconnect, so they cross as
+    // they are; the automation lane surfaces the same two.
+    if (error instanceof ConnectorError) {
+      return connectorRefusal(connector.displayName, error);
+    }
+    // A dispatch seam that wraps its refusals in a coded AppError.
     if (error instanceof AppError) {
       const data: unknown = error.data;
       const message =
@@ -152,7 +274,14 @@ export async function runBridgeConnectorImpl(
 
 export async function bridgeConnectorStatusImpl(
   hasActiveCredential: BridgeCredentialProbe,
-  args: { organizationId: string; grants: string[] },
+  args: {
+    organizationId: string;
+    grants: string[];
+    /** Why no connector call can run from this turn at all (it acts for no
+     * member, or for one who has left): every shipped connector reports it,
+     * so `usable` never promises a call `execute` refuses. */
+    callerBlocker?: BridgeBlocker;
+  },
 ): Promise<unknown> {
   {
     if (args.grants.length === 0) {
@@ -186,14 +315,17 @@ export async function bridgeConnectorStatusImpl(
         organizationId: args.organizationId,
         connectorSlug: slug,
       });
-      const blockers: BridgeBlocker[] = credentialActive
-        ? []
-        : [
-            {
-              code: 'no_credential',
-              guidance: `"${connector.displayName}" has no active credential. The user can connect one under Settings → Connectors.`,
-            },
-          ];
+      const blockers: BridgeBlocker[] = [
+        ...(args.callerBlocker !== undefined ? [args.callerBlocker] : []),
+        ...(credentialActive
+          ? []
+          : [
+              {
+                code: 'no_credential',
+                guidance: `"${connector.displayName}" has no active credential. The user can connect one under Settings → Connectors.`,
+              },
+            ]),
+      ];
       connectors.push({
         slug,
         name: connector.displayName,

@@ -98,7 +98,7 @@ export function HomeViewSwitcher({
                 </span>
                 <span
                   aria-hidden
-                  className="animate-in zoom-in-50 size-1.5 shrink-0 rounded-full bg-blue-500 duration-300"
+                  className="animate-in zoom-in-50 bg-primary size-1.5 shrink-0 rounded-full duration-300"
                 />
               </>
             )}
