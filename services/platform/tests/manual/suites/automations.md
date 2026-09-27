@@ -446,6 +446,15 @@ output:
       automation-<8 hex>`, **Next** enabled, the created automation is titled
       `发票提醒`. Save a new version from the canvas (no presentation of its
       own) → the list still shows the typed name, never "Automation <hex>".
+- [ ] `AUTO-F43` · **Deep link to a missing version** — Open an existing
+      automation's editor with `?version=99` → The breadcrumb and tab strip
+      stay; the editor area reads `automations.editor.versionNotFound.title`
+      ("Version 99 doesn't exist") with **Open latest**
+      (`automations.editor.versionNotFound.openLatest`), never
+      `automations.notFound.title`; **Open latest** drops `?version=` and
+      draws the latest version. `?version=abc` and `?version=0` still open
+      the latest directly (AUTO-F36); an unknown slug still shows
+      `automations.notFound.title`.
 
 ## Boundary & error tests
 

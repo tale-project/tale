@@ -679,6 +679,24 @@ export function createAutomationRoutes(deps: {
       Number.isFinite(versionParam) ? versionParam : undefined,
     );
     if (!row) {
+      // `?version=N` on an automation that EXISTS is a missing version, not
+      // a missing automation: the editor used to show "Automation not found"
+      // under the automation's own tabs. The REST door's code for the same
+      // case, with the latest version the client can fall back to.
+      if (Number.isFinite(versionParam)) {
+        const latest = await versionRow(deps.sql, orgId, name, undefined);
+        if (latest) {
+          return handleError(
+            c,
+            new AutomationError(
+              'AUTOMATION_VERSION_UNKNOWN',
+              `version ${versionParam} of ${name} does not exist — the latest is ${latest.version}`,
+              404,
+              { latestVersion: latest.version },
+            ),
+          );
+        }
+      }
       return c.json({ error: 'automation not found' }, 404);
     }
     // `deployedVersion` answers undefined (never null) for an undeployed

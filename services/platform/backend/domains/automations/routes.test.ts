@@ -118,6 +118,42 @@ describe('POST /asks/:askId/answer', () => {
   });
 });
 
+/**
+ * `?version=N` on an automation that EXISTS is a missing version, not a
+ * missing automation (2026-09-26 evaluation, D-04): the door answers the
+ * REST code for that case with the latest version beside it, so the editor
+ * can say which version is missing and offer the latest instead of the
+ * automation-level not-found page under the automation's own tabs.
+ */
+describe('GET /:name?version= — a version the automation does not have', () => {
+  it('answers AUTOMATION_VERSION_UNKNOWN with the latest version', async () => {
+    versionRow.mockImplementation(
+      (_sql: unknown, _org: string, _name: string, version?: number) =>
+        Promise.resolve(version === undefined ? row(3, 'agent') : null),
+    );
+
+    const res = await makeApp().request('/ops/greet?version=99&orgId=o1');
+    const body: unknown = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toMatchObject({
+      error: 'AUTOMATION_VERSION_UNKNOWN',
+      data: { latestVersion: 3 },
+    });
+    expect(deployedVersion).not.toHaveBeenCalled();
+  });
+
+  it('keeps the plain not-found for an automation that does not exist', async () => {
+    versionRow.mockResolvedValue(null);
+
+    const res = await makeApp().request('/ops/ghost?version=99&orgId=o1');
+    const body: unknown = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: 'automation not found' });
+  });
+});
+
 describe('GET /:name — the deployed-version warning', () => {
   it('reports no deployed version and no warning when nothing is deployed', async () => {
     versionRow.mockResolvedValue(row(3, 'draft-agent'));

@@ -745,6 +745,10 @@ automations:
       sind nur die eingebauten Typen beschrieben. Die Felder dieser Node siehst
       du trotzdem.
     invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
+    versionNotFound:
+      title: 'Version {version} gibt es nicht'
+      description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
+      openLatest: Neueste öffnen
     controlFlowTitle: Ablaufsteuerung
     agent:
       equipmentLabel: Ausrüstung

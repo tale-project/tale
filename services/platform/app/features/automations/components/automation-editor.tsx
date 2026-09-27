@@ -451,8 +451,37 @@ function AutomationEditorScope({
     })}/editor`,
   });
 
-  // The shell already answers an unknown slug; this catches a `?version=`
-  // that no longer exists (the route answers 404 for that too).
+  // A `?version=` the automation does not have: the automation itself is
+  // there (its tabs stay above), so say which version is missing and offer
+  // the latest — never the "Automation not found" page.
+  if (
+    version !== undefined &&
+    automationQuery.isError &&
+    automationErrorCode(automationQuery.error) === 'AUTOMATION_VERSION_UNKNOWN'
+  ) {
+    return (
+      <ContentArea variant="narrow">
+        <EmptyState
+          icon={SearchX}
+          title={t('editor.versionNotFound.title', { version })}
+          description={t('editor.versionNotFound.description')}
+          headingLevel={2}
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                onSelectVersion(undefined);
+              }}
+            >
+              {t('editor.versionNotFound.openLatest')}
+            </Button>
+          }
+        />
+      </ContentArea>
+    );
+  }
+  // The shell already answers an unknown slug; this catches a read that
+  // answered nothing at all (the route answers 404 for that too).
   if (isMissingAutomationRead(automationQuery)) {
     return (
       <ContentArea variant="narrow">
