@@ -528,7 +528,8 @@ export function createConversationRoutes(deps: {
    * hidden from them.
    */
 
-  /** Cancel a still-queued send; hands the composer draft back. */
+  /** Cancel a still-queued send; hands the composer draft back — its
+   * markdown and its files. */
   app.post('/messages/:messageId/undo', async (c) => {
     if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
