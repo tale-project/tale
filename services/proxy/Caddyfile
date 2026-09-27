@@ -164,6 +164,16 @@
 	}
 
 	# ============================================================================
+	# Sandbox devices — the one WebSocket a connected machine (`tale sandbox
+	# connect`) dials out on. Only this path reaches the spawner's device hub,
+	# on a port of its own that answers nothing but a ticket-authenticated
+	# upgrade; the signed spawner API itself never leaves the internal network.
+	# ============================================================================
+	handle /sandbox/tunnel {
+		reverse_proxy {$SANDBOX_HUB_UPSTREAM:sandbox:8004}
+	}
+
+	# ============================================================================
 	# 0.5 backend-api lanes (the Convex→Postgres cutover)
 	# ============================================================================
 	# The entrypoint replaces the placeholder below with the `handle` blocks
@@ -342,6 +352,7 @@
 	@notWebSocket {
 		not path /api/*/sync
 		not path /ws_api/*
+		not path /sandbox/tunnel
 		not method HEAD
 	}
 	encode @notWebSocket gzip zstd
