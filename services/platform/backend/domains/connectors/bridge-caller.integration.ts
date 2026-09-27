@@ -253,7 +253,8 @@ export async function checkTaskRunConnectorCaller(
       'connectors bridge: a starter no longer in the org is not acted for',
       refused.status === 'unavailable' &&
         refused.blockers?.[0]?.code === 'access_denied' &&
-        (refused.blockers[0].guidance ?? '').includes('start the run again') &&
+        // Start agent answers already_running while the run lives.
+        (refused.blockers[0].guidance ?? '').includes('cancel the run') &&
         refusedListing.connectors?.[0]?.usable === false &&
         refusedListing.connectors[0].blockers?.[0]?.code === 'access_denied' &&
         afterRefusal.length === 1,
