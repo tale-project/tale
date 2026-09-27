@@ -1,22 +1,45 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { z } from 'zod';
 
 import { deploymentSpecSchema } from '../deployment/model';
 import { parsePlatformConfiguration } from './platform-model';
 
+const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
+const CLI_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const LOCALES = ['en', 'de', 'fr'];
+
+/** The slice of `turbo run --dry=json` this suite reads. */
+const dryRunSchema = z.object({
+  tasks: z.array(
+    z.object({ taskId: z.string(), inputs: z.record(z.string(), z.string()) }),
+  ),
+});
+
+/** The install page this suite parses, in the repo-root docs tree. */
+function installPage(locale: string): string {
+  return resolve(
+    REPO_ROOT,
+    'docs',
+    locale,
+    'self-hosted/install/cli-install.md',
+  );
+}
+
 /** Published operator examples are executable declarations, including files
  * checked out with Windows line endings. No target credentials are needed. */
 describe('documented general platform configuration', () => {
-  for (const locale of ['en', 'de', 'fr']) {
+  for (const locale of LOCALES) {
     for (const newline of ['\n', '\r\n']) {
       test(`${locale} JSON examples with ${JSON.stringify(newline)}`, () => {
-        const file = new URL(
-          `../../../../../docs/${locale}/self-hosted/install/cli-install.md`,
-          import.meta.url,
+        const source = readFileSync(installPage(locale), 'utf8').replace(
+          /\r?\n/g,
+          newline,
         );
-        const source = readFileSync(file, 'utf8').replace(/\r?\n/g, newline);
         const examples = [
           ...source.matchAll(/```json[^\r\n]*\r?\n([\s\S]*?)\r?\n```/g),
         ].map((match) => JSON.parse(match[1]));
@@ -45,4 +68,42 @@ describe('documented general platform configuration', () => {
       });
     }
   }
+});
+
+/** The pages sit outside this workspace, which is all turbo hashes by default:
+ * without them as `test` inputs (`tools/cli/turbo.json`) a docs-only edit
+ * replays this suite's cached verdict instead of parsing the new examples. */
+test('turbo re-runs this suite when an install page changes', () => {
+  const run = Bun.spawnSync(
+    [
+      'bunx',
+      'turbo',
+      'run',
+      'test',
+      '--filter=@tale/cli',
+      '--dry=json',
+      '--cache=local:,remote:',
+    ],
+    { cwd: REPO_ROOT },
+  );
+  if (run.exitCode !== 0) {
+    throw new Error(
+      `turbo --dry=json exited ${run.exitCode}: ${run.stderr.toString()}`,
+    );
+  }
+  const stdout = run.stdout.toString();
+  const { tasks } = dryRunSchema.parse(
+    JSON.parse(stdout.slice(stdout.indexOf('{'))),
+  );
+  const inputs = new Set(
+    Object.keys(
+      tasks.find((task) => task.taskId === '@tale/cli#test')?.inputs ?? {},
+    ),
+  );
+  // `$TURBO_DEFAULT$` stays in the list, or the suite's own sources drop out.
+  expect(inputs.has('package.json')).toBe(true);
+  const unhashed = LOCALES.map((locale) =>
+    relative(CLI_ROOT, installPage(locale)),
+  ).filter((page) => !inputs.has(page));
+  expect(unhashed).toEqual([]);
 });
