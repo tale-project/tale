@@ -7,7 +7,7 @@ Use **Settings > Metrics > Feedback** as an Admin or Owner to review the feedbac
 
 ## Find the feedback you need
 
-Choose a period, then narrow by feedback type, assistant, or model. The available windows are 1, 7, 30, and 90 days, plus all time; the initial view uses 7 days. Selecting an assistant or model in a breakdown filters the view. Clear the filter chips to broaden it again. Tale attributes each rating from the rated reply itself: the model and provider that answered, and the assistant the conversation runs under. A reply in a plain chat, outside any assistant, is listed as **Unattributed**.
+Choose a period, then narrow by feedback type, assistant, or model. The available windows are 1, 7, 30, and 90 days, plus all time; the initial view uses 7 days. Selecting an assistant or model in a breakdown filters the view. Clear the filter chips to broaden it again. Tale attributes each rating from the rated reply itself: the model and provider that answered, and the assistant the conversation runs under. The assistant is the one the conversation runs under when the rating is given, not necessarily the one that wrote the reply: after a conversation switches assistants, a rating on an earlier reply counts for the new assistant. A reply in a plain chat, outside any assistant, is listed as **Unattributed**.
 
 Use **Comments only** to focus on written explanations. If no feedback appears, check the period and filters before concluding that nobody has rated a reply. Feedback is voluntary; an unrated answer is neither a positive nor a negative vote.
 

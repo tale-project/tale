@@ -7,7 +7,7 @@ En tant qu’admin ou propriétaire, consulte **Paramètres > Métriques > Retou
 
 ## Trouver les retours utiles
 
-Choisis une période, puis filtre par type de retour, assistant ou modèle. Les fenêtres disponibles sont 1, 7, 30 et 90 jours, ainsi que toute la période ; la vue initiale utilise 7 jours. Sélectionner un assistant ou un modèle dans une répartition filtre la vue. Efface les pastilles pour l’élargir à nouveau. Tale attribue chaque évaluation à partir de la réponse évaluée elle-même : le modèle et le fournisseur qui ont répondu, et l’assistant sous lequel la conversation se déroule. Une réponse dans un chat simple, hors de tout assistant, apparaît comme **Non attribué**.
+Choisis une période, puis filtre par type de retour, assistant ou modèle. Les fenêtres disponibles sont 1, 7, 30 et 90 jours, ainsi que toute la période ; la vue initiale utilise 7 jours. Sélectionner un assistant ou un modèle dans une répartition filtre la vue. Efface les pastilles pour l’élargir à nouveau. Tale attribue chaque évaluation à partir de la réponse évaluée elle-même : le modèle et le fournisseur qui ont répondu, et l’assistant sous lequel la conversation se déroule. Il s’agit de l’assistant sous lequel la conversation se déroule au moment de l’évaluation, pas nécessairement de celui qui a écrit la réponse : après un changement d’assistant, l’évaluation d’une réponse antérieure compte pour le nouvel assistant. Une réponse dans un chat simple, hors de tout assistant, apparaît comme **Non attribué**.
 
 Utilise **Commentaires uniquement** pour privilégier les explications écrites. Si aucun retour n’apparaît, vérifie la période et les filtres. Les évaluations sont volontaires : une réponse non évaluée n’est ni un vote positif ni un vote négatif.
 

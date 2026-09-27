@@ -7,7 +7,7 @@ Als Admin oder Inhaber prüfst du unter **Einstellungen > Metriken > Feedback** 
 
 ## Das passende Feedback finden
 
-Wähle einen Zeitraum und grenze danach nach Feedbacktyp, Assistent oder Modell ein. Verfügbar sind 1, 7, 30 und 90 Tage sowie der gesamte Zeitraum; die erste Ansicht zeigt 7 Tage. Wählst du einen Assistenten oder ein Modell in einer Aufschlüsselung, wird die Ansicht gefiltert. Entferne Filterchips, um sie wieder zu erweitern. Tale ordnet jede Bewertung anhand der bewerteten Antwort selbst zu: dem Modell und Anbieter, die geantwortet haben, und dem Assistenten, unter dem die Unterhaltung läuft. Eine Antwort in einem einfachen Chat ohne Assistenten erscheint als **Nicht zugeordnet**.
+Wähle einen Zeitraum und grenze danach nach Feedbacktyp, Assistent oder Modell ein. Verfügbar sind 1, 7, 30 und 90 Tage sowie der gesamte Zeitraum; die erste Ansicht zeigt 7 Tage. Wählst du einen Assistenten oder ein Modell in einer Aufschlüsselung, wird die Ansicht gefiltert. Entferne Filterchips, um sie wieder zu erweitern. Tale ordnet jede Bewertung anhand der bewerteten Antwort selbst zu: dem Modell und Anbieter, die geantwortet haben, und dem Assistenten, unter dem die Unterhaltung läuft. Gemeint ist der Assistent, unter dem die Unterhaltung zum Zeitpunkt der Bewertung läuft, nicht unbedingt der, der die Antwort geschrieben hat: Nach einem Assistentenwechsel zählt eine Bewertung einer früheren Antwort für den neuen Assistenten. Eine Antwort in einem einfachen Chat ohne Assistenten erscheint als **Nicht zugeordnet**.
 
 Mit **Nur Kommentare** konzentrierst du dich auf schriftliche Erläuterungen. Prüfe bei einer leeren Ansicht zuerst Zeitraum und Filter. Feedback ist freiwillig: Eine unbewertete Antwort ist weder eine positive noch eine negative Stimme.
 
