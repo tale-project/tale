@@ -496,6 +496,9 @@ describe('isRagIndexableFile', () => {
     ['.env', 'application/octet-stream'],
     ['.gitignore', 'text/plain'],
     ['archive.zip', 'application/zip'],
+    // A Microsoft Loop page as OneDrive serves it: no extractor reads it, so
+    // a sync lands it on the terminal `unsupported` state (#2599).
+    ['standup.loop', 'application/octet-stream'],
   ])('rejects non-indexable file %s', (fileName, contentType) => {
     expect(isRagIndexableFile(fileName, contentType)).toBe(false);
   });
