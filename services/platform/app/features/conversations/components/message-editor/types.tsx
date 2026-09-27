@@ -30,6 +30,8 @@ export interface MessageEditorProps {
    * incomplete fields — not for the editor's own empty-body gate.
    */
   sendDisabledReason?: ReactNode;
+  /** Resolve only after sending succeeds; reject to retain the draft/files
+   * and let the editor report the failure. */
   onSave?: (
     message: string,
     attachments?: AttachedFile[],
