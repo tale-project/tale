@@ -7205,6 +7205,7 @@ tasks:
     removeDependency: Supprimer la dépendance
     partOf: Partie de {task}
     subtask: Sous-tâche
+    notFound: Impossible de trouver cette tâche. Elle a peut-être été supprimée.
   comment:
     edited: modifié
     deleteConfirm: Supprimer ce commentaire ?

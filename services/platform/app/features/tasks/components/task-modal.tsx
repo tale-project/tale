@@ -111,6 +111,7 @@ import {
 } from './task-comments';
 import { TaskConversation } from './task-conversation';
 import { TaskDependencies } from './task-dependencies';
+import { TaskDetailFallback } from './task-detail-fallback';
 import { TaskExternalIssueCard } from './task-external-issue-card';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
@@ -1051,7 +1052,13 @@ export function EditTaskBody({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const { task, canEdit, canComment } = useTask(taskId);
+  const {
+    task,
+    canEdit,
+    canComment,
+    notFound,
+    error: readError,
+  } = useTask(taskId);
   const { project } = useProject(task?.projectId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const { copy } = useCopy();
@@ -1170,6 +1177,18 @@ export function EditTaskBody({
 
   if (!task) {
     if (surface === 'dialog') {
+      // Settled on nothing (a deleted task, a stale notification link, a
+      // tampered `?task=`) or broken: say so, with a way out — never a
+      // skeleton that stays. The page surface has its own dead end
+      // (`TaskDetailPage`).
+      if (notFound || readError != null) {
+        return (
+          <TaskDetailFallback
+            state={notFound ? 'missing' : 'error'}
+            onClose={onClose}
+          />
+        );
+      }
       // The dialog's own shape while the task is on its way — its key, its
       // title, the brief and the details, masked where each will land —
       // instead of an empty panel.

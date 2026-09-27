@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 47 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 48 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -387,6 +387,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   to `/dashboard/{org}`, beside the Home panel — never a blank column without
   a header or a way back. While the read is still on its way the page shows
   no dead end.
+- [ ] `TASK-B8` · **Deep link to a missing task** — Open the board with
+  `?task=00000000-0000-4000-8000-000000000000`, then with
+  `?task=not-a-uuid`, then with the id of a task that was deleted → The
+  dialog opens titled **Tasks** and reads **We couldn't find that task. It
+  may have been deleted.** (`tasks.detail.notFound`) with a **Close**
+  button that returns to the board (the URL loses `?task`); while the read
+  is in flight the dialog shows a skeleton, never the message; a task you
+  may not see (another member's private project) reads the same, not a
+  blank sheet.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -7172,6 +7172,7 @@ tasks:
     removeDependency: Remove dependency
     partOf: Part of {task}
     subtask: Subtask
+    notFound: We couldn't find that task. It may have been deleted.
   comment:
     edited: edited
     deleteConfirm: Delete this comment?

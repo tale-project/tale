@@ -7100,6 +7100,7 @@ tasks:
     removeDependency: Abhängigkeit entfernen
     partOf: Teil von {task}
     subtask: Teilaufgabe
+    notFound: Wir konnten diese Aufgabe nicht finden. Sie wurde möglicherweise gelöscht.
   comment:
     edited: bearbeitet
     deleteConfirm: Diesen Kommentar löschen?
