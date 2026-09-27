@@ -66,7 +66,7 @@ Le workflow comprend un test qui attend l’effet `imap-smtp.send`. Une simulati
 
 ## Démarrer la vérification réelle
 
-Reviens à **Éditeur** et clique sur **Mettre cette version en service** pour rendre la version testée active. Laisse le déclencheur non configuré : cet exercice se lance une fois manuellement.
+Reviens à **Éditeur** et clique sur **Mettre v1 en service** pour rendre la version testée active. Laisse le déclencheur non configuré : cet exercice se lance une fois manuellement.
 
 Choisis **Exécuter en réel**, lis la confirmation et le périmètre de l’organisation, puis confirme. Passe à **Exécutions** et ouvre la nouvelle exécution en attente. La carte doit présenter l’approbation attendue, `imap-smtp.send`, le nœud `send` et les données de l’appel prévu. Destinataire, objet et texte doivent correspondre au test simulé.
 

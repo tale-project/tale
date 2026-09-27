@@ -64,7 +64,7 @@ Use the workflow's actual schema. A field typed as a number must receive a JSON 
 
 ## Deploy and run live
 
-Choose the tested version under **Version** and click **Deploy this version**. The **Live** badge marks the deployed version. A version whose saved tests failed cannot be deployed; correct the cause and save a new version.
+Choose the tested version under **Version** and click the deploy button beside it, which names that version, such as **Deploy v3**. The **Live** badge marks the deployed version. A version whose saved tests failed cannot be deployed; correct the cause and save a new version.
 
 **Run live** starts the deployed version, even if you are viewing another one. Its confirmation shows the scope and, when required, **Run input (JSON)** for that deployed version. Check both before confirming. Live runs may act on connected systems and may wait for an [approval](/platform/approvals/concepts).
 
@@ -78,6 +78,6 @@ Switch to **Runs** and open a row for the full record. The tabs remain visible w
 
 ## Roll back or delete
 
-To roll back, open **Versions**, read the version messages and select an earlier version. Its row opens **Editor** at that version; click **Deploy this version** there. You can also choose an earlier version from the editor’s **Version** menu. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
+To roll back, open **Versions**, read the version messages and select an earlier version. Its row opens **Editor** at that version; click its deploy button there, such as **Deploy v2**. You can also choose an earlier version from the editor’s **Version** menu. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
 
 To delete the automation, return to the list, open its row menu, and select **Delete**. Read the named confirmation. All versions, deployment, trigger, and project bindings are removed. An unfinished run blocks deletion; stop it or let it finish first. Past runs remain subject to retention. Deleting an automation does not undo the actions its runs already performed.

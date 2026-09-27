@@ -66,7 +66,7 @@ The workflow includes a test expecting the `imap-smtp.send` effect. A passing mo
 
 ## Start the live approval check
 
-Return to **Editor** and click **Deploy this version** to make the tested version live. Leave the trigger unconfigured; this exercise starts once by hand.
+Return to **Editor** and click **Deploy v1** to make the tested version live. Leave the trigger unconfigured; this exercise starts once by hand.
 
 Choose **Run live**, read the confirmation and organization scope, then confirm. Switch to **Runs** and open the new **Waiting** run. Its approval card should show **Waiting for your approval**, `imap-smtp.send`, the `send` node, and **The step would call with** containing the same recipient, subject, and text you checked in the mock.
 

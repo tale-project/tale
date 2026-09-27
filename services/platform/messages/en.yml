@@ -610,7 +610,7 @@ automations:
       openRuns: Open the run history
     deployedVersion: 'Live: v{version}'
     versionSelect: Version
-    deployThis: Deploy this version
+    deployVersion: 'Deploy v{version}'
     runMock: Test run
     saveVersion: Save version
     saveMessageLabel: Version message

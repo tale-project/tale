@@ -66,7 +66,7 @@ Der Workflow enthält einen Test, der den Effekt `imap-smtp.send` erwartet. Ein 
 
 ## Die Live-Freigabe prüfen
 
-Kehre zum **Editor** zurück und klicke auf **Diese Version live schalten**, um die getestete Version live zu schalten. Lass den Trigger unkonfiguriert; diese Übung startet einmal von Hand.
+Kehre zum **Editor** zurück und klicke auf **v1 live schalten**, um die getestete Version live zu schalten. Lass den Trigger unkonfiguriert; diese Übung startet einmal von Hand.
 
 Wähle **Live ausführen**, lies Bestätigung und Organisationsumfang und bestätige. Wechsle zu **Läufe** und öffne den neuen wartenden Lauf. Die Freigabekarte sollte die ausstehende Entscheidung, `imap-smtp.send`, den Knoten `send` sowie dessen geplante Eingabe zeigen. Empfänger, Betreff und Text müssen dem Mock-Test entsprechen.
 

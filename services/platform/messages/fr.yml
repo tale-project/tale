@@ -649,7 +649,7 @@ automations:
       openRuns: Ouvrir l’historique des exécutions
     deployedVersion: 'En service : v{version}'
     versionSelect: Version
-    deployThis: Mettre cette version en service
+    deployVersion: 'Mettre v{version} en service'
     runMock: Essai
     saveVersion: Enregistrer une version
     saveMessageLabel: Note de version

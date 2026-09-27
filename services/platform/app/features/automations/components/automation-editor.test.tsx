@@ -400,9 +400,7 @@ describe('AutomationEditor', () => {
     expect(
       screen.queryByRole('button', { name: /^Deploy$/ }),
     ).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole('button', { name: 'Deploy this version' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
     expect(deploy.mutate).toHaveBeenCalledWith(
       {
         organizationId: 'org-1',
@@ -429,9 +427,7 @@ describe('AutomationEditor', () => {
       },
     );
     const { user } = renderPage();
-    await user.click(
-      screen.getByRole('button', { name: 'Deploy this version' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
     expect(
       screen.getByText(
         'deploy gate: billing/dunning@3 was saved with failing tests — fix them and save a new version',
@@ -448,7 +444,7 @@ describe('AutomationEditor', () => {
     expect(screen.getByText('Live')).toBeVisible();
     expect(screen.queryByText(/^Live:/)).toBeNull();
     expect(
-      screen.queryByRole('button', { name: 'Deploy this version' }),
+      screen.queryByRole('button', { name: /^Deploy v\d/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -456,9 +452,7 @@ describe('AutomationEditor', () => {
     state.deployedVersion = undefined;
     renderPage();
     expect(screen.queryByText('Live')).toBeNull();
-    expect(
-      screen.getByRole('button', { name: 'Deploy this version' }),
-    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Deploy v3' })).toBeVisible();
   });
 
   it('drops the header deploy after switching to the live version', async () => {
@@ -470,16 +464,14 @@ describe('AutomationEditor', () => {
     // The one Live badge beside the name — the history is its own tab now.
     expect(screen.getByText('Live')).toBeVisible();
     expect(
-      screen.queryByRole('button', { name: 'Deploy this version' }),
+      screen.queryByRole('button', { name: /^Deploy v\d/ }),
     ).not.toBeInTheDocument();
   });
 
   it('switches the canvas from the header version picker', async () => {
     const { user } = renderPage();
     expect(versionPicker()).toHaveTextContent('v3');
-    expect(
-      screen.getByRole('button', { name: 'Deploy this version' }),
-    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Deploy v3' })).toBeVisible();
 
     await user.click(versionPicker());
     await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
@@ -489,7 +481,7 @@ describe('AutomationEditor', () => {
     // The one Live badge beside the name — the history is its own tab now.
     expect(screen.getByText('Live')).toBeVisible();
     expect(
-      screen.queryByRole('button', { name: 'Deploy this version' }),
+      screen.queryByRole('button', { name: /^Deploy v\d/ }),
     ).not.toBeInTheDocument();
   });
 

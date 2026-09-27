@@ -676,7 +676,7 @@ function AutomationEditorScope({
                   );
                 }}
               >
-                {t('detail.deployThis')}
+                {t('detail.deployVersion', { version: lookingVersion })}
               </Button>
             )}
             {canChooseRunProject && (

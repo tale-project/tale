@@ -642,7 +642,7 @@ automations:
       openRuns: Laufhistorie öffnen
     deployedVersion: 'Live: v{version}'
     versionSelect: Version
-    deployThis: Diese Version live schalten
+    deployVersion: 'v{version} live schalten'
     runMock: Testlauf
     saveVersion: Version speichern
     saveMessageLabel: Notiz zur Version

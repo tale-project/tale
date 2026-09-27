@@ -195,8 +195,8 @@ output:
       `automations.navigation.versions` / `automations.navigation.runs`), Editor
       active; at its right end the **Version** button
       (`automations.detail.versionSelect`) showing
-      `automations.versions.versionLabel`, **Deploy this version**
-      (`automations.detail.deployThis`) when looking ≠ live, **Test run**, **Run
+      `automations.versions.versionLabel`, **Deploy v**_n_
+      (`automations.detail.deployVersion`) when looking ≠ live, **Test run**, **Run
       live**, **Discard**, **Save** — nothing sits in the title row's right
       half. Body: the canvas alone fills the tab edge to edge under the strip
       — with no node selected there is no inspector column at all (AUTO-F37;
@@ -243,7 +243,7 @@ output:
       first raises the unsaved-changes dialog (`common.unsavedChanges.title`).
 - [ ] `AUTO-F17` · **Deploy** — On a version that is not live (pick it from
       the **Version** button, or open it from a **Versions** tab row)
-      → **Deploy this version** (`automations.detail.deployThis`) — tests on that
+      → **Deploy v**_n_ (`automations.detail.deployVersion`) — tests on that
       version did not fail → The green **Live** badge
       (`automations.versions.deployed`) moves to that version and to the name in
       the header; the **Version** button does not say Live (not `Live: v{n}`);
