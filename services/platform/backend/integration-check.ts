@@ -45,6 +45,7 @@ import {
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
@@ -54295,6 +54296,10 @@ async function main(): Promise<void> {
       [
         'checkPolicySweeps',
         () => checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkExpiredSessionReaper',
+        () => checkExpiredSessionReaper(sql, authCtx, record),
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
       [
