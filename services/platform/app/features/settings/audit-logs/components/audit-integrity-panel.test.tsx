@@ -195,37 +195,6 @@ describe('AuditIntegrityPanel', () => {
     expect(onOpenRow).toHaveBeenCalledWith('log_bad');
   });
 
-  it('renders a checkpoint mismatch when there is no broken row', () => {
-    state.verify = {
-      data: {
-        valid: false,
-        verifiedCount: 0,
-        checkpointsVerified: 0,
-        truncated: false,
-        unsignedScrubCount: 0,
-        checkpointMismatch: {
-          checkpointId: 'cp_1',
-          reason: 'HMAC signature does not match.',
-        },
-      },
-      isPending: false,
-      isError: false,
-      mutate: vi.fn(),
-    };
-    renderPanel();
-    expect(
-      screen.getByText('Checkpoint verification failed'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('cp_1')).toBeInTheDocument();
-    expect(
-      screen.getByText('HMAC signature does not match.'),
-    ).toBeInTheDocument();
-    // No broken row → no "open entry" affordance.
-    expect(
-      screen.queryByRole('button', { name: 'Open this entry' }),
-    ).not.toBeInTheDocument();
-  });
-
   it('toasts when verification errors', async () => {
     state.verify = {
       data: undefined,

@@ -73,9 +73,6 @@ export function AuditIntegrityPanel({
   // Capture the break details as narrowed locals so the JSX guards flow the
   // non-undefined type into the closures below (no `!` assertions).
   const brokenAt = result && !result.valid ? result.firstBrokenAt : undefined;
-  const checkpointMismatch =
-    result && !result.valid ? result.checkpointMismatch : undefined;
-  const brokenWithoutRow = result !== undefined && !result.valid && !brokenAt;
 
   return (
     <BorderedSection aria-label={t('logs.integrity.title')}>
@@ -188,34 +185,6 @@ export function AuditIntegrityPanel({
                 {t('logs.integrity.openRow')}
               </Button>
             </div>
-          </Stack>
-        </Alert>
-      )}
-
-      {brokenWithoutRow && (
-        <Alert
-          variant="destructive"
-          icon={ShieldAlert}
-          live="assertive"
-          title={t('logs.integrity.checkpointTitle')}
-        >
-          <Stack gap={2}>
-            {checkpointMismatch ? (
-              <>
-                <Field label={t('logs.integrity.checkpointId')}>
-                  <InlineCode className="break-all">
-                    {checkpointMismatch.checkpointId}
-                  </InlineCode>
-                </Field>
-                <Field label={t('logs.integrity.reason')}>
-                  {checkpointMismatch.reason}
-                </Field>
-              </>
-            ) : (
-              <Text as="span" variant="muted" className="text-sm">
-                {t('logs.integrity.brokenBody')}
-              </Text>
-            )}
           </Stack>
         </Alert>
       )}

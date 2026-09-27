@@ -25,8 +25,6 @@ entries:
   - 'notifications.creditRequestBody'
   - 'notifications.auditIntegrityFailed'
   - 'notifications.auditIntegrityFailedDetails'
-  - 'notifications.auditIntegrityUnverifiable'
-  - 'notifications.auditIntegrityUnverifiableDetails'
   - 'notifications.websiteScanPaused'
   - 'notifications.websiteScanPausedDetails'
   # Knowledge BM25 index self-heal (core/knowledge/index_health.ts +

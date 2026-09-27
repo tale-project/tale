@@ -329,25 +329,12 @@ export interface AuditLogsContract {
           lastVerifiedTimestamp: undefined | number;
           lastVerifiedId: undefined | string;
           lastVerifiedHash: undefined | string;
-          checkpointMismatch: { checkpointId: string; reason: string };
-          firstBrokenAt?: undefined;
-        }
-      | {
-          valid: boolean;
-          verifiedCount: number;
-          checkpointsVerified: number;
-          truncated: boolean;
-          unsignedScrubCount: number;
-          lastVerifiedTimestamp: undefined | number;
-          lastVerifiedId: undefined | string;
-          lastVerifiedHash: undefined | string;
           firstBrokenAt: {
             logId: string;
             timestamp: number;
             expected: string;
             actual: string;
           };
-          checkpointMismatch?: undefined;
         }
       | {
           valid: boolean;
@@ -358,7 +345,6 @@ export interface AuditLogsContract {
           lastVerifiedTimestamp: undefined | number;
           lastVerifiedId: undefined | string;
           lastVerifiedHash: undefined | string;
-          checkpointMismatch?: undefined;
           firstBrokenAt?: undefined;
         };
   };

@@ -4672,12 +4672,6 @@ notifications:
   auditIntegrityFailedDetails: 'Wir konnten die Integrität des Audit-Logs dieser
     Organisation nicht bestätigen: {reason}. Das kann auf Manipulation hindeuten
     — untersuche das so schnell wie möglich.'
-  auditIntegrityUnverifiable: Audit-Log-Signaturen können nicht überprüft werden
-  auditIntegrityUnverifiableDetails: 'Die Audit-Log-Checkpoints dieser
-    Organisation sind signiert, aber es ist kein Signaturschlüssel zur
-    Überprüfung konfiguriert: {reason}. Setze TALE_AUDIT_SIGNING_KEY, um die
-    Manipulationssicherheit wiederherzustellen — das ist eine
-    Konfigurationslücke, keine festgestellte Manipulation.'
   websiteScanPaused: 'Website-Scans pausiert: {domain}'
   websiteScanPausedDetails: 'Die Scans von {domain} wurden pausiert, nachdem
     die Wissensdatenbank dieser Organisation {failures} Mal in Folge nicht
@@ -6179,9 +6173,6 @@ settings:
       expectedHash: Erwarteter Hash
       actualHash: Gespeicherter Hash
       openRow: Diesen Eintrag öffnen
-      checkpointTitle: Checkpoint-Prüfung fehlgeschlagen
-      checkpointId: Checkpoint-ID
-      reason: Grund
       rowMissing: Audit-Eintrag {logId} ist nicht mehr verfügbar.
     heading: Protokolle
     subheading: Systemprotokolle anzeigen und verwalten.

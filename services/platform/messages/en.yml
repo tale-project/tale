@@ -4509,11 +4509,6 @@ notifications:
   auditIntegrityFailedDetails: "We couldn't verify the integrity of this
     organization's audit log: {reason}. This can indicate tampering — please
     investigate as soon as possible."
-  auditIntegrityUnverifiable: Audit log signatures can't be verified
-  auditIntegrityUnverifiableDetails: "This organization's audit log checkpoints
-    are signed, but no signing key is configured to verify them: {reason}. Set
-    TALE_AUDIT_SIGNING_KEY to restore tamper-evidence — this is a configuration
-    gap, not detected tampering."
   websiteScanPaused: 'Website scans paused: {domain}'
   websiteScanPausedDetails: "Scans of {domain} were paused after {failures}
     consecutive attempts couldn't reach this organization's knowledge database.
@@ -6327,9 +6322,6 @@ settings:
       expectedHash: Expected hash
       actualHash: Stored hash
       openRow: Open this entry
-      checkpointTitle: Checkpoint verification failed
-      checkpointId: Checkpoint ID
-      reason: Reason
       rowMissing: Audit entry {logId} is no longer available.
     heading: Logs
     subheading: View and manage system logs.

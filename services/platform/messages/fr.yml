@@ -4742,13 +4742,6 @@ notifications:
   auditIntegrityFailedDetails: "Nous n'avons pas pu vérifier l'intégrité du
     journal d'audit de cette organisation : {reason}. Cela peut indiquer une
     altération — examine la situation dès que possible."
-  auditIntegrityUnverifiable: Les signatures du journal d'audit ne peuvent pas être vérifiées
-  auditIntegrityUnverifiableDetails:
-    "Les points de contrôle du journal d'audit de
-    cette organisation sont signés, mais aucune clé de signature n'est
-    configurée pour les vérifier : {reason}. Définis TALE_AUDIT_SIGNING_KEY pour
-    rétablir la protection contre l'altération — il s'agit d'une lacune de
-    configuration, pas d'une altération détectée."
   websiteScanPaused: 'Analyses du site web suspendues : {domain}'
   websiteScanPausedDetails: "Les analyses de {domain} ont été suspendues après
     {failures} tentatives consécutives sans parvenir à joindre la base de
@@ -6280,9 +6273,6 @@ settings:
       expectedHash: Hachage attendu
       actualHash: Hachage stocké
       openRow: Ouvrir cette entrée
-      checkpointTitle: Échec de la vérification du point de contrôle
-      checkpointId: ID du point de contrôle
-      reason: Raison
       rowMissing: L'entrée d'audit {logId} n'est plus disponible.
     heading: Journaux
     subheading: Consulte et gère les journaux système.
