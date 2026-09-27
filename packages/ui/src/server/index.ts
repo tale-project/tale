@@ -326,6 +326,11 @@ export function startReactServer(opts: ReactServerOptions) {
       });
       return notFoundOrShell();
     }
+    // A decoded NUL makes `Bun.file` throw (ERR_INVALID_ARG_VALUE), which
+    // `error()` reported and answered 500. No name under `dist/` carries a C0
+    // control, so such a path is a plain miss: refused before it reaches the
+    // filesystem, as the platform's `nulUrlGuard` refuses it at its door.
+    if (/[\u0000-\u001f]/.test(rel)) return notFoundOrShell();
     const resolved = resolve(distDir, rel);
     if (resolved === distDir || resolved.startsWith(distPrefix)) {
       const candidate = Bun.file(resolved);

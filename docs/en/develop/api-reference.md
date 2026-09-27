@@ -73,7 +73,7 @@ Check both the role and the resource scope before offering an operation. Project
 
 ### JSON and query validation
 
-Send JSON encoded as UTF-8. Invalid UTF-8, NUL characters, unpaired UTF-16 surrogates in keys or values, and integer values beyond 2^53 − 1 return `400 INVALID_BODY`. Represent large identifiers as strings. Nested validation issues include the full field path, such as `messages.0.createdAt`. IDs are strings and timestamps are epoch milliseconds. A skill’s `updatedAt` records when its `SKILL.md` was written.
+Send JSON encoded as UTF-8. Invalid UTF-8, NUL characters, unpaired UTF-16 surrogates in keys or values, and integer values beyond 2^53 − 1 return `400 INVALID_BODY`. Represent large identifiers as strings. Nested validation issues include the full field path, such as `messages.0.createdAt`. IDs are strings and timestamps are epoch milliseconds. A timestamp you send is a whole number of milliseconds from `0` to `8640000000000000` (275760-09-13, the latest instant a JavaScript `Date` can hold); any other value returns `400 INVALID_BODY`. A skill’s `updatedAt` records when its `SKILL.md` was written.
 
 | Input | Rule |
 | --- | --- |
@@ -396,7 +396,7 @@ curl -sS --compressed -X POST "$TALE_ORIGIN/api/app/governance/competences?orgId
   -d "$GRANT_BODY"
 ```
 
-The response is **201** with `{ "recordId": "…" }`. Add `expiresAt` in epoch milliseconds to end the grant on its own; without it, the grant does not expire. While a grant is live, granting it again returns **409** `COMPETENCE_ALREADY_GRANTED`. Any other name under `tale:` returns **400** `COMPETENCE_CAPABILITY_UNKNOWN`, a user outside the organization **400** `COMPETENCE_USER_NOT_MEMBER`, and a session without the Owner or Admin role **403** `COMPETENCE_FORBIDDEN`. Before the first page, confirm with the worker’s key that `GET /api/v1/me` reports `capabilities.notificationExport: true`.
+The response is **201** with `{ "recordId": "…" }`. Add `expiresAt`, a future instant in whole epoch milliseconds no later than `8640000000000000`, to end the grant on its own; without it, the grant does not expire. A past instant returns **400** `COMPETENCE_EXPIRY_IN_PAST`, and a value that is not a whole number in that range **400** `invalid body`. While a grant is live, granting it again returns **409** `COMPETENCE_ALREADY_GRANTED`. Any other name under `tale:` returns **400** `COMPETENCE_CAPABILITY_UNKNOWN`, a user outside the organization **400** `COMPETENCE_USER_NOT_MEMBER`, and a session without the Owner or Admin role **403** `COMPETENCE_FORBIDDEN`. Before the first page, confirm with the worker’s key that `GET /api/v1/me` reports `capabilities.notificationExport: true`.
 
 To withdraw the right, find the grant’s `id` in `GET /api/app/governance/competences?orgId=<orgId>&userId=<userId>` with the same session, then send `POST /api/app/governance/competences/<recordId>/revoke?orgId=<orgId>`. The worker’s next export request returns `403 ROLE_FORBIDDEN`. A revoked grant stays in the list as the audit trail; grant the capability again to restore the export.
 

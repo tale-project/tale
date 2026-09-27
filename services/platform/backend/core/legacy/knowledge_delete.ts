@@ -25,6 +25,7 @@
  * here the postgres pool — as opposed to the pure modules that leave it out.
  */
 
+import { MESSAGE_REF_LIKE_PATTERN } from '../../../lib/knowledge/message-ref';
 import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
@@ -81,11 +82,20 @@ export async function deleteKnowledgeDocumentsBatch(
 
 /**
  * Enumerate one page of an org's corpus documents by file ref (keyset on
- * `file_id`) — the reconcile sweep's walk.
+ * `file_id`, after `afterFileId` and before `beforeFileId` when given) — the
+ * reconcile sweep's walk.
+ *
+ * One vocabulary per walk: `blobs` (every file ref) or `messages` (the email
+ * bodies' `msg:` refs). They are walked apart because each walk is bounded
+ * and restarts at its keyset head, and `msg:` sorts ahead of `s3:` — sharing
+ * one walk, a large inbox would fill every run's budget and push every blob
+ * ref out of reconcile's reach.
  */
 export async function listKnowledgeDocumentRefs(args: {
   orgSlug: string;
+  refs: 'blobs' | 'messages';
   afterFileId: string | null;
+  beforeFileId?: string | null;
   limit: number;
 }): Promise<string[]> {
   const sql = await getKnowledgePoolForOrg(args.orgSlug);
@@ -93,9 +103,18 @@ export async function listKnowledgeDocumentRefs(args: {
     `SELECT DISTINCT file_id AS "fileId"
        FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
       WHERE org_slug = $1 AND ($2::text IS NULL OR file_id > $2)
+        AND ($4::text IS NULL OR file_id < $4)
+        AND (file_id LIKE $5) = $6::boolean
       ORDER BY file_id ASC
       LIMIT $3`,
-    [args.orgSlug, args.afterFileId, args.limit],
+    [
+      args.orgSlug,
+      args.afterFileId,
+      args.limit,
+      args.beforeFileId ?? null,
+      MESSAGE_REF_LIKE_PATTERN,
+      args.refs === 'messages',
+    ],
   );
   return rows.map((row) => row.fileId);
 }

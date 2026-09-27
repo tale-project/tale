@@ -1,3 +1,4 @@
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -26,14 +27,18 @@ import {
 import { AUDIT_LOG_CATEGORIES, AUDIT_LOG_STATUSES } from './types.ts';
 import { getIntegrityStatus, verifyAuditChain } from './verify.ts';
 
+/** A date filter off the query string: an instant a `Date` can hold —
+ * which a safe integer alone is not — and, as before, never zero. */
+const dateFilterQuery = z.coerce.number().pipe(epochMsSchema.positive());
+
 const listQuerySchema = z.object({
   category: z.enum(AUDIT_LOG_CATEGORIES).optional(),
   actorId: z.string().min(1).optional(),
   resourceType: z.string().min(1).optional(),
   resourceId: z.string().min(1).optional(),
   status: z.enum(AUDIT_LOG_STATUSES).optional(),
-  startDate: z.coerce.number().int().positive().optional(),
-  endDate: z.coerce.number().int().positive().optional(),
+  startDate: dateFilterQuery.optional(),
+  endDate: dateFilterQuery.optional(),
   search: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   cursorTs: z.coerce.number().int().positive().optional(),
@@ -166,7 +171,7 @@ export function createAuditLogRoutes(deps: {
     const body = z
       .object({
         maxEntries: z.number().int().min(1).max(5_000).optional(),
-        fromTimestamp: z.number().optional(),
+        fromTimestamp: epochMsSchema.optional(),
         afterId: z.string().optional(),
         previousExpectedHash: z.string().optional(),
       })
@@ -190,8 +195,8 @@ export function createAuditLogRoutes(deps: {
             actorId: z.string().optional(),
             resourceType: z.string().optional(),
             status: z.string().optional(),
-            startDate: z.number().optional(),
-            endDate: z.number().optional(),
+            startDate: epochMsSchema.optional(),
+            endDate: epochMsSchema.optional(),
             search: z.string().optional(),
           })
           .optional(),

@@ -217,10 +217,14 @@ describe('POST /api/app/tasks names the refused description and label limits', (
     expect(writes(sent.statements)).toEqual([]);
   });
 
-  it('keeps the bare invalid body for a malformed field no cap covers', async () => {
+  it('names a malformed field no domain cap covers', async () => {
     const sent = await send('/', { projectId: 'p1', title: 42 });
     expect(sent.status).toBe(400);
-    expect(sent.json).toEqual({ error: 'invalid body' });
+    expect(sent.json).toMatchObject({
+      error: 'invalid body',
+      message: expect.stringContaining('title:'),
+      data: { issues: [{ path: 'title', message: expect.any(String) }] },
+    });
   });
 });
 

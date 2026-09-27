@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -662,6 +663,32 @@ describe('PATCH /documents/:id', () => {
       indexing: { status: 'completed', indexedAt: 5 },
     });
     vi.mocked(getDocumentById).mockResolvedValue({ ...hubDocument } as never);
+  });
+
+  // The precondition is an epoch-ms stamp: one no `Date` can hold is
+  // refused at the door (400, the field named) instead of being compared
+  // and answered as a stale revision; the spec publishes the maximum.
+  it('refuses an expectedUpdatedAt no Date can hold with 400 INVALID_BODY', async () => {
+    const { updateDocument } = await import('../domains/documents/service.ts');
+    const writesBefore = vi.mocked(updateDocument).mock.calls.length;
+    for (const expectedUpdatedAt of [9e15, EPOCH_MS_MAX + 1]) {
+      const res = await mount(fakeSql([]).sql).request(
+        'http://localhost/documents/doc-hub',
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: 'Renamed', expectedUpdatedAt }),
+        },
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: {
+          issues: [expect.objectContaining({ path: 'expectedUpdatedAt' })],
+        },
+      });
+    }
+    expect(vi.mocked(updateDocument).mock.calls.length).toBe(writesBefore);
   });
 
   it('maps a stale precondition to 409 DOCUMENT_STALE', async () => {

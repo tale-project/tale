@@ -1,4 +1,5 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -15,6 +16,7 @@ import {
 } from '../../core/tasks/helpers.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
@@ -179,8 +181,14 @@ function invalidBody<E extends OrgEnv>(
       return c.json({ error: code, message: issue.message }, 400);
     }
   }
-  return c.json({ error: 'invalid body' }, 400);
+  return invalidBodyResponse(c, error);
 }
+
+/** A start or due date: an instant a `Date` can hold, which a safe integer
+ * alone is not (`9e15` stored, and the card and the date picker had nothing
+ * to render). Zero stays refused, as it always was: the board reads a zero
+ * date as none. */
+const taskDateSchema = epochMsSchema.positive();
 
 const createTaskSchema = z.object({
   projectId: z.string().min(1),
@@ -193,8 +201,8 @@ const createTaskSchema = z.object({
   assigneeType: assigneeTypeSchema.optional(),
   assigneeId: z.string().optional(),
   parentTaskId: z.string().optional(),
-  startDate: z.number().int().positive().optional(),
-  dueDate: z.number().int().positive().optional(),
+  startDate: taskDateSchema.optional(),
+  dueDate: taskDateSchema.optional(),
 });
 
 const updateTaskSchema = z.object({
@@ -203,8 +211,8 @@ const updateTaskSchema = z.object({
   attachments: attachmentsSchema,
   priority: prioritySchema.nullable().optional(),
   labels: labelsSchema.optional(),
-  startDate: z.number().int().positive().nullable().optional(),
-  dueDate: z.number().int().positive().nullable().optional(),
+  startDate: taskDateSchema.nullable().optional(),
+  dueDate: taskDateSchema.nullable().optional(),
   reviewerUserId: z.string().nullable().optional(),
 });
 

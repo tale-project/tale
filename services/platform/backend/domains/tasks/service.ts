@@ -1,3 +1,4 @@
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -271,11 +272,14 @@ function validateDescription(
   return description;
 }
 
+/** A start date may not follow the due date. A stored date no `Date` can
+ * hold (written before the doors held one to the epoch bound) reads as none
+ * here, as it does on the board, so it never blocks setting the other. */
 function assertScheduleOrder(
   startDate: number | undefined | null,
   dueDate: number | undefined | null,
 ): void {
-  if (startDate != null && dueDate != null && startDate > dueDate) {
+  if (isEpochMs(startDate) && isEpochMs(dueDate) && startDate > dueDate) {
     throw new TaskError('TASK_SCHEDULE_INVALID', 'startDate must be ≤ dueDate');
   }
 }

@@ -54,6 +54,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [seo](../suites/seo.md) | Per-route h1 / lang / canonical / JSON-LD / 404 | ✅ | `tests/prerender/seo.test.ts` (`bun run --filter @tale/docs test:prerender`, dependsOn build) |
 | [seo](../suites/seo.md) | Sitemap exclusion + cross-sitemap robots | ✅ | `lib/seo/build.test.ts`, `lib/seo/dev-server.test.ts` |
 | [seo](../suites/seo.md) | Precompiled artifact server | ✅ | `lib/seo/deploy-sim.test.ts` |
+| [seo](../suites/seo.md) | A path carrying a NUL or another C0 control (`/%00`, `/a%00b`, `/de/%00`) answers the real 404, never a reported 500 | ✅ automated | `packages/ui/src/server/static-paths.integration.test.ts` (`reportError` is not called) |
 | [seo](../suites/seo.md) | Security header values (`SEO-F9`) | 🔶 | `packages/ui/src/server/security-headers.test.ts` (unit) — the served response is manual |
 
 ## Seams
