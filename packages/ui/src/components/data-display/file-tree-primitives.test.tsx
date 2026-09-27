@@ -21,6 +21,7 @@ function ListShaped() {
       return next;
     });
   return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the list only relays arrow keys to its rows, exactly as the Files tab's list does
     <ul
       ref={ref}
       aria-label="Project files"
