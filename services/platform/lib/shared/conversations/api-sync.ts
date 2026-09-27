@@ -1,3 +1,4 @@
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { API_SOURCE_PATTERN } from '@tale/shared/schemas/governance';
 import { z } from 'zod';
 
@@ -89,9 +90,7 @@ const apiSnapshotMessageSchema = z.strictObject({
   format: z.enum(['plain', 'markdown']).default('plain'),
   isCustomer: z.boolean(),
   authorName: z.string().max(300),
-  // `.int()` already bounds the value to the safe-integer range; a second
-  // `.max()` reported the same problem twice.
-  createdAt: z.number().int().min(0),
+  createdAt: epochMsSchema,
   attachments: z.array(apiAttachmentSchema).max(10).default([]),
 });
 

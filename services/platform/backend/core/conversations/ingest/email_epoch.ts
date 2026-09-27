@@ -1,27 +1,34 @@
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
+
 /**
  * Epoch ms for one email's `date`, read the way both the sync watermark and the
  * ingest helpers must agree on. Gmail hands back `internalDate` (epoch ms as a
  * STRING) when a message carries no `Date` header, which `new Date(...)` cannot
- * parse — hence the numeric fallback. Returns null when no instant is readable.
+ * parse — hence the numeric fallback. Returns null when no instant is readable;
+ * an instant `epochMsSchema` refuses (a pre-1970 header, a far-future
+ * `internalDate`, a fraction of a millisecond) counts as unreadable, because
+ * the ingest shim refuses a stamp outside that bound.
  */
 export function emailEpochMs(date: unknown): number | null {
-  if (typeof date === 'number') {
-    return Number.isFinite(date) ? date : null;
-  }
+  const instant = readInstant(date);
+  return isEpochMs(instant) ? instant : null;
+}
+
+function readInstant(date: unknown): number | null {
+  if (typeof date === 'number') return date;
   if (typeof date !== 'string' || date.trim() === '') return null;
   const parsed = new Date(date).getTime();
-  if (Number.isFinite(parsed)) return parsed;
-  const epoch = Number(date);
-  return Number.isFinite(epoch) ? epoch : null;
+  return Number.isFinite(parsed) ? parsed : Number(date);
 }
 
 /**
  * The instant stamps one message writer carries for an email — `sentAt`, plus
  * `deliveredAt` for a delivered message — or NEITHER when the message carries
- * no readable date. Absent, never NaN: the ingest shim validates stamps as
- * numbers, so a NaN stamp rejects the write and one undated message wedges the
- * whole mailbox pass behind it (the watermark never advances past it). Without
- * a stamp the row falls back to its own creation time in the display order.
+ * no readable date. Absent, never NaN or out of range: the ingest shim holds
+ * stamps to `epochMsSchema`, so such a stamp would reject the write and wedge
+ * the whole mailbox pass behind that one message (the watermark never
+ * advances past it). Without a stamp the row falls back to its own creation
+ * time in the display order.
  */
 export function emailStamps(
   date: unknown,

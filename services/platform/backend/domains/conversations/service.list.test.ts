@@ -272,6 +272,42 @@ describe('listConversationsPage', () => {
     expect(result.items[2]).not.toHaveProperty('credentialId');
   });
 
+  it('answers the whole page when one row holds a stamp no Date can hold', async () => {
+    // A `sentAt: 9e15` stored before the doors bounded timestamps, copied
+    // onto its conversation's `lastMessageAt`: the page used to 500 on it.
+    const rows = [
+      { ...conversation('c1', 'ct-1'), lastMessageAt: 9e15 },
+      conversation('c2', 'ct-2'),
+    ];
+    const { sql } = recordingSql((text) => {
+      // No recorded mailbox, no pending approval.
+      if (text.includes('AS "credentialId" FROM app.conversations')) return [];
+      if (text.includes('FROM app.conversations ')) return rows;
+      if (text.includes('FROM app.contacts')) return CONTACTS;
+      if (text.includes('FROM app.conversation_messages')) {
+        return [
+          { ...message('m1', 'c1', 'From the future'), sentAt: 9e15 },
+          message('m2', 'c2', 'Question from Bob.'),
+        ];
+      }
+      return [];
+    });
+
+    const result = await listConversationsPage(sql, ADMIN, {
+      cursor: null,
+      limit: 25,
+    });
+
+    expect(result.items.map((item) => item.last_message_at)).toEqual([
+      new Date(1_000).toISOString(),
+      new Date(1_000).toISOString(),
+    ]);
+    expect(result.items[0]).toMatchObject({
+      lastMessagePreview: 'From the future',
+      messages: [{ timestamp: new Date(1_000).toISOString() }],
+    });
+  });
+
   it('skips the contact and message batches for an empty page', async () => {
     const { sql, statements } = recordingSql(() => []);
     const result = await listConversationsPage(sql, ADMIN, {

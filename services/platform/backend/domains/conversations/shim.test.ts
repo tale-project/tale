@@ -6,7 +6,9 @@
  * re-detected (and "mirrored" re-logged) on every pass.
  */
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ZodError } from 'zod';
 
 import {
   reachableHandlerNames,
@@ -219,6 +221,106 @@ describe('ingest writers — the loser of a Message-ID race', () => {
     await expect(handler(args)).rejects.toThrow('connection reset');
     createConversation.mockRejectedValueOnce(UNIQUE_VIOLATION());
     await expect(handler(args)).rejects.toThrow('duplicate key');
+  });
+});
+
+/**
+ * A stamp the ingest hands over is what the Inbox orders and renders by, and
+ * a conversation's `lastMessageAt` only ever advances: one `sentAt` no `Date`
+ * can hold failed the organization's whole Inbox list. Every timestamp a
+ * writer takes is held to `epochMsSchema` and refused before anything is
+ * written; the ingest (`emailEpochMs`) reads such a date as unreadable, so
+ * the refusal never wedges a pass.
+ */
+describe('ingest writers — stamps a Date can hold', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const WRITERS = [
+    [
+      'createConversationWithMessage',
+      (stamp: Record<string, number>) => ({
+        organizationId: 'o1',
+        initialMessage: { ...INITIAL_MESSAGE, ...stamp },
+      }),
+    ],
+    [
+      'addMessageToConversation',
+      (stamp: Record<string, number>) => ({
+        organizationId: 'o1',
+        conversationId: 'c-target',
+        ...INITIAL_MESSAGE,
+        ...stamp,
+      }),
+    ],
+    [
+      'updateConversationMessage',
+      (stamp: Record<string, number>) => ({ messageId: 'm1', ...stamp }),
+    ],
+  ] as const;
+
+  it.each(
+    WRITERS.flatMap(([name, args]) =>
+      (['sentAt', 'deliveredAt'] as const).map(
+        (field) => [name, field, args] as const,
+      ),
+    ),
+  )(
+    '%s refuses a %s no Date can hold before writing',
+    async (name, field, args) => {
+      const { sql, statements } = recordingSql();
+      const handler = conversationShimHandlers(sql, NO_CONNECTOR)[
+        `conversations/internal_mutations:${name}`
+      ];
+      for (const stamp of [9e15, EPOCH_MS_MAX + 1, -1, 1.5]) {
+        await expect(handler(args({ [field]: stamp }))).rejects.toThrow(
+          ZodError,
+        );
+      }
+      expect(statements).toEqual([]);
+      expect(createConversation).not.toHaveBeenCalled();
+      expect(addMessageToConversation).not.toHaveBeenCalled();
+    },
+  );
+
+  it('writes a stamp at the latest instant a Date can hold', async () => {
+    const { sql } = recordingSql();
+    const handler = conversationShimHandlers(sql, NO_CONNECTOR)[
+      'conversations/internal_mutations:addMessageToConversation'
+    ];
+    await handler({
+      organizationId: 'o1',
+      conversationId: 'c-target',
+      ...INITIAL_MESSAGE,
+      sentAt: EPOCH_MS_MAX,
+    });
+    expect(addMessageToConversation).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ sentAt: EPOCH_MS_MAX }),
+    );
+  });
+
+  it('holds the file binding and the sync watermarks to the same bound', async () => {
+    const { sql, statements } = recordingSql();
+    const handlers = conversationShimHandlers(sql, NO_CONNECTOR);
+    await expect(
+      handlers['file_metadata/internal_mutations:bindFileToConversation']({
+        organizationId: 'o1',
+        storageId: 's3:o1/cv',
+        conversationId: 'c-target',
+        receivedAt: 9e15,
+      }),
+    ).rejects.toThrow(ZodError);
+    for (const watermark of ['mailSyncInboundSince', 'mailSyncOutboundSince']) {
+      await expect(
+        handlers['connector_credentials/mutations:patchCredentialInternal']({
+          organizationId: 'o1',
+          credentialId: 'cred-1',
+          [watermark]: 9e15,
+        }),
+      ).rejects.toThrow(ZodError);
+    }
+    expect(statements).toEqual([]);
+    expect(patchMailSyncWatermarks).not.toHaveBeenCalled();
   });
 });
 
