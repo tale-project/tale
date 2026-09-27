@@ -264,6 +264,7 @@
     "./search/static-index/source": "./src/components/search/static-index/source.ts",
     "./search/static-index/types": "./src/components/search/static-index/types.ts",
     "./search/static-index/use-static-search": "./src/components/search/static-index/use-static-search.ts",
+    "./search/strip-markdown": "./src/components/search/strip-markdown.ts",
     "./search/use-search-command": "./src/components/search/use-search-command.ts",
     "./searchable-select": "./src/components/forms/searchable-select.tsx",
     "./section": "./src/components/layout/section.tsx",

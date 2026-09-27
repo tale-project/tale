@@ -20,6 +20,7 @@ export { SearchEmpty } from './search-empty';
 export { SearchFooter } from './search-footer';
 export { Highlight } from './highlight';
 export { extractSnippet, extractTerms } from './snippet';
+export { stripMarkdown } from './strip-markdown';
 export { rankTokens, scoreText } from './rank';
 export {
   flattenGroups,
