@@ -241,6 +241,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [governance](../suites/governance.md) | `GOV-F4`, `GOV-F6`–`GOV-F12` | ⛔ manual-only | — |
 | [governance](../suites/governance.md) | `GOV-F13`–`GOV-F17` | ⛔ manual-only | — |
 | [governance](../suites/governance.md) | `GOV-B1`–`GOV-B5`, `GOV-B7` | ⛔ manual-only | — (B6 is the only automated boundary case) |
+| [governance](../suites/governance.md) | `GOV-B13` — a governance page's loader asks only for what the caller may read: a member's cold deep link warms no admin-only policy (the role is awaited first), a known member's hover asks for nothing, an admin's visit or hover warms every policy; the door answers a member exactly the member-readable set | 🔶 route loader + door | `app/routes/dashboard/$id/settings/governance/policies-limits.loader.test.ts`, `backend/domains/governance/routes.test.ts` (who may read); the real router's loader order and the network log in a browser remain manual |
 | [knowledge](../suites/knowledge.md) | `KNOW-F1` | 🔶 partial | `navigation.spec.ts` (documents route renders to its empty state; the upload flow itself is manual — the `knowledge` spec was retired in #2857) |
 | [knowledge](../suites/knowledge.md) | `KNOW-F3`–`KNOW-F5`, `KNOW-F8` | ⛔ manual-only | — (the `knowledge` spec, which automated document/ODT upload and contact CRUD, was retired in #2857) |
 | [knowledge](../suites/knowledge.md) | `KNOW-F2`, `KNOW-F6`, `KNOW-F7` | ⛔ manual-only | — (OneDrive sync / website crawl / document preview) |

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 54 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 55 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -468,6 +468,20 @@ select lists only the current admin's keys (`useApiKeys`).
   same as `/dashboard/{org}/settings/members`; the skeleton never sits
   longer, and the network log shows every admin read refused once (no
   retried 403s) — or, on a warm in-app navigation, not asked at all.
+- [ ] `GOV-B13` · **A member never asks for an admin-only policy** — Two
+  browser profiles, devtools Network filtered to `governance/policies`. As a
+  **member**, open `policies-limits`, `security-monitoring` and
+  `content-models` by URL in a fresh tab, and reload each → The access-denied
+  message (`accessDenied.organization`) renders, and no request names
+  `budgets`, `retention_policy`, `voice_output`, `conversation_routing`,
+  `login_policy`, `password_policy`, `two_factor_policy`, `model_access`,
+  `vision_model` or `transcription_model`; no `governance/policies` request
+  answers 403. As an **admin** in the other profile, open `policies-limits`
+  by URL the same way → **Budget rules** (`governance.budgets.title`),
+  **Retention policy** (`governance.retentionPolicy.title`), **Voice output**
+  (`governance.voiceOutput.title`) and **Conversation routing**
+  (`governance.conversationRouting.title`) paint their saved state, and every
+  policy read answers 200.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -4,6 +4,7 @@ import {
   DEFAULT_SANDBOX_QUOTA,
   dsarGovernanceConfigSchema,
   isFilePolicyType,
+  isPolicyReadableByMember,
   POLICY_SCHEMAS,
   sandboxQuotaConfigSchema,
   sandboxQuotaTotal,
@@ -72,18 +73,6 @@ import { getOrgUsageMetricsPg } from './usage-metrics.ts';
  * usage, the model-access filter, and the admin Trash listing/restore.
  */
 
-/** The 0.4 member-readable set — everything else needs admin. */
-const POLICY_TYPES_READABLE_BY_MEMBER: ReadonlySet<string> = new Set([
-  'data_classification_notice',
-  'feature_flags',
-  'pii_config',
-  'chat_filter',
-  'custom_instructions',
-  'upload_policy',
-  'default_models',
-  'session_idle_timeout',
-]);
-
 /** Types with dedicated write actions (bounds / grace flows) — never
  * writable through the generic save door. */
 const SPECIAL_WRITE_POLICY_TYPES: ReadonlySet<string> = new Set([
@@ -112,7 +101,7 @@ export function createGovernanceRoutes(deps: {
       return c.json({ error: 'UNKNOWN_POLICY_TYPE' }, 400);
     }
     if (
-      !POLICY_TYPES_READABLE_BY_MEMBER.has(policyType) &&
+      !isPolicyReadableByMember(policyType) &&
       !isAdmin(c.get('orgMember').role)
     ) {
       return c.json({ error: 'FORBIDDEN' }, 403);
