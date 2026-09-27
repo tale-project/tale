@@ -29,6 +29,15 @@ import {
   useUpsertConnectorOauthApp,
 } from '../hooks/oauth-apps';
 
+// One row shape for the live rows and their loading stand-ins. The row wraps:
+// when the name can't keep 12rem beside the status and its buttons (a phone),
+// the cluster takes a line of its own, still on the right, instead of
+// pushing the row past the card's edge.
+const OAUTH_APP_ROW =
+  'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3';
+const OAUTH_APP_ROW_TEXT = 'min-w-0 flex-1 basis-48';
+const OAUTH_APP_ROW_ACTIONS = 'ml-auto flex items-center gap-2';
+
 /**
  * The org-level OAuth app registry: for each OAuth2 connector (plus the
  * Knowledge OneDrive import, which has no catalog entry), which vendor app
@@ -198,11 +207,8 @@ export function OauthAppsCard({
             : targets.map((target) => {
                 const orgApp = orgApps.get(target.slug);
                 return (
-                  <div
-                    key={target.slug}
-                    className="flex items-center justify-between gap-4 px-4 py-3"
-                  >
-                    <Stack gap={1}>
+                  <div key={target.slug} className={OAUTH_APP_ROW}>
+                    <Stack gap={1} className={OAUTH_APP_ROW_TEXT}>
                       <Text as="span" className="text-sm font-medium">
                         {target.displayName}
                       </Text>
@@ -217,7 +223,7 @@ export function OauthAppsCard({
                         </Text>
                       )}
                     </Stack>
-                    <div className="flex items-center gap-2">
+                    <div className={OAUTH_APP_ROW_ACTIONS}>
                       <Badge
                         variant={
                           orgApp
@@ -300,13 +306,13 @@ export function OauthAppsCard({
 function OauthAppRowPlaceholder({ seed }: { seed: number }) {
   const { t } = useT('settings');
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <Stack gap={1} className="min-w-0 flex-1">
+    <div className={OAUTH_APP_ROW}>
+      <Stack gap={1} className={OAUTH_APP_ROW_TEXT}>
         <Text as="span" className="block w-40 max-w-full text-sm font-medium">
           <SkeletonText seed={seed} />
         </Text>
       </Stack>
-      <div className="flex items-center gap-2">
+      <div className={OAUTH_APP_ROW_ACTIONS}>
         <Badge variant="slate">{t('connectors.oauthApps.statusNone')}</Badge>
         <Button variant="secondary" size="sm">
           {t('connectors.oauthApps.configure')}
