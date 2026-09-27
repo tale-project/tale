@@ -80,6 +80,7 @@ import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integr
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
+import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
@@ -55090,6 +55091,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxLifecycle',
         () => checkSandboxLifecycle(sql, authCtx, record),
+      ],
+      [
+        'checkSandboxRetiredTablesDropped',
+        () => checkSandboxRetiredTablesDropped(sql, record),
       ],
       [
         'checkSandboxIdleRelease',
