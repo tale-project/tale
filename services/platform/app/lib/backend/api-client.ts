@@ -116,7 +116,13 @@ export async function backendFetch<T>(
         } else if (typeof record.error === 'string') {
           message = record.error;
         }
-        if (typeof record.error === 'string') {
+        // Two envelopes answer here: the flat one (`{ error: <sentence>,
+        // code: <CODE> }` — the session 401, the URL guards, the API 404)
+        // names its code in `code`, and the doors that answer
+        // `{ error: <CODE> }` put the code in `error`.
+        if (typeof record.code === 'string' && record.code.length > 0) {
+          code = record.code;
+        } else if (typeof record.error === 'string') {
           code = record.error;
         }
         if (record.data !== null && typeof record.data === 'object') {

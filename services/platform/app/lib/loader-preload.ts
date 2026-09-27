@@ -103,11 +103,12 @@ export function ensureOrgSettingsQuery<Name extends QueryName>(
 }
 
 /**
- * A render-gating read can reject during the brief pre-auth window (the Convex
- * client has not attached the auth token yet), which surfaces as an
- * `UNAUTHENTICATED` AppError. The reactive subscription re-runs the moment
- * auth lands, so this case is expected, not a preload failure worth logging —
- * anything else propagates to the caller for diagnostics.
+ * A render-gating read rejects with the session door's 401 — an
+ * `UNAUTHORIZED` AppError (`backend/auth/session.ts`) — when the session the
+ * route's `beforeLoad` found has since ended (signed out in another tab,
+ * expired, revoked). That is the auth state, not a preload failure worth
+ * logging: the page's own reads meet the same answer. Anything else
+ * propagates to the caller for diagnostics.
  */
 function isPreAuthError(error: unknown): boolean {
   if (!(error instanceof AppError)) return false;
@@ -116,7 +117,7 @@ function isPreAuthError(error: unknown): boolean {
     typeof data === 'object' &&
     data !== null &&
     'code' in data &&
-    data.code === 'UNAUTHENTICATED'
+    data.code === 'UNAUTHORIZED'
   );
 }
 
@@ -146,9 +147,9 @@ export function ensureGovernancePolicies(
           policyType,
         },
       ).catch((error: unknown) => {
-        // Pre-auth rejections are expected and self-heal via the reactive
-        // subscription; swallow them so they never reach the caller's warning
-        // log. Real errors still propagate.
+        // A lapsed session is expected, not a preload failure; swallow it so
+        // it never reaches the caller's warning log. Real errors still
+        // propagate.
         if (isPreAuthError(error)) return undefined;
         throw error;
       }),

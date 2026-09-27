@@ -120,6 +120,60 @@ describe('backendFetch', () => {
     }
   });
 
+  // The flat envelope — the session 401, the URL guard, the API 404 — puts
+  // the sentence in `error` and the code beside it. Read from `error`, the
+  // client's code was the sentence, so no check on `UNAUTHORIZED` matched.
+  it.each([
+    [
+      401,
+      'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
+      'UNAUTHORIZED',
+    ],
+    [400, 'The request URL contains a NUL character (U+0000)', 'INVALID_URL'],
+    [404, 'Not found', 'NOT_FOUND'],
+  ])(
+    'reads a flat %i envelope: its code from `code`, its sentence as the message',
+    async (status, sentence, code) => {
+      vi.spyOn(window, 'fetch').mockResolvedValue(
+        jsonResponse(status, { error: sentence, code }),
+      );
+      const error = await backendFetch('/tasks', { orgId: 'org1' }).catch(
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(BackendApiError);
+      expect(error).toMatchObject({ status, code, message: sentence });
+    },
+  );
+
+  it('reads the code from `error` when the door answers { error: CODE }', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(403, { error: 'PROJECT_FORBIDDEN' }),
+    );
+    const error = await backendFetch('/projects/p1/secrets', {
+      orgId: 'org1',
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(BackendApiError);
+    expect(error).toMatchObject({
+      status: 403,
+      code: 'PROJECT_FORBIDDEN',
+      message: 'PROJECT_FORBIDDEN',
+    });
+  });
+
+  it.each([null, 42, ''])(
+    'falls back to `error` for the code when `code` is %j',
+    async (code) => {
+      vi.spyOn(window, 'fetch').mockResolvedValue(
+        jsonResponse(403, { error: 'RBAC_FORBIDDEN', code }),
+      );
+      const error = await backendFetch('/tasks', { orgId: 'org1' }).catch(
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(BackendApiError);
+      expect(error).toMatchObject({ code: 'RBAC_FORBIDDEN' });
+    },
+  );
+
   it('keeps the status text for a non-JSON error body', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       new Response('Bad Gateway', { status: 502 }),

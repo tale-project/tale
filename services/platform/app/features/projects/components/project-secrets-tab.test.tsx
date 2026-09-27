@@ -125,7 +125,9 @@ describe('ProjectSecretsTab', () => {
     it.each([
       ['PROJECT_FORBIDDEN', /Only project administrators/],
       ['PROJECT_NOT_FOUND', /no longer exists/],
-      ['UNAUTHENTICATED', /Only project administrators/],
+      // The session door's 401 (a lapsed session), not the Convex-era
+      // `UNAUTHENTICATED` nothing answers any more.
+      ['UNAUTHORIZED', /Only project administrators/],
     ])('shows the access notice and no editor for %s', (code, body) => {
       secretsErrorFixture = new AppError({ code });
       renderTab();
