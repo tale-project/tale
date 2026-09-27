@@ -45,6 +45,7 @@ import {
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
@@ -65,6 +66,7 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
+import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
@@ -54332,6 +54334,10 @@ async function main(): Promise<void> {
         () => checkRetentionAuditTrail(sql, authCtx, record),
       ],
       [
+        'checkChatFilterEventRetention',
+        () => checkChatFilterEventRetention(sql, authCtx, record),
+      ],
+      [
         'checkErasure',
         () => checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
@@ -54441,6 +54447,10 @@ async function main(): Promise<void> {
       [
         'checkPolicySweeps',
         () => checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkExpiredSessionReaper',
+        () => checkExpiredSessionReaper(sql, authCtx, record),
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
       [

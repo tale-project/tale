@@ -164,6 +164,42 @@ describe('task read adapters', () => {
     );
   });
 
+  // A start or due date stored before the doors held it to the epoch bound
+  // (`9e15`: a safe integer, and no `Date` holds it) reads as none, so the
+  // card shows no chip and the detail sheet's date picker — which throws
+  // formatting an invalid month when opened — gets no value.
+  it('reads a stored date no Date can hold as none', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        task: wireTask({ startDate: 9e15, dueDate: 1_790_400_000_000 }),
+        canEdit: true,
+        canComment: true,
+      }),
+    );
+    const detail = (await taskReadAdapters['tasks/queries:getTask']?.(
+      { organizationId: 'org-1', taskId: 't1' },
+      {},
+    )?.queryFn()) as { task: Record<string, unknown> };
+    expect(detail.task).not.toHaveProperty('startDate');
+    expect(detail.task.dueDate).toBe(1_790_400_000_000);
+
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        tasks: [wireTask({ startDate: 1_000, dueDate: 9e15 })],
+        truncated: false,
+        canEdit: true,
+      }),
+    );
+    const board = (await taskReadAdapters['tasks/queries:listTasksByProject']?.(
+      { organizationId: 'org-1', projectId: 'p1' },
+      {},
+    )?.queryFn()) as {
+      tasks: Record<string, unknown>[];
+    };
+    expect(board.tasks[0]?.startDate).toBe(1_000);
+    expect(board.tasks[0]).not.toHaveProperty('dueDate');
+  });
+
   it('maps a missing task detail to null — the 0.4 answer', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse(404, { error: 'TASK_NOT_FOUND' }),

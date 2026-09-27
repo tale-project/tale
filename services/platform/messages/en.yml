@@ -6555,6 +6555,7 @@ settings:
         notification.retention_deleted: Notification retention deleted
         file_metadata.retention_deleted: File retention deleted
         sandbox_ledger.retention_deleted: Sandbox ledger retention deleted
+        chat_filter_event.retention_deleted: Chat filter event retention deleted
         policy_acknowledged: Policy acknowledged
         login_attempt: Login attempt
         login_lockout: Login lockout

@@ -77,6 +77,8 @@ export interface TaskPayloads {
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
   'maintenance.login_attempts_ttl': Record<string, never>;
+  /** Daily delete of auth sessions a day past their expiry (cron). */
+  'maintenance.expired_sessions': Record<string, never>;
   /** Sweep delivered realtime hints past the retention horizon (cron) — the
    * backstop for a deployment with no `/events` stream open to do it lazily. */
   'realtime.reclaim_outbox': Record<string, never>;
@@ -379,6 +381,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  // Bounded batches that stop on the job's signal; a backlog past the batch
+  // budget waits for the next night rather than for a retry.
+  'maintenance.expired_sessions': { retryLimit: 2, expireInSeconds: 600 },
   // A missed sweep is picked up by the next cron tick; nothing to retry.
   'realtime.reclaim_outbox': { retryLimit: 0, expireInSeconds: 300 },
   // Releases are idempotent (liveness re-checked at run time; corpus and

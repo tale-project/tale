@@ -2,6 +2,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import Ajv from 'ajv';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
@@ -1698,6 +1699,91 @@ describe('every limit and offset query parameter is bounded', () => {
       )
       .map(({ name }) => name);
     expect(bare).toEqual([]);
+  });
+});
+
+/**
+ * A timestamp a request carries is held to one bound at every door —
+ * `epochMsSchema`: whole epoch milliseconds a `Date` can hold, 0 to 8.64e15
+ * — and the document publishes it, so a generated client refuses what the
+ * door would. `expectedUpdatedAt` used to publish the safe-integer range
+ * (and on a document no maximum at all), where `9e15` passed and no `Date`
+ * can hold it.
+ */
+describe('every request timestamp publishes the epoch bound', () => {
+  const schemas = (spec.components as { schemas: Record<string, Json> })
+    .schemas;
+  const resolve = (schema: Json): Json =>
+    typeof schema.$ref === 'string'
+      ? (schemas[schema.$ref.replace('#/components/schemas/', '')] ?? {})
+      : schema;
+  /** Every integer or number property under `schema` named like a date. */
+  const stamps = (
+    schema: Json,
+    at: string,
+    found: { at: string; shape: Json }[],
+    seen: Set<Json>,
+  ): void => {
+    const shape = resolve(schema);
+    if (seen.has(shape)) return;
+    seen.add(shape);
+    for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
+      for (const member of (shape[key] ?? []) as Json[]) {
+        stamps(member, at, found, seen);
+      }
+    }
+    if (shape.items !== undefined) {
+      stamps(shape.items as Json, `${at}[]`, found, seen);
+    }
+    const properties = (shape.properties ?? {}) as Record<string, Json>;
+    for (const [name, property] of Object.entries(properties)) {
+      const resolved = resolve(property);
+      if (
+        /(At|Date|Since|Until)$/.test(name) &&
+        (resolved.type === 'integer' || resolved.type === 'number')
+      ) {
+        found.push({ at: `${at}.${name}`, shape: resolved });
+      }
+      stamps(property, `${at}.${name}`, found, seen);
+    }
+  };
+  const found: { at: string; shape: Json }[] = [];
+  for (const [path, ops] of Object.entries(paths)) {
+    for (const [method, op] of Object.entries(ops)) {
+      if (!HTTP_METHODS.has(method)) continue;
+      const content = ((op.requestBody as Json | undefined)?.content ??
+        {}) as Record<string, Json>;
+      const schema = content['application/json']?.schema as Json | undefined;
+      if (schema !== undefined) {
+        stamps(schema, `${method.toUpperCase()} ${path}`, found, new Set());
+      }
+    }
+  }
+
+  it('sees the stamps', () => {
+    expect(found.map(({ at }) => at)).toEqual(
+      expect.arrayContaining([
+        'POST /api/v1/conversations/sync.messages[].createdAt',
+        'PATCH /api/v1/contacts/{id}.expectedUpdatedAt',
+        'PATCH /api/v1/products/{id}.expectedUpdatedAt',
+        'PATCH /api/v1/documents/{id}.expectedUpdatedAt',
+        'PUT /api/v1/projects/{id}/agents/{agentId}.expectedUpdatedAt',
+      ]),
+    );
+  });
+
+  it('bounds each to whole milliseconds from 0 to EPOCH_MS_MAX', () => {
+    const unbounded = found
+      .filter(
+        ({ shape }) =>
+          !(
+            shape.type === 'integer' &&
+            shape.minimum === 0 &&
+            shape.maximum === EPOCH_MS_MAX
+          ),
+      )
+      .map(({ at }) => at);
+    expect(unbounded).toEqual([]);
   });
 });
 
