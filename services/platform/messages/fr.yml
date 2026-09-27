@@ -2054,7 +2054,7 @@ dialogs:
     badgeArchived: Archivé
     badgeProjectArchived: Projet archivé
   thisMember: ce membre
-  confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
+  confirmRemoveMember: Retirer {name} de cette organisation ? Cette personne perdra l'accès à celle-ci et à toutes les ressources associées.
   toSend: pour envoyer
   contactInfo:
     title: Détails du contact

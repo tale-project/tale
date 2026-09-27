@@ -581,6 +581,11 @@ any toggled setting after the run.
   `settings.teams.teamNameTaken`; each dialog stays open, the list keeps one
   `Finance` row and the audit log gains no team-created or team-updated row.
   Reopening `Finance` itself and saving its own name unchanged goes through.
+- [ ] `SET-F49` · **Remove member names the organization** — A member row's
+  action menu → **Remove member** (`settings.organization.removeMember`) →
+  The confirmation (`dialogs.confirmRemoveMember`) asks about removing the
+  person **from this organization** and says they lose access to it — never
+  "from the team" (teams have their own Delete flow) — then cancel.
 
 ## Boundary & error tests
 

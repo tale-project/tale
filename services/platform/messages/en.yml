@@ -1972,7 +1972,7 @@ dialogs:
     badgeArchived: Archived
     badgeProjectArchived: Archived project
   thisMember: this member
-  confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
+  confirmRemoveMember: Remove {name} from this organization? They'll lose access to it and all associated resources.
   toSend: to send
   contactInfo:
     title: Contact details
