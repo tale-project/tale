@@ -13,6 +13,9 @@ export const DEFAULT_LOGGING: LoggingConfig = {
 
 export interface ComposeService {
   image: string;
+  // Forces the manifest arch compose pulls, for a third-party image published
+  // under only ONE platform — see create-object-storage-service.ts.
+  platform?: string;
   container_name?: string;
   // `init: true` runs an init process (PID 1 reaper) — needed by sidecars that
   // spawn short-lived child processes (e.g. the bgutil provider's headless

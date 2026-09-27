@@ -22,6 +22,11 @@ export function createObjectStorageService(
 ): ComposeService {
   return {
     image: imageRef(config, 'object-store'),
+    // The pinned image publishes ONLY linux/amd64 (ops rebuild, no arm64
+    // manifest) — pin the arch so a `tale deploy` onto an arm64 host (e.g.
+    // Graviton) pulls under emulation instead of failing outright. Keep in
+    // lockstep with the canonical compose.yml service.
+    platform: 'linux/amd64',
     container_name: `${getProjectId()}-object-store`,
     // Let in-flight multipart writes finish before SIGKILL.
     stop_grace_period: '30s',
