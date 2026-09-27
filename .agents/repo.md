@@ -116,12 +116,12 @@ replays its cached verdict when only that file changes, so it lists the file as 
 [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
 tree (test, build), its JSON maps (typecheck, lint) and the root `README*.md` (test);
 [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
-pages. Keep
-`$TURBO_DEFAULT$` in that list. `services/docs/tests/turbo-inputs.test.ts` and
+pages. Keep `$TURBO_DEFAULT$` in that list. `services/docs/tests/turbo-inputs.test.ts` and
 `tools/cli/src/lib/config/platform-docs.test.ts` ask `turbo --dry=json` whether those files
 are hashed. An edit under `packages/` also leaves every dependent workspace's `test`,
-`typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`. A package
-change is judged only by that package's own tasks until the consumer's own files change.
+`typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…` — the
+services' i18n tests that read the `packages/ui` catalogs included. A package change is judged
+only by that package's own tasks until the consumer's own files change.
 
 ## Skills index
 

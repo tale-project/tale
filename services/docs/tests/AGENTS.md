@@ -117,6 +117,6 @@ Add a new check as one `*.test.ts` in this directory using the shared helpers in
 `markdown.ts` (`parseFrontmatter`, `extractHeadings`, `extractCodeFences`, `extractOpeningProse`,
 `extractClosingSection`, `iterProseLines`, `COMPONENT_TAGS` + component-tag helpers, masking
 helpers), `webp-size.ts` (WebP header dimensions, no deps), `paths.ts` (`CONTENT_ROOT`,
-`REPO_ROOT`, `README_PATTERN`), and `findings.ts` (`Finding`, `assertNoFindings`). Follow the existing pattern:
-collect `Finding[]`, then `assertNoFindings`. Term-shaped rules (UI labels, loanwords) do **not**
-belong here — add them to the i18n framework instead.
+`REPO_ROOT`, `README_PATTERN`), and `findings.ts` (`Finding`, `assertNoFindings`). Follow the
+existing pattern: collect `Finding[]`, then `assertNoFindings`. Term-shaped rules (UI labels,
+loanwords) do **not** belong here — add them to the i18n framework instead.
