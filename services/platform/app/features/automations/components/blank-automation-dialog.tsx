@@ -13,6 +13,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { SearchableSelect } from '@tale/ui/searchable-select';
@@ -43,6 +44,8 @@ import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
+import { useCronPreview } from '../hooks/use-cron-preview';
+import { isValidTimezone, listTimezoneOptions } from '../lib/cron-preview';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
 import { DEFAULT_HARNESS } from './agent-node-fields';
 
@@ -182,12 +185,42 @@ export function BlankAutomationDialog({
     [offeredModels, tProjects],
   );
 
+  // The schedule is judged here, before anything is written: the same
+  // validator the bind refuses on, so the wizard never creates an
+  // automation and then fails to set its trigger. The toast on a refused
+  // bind stays as the fallback for whatever the server alone can see.
+  const {
+    preview: cronPreview,
+    description: cronDescription,
+    invalidText: cronInvalidText,
+  } = useCronPreview(cron, timezone, triggerKind === 'schedule');
+  const timezoneOptions = useMemo(
+    () =>
+      listTimezoneOptions(timezone).map((zone) => ({
+        value: zone,
+        label: zone,
+      })),
+    [timezone],
+  );
+  const timezoneValid = isValidTimezone(timezone);
+
   const slug = slugify(name);
   const canSubmitStep1 =
     slug.length > 0 && model !== '' && prompt.trim() !== '';
   const canSubmitStep2 =
     triggerKind === 'webhook' ||
-    (triggerKind === 'schedule' ? cron.trim() !== '' : eventName.trim() !== '');
+    (triggerKind === 'schedule'
+      ? cronPreview.kind === 'ok' && timezoneValid
+      : eventName.trim() !== '');
+  const step2DisabledReason =
+    triggerKind === 'schedule'
+      ? (cronInvalidText ??
+        (cronPreview.kind === 'empty'
+          ? t('trigger.cronHint')
+          : timezoneValid
+            ? undefined
+            : t('blank.timezoneInvalid')))
+      : undefined;
 
   const doCreate = async (): Promise<void> => {
     if (creatingRef.current) return;
@@ -321,7 +354,14 @@ export function BlankAutomationDialog({
           {t('blank.next')}
         </Button>
       ) : (
-        <Button type="submit" disabled={!canSubmitStep2} isLoading={submitting}>
+        <Button
+          type="submit"
+          disabled={!canSubmitStep2}
+          {...(step2DisabledReason !== undefined && !canSubmitStep2
+            ? { disabledReason: step2DisabledReason }
+            : {})}
+          isLoading={submitting}
+        >
           {submitting ? t('blank.submitting') : t('blank.submit')}
         </Button>
       )}
@@ -436,19 +476,32 @@ export function BlankAutomationDialog({
           />
           {triggerKind === 'schedule' ? (
             <>
-              <Input
-                id="blank-automation-cron"
+              <Field
                 label={t('trigger.cronLabel')}
-                placeholder="0 */6 * * *"
-                value={cron}
-                onChange={(e) => setCron(e.target.value)}
-              />
-              <Input
+                htmlFor="blank-automation-cron"
+                description={
+                  cronPreview.kind === 'invalid' ? undefined : cronDescription
+                }
+                error={cronInvalidText}
+              >
+                <Input
+                  id="blank-automation-cron"
+                  placeholder="0 */6 * * *"
+                  value={cron}
+                  onChange={(e) => setCron(e.target.value)}
+                  className="font-mono"
+                />
+              </Field>
+              <SearchableSelect
                 id="blank-automation-timezone"
                 label={t('trigger.timezoneLabel')}
+                options={timezoneOptions}
+                value={timezone || null}
+                onValueChange={setTimezone}
+                searchPlaceholder={t('trigger.timezoneSearch')}
+                emptyText={t('trigger.timezoneEmpty')}
                 placeholder="UTC"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
+                modal
               />
             </>
           ) : null}

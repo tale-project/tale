@@ -94,6 +94,26 @@ export function previewCronExpression(
   }
 }
 
+/**
+ * Whether `timezone` names a zone `Intl` resolves — the check the bind
+ * makes (`wallClockIn` throws on an unknown zone), so a surface can refuse
+ * `Mars/Olympus` before the save does.
+ */
+export function isValidTimezone(timezone: string): boolean {
+  const trimmed = timezone.trim();
+  if (trimmed === '') return false;
+  try {
+    return (
+      new Intl.DateTimeFormat('en-US', { timeZone: trimmed }).resolvedOptions()
+        .timeZone !== ''
+    );
+  } catch (error) {
+    // A RangeError names an unknown zone — the answer is "no", not a throw.
+    if (!(error instanceof RangeError)) console.warn(error);
+    return false;
+  }
+}
+
 /** Common IANA zones for the timezone combobox, UTC first; always includes `extra`. */
 export function listTimezoneOptions(extra?: string): string[] {
   const supported =

@@ -25,10 +25,8 @@ import {
   useSetAutomationTrigger,
 } from '../hooks/mutations';
 import { useAutomationTriggers } from '../hooks/queries';
-import {
-  listTimezoneOptions,
-  previewCronExpression,
-} from '../lib/cron-preview';
+import { useCronPreview } from '../hooks/use-cron-preview';
+import { listTimezoneOptions } from '../lib/cron-preview';
 import { automationErrorMessage } from '../lib/errors';
 
 const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
@@ -155,41 +153,13 @@ export function TriggerEditor({
     [timezone],
   );
 
-  const cronPreview = useMemo(
-    () => previewCronExpression(cron, timezone || 'UTC'),
-    [cron, timezone],
-  );
-
-  // The refusal under the Cron field: the validator's own sentence when it
-  // has one (the same the save would answer with), the generic line otherwise.
-  const cronInvalidText =
-    cronPreview.kind === 'invalid'
-      ? cronPreview.reason === undefined
-        ? t('trigger.cronInvalid')
-        : t('trigger.cronInvalidReason', { reason: cronPreview.reason })
-      : undefined;
-
-  const cronDescription = useMemo(() => {
-    if (kind !== 'schedule') return undefined;
-    if (cronPreview.kind === 'empty') return t('trigger.cronHint');
-    if (cronPreview.kind === 'invalid') return t('trigger.cronInvalid');
-    const next = t('trigger.cronNext', {
-      at: formatDate(cronPreview.nextAt, 'long'),
-    });
-    if (cronPreview.pattern?.type === 'everyMinutes') {
-      return `${t('trigger.cronEveryMinutes', { n: cronPreview.pattern.n })} · ${next}`;
-    }
-    if (cronPreview.pattern?.type === 'everyHours') {
-      return `${t('trigger.cronEveryHours', { n: cronPreview.pattern.n })} · ${next}`;
-    }
-    if (cronPreview.pattern?.type === 'dailyAt') {
-      const { hour, minute } = cronPreview.pattern;
-      const hh = String(hour).padStart(2, '0');
-      const mm = String(minute).padStart(2, '0');
-      return `${t('trigger.cronDailyAt', { time: `${hh}:${mm}` })} · ${next}`;
-    }
-    return next;
-  }, [kind, cronPreview, t, formatDate]);
+  // The validator's verdict and the words under the field — shared with
+  // the blank-automation wizard, so both surfaces refuse the same crons.
+  const {
+    preview: cronPreview,
+    description: cronDescription,
+    invalidText: cronInvalidText,
+  } = useCronPreview(cron, timezone, kind === 'schedule');
 
   const save = (rotateToken?: boolean) => {
     setRefusal(null);

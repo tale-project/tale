@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -76,6 +76,12 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ id: 'org-1' }),
 }));
 
+beforeEach(() => {
+  saveAutomation.mockClear();
+  setTrigger.mockClear();
+  navigate.mockClear();
+});
+
 function renderDialog() {
   return render(
     <BlankAutomationDialog
@@ -85,6 +91,81 @@ function renderDialog() {
     />,
   );
 }
+
+/** Fill step 1 and move to the trigger step. */
+async function reachTriggerStep(user: ReturnType<typeof renderDialog>['user']) {
+  await user.type(screen.getByLabelText(/Name/i), 'Triage');
+  await user.click(screen.getByRole('button', { name: /Agent model/i }));
+  await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+  await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan issues');
+  await user.click(screen.getByRole('button', { name: /Next/i }));
+}
+
+/**
+ * The wizard judges the schedule before it writes anything — with the
+ * bind's own validator — so an invalid cron never half-creates an
+ * automation whose trigger then fails to set (2026-09-26 evaluation, D-02).
+ */
+describe('BlankAutomationDialog schedule validation', () => {
+  it('previews the next run of a valid cron and offers a timezone picker', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    expect(screen.getByText(/Every 6 hours · Next run/)).toBeVisible();
+    // The searchable picker renders its trigger as a button, like the model
+    // picker on step 1 — free text is gone.
+    expect(screen.getByRole('button', { name: /Timezone/i })).toHaveTextContent(
+      'UTC',
+    );
+    expect(screen.queryByRole('textbox', { name: /Timezone/i })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Create automation/i }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('refuses an invalid cron inline and disables Create without writing', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    const cron = screen.getByLabelText('Cron');
+    await user.clear(cron);
+    await user.type(cron, '61 * * * *');
+    expect(
+      screen.getByText(/not valid: "61" is out of range \(0\.\.59\)/),
+    ).toBeVisible();
+    expect(screen.queryByText(/Next run/)).toBeNull();
+    const create = screen.getByRole('button', { name: /Create automation/i });
+    expect(create).toHaveAttribute('aria-disabled', 'true');
+    await user.click(create);
+    expect(saveAutomation).not.toHaveBeenCalled();
+    expect(setTrigger).not.toHaveBeenCalled();
+
+    // A four-field cron — the one the packaged parser used to accept.
+    await user.clear(cron);
+    await user.type(cron, '*/1 * * *');
+    expect(screen.getByText(/got 4/)).toBeVisible();
+    expect(create).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('sends the schedule it previewed', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    const cron = screen.getByLabelText('Cron');
+    await user.clear(cron);
+    await user.type(cron, '43 7 * * *');
+    expect(screen.getByText(/Every day at 07:43 · Next run/)).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(setTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: expect.objectContaining({
+          kind: 'schedule',
+          cron: '43 7 * * *',
+          timezone: 'UTC',
+        }),
+      }),
+    );
+  });
+});
 
 describe('BlankAutomationDialog model pin', () => {
   it('offers one option per (provider, model) pair, harness-filtered', async () => {

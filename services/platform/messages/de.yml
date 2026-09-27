@@ -608,6 +608,7 @@ automations:
     promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
       neue eine Aufgabe anlegen.
     equipmentLabel: Ausrüstung
+    timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
     webhookHint: Die Webhook-URL bekommst du nach dem Anlegen auf der
       Trigger-Karte der Automatisierung.
     triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ

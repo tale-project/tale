@@ -429,6 +429,15 @@ output:
       and NO "Next run" line; **Save settings** is disabled with that reason;
       nothing is sent to the server. A five-field cron restores the preview
       (`automations.trigger.cronNext`).
+- [ ] `AUTO-F41` · **Blank wizard validates the schedule before creating** —
+      **Create automation** › **Blank** › step 2 with **Schedule** → The
+      **Cron** field shows the pattern and next run (`automations.trigger.cronNext`)
+      for the default; **Timezone** is a searchable picker
+      (`automations.trigger.timezoneSearch`), not free text. Type
+      `61 * * * *`, then `0 0 31 2 *`, then `*/1 * * *` → each shows the
+      refusal under the field (`automations.trigger.cronInvalidReason`) and
+      **Create automation** is disabled with that reason — no automation is
+      created (the list is unchanged, no `blank.triggerFailed` toast).
 
 ## Boundary & error tests
 

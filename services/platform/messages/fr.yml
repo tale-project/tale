@@ -615,6 +615,7 @@ automations:
     promptPlaceholder: p. ex. Passer en revue les issues GlitchTip ouvertes et
       créer une tâche pour chaque nouvelle.
     equipmentLabel: Équipement
+    timezoneInvalid: Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).
     webhookHint: Tu obtiendras l'URL du webhook sur la carte Trigger de
       l'automatisation une fois créée.
     triggerFailed: "L'automatisation a été créée, mais son trigger n'a pas pu

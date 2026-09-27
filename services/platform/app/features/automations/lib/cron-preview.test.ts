@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { listTimezoneOptions, previewCronExpression } from './cron-preview';
+import {
+  isValidTimezone,
+  listTimezoneOptions,
+  previewCronExpression,
+} from './cron-preview';
 
 describe('previewCronExpression', () => {
   it('returns empty for a blank expression', () => {
@@ -71,6 +75,22 @@ describe('previewCronExpression', () => {
       expect(preview.pattern).toEqual({ type: 'everyHours', n: 6 });
     }
   });
+});
+
+describe('isValidTimezone', () => {
+  it.each(['UTC', 'Europe/Zurich', 'America/New_York'])(
+    'accepts %s',
+    (zone) => {
+      expect(isValidTimezone(zone)).toBe(true);
+    },
+  );
+
+  it.each(['', '   ', 'Mars/Olympus', 'Europe/Nowhere'])(
+    'refuses %j like the bind does',
+    (zone) => {
+      expect(isValidTimezone(zone)).toBe(false);
+    },
+  );
 });
 
 describe('listTimezoneOptions', () => {
