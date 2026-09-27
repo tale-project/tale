@@ -36,6 +36,7 @@ import {
   credentialDependents,
   deleteCredential,
   isCredentialSelectionResolvable,
+  updateCredential,
 } from './service.ts';
 
 type Statement = { text: string; values: unknown[] };
@@ -58,13 +59,28 @@ const scope = { organizationId: 'org-1', userId: 'admin-1', role: 'admin' };
 
 function harness(options: {
   row?: { providerSlug: string; isDefault: boolean; status: string } | null;
-  sibling?: boolean;
 }) {
   return recordingSql((text) => {
     if (text.includes('is_default AS "isDefault", status'))
       return options.row === null ? [] : [options.row ?? defaultRow];
-    if (text.includes("status = 'active' AND id <> ?"))
-      return options.sibling ? [{ id: 'cred-2' }] : [];
+    // The update's own row lookup (name, auth method, hash columns).
+    if (text.includes('auth_method AS "authMethod"'))
+      return options.row === null
+        ? []
+        : [
+            {
+              ...(options.row ?? defaultRow),
+              name: 'Key',
+              authMethod: 'api-key',
+              id: 'cred-1',
+              envName: null,
+              endpointUrl: null,
+              maskedPreview: 'sk-…',
+              modelAllowlist: null,
+              createdAt: 1,
+              updatedAt: 1,
+            },
+          ];
     if (text.startsWith('DELETE FROM app.provider_credentials'))
       return [{ name: 'Key', providerSlug: 'openai' }];
     return [];
@@ -101,22 +117,21 @@ describe('credentialDependents', () => {
     });
   });
 
-  it('names it for the provider default that is the last active credential, not with a sibling', async () => {
+  it('names it for the provider default regardless of siblings — nothing promotes one', async () => {
     readOrgEmbeddingConfig.mockResolvedValue({
       providerSlug: 'openai',
       model: 'm',
       dimensions: 3,
     });
+    const { sql, statements } = harness({});
+    expect(await credentialDependents(sql, scope, 'cred-1')).toEqual({
+      usedBy: ['embedding'],
+    });
+    // The resolver reads `is_default AND status = 'active'` only, so no
+    // sibling lookup decides the answer: the row alone does.
     expect(
-      await credentialDependents(harness({}).sql, scope, 'cred-1'),
-    ).toEqual({ usedBy: ['embedding'] });
-    expect(
-      await credentialDependents(
-        harness({ sibling: true }).sql,
-        scope,
-        'cred-1',
-      ),
-    ).toEqual({ usedBy: [] });
+      statements.filter((s) => s.text.includes('provider_credentials')),
+    ).toHaveLength(1);
     expect(
       await credentialDependents(
         harness({
@@ -193,6 +208,69 @@ describe('deleteCredential', () => {
       providerSlug: 'openai',
     });
     expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(true);
+  });
+});
+
+describe('updateCredential — the embedding credential cannot be disabled or un-defaulted', () => {
+  const embeddingOnDefault = {
+    providerSlug: 'openai',
+    model: 'm',
+    dimensions: 3,
+  };
+
+  it.each([
+    ['disabling it', { status: 'disabled' as const }],
+    ['taking its default away', { isDefault: false }],
+  ])(
+    'refuses %s with 409 CREDENTIAL_IN_USE, writing nothing',
+    async (_, patch) => {
+      readOrgEmbeddingConfig.mockResolvedValue(embeddingOnDefault);
+      const { sql, statements } = harness({});
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+      await expect(
+        updateCredential(sql as never, scope, 'cred-1', patch),
+      ).rejects.toMatchObject({
+        code: 'CREDENTIAL_IN_USE',
+        status: 409,
+        data: { usedBy: ['embedding'] },
+      });
+      expect(statements.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+      expect(createAuditLog).not.toHaveBeenCalled();
+    },
+  );
+
+  it('lets a rename, a re-enable, or an edit of an unused credential through', async () => {
+    readOrgEmbeddingConfig.mockResolvedValue(embeddingOnDefault);
+    const renamed = harness({});
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateCredential(renamed.sql as never, scope, 'cred-1', {
+      name: 'Renamed',
+    });
+    expect(renamed.statements.some((s) => s.text.startsWith('UPDATE'))).toBe(
+      true,
+    );
+
+    const reenabled = harness({
+      row: { providerSlug: 'openai', isDefault: false, status: 'disabled' },
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateCredential(reenabled.sql as never, scope, 'cred-1', {
+      status: 'active',
+    });
+    expect(reenabled.statements.some((s) => s.text.startsWith('UPDATE'))).toBe(
+      true,
+    );
+
+    const sibling = harness({
+      row: { providerSlug: 'openai', isDefault: false, status: 'active' },
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await updateCredential(sibling.sql as never, scope, 'cred-1', {
+      status: 'disabled',
+    });
+    expect(sibling.statements.some((s) => s.text.startsWith('UPDATE'))).toBe(
+      true,
+    );
   });
 });
 

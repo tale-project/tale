@@ -668,6 +668,14 @@ export async function updateCredential(
       'A disabled credential cannot be the default — enable it first',
     );
   }
+  // Disabling the row, or taking its default away, leaves the embedding
+  // model's resolver with nothing exactly as a delete would — the same
+  // guard, before any write.
+  const losesDefault = patch.isDefault === false && row.isDefault;
+  const getsDisabled = patch.status === 'disabled' && row.status === 'active';
+  if (losesDefault || getsDisabled) {
+    await assertCredentialUnused(tx, scope, credentialId);
+  }
   if (patch.envName !== undefined) {
     if (row.authMethod !== 'env') {
       throw new CredentialAdminError(
@@ -835,10 +843,13 @@ export type CredentialDependent = 'embedding';
 /**
  * What stops working when this credential goes. Today one thing: the
  * knowledge embedding model, which resolves either the credential its
- * settings name, or the provider's default active one — so the credential
+ * settings name, or the provider's ACTIVE DEFAULT one — so the credential
  * is depended on when the settings name it, or when it is that provider's
- * default and its last active credential (nothing is left to fall back on).
- * An unknown credential has no dependents.
+ * active default. Siblings do not count: the resolver reads
+ * `is_default AND status = 'active'` and nothing promotes another
+ * credential when the default goes, so a sibling is no fallback (with one
+ * it once read as safe, and every indexing job then failed with
+ * `CREDENTIAL_NONE_CONFIGURED`). An unknown credential has no dependents.
  */
 export async function credentialDependents(
   db: Sql | TransactionSql,
@@ -866,21 +877,33 @@ export async function credentialDependents(
       usedBy: embedding.credentialId === credentialId ? ['embedding'] : [],
     };
   }
-  if (
-    embedding.providerSlug !== row.providerSlug ||
-    !row.isDefault ||
-    row.status !== 'active'
-  ) {
-    return { usedBy: [] };
+  const isActiveDefault =
+    embedding.providerSlug === row.providerSlug &&
+    row.isDefault &&
+    row.status === 'active';
+  return { usedBy: isActiveDefault ? ['embedding'] : [] };
+}
+
+/**
+ * Refuse a write that would leave the embedding model without its
+ * credential: the delete, and the edit that disables the row or takes its
+ * default away — either one leaves the resolver with nothing, the same as
+ * the delete, so both answer the same 409.
+ */
+async function assertCredentialUnused(
+  tx: TransactionSql,
+  scope: CredentialScope,
+  credentialId: string,
+): Promise<void> {
+  const { usedBy } = await credentialDependents(tx, scope, credentialId);
+  if (usedBy.length > 0) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_IN_USE',
+      'The knowledge embedding model uses this credential. Choose another credential for it under Settings → Data residency → Embedding model first.',
+      409,
+      { usedBy },
+    );
   }
-  const others = await db<{ id: string }[]>`
-    SELECT id FROM app.provider_credentials
-    WHERE org_id = ${organizationId}
-      AND provider_slug = ${row.providerSlug}
-      AND status = 'active' AND id <> ${credentialId}
-    LIMIT 1
-  `;
-  return { usedBy: others[0] ? [] : ['embedding'] };
 }
 
 /**
@@ -923,15 +946,7 @@ export async function deleteCredential(
   // Deleting the key the embedding model resolves took knowledge indexing
   // and search down org-wide, with nothing said at the delete: refuse, and
   // name what depends on it so the admin moves that first.
-  const { usedBy } = await credentialDependents(tx, scope, credentialId);
-  if (usedBy.length > 0) {
-    throw new CredentialAdminError(
-      'CREDENTIAL_IN_USE',
-      'The knowledge embedding model uses this credential. Choose another credential for it under Settings → Data residency → Embedding model, then delete this one.',
-      409,
-      { usedBy },
-    );
-  }
+  await assertCredentialUnused(tx, scope, credentialId);
   const rows = await tx<{ name: string; providerSlug: string }[]>`
     DELETE FROM app.provider_credentials
     WHERE id = ${credentialId} AND org_id = ${scope.organizationId}

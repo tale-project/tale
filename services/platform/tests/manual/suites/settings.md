@@ -709,8 +709,9 @@ any toggled setting after the run.
 
 - [ ] `SET-B16` · **The embedding model's credential cannot be deleted** —
   With Settings › Data residency › **Embedding model** saved on provider P
-  and credential C (or **Provider default** with C as P's only active
-  credential), go to `/dashboard/{org}/settings/providers` → C's **Actions**
+  and credential C (or **Provider default** with C as P's active default —
+  even while P has another active credential), go to
+  `/dashboard/{org}/settings/providers` → C's **Actions**
   → **Delete** → the dialog carries the warning
   `settings.providers.credential.deleteEmbeddingWarning` ("The knowledge
   embedding model uses this credential…") above the usual lines; **Delete**
@@ -721,6 +722,14 @@ any toggled setting after the run.
   **Provider default** selected) or pick another credential under Data
   residency → **Delete** C → succeeds. A credential of another provider, or
   a non-default sibling, shows no such warning and deletes.
+- [ ] `SET-B17` · **…nor disabled** — Same setup as `SET-B16` with
+  **Provider default** and C as P's active default → C's **Actions** →
+  **Disable** (`settings.credentials.disable`) → toast **Could not update
+  the credential:** … (`settings.credentials.updateFailed` with
+  `settings.providers.credential.inUseByEmbedding`), C still reads active
+  and stays **Default**. A sibling's **Actions** → **Make default**
+  (`settings.credentials.makeDefault`) succeeds — the model now resolves
+  the sibling — and C then disables and deletes.
 
 ## Accessibility (WCAG 2.1 AA)
 
