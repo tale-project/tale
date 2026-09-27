@@ -64,7 +64,7 @@ Owners and Admins can use a workspace’s row menu:
 | Action | Effect |
 | --- | --- |
 | **Stop task** | Cancels all currently running operations in that workspace. Check the listed tasks first; one agent may have several. |
-| **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup, or restores normal cleanup. A pinned allocation can continue holding capacity. |
+| **Pin** / **Unpin** | Keeps the workspace exempt from automatic idle and expiry cleanup, or restores normal cleanup. A pinned allocation can continue holding capacity. If a pinned workspace’s environment disappears, for example after a host restart, Tale starts it again with its workspace files, and the workspace stays pinned. |
 | **Destroy** | Asks for confirmation, cancels running work and removes the sandbox and its workspace files. The next agent start creates a fresh environment. |
 
 Use stop when the current work should end but its files should remain. Before destruction, preserve outputs you still need and read the confirmation. Idle capacity reclamation preserves workspace files; explicit destruction does not.

@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 92 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 93 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -676,6 +676,20 @@ any toggled setting after the run.
   **Save** succeeds and the value survives a reload; above capacity + N the
   total explains `sandboxes.limits.totalExceedsCapacity` and Save stays
   disabled.
+- [ ] `SET-F62` · **A pinned workspace comes back** — As owner on
+  `/dashboard/{org}/settings/sandboxes`, while a project agent's task runs,
+  pin its workspace (row menu → **Pin**, `sandboxes.actions.pin`; toast
+  **Sandbox pinned**, `sandboxes.toast.pinned`) and let the task leave a file
+  in it; once the task finished, remove the container on the sandbox host
+  (`docker rm -f tale-sbx-ses-<sessionId>`) and reload the page (its mount
+  probe runs the sandbox sweep's reconcile, which also runs unattended every
+  five minutes) → Within a minute `docker ps` lists
+  `tale-sbx-ses-<sessionId>` again; the row still lists with its **Pinned**
+  badge (`sandboxes.status.pinned`) and **Running**
+  (`sandboxes.status.runtime.running`), never disappearing as destroyed; the
+  agent's next task finds its file where it left it; and on a stack with a
+  short `SANDBOX_SESSION_MAX_IDLE_MS` the container outlives that idle window,
+  so the pin holds on the spawner too.
 
 ## Boundary & error tests
 

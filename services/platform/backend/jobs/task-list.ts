@@ -504,11 +504,12 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (
         result.expired > 0 ||
         result.healed > 0 ||
+        result.recreated > 0 ||
         result.reclaimed > 0 ||
         result.collected > 0
       ) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, recreated ${result.recreated} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
         );
       }
       // Removed sandbox devices the hub has not dropped yet (the spawner was
