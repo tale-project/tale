@@ -110,7 +110,7 @@ export function ensureOrgSettingsQuery<Name extends QueryName>(
  * logging: the page's own reads meet the same answer. Anything else
  * propagates to the caller for diagnostics.
  */
-function isPreAuthError(error: unknown): boolean {
+function isLapsedSessionError(error: unknown): boolean {
   if (!(error instanceof AppError)) return false;
   const data: unknown = error.data;
   return (
@@ -150,7 +150,7 @@ export function ensureGovernancePolicies(
         // A lapsed session is expected, not a preload failure; swallow it so
         // it never reaches the caller's warning log. Real errors still
         // propagate.
-        if (isPreAuthError(error)) return undefined;
+        if (isLapsedSessionError(error)) return undefined;
         throw error;
       }),
     ),
