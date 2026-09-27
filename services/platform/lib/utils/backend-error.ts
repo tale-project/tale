@@ -56,7 +56,7 @@ export function backendRefusalReason(err: unknown): string | undefined {
 
 /** The code every app door answers a body its schema refused with
  * (`backend/lib/invalid-body-response.ts`). */
-export const INVALID_BODY_CODE = 'invalid body';
+const INVALID_BODY_CODE = 'invalid body';
 
 /**
  * The field-naming sentence of a refused body ("email: Invalid email
