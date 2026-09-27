@@ -13,6 +13,7 @@ Pour un déploiement dans un workspace, commence par `tale status` et `tale logs
 | --- | --- | --- |
 | Connexion impossible ou avertissement TLS | DNS, ports publics, nom et émetteur du certificat, journaux du proxy. | Corrige la couche en échec. Avec une CA interne, installe son certificat racine public sur le client ; `docker exec ... caddy trust` ne change pas son magasin de confiance. |
 | Réponse 502/503 du proxy | Identifie chemin et service cible. `/api/health` et fichiers web utilisent `platform` ; les requêtes applicatives utilisent `backend-api`. | Examine le démarrage et la disponibilité du service avant de modifier le proxy. |
+| Réponses `503 DATABASE_UNAVAILABLE` | `backend-api` fonctionne, mais sa base de données redémarre ou est injoignable ; son journal affiche des avertissements `database unavailable`. | Vérifie l’état et les journaux du conteneur de base de données. Les requêtes reprennent d’elles-mêmes dès qu’il accepte de nouveau les connexions. |
 | `400 BODY_LENGTH_MISMATCH` ou `400 BODY_CHUNK_MALFORMED` | Le corps se termine avant la longueur déclarée ou son découpage HTTP/1.1 en chunks est mal formé. | Corrige le format du corps ou sa longueur déclarée côté émetteur avant de réessayer. |
 | Retour à la page de connexion | Cookies et callbacks dans le navigateur ; `SITE_URL`, origines supplémentaires, chemin de base et enregistrement fournisseur. | Corrige l’origine ou le callback, puis recrée les services après les modifications d’environnement. |
 
