@@ -154,5 +154,10 @@ export type SandboxCapacity =
       runtimeSessions: Array<{
         sessionId: string;
         state: 'running' | 'starting' | 'stopped';
+        /** Set when the session runs on one of the organization's devices. */
+        deviceId?: string;
       }>;
+      /** Where the organization's device-placed sessions live, also while
+       * their device is offline. */
+      placements?: Array<{ sessionId: string; deviceId: string }>;
     };

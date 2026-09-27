@@ -45,6 +45,7 @@ import type { ProductsContract } from './products';
 import type { ProjectsContract } from './projects';
 import type { ProviderCredentialsContract } from './provider-credentials';
 import type { SandboxContract } from './sandbox';
+import type { SandboxDevicesContract } from './sandbox-devices';
 import type { ScimContract } from './scim';
 import type { SkillsContract } from './skills';
 import type { TasksContract } from './tasks';
@@ -95,6 +96,7 @@ export interface BackendContract
     ProjectsContract,
     ProviderCredentialsContract,
     SandboxContract,
+    SandboxDevicesContract,
     ScimContract,
     SkillsContract,
     TasksContract,

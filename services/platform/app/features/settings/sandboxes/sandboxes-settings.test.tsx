@@ -78,6 +78,9 @@ vi.mock('@/app/hooks/use-backend-query', () => ({ useBackendQuery: query }));
 vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutate, mutateAsync: mutate }),
 }));
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: mutate, isPending: false }),
+}));
 vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
@@ -125,7 +128,9 @@ beforeEach(() => {
           ]
         : name.endsWith(':getSandboxDeploymentLimits')
           ? { status: 'available', maxSessions: 16 }
-          : { status: 'unavailable', reason: 'unreachable' },
+          : name === 'sandbox_devices/queries:list'
+            ? { devices: [], hub: 'available', serverVersion: '0.5.60' }
+            : { status: 'unavailable', reason: 'unreachable' },
     isLoading: false,
     isFetching: false,
     isError: false,
@@ -194,7 +199,14 @@ describe('SandboxesSettings access', () => {
       screen.queryByRole('heading', { name: 'Workspaces' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('Restricted project')).not.toBeInTheDocument();
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    // Developers see the organization's devices, never the workspace table.
+    expect(
+      screen.queryByRole('table', { name: 'Sandboxes' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Devices' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Add device' }),
+    ).not.toBeInTheDocument();
     expect(mutate).not.toHaveBeenCalled();
   });
 
@@ -258,7 +270,7 @@ describe('SandboxesSettings workspace rows', () => {
 
   it('labels the row-action column for screen readers only', () => {
     renderSettings();
-    const headers = screen
+    const headers = within(screen.getByRole('table', { name: 'Sandboxes' }))
       .getAllByRole('columnheader')
       .map((th) => th.textContent);
     expect(headers).toEqual([

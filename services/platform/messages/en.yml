@@ -7820,7 +7820,9 @@ sandboxes:
     total: Total organization sessions
     totalValue: '{total} / {maxSessions}'
     totalHint: Sum of the three limits / deployment capacity. Other organizations share this capacity.
+    totalHintWithDevices: Sum of the three limits / deployment capacity plus the {deviceSessions} sandboxes your devices run. Other organizations share the deployment capacity.
     totalExceedsDeployment: The total of {total} sessions exceeds the deployment capacity of {maxSessions}. Reduce one or more limits to save.
+    totalExceedsCapacity: 'The total of {total} sessions exceeds the capacity of {maxSessions}: {deploymentSessions} on the deployment and {deviceSessions} on your devices. Reduce one or more limits to save.'
     capacityUnavailable: Deployment capacity is unavailable. Lowering limits still saves; refresh the infrastructure data before raising one.
     capacityLoading: Checking deployment capacity…
     saveFailed: Couldn't save sandbox limits
@@ -7908,3 +7910,69 @@ sandboxes:
       run ends. Temporary crawler sessions are included in capacity counts above.
   accessDenied: You need developer or admin access to manage sandboxes.
   deletedAgent: Deleted agent
+  devices:
+    title: Devices
+    description:
+      Run your organization's sandboxes on your own machines. New agent and
+      automation workspaces start on a connected device that has room, otherwise
+      on the server. A workspace stays on the machine where it started.
+    add: Add device
+    columns:
+      name: Device
+      status: Status
+      sandboxes: Sandboxes
+      machine: Machine
+      version: Version
+      lastSeen: Last seen
+    status:
+      online: Online
+      updating: Updating
+      outdated: Update needed
+      update_failed: Update failed
+      offline: Offline
+    platform: '{os} · {arch}'
+    sandboxCount: '{used} / {limit}'
+    lastSeenNow: Now
+    machine: '{cpus, plural, one {# CPU} other {# CPUs}} · {memory} GiB'
+    updatingTo: 'Updating to {version}'
+    updateFailedHint: The update to {version} failed. The device tries again on its own.
+    outdatedHint: Runs a different release than Tale ({version}). Run tale sandbox update on the machine.
+    empty:
+      title: No devices yet
+      description: Add a Linux or macOS machine with Docker to run your organization's sandboxes on it.
+    hub:
+      notConfigured: This deployment's sandbox service doesn't accept devices. Ask your operator to turn on the device hub.
+      unavailable: Couldn't reach the sandbox service. Device status may be out of date.
+    actions:
+      remove: Remove
+    removeConfirm:
+      title: 'Remove {name}?'
+      description:
+        The device stops running sandboxes for your organization right away. Its
+        workspaces stay on the machine but can no longer be reached from Tale.
+      confirm: Remove device
+    toast:
+      removed: Device removed
+      error: Couldn't remove the device
+    addDialog:
+      title: Add a device
+      description:
+        Run this command in a terminal on the machine you want to add. It installs
+        the Tale CLI and connects the machine to your organization.
+      commandLabel: Install and connect
+      copyCommand: Copy command
+      copied: Copied
+      requirements:
+        Needs Docker on Linux or macOS and outbound HTTPS access to this site. The
+        device keeps running after a restart and updates itself when Tale is updated.
+      expires: The command works once, within an hour.
+      cliInstalled: Already have the Tale CLI? Run this instead
+      generating: Creating a connect command…
+      generateFailed: Couldn't create a connect command.
+      retry: Try again
+      waiting: Waiting for the device to connect…
+      connected: '{name} is connected.'
+  runsOn:
+    server: On the server
+    device: 'On {name}'
+    deviceOffline: 'On {name} (offline)'
