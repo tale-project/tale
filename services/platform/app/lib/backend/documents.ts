@@ -79,6 +79,7 @@ interface FolderWire {
   createdAt: number;
   syncConfigId?: string;
   sync?: DocumentSyncHealth;
+  inSyncedTree?: boolean;
 }
 
 function folderView(row: FolderWire): FolderDoc {
@@ -95,6 +96,7 @@ function folderView(row: FolderWire): FolderDoc {
     ...(row.createdBy !== null ? { createdBy: row.createdBy } : {}),
     syncConfigId: row.syncConfigId,
     ...(row.sync !== undefined ? { sync: row.sync } : {}),
+    ...(row.inSyncedTree === true ? { inSyncedTree: true } : {}),
   };
 }
 

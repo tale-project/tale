@@ -149,6 +149,7 @@ export function DocumentsTable({
       teamIds: [...scopeTeamIds(folder)],
       projectId: folder.projectId ?? null,
       syncConfigId: folder.syncConfigId,
+      ...(folder.inSyncedTree === true && { inSyncedTree: true }),
       // The provider comes from the config, not a guess: a Google Drive
       // folder used to read "OneDrive (synced)". The health rides along so
       // the Source cell can flag a sync that stopped working.

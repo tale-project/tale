@@ -2180,6 +2180,7 @@ documents:
     title: Noch keine Dokumente
     description: Lade Dokumente hoch, damit Agents sie im Chat nutzen können.
   actions:
+    rename: Umbenennen
     deleteSyncFolder: Synchronisierungsordner löschen
     deleteFolderFailed: Ordner konnte nicht gelöscht werden
     deleteFolderProtectedRecord:
@@ -2195,6 +2196,12 @@ documents:
     stopSyncFailed: Synchronisierung konnte nicht beendet werden
     moveToFolder: In Ordner verschieben…
   folder:
+    renameFolder: Ordner umbenennen
+    renaming: Wird umbenannt...
+    renamed: Ordner umbenannt
+    renameFailed: Ordner konnte nicht umbenannt werden
+    renameSyncManaged: 'Die Synchronisierung bestimmt den Namen dieses Ordners: Er wird synchronisiert, enthält einen synchronisierten Ordner oder liegt in einem.'
+    invalidName: Verwende höchstens 128 Zeichen ohne Schrägstriche oder Steuerzeichen, und nicht nur einen oder zwei Punkte.
     newFolder: Neuer Ordner
     createFolder: Ordner erstellen
     folderName: Ordnername

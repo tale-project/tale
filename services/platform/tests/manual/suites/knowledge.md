@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 49 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -76,6 +76,15 @@ records and delete them after.
   confirm + reload the folder row is gone. **From Microsoft 365** remains
   available before an account is connected; its first-use flow shows the
   required setup or connection step.
+- [ ] `KNOW-F29` · **Rename a folder** — Documents → a folder row's **Open
+  menu** → **Rename** (`documents.actions.rename`) → the **Rename folder**
+  dialog (`documents.folder.renameFolder`) opens on the current name → change
+  it and submit → The toast reads `documents.folder.renamed` and the row shows
+  the new name, also after a reload; a document search scoped to the folder
+  still finds its files. Renaming to a sibling folder's name keeps the dialog
+  open with `documents.folder.duplicateName` on the field, and a name with a
+  slash shows `documents.folder.invalidName`. A synced folder's menu offers no
+  **Rename**, and neither does the menu of a folder inside it or above it.
 - [ ] `KNOW-F3` · **Knowledge entry CRUD** — Knowledge entries → **Add entry**
   (`knowledgeEntries.addButton`) → **Topic** (`knowledgeEntries.topic`) +
   **Content** (`knowledgeEntries.content`) → **Save** (`common.actions.save`);

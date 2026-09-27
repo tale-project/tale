@@ -284,6 +284,72 @@ describe('DocumentRowActions', () => {
     });
   });
 
+  describe('rename visibility', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+    };
+
+    it('offers rename on a folder', async () => {
+      render(
+        <DocumentRowActions
+          documentId="folder-1"
+          itemType="folder"
+          name="Contracts"
+        />,
+      );
+      await openMenu();
+      expect(screen.getByText('documents.actions.rename')).toBeInTheDocument();
+    });
+
+    it('hides rename on a synced folder, whose name belongs to its source', async () => {
+      render(
+        <DocumentRowActions
+          documentId="folder-1"
+          itemType="folder"
+          name="Meetings"
+          syncConfigId="cfg-folder"
+        />,
+      );
+      await openMenu();
+      expect(
+        screen.queryByText('documents.actions.rename'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('hides rename on a folder inside or above a synced folder, which the sync rebuilds by name', async () => {
+      render(
+        <DocumentRowActions
+          documentId="folder-2"
+          itemType="folder"
+          name="Clients"
+          inSyncedTree
+        />,
+      );
+      await openMenu();
+      expect(
+        screen.queryByText('documents.actions.rename'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does not offer rename on a file', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-1"
+          itemType="file"
+          name="report.pdf"
+          sourceMode="manual"
+        />,
+      );
+      await openMenu();
+      expect(
+        screen.queryByText('documents.actions.rename'),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe('reindex visibility (#2598)', () => {
     const openMenu = async () => {
       const user = userEvent.setup();

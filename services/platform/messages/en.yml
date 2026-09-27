@@ -2103,6 +2103,7 @@ documents:
     title: No documents yet
     description: Upload documents so agents can use them in chat.
   actions:
+    rename: Rename
     deleteSyncFolder: Delete sync folder
     deleteFolderFailed: Couldn't delete folder
     deleteFolderProtectedRecord:
@@ -2116,6 +2117,12 @@ documents:
     stopSyncFailed: Couldn't stop syncing
     moveToFolder: Move to folder…
   folder:
+    renameFolder: Rename folder
+    renaming: Renaming...
+    renamed: Folder renamed
+    renameFailed: "Couldn't rename folder"
+    renameSyncManaged: "The sync keeps this folder's name: it is synced, holds a synced folder, or sits inside one."
+    invalidName: Use up to 128 characters without slashes or control characters, and not just one or two dots.
     newFolder: New folder
     createFolder: Create folder
     folderName: Folder name

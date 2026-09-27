@@ -332,6 +332,15 @@ export function normalizeFolderPath(
 }
 
 /**
+ * Whether two hub paths share a subtree: the same folder, or one inside the
+ * other. A sync rebuilds its whole tree by name, so a folder at, inside or
+ * above a synced path is one the sync decides the name of.
+ */
+export function hubPathsOverlap(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
+/**
  * Root-to-leaf paths for a set of folders in ONE recursive read, keyed by
  * folder id. The tree is the truth for where a folder sits — a rename or a
  * move anywhere above is reflected immediately, which no denormalized copy

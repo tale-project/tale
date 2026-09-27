@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-752 boxes across 21 suites. Every suite declares the ID prefix its
+753 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -44,7 +44,7 @@ directory and greppable as one token.
 | [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 52 |
 | [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 21 |
 | [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 49 |
-| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 38 |
+| [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 49 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 17 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 58 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 29 |

@@ -326,6 +326,7 @@ export function useDocumentsTableConfig({
               mimeType={row.original.mimeType}
               extension={row.original.extension}
               syncConfigId={row.original.syncConfigId}
+              inSyncedTree={row.original.inSyncedTree}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
               sourceProvider={row.original.sourceProvider}

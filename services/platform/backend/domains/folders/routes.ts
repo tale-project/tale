@@ -28,7 +28,7 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { PurgeIncompleteError } from '../retention/service.ts';
-import { buildHubFolderPath } from './paths.ts';
+import { buildHubFolderPath, hubPathsOverlap } from './paths.ts';
 import {
   createFolder,
   FolderError,
@@ -113,15 +113,28 @@ export function createFolderRoutes(deps: {
         syncByPath.size > 0 && parentId != null
           ? await buildHubFolderPath(deps.sql, auth.organizationId, parentId)
           : null;
+      const syncedPaths = [...syncByPath.keys()];
       return c.json({
         folders: folders.map((folder) => {
           if (syncByPath.size === 0) return folder;
           const path =
             basePath !== null ? `${basePath}/${folder.name}` : folder.name;
           const sync = syncByPath.get(path);
-          return sync === undefined
-            ? folder
-            : Object.assign(folder, { syncConfigId: sync.configId, sync });
+          // At, inside or above a synced folder the sync decides the name,
+          // so the row offers no rename (the server refuses one too).
+          const inSyncedTree = syncedPaths.some((synced) =>
+            hubPathsOverlap(path, synced),
+          );
+          if (sync !== undefined) {
+            return Object.assign(folder, {
+              syncConfigId: sync.configId,
+              sync,
+              inSyncedTree,
+            });
+          }
+          return inSyncedTree
+            ? Object.assign(folder, { inSyncedTree })
+            : folder;
         }),
       });
     } catch (error) {

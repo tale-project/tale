@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   documentFolderPathFrom,
   FolderNameError,
+  hubPathsOverlap,
   normalizeFolderPath,
   validateFolderName,
 } from './paths.ts';
@@ -31,6 +32,20 @@ describe('normalizeFolderPath', () => {
     expect(normalizeFolderPath('   ')).toBeNull();
     expect(normalizeFolderPath(null)).toBeNull();
     expect(normalizeFolderPath(undefined)).toBeNull();
+  });
+});
+
+describe('hubPathsOverlap', () => {
+  it('holds for the same folder, one inside the other, either way round', () => {
+    expect(hubPathsOverlap('Clients/Acme', 'Clients/Acme')).toBe(true);
+    expect(hubPathsOverlap('Clients/Acme/Docs', 'Clients/Acme')).toBe(true);
+    expect(hubPathsOverlap('Clients', 'Clients/Acme')).toBe(true);
+  });
+
+  it('does not hold for siblings or a shared name prefix', () => {
+    expect(hubPathsOverlap('Clients/Acme', 'Clients/Beta')).toBe(false);
+    expect(hubPathsOverlap('Clients/Acme', 'Clients/Acme Corp')).toBe(false);
+    expect(hubPathsOverlap('Client', 'Clients')).toBe(false);
   });
 });
 

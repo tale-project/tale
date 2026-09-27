@@ -77,7 +77,7 @@ Les documents de la bibliothèque sont accessibles à **Toute l'organisation** p
 
 La racine de la bibliothèque affiche les dossiers et les documents qui ne sont rangés dans aucun dossier. Ouvre un dossier pour consulter son contenu : les documents qu’il contient n’apparaissent pas aussi comme lignes de fichiers à la racine.
 
-Les dossiers organisent la bibliothèque. Vérifie l’accès dans **Équipes** et la provenance dans **Source**. Le filtre **Équipes** restreint la liste aux éléments accessibles à **Toute l'organisation**, à **Mes équipes** (tout ce qu’une de tes équipes peut voir) ou à une équipe par son nom ; la sélection fait partie de l’adresse de la page, ce qui permet de mettre une liste filtrée en favori. Les fichiers de projet ont leur propre périmètre et n’apparaissent pas dans cette bibliothèque. Consulte [Connaissances](/fr/platform/knowledge/overview) pour choisir où conserver une source.
+Les dossiers organisent la bibliothèque ; pour en renommer un, utilise **Renommer** dans son menu de ligne. Un dossier synchronisé, les dossiers qu’il contient et ceux qui le contiennent gardent leur nom, car chaque synchronisation reconstruit ce chemin. Vérifie l’accès dans **Équipes** et la provenance dans **Source**. Le filtre **Équipes** restreint la liste aux éléments accessibles à **Toute l'organisation**, à **Mes équipes** (tout ce qu’une de tes équipes peut voir) ou à une équipe par son nom ; la sélection fait partie de l’adresse de la page, ce qui permet de mettre une liste filtrée en favori. Les fichiers de projet ont leur propre périmètre et n’apparaissent pas dans cette bibliothèque. Consulte [Connaissances](/fr/platform/knowledge/overview) pour choisir où conserver une source.
 
 ## Importer depuis Microsoft 365 ou Google Drive
 

@@ -270,13 +270,15 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // domain's catch-all never fires from REST.
   'PRODUCT_FIELDS_INVALID',
   // Project folders: the REST get-or-create pre-checks the parent (org and
-  // project) and answers the opaque `FOLDER_NOT_FOUND`; the scope, team
-  // and parent-access refusals are the hub folder tree's, which no REST
-  // body reaches (a project folder carries no team).
+  // project) and answers the opaque `FOLDER_NOT_FOUND`; the scope, team,
+  // parent-access and synced-tree rename refusals are the hub folder tree's,
+  // which no REST body reaches (a project folder carries no team and never
+  // syncs).
   'FOLDER_ACCESS_DENIED',
   'FOLDER_PARENT_NOT_ACCESSIBLE',
   'FOLDER_PARENT_NOT_FOUND',
   'FOLDER_SCOPE_CONFLICT',
+  'FOLDER_SYNC_MANAGED',
   // Two hops from the handlers (`IMPORT_DEPTH`): modules a REST-reached
   // service imports for lanes only the app doors call. Listed so the
   // guard's over-approximation stays honest — a code that becomes

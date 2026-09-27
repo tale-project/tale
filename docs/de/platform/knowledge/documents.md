@@ -77,7 +77,7 @@ Bibliotheksdokumente sind standardmäßig **Organisationsweit** zugänglich. Beg
 
 Auf der obersten Bibliotheksebene siehst du Ordner und Dokumente, die keinem Ordner zugeordnet sind. Öffne einen Ordner, um seinen Inhalt zu sehen. Ein dort abgelegtes Dokument erscheint nicht zusätzlich als Dateizeile auf der obersten Ebene.
 
-Ordner gliedern die Bibliothek. Prüfe den Zugriff in der Zelle **Teams** und die Herkunft in der Spalte **Quelle**. Der Filter **Teams** grenzt die Liste auf **Organisationsweit** zugängliche Einträge, auf **Meine Teams** (alles, was eines deiner Teams sehen darf) oder auf ein Team nach Namen ein; die Auswahl steht in der Seitenadresse, sodass sich eine gefilterte Liste als Lesezeichen speichern lässt. Projektdateien haben einen eigenen Zugriffsbereich und erscheinen nicht hier. Der [Wissensüberblick](/de/platform/knowledge/overview) hilft bei der Wahl des Ablageorts.
+Ordner gliedern die Bibliothek; umbenennen kannst du einen Ordner mit **Umbenennen** in seinem Zeilenmenü. Ein synchronisierter Ordner, die Ordner darin und die Ordner, die ihn enthalten, behalten ihre Namen, denn jede Synchronisierung baut diesen Pfad neu auf. Prüfe den Zugriff in der Zelle **Teams** und die Herkunft in der Spalte **Quelle**. Der Filter **Teams** grenzt die Liste auf **Organisationsweit** zugängliche Einträge, auf **Meine Teams** (alles, was eines deiner Teams sehen darf) oder auf ein Team nach Namen ein; die Auswahl steht in der Seitenadresse, sodass sich eine gefilterte Liste als Lesezeichen speichern lässt. Projektdateien haben einen eigenen Zugriffsbereich und erscheinen nicht hier. Der [Wissensüberblick](/de/platform/knowledge/overview) hilft bei der Wahl des Ablageorts.
 
 ## Aus Microsoft 365 oder Google Drive importieren
 

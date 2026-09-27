@@ -9,6 +9,7 @@ import {
   CloudOff,
   Eye,
   FolderInput,
+  Pencil,
   RefreshCw,
   Trash2,
   Users,
@@ -36,6 +37,7 @@ import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { DocumentMoveDialog } from './document-move-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
+import { RenameFolderDialog } from './rename-folder-dialog';
 
 type StorageSourceMode = 'auto' | 'manual';
 
@@ -46,6 +48,9 @@ interface DocumentRowActionsProps {
   mimeType?: string;
   extension?: string;
   syncConfigId?: string;
+  /** A folder at, inside or above a synced folder: the sync decides its
+   *  name, so the row offers no rename. */
+  inSyncedTree?: boolean;
   isDirectlySelected?: boolean;
   sourceMode?: StorageSourceMode;
   /** Gates "Mark as controlled" — only user/agent-authored documents can
@@ -73,6 +78,7 @@ export function DocumentRowActions({
   mimeType,
   extension,
   syncConfigId,
+  inSyncedTree,
   isDirectlySelected,
   sourceMode,
   sourceProvider,
@@ -94,6 +100,7 @@ export function DocumentRowActions({
   const dialogs = useEntityRowDialogs([
     'delete',
     'deleteFolder',
+    'rename',
     'teamTags',
     'move',
   ]);
@@ -264,6 +271,16 @@ export function DocumentRowActions({
       },
       ...recordActions,
       {
+        key: 'rename',
+        label: tDocuments('actions.rename'),
+        icon: Pencil,
+        onClick: dialogs.open.rename,
+        // A synced folder's name belongs to its source (OneDrive, Google
+        // Drive) — the next sync would put the original back.
+        visible:
+          canWrite && itemType === 'folder' && !syncConfigId && !inSyncedTree,
+      },
+      {
         key: 'move',
         label: tDocuments('actions.moveToFolder'),
         icon: FolderInput,
@@ -329,6 +346,7 @@ export function DocumentRowActions({
       isHeld,
       recordActions,
       syncConfigId,
+      inSyncedTree,
       isDirectlySelected,
       ragStatus,
     ],
@@ -355,6 +373,16 @@ export function DocumentRowActions({
         folderName={name}
         isSyncFolder={!!syncConfigId}
       />
+
+      {dialogs.isOpen.rename ? (
+        <RenameFolderDialog
+          open={dialogs.isOpen.rename}
+          onOpenChange={dialogs.setOpen.rename}
+          folderId={documentId}
+          currentName={name ?? ''}
+          restoreFocusRef={menuTriggerRef}
+        />
+      ) : null}
 
       {dialogs.isOpen.move && organizationId ? (
         <DocumentMoveDialog

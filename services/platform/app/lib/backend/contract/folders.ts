@@ -26,6 +26,11 @@ export interface FoldersContract {
     args: { folderId: string };
     returns: null;
   };
+  'folders/mutations:renameFolder': {
+    kind: 'mutation';
+    args: { folderId: string; name: string };
+    returns: null;
+  };
   'folders/mutations:updateFolderTeams': {
     kind: 'mutation';
     args: { folderId: string; teamIds: string[] };
@@ -79,7 +84,11 @@ export interface FoldersContract {
         parentId?: string;
         organizationId: string;
         name: string;
-      } & { syncConfigId: undefined | string; sync?: DocumentSyncHealth }
+      } & {
+        syncConfigId: undefined | string;
+        sync?: DocumentSyncHealth;
+        inSyncedTree?: boolean;
+      }
     >;
   };
 }

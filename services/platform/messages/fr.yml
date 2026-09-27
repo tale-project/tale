@@ -2190,6 +2190,7 @@ documents:
     title: Aucun document pour l'instant
     description: Téléverse des documents pour que les agents puissent les utiliser dans le chat.
   actions:
+    rename: Renommer
     deleteSyncFolder: Supprimer le dossier synchronisé
     deleteFolderFailed: Échec de la suppression du dossier
     deleteFolderProtectedRecord:
@@ -2205,6 +2206,12 @@ documents:
     stopSyncFailed: Échec de l'arrêt de la synchronisation
     moveToFolder: Déplacer vers un dossier…
   folder:
+    renameFolder: Renommer le dossier
+    renaming: Renommage...
+    renamed: Dossier renommé
+    renameFailed: Impossible de renommer le dossier
+    renameSyncManaged: 'La synchronisation fixe le nom de ce dossier : il est synchronisé, contient un dossier synchronisé ou se trouve dans l’un d’eux.'
+    invalidName: Utilise 128 caractères au maximum, sans barre oblique ni caractère de contrôle, et pas seulement un ou deux points.
     newFolder: Nouveau dossier
     createFolder: Créer un dossier
     folderName: Nom du dossier

@@ -11,12 +11,15 @@ import {
 } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { loadSyncHealthIndex } from '../onedrive/sync-health.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
+  buildHubFolderPath,
   FolderNameError,
+  hubPathsOverlap,
   MAX_FOLDER_DEPTH,
   validateFolderName as validateHubFolderName,
 } from './paths.ts';
@@ -388,6 +391,23 @@ export async function renameFolder(
   const folder = await loadFolderOrThrow(tx, folderId);
   await assertFolderMutable(tx, auth, folder);
   const trimmed = validateFolderName(name);
+  // A sync rebuilds its tree by name on every run: renaming a folder at,
+  // inside or above a synced folder would not hold — the old path comes
+  // back and the synced documents move into it. Project trees never sync.
+  if (folder.projectId === null) {
+    const path = await buildHubFolderPath(tx, auth.organizationId, folderId);
+    const { byPath } = await loadSyncHealthIndex(tx, auth.organizationId);
+    if (
+      path !== null &&
+      [...byPath.keys()].some((synced) => hubPathsOverlap(path, synced))
+    ) {
+      throw new FolderError(
+        'FOLDER_SYNC_MANAGED',
+        'A folder at, inside or above a synced folder keeps the name its sync gives it',
+        409,
+      );
+    }
+  }
   const sibling = await tx<{ id: string }[]>`
     SELECT id FROM app.folders
     WHERE org_id = ${auth.organizationId}

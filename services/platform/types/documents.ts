@@ -51,6 +51,9 @@ export interface DocumentItem {
   lastModified?: number;
   uploadedAt?: number;
   syncConfigId?: string;
+  /** A folder at, inside or above a synced folder — its name follows the
+   * sync, so it offers no rename. */
+  inSyncedTree?: boolean;
   isDirectlySelected?: boolean;
   /** Health of the cloud sync this row runs under: a synced folder, or a
    *  file picked directly for sync (a folder member shows it on the folder

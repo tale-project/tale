@@ -869,6 +869,13 @@ export function useCreateFolder() {
   return useBackendMutation('folders/mutations:createFolder');
 }
 
+export function useRenameFolder() {
+  return useBackendMutation('folders/mutations:renameFolder', {
+    // The rename dialog shows its own, code-aware feedback.
+    errorToast: false,
+  });
+}
+
 export function useDeleteFolder() {
   return useBackendMutation('folders/mutations:deleteFolder', {
     // Both callers show their own, code-aware toast.

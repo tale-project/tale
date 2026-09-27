@@ -77,7 +77,7 @@ Library documents default to **Organization-wide**. Use **Assign team** in the r
 
 The library root shows folders and documents that have not been filed in a folder. Open a folder to see its contents; a document inside it does not also appear as a file row at the root.
 
-Folders organize the library. Check the **Teams** cell for access and the **Source** column for where a file came from. The **Teams** filter narrows the list to **Organization-wide** items, **My teams** (anything one of your teams can see), or a team by name; the selection is part of the page address, so a filtered list can be bookmarked. Project files are a separate scope and do not appear in this library. See [Knowledge](/platform/knowledge/overview) when deciding where to keep a source.
+Folders organize the library; to rename one, use **Rename** in its row menu. A synced folder, the folders inside it and the folders that contain it keep their names, because each sync rebuilds that path. Check the **Teams** cell for access and the **Source** column for where a file came from. The **Teams** filter narrows the list to **Organization-wide** items, **My teams** (anything one of your teams can see), or a team by name; the selection is part of the page address, so a filtered list can be bookmarked. Project files are a separate scope and do not appear in this library. See [Knowledge](/platform/knowledge/overview) when deciding where to keep a source.
 
 ## Import from Microsoft 365 or Google Drive
 
