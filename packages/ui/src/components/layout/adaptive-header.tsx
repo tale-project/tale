@@ -238,7 +238,9 @@ interface AdaptiveHeaderRootProps {
    * Draws the section divider under the title row. Every section header ends
    * in exactly one `border-border` line: a tab strip immediately below the
    * row carries its own `border-b` (Knowledge, Inbox, project detail), so
-   * those headers omit this; every other header passes it.
+   * those headers omit this; every other header passes it. The line is
+   * drawn inside the header's `h-13` box, so it meets the line under a
+   * section panel's header (`SubPanelHeader`) beside the page.
    * @default false
    */
   showBorder?: boolean;
@@ -311,7 +313,13 @@ export function AdaptiveHeaderRoot({
           // strip by a pixel and shift the page content whenever they
           // mount/unmount. A description, when a page portals one, sits on
           // the row below and is allowed to add height.
-          'h-13 px-4 py-2',
+          //
+          // The divider belongs to the `h-13` box, as it does on every other
+          // header row (a section panel's head, a tab strip): the row gives
+          // its pixel back, so a bordered header ends on the same line as the
+          // section panel beside it instead of one pixel below.
+          showBorder ? 'h-[calc(--spacing(13)-1px)]' : 'h-13',
+          'px-4 py-2',
           className,
         )}
       >
