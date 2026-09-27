@@ -18,6 +18,7 @@ import { ConversationPanel } from './conversation-panel';
 import {
   messageDraftKeys,
   type MessageEditorProps,
+  type StoredAttachment,
 } from './message-editor/types';
 
 const consumed = vi.hoisted(() => vi.fn());
@@ -189,6 +190,7 @@ async function checkSendFailure(
   initialFailure: Failure,
   body: string,
   undo = false,
+  restoredAttachments: StoredAttachment[] = [],
 ) {
   let failure = initialFailure;
   const sent = vi.fn();
@@ -241,7 +243,12 @@ async function checkSendFailure(
       return Response.json({ storageId: 's3:org1/invoice' });
     }
     if (url.includes('/messages/queued1/undo'))
-      return Response.json({ sourceMarkdown: body });
+      return Response.json({
+        sourceMarkdown: body,
+        ...(restoredAttachments.length
+          ? { attachments: restoredAttachments }
+          : {}),
+      });
     if (
       url.includes('/conversations/reply1/reply') ||
       url.includes('/conversations/compose')
@@ -334,6 +341,9 @@ async function checkSendFailure(
     JSON.stringify('Keep the friendly tone'),
   );
   expect(screen.getByText('invoice.pdf')).toBeVisible();
+  for (const attachment of restoredAttachments) {
+    expect(screen.getByText(attachment.fileName)).toBeVisible();
+  }
   expect(sent).toHaveBeenCalledTimes(initialFailure === 'send' ? 1 : 0);
   expect(onSent).not.toHaveBeenCalled();
   expect(onClose).not.toHaveBeenCalled();
@@ -375,12 +385,14 @@ async function checkSendFailure(
     expect(sent).toHaveBeenCalledTimes(initialFailure === 'send' ? 2 : 1),
   );
   expect(uploaded).toHaveBeenLastCalledWith(file);
+  expect(uploaded).toHaveBeenCalledTimes(initialFailure === 'mint' ? 1 : 2);
   expect(sent).toHaveBeenLastCalledWith(
     expect.objectContaining({
       ...(body
         ? { sourceMarkdown: JSON.parse(bodyBefore ?? '""') }
         : { content: '' }),
       attachments: [
+        ...restoredAttachments,
         {
           storageId: 's3:org1/invoice',
           fileName: 'invoice.pdf',
@@ -394,6 +406,9 @@ async function checkSendFailure(
   expect(localStorage.getItem(draft.body)).toBeNull();
   expect(localStorage.getItem(draft.improveInstruction)).toBeNull();
   expect(screen.queryByText('invoice.pdf')).not.toBeInTheDocument();
+  for (const attachment of restoredAttachments) {
+    expect(screen.queryByText(attachment.fileName)).not.toBeInTheDocument();
+  }
   if (surface === 'compose') {
     expect(onSent).toHaveBeenCalledExactlyOnceWith('sent1');
     expect(toast).toHaveBeenCalledTimes(2);
@@ -435,3 +450,24 @@ describe.each<Surface>(['reply', 'compose'])(
 it('keeps an undo-restored reply and its new attachment until resend succeeds', async () => {
   await checkSendFailure('reply', 'refusal', 'Undo restored reply', true);
 }, 30_000);
+
+it.each<Failure>(['refusal', 'send'])(
+  'preserves stored and new undo files after a %s and retries without re-uploading the stored file',
+  async (failure) => {
+    await checkSendFailure(
+      'reply',
+      failure,
+      'Undo restored reply with files',
+      true,
+      [
+        {
+          storageId: 's3:org1/restored',
+          fileName: 'restored.pdf',
+          contentType: 'application/pdf',
+          size: 19,
+        },
+      ],
+    );
+  },
+  30_000,
+);
