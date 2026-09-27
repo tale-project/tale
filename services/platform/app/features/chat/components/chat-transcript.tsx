@@ -16,8 +16,13 @@ import { MessageThread, type MessageThreadHandlers } from './message-thread';
 
 interface ChatTranscriptProps extends MessageThreadHandlers {
   organizationId: string;
-  /** The rendered sibling. */
+  /** The rendered sibling — the key the rows are read by. */
   threadId: string | undefined;
+  /** The viewer reads a conversation someone else owns (a project share):
+   * the rows render, the per-message actions that need the thread — rating,
+   * read-aloud — do not. Never expressed by withholding `threadId`: that is
+   * the data key, and a transcript without it subscribes to nothing. */
+  readOnly?: boolean;
   /** The URL's lineage root — hold scope and scroll memory. */
   threadRootId: string | undefined;
   pendingSend: PendingSend | null;
@@ -33,6 +38,7 @@ interface ChatTranscriptProps extends MessageThreadHandlers {
 export const ChatTranscript = memo(function ChatTranscript({
   organizationId,
   threadId,
+  readOnly,
   threadRootId,
   pendingSend,
   isGenerating,
@@ -56,7 +62,7 @@ export const ChatTranscript = memo(function ChatTranscript({
       messages={view.items}
       generation={view.generation ?? undefined}
       organizationId={organizationId}
-      threadId={threadId}
+      threadId={readOnly === true ? undefined : threadId}
       threadRootId={threadRootId}
       isGenerating={isGenerating}
       pendingEditedFromThreadId={pendingSend?.editedFromThreadId}

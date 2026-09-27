@@ -571,9 +571,10 @@ function ChatSurfaceInner({
         ]
       : []),
     [
-      // A pair cannot be shared — settle first (server-enforced; the entry
+      // A pair cannot be shared — settle first — and a link is the owner's to
+      // publish, never a project reader's (both server-enforced; the entry
       // disappears rather than failing).
-      ...(pair === null
+      ...(pair === null && viewerIsOwner
         ? [
             {
               type: 'item' as const,
@@ -2019,7 +2020,8 @@ function ChatSurfaceInner({
               >
                 <ChatTranscript
                   organizationId={organizationId}
-                  threadId={viewerIsOwner ? viewThreadId : undefined}
+                  threadId={viewThreadId}
+                  readOnly={!viewerIsOwner}
                   threadRootId={threadId}
                   pendingSend={pendingSend}
                   isGenerating={generationInFlight || pendingSend !== null}

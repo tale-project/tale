@@ -252,6 +252,7 @@ import {
   useResolveQuestion,
 } from '../data/chat-backend';
 import { useThreadView } from '../hooks/use-thread-view';
+import { toSettledItems } from '../lib/thread-view-core';
 import {
   buildPendingShellItem,
   buildPendingUserItem,
@@ -1686,6 +1687,151 @@ describe('ChatSurface on an archived thread', () => {
     render(<ChatSurface organizationId="org-1" threadId="thread-archived" />);
 
     expect(queryNotice()).toBeNull();
+  });
+});
+
+/**
+ * A project member opening a conversation someone else shared with the
+ * project reads it. The transcript's thread id is its DATA key: withholding
+ * it to strip the per-message actions drew the read-only pill over an empty
+ * conversation, because the transcript then subscribed to nothing.
+ */
+describe('ChatSurface on a conversation shared with the project', () => {
+  const SHARED_THREAD = {
+    id: 'thread-shared',
+    title: 'Release checklist',
+    kind: 'direct' as const,
+    projectId: 'project-1',
+    sharedWithProject: true,
+    archived: false,
+    createdAt: 1,
+    updatedAt: 2,
+    generating: false,
+    viewerIsOwner: false,
+  };
+
+  const ROWS = toSettledItems([
+    {
+      id: 'm-1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Which files ship in this release?' }],
+      sequence: 0,
+      status: 'complete',
+      createdAt: 1,
+    },
+    {
+      id: 'm-2',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Three files ship: a, b and c.' }],
+      sequence: 1,
+      status: 'complete',
+      createdAt: 2,
+    },
+  ]);
+
+  beforeEach(() => {
+    // Someone else's conversation is never a row of the reader's own list.
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: SHARED_THREAD,
+    });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [
+          {
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
+            providerSlug: 'deepseek',
+            credential: { authMethod: 'api-key' as const },
+          },
+        ],
+        voice: { ttsAvailable: true, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-new' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    // The real hook's contract: a view without a thread id has no rows.
+    vi.mocked(useThreadView).mockImplementation((_org, viewedThreadId) =>
+      viewedThreadId === undefined
+        ? {
+            status: 'loading',
+            items: [],
+            generation: null,
+            streamingMessageId: undefined,
+            pendingConsumed: false,
+          }
+        : {
+            status: 'ready',
+            items: ROWS,
+            generation: null,
+            streamingMessageId: undefined,
+            pendingConsumed: false,
+          },
+    );
+  });
+
+  it('shows the messages under the read-only note', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    expect(
+      screen.getByText('Shared with the project — read-only'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Which files ship in this release?'),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('Three files ship: a, b and c.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('What are we working on?')).toBeNull();
+  });
+
+  it('offers the reader nothing that writes', async () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    // The reply's toolbar is up (Copy is a read) before the absences count.
+    expect(
+      await screen.findByTestId('message-copy-button'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('message-thumbs-up')).toBeNull();
+    expect(screen.queryByTestId('message-thumbs-down')).toBeNull();
+    expect(screen.queryByTestId('message-fork-button')).toBeNull();
+    expect(screen.queryByTestId('message-more-button')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit message' })).toBeNull();
+    expect(
+      screen.getByRole('textbox', { name: 'Message input' }),
+    ).toBeDisabled();
+  });
+
+  it('keeps Export in the conversation menu and leaves Share to the owner', async () => {
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-shared" />,
+    );
+
+    const [menu] = screen.getAllByRole('button', {
+      name: 'Conversation actions',
+    });
+    if (menu === undefined) throw new Error('no conversation menu');
+    await user.click(menu);
+
+    expect(
+      await screen.findByRole('menuitem', { name: 'Export' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Share' })).toBeNull();
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-shared" />,
+    );
+    await screen.findByTestId('message-copy-button');
+    await waitFor(() => checkAccessibility(container));
   });
 });
 
