@@ -32,13 +32,9 @@ const LEVEL_RANK: Record<LogLevel, number> = {
 // !NO_COLOR` rule, which used to disagree with the reporter and produce
 // "logger and reporter render different colors" bugs. Both `term/capabilities`
 // and `term/ansi` are node-free, so the logger stays Convex-V8-reachable (the
-// boundary test enforces it).
-//
-// `ansi` is evaluated once at import for back-compat; `createLogger` re-derives
-// per call so a mid-process `NO_COLOR`/`FORCE_COLOR` change is honored and tests
-// can drive it.
-/** ANSI palette — empty strings when color is disabled, so callers can build their own labels. */
-export const ansi: Palette = makePalette(detectCapabilities().color);
+// boundary test enforces it). `createLogger` derives the palette per call, so
+// a mid-process `NO_COLOR`/`FORCE_COLOR` change is honored and tests can drive
+// it.
 
 export interface CreateLoggerOptions {
   /** Tag prefixed to every line, e.g. `knowledge` → `[knowledge] …`. */

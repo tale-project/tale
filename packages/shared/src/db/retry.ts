@@ -8,17 +8,6 @@
  * runs the callback again, which transparently draws a fresh pooled connection.
  */
 
-import type { TransactionSql } from 'postgres';
-
-/**
- * Minimal structural contract for the part of a postgres.js `Sql` instance
- * that {@link transactWithRetry} uses. A real `Sql` satisfies this
- * structurally, so callers pass their `sql` directly; tests pass a stub.
- */
-export interface TransactionRunner {
-  begin<T>(callback: (tx: TransactionSql) => Promise<T>): Promise<T>;
-}
-
 /** Postgres SQLSTATE class prefixes that indicate a transient/connection fault. */
 const TRANSIENT_SQLSTATE_PREFIXES = ['08', '57P', '53']; // connection, admin shutdown, insufficient resources
 
@@ -113,21 +102,4 @@ export async function withRetry<T>(
   throw lastError instanceof Error
     ? lastError
     : new Error('withRetry exhausted attempts');
-}
-
-/**
- * Open a transaction via `sql.begin` and execute `callback`, retrying the
- * entire transaction on transient connection errors. Each retry runs in a
- * fresh transaction on a fresh pooled connection.
- */
-export function transactWithRetry<T>(
-  sql: TransactionRunner,
-  callback: (tx: TransactionSql) => Promise<T>,
-  options: RetryOptions = {},
-): Promise<T> {
-  return withRetry(() => sql.begin(callback), {
-    attempts: 3,
-    timeoutMs: 120_000,
-    ...options,
-  });
 }

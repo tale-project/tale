@@ -43,7 +43,6 @@ export const BUILT_IN_PII_PATTERN_NAMES = [
   'address',
   'nationalId',
 ] as const;
-export type BuiltInPiiPatternName = (typeof BUILT_IN_PII_PATTERN_NAMES)[number];
 
 const builtInPatternNameSchema = z.enum(BUILT_IN_PII_PATTERN_NAMES);
 

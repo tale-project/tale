@@ -27,7 +27,7 @@ export const MAX_AUTOMATION_BUNDLE_TOTAL_BYTES = 20 * 1024 * 1024;
 export const MAX_AUTOMATION_BUNDLE_ENTRIES = 500;
 
 /** Cap on the skills one package may declare and carry. */
-export const MAX_PACK_SKILLS = 20;
+const MAX_PACK_SKILLS = 20;
 
 /**
  * What starts a pack's automation. The kinds mirror the trigger store: a pack

@@ -121,7 +121,6 @@ export type ConnectorEffect = z.infer<typeof effectSchema>;
  *                       (`atlassian.net` admits any subdomain of it).
  */
 const endpointModeSchema = z.enum(['fixed', 'per-credential']);
-export type ConnectorEndpointMode = z.infer<typeof endpointModeSchema>;
 
 /**
  * A non-secret per-credential setting a connector needs but which is neither a
@@ -151,7 +150,6 @@ const configFieldSchema = z
     default: z.union([z.string(), z.number(), z.boolean()]).optional(),
   })
   .strict();
-export type ConnectorConfigField = z.infer<typeof configFieldSchema>;
 
 /**
  * How an action's LIVE path runs. `yaml-js` carries a JS body run in the
@@ -175,7 +173,6 @@ const backendSchema = z.discriminatedUnion('kind', [
     })
     .strict(),
 ]);
-export type ConnectorBackend = z.infer<typeof backendSchema>;
 
 /** A JSON-Schema object — validated structurally here, compiled by the
  * engine (ajv) at run time. */

@@ -159,7 +159,6 @@ const catalogSourceSchema = z.discriminatedUnion('source', [
   z.object({ source: z.literal('models-endpoint') }).strict(),
   z.object({ source: z.literal('none') }).strict(),
 ]);
-export type CatalogSource = z.infer<typeof catalogSourceSchema>;
 
 /**
  * Constraints a subscription-flavored auth method imposes on execution. A
@@ -205,9 +204,6 @@ export type ExecutionConstraints = z.infer<typeof executionConstraintsSchema>;
  * the agent it cannot see, instead of letting a screenshot vanish silently.
  */
 const subscriptionImageInputsSchema = z.enum(['forwarded', 'dropped']);
-export type SubscriptionImageInputs = z.infer<
-  typeof subscriptionImageInputsSchema
->;
 
 const providerAuthMethodSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('api-key') }).strict(),
@@ -264,9 +260,6 @@ const providerEmbeddingSupportSchema = z.enum([
   'unsupported',
   'unknown',
 ]);
-export type ProviderEmbeddingSupport = z.infer<
-  typeof providerEmbeddingSupportSchema
->;
 
 /** The shape of one `configs/platform/system/providers/<name>/provider.yml`. */
 export const providerDefinitionSchema = z
@@ -448,7 +441,7 @@ const voiceLocaleKeySchema = z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/);
  * least one voice (see the refinement on the schema below) — a TTS model
  * without a voice cannot be synthesized against.
  */
-export const modelCatalogTtsSchema = z
+const modelCatalogTtsSchema = z
   .object({
     /** The voice used when no locale-specific one matches. */
     defaultVoice: z.string().min(1).max(100).optional(),
@@ -1150,7 +1143,7 @@ export type HarnessExecFacts = z.infer<typeof harnessExecSchema>;
  * writes the secret verbatim as the session-relative file the CLI reads its
  * subscription state from (gemini's `~/.gemini/oauth_creds.json`).
  */
-export const harnessSubscriptionSchema = z.discriminatedUnion('kind', [
+const harnessSubscriptionSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('env'),
@@ -1171,7 +1164,6 @@ export const harnessSubscriptionSchema = z.discriminatedUnion('kind', [
     })
     .strict(),
 ]);
-export type HarnessSubscription = z.infer<typeof harnessSubscriptionSchema>;
 
 /** Slot-kind key of an argv entry (each entry is a single-key object). */
 function argvSlotKind(slot: Record<string, unknown>): string {

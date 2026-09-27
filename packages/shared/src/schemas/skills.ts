@@ -38,7 +38,7 @@ export const MAX_SKILL_SLUG_LENGTH = 64;
  * Slugs a skill may not claim: an org bundle must not be able to present
  * itself as an upstream-managed one.
  */
-export const RESERVED_SKILL_SLUGS: ReadonlySet<string> = new Set([
+const RESERVED_SKILL_SLUGS: ReadonlySet<string> = new Set([
   'anthropic',
   'claude',
 ]);
@@ -107,7 +107,7 @@ export const MAX_SKILL_BUNDLE_TOTAL_BYTES = 32 * 1024 * 1024;
  * automation-pack zip parser drops them on upload — so a zipped working
  * directory installs exactly what staging would later ship.
  */
-export const SKILL_BUNDLE_EXCLUDED_DIRS: ReadonlySet<string> = new Set([
+const SKILL_BUNDLE_EXCLUDED_DIRS: ReadonlySet<string> = new Set([
   'node_modules',
   '__pycache__',
 ]);
@@ -146,7 +146,7 @@ export const MAX_SKILL_TEAMS = 32;
  * catalog copy), so it belongs to the org; defaulting to `private` would
  * instead make an ownerless file invisible to every member at once.
  */
-export const DEFAULT_SKILL_VISIBILITY: SkillVisibility = 'org';
+const DEFAULT_SKILL_VISIBILITY: SkillVisibility = 'org';
 
 /** How much of a refused slug an error echoes — a slug can be at most
  * {@link MAX_SKILL_SLUG_LENGTH}, so anything past that is noise. */

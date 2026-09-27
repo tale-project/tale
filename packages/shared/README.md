@@ -39,10 +39,9 @@ same accepted values, defaults and refusal cases as the platform contracts.
 ### Database
 
 - **`@tale/shared/db/retry`** — retry wrappers over `postgres.js` with exponential
-  backoff. `withRetry(operation, opts?)` reruns the whole operation on transient
-  connection faults; `transactWithRetry(sql, callback, opts?)` does the same
-  around `sql.begin`. `isTransientDbError` classifies SQLSTATE/Node socket error
-  codes and timeout messages.
+  backoff. `withRetry(operation, opts?)` reruns the whole operation, such as a
+  `sql.begin` transaction, on transient connection faults. `isTransientDbError`
+  classifies SQLSTATE/Node socket error codes and timeout messages.
 
 - **`@tale/shared/db/serializable`** — transaction support for serializable operations.
   Keep callbacks safe to retry; external effects belong outside a retried transaction.
@@ -67,15 +66,13 @@ process and terminal dependencies out of frontend bundles.
 - **`@tale/shared/logging/logger`** — `createLogger(opts?)`: a `console`-backed,
   level-gated logger (`debug` < `info` < `warn` < `error`) with optional
   namespace tag, `pretty` colored TTY output, `child(namespace)`, and a
-  `debugEnvVar` escape hatch. Also exports `LogLevel`, `Logger`, `ansi`, and
+  `debugEnvVar` escape hatch. Also exports `LogLevel`, `Logger`, and
   `timestamp()`.
 
 ### Utils
 
 - **`@tale/shared/utils/hashing`** — SHA-256 helpers for dedup:
   `computeFileHash(path)` (streaming) and `computeContentHash(string | Uint8Array)`.
-- **`@tale/shared/utils/model-list`** — parse comma-separated model env vars:
-  `parseModelList`, `getFirstModel`, `getFirstModelOrThrow`.
 
 ## Development
 
@@ -86,5 +83,4 @@ bun run --filter @tale/shared test         # vitest run
 ```
 
 Tests live next to their modules as `*.test.ts` (e.g.
-`src/db/retry.test.ts`, `src/utils/hashing.test.ts`,
-`src/utils/model-list.test.ts`).
+`src/db/retry.test.ts`, `src/utils/hashing.test.ts`).

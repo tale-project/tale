@@ -91,13 +91,12 @@ export type PolicyType = (typeof POLICY_TYPES)[number];
  * (code half) AND the pack's trigger rows (flipped by
  * `setTaskAutomationEnabled`). Missing row ⇒ enabled.
  */
-export const taskAutomationConfigSchema = z.object({
+const taskAutomationConfigSchema = z.object({
   enabled: z.boolean(),
   pausedBy: z.string().optional(),
   pausedAt: z.number().optional(),
   reason: z.string().max(500).optional(),
 });
-export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
 
 /**
  * Per-org sandbox SESSION budgets. Missing row ⇒ these schema defaults.
@@ -231,7 +230,7 @@ export function effectiveMandatoryInstructions(
  * English; aggregate caps would force translators to truncate, so the cap is
  * per-locale.
  */
-export const dataNoticeConfigSchema = z.object({
+const dataNoticeConfigSchema = z.object({
   enabled: z.boolean(),
   requireAcknowledgment: z.boolean().optional(),
   /** locale-keyed (e.g., `en`, `de`, `fr-CH`); each value ≤ 280 chars. */
@@ -838,7 +837,7 @@ export const DEFAULT_DSAR_GOVERNANCE: DsarGovernanceConfig =
  * `configCache` rows with key `conversation_access` still validate; the
  * `restrictAssigned` field is ignored by the platform.
  */
-export const conversationAccessConfigSchema = z.object({
+const conversationAccessConfigSchema = z.object({
   restrictAssigned: z.boolean().default(false),
 });
 
@@ -975,7 +974,6 @@ export const approvalPolicyConfigSchema = z.object({
     .default([]),
 });
 export type ApprovalPolicyConfig = z.infer<typeof approvalPolicyConfigSchema>;
-export type ApprovalPolicyRule = ApprovalPolicyConfig['rules'][number];
 
 /**
  * Who may sign off agent work parked at review (the In review → Done move,
@@ -996,7 +994,6 @@ export const reviewPolicyConfigSchema = z.object({
   requireIndependentReviewer: z.boolean().optional(),
   requiredCompetences: z.array(z.string().min(1).max(120)).max(20).optional(),
 });
-export type ReviewPolicyConfig = z.infer<typeof reviewPolicyConfigSchema>;
 
 /** Frame ancestors per organization — a small, deliberate allowlist. */
 export const EMBEDDING_FRAME_ANCESTORS_MAX = 16;
@@ -1014,7 +1011,7 @@ export function isFrameAncestorOrigin(value: string): boolean {
   return value.length <= 253 && FRAME_ANCESTOR_ORIGIN_RE.test(value);
 }
 
-export const frameAncestorOriginSchema = z
+const frameAncestorOriginSchema = z
   .string()
   .max(253)
   .refine(isFrameAncestorOrigin, {
@@ -1105,9 +1102,4 @@ export function isFilePolicyType(value: string): value is FilePolicyType {
  */
 export function policyTypeToFileBase(policyType: FilePolicyType): string {
   return policyType.replaceAll('_', '-');
-}
-
-export function fileBaseToPolicyType(fileBase: string): FilePolicyType | null {
-  const candidate = fileBase.replaceAll('-', '_');
-  return isFilePolicyType(candidate) ? candidate : null;
 }

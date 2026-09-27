@@ -18,8 +18,7 @@
  * so the three never disagree on what counts as "this deployment".
  */
 
-export const SITE_URL_ENV = 'SITE_URL';
-export const ADDITIONAL_SITE_URLS_ENV = 'ADDITIONAL_SITE_URLS';
+const ADDITIONAL_SITE_URLS_ENV = 'ADDITIONAL_SITE_URLS';
 
 /** Thrown for a malformed `ADDITIONAL_SITE_URLS` entry — the message names it. */
 export class SiteUrlConfigError extends Error {
