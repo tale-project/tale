@@ -49,4 +49,3 @@ Connect providers, add people, and choose their access.
 The same product guides apply to Cloud and self-hosted instances. What you see depends on your role and which providers and services your administrator has configured. If a control is missing, start with [members and roles](/platform/admin/members-and-roles).
 
 Instructions use the labels shown in the app. Screenshots illustrate the English interface; German and French pages use the labels from their respective interfaces. For a first visit, follow [the quickstart](/get-started/quickstart).
-
