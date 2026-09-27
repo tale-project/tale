@@ -68,9 +68,7 @@ interface AdvisoryIssue {
  * real domain may legitimately differ), but surfacing them inline catches the
  * common "deployed straight from a hand-edited .env.example" footguns:
  *
- *  - a placeholder DB password still in place,
- *  - a missing audit signing key (which leaves the audit chain unsigned and
- *    the daily integrity cron unable to verify it), and
+ *  - a placeholder DB password still in place, and
  *  - a missing audit pepper (which leaves failed sign-ins in the audit log
  *    as plaintext email + IP for the whole retention window).
  *
@@ -88,13 +86,6 @@ export function checkProductionReadiness(
     issues.push({
       message: 'DB_PASSWORD is still the example placeholder.',
       fix: 'Set a strong unique DB_PASSWORD in .env (Postgres reads it only on first init).',
-    });
-  }
-  if (!(env.TALE_AUDIT_SIGNING_KEY ?? '').trim()) {
-    issues.push({
-      message:
-        'TALE_AUDIT_SIGNING_KEY is not set — audit checkpoints will be unsigned (tamper-evidence off).',
-      fix: 'Re-run the CLI to auto-generate it, or set TALE_AUDIT_SIGNING_KEY=$(openssl rand -hex 32).',
     });
   }
   if ((env.TALE_AUDIT_PEPPER ?? '').trim().length < 16) {
@@ -167,7 +158,7 @@ export async function runDeployPreflight(
   }
 
   // 4. Advisory, non-blocking: production-readiness footguns (placeholder DB
-  //    password, missing audit signing key). Warn so the operator sees them
+  //    password, missing audit pepper). Warn so the operator sees them
   //    inline, but never block — works the same in TTY and headless CI.
   for (const issue of checkProductionReadiness(env)) {
     logger.warn(issue.message);

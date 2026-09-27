@@ -97,7 +97,6 @@ stringData:
   INSTANCE_SECRET: <openssl rand -hex 32>
   BETTER_AUTH_SECRET: <openssl rand -hex 32>
   ENCRYPTION_SECRET_HEX: <openssl rand -hex 32>
-  TALE_AUDIT_SIGNING_KEY: <openssl rand -hex 32>
   TALE_AUDIT_PEPPER: <openssl rand -hex 32>
   SANDBOX_TOKEN: <openssl rand -hex 32>
   SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: <generated>

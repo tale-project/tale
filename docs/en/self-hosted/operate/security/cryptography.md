@@ -26,7 +26,7 @@ An identity provider has its own signing keys and rotation process. Register its
 
 ## Verify audit evidence
 
-Audit entries form a SHA-256 chain. The current PostgreSQL verifier checks retained rows and their links, starting from the first surviving stored link. It accounts for retention and checks scrubbed rows against erasure requests. It does not verify signed checkpoints or use `TALE_AUDIT_SIGNING_KEY` as an independent trust anchor.
+Audit entries form a SHA-256 chain. The current PostgreSQL verifier checks retained rows and their links, starting from the first surviving stored link. It accounts for retention and checks scrubbed rows against erasure requests. It does not verify signed checkpoints.
 
 A chain is tamper-evident, not tamper-proof storage. Protect database access, retain evidence independently where needed and investigate an alert through [Audit-log integrity](/self-hosted/operate/security/audit-log-integrity). The separate `TALE_AUDIT_PEPPER` pseudonymizes sensitive failed-sign-in identifiers; rotating it changes correlation across that boundary.
 

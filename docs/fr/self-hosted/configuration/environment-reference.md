@@ -110,14 +110,12 @@ Si tu préfères gérer le store à la main, mets `"managedBy": "operator"` dans
 
 Droits sur le bucket : le backend vérifie l’existence du bucket avec `HeadBucket` et ne le crée que s’il est absent. Une clé qui peut lire, écrire et supprimer des objets sans pouvoir créer de bucket suffit donc, à condition que tu crées le bucket toi-même. Les téléversements et téléchargements présignés passent par le navigateur : un bucket externe a donc aussi besoin d’une politique CORS autorisant l’origine de ton déploiement en `GET`, `PUT` et `HEAD` — voir [Résidence des données](/fr/self-hosted/configuration/data-residency).
 
-## Signature du journal d'audit
+## Confidentialité du journal d'audit
 
-Le vérificateur PostgreSQL actuel contrôle les hachages SHA-256 et les liens entre les lignes d’audit, sans vérifier de points de contrôle signés par HMAC. La CLI génère et conserve encore les variables de signature pour compatibilité. Leur présence ne prouve pas que le backend actuel signe l’historique. Un pepper distinct pseudonymise les données personnelles enregistrées lors des connexions échouées.
+Un pepper pseudonymise les données personnelles enregistrées lors des connexions échouées. Les versions précédentes généraient aussi `TALE_AUDIT_SIGNING_KEY` et `TALE_AUDIT_SIGNING_KEY_PREVIOUS`. Plus rien ne les lit : tu peux conserver ou supprimer une valeur existante.
 
 | Nom                               | Défaut                      | Description                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | --------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TALE_AUDIT_SIGNING_KEY` | auto-généré par `tale init` | Valeur hexadécimale de 64 caractères générée et conservée par la CLI pour compatibilité. Conserve les valeurs existantes avec les secrets du déploiement ; le vérificateur PostgreSQL actuel n’utilise pas cette clé. |
-| `TALE_AUDIT_SIGNING_KEY_PREVIOUS` | non défini | Variable de compatibilité pour une ancienne clé de signature. Le vérificateur PostgreSQL actuel ne l’utilise pas ; la définir n’active pas de vérification de signature. |
 | `TALE_AUDIT_PEPPER` | auto-généré par `tale init` | Au moins 16 caractères pour pseudonymiser les échecs de connexion : HMAC-SHA256 de l’e-mail et de l’adresse IP tronquée. Sans valeur, ces champs d’audit restent en clair et le backend avertit. La rotation empêche de corréler les nouveaux identifiants avec les anciens ; la conservation suit la politique appliquée de l’organisation. |
 
 Voir [Intégrité du journal d'audit](/fr/self-hosted/operate/security/audit-log-integrity) pour le modèle de vérification.

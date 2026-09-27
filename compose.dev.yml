@@ -61,9 +61,6 @@ x-dev-secrets: &dev-secrets
   # hex INSTANCE_SECRET above) so guardrails secret-box rows stay decryptable
   # across `bun dev` and this docker stack.
   ENCRYPTION_SECRET_HEX: ${ENCRYPTION_SECRET_HEX:-7a7059df10c10d68ee89d73567ebdf4ecc4b94f1cab14f7b430dffce9562bd53}
-  # Stable dev key so the audit hash-chain verifies; absent → "integrity check
-  # failed" alert on an otherwise-clean stack. Rotate for production.
-  TALE_AUDIT_SIGNING_KEY: ${TALE_AUDIT_SIGNING_KEY:-4f8c2a9e7b1d6035e4a8c2f9d7b3061a5e8c4f2a9d7b30615e4c8a2f9d7b30614}
   # Stable dev pepper so failed sign-ins reach the audit log as hashes, the
   # way a `tale init` deployment writes them; absent → plaintext email + IP
   # and a [SECURITY] warning at the first write. Rotate for production.

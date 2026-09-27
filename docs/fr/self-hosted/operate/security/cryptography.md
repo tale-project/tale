@@ -26,7 +26,7 @@ Un fournisseur d’identité possède ses propres clés de signature et sa propr
 
 ## Vérifier les preuves d’audit
 
-Les entrées d’audit forment une chaîne SHA-256. Le vérificateur PostgreSQL actuel contrôle les lignes conservées et leurs liens, à partir du premier lien encore stocké. Il tient compte de la conservation et rapproche les lignes effacées des demandes d’effacement. Il ne vérifie pas de points de contrôle signés et n’utilise pas `TALE_AUDIT_SIGNING_KEY` comme ancrage de confiance indépendant.
+Les entrées d’audit forment une chaîne SHA-256. Le vérificateur PostgreSQL actuel contrôle les lignes conservées et leurs liens, à partir du premier lien encore stocké. Il tient compte de la conservation et rapproche les lignes effacées des demandes d’effacement. Il ne vérifie pas de points de contrôle signés.
 
 La chaîne rend une altération détectable ; elle ne rend pas le stockage inviolable. Protège l’accès à la base, conserve les preuves indépendamment si nécessaire et examine les alertes avec [Intégrité du journal d’audit](/fr/self-hosted/operate/security/audit-log-integrity). La variable distincte `TALE_AUDIT_PEPPER` pseudonymise les identifiants sensibles des connexions échouées. Sa rotation modifie la corrélation de part et d’autre de ce changement.
 

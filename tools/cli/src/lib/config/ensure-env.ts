@@ -348,13 +348,6 @@ export async function ensureEnv(
       // Shared HMAC secret for the backend → sandbox spawner. Generated as
       // 32 random bytes (hex); see services/sandbox/src/auth.ts.
       'SANDBOX_TOKEN',
-      // HMAC key that signs audit-log retention/scrub checkpoints, making the
-      // hash chain tamper-evident (SOC 2 / ISO 27001). Auto-generated so the
-      // control is ON by default and STABLE across deploys — a missing or
-      // changing key is what makes the daily integrity cron raise a scary
-      // "Audit log integrity check failed" alert on an otherwise-clean stack.
-      // See services/platform/backend/domains/audit_logs/.
-      'TALE_AUDIT_SIGNING_KEY',
       // Pepper for the HMAC pseudonymisation of the email + IP a failed
       // sign-in writes into the audit log. Auto-generated so the control is
       // ON by default and STABLE across deploys — without it the rows carry
@@ -434,7 +427,6 @@ async function runHeadlessAutoSecretFill(
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
-    TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generateGatewayAdminPassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
@@ -561,7 +553,6 @@ async function runPartialEnvSetup(
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
-    TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generateGatewayAdminPassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
@@ -633,7 +624,6 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     dbPassword: generatePassword(),
     sopsAgeKey: ageKeypair.secretKey,
     sandboxToken: generateHexSecret(),
-    auditSigningKey: generateHexSecret(),
     auditPepper: generateHexSecret(),
     llmGatewayAdminPassword: generateGatewayAdminPassword(),
     objectStoreSecretKey: generatePassword(),
@@ -658,7 +648,6 @@ interface EnvConfig {
   dbPassword: string;
   sopsAgeKey: string;
   sandboxToken: string;
-  auditSigningKey: string;
   auditPepper: string;
   llmGatewayAdminPassword: string;
   objectStoreSecretKey: string;
@@ -751,21 +740,8 @@ function generateEnvContent(config: EnvConfig): string {
     'SANDBOX_URL=http://sandbox:8003',
     '',
     '# ============================================================================',
-    '# Audit Log Signing (security / compliance)',
+    '# Audit Log Privacy (security / compliance)',
     '# ============================================================================',
-    '# HMAC-SHA256 key that signs audit-log retention & PII-scrub checkpoints so',
-    '# the audit hash chain is tamper-evident (SOC 2 CC7.2, ISO 27001). The daily',
-    '# integrity cron verifies these signatures; a MISSING or CHANGED key is what',
-    '# surfaces the "Audit log integrity check failed" alert — so this is',
-    '# auto-generated and must stay STABLE across deploys.',
-    '#   - Back it up with your other secrets (secret manager / Vault). Losing it',
-    '#     means checkpoints signed with it can no longer be verified.',
-    '#   - To ROTATE: move the current value to TALE_AUDIT_SIGNING_KEY_PREVIOUS,',
-    '#     set a fresh TALE_AUDIT_SIGNING_KEY (openssl rand -hex 32), redeploy.',
-    '#     The verifier accepts both during the rotation window; drop the',
-    '#     previous key on the next rotation.',
-    `TALE_AUDIT_SIGNING_KEY=${config.auditSigningKey}`,
-    '# TALE_AUDIT_SIGNING_KEY_PREVIOUS=',
     '# Pepper for the HMAC-SHA256 pseudonymisation of the email + IP a failed',
     '# sign-in writes into the audit log (retained far longer than the attempt',
     '# itself). Set, new rows carry hashes; unset, plaintext email + IP. Keep it',

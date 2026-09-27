@@ -84,28 +84,16 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
     const issues = checkProductionReadiness({
       HOST: 'demo.tale.dev',
       DB_PASSWORD: 'tale_password_change_me',
-      TALE_AUDIT_SIGNING_KEY: 'set',
       TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
     });
     expect(issues.length).toBe(1);
     expect(issues[0].message).toContain('DB_PASSWORD');
   });
 
-  test('production host with missing audit signing key → advises', () => {
-    const issues = checkProductionReadiness({
-      HOST: 'demo.tale.dev',
-      DB_PASSWORD: 'a-strong-password',
-      TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
-    });
-    expect(issues.length).toBe(1);
-    expect(issues[0].message).toContain('TALE_AUDIT_SIGNING_KEY');
-  });
-
   test('production host with a missing or too-short audit pepper → advises', () => {
     const missing = checkProductionReadiness({
       HOST: 'demo.tale.dev',
       DB_PASSWORD: 'a-strong-password',
-      TALE_AUDIT_SIGNING_KEY: 'set',
     });
     expect(missing.length).toBe(1);
     expect(missing[0].message).toContain('TALE_AUDIT_PEPPER');
@@ -114,20 +102,19 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
     const short = checkProductionReadiness({
       HOST: 'demo.tale.dev',
       DB_PASSWORD: 'a-strong-password',
-      TALE_AUDIT_SIGNING_KEY: 'set',
       TALE_AUDIT_PEPPER: 'short',
     });
     expect(short.length).toBe(1);
     expect(short[0].message).toContain('TALE_AUDIT_PEPPER');
   });
 
-  test('production host, every footgun → three advisories', () => {
+  test('production host, every footgun → two advisories', () => {
     expect(
       checkProductionReadiness({
         HOST: 'demo.tale.dev',
         DB_PASSWORD: 'tale_password_change_me',
       }),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
   });
 
   test('production host, fully configured → no advisories', () => {
@@ -135,7 +122,6 @@ describe('checkProductionReadiness (advisory, non-blocking)', () => {
       checkProductionReadiness({
         HOST: 'demo.tale.dev',
         DB_PASSWORD: 'a-strong-password',
-        TALE_AUDIT_SIGNING_KEY: 'deadbeef',
         TALE_AUDIT_PEPPER: 'a-pepper-of-sixteen-chars',
       }),
     ).toEqual([]);

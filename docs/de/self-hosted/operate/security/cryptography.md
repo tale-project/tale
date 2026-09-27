@@ -26,7 +26,7 @@ Ein Identitätsanbieter besitzt eigene Signaturschlüssel und einen eigenen Rota
 
 ## Audit-Nachweise prüfen
 
-Audit-Einträge bilden eine SHA-256-Kette. Das aktuelle PostgreSQL-Backend prüft erhaltene Zeilen und ihre Verknüpfungen ab der ersten noch vorhandenen gespeicherten Verbindung. Es berücksichtigt die Aufbewahrung und gleicht bereinigte Zeilen mit Löschanträgen ab. Signierte Prüfpunkte werden nicht geprüft; `TALE_AUDIT_SIGNING_KEY` dient hier nicht als unabhängiger Vertrauensanker.
+Audit-Einträge bilden eine SHA-256-Kette. Das aktuelle PostgreSQL-Backend prüft erhaltene Zeilen und ihre Verknüpfungen ab der ersten noch vorhandenen gespeicherten Verbindung. Es berücksichtigt die Aufbewahrung und gleicht bereinigte Zeilen mit Löschanträgen ab. Signierte Prüfpunkte werden nicht geprüft.
 
 Die Kette macht Manipulationen erkennbar; sie verhindert keine Änderungen am Speicher. Schütze den Datenbankzugriff, bewahre Nachweise bei Bedarf unabhängig auf und untersuche Alarme gemäß [Audit-Protokollintegrität](/de/self-hosted/operate/security/audit-log-integrity). Das getrennte `TALE_AUDIT_PEPPER` pseudonymisiert sensible Kennungen fehlgeschlagener Anmeldungen. Seine Rotation verändert die Vergleichbarkeit über diesen Zeitpunkt hinweg.
 

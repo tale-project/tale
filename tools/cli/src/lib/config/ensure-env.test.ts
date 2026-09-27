@@ -146,7 +146,7 @@ describe('deriveDomainTls', () => {
   });
 });
 
-describe('ensureEnv — audit signing key auto-gen', () => {
+describe('ensureEnv — fresh defaults and the audit pepper', () => {
   test('a fresh .env points the backend at the in-compose sandbox spawner', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-sandbox-url-'));
     try {
@@ -159,19 +159,17 @@ describe('ensureEnv — audit signing key auto-gen', () => {
     }
   });
 
-  test('a fresh .env includes a 64-hex TALE_AUDIT_SIGNING_KEY', async () => {
+  test('a fresh .env includes a 64-hex TALE_AUDIT_PEPPER', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-fresh-'));
     try {
       const res = await ensureEnv({ deployDir: dir });
       expect(res.success).toBe(true);
       const env = readFileSync(join(dir, '.env'), 'utf-8');
-      const match = env.match(/^TALE_AUDIT_SIGNING_KEY=([0-9a-f]+)$/m);
-      expect(match).not.toBeNull();
-      // 32 bytes hex-encoded = 64 chars; mirrors INSTANCE_SECRET shape.
-      expect(match?.[1]).toHaveLength(64);
-      // The audit pepper ships with it: >= 16 chars is what pii_hash.ts
-      // requires before it hashes instead of writing plaintext email + IP.
+      // >= 16 chars is what pii_hash.ts requires before it hashes instead of
+      // writing plaintext email + IP; 32 bytes hex-encoded = 64 chars.
       expect(env).toMatch(/^TALE_AUDIT_PEPPER=[0-9a-f]{64}$/m);
+      // The retired checkpoint-signing key is no longer written.
+      expect(env).not.toContain('TALE_AUDIT_SIGNING_KEY');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -181,7 +179,7 @@ describe('ensureEnv — audit signing key auto-gen', () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-fill-'));
     try {
       // A valid age key so the post-fill deriveAgePublicKey() succeeds; every
-      // required var present EXCEPT TALE_AUDIT_SIGNING_KEY (the new secret).
+      // required var present EXCEPT TALE_AUDIT_PEPPER.
       const age = generateAgeKeypair();
       writeFileSync(
         join(dir, '.env'),
@@ -201,10 +199,8 @@ describe('ensureEnv — audit signing key auto-gen', () => {
       );
       const res = await ensureEnv({ deployDir: dir });
       expect(res.success).toBe(true);
-      expect(res.regeneratedAutoSecrets).toContain('TALE_AUDIT_SIGNING_KEY');
       expect(res.regeneratedAutoSecrets).toContain('TALE_AUDIT_PEPPER');
       const env = readFileSync(join(dir, '.env'), 'utf-8');
-      expect(env).toMatch(/^TALE_AUDIT_SIGNING_KEY=[0-9a-f]{64}$/m);
       expect(env).toMatch(/^TALE_AUDIT_PEPPER=[0-9a-f]{64}$/m);
       // Existing secrets are preserved, not regenerated.
       expect(env).toContain('BETTER_AUTH_SECRET=existing-better-auth');
@@ -255,7 +251,6 @@ describe('ensureEnv — LLM_GATEWAY_* → SANDBOX_LLM_GATEWAY_* rename migration
           'DB_PASSWORD=existing-password',
           `SOPS_AGE_KEY=${age.secretKey}`,
           'SANDBOX_TOKEN=existing-sandbox',
-          'TALE_AUDIT_SIGNING_KEY=existing-audit-key',
           'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
           '',
         ].join('\n'),

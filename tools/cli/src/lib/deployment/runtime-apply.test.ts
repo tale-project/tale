@@ -415,7 +415,7 @@ describePosix('managed source-Compose runtime adoption', () => {
       readFileSync(join(fixture.options.stateDirectory, 'secrets.env')),
     ).toEqual(before);
     const keys = parseRuntimeEnvironment(before.toString(), 'secrets');
-    expect(Object.keys(keys)).toHaveLength(10);
+    expect(Object.keys(keys)).toHaveLength(9);
     const ready = readFileSync(
       join(fixture.options.stateDirectory, '.tale/runtime.json'),
     );
@@ -748,7 +748,7 @@ describePosix('managed source-Compose runtime adoption', () => {
 
   test('reports no newly generated secrets on the repeat after fresh initialization', async () => {
     const { apply } = await create();
-    expect((await apply()).regeneratedSecrets).toHaveLength(10);
+    expect((await apply()).regeneratedSecrets).toHaveLength(9);
     expect((await apply()).regeneratedSecrets).toEqual([]);
   });
 });

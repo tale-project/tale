@@ -110,14 +110,12 @@ Willst du den Store lieber von Hand führen, trag `"managedBy": "operator"` in `
 
 Bucket-Rechte: Das Backend prüft mit `HeadBucket`, ob der Bucket existiert, und legt ihn nur an, wenn nicht. Ein Schlüssel, der Objekte lesen, schreiben und löschen darf, aber keine Buckets anlegen, reicht also — solange du den Bucket selbst anlegst. Presignte Up- und Downloads laufen im Browser, ein externer Bucket braucht deshalb zusätzlich eine CORS-Policy, die den Origin deines Deployments mit `GET`, `PUT` und `HEAD` zulässt — siehe [Datenresidenz](/de/self-hosted/configuration/data-residency).
 
-## Audit-Log-Signierung
+## Datenschutz im Audit-Log
 
-Das aktuelle PostgreSQL-Backend prüft SHA-256-Hashes und die Verknüpfung der Audit-Zeilen, keine HMAC-signierten Prüfpunkte. Die CLI erzeugt und übernimmt die Signaturschlüssel-Variablen weiterhin aus Kompatibilitätsgründen. Ihr Vorhandensein belegt nicht, dass das aktuelle Backend die Historie signiert. Ein getrennter Pepper pseudonymisiert personenbezogene Daten fehlgeschlagener Anmeldungen.
+Ein Pepper pseudonymisiert personenbezogene Daten fehlgeschlagener Anmeldungen. Frühere Releases haben zusätzlich `TALE_AUDIT_SIGNING_KEY` und `TALE_AUDIT_SIGNING_KEY_PREVIOUS` erzeugt. Beide liest nichts mehr, einen vorhandenen Wert kannst du also behalten oder löschen.
 
 | Name                              | Default                       | Beschreibung                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | --------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TALE_AUDIT_SIGNING_KEY` | von `tale init` autogeneriert | Hex-Wert mit 64 Zeichen, den die CLI aus Kompatibilitätsgründen erzeugt und erhält. Bewahre bestehende Werte mit den Deployment-Geheimnissen auf. Die aktuelle PostgreSQL-Prüfung nutzt diesen Schlüssel nicht. |
-| `TALE_AUDIT_SIGNING_KEY_PREVIOUS` | nicht gesetzt | Kompatibilitätsvariable für einen vorherigen Signaturschlüssel. Die aktuelle PostgreSQL-Prüfung nutzt sie nicht; das Setzen aktiviert keine Signaturprüfung. |
 | `TALE_AUDIT_PEPPER` | von `tale init` autogeneriert | Mindestens 16 Zeichen für die Pseudonymisierung fehlgeschlagener Anmeldungen: HMAC-SHA256 aus E-Mail und gekürzter IP-Adresse. Ohne Wert enthalten diese Audit-Felder Klartext und das Backend warnt. Nach einer Rotation lassen sich neue Kennungen nicht mit früheren vergleichen. Die Aufbewahrung folgt der angewendeten Organisationsrichtlinie. |
 
 Siehe [Audit-Log-Integrität](/de/self-hosted/operate/security/audit-log-integrity) für das Verifikationsmodell.
