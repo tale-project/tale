@@ -28,6 +28,14 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* A viewport too short to hold a page's chrome and its content at once — a
+   phone held sideways, a laptop zoomed to 200 %. There a collection screen
+   stops bounding its table to the window and the page scrolls as a whole,
+   and a page header stops sticking; bounded, the chrome left the rows a
+   sliver. `useIsShortViewport` (`@tale/ui/use-is-short-viewport`) reads the
+   same query for the scripts that must agree with it. */
+@custom-variant short-viewport (@media (max-height: 30rem));
+
 /*
  * Canonical shared stylesheet for the Tale monorepo. Every other globals.css
  * (platform, web, docs, templates) is a single-line import of this file.

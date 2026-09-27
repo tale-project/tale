@@ -38,7 +38,11 @@ const contentAreaVariants = cva(
         // the PAGE scrolls instead, which is the drift this variant exists to
         // prevent. Anything else the page stacks above the table (a folder
         // breadcrumb, a load-failure alert) is a sibling inside this frame.
-        list: 'min-h-0 flex-1 px-4 pt-4',
+        // On a short viewport (`short-viewport:` — a phone held sideways, a
+        // laptop at 200 %) the chrome leaves too little height to bound:
+        // the frame grows with its rows and the page scrolls instead, since
+        // bounded, the table's own scrollport shrank to a sliver.
+        list: 'short-viewport:flex-none min-h-0 flex-1 px-4 pt-4',
         // `max-w-3xl` is the settings measure (`SettingsPage`, #2567): every
         // configuration surface — org settings, project tabs, automation
         // settings — shares one content width so switching between them

@@ -301,7 +301,9 @@ export function AdaptiveHeaderRoot({
       aria-hidden={isMobile || undefined}
       className={cn(
         'hidden w-full shrink-0 md:flex md:flex-col',
-        standalone && 'bg-background/50 sticky top-0 z-20 backdrop-blur-md',
+        // Like `StickyHeader`, it scrolls away on a short viewport.
+        standalone &&
+          'bg-background/50 short-viewport:static sticky top-0 z-20 backdrop-blur-md',
         showBorder && 'border-border border-b',
       )}
     >

@@ -13,6 +13,8 @@ import { page } from 'vitest/browser';
 
 import { render, screen } from '@/tests/utils/render';
 
+import { ContentArea } from '../layout/content-area';
+import { PageLayout } from '../layout/page-layout';
 import { createSelectColumn } from './column-builders';
 import { DataTable } from './data-table';
 import type { DataTableSkeleton } from './data-table-skeleton-cell';
@@ -462,4 +464,69 @@ describe('DataTable on a phone viewport (real layout)', () => {
       expect(scrollport.scrollWidth).toBeGreaterThan(scrollport.clientWidth);
     },
   );
+});
+
+// A collection screen bounds its table to the window so only the rows scroll.
+// On a short viewport — a phone held sideways, a laptop at 200 % — the chrome
+// left that frame a sliver: at 640x360 the knowledge table's scrollport was
+// ~20px tall and its rows out of reach. There the frame grows with its rows
+// and the page scrolls instead; an infinite list then watches the page, not
+// a scrollport that no longer scrolls and would report its sentinel in view.
+describe('DataTable in a collection screen on a short viewport (real layout)', () => {
+  const manyRows: Row[] = Array.from({ length: 40 }, (_, i) => ({
+    _id: String(i),
+    name: `Entry ${i}`,
+    status: 'active',
+    note: '',
+  }));
+
+  function renderScreen(onLoadMore = vi.fn()) {
+    render(
+      <div className="flex h-dvh flex-col">
+        <PageLayout header={<div className="h-13">Knowledge</div>}>
+          <ContentArea variant="list">
+            <DataTable
+              columns={columns}
+              data={manyRows}
+              approxRowCount={manyRows.length}
+              stickyLayout
+              infiniteScroll={{ hasMore: true, onLoadMore }}
+            />
+          </ContentArea>
+        </PageLayout>
+      </div>,
+    );
+    const scrollport = screen.getByTestId('data-table-scrollport');
+    const pageScroller = screen
+      .getByText('Knowledge')
+      .closest('.overflow-auto');
+    if (!(pageScroller instanceof HTMLElement)) throw new Error('no page');
+    return { scrollport, pageScroller, onLoadMore };
+  }
+
+  const scrolls = (el: HTMLElement) => el.scrollHeight > el.clientHeight + 1;
+
+  it('scrolls the rows inside their frame on a tall viewport', async () => {
+    await page.viewport(1280, 800);
+    const { scrollport, pageScroller } = renderScreen();
+    expect(scrolls(scrollport)).toBe(true);
+    expect(scrolls(pageScroller)).toBe(false);
+  });
+
+  it('grows the frame with its rows and scrolls the page on a short viewport', async () => {
+    await page.viewport(640, 360);
+    const { scrollport, pageScroller } = renderScreen();
+    expect(scrolls(scrollport)).toBe(false);
+    expect(scrolls(pageScroller)).toBe(true);
+    expect(screen.getByText('Entry 39')).toBeVisible();
+  });
+
+  it('loads the next page from the page scroll, not all at once', async () => {
+    await page.viewport(640, 360);
+    const { pageScroller, onLoadMore } = renderScreen();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(onLoadMore).not.toHaveBeenCalled();
+    pageScroller.scrollTop = pageScroller.scrollHeight;
+    await vi.waitFor(() => expect(onLoadMore).toHaveBeenCalled());
+  });
 });
