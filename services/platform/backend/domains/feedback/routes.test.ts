@@ -84,6 +84,26 @@ describe('feedback route — the vote key is server-owned', () => {
     });
   });
 
+  it('ignores the attribution a client claims — the service derives it from the message', async () => {
+    const res = await vote({
+      threadId: 't1',
+      messageId: 'm1',
+      rating: 'negative',
+      comment: 'wrong',
+      agentSlug: 'forged-agent',
+      model: 'forged-model',
+      provider: 'forged-provider',
+    });
+
+    expect(res.status).toBe(200);
+    expect(submitMessageFeedback.mock.calls[0]?.[2]).toEqual({
+      threadId: 't1',
+      messageId: 'm1',
+      rating: 'negative',
+      comment: 'wrong',
+    });
+  });
+
   it('never lets a client-forged arena verdict through as a vote payload', async () => {
     const res = await vote({
       threadId: 't1',

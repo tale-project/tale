@@ -60,7 +60,13 @@ export interface FeedbackStats {
     total: number;
   };
   arena: {
+    /** Verdicts on a pair of DIFFERENT models — the rows the matchup table
+     * counts, so the summary tile and the table agree. */
     byVerdict: Record<ArenaVerdict, number>;
+    /** Verdicts where both sides were the same model: a comparison with no
+     * comparative signal, counted apart from the verdict buckets. */
+    selfMatches: number;
+    /** Every arena row, whatever it compared. */
     total: number;
   };
   /** Message sentiment bucketed by UTC day (days with feedback only), ascending. */
@@ -119,6 +125,7 @@ export function computeFeedbackStats(
     both_bad: 0,
   };
   let arenaTotal = 0;
+  let arenaSelfMatches = 0;
 
   const agentBuckets = new Map<string, FeedbackStatsAgentBucket>();
   const modelBuckets = new Map<string, FeedbackStatsModelBucket>();
@@ -153,14 +160,21 @@ export function computeFeedbackStats(
     if (isArenaRow(row)) {
       arenaTotal++;
       const verdict = arenaVerdictOf(row);
-      if (verdict) arenaByVerdict[verdict]++;
-
       const modelA = row.metadata?.modelA;
       const modelB = row.metadata?.modelB;
+      // A self-match (modelA === modelB) carries no comparative signal: it
+      // is counted apart, in neither the verdict buckets nor the matchups,
+      // so the summary tile adds up to the matchup table.
+      const selfMatch =
+        typeof modelA === 'string' &&
+        typeof modelB === 'string' &&
+        modelA === modelB;
+      if (selfMatch) arenaSelfMatches++;
+      else if (verdict) arenaByVerdict[verdict]++;
+
       // Model-pair matchups are only meaningful when both sides are
-      // attributed and distinct. Drop self-matches (modelA === modelB) —
-      // verdict on those carries no comparative signal.
-      if (verdict && modelA && modelB && modelA !== modelB) {
+      // attributed and distinct.
+      if (verdict && modelA && modelB && !selfMatch) {
         const swapped = modelA > modelB;
         const left = swapped ? modelB : modelA;
         const right = swapped ? modelA : modelB;
@@ -281,7 +295,11 @@ export function computeFeedbackStats(
 
   return {
     message: { byRating: messageByRating, total: messageTotal },
-    arena: { byVerdict: arenaByVerdict, total: arenaTotal },
+    arena: {
+      byVerdict: arenaByVerdict,
+      selfMatches: arenaSelfMatches,
+      total: arenaTotal,
+    },
     series,
     topAgents,
     topModels,

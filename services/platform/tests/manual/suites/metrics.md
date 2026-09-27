@@ -155,6 +155,19 @@ rollups**, so figures may legitimately lag same-day activity.
   widens the window in place; the filter-empty alert
   (`analytics.feedback.filterEmpty.title`) offers **Clear filters** — each
   recovers to the populated view without a reload.
+- [ ] `MET-F12` · **Feedback is attributed by the reply** — In a chat under a
+  named assistant rate one reply thumbs-up, and in a plain chat (no
+  assistant) rate one reply thumbs-down → on `feedback` the **Top Assistants
+  by feedback** table (`analytics.feedback.tables.topAgents.title`) lists the
+  assistant's slug with 1 helpful and **Unattributed** with 1 not helpful;
+  **Top Models by feedback** lists the model that answered each — never the
+  empty **No model feedback yet** state while ratings exist. On
+  `chat-health` the **By model** breakdown lists each model **once**, under
+  its provider, even after a cancelled turn (which stores the model alone).
+  Cast one arena verdict on two copies of the same model → **Arena verdicts**
+  gains a **Same model** cell (`analytics.feedback.arena.cells.sameModel`)
+  counting it, and **Decisive + Tie + Both bad** equals the row sum of **Top
+  Model Matchups**.
 
 ## Boundary & error tests
 

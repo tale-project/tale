@@ -7303,6 +7303,72 @@ async function checkSmallDomains(
     `rows=${stackedVotes[0]?.count} (want 1) rating=${stackedVotes[0]?.rating} (want negative), forgedArenaRows=${forgedArenaRows[0]?.count} (want 0)`,
   );
 
+  // The vote's attribution is the MESSAGE's — the model and provider that
+  // answered and the thread's assistant — whatever a client claims; and
+  // migration 0121 fills the rows voted before the door derived it, from
+  // the same sources, leaving a re-run nothing to do.
+  const fbAttributedId = `${fbMessageId}-attributed`;
+  await sql`
+    UPDATE app.thread_metadata SET agent_slug = 'itest-fb-assistant'
+    WHERE thread_id = ${fbThreadId} AND org_id = ${orgId}
+  `;
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, text, status,
+      model, provider_slug, created_at_ms
+    ) VALUES (${fbAttributedId}, ${fbThreadId}, ${orgId}, 3, 0, 'assistant',
+              'a fourth answer', 'complete', 'itest-model', 'itest-provider',
+              ${fbNow})
+  `;
+  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: fbThreadId,
+    messageId: fbAttributedId,
+    rating: 'positive',
+    agentSlug: 'forged-assistant',
+    model: 'forged-model',
+    provider: 'forged-provider',
+  });
+  const attributionOf = async () =>
+    sql<
+      {
+        agentSlug: string | null;
+        model: string | null;
+        provider: string | null;
+      }[]
+    >`
+      SELECT agent_slug AS "agentSlug", model, provider
+      FROM app.message_feedback
+      WHERE org_id = ${orgId} AND message_id = ${fbAttributedId}
+    `;
+  const derived = await attributionOf();
+  await sql`
+    UPDATE app.message_feedback SET agent_slug = NULL, model = NULL, provider = NULL
+    WHERE org_id = ${orgId} AND message_id = ${fbAttributedId}
+  `;
+  const attributionBackfill = await readFile(
+    new URL(
+      './db/migrations/0121_message_feedback_attribution_backfill.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await sql.unsafe(attributionBackfill);
+  const backfilled = await attributionOf();
+  await sql.unsafe(attributionBackfill);
+  const backfilledAgain = await attributionOf();
+  const wantAttribution = {
+    agentSlug: 'itest-fb-assistant',
+    model: 'itest-model',
+    provider: 'itest-provider',
+  };
+  record(
+    'message feedback: attribution comes from the message, and migration 0121 backfills it idempotently',
+    JSON.stringify(derived[0]) === JSON.stringify(wantAttribution) &&
+      JSON.stringify(backfilled[0]) === JSON.stringify(wantAttribution) &&
+      JSON.stringify(backfilledAgain) === JSON.stringify(backfilled),
+    `derived=${JSON.stringify(derived[0])}, backfilled=${JSON.stringify(backfilled[0])} (want ${JSON.stringify(wantAttribution)}), idempotent=${JSON.stringify(backfilledAgain) === JSON.stringify(backfilled)}`,
+  );
+
   // Products: unique-name conflict + one-row read.
   const product = z.object({ productId: z.string() }).safeParse(
     await (

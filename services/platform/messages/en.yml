@@ -166,6 +166,7 @@ analytics:
         decisive: Decisive
         tie: Tie
         bothBad: Both bad
+        sameModel: Same model
     tables:
       topAgents:
         title: Top Assistants by feedback

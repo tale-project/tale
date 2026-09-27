@@ -179,6 +179,7 @@ analytics:
         decisive: Eindeutig
         tie: Unentschieden
         bothBad: Beide schlecht
+        sameModel: Gleiches Modell
     tables:
       topAgents:
         title: Top-Assistenten nach Feedback

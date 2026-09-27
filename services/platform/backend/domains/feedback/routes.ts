@@ -21,16 +21,16 @@ import {
  * is arbitrated by the partial unique index `WHERE metadata IS NULL`, and the
  * `metadata.arenaVerdict` rows the analytics count as arena results are
  * written by the arena settle lane alone (`domains/chat/arena.ts`). Anything
- * else a client sends under `metadata` is dropped here, never stored.
+ * else a client sends under `metadata` is dropped here, never stored. The
+ * vote's attribution (`agentSlug`, `model`, `provider`) is not the client's
+ * to say either: the service derives it from the message, and the keys an
+ * older client still sends are stripped with the rest of the unknown body.
  */
 const submitSchema = z.object({
   threadId: z.string().min(1).max(200),
   messageId: z.string().min(1).max(200),
   rating: z.enum(['positive', 'negative']),
   comment: z.string().max(5000).optional(),
-  agentSlug: z.string().max(100).optional(),
-  model: z.string().max(200).optional(),
-  provider: z.string().max(100).optional(),
 });
 
 /** /api/app/feedback — thumbs on assistant messages + the metrics-page

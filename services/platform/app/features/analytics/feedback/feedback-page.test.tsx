@@ -60,6 +60,7 @@ const loadedStats = {
   },
   arena: {
     byVerdict: { a_better: 1, b_better: 0, tie: 0, both_bad: 0 },
+    selfMatches: 0,
     total: 1,
   },
   topAgents: [{ agentSlug: 'support', positive: 2, negative: 1, total: 3 }],

@@ -250,6 +250,7 @@ function FeedbackMetricsPageView({
             both_bad: 0,
           }
         }
+        selfMatches={stats?.arena.selfMatches ?? 0}
         total={stats?.arena.total ?? 0}
       />
 

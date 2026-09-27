@@ -181,6 +181,7 @@ analytics:
         decisive: Tranché
         tie: Égalité
         bothBad: Les deux mauvais
+        sameModel: Même modèle
     tables:
       topAgents:
         title: Top assistants par retour
