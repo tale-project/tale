@@ -105,6 +105,10 @@ export function TimelineRow({
       className={cn(
         shared,
         'hover:text-foreground cursor-pointer transition-colors',
+        // A 20px line, but a 24px target (WCAG 2.5.8): the invisible band
+        // above and below takes the tap too. Rows stack 6px apart or more,
+        // so neighbouring bands never overlap.
+        "relative after:absolute after:inset-x-0 after:-inset-y-0.5 after:content-['']",
       )}
     >
       {body}

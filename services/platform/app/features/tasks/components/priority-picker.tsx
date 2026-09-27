@@ -128,7 +128,9 @@ export function PriorityPicker({
       variant="ghost"
       size="icon"
       aria-label={t('fields.priority')}
-      className="h-auto w-auto rounded-md p-1"
+      // 24px, the smallest target a pointer may be asked to hit (WCAG 2.5.8)
+      // — the glyph plus `p-1` came to 22.
+      className="size-6 rounded-md p-0"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
