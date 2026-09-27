@@ -649,6 +649,21 @@ any toggled setting after the run.
   (`settings.teams.syncedBadge`) or the member count out of place; hovering the
   name shows it in full; the name column is wider than the member-count column.
 
+- [ ] `SET-B16` · **The embedding model's credential cannot be deleted** —
+  With Settings › Data residency › **Embedding model** saved on provider P
+  and credential C (or **Provider default** with C as P's only active
+  credential), go to `/dashboard/{org}/settings/providers` → C's **Actions**
+  → **Delete** → the dialog carries the warning
+  `settings.providers.credential.deleteEmbeddingWarning` ("The knowledge
+  embedding model uses this credential…") above the usual lines; **Delete**
+  → toast **Could not delete the credential:** … (`settings.credentials.deleteFailed`
+  with `settings.providers.credential.inUseByEmbedding`), C stays in the
+  list, Data residency still says **Configured**, a document upload still
+  indexes. Make another active credential of P the default (with
+  **Provider default** selected) or pick another credential under Data
+  residency → **Delete** C → succeeds. A credential of another provider, or
+  a non-default sibling, shows no such warning and deletes.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `SET-A1` · **Settings rail** → The rail is a labelled `nav`

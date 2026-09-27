@@ -16,6 +16,7 @@ import {
   RAG_SEARCH_MAX_LIMIT,
 } from '../../../lib/chat';
 import { SafeFetchError } from '../../../lib/net/safe-fetch';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 
 const searchKnowledgeMock = vi.fn();
@@ -445,6 +446,33 @@ describe('rag_search', () => {
       connectorName: 'chat-tools',
       connectorOperation: 'rag_search',
     });
+  });
+
+  // The embedding model IS set up; its provider key was deleted. "Not set
+  // up yet" sent the administrator to the wrong page while the settings
+  // said "Configured".
+  it('names the missing credential and Settings → AI providers when that is the cause', async () => {
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new AppError({
+        code: 'CREDENTIAL_NOT_FOUND',
+        message: 'Credential not found.',
+      }),
+    );
+    const { ctx } = createCtx();
+    const executor = await makeExecutor(ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'acme' },
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.sources?.documents).toMatch(/^unavailable:/);
+    expect(result.sources?.documents).toContain('credential');
+    expect(result.sources?.documents).toContain('Settings → AI providers');
+    expect(result.sources?.documents).not.toContain('not set up');
+    expect(result.sources?.webPages).toBe(result.sources?.documents);
   });
 
   it('says the corpora are unavailable when knowledge search fails — other legs still answer', async () => {

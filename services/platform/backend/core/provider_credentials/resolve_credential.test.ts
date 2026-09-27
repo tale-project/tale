@@ -16,7 +16,11 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../lib/ctx';
 import { encryptSecret } from '../lib/secret_box';
 import type { BrokerSelectionResult } from './broker_pool';
-import { resolveProviderCredential } from './resolve_credential';
+import {
+  credentialRefusalCode,
+  isCredentialMissing,
+  resolveProviderCredential,
+} from './resolve_credential';
 import { hashBrokerAccount, hashBrokerToken } from './token_hash';
 
 vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => {
@@ -249,5 +253,35 @@ describe('resolveProviderCredential — subscription-broker host policy', () => 
     });
     const [, options] = mockedFetch.mock.calls[0] ?? [];
     expect(options).not.toHaveProperty('allowedHosts');
+  });
+});
+
+describe('credentialRefusalCode / isCredentialMissing', () => {
+  it('reads the resolver refusal code off an error, duck-typed', () => {
+    expect(
+      credentialRefusalCode(
+        new AppError({ code: 'CREDENTIAL_NOT_FOUND', message: 'x' }),
+      ),
+    ).toBe('CREDENTIAL_NOT_FOUND');
+    expect(
+      credentialRefusalCode({ data: { code: 'CREDENTIAL_KEY_ROTATED' } }),
+    ).toBe('CREDENTIAL_KEY_ROTATED');
+    expect(credentialRefusalCode(new AppError({ code: 'OTHER' }))).toBeNull();
+    expect(credentialRefusalCode(new Error('plain'))).toBeNull();
+    expect(credentialRefusalCode(null)).toBeNull();
+  });
+
+  it('says the credential is missing only for the two "nothing to resolve" codes', () => {
+    for (const code of ['CREDENTIAL_NOT_FOUND', 'CREDENTIAL_NONE_CONFIGURED']) {
+      expect(isCredentialMissing(new AppError({ code, message: 'x' }))).toBe(
+        true,
+      );
+    }
+    expect(
+      isCredentialMissing(
+        new AppError({ code: 'CREDENTIAL_DISABLED', message: 'x' }),
+      ),
+    ).toBe(false);
+    expect(isCredentialMissing(new Error('x'))).toBe(false);
   });
 });

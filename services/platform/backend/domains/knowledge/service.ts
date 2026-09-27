@@ -70,6 +70,7 @@ import {
   s3GetObjectBytes,
   s3GetObjectBytesIfExists,
 } from '../../core/lib/storage/object_store.ts';
+import { isCredentialMissing } from '../../core/provider_credentials/resolve_credential.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
@@ -566,6 +567,10 @@ const EMBEDDING_FAILURE_CODE = {
   credential: 'EMBEDDING_CREDENTIAL_REJECTED',
   upstream: 'EMBEDDING_UPSTREAM_ERROR',
 } as const;
+/** The embedding model's credential no longer resolves (deleted, or no
+ * default left for the provider) — the remedy in the words the UI uses. */
+export const EMBEDDING_CREDENTIAL_MISSING_PROSE =
+  "The embedding model's provider credential is missing — it was deleted, or the provider has no default credential. An admin adds or restores it under Settings → AI providers, or chooses another credential under Settings → Data residency → Embedding model, then retries indexing.";
 const EMBEDDING_FAILURE_PROSE = {
   credit:
     "The organization's embedding provider refused the request for account reasons (balance, plan or billing)",
@@ -1073,6 +1078,19 @@ export async function indexUploadedFile(
       await recordIndexingFailure(sql, {
         ...failure,
         ragError: `${error.message} Correct the embedding settings under Settings → Data residency → Embedding model (the vector width, or the model) and save; indexing then resumes by itself.`,
+        ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+      });
+      return;
+    }
+    // The credential the embedding model resolves is gone — deleted, or the
+    // provider has no default left. No call reached the provider, so the
+    // classifier below does not see it and the job used to retry five times
+    // and report "the platform's side". It ends here, naming the page that
+    // fixes it.
+    if (isCredentialMissing(error)) {
+      await recordIndexingFailure(sql, {
+        ...failure,
+        ragError: EMBEDDING_CREDENTIAL_MISSING_PROSE,
         ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       });
       return;

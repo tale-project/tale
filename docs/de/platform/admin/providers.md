@@ -95,6 +95,6 @@ Nutze die Ersetzen-Aktion im Zeilenmenü, um ein Geheimnis zu rotieren und Namen
 
 <Warning>
 
-Das Löschen eines Eintrags entzieht abhängigen Aufrufern den Zugriff. Stelle sie vorher um. Wenn du den Standard löschst, wähle einen neuen, damit Aufrufe ohne ausdrückliche Auswahl weiterhin Zugangsdaten finden.
+Das Löschen eines Eintrags entzieht abhängigen Aufrufern den Zugriff. Stelle sie vorher um. Wenn du den Standard löschst, wähle einen neuen, damit Aufrufe ohne ausdrückliche Auswahl weiterhin Zugangsdaten finden. Zugangsdaten, die das Embedding-Modell der Wissenssuche verwendet — die unter **Einstellungen > Datenresidenz > Embedding-Modell** gewählten oder der letzte aktive Standard dieses Anbieters — lassen sich nicht löschen: Der Löschdialog nennt die Abhängigkeit, und Tale lehnt das Löschen ab. Wähle zuerst andere Zugangsdaten für das Embedding-Modell.
 
 </Warning>

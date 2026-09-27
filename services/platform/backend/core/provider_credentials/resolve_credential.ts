@@ -131,6 +131,36 @@ export type ResolvedProviderCredential =
 
 type CredentialError = AppError<{ code: string; message: string }>;
 
+/**
+ * The resolver's refusal code carried by an error (`CREDENTIAL_NOT_FOUND`,
+ * `CREDENTIAL_NONE_CONFIGURED`, …), or null when the error is not one of
+ * its refusals. Duck-typed on `data.code`: the callers that turn a refusal
+ * into a stable platform answer (indexing, the chat assistant) may hold
+ * another copy of `AppError`.
+ */
+export function credentialRefusalCode(error: unknown): string | null {
+  if (error === null || typeof error !== 'object' || !('data' in error)) {
+    return null;
+  }
+  const data = error.data;
+  if (data === null || typeof data !== 'object' || !('code' in data)) {
+    return null;
+  }
+  const code = data.code;
+  return typeof code === 'string' && code.startsWith('CREDENTIAL_')
+    ? code
+    : null;
+}
+
+/** The credential a selection names is gone, or the provider has no default
+ * to fall back on: nothing heals by waiting, an admin restores a key. */
+export function isCredentialMissing(error: unknown): boolean {
+  const code = credentialRefusalCode(error);
+  return (
+    code === 'CREDENTIAL_NOT_FOUND' || code === 'CREDENTIAL_NONE_CONFIGURED'
+  );
+}
+
 function credentialError(code: string, message: string): CredentialError {
   return new AppError({ code, message });
 }

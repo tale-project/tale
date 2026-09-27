@@ -61,6 +61,7 @@ interface KnowledgeFixture {
 
 interface EmbeddingFixture {
   configured: boolean;
+  credentialResolvable?: boolean;
   providerSlug?: string;
   credentialId?: string;
   model?: string;
@@ -509,6 +510,29 @@ describe('DataResidencySettings', () => {
     ).toBeInTheDocument();
     // Field-level feedback resolves the save quietly — no destructive toast.
     expect(pageToast).not.toHaveBeenCalled();
+  });
+
+  // Settings whose credential was deleted are not "Configured": the badge
+  // and a warning say the credential is missing and where to fix it.
+  it('reports a configured model whose credential is gone as "Credential missing"', () => {
+    setEmbeddingFixture({
+      configured: true,
+      credentialResolvable: false,
+      providerSlug: 'openai',
+      credentialId: 'cred-gone',
+      model: 'text-embedding-3-small',
+      dimensions: 1536,
+    });
+    render(<DataResidencySettings organizationId="org-1" />);
+
+    const section = sectionByHeading('Embedding model');
+    expect(within(section).getByText('Credential missing')).toBeInTheDocument();
+    expect(within(section).queryByText('Configured')).toBeNull();
+    expect(
+      within(section).getByText(
+        /credential this embedding model resolves no longer exists/i,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('warns that knowledge search is unavailable until an embedding model is configured', () => {

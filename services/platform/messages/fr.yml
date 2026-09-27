@@ -5478,6 +5478,7 @@ settings:
       jusqu'à ce que tu en choisisses d'autres.
     deletedToast: Identifiants supprimés
     updateFailed: 'Impossible de mettre à jour les identifiants : {error}'
+    deleteFailed: 'Impossible de supprimer les identifiants : {error}'
     noDefault: >-
       Aucun identifiant par défaut pour {vendors} — un appel qui n'en nomme
       aucun ne peut pas en choisir un automatiquement. Définis-en un par défaut.
@@ -6061,6 +6062,16 @@ settings:
       catalogUnavailable: 'Catalogue de modèles indisponible : {error}'
     credential:
       disabled: Désactivé
+      deleteEmbeddingWarning: >-
+        Le modèle d'embedding de la recherche de connaissances utilise ces
+        identifiants : les supprimer arrête l'indexation des documents et la
+        recherche pour toute l'organisation. Choisis d'abord d'autres
+        identifiants sous Paramètres → Résidence des données → Modèle
+        d'embedding.
+      inUseByEmbedding: >-
+        Le modèle d'embedding de la recherche de connaissances utilise ces
+        identifiants. Choisis-en d'autres pour lui sous Paramètres →
+        Résidence des données → Modèle d'embedding, puis supprime ceux-ci.
     replace:
       apiKeyTitle: Remplacer la clé API
       envTitle: Changer la variable d'environnement
@@ -6702,6 +6713,12 @@ settings:
         avant toute recherche, quelle que soit la base.
       statusConfigured: Configuré
       statusNotConfigured: Non configuré
+      statusCredentialMissing: Identifiants manquants
+      credentialMissingWarning: >-
+        Les identifiants que ce modèle d'embedding utilise n'existent plus ;
+        l'indexation des documents et la recherche de connaissances sont
+        arrêtées. Ajoute ou rétablis des identifiants sous Paramètres →
+        Fournisseurs IA, ou choisis-en d'autres ici et enregistre.
       notConfiguredWarning:
         La recherche de connaissances est indisponible tant qu'aucun modèle
         d'embedding n'est configuré.

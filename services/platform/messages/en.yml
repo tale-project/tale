@@ -5529,6 +5529,7 @@ settings:
       pick another one.
     deletedToast: Credential deleted
     updateFailed: 'Could not update the credential: {error}'
+    deleteFailed: 'Could not delete the credential: {error}'
     noDefault: >-
       No default credential for {vendors} — a call that names none can't pick
       one automatically. Make one of them the default.
@@ -6060,6 +6061,15 @@ settings:
       catalogUnavailable: 'Model catalog unavailable: {error}'
     credential:
       disabled: Disabled
+      deleteEmbeddingWarning: >-
+        The knowledge embedding model uses this credential: deleting it stops
+        document indexing and search for the whole organization. Choose
+        another credential under Settings → Data residency → Embedding model
+        first.
+      inUseByEmbedding: >-
+        The knowledge embedding model uses this credential. Choose another
+        credential for it under Settings → Data residency → Embedding model,
+        then delete this one.
     replace:
       apiKeyTitle: Replace API key
       envTitle: Change environment variable
@@ -6692,6 +6702,12 @@ settings:
         run, on any database.
       statusConfigured: Configured
       statusNotConfigured: Not configured
+      statusCredentialMissing: Credential missing
+      credentialMissingWarning: >-
+        The credential this embedding model resolves no longer exists, so
+        document indexing and knowledge search are down. Add or restore a
+        credential under Settings → AI providers, or choose another one
+        here and save.
       notConfiguredWarning:
         Knowledge search is unavailable until an embedding model is
         configured.

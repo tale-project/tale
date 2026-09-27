@@ -17,6 +17,7 @@ import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entiti
 import { formatZodError } from '../../../lib/shared/schemas/format-error.ts';
 import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
+import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import {
   assertExpectedHash,
   ConfigurationError,
@@ -31,6 +32,7 @@ import {
 } from '../../core/provider_credentials/resolve_credential.ts';
 import { toJson } from '../../db/sql.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -55,16 +57,20 @@ import {
 export class CredentialAdminError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409;
+  /** What the surface needs to explain the refusal (`usedBy`). */
+  readonly data?: Record<string, unknown>;
 
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
+    data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'CredentialAdminError';
     this.code = code;
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -823,12 +829,109 @@ export async function resolveCatalogBearer(
   }
 }
 
+/** What in the organization resolves its key through a credential. */
+export type CredentialDependent = 'embedding';
+
+/**
+ * What stops working when this credential goes. Today one thing: the
+ * knowledge embedding model, which resolves either the credential its
+ * settings name, or the provider's default active one — so the credential
+ * is depended on when the settings name it, or when it is that provider's
+ * default and its last active credential (nothing is left to fall back on).
+ * An unknown credential has no dependents.
+ */
+export async function credentialDependents(
+  db: Sql | TransactionSql,
+  scope: CredentialScope,
+  credentialId: string,
+): Promise<{ usedBy: CredentialDependent[] }> {
+  assertCredentialAdmin(scope);
+  const organizationId = scope.organizationId;
+  const rows = await db<
+    { providerSlug: string; isDefault: boolean; status: string }[]
+  >`
+    SELECT provider_slug AS "providerSlug", is_default AS "isDefault", status
+    FROM app.provider_credentials
+    WHERE id = ${credentialId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return { usedBy: [] };
+  const orgSlug = await resolveOrgSlug(db, organizationId);
+  if (orgSlug === null) return { usedBy: [] };
+  const embedding = await readOrgEmbeddingConfig(orgSlug);
+  if (embedding === null) return { usedBy: [] };
+  if (embedding.credentialId !== undefined) {
+    return {
+      usedBy: embedding.credentialId === credentialId ? ['embedding'] : [],
+    };
+  }
+  if (
+    embedding.providerSlug !== row.providerSlug ||
+    !row.isDefault ||
+    row.status !== 'active'
+  ) {
+    return { usedBy: [] };
+  }
+  const others = await db<{ id: string }[]>`
+    SELECT id FROM app.provider_credentials
+    WHERE org_id = ${organizationId}
+      AND provider_slug = ${row.providerSlug}
+      AND status = 'active' AND id <> ${credentialId}
+    LIMIT 1
+  `;
+  return { usedBy: others[0] ? [] : ['embedding'] };
+}
+
+/**
+ * Whether the embedding settings' credential selection still resolves: the
+ * named credential exists for that provider, or — with none named — the
+ * provider has a default active credential. The resolver's own two lookups
+ * (`getCredentialInternal`, `getDefaultCredentialInternal`), answered as a
+ * fact for the settings page instead of thrown at the next indexing job.
+ */
+export async function isCredentialSelectionResolvable(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  selection: { providerSlug: string; credentialId?: string },
+): Promise<boolean> {
+  const rows =
+    selection.credentialId === undefined
+      ? await db<{ id: string }[]>`
+          SELECT id FROM app.provider_credentials
+          WHERE org_id = ${organizationId}
+            AND provider_slug = ${selection.providerSlug}
+            AND is_default AND status = 'active'
+          LIMIT 1
+        `
+      : await db<{ id: string }[]>`
+          SELECT id FROM app.provider_credentials
+          WHERE id = ${selection.credentialId}
+            AND org_id = ${organizationId}
+            AND provider_slug = ${selection.providerSlug}
+          LIMIT 1
+        `;
+  return rows[0] !== undefined;
+}
+
 export async function deleteCredential(
   tx: TransactionSql,
   scope: CredentialScope,
   credentialId: string,
 ): Promise<{ providerSlug: string }> {
   assertCredentialAdmin(scope);
+  // Deleting the key the embedding model resolves took knowledge indexing
+  // and search down org-wide, with nothing said at the delete: refuse, and
+  // name what depends on it so the admin moves that first.
+  const { usedBy } = await credentialDependents(tx, scope, credentialId);
+  if (usedBy.length > 0) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_IN_USE',
+      'The knowledge embedding model uses this credential. Choose another credential for it under Settings → Data residency → Embedding model, then delete this one.',
+      409,
+      { usedBy },
+    );
+  }
   const rows = await tx<{ name: string; providerSlug: string }[]>`
     DELETE FROM app.provider_credentials
     WHERE id = ${credentialId} AND org_id = ${scope.organizationId}

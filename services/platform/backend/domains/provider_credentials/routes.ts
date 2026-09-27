@@ -18,6 +18,7 @@ import { deleteProviderDefinition } from '../providers/config.ts';
 import {
   CredentialAdminError,
   createCredential,
+  credentialDependents,
   deleteCredential,
   listCredentials,
   updateCredential,
@@ -39,7 +40,16 @@ function handleError<E extends OrgEnv>(
     error instanceof CredentialAdminError ||
     error instanceof ConfigurationError
   ) {
-    return c.json({ error: error.code, message: error.message }, error.status);
+    return c.json(
+      {
+        error: error.code,
+        message: error.message,
+        ...(error instanceof CredentialAdminError && error.data !== undefined
+          ? { data: error.data }
+          : {}),
+      },
+      error.status,
+    );
   }
   throw error;
 }
@@ -71,6 +81,22 @@ export function createProviderCredentialRoutes(deps: {
           c.req.query('providerSlug'),
         ),
       });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // What depends on a credential — read by the delete dialog, so the
+  // dependency is named before the delete is refused for it.
+  app.get('/:credentialId/dependents', async (c) => {
+    try {
+      return c.json(
+        await credentialDependents(
+          deps.sql,
+          scopeOf(c),
+          c.req.param('credentialId'),
+        ),
+      );
     } catch (error) {
       return handleError(c, error);
     }

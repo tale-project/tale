@@ -153,6 +153,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // a `projectId` in the body answers it. (`AUTOMATION_PROJECT_ARCHIVED` is
   // thrown by nothing and left the registry with it.)
   'AUTOMATION_PROJECT_UNKNOWN',
+  // Deleting a provider credential the embedding model resolves: the
+  // credential admin surface is the app's (`/api/app/provider-credentials`);
+  // REST has no credential door.
+  'CREDENTIAL_IN_USE',
   // The MCP dispatch store's own gates — answered as JSON-RPC results.
   'FORBIDDEN_DEVELOPER_SETTINGS',
   'UNAUTHENTICATED',

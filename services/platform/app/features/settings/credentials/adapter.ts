@@ -302,6 +302,19 @@ export interface CredentialAdapter<
     vendor: V | null,
     siblingCount: number,
   ) => string | undefined;
+  /**
+   * A delete warning that needs the server: what depends on this credential
+   * and stops working with it (the providers' embedding model). A HOOK,
+   * called once per row render like `useExtraActions`; `open` is whether the
+   * delete dialog is showing, so the read runs when someone is about to
+   * delete rather than once per row of the table.
+   */
+  useDeleteWarning: (context: {
+    t: Translator;
+    credential: Cred;
+    organizationId: string;
+    open: boolean;
+  }) => string | undefined;
   /** Copy for the per-credential endpoint field. */
   endpointField: (
     t: Translator,

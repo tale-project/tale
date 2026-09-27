@@ -38,6 +38,23 @@ export function useProviderCredentials(organizationId: string) {
   });
 }
 
+/**
+ * What in the organization resolves its key through one credential — read
+ * when the delete dialog opens, so the dependency is named before the
+ * delete is refused for it (409 `CREDENTIAL_IN_USE`).
+ */
+export function useCredentialDependents(
+  organizationId: string,
+  credentialId: string,
+  options?: { enabled?: boolean },
+) {
+  return useBackendQuery(
+    'provider_credentials/queries:getCredentialDependents',
+    { organizationId, credentialId },
+    options,
+  );
+}
+
 /** Every shipped provider with its model catalog (may carry a per-provider
  * `catalogError` when a live source is unreachable). A reader that only
  * needs the catalogs in some states (the embedding form, editable only)

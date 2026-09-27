@@ -51,7 +51,7 @@ vi.mock('./admin.ts', () => {
     deleteKnowledgeConnection: vi.fn(),
     deleteKnowledgeEmbedding: vi.fn(),
     readKnowledgeConnectionView: vi.fn(),
-    readKnowledgeEmbeddingView: vi.fn(),
+    readKnowledgeEmbeddingView,
     listEmbeddingRecommendationsForOrg: vi.fn(),
   };
 });
@@ -85,8 +85,15 @@ vi.mock('../projects/service.ts', () => ({
   listProjects: vi.fn(async () => []),
 }));
 
+const { isCredentialSelectionResolvable, readKnowledgeEmbeddingView } =
+  vi.hoisted(() => ({
+    isCredentialSelectionResolvable: vi.fn(),
+    readKnowledgeEmbeddingView: vi.fn(),
+  }));
+
 vi.mock('../provider_credentials/service.ts', () => ({
   listCredentials: vi.fn(async () => []),
+  isCredentialSelectionResolvable,
 }));
 
 vi.mock('../../lib/org-config.ts', () => ({
@@ -285,5 +292,42 @@ describe('knowledge routes — fetch paging', () => {
     const res = await post('/fetch?orgId=o1', { fileId: 'ghost', page: 2 });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ document: null });
+  });
+});
+
+// "Configured" used to be the file's existence alone: with its credential
+// deleted the page still said so while indexing and search were down.
+describe('GET /knowledge/embedding — whether the credential still resolves', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('says a configured selection resolves or not', async () => {
+    readKnowledgeEmbeddingView.mockResolvedValue({
+      configured: true,
+      providerSlug: 'openai',
+      credentialId: 'cred-1',
+      model: 'm',
+      dimensions: 3,
+    });
+    isCredentialSelectionResolvable.mockResolvedValue(false);
+    const response = await makeApp().request('/embedding?orgId=o1');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      configured: true,
+      credentialResolvable: false,
+    });
+    expect(isCredentialSelectionResolvable).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      { providerSlug: 'openai', credentialId: 'cred-1' },
+    );
+  });
+
+  it('carries no verdict while nothing is configured', async () => {
+    readKnowledgeEmbeddingView.mockResolvedValue({ configured: false });
+    const response = await makeApp().request('/embedding?orgId=o1');
+    expect(await response.json()).toEqual({ configured: false });
+    expect(isCredentialSelectionResolvable).not.toHaveBeenCalled();
   });
 });

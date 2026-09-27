@@ -4,7 +4,9 @@ import OpenAI from 'openai';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { EmbeddingDimensionMismatch } from '../../core/knowledge/dimensions.ts';
+import { embedderForOrg } from '../../core/knowledge/embedding.ts';
 import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
 import {
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
@@ -162,6 +164,32 @@ describe('indexUploadedFile — provider refusals', () => {
         's3:org-1/blob-1',
         expect.stringContaining('refused'),
       );
+    },
+  );
+
+  // The credential the settings resolve is gone (deleted, or no default left
+  // for the provider): no provider call happened, so the classifier never
+  // saw it and the job retried five times, reporting "the platform's side".
+  it.each(['CREDENTIAL_NOT_FOUND', 'CREDENTIAL_NONE_CONFIGURED'])(
+    'ends the job on %s naming Settings → AI providers',
+    async (code) => {
+      vi.mocked(embedderForOrg).mockRejectedValueOnce(
+        new AppError({ code, message: 'Credential not found.' }),
+      );
+      const log: Query[] = [];
+
+      await expect(indexUploadedFile(fakeSql(log), 'file-1')).resolves.toBe(
+        undefined,
+      );
+
+      const write = lastStatusWrite(log);
+      expect(write).toContain('failed');
+      expect(write).toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
+      const prose = write.find(
+        (value) => typeof value === 'string' && value.includes('credential'),
+      );
+      expect(prose).toContain('Settings → AI providers');
+      expect(indexWholeDocument).not.toHaveBeenCalled();
     },
   );
 

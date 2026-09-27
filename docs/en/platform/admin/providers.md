@@ -95,6 +95,6 @@ Use the row's replacement action to rotate a secret while keeping its name and r
 
 <Warning>
 
-Deleting a credential removes access for callers that depend on it. Move those callers first. If you delete the default, select a replacement default so unnamed requests can resolve a credential.
+Deleting a credential removes access for callers that depend on it. Move those callers first. If you delete the default, select a replacement default so unnamed requests can resolve a credential. A credential the knowledge embedding model resolves — the one named under **Settings > Data residency > Embedding model**, or that provider's last active default — cannot be deleted: the delete dialog names the dependency and Tale refuses the delete. Choose another credential for the embedding model first.
 
 </Warning>

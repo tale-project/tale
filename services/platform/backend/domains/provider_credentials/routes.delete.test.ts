@@ -14,14 +14,21 @@ import { createProviderCredentialRoutes } from './routes';
  * removal are covered by their own tests; here they are stubs.
  */
 
-const { caller, deleteCredential, deleteDefinition, remaining, customNames } =
-  vi.hoisted(() => ({
-    caller: { role: 'admin', orgId: 'org-a', slug: 'north' },
-    deleteCredential: vi.fn(),
-    deleteDefinition: vi.fn(),
-    remaining: { count: 0 },
-    customNames: ['qwen-cn'],
-  }));
+const {
+  caller,
+  deleteCredential,
+  credentialDependents,
+  deleteDefinition,
+  remaining,
+  customNames,
+} = vi.hoisted(() => ({
+  caller: { role: 'admin', orgId: 'org-a', slug: 'north' },
+  deleteCredential: vi.fn(),
+  credentialDependents: vi.fn(),
+  deleteDefinition: vi.fn(),
+  remaining: { count: 0 },
+  customNames: ['qwen-cn'],
+}));
 
 vi.mock('@tale/shared/db/serializable', () => ({
   transactSerializable: async (
@@ -32,6 +39,7 @@ vi.mock('@tale/shared/db/serializable', () => ({
 vi.mock('./service', async (original) => ({
   ...(await original<typeof import('./service')>()),
   deleteCredential,
+  credentialDependents,
 }));
 vi.mock('../providers/config', () => ({
   deleteProviderDefinition: deleteDefinition,
@@ -129,5 +137,36 @@ describe('DELETE /provider-credentials/:id — custom provider retirement', () =
       'config root read-only',
     );
     warn.mockRestore();
+  });
+});
+
+describe('the credential the embedding model depends on', () => {
+  it('answers the dependents read for the delete dialog', async () => {
+    credentialDependents.mockResolvedValue({ usedBy: ['embedding'] });
+    const response = await app().request('/cred-1/dependents?orgId=org-a');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ usedBy: ['embedding'] });
+    expect(credentialDependents).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-a', userId: 'operator' }),
+      'cred-1',
+    );
+  });
+
+  it('answers the refused delete as 409 CREDENTIAL_IN_USE with what uses it', async () => {
+    const { CredentialAdminError } = await import('./service');
+    deleteCredential.mockRejectedValue(
+      new CredentialAdminError('CREDENTIAL_IN_USE', 'in use', 409, {
+        usedBy: ['embedding'],
+      }),
+    );
+    const response = await remove('&retireUnusedCustomProvider=1');
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'CREDENTIAL_IN_USE',
+      message: 'in use',
+      data: { usedBy: ['embedding'] },
+    });
+    expect(deleteDefinition).not.toHaveBeenCalled();
   });
 });

@@ -218,6 +218,23 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   already stored). A ~96 MB file clears this margin and passes first-try. The
   embed-per-batch fix removed the all-chunks-at-once OOM; the residual is the
   prepare/chunk phase holding the whole document.
+- [ ] `DATA-B7` · **A gone credential is not "Configured"** — With
+  **Embedding model** saved on credential C, delete C's row directly in the
+  database (`DELETE FROM app.provider_credentials WHERE id = …` — the app
+  refuses the delete, see SET-B16) and reload `/settings/data-residency` →
+  the section badge reads **Credential missing**
+  (`settings.dataResidency.orgEmbedding.statusCredentialMissing`), never
+  **Configured**, and the warning
+  `settings.dataResidency.orgEmbedding.credentialMissingWarning` names
+  Settings → AI providers; the read-only (member) view shows the same badge.
+  Upload a small text file → its badge reaches **Failed** at once (no five
+  retries) and the badge dialog's cause names the missing credential and
+  Settings → AI providers (`embedding_provider_refused`), not "the
+  platform's side". In a chat, ask about a document → the assistant says
+  document search is down because the embedding model's provider credential
+  is missing and names Settings → AI providers, never "not set up yet".
+  Add a credential for that provider and pick it under Embedding model →
+  **Save** → the badge is **Configured** again and **Retry indexing** lands.
 
 ## Deployment defaults
 

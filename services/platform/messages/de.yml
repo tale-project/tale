@@ -5397,6 +5397,7 @@ settings:
       Standard mehr, bis du einen neuen wählst.
     deletedToast: Zugangsdaten gelöscht
     updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
+    deleteFailed: 'Konnte die Zugangsdaten nicht löschen: {error}'
     noDefault: >-
       Keine Standard-Zugangsdaten für {vendors} — ein Aufruf ohne eigene Angabe
       kann nicht automatisch wählen. Mache einen Eintrag zum Standard.
@@ -5964,6 +5965,15 @@ settings:
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
     credential:
       disabled: Deaktiviert
+      deleteEmbeddingWarning: >-
+        Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten:
+        Nach dem Löschen stehen Dokumentindexierung und Suche für die ganze
+        Organisation still. Wähle zuerst unter Einstellungen → Datenresidenz
+        → Embedding-Modell andere Zugangsdaten.
+      inUseByEmbedding: >-
+        Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten.
+        Wähle dafür unter Einstellungen → Datenresidenz → Embedding-Modell
+        andere Zugangsdaten und lösche diese danach.
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       envTitle: Umgebungsvariable ändern
@@ -6604,6 +6614,12 @@ settings:
         Wissenssuche laufen kann, auf jeder Datenbank.
       statusConfigured: Eingerichtet
       statusNotConfigured: Nicht eingerichtet
+      statusCredentialMissing: Zugangsdaten fehlen
+      credentialMissingWarning: >-
+        Die Zugangsdaten, die dieses Embedding-Modell verwendet, existieren
+        nicht mehr; Dokumentindexierung und Wissenssuche stehen still. Lege
+        unter Einstellungen → KI-Anbieter Zugangsdaten an oder stelle sie
+        wieder her, oder wähle hier andere und speichere.
       notConfiguredWarning:
         Die Wissenssuche ist nicht verfügbar, bis ein Embedding-Modell
         eingerichtet ist.
