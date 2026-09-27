@@ -1,10 +1,15 @@
 import { CronExpressionParser } from 'cron-parser';
 
-import { impossibleCronDate } from '@/lib/automations/cron-feasibility';
+import { parseCron } from '@/lib/automations/cron';
 
 export type CronPreview =
   | { readonly kind: 'empty' }
-  | { readonly kind: 'invalid' }
+  | {
+      readonly kind: 'invalid';
+      /** The validator's own sentence — the one the bind would answer with
+       * — when it has one (`"61" is out of range (0..59)`). */
+      readonly reason?: string;
+    }
   | {
       readonly kind: 'ok';
       readonly nextAt: Date;
@@ -28,6 +33,13 @@ const DAILY_AT = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$/;
  * Validate a 5-field cron and surface the next fire time (plus a short pattern
  * when the expression is one of a few common shapes). Used under the Cron field
  * so authors are not left reading a raw expression alone.
+ *
+ * The validation IS the bind's: `parseCron` — the parser the schedule matcher
+ * fires on — judges the expression first, so the preview refuses exactly
+ * what the save refuses (four or six fields, `MON`, a day no month has) and
+ * never shows a "next run" beside a refusal. The packaged parser, which
+ * accepts far more, only computes the next occurrence of an expression the
+ * validator accepted.
  */
 export function previewCronExpression(
   cron: string,
@@ -38,24 +50,21 @@ export function previewCronExpression(
   if (trimmed === '') return { kind: 'empty' };
 
   try {
+    parseCron(trimmed);
+  } catch (error) {
+    return {
+      kind: 'invalid',
+      ...(error instanceof Error && error.message !== ''
+        ? { reason: error.message }
+        : {}),
+    };
+  }
+
+  try {
     const interval = CronExpressionParser.parse(trimmed, {
       currentDate: now,
       ...(timezone.trim() !== '' && { tz: timezone.trim() }),
     });
-    // The parser's own feasibility check is narrower than the platform's
-    // (it refuses `0 0 30 2 *` but walks decades ahead for `0 0 31 4,6 *`
-    // and reports a fantasy date); the shared rule refuses exactly what the
-    // bind refuses, so the preview never promises a schedule the save will
-    // turn down.
-    const numbers = (values: readonly unknown[]): number[] =>
-      values.filter((value): value is number => typeof value === 'number');
-    const impossible = impossibleCronDate({
-      dayOfMonth: numbers(interval.fields.dayOfMonth.values),
-      dayOfMonthWildcard: interval.fields.dayOfMonth.isWildcard,
-      month: numbers(interval.fields.month.values),
-      dayOfWeekWildcard: interval.fields.dayOfWeek.isWildcard,
-    });
-    if (impossible !== null) return { kind: 'invalid' };
     const nextAt = interval.next().toDate();
 
     let pattern: Extract<CronPreview, { kind: 'ok' }>['pattern'] = null;

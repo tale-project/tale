@@ -422,6 +422,13 @@ output:
       `automations.runs.waiting.repeat` (naming the step), never
       `approval:<uuid>` or `repeat:tick`; a failed run's row and header keep
       its failure sentence; a succeeded run's row shows its starter only.
+- [ ] `AUTO-F40` · **One cron validator** — In the **Trigger** panel on a
+      schedule, type a four-field cron (`*/1 * * *`), then a six-field one and
+      `0 9 * * MON` → Each shows the refusal with the validator's own sentence
+      under the field (`automations.trigger.cronInvalidReason`, e.g. "got 4")
+      and NO "Next run" line; **Save settings** is disabled with that reason;
+      nothing is sent to the server. A five-field cron restores the preview
+      (`automations.trigger.cronNext`).
 
 ## Boundary & error tests
 

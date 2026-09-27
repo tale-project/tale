@@ -125,6 +125,31 @@ describe('TriggerEditor', () => {
     );
   });
 
+  // A four-field cron used to preview a "next run" and then fail to save
+  // (2026-09-26 evaluation, D-05): the panel now judges with the bind's own
+  // parser and shows its sentence.
+  it('refuses a four-field cron with the validator’s sentence and no next run', async () => {
+    render(
+      <TriggerEditor
+        organizationId="org-1"
+        name="gmail-triage-inbox"
+        canEdit
+      />,
+    );
+    const cron = screen.getByLabelText('Cron');
+    await userEvent.clear(cron);
+    await userEvent.type(cron, '*/1 * * *');
+    expect(
+      screen.getByText(/That cron expression is not valid: .*got 4/),
+    ).toBeVisible();
+    expect(screen.queryByText(/Next run/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(mockSetTrigger).not.toHaveBeenCalled();
+  });
+
   it('shows a minted webhook token exactly where the save reported it', async () => {
     triggersData = [];
     mockSetTrigger.mockImplementation(

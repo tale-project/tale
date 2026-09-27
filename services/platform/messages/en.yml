@@ -647,6 +647,7 @@ automations:
     cronLabel: Cron
     cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
     cronInvalid: That cron expression is not valid.
+    cronInvalidReason: 'That cron expression is not valid: {reason}'
     cronNext: 'Next run {at}'
     cronEveryMinutes: '{n, plural, one {Every minute} other {Every # minutes}}'
     cronEveryHours: '{n, plural, one {Every hour} other {Every # hours}}'

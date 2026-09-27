@@ -679,6 +679,7 @@ automations:
     cronLabel: Cron
     cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
     cronInvalid: Dieser Cron-Ausdruck ist ungültig.
+    cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
     cronNext: 'Nächster Lauf {at}'
     cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
     cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'

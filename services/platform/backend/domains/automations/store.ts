@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { parseCron } from '../../../lib/automations/cron.ts';
 import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -20,7 +21,7 @@ import {
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
 import type { NodeCheckpoint } from '../../core/automations/checkpoints.ts';
-import { parseCron, wallClockIn } from '../../core/automations/cron.ts';
+import { wallClockIn } from '../../core/automations/cron.ts';
 import {
   LIVENESS_SWEEP_LIMIT,
   RUN_CLAIM_PROMISE_MS,

@@ -160,6 +160,15 @@ export function TriggerEditor({
     [cron, timezone],
   );
 
+  // The refusal under the Cron field: the validator's own sentence when it
+  // has one (the same the save would answer with), the generic line otherwise.
+  const cronInvalidText =
+    cronPreview.kind === 'invalid'
+      ? cronPreview.reason === undefined
+        ? t('trigger.cronInvalid')
+        : t('trigger.cronInvalidReason', { reason: cronPreview.reason })
+      : undefined;
+
   const cronDescription = useMemo(() => {
     if (kind !== 'schedule') return undefined;
     if (cronPreview.kind === 'empty') return t('trigger.cronHint');
@@ -332,11 +341,7 @@ export function TriggerEditor({
                   description={
                     cronPreview.kind === 'invalid' ? undefined : cronDescription
                   }
-                  error={
-                    cronPreview.kind === 'invalid'
-                      ? t('trigger.cronInvalid')
-                      : undefined
-                  }
+                  error={cronInvalidText}
                 >
                   <Input
                     id={cronId}
@@ -414,8 +419,8 @@ export function TriggerEditor({
               (kind === 'schedule' && cronPreview.kind === 'invalid')
             }
             disabledReason={
-              kind === 'schedule' && cronPreview.kind === 'invalid'
-                ? t('trigger.cronInvalid')
+              kind === 'schedule' && cronInvalidText !== undefined
+                ? cronInvalidText
                 : t('trigger.nothingToSave')
             }
             onClick={() => {

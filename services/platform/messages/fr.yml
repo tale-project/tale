@@ -685,6 +685,7 @@ automations:
     cronLabel: Cron
     cronHint: Expression cron standard à 5 champs (minute heure jour mois jour-semaine).
     cronInvalid: Cette expression cron n’est pas valide.
+    cronInvalidReason: 'Cette expression cron n’est pas valide : {reason}'
     cronNext: 'Prochaine exécution {at}'
     cronEveryMinutes: '{n, plural, one {Toutes les minutes} other {Toutes les # minutes}}'
     cronEveryHours: '{n, plural, one {Toutes les heures} other {Toutes les # heures}}'
