@@ -88,7 +88,7 @@ Führe `tale <befehl> --help` für die maßgebliche Liste deiner installierten V
 - `-q, --quiet` — nur Warnungen und Fehler.
 - `-y, --yes` — bei allen Rückfragen «ja» annehmen (nicht-interaktiv).
 - `--no-color` — ANSI-Farben deaktivieren (berücksichtigt auch `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — maschinenlesbares JSON auf stdout; unterstützt von `status`, allen `config`-Unterbefehlen und verwalteten Deployment-Befehlen.
+- `--json` — maschinenlesbares JSON auf stdout; unterstützt von `status`, `sandbox status`, allen `config`-Unterbefehlen und verwalteten Deployment-Befehlen.
 - `--ci` — erzwingt nicht-interaktive, rein anhängende Ausgabe (keine Cursor-Steuerung).
 
 Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer nicht erfüllten Voraussetzung (kein Projekt, Docker läuft nicht, Port belegt), `4` bei einem Abbruch durch dich (Ctrl-C oder eine erforderliche Rückfrage ohne Terminal) und `5` beim Fehler einer externen Abhängigkeit — so können Skripte anhand der Ursache verzweigen.
@@ -530,10 +530,10 @@ Der öffentliche Nachweis `native.configuration` enthält pro Ressource den beab
 - `-a, --all` — auch die zustandsbehafteten Infrastruktur-Container entfernen.
 - `--dry-run` — den Reset vorab anzeigen, ohne Änderungen.
 
-`tale uninstall` — das `tale`-CLI-Binary von diesem System entfernen. Fragt nach, bevor etwas gelöscht wird, und _bietet an_, zusätzlich die benutzereigene Konfiguration (`~/.tale-daemon`) zu entfernen und die Docker-Ressourcen und Dateien eines Projekts abzubauen. Ohne `--purge` bleiben ein Projekt und seine Container unangetastet — führ darin `tale reset --all` aus, um sie zu entfernen.
+`tale uninstall` — das `tale`-CLI-Binary von diesem System entfernen. Fragt nach, bevor etwas gelöscht wird, und _bietet an_, zusätzlich das [Sandbox-Gerät](#sandbox-device) dieses Rechners zu trennen, das vom eingestellten `tale daemon` hinterlassene `~/.tale-daemon` zu entfernen und die Docker-Ressourcen und Dateien eines Projekts abzubauen. Ohne `--purge` bleiben ein Projekt und seine Container unangetastet — führ darin `tale reset --all` aus, um sie zu entfernen. Lässt sich das Sandbox-Gerät nicht stoppen, wird nichts deinstalliert.
 
 - `-f, --force` — die Bestätigungsabfrage überspringen (entfernt nur das Binary; die optionalen Aufräumschritte brauchen weiterhin `--purge`).
-- `--purge` — zusätzlich `~/.tale-daemon` entfernen und, für ein vom aktuellen Verzeichnis aus gefundenes Projekt, dessen Docker-Ressourcen abbauen und seine Dateien löschen. Nicht umkehrbar.
+- `--purge` — zusätzlich das Sandbox-Gerät trennen und seine Arbeitsbereiche löschen, `~/.tale-daemon` entfernen und, für ein vom aktuellen Verzeichnis aus gefundenes Projekt, dessen Docker-Ressourcen abbauen und seine Dateien löschen. Nicht umkehrbar.
 - `--dry-run` — anzeigen, was entfernt würde, ohne etwas zu entfernen.
 
 `tale config show` — das aufgelöste lokale Projektverzeichnis und die CLI-Version ausgeben. Außerhalb eines Projekts meldet der Befehl, dass er keines gefunden hat, und endet ohne Fehler.
@@ -562,6 +562,31 @@ Native Befehle verlangen `--stage <directory>`, `--url <origin>`, `--org <id>` u
 Beide nativen Befehle nehmen exakte Erwartungen über `--config-ref`, `--source-repository`, `--artifact-sha256`, `--deployment-ref`, `--client` und `--automation` entgegen. Historische Katalog-Flags bleiben kompatibel. `verify-native` liest nur; `--allow-retained` prüft eine explizit gewählte aufbewahrte Version, ohne sie als bereitgestellt auszuweisen. Ohne `--native-version` wählt die Prüfung die zuletzt gespeicherte Version. Die native API zeigt den Aufgabenvertrag nur für die bereitgestellte Version; eine Prüfung aufbewahrter Versionen kann dieses Feld nicht bestätigen.
 
 Konfigurationsbefehle haben kein `--dry-run`: Nutze `stage`, `verify --rebuild` und `verify-native`. Erfolgs-JSON hat die Form `{ok:true,command:"config <verb>",data}`. Build- und Prüfdaten enthalten `automationName`, `releaseRef`, `sourceCommit`, `artifactSha256`, `artifactPath` und `verified`; kompatible Ausgaben verwenden `configVersion` statt `releaseRef`. SHA-Transferbelege und native Belege nutzen Schema 2. Ein Deployment-Ergebnis enthält `automationVersion` und `unchanged`; das explizite Feld `verified` gehört zur Prüfausgabe.
+
+### Sandbox-Gerät {#sandbox-device}
+
+Diese Befehle führen die Sandboxes deiner Tale-Organisation auf dem Rechner aus, auf dem du sie aufrufst. [Sandboxes auf eigenen Geräten ausführen](/de/platform/admin/sandbox-devices) beschreibt, wie du ein Gerät unter **Einstellungen > Sandboxes** hinzufügst und dort den Befehl `connect` erhältst. Das Gerät speichert seine Konfiguration und Arbeitsbereiche in `~/.tale/sandbox`; `TALE_SANDBOX_HOME` verlegt sie.
+
+`tale sandbox connect <site> --token <token>` — diesen Rechner mit der Organisation verbinden, die das Token ausgestellt hat: prüft Docker (und bietet an, es zu installieren), registriert den Rechner und startet die Container des Geräts mit dem Release des Servers. `site` ist deine Tale-Website, etwa `https://your-org.tale.dev`. Das Token (`tsdj_…`) funktioniert einmal, innerhalb einer Stunde. Nur Linux und macOS.
+
+- `--name <name>` — der Name, den Tale für das Gerät anzeigt (Standard: der Hostname des Rechners). Andere Zeichen als `A`–`Z`, `a`–`z`, Ziffern, `.`, `-` und `_` werden zu Bindestrichen.
+- `--max-sessions <n>` — wie viele Sandboxes hier gleichzeitig laufen, von 1 bis 256 (Standard: eine pro zwei CPUs und pro 4 GiB Arbeitsspeicher, die Docker nutzen kann, höchstens 16).
+- `--no-auto-update` — dem Release des Servers nicht automatisch folgen; führ stattdessen nach jedem Tale-Update `tale sandbox update` aus.
+- `--docker-socket <path>` — der Docker-Socket, den die Container des Geräts verwenden, für Rootless Docker (Standard: `/var/run/docker.sock`).
+
+`tale sandbox status` — Verbindung, Organisation, Release und Container des Geräts anzeigen, dazu die gerade laufenden Sandboxes. Keine Argumente.
+
+`tale sandbox update` — das Gerät sofort auf das Release des Servers bringen und die aktuellen Adressen des Servers für seine Sandboxes übernehmen (nötig, nachdem sich die Adresse des Backends oder des Modell-Gateways geändert hat). Keine Argumente.
+
+`tale sandbox logs` — das Log des Geräts anzeigen.
+
+- `-f, --follow` — neue Zeilen fortlaufend ausgeben.
+- `--tail <lines>` — wie viele Zeilen zuerst angezeigt werden (Standard: `200`).
+
+`tale sandbox disconnect` — das Gerät aus seiner Organisation entfernen, seine Sandboxes stoppen und ihre Arbeitsbereiche von diesem Rechner löschen. Fragt vorher nach und ändert nichts, solange Docker nicht läuft. Ist der Server nicht erreichbar, wird der Rechner trotzdem aufgeräumt, und ein Admin entfernt das Gerät unter **Einstellungen > Sandboxes**.
+
+- `--keep-data` — die Arbeitsbereiche auf diesem Rechner behalten.
+- `-f, --force` — die Bestätigungsabfrage überspringen.
 
 ### Erweitert
 

@@ -7,8 +7,13 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   chunkStageFiles,
   drainSessionExecResilient,
+  SandboxDeviceOfflineError,
+  sandboxDeploymentLimits,
+  sandboxDeviceDisconnect,
+  sandboxDevices,
   STAGE_BODY_BUDGET_BYTES,
   SpawnerUnreachableError,
+  sessionAcquire,
   sessionCreate,
   sessionIsAlive,
   sessionStageFiles,
@@ -353,6 +358,117 @@ describe('sessionCreate drain-retry', () => {
     expect(n).toBe(6);
     // The give-up path sleeps 5 × 400ms ≈ 2s across the retries.
   }, 10_000);
+});
+
+/** The hub's answer for a session whose device is not connected. */
+function deviceOfflineResponse(deviceId: string): Response {
+  return new Response(
+    JSON.stringify({ error: 'device_offline', deviceId, message: 'offline' }),
+    {
+      status: 503,
+      headers: {
+        'content-type': 'application/json',
+        'x-tale-sandbox-device': deviceId,
+      },
+    },
+  );
+}
+
+describe('sessions on connected devices', () => {
+  const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+  function answer(res: () => Response) {
+    calls.length = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      return res();
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+  }
+
+  test('a create carries its placement hint to the hub', async () => {
+    answer(() => createdResponse('pa-1'));
+    await sessionCreate({
+      sessionId: 'pa-1',
+      organizationId: 'org-1',
+      profile: 'agent',
+      placement: 'device',
+    });
+    const body = calls[0]?.init?.body;
+    expect(JSON.parse(typeof body === 'string' ? body : '{}')).toMatchObject({
+      placement: 'device',
+    });
+  });
+
+  test('an offline device is its own error — never retried, never "gone"', async () => {
+    answer(() => deviceOfflineResponse('dev-9'));
+    const error = await sessionCreate({
+      sessionId: 'pa-2',
+      organizationId: 'org-1',
+      profile: 'agent',
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SandboxDeviceOfflineError);
+    expect(error instanceof SandboxDeviceOfflineError && error.deviceId).toBe(
+      'dev-9',
+    );
+    expect(calls).toHaveLength(1);
+    // The liveness probe must not read the 503 as "session gone" (false).
+    await expect(sessionIsAlive('pa-2')).rejects.toBeInstanceOf(
+      SandboxDeviceOfflineError,
+    );
+    await expect(sessionAcquire('pa-2')).rejects.toBeInstanceOf(
+      SandboxDeviceOfflineError,
+    );
+  });
+
+  test("the limits read asks for the organization's device slots", async () => {
+    answer(() => Response.json({ maxSessions: 8, deviceSessions: 4 }));
+    expect(await sandboxDeploymentLimits('org-1')).toEqual({
+      maxSessions: 8,
+      deviceSessions: 4,
+    });
+    expect(calls[0]?.url).toMatch(/\/v1\/limits\?organizationId=org-1$/);
+  });
+
+  test('device list and disconnect; an older spawner has no devices', async () => {
+    answer(() =>
+      Response.json({
+        hub: true,
+        devices: [
+          {
+            deviceId: 'dev-1',
+            connectedAtMs: 1,
+            version: '0.5.60',
+            compatible: true,
+            maxSessions: 2,
+            sessions: { running: 0, starting: 0 },
+            resources: null,
+            platform: { os: 'linux', arch: 'x64' },
+            update: {
+              state: 'idle',
+              targetVersion: null,
+              error: null,
+              atMs: null,
+            },
+          },
+        ],
+      }),
+    );
+    expect((await sandboxDevices('org-1')).devices[0]?.deviceId).toBe('dev-1');
+    answer(() => new Response('{"error":"not_found"}', { status: 404 }));
+    expect(await sandboxDevices('org-1')).toEqual({ hub: false, devices: [] });
+    expect(await sandboxDeviceDisconnect('dev-1')).toEqual({
+      disconnected: false,
+      placementsDropped: 0,
+    });
+    answer(() => Response.json({ disconnected: true, placementsDropped: 3 }));
+    expect(await sandboxDeviceDisconnect('dev-1')).toEqual({
+      disconnected: true,
+      placementsDropped: 3,
+    });
+    expect(calls[0]?.url).toMatch(/\/v1\/devices\/dev-1\/disconnect$/);
+    expect(calls[0]?.init?.method).toBe('POST');
+  });
 });
 
 describe('spawner call preconditions', () => {

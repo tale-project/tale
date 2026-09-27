@@ -169,6 +169,38 @@ describe('SandboxQuotaEditor', () => {
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
   });
 
+  it("counts the organization's devices toward the ceiling, as the server does", async () => {
+    const { user } = render(
+      <EditorView
+        deploymentLimits={{
+          status: 'available',
+          maxSessions: 10,
+          deviceSessions: 4,
+        }}
+      />,
+    );
+    const total = screen.getByRole('status', {
+      name: 'Total organization sessions',
+    });
+    expect(total).toHaveTextContent('6 / 14');
+    expect(
+      screen.getByText(/plus the 4 sandboxes your devices run/),
+    ).toBeInTheDocument();
+    const input = screen.getByRole('spinbutton', { name: 'Workflow sessions' });
+    await user.clear(input);
+    await user.type(input, '11');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The total of 15 sessions exceeds the capacity of 14: 10 on the deployment and 4 on your devices.',
+    );
+    await user.clear(input);
+    await user.type(input, '10');
+    await user.tab();
+    // Beyond the deployment's 10, inside its 10 plus the devices' 4.
+    expect(total).toHaveTextContent('14 / 14');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  });
+
   it('discards edits and the computed total without changing persisted allocation usage', async () => {
     const { user } = render(<EditorView />);
     const input = screen.getByRole('spinbutton', { name: 'Workflow sessions' });

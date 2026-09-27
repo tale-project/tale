@@ -34,22 +34,29 @@ describe('sandbox deployment limit client', () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ maxSessions: 16 }))
-      .mockResolvedValueOnce(Response.json({ maxSessions: 8 }));
+      .mockResolvedValueOnce(
+        Response.json({ maxSessions: 8, deviceSessions: 3 }),
+      );
     vi.stubGlobal('fetch', fetcher);
     expect(await sandboxDeploymentLimits('org-a')).toEqual({ maxSessions: 16 });
-    expect(await sandboxDeploymentLimits('org-a')).toEqual({ maxSessions: 8 });
+    // The organization's connected devices add their slots.
+    expect(await sandboxDeploymentLimits('org-a')).toEqual({
+      maxSessions: 8,
+      deviceSessions: 3,
+    });
     expect(fetcher).toHaveBeenCalledTimes(2);
     const nonces = [];
     for (const [url, init] of fetcher.mock.calls) {
-      expect(url).toBe('http://sandbox.test/v1/limits');
+      expect(url).toBe('http://sandbox.test/v1/limits?organizationId=org-a');
       const headers = new Headers(init?.headers);
       const timestamp = headers.get('x-tale-sandbox-timestamp');
       const nonce = headers.get('x-tale-sandbox-nonce');
       nonces.push(nonce);
       expect(nonce).toBeTruthy();
+      // The signature covers the query, as the spawner verifies it.
       const signature = createHmac('sha256', 'capacity-client-test')
         .update(
-          `GET\n/v1/limits\n${timestamp}\n${nonce}\n${createHash('sha256').update('').digest('hex')}`,
+          `GET\n/v1/limits?organizationId=org-a\n${timestamp}\n${nonce}\n${createHash('sha256').update('').digest('hex')}`,
         )
         .digest('hex');
       expect(headers.get('x-tale-sandbox-signature')).toBe(signature);
@@ -78,9 +85,9 @@ describe('sandbox deployment limit client', () => {
     expect(await sandboxDeploymentLimits('org-a')).toEqual({ maxSessions: 16 });
     expect(await sandboxDeploymentLimits('org-a')).toEqual({ maxSessions: 8 });
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
-      'http://sandbox.test/v1/limits',
+      'http://sandbox.test/v1/limits?organizationId=org-a',
       'http://sandbox.test/v1/capacity?organizationId=org-a',
-      'http://sandbox.test/v1/limits',
+      'http://sandbox.test/v1/limits?organizationId=org-a',
       'http://sandbox.test/v1/capacity?organizationId=org-a',
     ]);
   });

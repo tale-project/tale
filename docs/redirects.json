@@ -22,7 +22,7 @@
     "platform/workspace/prompt-library": "platform/workspace/skills",
     "platform/agents/webhook-triggers": "platform/agents/concepts",
     "platform/agents/categories": "platform/agents/concepts",
-    "self-hosted/operate/tale-daemon": "self-hosted/operate/container-architecture",
+    "self-hosted/operate/tale-daemon": "platform/admin/sandbox-devices",
     "platform/integrations/overview": "platform/connectors/overview",
     "platform/integrations/mcp-servers": "platform/connectors/mcp-servers",
     "platform/member/environment": "platform/member/preferences",

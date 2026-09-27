@@ -332,6 +332,29 @@ describe('POST /policies/sandbox_quota — deployment capacity', () => {
     expectNoWrite();
   });
 
+  it("counts the organization's connected devices toward the ceiling", async () => {
+    getSandboxDeploymentLimits.mockResolvedValue({
+      status: 'available',
+      maxSessions: 10,
+      deviceSessions: 6,
+    });
+    // 16 fits 10 deployment slots plus the organization's 6 device slots.
+    expect((await post('/policies/sandbox_quota', atCapacity)).status).toBe(
+      200,
+    );
+    getSandboxDeploymentLimits.mockResolvedValue({
+      status: 'available',
+      maxSessions: 10,
+      deviceSessions: 5,
+    });
+    const response = await post('/policies/sandbox_quota', atCapacity);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT',
+      data: { total: 16, maxSessions: 10, deviceSessions: 5 },
+    });
+  });
+
   it('rereads deployment capacity for each save after an operator changes it', async () => {
     getSandboxDeploymentLimits
       .mockResolvedValueOnce({ status: 'available', maxSessions: 16 })

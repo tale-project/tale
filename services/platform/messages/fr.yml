@@ -8214,7 +8214,9 @@ sandboxes:
     total: Total des sessions de ton organisation
     totalValue: '{total} / {maxSessions}'
     totalHint: Somme des trois limites / capacité du déploiement. Les autres organisations partagent cette capacité.
+    totalHintWithDevices: Somme des trois limites / capacité du déploiement plus les {deviceSessions} sandboxes de tes appareils. Les autres organisations partagent la capacité du déploiement.
     totalExceedsDeployment: Le total de {total} sessions dépasse la capacité du déploiement de {maxSessions}. Réduis au moins une limite pour enregistrer.
+    totalExceedsCapacity: 'Le total de {total} sessions dépasse la capacité de {maxSessions} : {deploymentSessions} dans le déploiement et {deviceSessions} sur tes appareils. Réduis au moins une limite pour enregistrer.'
     capacityUnavailable: La capacité du déploiement est indisponible. Tu peux abaisser les limites ; actualise les données de l'infrastructure avant d'en augmenter une.
     capacityLoading: Vérification de la capacité du déploiement…
     saveFailed: Impossible d'enregistrer les limites des sandboxes
@@ -8303,3 +8305,72 @@ sandboxes:
       ci-dessus incluent les sessions temporaires d'exploration.
   accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
   deletedAgent: Agent supprimé
+  devices:
+    title: Appareils
+    description:
+      Exécute les sandboxes de ton organisation sur tes propres machines. Les
+      nouveaux espaces de travail des agents et des automatisations démarrent sur
+      un appareil connecté qui a de la place, sinon sur le serveur. Un espace de
+      travail reste sur la machine où il a démarré.
+    add: Ajouter un appareil
+    columns:
+      name: Appareil
+      status: Statut
+      sandboxes: Sandboxes
+      machine: Machine
+      version: Version
+      lastSeen: Dernier contact
+    status:
+      online: En ligne
+      updating: Mise à jour en cours
+      outdated: Mise à jour requise
+      update_failed: Échec de la mise à jour
+      offline: Hors ligne
+    platform: '{os} · {arch}'
+    sandboxCount: '{used} / {limit}'
+    lastSeenNow: Maintenant
+    machine: '{cpus, plural, one {# processeur} other {# processeurs}} · {memory} Gio'
+    updatingTo: 'Mise à jour vers {version}'
+    updateFailedHint: La mise à jour vers {version} a échoué. L'appareil réessaie de lui-même.
+    outdatedHint: Utilise une autre version que Tale ({version}). Exécute tale sandbox update sur la machine.
+    empty:
+      title: Aucun appareil pour l'instant
+      description: Ajoute une machine Linux ou macOS avec Docker pour y exécuter les sandboxes de ton organisation.
+    hub:
+      notConfigured: Le service de sandbox de ce déploiement n'accepte pas d'appareils. Demande à ton opérateur d'activer le hub d'appareils.
+      unavailable: Impossible de joindre le service de sandbox. L'état des appareils n'est peut-être pas à jour.
+    actions:
+      remove: Retirer
+    removeConfirm:
+      title: 'Retirer {name} ?'
+      description:
+        L'appareil cesse immédiatement d'exécuter des sandboxes pour ton
+        organisation. Ses espaces de travail restent sur la machine mais ne sont
+        plus accessibles depuis Tale.
+      confirm: Retirer l'appareil
+    toast:
+      removed: Appareil retiré
+      error: Impossible de retirer l'appareil
+    addDialog:
+      title: Ajouter un appareil
+      description:
+        Exécute cette commande dans un terminal sur la machine à ajouter. Elle
+        installe la CLI Tale et connecte la machine à ton organisation.
+      commandLabel: Installer et connecter
+      copyCommand: Copier la commande
+      copied: Copié
+      requirements:
+        Il faut Docker sous Linux ou macOS et un accès HTTPS sortant vers ce site.
+        L'appareil continue de fonctionner après un redémarrage et se met à jour
+        tout seul quand Tale est mis à jour.
+      expires: La commande ne fonctionne qu'une fois, dans l'heure.
+      cliInstalled: La CLI Tale est déjà installée ? Exécute plutôt ceci
+      generating: Création de la commande de connexion…
+      generateFailed: Impossible de créer la commande de connexion.
+      retry: Réessayer
+      waiting: En attente de la connexion de l'appareil…
+      connected: '{name} est connecté.'
+  runsOn:
+    server: Sur le serveur
+    device: 'Sur {name}'
+    deviceOffline: 'Sur {name} (hors ligne)'

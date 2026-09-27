@@ -217,11 +217,19 @@ export function createGovernanceRoutes(deps: {
         if (total > savedTotal) {
           return c.json({ error: 'SANDBOX_CAPACITY_UNAVAILABLE' }, 503);
         }
-      } else if (total > limits.maxSessions) {
+      } else if (total > limits.maxSessions + (limits.deviceSessions ?? 0)) {
+        // The organization's connected devices add their own slots: a quota
+        // may use the deployment's capacity plus its own machines'.
         return c.json(
           {
             error: 'SANDBOX_QUOTA_EXCEEDS_DEPLOYMENT',
-            data: { total, maxSessions: limits.maxSessions },
+            data: {
+              total,
+              maxSessions: limits.maxSessions,
+              ...(limits.deviceSessions
+                ? { deviceSessions: limits.deviceSessions }
+                : {}),
+            },
           },
           400,
         );

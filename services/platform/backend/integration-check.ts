@@ -62,6 +62,7 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
@@ -54072,6 +54073,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),
+      ],
+      [
+        'checkSandboxDevices',
+        () => checkSandboxDevices(sql, baseUrl, authCtx, record),
       ],
       [
         'checkSandboxSettingsViews',

@@ -25,6 +25,9 @@ import { SessionRoutes } from './session-routes.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
 
 const cfg: SpawnerConfig = {
+  instance: '',
+  hub: null,
+  deviceConfigPath: null,
   backend: 'docker',
   port: 8003,
   // The per-session runnerd token is derived from this; the fake runnerd below

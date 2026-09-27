@@ -38,7 +38,9 @@ export const ALIGN_GUARD_ENV = 'TALE_ALIGNED';
  * binary — aligning (download + re-exec) right before removal is wasteful and
  * would re-exec a binary we're tearing down. `auth hash-password` is a local
  * helper that manages no instance; a re-exec would hand its stdin password to
- * another binary.
+ * another binary. `sandbox …` looks after a sandbox device, which follows the
+ * release of the Tale server it is connected to — never a workspace's
+ * `tale.json` that happens to sit in the current directory.
  */
 const SELF_MANAGING_COMMANDS = new Set([
   'update',
@@ -56,6 +58,11 @@ const SELF_MANAGING_COMMANDS = new Set([
   'deploy provision',
   'deploy export-client',
   'deploy export-client-native',
+  'sandbox connect',
+  'sandbox status',
+  'sandbox update',
+  'sandbox logs',
+  'sandbox disconnect',
 ]);
 
 /**

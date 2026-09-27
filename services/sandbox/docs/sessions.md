@@ -14,7 +14,8 @@ image; the only thing that varies is _when the session is destroyed_:
 Per-org fairness is the governance `sandbox_quota` policy (separate project-agent,
 workflow and render budgets, default 2 each). Their total is derived, and saving
 the policy requires that total to fit the current deployment capacity,
-`SANDBOX_MAX_SESSIONS` (default 8). There is no independent organization runtime
+`SANDBOX_MAX_SESSIONS` (default 8), plus the slots of the organization's
+connected [devices](devices.md). There is no independent organization runtime
 ceiling. Concurrent executions of the same workflow each own a separate session;
 agent and script nodes within one execution share that session.
 

@@ -2,6 +2,7 @@
 // every knob is overridable so an operator can tune without rebuilding.
 
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
@@ -17,7 +18,7 @@ import {
   type RuntimeTier,
 } from './runtime-tier.ts';
 import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
-import type { SpawnerConfig } from './types.ts';
+import type { HubConfig, SpawnerConfig } from './types.ts';
 
 // Parse a boolean env, returning undefined when UNSET/empty so a caller can
 // distinguish "operator didn't set it" (apply a default) from an explicit
@@ -334,8 +335,52 @@ export function loadConfig(): SpawnerConfig {
     );
   }
 
+  // Device mode and the hub. A device's spawner is its own instance, so it
+  // never adopts the sessions of a Tale deployment on the same Docker daemon.
+  const deviceConfigPath = process.env.SANDBOX_DEVICE_CONFIG?.trim() || null;
+  const instance =
+    process.env.SANDBOX_INSTANCE?.trim() || (deviceConfigPath ? 'device' : '');
+  if (!/^[a-z0-9-]{0,32}$/.test(instance)) {
+    throw new Error(
+      `SANDBOX_INSTANCE must be lowercase letters, digits and dashes (at most 32); got: ${JSON.stringify(instance)}`,
+    );
+  }
+  const hubPort = numEnv('SANDBOX_HUB_PORT', 0, { min: 0, max: 65535 });
+  let hub: HubConfig | null = null;
+  if (hubPort > 0 && backend !== 'docker') {
+    // Placements live on the spawner's disk and a device's tunnel lands on one
+    // process: neither holds across Kubernetes replicas.
+    console.warn(
+      '[sandbox.config] SANDBOX_HUB_PORT is set but connected devices need the Docker backend; the hub stays off',
+    );
+  } else if (hubPort > 0 && deviceConfigPath !== null) {
+    console.warn(
+      '[sandbox.config] SANDBOX_HUB_PORT has no effect on a connected device',
+    );
+  } else if (hubPort > 0) {
+    hub = {
+      port: hubPort,
+      stateDir:
+        process.env.SANDBOX_HUB_STATE_DIR?.trim() ||
+        join(dirname(sessionRootBase), 'hub'),
+      relays: {
+        api:
+          process.env.SANDBOX_HUB_API_UPSTREAM?.trim() ||
+          process.env.SANDBOX_HTTP_API_BASE_URL?.trim() ||
+          'http://backend-api:3005',
+        gateway:
+          process.env.SANDBOX_HUB_GATEWAY_UPSTREAM?.trim() ||
+          process.env.EXTERNAL_AGENT_GATEWAY_URL?.trim() ||
+          'http://sandbox-llm-gateway:8080',
+      },
+    };
+  }
+
   return {
     backend,
+    instance,
+    hub,
+    deviceConfigPath,
     k8s: {
       namespace: process.env.SANDBOX_K8S_NAMESPACE ?? 'tale-sandbox',
       // Resolved per tier (runc → null = omit). For tiers that DO carry a class,

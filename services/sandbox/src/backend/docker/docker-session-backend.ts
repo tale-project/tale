@@ -27,9 +27,12 @@ import {
 } from '../../session/runnerd-client.ts';
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import {
+  belongsToInstance,
   deriveRunnerdToken,
   isSessionWorkspaceDirName,
+  SESSION_INSTANCE_LABEL,
   sessionContainerName,
+  sessionInstanceFilter,
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
 import { sessionDindEnabled } from '../../session/session-profile.ts';
@@ -465,6 +468,10 @@ export class DockerSessionBackend implements SessionBackend {
     }
   }
 
+  async hasWorkspace(sessionId: string): Promise<boolean> {
+    return this.workspaceDirExists(await this.resolveWorkspaceDir(sessionId));
+  }
+
   async sessionExists(sessionId: string): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
     const inspect = await runDocker(
@@ -737,7 +744,11 @@ export class DockerSessionBackend implements SessionBackend {
     // No colour filter: the sandbox tier is a single container that rolls
     // in-place, so this spawner adopts ALL existing session containers —
     // including ones started by a previous (colour-rooted) build.
-    const filters = ['--filter', 'label=tale.sandbox-session=1'];
+    const filters = [
+      '--filter',
+      'label=tale.sandbox-session=1',
+      ...sessionInstanceFilter(this.cfg.instance),
+    ];
     if (organizationId) {
       filters.push('--filter', `label=tale.org=${organizationId}`);
     }
@@ -747,7 +758,7 @@ export class DockerSessionBackend implements SessionBackend {
         '--all',
         ...filters,
         '--format',
-        '{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}',
+        `{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "${SESSION_INSTANCE_LABEL}"}}`,
       ],
       { timeoutMs: 10_000 },
     );
@@ -765,8 +776,12 @@ export class DockerSessionBackend implements SessionBackend {
     for (const line of res.stdout.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const [sessionId, org, profile, created, state] = trimmed.split('\t');
+      const [sessionId, org, profile, created, state, instance] =
+        trimmed.split('\t');
       if (!sessionId) continue;
+      // Another spawner on this Docker daemon (a connected device beside a
+      // deployment) owns sessions labelled with its instance.
+      if (!belongsToInstance(instance, this.cfg.instance)) continue;
       out.push({
         sessionId,
         organizationId: org ?? '',

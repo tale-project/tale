@@ -28,7 +28,7 @@ Ces valeurs limitent le travail simultané, pas le nombre de tâches ni les dép
 3. Maintiens cette somme dans la capacité du déploiement, puis choisis **Enregistrer** dans l’en-tête. **Abandonner** rétablit les valeurs enregistrées.
 4. Rouvre la page pour vérifier les limites enregistrées, puis observe si de nouvelles tâches obtiennent une allocation.
 
-Les valeurs initiales totalisent 6. Avec une capacité de déploiement de 8, un total de 8 est accepté et 9 est refusé. Le serveur vérifie à nouveau la capacité à l’enregistrement ; sa valeur peut donc différer de la première observation.
+Les valeurs initiales totalisent 6. Avec une capacité de déploiement de 8, un total de 8 est accepté et 9 est refusé. Le serveur vérifie à nouveau la capacité à l’enregistrement ; sa valeur peut donc différer de la première observation. Les [appareils](/fr/platform/admin/sandbox-devices) connectés de ton organisation ajoutent au plafond les sandboxes qu’ils exécutent : avec un appareil qui en exécute 4, le total peut atteindre 12.
 
 Une baisse concerne les prochains démarrages et n’interrompt pas le travail en cours. Si les mesures d’infrastructure manquent, les réductions restent possibles, mais une augmentation demande une nouvelle observation de capacité. Si l’opérateur a abaissé la capacité sous ton total actuel, réduis les limites avant d’enregistrer à nouveau. Lorsque les allocations de l’organisation elles-mêmes ne peuvent pas être chargées, les champs restent indisponibles au lieu de présenter des valeurs par défaut modifiables.
 
@@ -71,6 +71,6 @@ Arrête la tâche si le travail doit cesser mais que ses fichiers doivent rester
 
 ## Résoudre un démarrage bloqué
 
-Augmente une limite uniquement lorsque ses allocations sont occupées et que le nouveau total tient dans la capacité partagée. Si le déploiement est plein, augmenter la limite de l’organisation ne crée pas d’infrastructure. Demande à l’opérateur d’examiner la capacité et les ressources de l’hôte. Une place libre ne garantit pas assez de CPU ou de mémoire.
+Augmente une limite uniquement lorsque ses allocations sont occupées et que le nouveau total tient dans la capacité partagée. Si le déploiement est plein, augmenter la limite de l’organisation ne crée pas d’infrastructure. Pour ajouter ta propre capacité, [connecte un appareil](/fr/platform/admin/sandbox-devices) : les nouveaux espaces de travail y démarrent. Sinon, demande à l’opérateur d’examiner la capacité et les ressources de l’hôte. Une place libre ne garantit pas assez de CPU ou de mémoire.
 
 Pour un refus d’identifiants ou de modèle, consulte [Fournisseurs IA](/fr/platform/admin/providers). Pour un refus de dépense, consulte [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Les opérateurs auto-hébergés trouveront le réglage du déploiement dans la [référence d’environnement](/fr/self-hosted/configuration/environment-reference#sandbox-infrastructure).

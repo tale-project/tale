@@ -181,6 +181,9 @@ export async function renderUrlsInSandbox(
         sessionId,
         organizationId: args.organizationId,
         profile: 'default',
+        // Knowledge crawling is the deployment's own work: renders never
+        // leave the server for an organization's device.
+        placement: 'server',
       });
       created = true;
     } catch (error) {

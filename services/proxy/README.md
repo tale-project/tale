@@ -11,6 +11,7 @@ backend and optional docs service. The entrypoint renders the checked-in
 | `platform:3000` | Frontend/static assets and the platform health endpoint |
 | `BACKEND_UPSTREAM` (default `backend-api:3005`) | Application/auth/REST APIs, events, WebDAV, SCIM, identity, webhooks and configured object-store paths |
 | `docs:3002` | Prose documentation on the separate `DOCS_URL` host, when that service is deployed |
+| `SANDBOX_HUB_UPSTREAM` (default `sandbox:8004`) | `/sandbox/tunnel` only: the WebSocket each connected sandbox device keeps open to the spawner's device hub |
 | Internal health listener on `2020` | Proxy health checks |
 
 The platform origin’s `/docs` route is the interactive API reference; it is not a mount for the prose docs site. `/openapi.json` serves the same-origin API schema. The docs host uses passive health checks because production CLI stacks do not include `docs` by default; the host setting alone does not add that service.
@@ -33,6 +34,7 @@ upstreams determine which metrics endpoints are available. See the
 - `TRUSTED_PROXIES`: with `TLS_MODE=external`, the address ranges of the TLS-terminating proxy whose forwarded headers Caddy accepts: CIDR ranges separated by whitespace, or `private_ranges` (the default). The other modes ignore it.
 - `BASE_PATH`: an optional deployment subpath.
 - `BACKEND_UPSTREAM`: backend host and port reachable from this container.
+- `SANDBOX_HUB_UPSTREAM`: the spawner's device hub, when it is not `sandbox:8004`. The hub checks each device's ticket itself; the spawner's signed API is never published.
 
 Behind an external TLS terminator, Caddy serves plain HTTP on the published
 port 80 and learns the browser's scheme and address only from the terminator's

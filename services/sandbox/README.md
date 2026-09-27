@@ -42,7 +42,10 @@ inventory. `SANDBOX_MAX_SESSIONS` defaults to 8 and is the one deployment
 capacity shared by all organizations. Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
-There is no independently configured organization runtime ceiling.
+There is no independently configured organization runtime ceiling. With
+`?organizationId=` the answer adds `deviceSessions`, the slots that
+organization's connected devices offer; the platform's ceiling for that
+organization is `maxSessions + deviceSessions`.
 
 Size the ceiling against measured task peaks and the host resources remaining
 after platform services and safety headroom. See the
@@ -82,6 +85,19 @@ for release ordering and failure handling.
 Docker admission serializes creates through the host's single spawner.
 Concurrent Kubernetes replicas enforce the namespace capacity on a best-effort
 basis; use ResourceQuota for hard namespace resource bounds.
+
+## Sandbox devices
+
+Organizations can connect machines of their own (`tale sandbox connect`) to
+run their sandboxes. The same image runs there in device mode
+(`SANDBOX_DEVICE_CONFIG`) and dials the deployment's spawner, which runs the
+device hub on `SANDBOX_HUB_PORT` (published by the proxy at
+`/sandbox/tunnel`). The hub places device-eligible sessions on the
+organization's devices, forwards every later call to the device that holds
+the session (503 `device_offline` while it is away) and relays the device's
+sessions' calls to the backend and the model gateway along an allowlist.
+`device-apply` lays out and updates a device's containers. See
+[the device contract](docs/devices.md).
 
 ## Organization build caches
 

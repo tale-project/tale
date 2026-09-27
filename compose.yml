@@ -781,6 +781,10 @@ services:
     # running the backend on the host. NEVER publish on 0.0.0.0.
     ports:
       - '127.0.0.1:8003:8003'
+      # The device hub (connected machines dial it; the proxy publishes it at
+      # /sandbox/tunnel). Loopback too: a device on this machine reaches it
+      # directly while `bun dev` runs without the proxy.
+      - '127.0.0.1:8004:8004'
     env_file:
       # Optional: the stack boots without a .env. Present values win; absent
       # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
@@ -789,6 +793,10 @@ services:
         required: false
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
+      # The device hub: organizations connect their own machines here to run
+      # their sandboxes (Settings → Sandboxes → Devices). 0 turns it off.
+      # Mirrors the CLI generator (create-sandbox-service.ts).
+      SANDBOX_HUB_PORT: ${SANDBOX_HUB_PORT:-8004}
       # Native docker/docker compose inside session containers. Unset here so the
       # spawner applies its tier-aware default (on for sysbox/kata, off for
       # runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER=true/false (or the

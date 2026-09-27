@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 83 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 92 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -624,6 +624,59 @@ any toggled setting after the run.
   and its **Delete organization** button stays disabled; typing a different
   name keeps it disabled, typing the organization's exact name enables it —
   then cancel; reopening the dialog starts with an empty field again.
+- [ ] `SET-F56` · **Add a sandbox device** — As owner on
+  `/dashboard/{org}/settings/sandboxes`, the **Devices** section
+  (`sandboxes.devices.title`) shows **No devices yet**
+  (`sandboxes.devices.empty.title`); click **Add device**
+  (`sandboxes.devices.add`), select **Copy command**
+  (`sandboxes.devices.addDialog.copyCommand`) under **Install and connect**
+  (`…addDialog.commandLabel`) and run the copied line in a terminal on a Linux
+  or macOS machine with Docker → The button confirms **Copied**
+  (`…addDialog.copied`); the dialog shows the full command, the connect-only
+  command under
+  `…addDialog.cliInstalled` and **Waiting for the device to connect…**
+  (`…addDialog.waiting`); the CLI installs, connects and starts the device, and
+  within a few minutes (the first start downloads the images) the dialog reads
+  **{name} is connected.** (`…addDialog.connected`). After **Done**
+  (`common.actions.done`) and a reload, the row shows **Online**
+  (`sandboxes.devices.status.online`), `0 / N` sandboxes, the machine's CPUs
+  and memory, the server's release and **Now** (`sandboxes.devices.lastSeenNow`)
+  under **Last seen**; on the machine, `tale sandbox status` names the
+  organization and reports both containers running.
+- [ ] `SET-F57` · **Workspaces start on the device** — With SET-F56's device
+  online, start a task for a project agent that has no workspace yet →
+  **Workspaces** shows its row with **On {name}** (`sandboxes.runsOn.device`)
+  and the device row counts `1 / N`; the agent reads and writes files, calls
+  its tools and gets model answers exactly as on the server; `docker ps` on the
+  machine lists the session container; a website crawl in the same
+  organization still renders **On the server** (`sandboxes.runsOn.server`).
+- [ ] `SET-F58` · **A device goes offline and comes back** — Stop the device
+  on the machine (`docker stop tale-device-sandbox`) → Within a minute its row
+  reads **Offline** (`sandboxes.devices.status.offline`) with a relative
+  **Last seen**, SET-F57's workspace reads **On {name} (offline)**
+  (`sandboxes.runsOn.deviceOffline`), a new task for that agent fails with a
+  message that the device is not connected, and a task for a DIFFERENT agent
+  without a workspace starts **On the server**. Start it again
+  (`docker start tale-device-sandbox`) → The row is **Online** within a minute
+  and the first agent's next task reuses its workspace on the device.
+- [ ] `SET-F59` · **Remove a device** — Row menu → **Remove**
+  (`sandboxes.devices.actions.remove`) → **Remove {name}?**
+  (`sandboxes.devices.removeConfirm.title`) → **Remove device**
+  (`…removeConfirm.confirm`) → The toast **Device removed**
+  (`sandboxes.devices.toast.removed`) appears, the row is gone after a reload
+  and the audit log lists the removal; on the machine, `tale sandbox status`
+  reports the device was removed from its organization, and
+  `tale sandbox disconnect --force` removes the `tale-device-*` containers and
+  `~/.tale/sandbox`. The removed device's agent starts with a fresh workspace
+  on its next task.
+- [ ] `SET-F60` · **Devices raise the limits ceiling** — With a device online
+  that runs N sandboxes, read **Total organization sessions**
+  (`sandboxes.limits.total`) → It reads `{total} / {capacity + N}` and its hint
+  names the device slots (`sandboxes.limits.totalHintWithDevices`); raise a
+  limit so the total lands between the deployment capacity and capacity + N →
+  **Save** succeeds and the value survives a reload; above capacity + N the
+  total explains `sandboxes.limits.totalExceedsCapacity` and Save stays
+  disabled.
 
 ## Boundary & error tests
 
@@ -708,6 +761,19 @@ any toggled setting after the run.
   The name truncates with an ellipsis and never pushes the **Synced** badge
   (`settings.teams.syncedBadge`) or the member count out of place; hovering the
   name shows it in full; the name column is wider than the member-count column.
+- [ ] `SET-B18` · **A used or expired connect command** — Run SET-F56's
+  command again on another machine (or any copied command after an hour) →
+  `tale sandbox connect` fails saying the command expired or was already used,
+  writes nothing to `~/.tale/sandbox` and starts no container; **Add device**
+  again yields a new command that works.
+- [ ] `SET-B19` · **Developers see devices, admins manage them** —
+  `/dashboard/{org}/settings/sandboxes` as a developer → The **Devices** list
+  and its statuses are readable; **Add device** and the row menus are absent.
+- [ ] `SET-B20` · **A deployment without the device hub** — On a stack whose
+  spawner runs with `SANDBOX_HUB_PORT=0` → The **Devices** section explains
+  `sandboxes.devices.hub.notConfigured` and **Add device** is disabled; with
+  the spawner stopped entirely the section reads
+  `sandboxes.devices.hub.unavailable` and still lists the registered devices.
 
 - [ ] `SET-B16` · **The embedding model's credential cannot be deleted** —
   With Settings › Data residency › **Embedding model** saved on provider P
@@ -763,6 +829,15 @@ any toggled setting after the run.
   (`settings.usage.meterLabel`, e.g. "Monthly cost: $12.40 of $50.00"); at
   desktop and narrow widths in `en`, `de` and `fr` the labels, reset lines and
   amounts stay readable without clipping or horizontal scrolling.
+- [ ] `SET-A9` · **Add device by keyboard** — On
+  `/dashboard/{org}/settings/sandboxes`, Tab to **Add device** and press Enter
+  → Focus moves into the dialog and stays there; **Copy command**
+  (`sandboxes.devices.addDialog.copyCommand`) and the connect-only field
+  (named by its label, `…addDialog.cliInstalled`) take visible focus, copy on
+  Enter and announce **Copied**; the command text wraps without horizontal
+  scrolling at narrow widths in `en`, `de` and `fr`; a screen reader announces
+  **{name} is connected.** when the device arrives; Escape returns focus to
+  **Add device**.
 
 ## Performance
 

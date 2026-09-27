@@ -71,7 +71,9 @@ export function CodeBlock({
           <Button
             variant="ghost"
             size="sm"
-            className="absolute top-1.5 right-1.5 opacity-0 transition-opacity group-hover:opacity-100"
+            // Revealed on hover AND on keyboard focus: a focused control
+            // must never be invisible.
+            className="absolute top-1.5 right-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
             onClick={handleCopy}
             aria-label={ariaLabel}
           >

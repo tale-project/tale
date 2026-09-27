@@ -77,10 +77,31 @@ export function SandboxQuotaEditor({
   }, [usage.data]);
   const cannotManage = ability.cannot('write', 'orgSettings');
   const canEdit = !cannotManage;
+  // The organization's connected devices add their own slots: the server
+  // accepts a total up to the deployment's capacity plus its machines'.
+  const deviceSessions =
+    deploymentLimits?.status === 'available'
+      ? (deploymentLimits.deviceSessions ?? 0)
+      : 0;
   const maxSessions =
     deploymentLimits?.status === 'available'
-      ? deploymentLimits.maxSessions
+      ? deploymentLimits.maxSessions + deviceSessions
       : undefined;
+  const exceedsMessage = useCallback(
+    (total: number, deploymentSessions: number, devices: number) =>
+      devices > 0
+        ? t('limits.totalExceedsCapacity', {
+            total,
+            maxSessions: deploymentSessions + devices,
+            deploymentSessions,
+            deviceSessions: devices,
+          })
+        : t('limits.totalExceedsDeployment', {
+            total,
+            maxSessions: deploymentSessions,
+          }),
+    [t],
+  );
   const savedTotal =
     savedConfig === undefined ? undefined : sandboxQuotaTotal(savedConfig);
 
@@ -115,7 +136,7 @@ export function SandboxQuotaEditor({
         }
       } else if (total > maxSessions) {
         throw new Error(
-          t('limits.totalExceedsDeployment', { total, maxSessions }),
+          exceedsMessage(total, maxSessions - deviceSessions, deviceSessions),
         );
       }
       try {
@@ -138,10 +159,13 @@ export function SandboxQuotaEditor({
             typeof data.maxSessions === 'number'
           ) {
             throw new Error(
-              t('limits.totalExceedsDeployment', {
-                total: data.total,
-                maxSessions: data.maxSessions,
-              }),
+              exceedsMessage(
+                data.total,
+                data.maxSessions,
+                typeof data.deviceSessions === 'number'
+                  ? data.deviceSessions
+                  : 0,
+              ),
               { cause: err },
             );
           }
@@ -155,6 +179,8 @@ export function SandboxQuotaEditor({
       }
     },
     [
+      deviceSessions,
+      exceedsMessage,
       maxSessions,
       onRefreshDeploymentLimits,
       organizationId,
@@ -185,7 +211,7 @@ export function SandboxQuotaEditor({
     !deploymentLimitsLoading &&
     !withinSaved;
   const totalError = exceedsDeployment
-    ? t('limits.totalExceedsDeployment', { total, maxSessions })
+    ? exceedsMessage(total, maxSessions - deviceSessions, deviceSessions)
     : raisesWithoutCapacity
       ? t('limits.capacityUnavailable')
       : undefined;
@@ -276,7 +302,11 @@ export function SandboxQuotaEditor({
           <SettingsFieldRow
             className="border-border border-t"
             label={<span id={`${TOTAL_ID}-label`}>{t('limits.total')}</span>}
-            description={t('limits.totalHint')}
+            description={
+              deviceSessions > 0
+                ? t('limits.totalHintWithDevices', { deviceSessions })
+                : t('limits.totalHint')
+            }
           >
             <div className="flex flex-col gap-2">
               <output

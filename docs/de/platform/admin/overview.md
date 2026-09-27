@@ -33,6 +33,6 @@ Inhaber und Admins verwalten die Organisationseinstellungen. Entwickler erreiche
 
 Richte [Enterprise SSO](/de/platform/admin/enterprise-sso) für deinen Identitätsanbieter und [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) zum Schutz der Konten ein. [API-Schlüssel](/de/platform/admin/api-keys) ermöglichen Software den Zugriff auf Tale.
 
-Unter [Branding](/de/platform/admin/branding) änderst du Logo und Farben der Organisation. [Sandboxes](/de/platform/admin/sandboxes) zeigt Ausführungskapazität und Limits für die einzelnen Aufgabenarten. Wie ein Projekt-Agent diese Ressourcen nutzen darf, erklärt [Agenten aus Administrationssicht](/de/platform/admin/agents).
+Unter [Branding](/de/platform/admin/branding) änderst du Logo und Farben der Organisation. [Sandboxes](/de/platform/admin/sandboxes) zeigt Ausführungskapazität und Limits für die einzelnen Aufgabenarten; mit [Sandbox-Geräten](/de/platform/admin/sandbox-devices) laufen die Sandboxes deiner Organisation auf eigenen Rechnern. Wie ein Projekt-Agent diese Ressourcen nutzen darf, erklärt [Agenten aus Administrationssicht](/de/platform/admin/agents).
 
 Nach einem Update zeigt dir [Was gibt es Neues?](/de/platform/admin/changelog), welche Änderungen für dein Team relevant sind.

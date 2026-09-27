@@ -28,7 +28,7 @@ Die Werte begrenzen gleichzeitige Arbeit, nicht die Anzahl der Aufgaben oder die
 3. Halte die Summe innerhalb der Deployment-Kapazität und wähle **Speichern** im Kopfbereich. **Verwerfen** stellt die gespeicherten Werte wieder her.
 4. Öffne die Seite erneut, prüfe die gespeicherten Limits und beobachte, ob neue Arbeit einen Platz erhält.
 
-Die Standardwerte ergeben zusammen 6. Bei einer Deployment-Kapazität von 8 ist eine Summe von 8 erlaubt, 9 wird abgelehnt. Der Server prüft die Kapazität beim Speichern erneut. Der aktuelle Wert kann deshalb von der ersten Beobachtung abweichen.
+Die Standardwerte ergeben zusammen 6. Bei einer Deployment-Kapazität von 8 ist eine Summe von 8 erlaubt, 9 wird abgelehnt. Der Server prüft die Kapazität beim Speichern erneut. Der aktuelle Wert kann deshalb von der ersten Beobachtung abweichen. Die verbundenen [Geräte](/de/platform/admin/sandbox-devices) deiner Organisation erhöhen die Obergrenze um die Sandboxes, die sie ausführen: Mit einem Gerät, das 4 ausführt, darf die Summe 12 erreichen.
 
 Eine Senkung betrifft künftige Starts und unterbricht keine laufende Arbeit. Sind Infrastrukturwerte nicht verfügbar, bleiben Senkungen möglich; Erhöhungen brauchen einen aktuellen Kapazitätswert. Hat der Betreiber die Kapazität unter deine bisherige Summe gesenkt, reduziere die Limits vor dem nächsten Speichern. Lassen sich bereits die Organisationsbelegungen nicht laden, bleiben die Felder gesperrt, statt bearbeitbare Standardwerte anzuzeigen.
 
@@ -71,6 +71,6 @@ Stoppe die Aufgabe, wenn die Arbeit enden, ihre Dateien aber bleiben sollen. Sic
 
 ## Einen blockierten Start klären
 
-Erhöhe ein Arbeitslimit nur, wenn seine Plätze belegt sind und die neue Summe in die gemeinsame Kapazität passt. Ist das Deployment voll, schafft ein höheres Organisationslimit keine Infrastruktur. Lass den Betreiber Kapazität und Host-Ressourcen prüfen. Ein freier Containerplatz garantiert noch nicht genügend CPU oder Speicher.
+Erhöhe ein Arbeitslimit nur, wenn seine Plätze belegt sind und die neue Summe in die gemeinsame Kapazität passt. Ist das Deployment voll, schafft ein höheres Organisationslimit keine Infrastruktur. Für eigene Kapazität [verbindest du ein Gerät](/de/platform/admin/sandbox-devices): Neue Arbeitsbereiche starten dann darauf. Andernfalls lass den Betreiber Kapazität und Host-Ressourcen prüfen. Ein freier Containerplatz garantiert noch nicht genügend CPU oder Speicher.
 
 Bei Zugangs- oder Modellproblemen hilft [KI-Provider](/de/platform/admin/providers), bei Ausgabengrenzen [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits). Self-Hosted-Betreiber finden die Deployment-Einstellung in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure).

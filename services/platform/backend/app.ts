@@ -58,6 +58,8 @@ import { createProviderSettingRoutes } from './domains/providers/routes.ts';
 import { createRetentionRoutes } from './domains/retention/routes.ts';
 import { createToolDispatchRoutes } from './domains/sandbox/dispatch-routes.ts';
 import { createSandboxRoutes } from './domains/sandbox/routes.ts';
+import { createSandboxDeviceDoorRoutes } from './domains/sandbox_devices/door-routes.ts';
+import { createSandboxDeviceRoutes } from './domains/sandbox_devices/routes.ts';
 import {
   createScimAdminRoutes,
   createScimRoutes,
@@ -305,6 +307,12 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Org-bucket blob staging for sandbox sessions (HMAC stage-token gated,
   // not session auth) — the container-facing twin of the bridge above.
   app.route('/api/sandbox-blob', createSandboxBlobRoutes({ sql: deps.sql }));
+  // Connected sandbox devices (`tale sandbox connect`): the join token or the
+  // device secret is the credential, never a browser session.
+  app.route(
+    '/api/sandbox-devices',
+    createSandboxDeviceDoorRoutes({ sql: deps.sql }),
+  );
   // Connector OAuth2 consent flow — browser-facing: `start` is
   // session-gated, `callback` is authorized by its single-use state row (the
   // vendor redirects the browser back with no cookie guarantee).
@@ -411,6 +419,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     createProviderCredentialRoutes(deps),
   );
   app.route('/api/app/sandbox', createSandboxRoutes(deps));
+  app.route('/api/app/sandbox-devices', createSandboxDeviceRoutes(deps));
   app.route('/api/app/skills', createSkillRoutes(deps));
   app.route('/api/app/tasks', createTaskRoutes(deps));
   app.route('/api/app/teams', createTeamRoutes(deps));

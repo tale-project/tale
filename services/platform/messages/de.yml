@@ -8122,7 +8122,9 @@ sandboxes:
     total: Sitzungen deiner Organisation insgesamt
     totalValue: '{total} / {maxSessions}'
     totalHint: Summe der drei Limits / Kapazität der Bereitstellung. Andere Organisationen teilen sich diese Kapazität.
+    totalHintWithDevices: Summe der drei Limits / Kapazität der Bereitstellung plus die {deviceSessions} Sandboxes deiner Geräte. Andere Organisationen teilen sich die Kapazität der Bereitstellung.
     totalExceedsDeployment: Die Summe von {total} Sitzungen überschreitet die Kapazität der Bereitstellung von {maxSessions}. Verringere mindestens ein Limit, um zu speichern.
+    totalExceedsCapacity: 'Die Summe von {total} Sitzungen überschreitet die Kapazität von {maxSessions}: {deploymentSessions} in der Bereitstellung und {deviceSessions} auf deinen Geräten. Verringere mindestens ein Limit, um zu speichern.'
     capacityUnavailable: Die Kapazität der Bereitstellung ist nicht verfügbar. Niedrigere Limits kannst du speichern; aktualisiere die Infrastrukturdaten, bevor du ein Limit erhöhst.
     capacityLoading: Kapazität der Bereitstellung prüfen…
     saveFailed: Sandbox-Limits konnten nicht gespeichert werden
@@ -8212,3 +8214,73 @@ sandboxes:
       enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
   deletedAgent: Gelöschter Agent
+  devices:
+    title: Geräte
+    description:
+      Führe die Sandboxes deiner Organisation auf deinen eigenen Rechnern aus. Neue
+      Arbeitsbereiche für Agenten und Automatisierungen starten auf einem verbundenen
+      Gerät mit freiem Platz, sonst auf dem Server. Ein Arbeitsbereich bleibt auf dem
+      Rechner, auf dem er gestartet ist.
+    add: Gerät hinzufügen
+    columns:
+      name: Gerät
+      status: Status
+      sandboxes: Sandboxes
+      machine: Rechner
+      version: Version
+      lastSeen: Zuletzt gesehen
+    status:
+      online: Online
+      updating: Wird aktualisiert
+      outdated: Update nötig
+      update_failed: Update fehlgeschlagen
+      offline: Offline
+    platform: '{os} · {arch}'
+    sandboxCount: '{used} / {limit}'
+    lastSeenNow: Jetzt
+    machine: '{cpus, plural, one {# CPU} other {# CPUs}} · {memory} GiB'
+    updatingTo: 'Wird auf {version} aktualisiert'
+    updateFailedHint: Das Update auf {version} ist fehlgeschlagen. Das Gerät versucht es selbst erneut.
+    outdatedHint: Läuft mit einem anderen Release als Tale ({version}). Führe tale sandbox update auf dem Rechner aus.
+    empty:
+      title: Noch keine Geräte
+      description: Füge einen Linux- oder macOS-Rechner mit Docker hinzu, um die Sandboxes deiner Organisation darauf auszuführen.
+    hub:
+      notConfigured: Der Sandbox-Dienst dieser Bereitstellung nimmt keine Geräte an. Bitte deinen Betreiber, den Geräte-Hub einzuschalten.
+      unavailable: Der Sandbox-Dienst war nicht erreichbar. Der Gerätestatus ist möglicherweise nicht aktuell.
+    actions:
+      remove: Entfernen
+    removeConfirm:
+      title: '{name} entfernen?'
+      description:
+        Das Gerät führt ab sofort keine Sandboxes mehr für deine Organisation aus.
+        Seine Arbeitsbereiche bleiben auf dem Rechner, sind von Tale aus aber nicht
+        mehr erreichbar.
+      confirm: Gerät entfernen
+    toast:
+      removed: Gerät entfernt
+      error: Das Gerät konnte nicht entfernt werden
+    addDialog:
+      title: Gerät hinzufügen
+      description:
+        Führe diesen Befehl in einem Terminal auf dem Rechner aus, den du hinzufügen
+        möchtest. Er installiert die Tale CLI und verbindet den Rechner mit deiner
+        Organisation.
+      commandLabel: Installieren und verbinden
+      copyCommand: Befehl kopieren
+      copied: Kopiert
+      requirements:
+        Voraussetzung sind Docker unter Linux oder macOS und ausgehender HTTPS-Zugriff
+        auf diese Seite. Das Gerät läuft nach einem Neustart weiter und aktualisiert
+        sich selbst, wenn Tale aktualisiert wird.
+      expires: Der Befehl funktioniert einmal, und zwar innerhalb einer Stunde.
+      cliInstalled: Tale CLI schon installiert? Führe stattdessen das aus
+      generating: Verbindungsbefehl wird erstellt…
+      generateFailed: Der Verbindungsbefehl konnte nicht erstellt werden.
+      retry: Erneut versuchen
+      waiting: Warte darauf, dass sich das Gerät verbindet…
+      connected: '{name} ist verbunden.'
+  runsOn:
+    server: Auf dem Server
+    device: 'Auf {name}'
+    deviceOffline: 'Auf {name} (offline)'

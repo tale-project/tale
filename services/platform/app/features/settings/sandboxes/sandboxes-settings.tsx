@@ -16,8 +16,10 @@ import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
+import type { SandboxDeviceView } from '@/lib/shared/schemas/sandbox-devices';
 
 import { SandboxCapacitySection } from './sandbox-capacity';
+import { SandboxDevicesSection } from './sandbox-devices';
 import { SandboxQuotaEditor } from './sandbox-quota-editor';
 import { sandboxRuntimeState } from './sandbox-runtime-state';
 
@@ -68,6 +70,17 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     void capacity.refetch();
     void deploymentLimits.refetch();
   }, [capacity, deploymentLimits]);
+  // Connected devices: listed for admins and developers, and named on the
+  // workspaces that run on them.
+  const devicesQuery = useBackendQuery(
+    'sandbox_devices/queries:list',
+    canRead ? { organizationId } : 'skip',
+  );
+  const devicesView = devicesQuery.isError ? undefined : devicesQuery.data;
+  const refetchDevices = devicesQuery.refetch;
+  const refreshDevices = useCallback(() => {
+    void refetchDevices();
+  }, [refetchDevices]);
 
   const stop = useBackendAction(
     'node_only/sandbox/session_admin_actions:stopSandboxTask',
@@ -194,6 +207,15 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
               <span className="text-muted-foreground text-xs">
                 {t(allocated ? 'status.quotaInUse' : 'status.quotaReleased')}
               </span>
+              <RunsOn
+                sessionId={s.sessionId}
+                placements={
+                  snapshot?.status === 'available'
+                    ? snapshot.placements
+                    : undefined
+                }
+                devices={devicesView?.devices}
+              />
             </Stack>
           );
         },
@@ -322,7 +344,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         },
       },
     ],
-    [t, organizationId, pendingId, stop, setPinned, run, snapshot],
+    [t, organizationId, pendingId, stop, setPinned, run, snapshot, devicesView],
   );
 
   if ((canManage && data === null) || (!abilityLoading && !canRead)) {
@@ -345,6 +367,16 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         isRefreshing={capacity.isFetching || deploymentLimits.isFetching}
         onRefresh={refreshCapacity}
       />
+      {canRead && (
+        <SandboxDevicesSection
+          organizationId={organizationId}
+          view={devicesView}
+          isLoading={abilityLoading || devicesQuery.isLoading}
+          error={devicesQuery.error ?? null}
+          canManage={canManage}
+          onRefresh={refreshDevices}
+        />
+      )}
       {canManage && (
         <SettingsSection
           title={t('sessionsTitle')}
@@ -385,5 +417,42 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         </SettingsSection>
       )}
     </>
+  );
+}
+
+/** Which machine a workspace lives on, once the organization has devices:
+ * a device by name (and whether it is reachable), else the server. */
+function RunsOn({
+  sessionId,
+  placements,
+  devices,
+}: {
+  sessionId: string;
+  placements:
+    | ReadonlyArray<{ sessionId: string; deviceId: string }>
+    | undefined;
+  devices: readonly SandboxDeviceView[] | undefined;
+}) {
+  const { t } = useT('sandboxes');
+  if (devices === undefined || devices.length === 0) return null;
+  const placement = placements?.find((p) => p.sessionId === sessionId);
+  if (placement === undefined) {
+    return (
+      <span className="text-muted-foreground text-xs">
+        {t('runsOn.server')}
+      </span>
+    );
+  }
+  const device = devices.find((d) => d.id === placement.deviceId);
+  const name = device?.name ?? placement.deviceId.slice(0, 8);
+  return (
+    <span className="text-muted-foreground text-xs">
+      {t(
+        device?.status === 'offline' ? 'runsOn.deviceOffline' : 'runsOn.device',
+        {
+          name,
+        },
+      )}
+    </span>
   );
 }

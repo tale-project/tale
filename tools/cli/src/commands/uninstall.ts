@@ -6,12 +6,12 @@ import { action } from '../utils/run-command';
 export function createUninstallCommand(): Command {
   return new Command('uninstall')
     .description(
-      'Remove the Tale CLI binary from this system (optionally purge the per-user config and a project)',
+      'Remove the Tale CLI binary from this system (optionally a sandbox device and a project)',
     )
     .option('-f, --force', 'skip the binary-removal confirmation', false)
     .option(
       '--purge',
-      "also remove the per-user config (~/.tale-daemon) and tear down the current project's Docker resources + files",
+      "also disconnect this machine's sandbox device, remove the retired ~/.tale-daemon, and tear down the current project's Docker resources + files",
       false,
     )
     .option(

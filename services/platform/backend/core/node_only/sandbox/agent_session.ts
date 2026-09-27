@@ -138,7 +138,14 @@ async function createOrAcquireSession(
   organizationId: string,
 ): Promise<void> {
   try {
-    await sessionCreate({ sessionId, organizationId, profile: 'agent' });
+    // Agent and automation workspaces may start on one of the organization's
+    // connected devices; once started, a workspace keeps its machine.
+    await sessionCreate({
+      sessionId,
+      organizationId,
+      profile: 'agent',
+      placement: 'device',
+    });
   } catch (error) {
     if (!(error instanceof SessionDuplicateError)) throw error;
     // An orphan or concurrent create may already be released. Adopting its

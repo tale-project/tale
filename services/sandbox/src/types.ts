@@ -93,11 +93,33 @@ export interface SpawnerConfig {
   // their inline stage content to the daemon verbatim, so a body accepted here
   // must never be refused there as oversize.
   maxRequestBodyBytes: number;
+  // The spawner instance (env SANDBOX_INSTANCE; empty = the deployment's
+  // spawner). Every session this spawner starts carries it as a label, and
+  // every inventory it acts on is scoped to it, so a connected device and a
+  // deployment sharing one Docker daemon never touch each other's sessions.
+  instance: string;
+  // The device hub (env SANDBOX_HUB_PORT > 0, Docker backend only): the
+  // WebSocket door connected devices dial, and where their sessions'
+  // relayed calls go. Null when off.
+  hub: HubConfig | null;
+  // Device mode (env SANDBOX_DEVICE_CONFIG): this spawner runs on a machine
+  // an organization connected and dials the hub instead of being called by
+  // the platform directly. The path of the device's config file.
+  deviceConfigPath: string | null;
   // Persistent-session knobs (sessions plan; env SANDBOX_SESSION_* /
   // SANDBOX_MAX_SESSIONS*). Always populated by loadConfig; consumed by the
   // session routes + session backends only — the one-shot /v1/execute path
   // never reads these.
   session: SessionConfig;
+}
+
+export interface HubConfig {
+  /** Port of the WebSocket door (published by the proxy at /sandbox/tunnel). */
+  port: number;
+  /** Persistent directory for the placement file. */
+  stateDir: string;
+  /** The real services behind a device's relays, as the hub reaches them. */
+  relays: { api: string; gateway: string };
 }
 
 export interface SessionConfig {

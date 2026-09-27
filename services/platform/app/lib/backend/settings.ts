@@ -57,6 +57,9 @@ type HarnessHealthResult =
   ReturnsOf<'sandbox/session_queries_public:getHarnessHealth'>;
 type QuotaUsageResult =
   ReturnsOf<'sandbox/session_queries_public:getSandboxQuotaUsage'>;
+type SandboxDevicesResult = ReturnsOf<'sandbox_devices/queries:list'>;
+type SandboxDeviceJoinTokenResult =
+  ReturnsOf<'sandbox_devices/mutations:createJoinToken'>;
 type SandboxListResult =
   ReturnsOf<'sandbox/session_queries_public:listSandboxesForOrg'>;
 type ProviderCredentialItem =
@@ -619,6 +622,17 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       refetchInterval: 15_000,
     };
   },
+  'sandbox_devices/queries:list': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'sandbox_device', 'list'),
+      queryFn: () =>
+        backendFetch<SandboxDevicesResult>('/sandbox-devices', { orgId }),
+      // A device that just connected (or dropped) shows within seconds.
+      refetchInterval: 10_000,
+    };
+  },
   'webdav/app_password_queries:listAppPasswords': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -1039,6 +1053,23 @@ function invalidateSandboxSessions(
 ): void {
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'sandbox_session'),
+  });
+}
+
+/** A removed device takes its workspaces' placements with it: the devices
+ * list and every sandbox read move together. */
+function invalidateSandboxDevices(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'sandbox_device'),
+  });
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, 'sandbox_session'),
   });
@@ -1568,6 +1599,21 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         body: {},
       }),
     invalidate: invalidateSandboxSessions,
+  },
+  'sandbox_devices/mutations:createJoinToken': {
+    run: (args, ctx) =>
+      backendFetch<SandboxDeviceJoinTokenResult>(
+        '/sandbox-devices/join-tokens',
+        { orgId: requireOrg(args, ctx), body: {} },
+      ),
+  },
+  'sandbox_devices/mutations:remove': {
+    run: (args, ctx) =>
+      backendFetch<{ removed: boolean }>(
+        `/sandbox-devices/${encodeURIComponent(stringArg(args, 'deviceId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateSandboxDevices,
   },
   'team_members/mutations:removeMember': {
     run: (args, ctx) =>
