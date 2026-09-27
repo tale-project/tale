@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 50 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 51 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -402,6 +402,11 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   is in flight the dialog shows a skeleton, never the message; a task you
   may not see (another member's private project) reads the same, not a
   blank sheet.
+- [ ] `TASK-B9` · **A mention that names no one** — In a task comment, pick a
+  teammate from the mention listbox, type `@nobody-here` by hand, and send →
+  The comment posts and the teammate gets the mention; a toast **Mention not
+  recognized** (`common.mentions.unresolvedTitle`) names `@nobody-here` and
+  says no notification was sent (`common.mentions.unresolvedDescription`).
 
 ## Accessibility (WCAG 2.1 AA)
 

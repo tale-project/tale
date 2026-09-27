@@ -2950,7 +2950,7 @@ export async function searchTasks(
 export interface MentionTriggerPreviewRow {
   slug: string;
   willTrigger: boolean;
-  reason: 'ok' | 'not_mentionable' | 'pack_disabled' | 'breaker_paused';
+  reason: 'ok' | 'pack_disabled' | 'breaker_paused';
 }
 
 /**
@@ -2977,8 +2977,6 @@ export async function mentionTriggerPreview(
   }
   assertTaskReadable(project, auth);
 
-  const restricted = (project.agentMode ?? 'all') === 'restricted';
-  const allowed = new Set(project.allowedAgentSlugs);
   const automationPolicy = await readGovernancePolicyForOrg(
     sql,
     auth.organizationId,
@@ -2987,9 +2985,6 @@ export async function mentionTriggerPreview(
   const packEnabled = automationPolicy?.enabled !== false;
 
   return slugs.map((slug) => {
-    if (restricted && !allowed.has(slug)) {
-      return { slug, willTrigger: false, reason: 'not_mentionable' as const };
-    }
     if (!packEnabled) {
       return { slug, willTrigger: false, reason: 'pack_disabled' as const };
     }

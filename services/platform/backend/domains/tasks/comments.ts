@@ -222,7 +222,7 @@ async function appendTaskComment(
   const threadId = await ensureTaskDiscussionThread(tx, task);
   // Who this comment names. The directory is project-scoped, so only people
   // who can actually open the task are mentionable, and an unclaimed token
-  // on a permissive project reads as an agent handle.
+  // comes back to the author as a miss.
   const resolved = await resolveSurfaceMentions(tx, {
     organizationId: auth.organizationId,
     body,
@@ -667,8 +667,7 @@ async function removeTaskComment(
  * gate is WRITE access: commenting is read-level, but assigning and running
  * are edits, so a read-only member's `@` stays a plain mention. Only a
  * HUMAN's comment dispatches — an agent's own comment naming itself would
- * loop. A roster-slug mention that matches no instance row belongs to the
- * automation lane, never this one.
+ * loop.
  */
 async function dispatchMentionedProjectAgent(
   tx: TransactionSql,

@@ -106,46 +106,11 @@ describe('extractMentions', () => {
   });
 });
 
-describe('resolveMentions (permissiveAgents)', () => {
-  it("resolves unknown tokens as agent handles ('all' agent mode)", () => {
-    expect(resolveMentions(['marketing-bot'], directory, true)).toEqual([
-      { type: 'agent', id: 'marketing-bot' },
-    ]);
-  });
-
-  it('member handles still win over the permissive agent fallback', () => {
-    expect(resolveMentions(['alice', 'unknown'], directory, true)).toEqual([
-      { type: 'user', id: 'user-alice' },
-      { type: 'agent', id: 'unknown' },
-    ]);
-  });
-
-  it('automation handles win over the permissive agent fallback', () => {
-    expect(
-      resolveMentions(
-        ['vat-return-desk', 'swiss.vat.return.desk'],
-        directory,
-        true,
-      ),
-    ).toEqual([{ type: 'automation', id: 'vat-return-desk' }]);
-  });
-
-  it('stays strict when permissiveAgents is off', () => {
-    expect(resolveMentions(['marketing-bot'], directory, false)).toEqual([]);
-  });
-});
-
 describe('findUnresolvedMentionTokens', () => {
   it('returns tokens that did not resolve against the directory', () => {
     expect(
-      findUnresolvedMentionTokens('@alice and @nobody', directory, false),
+      findUnresolvedMentionTokens('@alice and @nobody', directory),
     ).toEqual(['nobody']);
-  });
-
-  it('returns empty when permissiveAgents treats unknowns as agents', () => {
-    expect(
-      findUnresolvedMentionTokens('@unknown-bot', directory, true),
-    ).toEqual([]);
   });
 });
 

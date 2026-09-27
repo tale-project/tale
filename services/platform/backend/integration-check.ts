@@ -21573,11 +21573,9 @@ async function checkCollabMentions(
   }
 
   const projectRows = await sql<{ id: string }[]>`
-    INSERT INTO app.projects (org_id, name, created_by, agent_mode,
-                              allowed_agent_slugs, created_at_ms,
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
                               updated_at_ms)
-    VALUES (${orgId}, 'Mentions project', ${userId}, 'restricted',
-            ARRAY['researcher'], ${now}, ${now})
+    VALUES (${orgId}, 'Mentions project', ${userId}, ${now}, ${now})
     RETURNING id
   `;
   const projectId = projectRows[0]?.id ?? '';
@@ -21604,7 +21602,7 @@ async function checkCollabMentions(
       handleOwners.set(handle, `${entry.type}:${entry.id}`);
     }
   }
-  // The instance goes LAST so its handle shadows the same-named slug.
+  // The instance goes LAST so its handle wins a clash.
   const instanceShadows =
     handleOwners.get('pr.reviewer') === `agent:${agentInstanceId}`;
 
@@ -21617,17 +21615,16 @@ async function checkCollabMentions(
     (mention) => `${mention.type}:${mention.id}`,
   );
   record(
-    'mentions: the directory scopes to the project and instances shadow slugs',
+    'mentions: the directory scopes to the project and resolves agent instances',
     directory.entries.some(
       (entry) => entry.type === 'user' && entry.id === teammate,
     ) &&
       instanceShadows &&
       mentionKeys.includes(`user:${teammate}`) &&
       mentionKeys.includes(`agent:${agentInstanceId}`) &&
-      // `restricted` mode is NOT permissive: an unclaimed token is reported
-      // back rather than silently treated as an agent.
+      // An unclaimed token is reported back rather than guessed as an agent.
       resolved.unresolvedMentionTokens.includes('nobody-here'),
-    `entries=${directory.entries.length} permissive=${directory.permissiveAgents}, instanceShadows=${instanceShadows}, mentions=${mentionKeys.join(',') || 'none'}, unresolved=${resolved.unresolvedMentionTokens.join(',') || 'none'}`,
+    `entries=${directory.entries.length}, instanceShadows=${instanceShadows}, mentions=${mentionKeys.join(',') || 'none'}, unresolved=${resolved.unresolvedMentionTokens.join(',') || 'none'}`,
   );
 
   // A comment through the door: the mention notifies, the miss comes back.

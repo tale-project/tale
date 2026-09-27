@@ -843,7 +843,6 @@ export interface TasksContract {
       reason:
         | 'ok'
         | 'queued_likely'
-        | 'not_mentionable'
         | 'agent_not_live'
         | 'pack_disabled'
         | 'breaker_paused'

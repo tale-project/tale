@@ -58,10 +58,9 @@ export function MentionTriggerChips({
   );
 
   const { previews } = useMentionTriggerPreview(target, slugs);
-  const visible = previews.filter((p) => p.reason !== 'not_mentionable');
-  if (visible.length === 0) return null;
+  if (previews.length === 0) return null;
 
-  const label = (preview: (typeof visible)[number]): string => {
+  const label = (preview: (typeof previews)[number]): string => {
     // The chip names the agent by its display name, not the raw slug.
     const name =
       agents.find((a) => a.id.toLowerCase() === preview.slug)?.name ??
@@ -86,7 +85,7 @@ export function MentionTriggerChips({
 
   return (
     <ul className="flex flex-wrap items-center gap-1.5">
-      {visible.map((preview) => (
+      {previews.map((preview) => (
         <li
           key={preview.slug}
           className={cn(

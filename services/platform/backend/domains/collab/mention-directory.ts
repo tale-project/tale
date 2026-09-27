@@ -19,12 +19,12 @@ import { listAutomations } from '../automations/store.ts';
  *  - only members who can ACCESS the project are mentionable (the assignee
  *    picker's scoping — mentioning someone who cannot open the task is a
  *    notification they can do nothing with);
- *  - handle precedence is insertion ORDER: listed agent slugs, then
- *    deployed automations, then the project's own agent INSTANCES last, so
- *    an instance handle shadows a same-named retired slug and the mention
- *    reaches the live lane;
- *  - an `agentMode` that is not `restricted` is PERMISSIVE: a token nobody
- *    claims is treated as an agent handle rather than reported unresolved;
+ *  - handle precedence is insertion ORDER: members, then deployed
+ *    automations, then the project's own agent INSTANCES last, so an
+ *    instance handle wins a clash and the mention reaches the live lane;
+ *  - a token nobody claims is a miss reported back to the author, never a
+ *    guessed agent: every agent a mention can reach is one of the project's
+ *    instances, all of them listed here;
  *  - a leg that cannot be listed FAILS the build (`MentionDirectoryError`,
  *    503, retryable) — 0.4 logged and skipped it, but a partial directory
  *    turns `@teammate` into plain text: no bell, no steer, no owning-
@@ -40,8 +40,6 @@ import { listAutomations } from '../automations/store.ts';
 
 export interface MentionDirectory {
   entries: MentionDirectoryEntry[];
-  /** Non-restricted projects: an unclaimed token reads as an agent handle. */
-  permissiveAgents: boolean;
 }
 
 export type MentionDirectoryLeg = 'members' | 'automations' | 'agents';
@@ -101,8 +99,7 @@ function automationHandles(name: string, displayName?: string): string[] {
   return [...handles];
 }
 
-/** A project agent instance answers to its display name AND its id, so a
- * picker-inserted token resolves even under `restricted` mode and two
+/** A project agent instance answers to its display name AND its id, so two
  * same-named instances keep a collision-proof form. */
 function agentInstanceHandles(name: string, instanceId: string): string[] {
   const normalized = name.trim().toLowerCase();
@@ -190,30 +187,7 @@ export async function buildMentionDirectory(
   if (args.projectId === null) {
     // Org-wide surfaces (private agent chat) mention people only — agent
     // routing there is a different lane.
-    return { entries, permissiveAgents: false };
-  }
-
-  const projects = await sql<
-    {
-      allowedAgentSlugs: string[] | null;
-      recommendedAgentSlugs: string[] | null;
-      agentMode: string | null;
-    }[]
-  >`
-    SELECT allowed_agent_slugs AS "allowedAgentSlugs",
-           recommended_agent_slugs AS "recommendedAgentSlugs",
-           agent_mode AS "agentMode"
-    FROM app.projects
-    WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
-    LIMIT 1
-  `;
-  const project = projects[0];
-
-  for (const slug of new Set([
-    ...(project?.allowedAgentSlugs ?? []),
-    ...(project?.recommendedAgentSlugs ?? []),
-  ])) {
-    entries.push({ type: 'agent', id: slug, handles: [slug.toLowerCase()] });
+    return { entries };
   }
 
   // Deployed automations VISIBLE from this project (bound to it, or
@@ -240,8 +214,8 @@ export async function buildMentionDirectory(
     throw directoryUnavailable('automations', error);
   }
 
-  // The project's agent INSTANCES go LAST so their handles shadow a
-  // same-named slug and a mention reaches the instance lane.
+  // The project's agent INSTANCES go LAST so their handles win a clash and
+  // a mention reaches the instance lane.
   try {
     const instances = await sql<{ id: string; name: string }[]>`
       SELECT id, name FROM app.project_agents
@@ -257,10 +231,7 @@ export async function buildMentionDirectory(
     throw directoryUnavailable('agents', error);
   }
 
-  return {
-    entries,
-    permissiveAgents: (project?.agentMode ?? 'all') !== 'restricted',
-  };
+  return { entries };
 }
 
 /** The base (English) display name out of an automation version's untyped
@@ -290,15 +261,10 @@ export async function resolveSurfaceMentions(
     projectId: args.projectId ?? null,
   });
   return {
-    mentions: extractMentions(
-      args.body,
-      directory.entries,
-      directory.permissiveAgents,
-    ),
+    mentions: extractMentions(args.body, directory.entries),
     unresolvedMentionTokens: findUnresolvedMentionTokens(
       args.body,
       directory.entries,
-      directory.permissiveAgents,
     ),
   };
 }

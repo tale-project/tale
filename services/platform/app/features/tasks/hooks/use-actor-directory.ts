@@ -323,8 +323,7 @@ export function useAssignableActors(
   }, [members, projectId, scope.data]);
 
   // Instances are project-curated by construction — the directory already
-  // scoped them to this project, and the legacy agentMode roster restriction
-  // never applies to them (its slugs cannot name an instance row).
+  // scoped them to this project.
   const assignableAgents = directory.agents;
 
   return { ...directory, assignableMembers, assignableAgents };

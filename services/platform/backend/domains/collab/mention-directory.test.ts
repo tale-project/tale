@@ -63,15 +63,6 @@ describe('mention directory — a leg that cannot be listed fails loudly', () =>
     const db = fakeDb((text) => {
       if (text.startsWith('SELECT m."userId"')) return [ADA];
       if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
-      if (text.startsWith('SELECT allowed_agent_slugs')) {
-        return [
-          {
-            allowedAgentSlugs: [],
-            recommendedAgentSlugs: [],
-            agentMode: 'all',
-          },
-        ];
-      }
       return [];
     });
     const failure: unknown = await resolveSurfaceMentions(db, {
@@ -97,8 +88,7 @@ describe('mention directory — a leg that cannot be listed fails loudly', () =>
     expect(resolved.mentions).toEqual([
       expect.objectContaining({ type: 'user', id: 'u-ada' }),
     ]);
-    // Org-wide surfaces are never permissive: an unclaimed token is a miss
-    // reported back, not an agent.
+    // An unclaimed token is a miss reported back, not a guessed agent.
     expect(resolved.unresolvedMentionTokens).toEqual(['ghost']);
   });
 });

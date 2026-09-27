@@ -27,10 +27,8 @@ export interface MentionActorOption {
 /**
  * Mentionable actors for a project, in picker order: org members first, then
  * agents, then the automations operating this board — the same population the
- * server resolves mentions against (`backend/domains/collab/mention-directory.ts`). Agent
- * scoping follows the project agent gates: the default `agentMode: 'all'`
- * exposes every org agent (recommended ones first); `'restricted'` limits the
- * list to the project's `allowedAgentSlugs`. Automations are the deployed
+ * server resolves mentions against (`backend/domains/collab/mention-directory.ts`).
+ * Agents are the project's own agent instances. Automations are the deployed
  * subject-contract ones the assignee picker offers — @-ing a task's OWNING
  * automation puts it to work, exactly like @-ing an agent instance.
  *
