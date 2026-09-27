@@ -1,7 +1,25 @@
 import postgres from 'postgres';
-import type { JSONValue, Sql } from 'postgres';
+import type { JSONValue, Sql, TransactionSql } from 'postgres';
 
 import { resolvePostgresConnection } from './ssl.ts';
+
+/** Join an existing transaction through a savepoint, or start one on a root
+ * pool. A postgres.js transaction has no `begin` at runtime: using the root
+ * pool from inside it instead can deadlock when all pool connections are
+ * already held by callers. A savepoint also keeps a caught failure from
+ * aborting the caller's transaction. */
+export async function withTransaction<T>(
+  sql: Sql | TransactionSql,
+  work: (tx: TransactionSql) => Promise<T>,
+): Promise<T> {
+  let result!: T;
+  const run = async (tx: TransactionSql): Promise<void> => {
+    result = await work(tx);
+  };
+  if ('savepoint' in sql) await sql.savepoint(run);
+  else await sql.begin(run);
+  return result;
+}
 
 /**
  * Recast a JSON-shaped value for postgres.js's `sql.json()`, whose JSONValue

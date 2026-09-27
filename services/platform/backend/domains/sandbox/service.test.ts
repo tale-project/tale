@@ -68,6 +68,9 @@ function fakeSql(row: SessionRow | null) {
   const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
     statements.push({ text, values });
+    if (text.startsWith('SELECT pg_advisory_xact_lock')) {
+      return Promise.resolve([]);
+    }
     if (text.startsWith('SELECT')) {
       const matches =
         stored !== null &&
@@ -88,11 +91,23 @@ function fakeSql(row: SessionRow | null) {
     }
     return Promise.resolve([]);
   };
-  const sql = Object.assign(query, {
+  // A postgres.js transaction really has savepoint and NO begin. Keeping
+  // that distinction catches accidental nested root-pool transactions.
+  const tx = Object.assign(query, {
     unsafe: (fragment: string) => fragment,
-    begin: <T>(callback: (tx: typeof query) => Promise<T>) => callback(query),
+    savepoint: <T>(callback: (transaction: typeof query) => Promise<T>) =>
+      callback(tx),
   });
-  return { sql: sql as unknown as Sql, statements, stored };
+  const sql = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) =>
+      query(strings, ...values),
+    {
+      unsafe: tx.unsafe,
+      begin: <T>(callback: (transaction: typeof query) => Promise<T>) =>
+        callback(tx),
+    },
+  );
+  return { sql: sql as unknown as Sql, tx, statements, stored };
 }
 
 beforeEach(() => {
@@ -114,11 +129,11 @@ describe('teardownSession ownership and confirmed deletion', () => {
       }),
     ).toBe(false);
 
-    expect(statements).toHaveLength(1);
-    expect(statements[0]?.text).toContain(
+    expect(statements).toHaveLength(2);
+    expect(statements[1]?.text).toContain(
       'WHERE session_id = ? AND org_id = ?',
     );
-    expect(statements[0]?.values.slice(-2)).toEqual(['session-a', 'org-a']);
+    expect(statements[1]?.values.slice(-2)).toEqual(['session-a', 'org-a']);
     expect(sessionDestroy).not.toHaveBeenCalled();
     expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
@@ -128,7 +143,7 @@ describe('teardownSession ownership and confirmed deletion', () => {
   it.each([true, false])(
     'settles an owned session after confirmed deletion or absence (%s)',
     async (destroyed) => {
-      const { sql, statements, stored } = fakeSql(OWNED_SESSION);
+      const { sql, tx, statements, stored } = fakeSql(OWNED_SESSION);
       let stateAtDestroy: unknown;
       vi.mocked(sessionDestroy).mockImplementationOnce(async () => {
         stateAtDestroy = {
@@ -144,16 +159,16 @@ describe('teardownSession ownership and confirmed deletion', () => {
 
       expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
       expect(stateAtDestroy).toEqual({
-        statements: 1,
+        statements: 2,
         status: 'active',
         revocations: 0,
       });
       expect(stored?.status).toBe('destroyed');
       expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(
-        sql,
+        tx,
         args,
       );
-      expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(sql, 'org-a');
+      expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(tx, 'org-a');
     },
   );
 
@@ -169,7 +184,7 @@ describe('teardownSession ownership and confirmed deletion', () => {
       }),
     ).rejects.toBe(failure);
 
-    expect(statements).toHaveLength(1);
+    expect(statements).toHaveLength(2);
     expect(stored?.status).toBe('active');
     expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
@@ -370,14 +385,14 @@ describe('reconcileSession heals unpinned phantoms as before', () => {
   });
 
   it('settles a gone unpinned session as destroyed without recreating it', async () => {
-    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const { sql, tx, stored } = fakeSql(OWNED_SESSION);
     const { spawner, calls } = fakeSpawner(false);
 
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('healed');
 
     expect(calls).toEqual(['isAlive session-a']);
     expect(stored?.status).toBe('destroyed');
-    expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(sql, ARGS);
-    expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(sql, 'org-a');
+    expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(tx, ARGS);
+    expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(tx, 'org-a');
   });
 });

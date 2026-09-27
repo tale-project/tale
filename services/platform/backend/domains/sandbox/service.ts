@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import {
   SessionDuplicateError,
@@ -8,6 +8,7 @@ import {
   sessionSetPinned,
   type SessionCreateBody,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { withTransaction } from '../../db/sql.ts';
 import {
   getSessionBySessionId,
   markSessionDestroyed,
@@ -27,39 +28,65 @@ import {
  * verbatim.
  */
 
+/** Serialize the spawner operation AND row transition across replicas. A
+ * fresh row read alone leaves a gap where Destroy can wipe the workspace
+ * before a reconcile recreates it, or an unpin can be undone by a stale
+ * re-pin. The callback uses this same connection, including nested spend
+ * settlement and capacity wakes, so a full pool cannot deadlock itself. */
+function withSessionLifecycleLock<T>(
+  sql: Sql,
+  args: { organizationId: string; sessionId: string },
+  work: (tx: TransactionSql) => Promise<T>,
+): Promise<T> {
+  return withTransaction(sql, async (tx) => {
+    const key = `sandbox-lifecycle:${JSON.stringify([args.organizationId, args.sessionId])}`;
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+    return work(tx);
+  });
+}
+
 /** Authorize before contacting the spawner; settle the row only after it
  * confirms destruction or absence. Failures leave the session retryable. */
 export async function teardownSession(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
+  destroy: (sessionId: string) => Promise<boolean> = sessionDestroy,
 ): Promise<boolean> {
-  const session = await getSessionBySessionId(
-    sql,
-    args.organizationId,
-    args.sessionId,
-  );
-  if (session === null) return false;
-  await sessionDestroy(args.sessionId);
-  return markSessionDestroyed(sql, args);
+  return withSessionLifecycleLock(sql, args, async (tx) => {
+    const session = await getSessionBySessionId(
+      tx,
+      args.organizationId,
+      args.sessionId,
+    );
+    if (session === null) return false;
+    await destroy(args.sessionId);
+    return markSessionDestroyed(tx, args);
+  });
 }
 
 /** Pin/unpin on both sides (platform TTL exemption + spawner reaper skip). */
 export async function pinSession(
   sql: Sql,
   args: { organizationId: string; sessionId: string; pinned: boolean },
+  setPinned: (
+    sessionId: string,
+    pinned: boolean,
+  ) => Promise<boolean> = sessionSetPinned,
 ): Promise<boolean> {
-  const patched = await setSessionPinned(sql, args);
-  if (patched) {
-    try {
-      await sessionSetPinned(args.sessionId, args.pinned);
-    } catch (error) {
-      console.warn(
-        `[sandbox] spawner pin patch failed for ${args.sessionId} (platform row updated):`,
-        error,
-      );
+  return withSessionLifecycleLock(sql, args, async (tx) => {
+    const patched = await setSessionPinned(tx, args);
+    if (patched) {
+      try {
+        await setPinned(args.sessionId, args.pinned);
+      } catch (error) {
+        console.warn(
+          `[sandbox] spawner pin patch failed for ${args.sessionId} (platform row updated):`,
+          error,
+        );
+      }
     }
-  }
-  return patched;
+    return patched;
+  });
 }
 
 /**
@@ -102,9 +129,10 @@ export type ReconcileOutcome =
   | 'skipped';
 
 /**
- * Watchdog reconcile for one row. The spawner's liveness verdict comes first;
- * the row is then read fresh, because the batch that named it may be minutes
- * old and a pin toggled since decides which way the row goes.
+ * Watchdog reconcile for one row. Under the shared lifecycle lock, probe
+ * liveness and read the row fresh: the batch that named it may be minutes
+ * old. Destroy and pin/unpin hold this lock through their remote operation
+ * and row commit, so the probe cannot act on a half-completed transition.
  *
  * - Unpinned: a container gone spawner-side settles the row as destroyed
  *   (phantom heal); a live one is left alone.
@@ -134,34 +162,36 @@ export async function reconcileSession(
     create: sessionCreate,
   },
 ): Promise<ReconcileOutcome> {
-  const alive = await spawner.isAlive(args.sessionId);
-  const row = await getSessionBySessionId(
-    sql,
-    args.organizationId,
-    args.sessionId,
-  );
-  if (row === null || !row.pinned) {
-    if (alive) return 'live';
-    await markSessionDestroyed(sql, args);
-    return 'healed';
-  }
-  if (!COMPUTE_HOLDING_STATUSES.has(row.status)) return 'skipped';
-  if (!alive) {
-    try {
-      await spawner.create(recreateBody(row));
-    } catch (error) {
-      if (!(error instanceof SessionDuplicateError)) throw error;
-      console.warn(
-        `[sandbox] pinned session ${args.sessionId} is back spawner-side already; re-pinning it`,
+  return withSessionLifecycleLock(sql, args, async (tx) => {
+    const alive = await spawner.isAlive(args.sessionId);
+    const row = await getSessionBySessionId(
+      tx,
+      args.organizationId,
+      args.sessionId,
+    );
+    if (row === null || !row.pinned) {
+      if (alive) return 'live';
+      await markSessionDestroyed(tx, args);
+      return 'healed';
+    }
+    if (!COMPUTE_HOLDING_STATUSES.has(row.status)) return 'skipped';
+    if (!alive) {
+      try {
+        await spawner.create(recreateBody(row));
+      } catch (error) {
+        if (!(error instanceof SessionDuplicateError)) throw error;
+        console.warn(
+          `[sandbox] pinned session ${args.sessionId} is back spawner-side already; re-pinning it`,
+        );
+      }
+    }
+    if (!(await spawner.setPinned(args.sessionId, true))) {
+      throw new Error(
+        `the spawner did not take the pin of ${args.sessionId}${alive ? '' : ' after recreating it'}; the next reconcile retries`,
       );
     }
-  }
-  if (!(await spawner.setPinned(args.sessionId, true))) {
-    throw new Error(
-      `the spawner did not take the pin of ${args.sessionId}${alive ? '' : ' after recreating it'}; the next reconcile retries`,
-    );
-  }
-  return alive ? 'repinned' : 'recreated';
+    return alive ? 'repinned' : 'recreated';
+  });
 }
 
 /** The body the row's own create site sent — same id, organization and

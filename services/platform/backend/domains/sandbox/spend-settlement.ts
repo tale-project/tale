@@ -10,6 +10,7 @@ import {
   readVirtualKeySpend,
   revokeVirtualKey,
 } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
+import { withTransaction } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import {
@@ -85,7 +86,7 @@ async function readSessionOpSettlement(
  * a partial attempt) finds the fact closed and books nothing twice.
  */
 export async function settleSessionOpSpend(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   args: {
     sessionId: string;
     execId: string;
@@ -96,7 +97,7 @@ export async function settleSessionOpSpend(
   },
 ): Promise<'settled' | 'already_settled' | 'missing'> {
   const now = Date.now();
-  return sql.begin(async (tx) => {
+  return withTransaction(sql, async (tx) => {
     const rows = await tx<
       {
         organizationId: string;
