@@ -34,7 +34,7 @@ Anwendungen erhalten über die [Lauf-API](/de/develop/api-reference) zusätzlich
 
 Die Auswirkungen protokollieren Connector-Schreibvorgänge mit Node, Connector und Eingabe. Tests verwenden festgelegte Ersatzantworten; Live-Aktionen können externe Systeme ändern. Fehlen protokollierte Auswirkungen, zeigt der Lauf das ausdrücklich an.
 
-Lies diese Liste vor einer Wiederholung. Ein späterer Fehler macht eine frühere Nachricht oder Änderung nicht rückgängig. Ist die Zustellung entscheidend, prüfe auch den empfangenden Dienst. Die Auswirkungen bleiben beim Lauf, bis Löschung oder Aufbewahrungsregeln den Datensatz entfernen. Sie sind kein eigenständiges dauerhaftes Archiv.
+Lies diese Liste vor einer Wiederholung. Ein späterer Fehler macht eine frühere Nachricht oder Änderung nicht rückgängig. Ist die Zustellung entscheidend, prüfe auch den empfangenden Dienst. Die Auswirkungen bleiben beim Lauf, bis Löschung oder Aufbewahrungsregeln den Datensatz entfernen. Sie sind kein eigenständiges dauerhaftes Archiv. Wird die Automatisierung gelöscht, bleiben ihre Läufe: Die Laufseite öffnet weiterhin, mit dem Löschdatum markiert und aus der Aufzeichnung des Laufs gezeichnet, bis die Aufbewahrung sie entfernt.
 
 ## Fortsetzung und automatische Wiederholungen verstehen
 

@@ -34,7 +34,7 @@ Une application qui lit l’[API des exécutions](/fr/develop/api-reference) re�
 
 La liste des effets enregistre les écritures des connectors avec leur nœud, leur connector et leurs données. Les essais utilisent des réponses simulées ; les actions réelles peuvent modifier des systèmes externes. L’exécution indique explicitement l’absence d’effets enregistrés.
 
-Lis cette liste avant de recommencer. Un échec ultérieur n’annule ni un message déjà envoyé ni une mise à jour déjà effectuée. Si la livraison compte, vérifie aussi le service destinataire. Les effets restent liés à l’exécution jusqu’à son retrait par suppression ou conservation ; ils ne constituent pas une archive permanente distincte.
+Lis cette liste avant de recommencer. Un échec ultérieur n’annule ni un message déjà envoyé ni une mise à jour déjà effectuée. Si la livraison compte, vérifie aussi le service destinataire. Les effets restent liés à l’exécution jusqu’à son retrait par suppression ou conservation ; ils ne constituent pas une archive permanente distincte. Supprimer l’automatisation conserve ses exécutions : la page d’une exécution s’ouvre toujours, marquée de la date de suppression et dessinée à partir de sa propre trace, jusqu’à ce que la conservation la retire.
 
 ## Comprendre les reprises et nouvelles tentatives
 

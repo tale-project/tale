@@ -351,6 +351,26 @@ export async function automationExists(
   return rows.length > 0;
 }
 
+/**
+ * The tombstone a deleted automation leaves — when and by whom — or null
+ * for a name nobody deleted (never saved, or saved again since). Read by
+ * the app's single read so a run page of a deleted automation can say
+ * "deleted on …" over its retained history instead of "not found".
+ */
+export async function automationTombstone(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<{ deletedAt: number; deletedBy: string } | null> {
+  const rows = await sql<{ deletedAt: number; deletedBy: string }[]>`
+    SELECT deleted_at_ms::float8 AS "deletedAt", deleted_by AS "deletedBy"
+    FROM app.automation_tombstones
+    WHERE org_id = ${organizationId} AND name = ${name}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 /** Whether any run in the org bears the name — the history a deleted
  * automation leaves behind: the delete keeps it, readable by id and on the
  * org-wide list, so the by-name run door answers it too instead of saying

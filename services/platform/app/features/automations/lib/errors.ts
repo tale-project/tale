@@ -51,6 +51,17 @@ export function automationErrorLatestVersion(
 }
 
 /**
+ * When the automation a read named was deleted — the `deletedAt` the
+ * `AUTOMATION_DELETED` refusal carries from the tombstone. Undefined for
+ * any other refusal: a never-saved name reads as plain not-found.
+ */
+export function automationDeletedAt(error: unknown): number | undefined {
+  const data = errorData(error);
+  if (data?.code !== 'AUTOMATION_DELETED') return undefined;
+  return typeof data.deletedAt === 'number' ? data.deletedAt : undefined;
+}
+
+/**
  * A read that answered "no such thing". The store answers `null` for a row it
  * cannot see; the backend's route answers 404, which the fetch layer surfaces
  * as a structured refusal (the route's `error` string as the code) rather

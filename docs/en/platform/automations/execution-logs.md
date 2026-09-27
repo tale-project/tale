@@ -34,7 +34,7 @@ Applications reading the [run API](/develop/api-reference) also receive `failure
 
 The effects list records connector writes, with the node, connector and input. A test uses deterministic stand-ins; live actions can change external systems. The run explicitly reports when it has no recorded effects.
 
-Read effects before retrying. A failure later in the graph does not undo an earlier message or update. For delivery-sensitive work, confirm the result with the receiving service as well. Effects are retained with the run until deletion or retention removes that record; they are not a permanent independent archive.
+Read effects before retrying. A failure later in the graph does not undo an earlier message or update. For delivery-sensitive work, confirm the result with the receiving service as well. Effects are retained with the run until deletion or retention removes that record; they are not a permanent independent archive. Deleting the automation keeps its runs: a run page still opens, marked with the deletion date and drawn from the run’s own trace, until retention removes it.
 
 ## Understand continuation and automatic retries
 

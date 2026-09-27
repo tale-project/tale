@@ -631,6 +631,13 @@ automations:
       Organisation.
   detail:
     loading: Automatisierung wird geladen …
+    # Eine gelöschte Automatisierung behält ihre Laufhistorie, bis die
+    # Aufbewahrung sie entfernt; die Läufe-Seiten öffnen unter diesem Banner.
+    deleted:
+      banner: 'Diese Automatisierung wurde am {date} gelöscht. Ihre Laufhistorie bleibt, bis die Aufbewahrung sie entfernt.'
+      title: Automatisierung gelöscht
+      description: Es gibt nichts mehr zu bearbeiten oder zu veröffentlichen; die aufgezeichneten Läufe sind weiterhin lesbar.
+      openRuns: Laufhistorie öffnen
     deployedVersion: 'Live: v{version}'
     versionSelect: Version
     deployThis: Diese Version live schalten

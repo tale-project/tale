@@ -15,7 +15,7 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { deleteRunInTx } from './store.ts';
+import { automationTombstone, deleteRunInTx } from './store.ts';
 
 interface Statement {
   text: string;
@@ -103,5 +103,38 @@ describe('deleteRunInTx', () => {
     expect(statements.some((s) => s.text.startsWith('DELETE FROM'))).toBe(
       false,
     );
+  });
+});
+
+/** The tombstone read a deleted automation's run page depends on. */
+describe('automationTombstone', () => {
+  function fakeTombstones(rows: unknown[]) {
+    const statements: Statement[] = [];
+    const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      statements.push({
+        text: strings.join('?').replace(/\s+/g, ' ').trim(),
+        values,
+      });
+      return rows;
+    };
+    return { sql: tag as unknown as Sql, statements };
+  }
+
+  it('answers the deletion date and actor of a deleted name', async () => {
+    const { sql, statements } = fakeTombstones([
+      { deletedAt: 1789363170729, deletedBy: 'user-1' },
+    ]);
+    await expect(
+      automationTombstone(sql, 'org-1', 'orders/process'),
+    ).resolves.toEqual({ deletedAt: 1789363170729, deletedBy: 'user-1' });
+    expect(statements[0]?.text).toContain('FROM app.automation_tombstones');
+    expect(statements[0]?.values).toEqual(['org-1', 'orders/process']);
+  });
+
+  it('answers null for a name nobody deleted', async () => {
+    const { sql } = fakeTombstones([]);
+    await expect(
+      automationTombstone(sql, 'org-1', 'orders/process'),
+    ).resolves.toBeNull();
   });
 });

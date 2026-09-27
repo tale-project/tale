@@ -62,6 +62,11 @@ import { RunBadge } from './run-status-badge';
  * redeploy since then cannot make the picture lie. Each node carries its status
  * from the trace, selecting one shows what that node received and returned, and
  * every effect the run performed is listed in full below.
+ *
+ * When no version document exists any more — the automation was deleted, and
+ * its runs are kept until retention removes them — the canvas is drawn from
+ * the run's own trace: the nodes it recorded, in the order it ran them. The
+ * page never goes blank over retained history (2026-09-26 evaluation, D-14).
  */
 export function RunDetail({
   organizationId,
@@ -102,10 +107,20 @@ export function RunDetail({
   const cancel = useCancelAutomationRun();
   const starterLabel = useRunStarterLabel(organizationId);
 
-  const automation = useMemo(
-    () => readDocument(versionQuery.data?.document),
-    [versionQuery.data?.document],
-  );
+  const projection = useMemo(() => projectRun(run), [run]);
+  const automation = useMemo(() => {
+    const document = readDocument(versionQuery.data?.document);
+    if (document !== null || run === null) return document;
+    // No document to draw: the run's trace names every node it reached and
+    // its type, which is enough for a canvas of what happened.
+    return readDocument({
+      name: run.name,
+      nodes: projection.trace.map((entry) => ({
+        id: entry.node,
+        type: entry.type,
+      })),
+    });
+  }, [versionQuery.data?.document, run, projection.trace]);
   // The heading names the automation the way the breadcrumb above it does,
   // not by the slug the store addresses it with.
   const { locale } = useLocale();
@@ -116,7 +131,6 @@ export function RunDetail({
   );
   const graph = useMemo(() => buildGraph(automation), [automation]);
   const positions = useMemo(() => readPositions(automation), [automation]);
-  const projection = useMemo(() => projectRun(run), [run]);
   const runStatusByNode = useMemo(
     () =>
       nodeStatusMap(

@@ -503,6 +503,18 @@ output:
       later nodes **Not reached yet**; the same after a hard reload. Settings
       › Audit log lists the run’s cancelled action with YOUR name as the
       actor (not the starter's, when another member started it).
+- [ ] `AUTO-F49` · **A deleted automation keeps its run history** — Note a
+      run URL of an automation with runs, then delete the automation
+      (`automations.detail.delete.title`) and open that URL → the page is
+      NOT blank: under the breadcrumb and tab strip an info banner
+      (`automations.detail.deleted.banner`) names the deletion date, the
+      **Editor** and **Versions** tabs are disabled, **Runs** works, and the
+      run page shows its header, a canvas drawn from the run's own steps
+      (each with its status), the effects and the JSON sections; the Runs
+      list still lists the runs; opening `…/editor` shows
+      `automations.detail.deleted.title` with **Open the run history**
+      (`automations.detail.deleted.openRuns`). A slug nobody ever saved still
+      reads `automations.notFound.title`.
 
 ## Boundary & error tests
 

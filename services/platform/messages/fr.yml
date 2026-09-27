@@ -637,6 +637,14 @@ automations:
       organisation.
   detail:
     loading: Chargement de l’automatisation…
+    # Une automatisation supprimée garde son historique d’exécutions jusqu’à
+    # ce que la rétention l’efface ; les pages Exécutions s’ouvrent sous ce
+    # bandeau.
+    deleted:
+      banner: 'Cette automatisation a été supprimée le {date}. Son historique d’exécutions reste jusqu’à ce que la rétention l’efface.'
+      title: Automatisation supprimée
+      description: Il n’y a plus rien à modifier ni à déployer ; les exécutions enregistrées restent lisibles.
+      openRuns: Ouvrir l’historique des exécutions
     deployedVersion: 'En service : v{version}'
     versionSelect: Version
     deployThis: Mettre cette version en service

@@ -22,6 +22,7 @@ import { getOrgAutomationMetrics } from './metrics.ts';
 import {
   AutomationError,
   answerAsk,
+  automationTombstone,
   beginRun,
   cancelRun,
   deleteAutomationCascade,
@@ -701,6 +702,22 @@ export function createAutomationRoutes(deps: {
             ),
           );
         }
+      }
+      // A deleted automation is not "not found": its runs are kept until
+      // retention removes them, and a run page must be able to say so — a
+      // run link used to open a blank page under repeated 404s
+      // (2026-09-26 evaluation, D-14). Still a 404, with the date.
+      const tombstone = await automationTombstone(deps.sql, orgId, name);
+      if (tombstone !== null) {
+        return handleError(
+          c,
+          new AutomationError(
+            'AUTOMATION_DELETED',
+            `"${name}" was deleted — its run history stays until retention removes it`,
+            404,
+            { deletedAt: tombstone.deletedAt },
+          ),
+        );
       }
       return c.json({ error: 'automation not found' }, 404);
     }

@@ -10,6 +10,12 @@ const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
     waitingFor: 'approval' as string | undefined,
     startedBy: 'user:user-me',
     startedVia: undefined as string | undefined,
+    trace: null as unknown,
+    versionDocument: {
+      name: 'docs-approval-proof',
+      nodes: [],
+    } as unknown,
+    versionError: undefined as unknown,
   },
   resolveApproval: vi.fn(),
   readApproval: vi.fn(),
@@ -25,14 +31,14 @@ vi.mock('../hooks/queries', () => ({
       startedAt: 1789363168936,
       input: {},
       output: null,
-      trace: null,
       effects: [],
       ...state,
     },
   }),
-  useAutomation: () => ({
-    data: { document: { name: 'docs-approval-proof', nodes: [] } },
-  }),
+  useAutomation: () =>
+    state.versionError === undefined
+      ? { data: { document: state.versionDocument }, isError: false }
+      : { data: undefined, isError: true, error: state.versionError },
   useNodeTypeCatalog: () => ({ data: [], isError: false }),
   useRunPendingAsk: () => ({ data: null }),
   useRunApproval: (organizationId: string, approvalId: string) => {
@@ -70,7 +76,23 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
 }));
-vi.mock('./automation-canvas', () => ({ AutomationCanvas: () => null }));
+vi.mock('./automation-canvas', () => ({
+  AutomationCanvas: ({
+    graph,
+    runStatusByNode,
+  }: {
+    graph: { nodes: Array<{ id: string; type: string }> };
+    runStatusByNode: ReadonlyMap<string, string>;
+  }) => (
+    <ul data-testid="canvas">
+      {graph.nodes.map((node) => (
+        <li key={node.id}>
+          {node.id} ({node.type}): {runStatusByNode.get(node.id)}
+        </li>
+      ))}
+    </ul>
+  ),
+}));
 vi.mock('./node-inspector', () => ({ NodeInspector: () => null }));
 vi.mock('./agent-execution-log', () => ({ AgentExecutionLog: () => null }));
 vi.mock('@tale/ui/json-viewer', () => ({
@@ -88,6 +110,9 @@ beforeEach(() => {
   state.waitingFor = 'approval';
   state.startedBy = 'user:user-me';
   state.startedVia = undefined;
+  state.trace = null;
+  state.versionDocument = { name: 'docs-approval-proof', nodes: [] };
+  state.versionError = undefined;
   vi.clearAllMocks();
 });
 
@@ -230,5 +255,45 @@ describe('RunDetail stop', () => {
     state.waitingFor = undefined;
     renderRun();
     expect(screen.queryByRole('button', { name: 'Stop the run' })).toBeNull();
+  });
+});
+
+/**
+ * A deleted automation keeps its runs but has no version document left, so
+ * the run page drew an empty canvas — a blank page over retained history
+ * (2026-09-26 evaluation, D-14). The canvas now comes from the run's trace.
+ */
+describe('RunDetail without a version document', () => {
+  it('draws the canvas from the trace when the automation was deleted', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [
+      { node: 'draft', type: 'llm', status: 'ok', output: 'Hello' },
+      { node: 'send', type: 'imap-smtp.send', status: 'ok' },
+    ];
+    state.versionError = {
+      data: { code: 'AUTOMATION_DELETED', deletedAt: 1789363170729 },
+    };
+    renderRun();
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas).toHaveTextContent('draft (llm): ok');
+    expect(canvas).toHaveTextContent('send (imap-smtp.send): ok');
+    expect(screen.getByText(/^Started by/)).toBeVisible();
+  });
+
+  it('prefers the version document when it exists', () => {
+    state.trace = [{ node: 'draft', type: 'llm', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [
+        { id: 'draft', type: 'llm' },
+        { id: 'later', type: 'transform' },
+      ],
+    };
+    renderRun();
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas).toHaveTextContent('later (transform): pending');
   });
 });

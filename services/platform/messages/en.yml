@@ -599,6 +599,13 @@ automations:
       organization.
   detail:
     loading: Loading the automation…
+    # A deleted automation keeps its run history until retention removes
+    # it; the Runs pages still open under this banner.
+    deleted:
+      banner: 'This automation was deleted on {date}. Its run history stays until retention removes it.'
+      title: Automation deleted
+      description: There is nothing left to edit or deploy; the runs it recorded are still readable.
+      openRuns: Open the run history
     deployedVersion: 'Live: v{version}'
     versionSelect: Version
     deployThis: Deploy this version
