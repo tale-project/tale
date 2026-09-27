@@ -148,7 +148,7 @@ describe('HighlightedCode', () => {
 
     // Shiki should have been called exactly once (for the final "v3")
     expect(highlightCode).toHaveBeenCalledTimes(1);
-    expect(highlightCode).toHaveBeenCalledWith('v3', 'py', 'github-dark');
+    expect(highlightCode).toHaveBeenCalledWith('v3', 'py', 'min-dark');
   });
 });
 
