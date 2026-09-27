@@ -13,7 +13,11 @@ import {
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
-import { reportRequestError, requestIdOf } from '../error-reporting.ts';
+import {
+  databaseUnavailableResponse,
+  reportRequestError,
+  requestIdOf,
+} from '../error-reporting.ts';
 import { noStoreByDefault } from '../lib/http-hygiene.ts';
 import {
   RateLimitExceededError,
@@ -141,7 +145,9 @@ export function createRestV1Routes(deps: {
   // `Internal Server Error` broke every client that read the body as JSON;
   // the error is still reported the same way, and the response carries the
   // request id a caller can quote. A thrown HTTPException (a body-size
-  // middleware's 413, say) keeps its status but speaks the envelope too.
+  // middleware's 413, say) keeps its status but speaks the envelope too,
+  // and an unavailable database answers its unreported 503
+  // `DATABASE_UNAVAILABLE` with `Retry-After`, as on the app doors.
   app.onError((err, c) => {
     const requestId = requestIdOf(c);
     if ('getResponse' in err) {
@@ -165,6 +171,8 @@ export function createRestV1Routes(deps: {
         headers,
       );
     }
+    const unavailable = databaseUnavailableResponse(err, c);
+    if (unavailable !== undefined) return unavailable;
     reportRequestError(err, c);
     return c.json(
       {
@@ -220,6 +228,13 @@ export function createRestV1Routes(deps: {
         // request — the honest upper bound on the wait.
         return rateLimited(c, API_KEY_RATE_LIMIT.timeWindow);
       }
+      // A key the database could not look up is not an invalid key: a 401
+      // tells the caller to give up on a key that works once the database
+      // is back. The lookup touches nothing but the database.
+      const unavailable = databaseUnavailableResponse(error, c, {
+        fromDatabase: true,
+      });
+      if (unavailable !== undefined) return unavailable;
       // Anything else that stops the key from verifying reads as invalid.
       session = null;
     }

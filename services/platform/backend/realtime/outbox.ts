@@ -46,7 +46,8 @@ export interface OutboxRow {
 
 /**
  * How long a delivered hint stays replayable. A live stream is never more
- * than one poll behind (300ms; a second on a DB blip; 500 rows a poll), and
+ * than one poll behind (300ms; a second on a DB blip, at most ten once the
+ * database is back from an outage; 500 rows a poll), and
  * a browser's EventSource reconnects within seconds — an hour is orders of
  * magnitude above any replay a connected client can need. A client whose
  * `Last-Event-ID` is older than this is told to `resync`, so the horizon is

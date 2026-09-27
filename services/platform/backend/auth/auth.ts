@@ -3,7 +3,12 @@ import { passkey } from '@better-auth/passkey';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import { DEFAULT_TRUSTED_PROXIES } from '@tale/shared/schemas/governance';
 import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
-import { betterAuth, type BetterAuthPlugin } from 'better-auth';
+import {
+  betterAuth,
+  createLogger,
+  type BetterAuthPlugin,
+  type Logger,
+} from 'better-auth';
 import {
   APIError,
   createAuthMiddleware,
@@ -25,6 +30,11 @@ import { getString, isRecord } from '../../lib/utils/type-utils.ts';
 import { normalizeAuthEmail } from '../core/lib/auth/normalize_auth_email.ts';
 import { getClientIp } from '../core/lib/utils/client_ip.ts';
 import { resolvePostgresConnection } from '../db/ssl.ts';
+import {
+  describeDatabaseError,
+  isDatabaseUnavailable,
+  noteSwallowedDatabaseError,
+} from '../db/unavailable.ts';
 import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
 import {
   recordUserScopedSecurityEvent,
@@ -364,6 +374,64 @@ export const API_KEY_RATE_LIMIT = {
   maxRequests: 100,
 } as const;
 
+/**
+ * Better Auth's own pool, listened to. A database restart drops every
+ * connection the pool holds, and node-postgres raises each drop as an
+ * `'error'` event — an idle client's on the pool, a checked-out client's (one
+ * mid-transaction) on the client itself, where pg-pool keeps no listener
+ * while the client is out. An `'error'` nobody listens for is an uncaught
+ * exception: the api process exited on every `db` recreation. The dropped
+ * client is discarded either way, and the next query opens a fresh one.
+ */
+function createAuthPool(
+  connection: ReturnType<typeof resolvePostgresConnection>,
+): pg.Pool {
+  const pool = new pg.Pool({
+    connectionString: connection.url,
+    ssl: connection.ssl,
+    max: 5,
+  });
+  const warnDropped = (error: Error): void => {
+    console.warn(
+      `[backend] auth database connection dropped: ${describeDatabaseError(error)}`,
+    );
+  };
+  pool.on('error', warnDropped);
+  pool.on('acquire', (client) => client.on('error', warnDropped));
+  pool.on('release', (_error, client) =>
+    client.removeListener('error', warnDropped),
+  );
+  return pool;
+}
+
+/** Prints Better Auth's log lines the way Better Auth itself does. */
+const betterAuthConsole = createLogger({ level: 'debug' });
+
+/**
+ * Better Auth's log, passed through — bar an unavailable database. The
+ * session read logs its adapter's error and throws a bare
+ * `INTERNAL_SERVER_ERROR` in its place, so the database error is noted for
+ * the request (`db/unavailable.ts`), where the error handlers answer it with
+ * a 503, and printed as one warn line rather than an error stack: a restart
+ * fails every session read in flight at once.
+ */
+const logBetterAuth: NonNullable<Logger['log']> = (level, message, ...args) => {
+  if (level === 'error') {
+    const outage = [message, ...args].find((arg: unknown) =>
+      isDatabaseUnavailable(arg, { fromDatabase: true }),
+    );
+    if (outage !== undefined) {
+      noteSwallowedDatabaseError(outage);
+      const context = outage === message ? '' : `${message} — `;
+      betterAuthConsole.warn(
+        `${context}database unavailable: ${describeDatabaseError(outage)}`,
+      );
+      return;
+    }
+  }
+  betterAuthConsole[level](message, ...args);
+};
+
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
   /** The OIDC issuer — the auth mount. */
@@ -625,11 +693,8 @@ export function createAuth(config: AuthConfig) {
   const authDb = resolvePostgresConnection(config.databaseUrl);
 
   return betterAuth({
-    database: new pg.Pool({
-      connectionString: authDb.url,
-      ssl: authDb.ssl,
-      max: 5,
-    }),
+    database: createAuthPool(authDb),
+    logger: { log: logBetterAuth },
     secret: config.secret,
     baseURL: siteUrl,
     basePath: '/api/auth',

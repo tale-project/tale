@@ -1,6 +1,11 @@
 import * as Sentry from '@sentry/node';
 import type { Context, ErrorHandler } from 'hono';
 
+import {
+  databaseUnavailableCause,
+  describeDatabaseError,
+  type DatabaseErrorOrigin,
+} from './db/unavailable.ts';
 import { routeClass } from './telemetry.ts';
 
 /**
@@ -190,6 +195,8 @@ export interface ErrorReportContext {
   /** Low-cardinality only — tags become filterable index dimensions. */
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;
+  /** The event's severity; `error` when omitted. */
+  level?: Sentry.SeverityLevel;
 }
 
 export function reportError(
@@ -210,13 +217,6 @@ export async function flushErrorReporting(timeoutMs = 2000): Promise<void> {
   }
 }
 
-/**
- * Hono's default error handler, byte-for-byte, plus a capture: `getResponse`
- * carriers (HTTPException) pass through untouched — those are deliberate
- * responses, not defects — and everything else is a real 500. The backend
- * signals expected 4xx via `c.json(..., 4xx)` returns, so an error object
- * reaching this handler is always report-worthy.
- */
 /** The request id the app-level `requestId` middleware stamped, when any —
  * the one handle a caller can quote back from an error response. */
 export function requestIdOf(c: Context): string | undefined {
@@ -246,11 +246,59 @@ export function reportRequestError(err: Error, c: Context): void {
   console.error(err);
 }
 
+/** The wait a request the database could not serve asks for, in seconds —
+ * the edge's own `UPSTREAM_UNAVAILABLE` hint (services/proxy/Caddyfile): a
+ * restart is usually over within seconds. */
+const DATABASE_RETRY_AFTER_SECONDS = 5;
+
+/**
+ * The 503 a request answers when the database is unavailable
+ * (`db/unavailable.ts`) — or `undefined` when `err` is something else.
+ * Unreported: a restart fails every request in flight at once, and a report
+ * per request buried everything else in the tracker. One warn line each
+ * instead, and a `Retry-After` the caller can wait out.
+ */
+export function databaseUnavailableResponse(
+  err: unknown,
+  c: Context,
+  origin?: DatabaseErrorOrigin,
+): Response | undefined {
+  const cause = databaseUnavailableCause(err, origin);
+  if (cause === undefined) return undefined;
+  const requestId = requestIdOf(c);
+  console.warn(
+    `[backend] database unavailable — 503 for ${c.req.method} ${scrubUrl(c.req.path)}: ${describeDatabaseError(cause)}`,
+  );
+  return c.json(
+    {
+      error:
+        'The platform’s database is not answering right now — it may be restarting; retry with backoff',
+      code: 'DATABASE_UNAVAILABLE',
+      ...(requestId === undefined ? {} : { requestId }),
+    },
+    503,
+    {
+      'Retry-After': String(DATABASE_RETRY_AFTER_SECONDS),
+      'Cache-Control': 'no-store',
+    },
+  );
+}
+
+/**
+ * Hono's default error handler plus a capture: `getResponse` carriers
+ * (HTTPException) pass through untouched — those are deliberate responses,
+ * not defects — an unavailable database answers its 503, and everything else
+ * is a real 500, reported. The backend signals expected 4xx via
+ * `c.json(..., 4xx)` returns, so any other error reaching this handler is
+ * report-worthy.
+ */
 export const appErrorHandler: ErrorHandler = (err, c) => {
   if ('getResponse' in err) {
     const res = err.getResponse();
     return c.newResponse(res.body, res);
   }
+  const unavailable = databaseUnavailableResponse(err, c);
+  if (unavailable !== undefined) return unavailable;
   reportRequestError(err, c);
   return c.text('Internal Server Error', 500);
 };

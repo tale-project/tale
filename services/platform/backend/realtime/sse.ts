@@ -7,6 +7,10 @@ import {
   requireOrganizationMember,
 } from '../auth/membership.ts';
 import type { AuthEnv } from '../auth/session.ts';
+import {
+  describeDatabaseError,
+  isDatabaseUnavailable,
+} from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
 import { hintStreamClosed, hintStreamOpened } from '../telemetry.ts';
 import { coalesceHints } from './hints.ts';
@@ -31,11 +35,78 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
  */
 const AUTH_RECHECK_INTERVAL_MS = 15_000;
 const ERROR_BACKOFF_MS = 1_000;
+/**
+ * The ceiling a stream's backoff doubles up to while the database is
+ * unavailable: a restart takes seconds to a minute, so the streams of a
+ * process stop polling a dead database every second, and a stream lags the
+ * database's return by at most this. Inside the heartbeat interval, so an
+ * idle lane still gets its heartbeats on time.
+ */
+const UNAVAILABLE_BACKOFF_MAX_MS = 10_000;
+/**
+ * How long the database may stay unavailable before the streams say so to
+ * error tracking — once per outage, at warning level. A managed upgrade
+ * recreates `db` on every release; a restart shorter than this is routine
+ * and only logged.
+ */
+const OUTAGE_REPORT_AFTER_MS = 60_000;
 
 export interface EventsHandlerOptions {
   pollIntervalMs?: number;
   heartbeatIntervalMs?: number;
   authRecheckIntervalMs?: number;
+  /** First backoff after a failed poll; doubles while the database is
+   * unavailable. */
+  errorBackoffMs?: number;
+  unavailableBackoffMaxMs?: number;
+  outageReportAfterMs?: number;
+}
+
+/**
+ * A database outage as the streams of one handler see it, however many are
+ * backing off: the first failed poll logs it, the first poll to succeed logs
+ * its end, and an outage that outlasts `reportAfterMs` is reported once, at
+ * warning level.
+ */
+function createOutageWatch(reportAfterMs: number): {
+  failed: (error: unknown) => void;
+  recovered: () => void;
+} {
+  let since: number | null = null;
+  let reported = false;
+  return {
+    failed(error) {
+      const now = Date.now();
+      if (since === null) {
+        since = now;
+        reported = false;
+        console.warn(
+          `[backend] /events: database unavailable, streams backing off: ${describeDatabaseError(error)}`,
+        );
+        return;
+      }
+      const outageMs = now - since;
+      if (!reported && outageMs >= reportAfterMs) {
+        reported = true;
+        console.warn(
+          `[backend] /events: database still unavailable after ${Math.round(outageMs / 1000)}s`,
+        );
+        reportError(error, {
+          level: 'warning',
+          tags: { 'tale.lane': 'events-poll' },
+          extra: { outageMs },
+        });
+      }
+    },
+    recovered() {
+      if (since === null) return;
+      console.log(
+        `[backend] /events: database back after ${Math.round((Date.now() - since) / 1000)}s`,
+      );
+      since = null;
+      reported = false;
+    },
+  };
 }
 
 /**
@@ -137,9 +208,15 @@ export function createEventsHandler(
     options.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS;
   const authRecheckIntervalMs =
     options.authRecheckIntervalMs ?? AUTH_RECHECK_INTERVAL_MS;
+  const errorBackoffMs = options.errorBackoffMs ?? ERROR_BACKOFF_MS;
+  const unavailableBackoffMaxMs =
+    options.unavailableBackoffMaxMs ?? UNAVAILABLE_BACKOFF_MAX_MS;
   const reclaimer = createOutboxReclaimer({
     reclaim: () => reclaimOutbox(sql),
   });
+  const outage = createOutageWatch(
+    options.outageReportAfterMs ?? OUTAGE_REPORT_AFTER_MS,
+  );
   return async (c: Context<AuthEnv>): Promise<Response> => {
     const orgId = c.req.query('orgId');
     if (!orgId) {
@@ -172,17 +249,22 @@ export function createEventsHandler(
       registerLiveStream(stream);
       const resumeCursor =
         resumeFrom !== null && /^\d+$/.test(resumeFrom) ? resumeFrom : null;
-      let cursor = resumeCursor ?? (await latestOutboxId(sql));
+      // The tail is read inside the poll loop, where a database outage backs
+      // off like any failed poll, not ahead of it, where one ended the
+      // stream before its first poll.
+      let cursor = resumeCursor;
       // Checked once, AFTER the first read, so the verdict is exact: reclaim
       // removes a strict id-prefix, so a cursor row still present after the
       // read proves every row above it was there to be read.
       let verifyResume = resumeCursor !== null;
       let lastBeatAt = Date.now();
       let lastAuthCheckAt = Date.now();
+      let unavailableBackoffMs = errorBackoffMs;
 
       try {
         while (!stream.aborted) {
           try {
+            cursor ??= await latestOutboxId(sql);
             if (Date.now() - lastAuthCheckAt >= authRecheckIntervalMs) {
               lastAuthCheckAt = Date.now();
               if (
@@ -201,10 +283,12 @@ export function createEventsHandler(
             }
             const rows = await readHintsAfter(sql, cursor, { orgId, userId });
             if (verifyResume) {
-              verifyResume = false;
               if (!(await outboxRetainsCursor(sql, cursor))) {
                 await stream.writeSSE({ event: 'resync', data: '' });
               }
+              // Only once answered: a check the database failed runs again
+              // after the next read instead of being skipped for good.
+              verifyResume = false;
             }
             if (rows.length > 0) {
               const lastRow = rows[rows.length - 1];
@@ -226,15 +310,33 @@ export function createEventsHandler(
               await stream.writeSSE({ event: 'heartbeat', data: '' });
               lastBeatAt = Date.now();
             }
+            unavailableBackoffMs = errorBackoffMs;
+            outage.recovered();
           } catch (error) {
             if (stream.aborted) {
               break;
             }
+            if (isDatabaseUnavailable(error)) {
+              // A restart, not a defect: the watch logs it and reports only
+              // an outage that outlasts its threshold. The lane stays open
+              // meanwhile — a proxy that sees no byte for a minute cuts it,
+              // and the reconnect would meet the same outage at the session
+              // gate — so the heartbeat keeps its schedule.
+              outage.failed(error);
+              if (Date.now() - lastBeatAt >= heartbeatIntervalMs) {
+                await stream.writeSSE({ event: 'heartbeat', data: '' });
+                lastBeatAt = Date.now();
+              }
+              await stream.sleep(unavailableBackoffMs);
+              unavailableBackoffMs = Math.min(
+                unavailableBackoffMs * 2,
+                unavailableBackoffMaxMs,
+              );
+              continue;
+            }
             console.error('[backend] /events poll failed, backing off:', error);
-            // DB-blip bursts here were a load-bearing production signal in
-            // the 0.4 GlitchTip topology; the SDK's dedupe absorbs repeats.
             reportError(error, { tags: { 'tale.lane': 'events-poll' } });
-            await stream.sleep(ERROR_BACKOFF_MS);
+            await stream.sleep(errorBackoffMs);
             continue;
           }
           // Housekeeping rides the poll: throttled, non-overlapping, and

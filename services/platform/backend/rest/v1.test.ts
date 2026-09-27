@@ -570,3 +570,76 @@ describe('/api/v1 door — escaped errors and response hygiene', () => {
     expect(blob.headers.get('cache-control')).toBe('private, no-store');
   });
 });
+
+/**
+ * A database restart is neither a bad key nor a defect. The door answers the
+ * retryable 503 `DATABASE_UNAVAILABLE` with `Retry-After`, unreported, where
+ * a key lookup the database could not serve read as an invalid key (401 —
+ * "stop using this key") and an escaped outage as a reported 500.
+ */
+describe('/api/v1 door — an unavailable database', () => {
+  it('answers a key lookup the database could not serve with a 503, not a 401', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql, charges } = fakeSql();
+    // Better Auth's pool is node-postgres: a refused socket, nothing more.
+    const refused = Object.assign(
+      new Error('connect ECONNREFUSED 10.0.0.5:5432'),
+      { code: 'ECONNREFUSED' },
+    );
+    const { auth } = fakeAuth(refused);
+    try {
+      const res = await door(sql, auth).request(
+        'http://localhost/probe',
+        bearer(GOOD_KEY),
+      );
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('5');
+      expect(await res.json()).toMatchObject({ code: 'DATABASE_UNAVAILABLE' });
+      // Nobody's source address is charged a failed authentication.
+      expect(charges).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('answers an escaped outage with an unreported 503 that carries the request id', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.use(async (c, next) => {
+      c.set('requestId', 'req-503');
+      await next();
+    });
+    app.get('/restart', () => {
+      throw Object.assign(
+        new Error('terminating connection due to administrator command'),
+        { code: '57P01' },
+      );
+    });
+    try {
+      const res = await app.request(
+        'http://localhost/restart',
+        bearer(GOOD_KEY),
+      );
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('5');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(await res.json()).toEqual({
+        error:
+          'The platform’s database is not answering right now — it may be restarting; retry with backoff',
+        code: 'DATABASE_UNAVAILABLE',
+        requestId: 'req-503',
+      });
+      // `reportRequestError` logs every report it makes; none was made.
+      expect(errors).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        '[backend] database unavailable — 503 for GET /restart: 57P01 terminating connection due to administrator command',
+      );
+    } finally {
+      warn.mockRestore();
+      errors.mockRestore();
+    }
+  });
+});

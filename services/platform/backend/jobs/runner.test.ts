@@ -1,9 +1,19 @@
 // @vitest-environment node
 
 import type { Job, JobResult, PgBoss, WorkOptions } from 'pg-boss';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { reportError } from '../error-reporting.ts';
 import { startWorker } from './runner.ts';
+
+vi.mock('../error-reporting.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../error-reporting.ts')>()),
+  reportError: vi.fn(),
+}));
+
+afterEach(() => {
+  vi.mocked(reportError).mockClear();
+});
 
 type WorkHandler = (jobs: Job[]) => Promise<JobResult[]>;
 
@@ -83,5 +93,59 @@ describe('startWorker job budget', () => {
 
     expect(seen).toHaveLength(1);
     expect(seen[0]?.aborted).toBe(true);
+  });
+});
+
+describe('startWorker failure reporting', () => {
+  it('fails a job the database restart caught for pg-boss to retry, and reports nothing', async () => {
+    const { boss, handlers } = fakeBoss();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const terminated = Object.assign(
+      new Error('terminating connection due to administrator command'),
+      { code: '57P01' },
+    );
+    await startWorker({
+      boss,
+      taskList: { noop: vi.fn().mockRejectedValue(terminated) },
+    });
+
+    const results = await handlers.get('noop')?.([job]);
+
+    expect(results).toEqual([
+      {
+        id: 'job-1',
+        status: 'failed',
+        output: {
+          message: 'terminating connection due to administrator command',
+        },
+      },
+    ]);
+    expect(reportError).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[backend] task noop (job job-1) failed, database unavailable: 57P01 terminating connection due to administrator command',
+    );
+    warn.mockRestore();
+    error.mockRestore();
+  });
+
+  it('still reports any other failure', async () => {
+    const { boss, handlers } = fakeBoss();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const defect = new Error('undefined is not a function');
+    await startWorker({
+      boss,
+      taskList: { noop: vi.fn().mockRejectedValue(defect) },
+    });
+
+    const results = await handlers.get('noop')?.([job]);
+
+    expect(results?.[0]).toMatchObject({ id: 'job-1', status: 'failed' });
+    expect(reportError).toHaveBeenCalledWith(defect, {
+      tags: { 'tale.task': 'noop' },
+      extra: { jobId: 'job-1' },
+    });
+    error.mockRestore();
   });
 });

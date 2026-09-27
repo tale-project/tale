@@ -12,6 +12,7 @@ import {
   withOAuthConformance,
 } from './auth/oauth-conformance.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
+import { runWithSwallowedDatabaseErrors } from './db/unavailable.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createApprovalRoutes } from './domains/approvals/routes.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
@@ -123,6 +124,11 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Hono's default 500 behavior plus Sentry capture (no-op without a DSN);
   // sub-app errors bubble up here unless a sub-app registers its own.
   app.onError(appErrorHandler);
+  // A database error a library swallows on the way — Better Auth's session
+  // read throws a bare 500 in its place — is noted for the request, so the
+  // error handlers still answer a database restart with a 503 instead of
+  // reporting a defect (db/unavailable.ts).
+  app.use((_c, next) => runWithSwallowedDatabaseErrors(next));
   // The JSON 404 for the API prefix (lib/http-hygiene.ts).
   app.notFound(apiNotFound);
   // One id per request, echoed as `X-Request-Id` on every response and
