@@ -16,7 +16,7 @@ options and deployment specifications.
 | Change native organization settings | `tale config validate`, `plan`, `apply`, then `read`. |
 | Release an automation pack | [Configuration releases](../../docs/en/self-hosted/configuration/config-releases.md). |
 | Recover stored state | [Backups and restore](../../docs/en/self-hosted/operate/backups-and-restore.md). |
-| Run project tasks with a local coding agent | `tale daemon setup`, `start` and `status`. |
+| Run an organization's sandboxes on this machine | [Sandbox devices](../../docs/en/platform/admin/sandbox-devices.md): the command from **Settings > Sandboxes > Add device**. |
 
 ## Install and inspect
 
@@ -260,20 +260,27 @@ perform readback after deployment and operational tests. The
 [release guide](../../docs/en/self-hosted/configuration/config-releases.md) covers
 recovery and preserved historical release formats.
 
-## Connect a local runtime
+## Run sandboxes on this machine
 
-The daemon dispatches assigned Tale tasks to installed coding-agent CLIs:
+A machine with Docker can run a Tale organization's sandboxes as a device. An
+admin copies the connect command from **Settings > Sandboxes > Add device**; it
+installs the CLI when needed and runs:
 
 ```bash
-tale daemon setup
-tale daemon status
-tale daemon start
+tale sandbox connect https://your-org.tale.dev --token tsdj_…
+tale sandbox status
+tale sandbox logs --follow
+tale sandbox disconnect
 ```
 
-It runs work in isolated Git worktrees and reports results to the task. The local
-permission ceiling limits the server’s requested permissions. Keep the daemon API
-key in `TALE_DAEMON_API_KEY` when it should remain outside the configuration file;
-use `TALE_DAEMON_HOME` to select a separate configuration directory.
+`connect` trades the single-use token for the device's own credential, writes
+`~/.tale/sandbox/device.json` (owner-only; `TALE_SANDBOX_HOME` moves it) and lets
+the sandbox image's `device-apply` helper start the device's containers at the
+server's release. The device dials out to the site, so nothing listens on the
+machine, and follows server updates by itself unless connected with
+`--no-auto-update`. The [device guide](../../docs/en/platform/admin/sandbox-devices.md)
+and the [command reference](../../docs/en/self-hosted/install/cli-install.md#sandbox-device)
+cover placement, updates and removal.
 
 ## Build and test this workspace
 

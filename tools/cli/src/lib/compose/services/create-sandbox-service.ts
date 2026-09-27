@@ -60,6 +60,11 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     env_file: ['.env'],
     environment: {
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
+      // The device hub: organizations connect their own machines here to run
+      // their sandboxes (Settings → Sandboxes → Devices). The proxy publishes
+      // it at /sandbox/tunnel; nothing else of the spawner leaves `internal`.
+      // 0 turns it off.
+      SANDBOX_HUB_PORT: '${SANDBOX_HUB_PORT:-8004}',
       // Native docker/docker compose inside session containers. Unset so the
       // spawner applies its tier-aware default (on for sysbox/kata, off for
       // runc/gvisor); set SANDBOX_DOCKER_IN_CONTAINER (or the deployment.json

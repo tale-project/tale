@@ -159,6 +159,30 @@ describe('sandbox→backend reachability parity', () => {
   });
 });
 
+describe('sandbox device hub parity', () => {
+  test('both pipelines turn the device hub on, overridable to 0', () => {
+    const expected = '${SANDBOX_HUB_PORT:-8004}';
+    expect(compose.services['sandbox']?.environment?.SANDBOX_HUB_PORT).toBe(
+      expected,
+    );
+    expect(createSandboxService(config).environment?.SANDBOX_HUB_PORT).toBe(
+      expected,
+    );
+  });
+
+  test('the proxy publishes only the hub door, never the signed spawner API', () => {
+    const caddyfile = readFileSync(
+      resolve(repoRoot, 'services/proxy/Caddyfile'),
+      'utf8',
+    );
+    expect(caddyfile).toContain('handle /sandbox/tunnel {');
+    expect(caddyfile).toContain(
+      'reverse_proxy {$SANDBOX_HUB_UPSTREAM:sandbox:8004}',
+    );
+    expect(caddyfile).not.toMatch(/reverse_proxy [^\n]*sandbox:8003/);
+  });
+});
+
 describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
   test('operator inner Docker pool reaches the spawner in both compose pipelines', () => {
     const expected = '${SANDBOX_DIND_INNER_POOL:-}';

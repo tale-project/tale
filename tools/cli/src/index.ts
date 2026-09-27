@@ -6,7 +6,6 @@ import { createAuthCommand } from './commands/auth';
 import { createBackupCommand } from './commands/backup';
 import { createCleanupCommand } from './commands/cleanup';
 import { createConfigCommand } from './commands/config';
-import { createDaemonCommand } from './commands/daemon';
 import { createDeployCommand } from './commands/deploy';
 import { createDevCommand } from './commands/dev';
 import { createInitCommand } from './commands/init';
@@ -15,6 +14,7 @@ import { createMigrateCommand } from './commands/migrate';
 import { createResetCommand } from './commands/reset';
 import { createRestoreCommand } from './commands/restore';
 import { createRollbackCommand } from './commands/rollback';
+import { createSandboxCommand } from './commands/sandbox';
 import { createStatusCommand } from './commands/status';
 import { createUninstallCommand } from './commands/uninstall';
 import { createUpdateCommand } from './commands/update';
@@ -73,7 +73,10 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
   // workspace deployment retains its existing version-alignment policy.
   const parentName = actionCommand.parent?.name();
   const commandName =
-    parentName === 'config' || parentName === 'deploy' || parentName === 'auth'
+    parentName === 'config' ||
+    parentName === 'deploy' ||
+    parentName === 'auth' ||
+    parentName === 'sandbox'
       ? `${parentName} ${actionCommand.name()}`
       : actionCommand.name() === 'deploy' &&
           actionCommand.opts().bundle !== undefined
@@ -88,6 +91,7 @@ const SETUP = 'Setup:';
 const OPERATE = 'Operate:';
 const MAINTAIN = 'Maintain:';
 const ADVANCED = 'Advanced:';
+const DEVICE = 'Sandbox device:';
 
 program.addCommand(createInitCommand().helpGroup(SETUP));
 program.addCommand(createDevCommand().helpGroup(SETUP));
@@ -106,8 +110,9 @@ program.addCommand(createResetCommand().helpGroup(MAINTAIN));
 program.addCommand(createUninstallCommand().helpGroup(MAINTAIN));
 program.addCommand(createConfigCommand().helpGroup(MAINTAIN));
 
+program.addCommand(createSandboxCommand().helpGroup(DEVICE));
+
 program.addCommand(createAuthCommand().helpGroup(ADVANCED));
-program.addCommand(createDaemonCommand().helpGroup(ADVANCED));
 
 // Docs link honors TALE_DOCS_URL (mirrors `docsOriginForSite` in
 // @tale/ui/seo/urls — the CLI deliberately does not depend on the UI
