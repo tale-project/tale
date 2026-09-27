@@ -318,4 +318,45 @@ describe('ConversationPanel — undoing a reply', () => {
       attachments: [receipt],
     });
   });
+
+  it('suppresses the replaced approval seed but accepts a later approval', async () => {
+    conversation.pendingApproval = {
+      _id: 'approval1',
+      _creationTime: 1,
+      organizationId: 'org1',
+      status: 'pending',
+      resourceType: 'conversations',
+      resourceId: 'c1',
+      priority: 'medium',
+      metadata: { emailBody: 'Prior proposal' },
+    };
+    undone = { sourceMarkdown: 'Undone reply', attachments: [INVOICE] };
+    const { rerender } = await renderAndUndo();
+    await waitFor(() =>
+      expect(editor?.pendingMessage?.content).toBe('Undone reply'),
+    );
+    await act(async () => {
+      const seed = editor?.pendingMessage;
+      if (!seed) throw new Error('Undo did not seed the editor');
+      editor?.onPendingMessageApplied?.(seed);
+    });
+    await waitFor(() => expect(editor?.pendingMessage).toBeUndefined());
+    conversation = {
+      ...conversation,
+      pendingApproval: {
+        ...conversation.pendingApproval,
+        _id: 'approval2',
+        metadata: { emailBody: 'Next proposal' },
+      },
+    };
+    rerender(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(editor?.pendingMessage?.content).toBe('Next proposal'),
+    );
+  });
 });

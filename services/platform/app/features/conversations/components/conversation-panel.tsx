@@ -188,9 +188,16 @@ export function ConversationPanel({
 
   // An undo is a one-time seed. Once applied, the editor persists its body
   // and this panel keeps its live files per conversation, including removals.
-  // Null records a consumed undo so a still-cached approval cannot replace it.
+  // Remember which approval the undo replaced, so its cached seed cannot
+  // overwrite edits; a later approval with another ID is still available.
   const [restoredDrafts, setRestoredDrafts] = useState<
-    Record<string, NonNullable<MessageEditorProps['pendingMessage']> | null>
+    Record<
+      string,
+      {
+        seed: MessageEditorProps['pendingMessage'];
+        replacedApprovalId: string | undefined;
+      }
+    >
   >({});
   const [draftAttachments, setDraftAttachments] = useState<
     Record<string, AttachedFile[]>
@@ -348,6 +355,7 @@ export function ConversationPanel({
   const handleUndoSend = (messageId: string) => {
     const conversationId = conversation?.id;
     if (conversationId === undefined) return;
+    const replacedApprovalId = conversation?.pendingApproval?._id;
     undoSendMessage(
       { messageId: messageId },
       {
@@ -359,9 +367,12 @@ export function ConversationPanel({
             setRestoredDrafts((drafts) => ({
               ...drafts,
               [conversationId]: {
-                id: messageId,
-                content: sourceMarkdown ?? '',
-                attachments: files,
+                replacedApprovalId,
+                seed: {
+                  id: messageId,
+                  content: sourceMarkdown ?? '',
+                  attachments: files,
+                },
               },
             }));
           }
@@ -469,6 +480,14 @@ export function ConversationPanel({
               .emailBody,
         }
       : undefined;
+
+  const restoredDraft = conversation
+    ? restoredDrafts[conversation.id]
+    : undefined;
+  const approvalSeed =
+    pendingMessage?.id === restoredDraft?.replacedApprovalId
+      ? undefined
+      : pendingMessage;
 
   const messageGroups = groupMessagesByDate(displayMessages);
 
@@ -669,11 +688,7 @@ export function ConversationPanel({
                   onConversationResolved={() => {
                     onSelectedConversationChange(null);
                   }}
-                  pendingMessage={
-                    conversation.id in restoredDrafts
-                      ? (restoredDrafts[conversation.id] ?? undefined)
-                      : pendingMessage
-                  }
+                  pendingMessage={restoredDraft?.seed ?? approvalSeed}
                   attachments={draftAttachments[conversation.id] ?? []}
                   onAttachmentsChange={(next: SetStateAction<AttachedFile[]>) =>
                     setDraftAttachments((current) => ({
@@ -687,11 +702,15 @@ export function ConversationPanel({
                   onPendingMessageApplied={(
                     applied: NonNullable<MessageEditorProps['pendingMessage']>,
                   ) =>
-                    setRestoredDrafts((current) =>
-                      current[conversation.id] === applied
-                        ? { ...current, [conversation.id]: null }
-                        : current,
-                    )
+                    setRestoredDrafts((current) => {
+                      const draft = current[conversation.id];
+                      return draft?.seed === applied
+                        ? {
+                            ...current,
+                            [conversation.id]: { ...draft, seed: undefined },
+                          }
+                        : current;
+                    })
                   }
                   hasMessageHistory={displayMessages.length > 0}
                   organizationId={conversation.organizationId}
