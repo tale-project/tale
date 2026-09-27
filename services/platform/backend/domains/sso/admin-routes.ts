@@ -12,6 +12,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { trustedHeaderNames } from '../../core/trusted_headers_auth/header_names.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   getSsoConnectionView,
   parseSsoIdpMetadata,
@@ -134,7 +135,7 @@ export function createSsoAdminRoutes(deps: {
       })
       .merge(provisioningSchema)
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await upsertOidcConnection(deps.sql, c.get('orgId'), actor(c), body.data);
       return c.json({ ok: true });
@@ -161,7 +162,7 @@ export function createSsoAdminRoutes(deps: {
       })
       .merge(provisioningSchema)
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await upsertSamlConnection(deps.sql, c.get('orgId'), actor(c), body.data);
       return c.json({ ok: true });
@@ -174,7 +175,7 @@ export function createSsoAdminRoutes(deps: {
     const denied = requireSettingsWrite(c);
     if (denied) return denied;
     const body = provisioningSchema.safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await setSsoProvisioning(deps.sql, c.get('orgId'), actor(c), body.data);
       return c.json({ ok: true });
@@ -189,7 +190,7 @@ export function createSsoAdminRoutes(deps: {
     const body = z
       .object({ enabled: z.boolean() })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await setSsoEnabled(
         deps.sql,
@@ -241,7 +242,7 @@ export function createSsoAdminRoutes(deps: {
         scopes: z.array(z.string().max(200)).max(50),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       return c.json(
         await testSsoConnection(deps.sql, c.get('orgId'), body.data),
@@ -260,7 +261,7 @@ export function createSsoAdminRoutes(deps: {
         xml: z.string().max(1_000_000).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       return c.json(await parseSsoIdpMetadata(body.data));
     } catch (error) {

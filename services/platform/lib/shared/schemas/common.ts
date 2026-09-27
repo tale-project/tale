@@ -7,6 +7,23 @@ export const CONTACT_LOCALE_PATTERN = /^[a-z]{2}(?:[-_][A-Za-z]{2,})?$/i;
 /** Digits plus common phone punctuation. At least one digit required. */
 export const CONTACT_PHONE_PATTERN = /^[+]?[\d\s().-]*\d[\d\s().-]*$/;
 
+/**
+ * The lengths the contact directory stores, read by the server's write
+ * schema (`backend/domains/contacts/input-schema.ts`), the OpenAPI document
+ * and the contact dialogs alike — so a value the form lets through is one
+ * the door takes, instead of a 400 the form never explained.
+ */
+export const CONTACT_NAME_MAX = 300;
+export const CONTACT_EMAIL_MAX = 320;
+/** RFC 5321 §4.5.3.1.1: the part before `@` is at most 64 octets. */
+export const CONTACT_EMAIL_LOCAL_PART_MAX = 64;
+export const CONTACT_PHONE_MAX = 50;
+export const CONTACT_EXTERNAL_ID_MAX = 256;
+export const CONTACT_LOCALE_MAX = 20;
+export const CONTACT_TAG_MAX = 60;
+export const CONTACT_TAGS_MAX = 50;
+export const CONTACT_NOTES_MAX = 10_000;
+
 const dataSourceLiterals = [
   'manual_import',
   'file_upload',

@@ -26,6 +26,7 @@ import {
   RetentionConfigMissingError,
 } from '../../core/governance/retention_floors.ts';
 import { writeGovernancePolicyFile } from '../../lib/governance-policy-write.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -121,7 +122,7 @@ export function createRetentionRoutes(deps: {
     const body = z
       .object({ proposedHash: z.string().min(1).max(200).optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       // OCC against the operator config the admin reviewed (the 0.4
       // `applyBoundsProposal` STALE_PROPOSAL guard).
@@ -326,7 +327,7 @@ export function createRetentionRoutes(deps: {
     const body = z
       .object({ proposedHash: z.string().min(1).max(200) })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const stamped = await setRejectedBoundsHash(
       deps.sql,
       c.get('orgId'),

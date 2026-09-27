@@ -303,6 +303,9 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
  * With no `projectId` members degrade to org-wide and agents to none — an
  * agent exists only inside its project. While the access query is in flight,
  * members fall back to org-wide; the backend guard is the real gate.
+ * `scopeReady` says whether that narrowing has happened, for a picker that
+ * must offer only who the server will take (the reviewer picker lists
+ * nobody until it is true).
  */
 export function useAssignableActors(
   organizationId: string,
@@ -325,6 +328,7 @@ export function useAssignableActors(
   // Instances are project-curated by construction — the directory already
   // scoped them to this project.
   const assignableAgents = directory.agents;
+  const scopeReady = !projectId || scope.data !== undefined;
 
-  return { ...directory, assignableMembers, assignableAgents };
+  return { ...directory, assignableMembers, assignableAgents, scopeReady };
 }

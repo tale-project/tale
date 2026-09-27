@@ -4733,6 +4733,7 @@ products:
     currencyPlaceholder: USD
     validation:
       currency: Enter a three-letter ISO 4217 currency code (for example USD or EUR)
+      imageUrl: Enter an image URL that starts with https:// or http://
       priceNumber: Enter a number for the price
       priceNonNegative: Price must be 0 or more
       priceTooLarge: Price is too large

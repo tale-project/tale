@@ -8,7 +8,6 @@ import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
-import { addTaskComment } from '../tasks/comments.ts';
 import { getCurrentUser } from '../users/service.ts';
 import { workspaceWriteShimHandlers } from './workspace-write-shim.ts';
 
@@ -17,9 +16,9 @@ import { workspaceWriteShimHandlers } from './workspace-write-shim.ts';
  * (`node_only/sandbox/workspace_tools_bridge.ts`) — everything the chat
  * lane's shim already answers (knowledge search, entity queries, the read
  * matrix, audit) plus the session-scoped seams the bridge adds: the
- * binding-derived access resolvers, the tool-call ledger, the trusted
- * agent-comment writer, the write lane (`workspace-write-shim.ts`), and the
- * ask lane (`automations/ask-shim.ts`).
+ * binding-derived access resolvers, the tool-call ledger, the write lane
+ * (`workspace-write-shim.ts`, the trusted agent-comment writer included), and
+ * the ask lane (`automations/ask-shim.ts`).
  *
  * Binding resolution mirrors 0.4's `sandbox/workspace_access.sessionBinding`
  * for every owner 0.5 has:
@@ -453,40 +452,6 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         ...(args.extension !== undefined ? { extension: args.extension } : {}),
         ...(args.limit !== undefined ? { limit: args.limit } : {}),
         ...(args.cursor !== undefined ? { cursor: args.cursor } : {}),
-      });
-    },
-
-    'tasks/internal_mutations:agentAddComment': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        actorId: string;
-        taskId: string;
-        body: string;
-        bodyByLocale?: Record<string, string>;
-      };
-      // The bridge already resolved WRITE authority (a project-bound
-      // session); this writer is the trusted lower half, so it runs with an
-      // administrative auth attributed to the agent actor.
-      return sql.begin(async (tx) => {
-        const { messageId, threadId } = await addTaskComment(
-          tx,
-          {
-            organizationId: args.organizationId,
-            userId: args.actorId,
-            role: 'admin',
-            teamIds: [],
-          },
-          {
-            taskId: args.taskId,
-            body: args.body,
-            ...(args.bodyByLocale !== undefined
-              ? { bodyByLocale: args.bodyByLocale }
-              : {}),
-            author: { actorType: 'agent', actorId: args.actorId },
-          },
-        );
-        return { messageId, threadId, mentionCount: 0 };
       });
     },
   };

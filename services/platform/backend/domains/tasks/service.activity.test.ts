@@ -8,6 +8,7 @@ import { type TaskRow, updateTask } from './service.ts';
 
 vi.mock('../collab/service.ts', () => ({
   autoSubscribe: vi.fn(),
+  dismissReviewerAssignedNotifications: vi.fn(),
   notifyTaskAssigned: vi.fn(),
   notifyTaskReviewerAssigned: vi.fn(),
   notifyTaskStatusChanged: vi.fn(),
@@ -19,19 +20,12 @@ vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../files/upload-intents.ts', () => ({
   firstForeignUpload: vi.fn().mockResolvedValue(null),
 }));
-vi.mock('../../auth/membership.ts', () => ({
-  findOrganizationMember: vi.fn().mockResolvedValue({
-    userId: 'u-bob',
-    role: 'member',
-    email: 'bob@example.com',
-    disabled: false,
-  }),
-}));
 vi.mock('./reviews.ts', () => ({
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
   requestTaskReview: vi.fn(),
   retargetPendingTaskReview: vi.fn(),
+  reviewerEligibility: vi.fn(() => Promise.resolve('eligible')),
 }));
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
