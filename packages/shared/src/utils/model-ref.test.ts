@@ -314,6 +314,19 @@ describe('modelIdMatchKey / modelIdsEquivalent', () => {
     ).toBe(true);
   });
 
+  it('equates the Opus 5.5 and Fable 5.1 spellings, but never with their predecessors', () => {
+    expect(
+      modelIdsEquivalent('claude-opus-5-5', 'anthropic/claude-opus-5.5'),
+    ).toBe(true);
+    expect(
+      modelIdsEquivalent('claude-fable-5-1', 'anthropic/claude-fable-5.1'),
+    ).toBe(true);
+    expect(modelIdsEquivalent('claude-opus-5-5', 'claude-opus-5')).toBe(false);
+    expect(modelIdsEquivalent('claude-fable-5-1', 'claude-fable-5')).toBe(
+      false,
+    );
+  });
+
   it('equates a vendor-prefixed id with the bare Anthropic catalog id', () => {
     expect(
       modelIdsEquivalent('anthropic/claude-haiku-4-5', 'claude-haiku-4-5'),

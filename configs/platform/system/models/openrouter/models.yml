@@ -18,6 +18,9 @@
 # Prompt-cache prices (`cacheRead` = `pricing.input_cache_read`, `cacheWrite` =
 # `pricing.input_cache_write`) captured from the live listing on 2026-09-20; the
 # live fetch refreshes them the same way it refreshes the input/output pair.
+# `anthropic/claude-opus-5.5` and `anthropic/claude-fable-5.1` were captured
+# from the live listing on 2026-09-27. Neither model can turn thinking off, so
+# neither declares `reasoning.off`.
 - id: anthropic/claude-sonnet-5
   provider: openrouter
   tags:
@@ -50,6 +53,38 @@
     outputCentsPerMillion: 5000
     cacheReadCentsPerMillion: 100
     cacheWriteCentsPerMillion: 1250
+- id: anthropic/claude-fable-5.1
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 1000
+    outputCentsPerMillion: 5000
+    cacheReadCentsPerMillion: 25
+    cacheWriteCentsPerMillion: 1250
+- id: anthropic/claude-opus-5.5
+  provider: openrouter
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 400
+    outputCentsPerMillion: 2000
+    cacheReadCentsPerMillion: 20
+    cacheWriteCentsPerMillion: 500
 - id: openai/gpt-5.6-luna-pro
   provider: openrouter
   tags:

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { resolveTurnSampling } from '../../../lib/chat/effort';
+import { loadStaticCatalogs } from '../lib/providers/load_system_config';
 import { buildChatRequest, EmptyReplyError, parseChatReply } from './chat_wire';
 import type { BuilderMessage } from './model_call';
 
@@ -298,6 +300,75 @@ describe('reasoning controls on the body', () => {
     expect(warn).toHaveBeenCalledTimes(2);
     warn.mockRestore();
   });
+});
+
+describe('Claude Opus 5.5 and Fable 5.1 from the shipped catalog', () => {
+  // Both answer a disabled or budgeted `thinking`, any sampling parameter
+  // and a forced `tool_choice` with a 400. Resolved from the shipped entries
+  // exactly as a chat turn resolves them, a body carries none of these at
+  // any effort step — only the effort level itself, and on the Default step
+  // not even that (the model's own default applies).
+  const anthropic = loadStaticCatalogs().get('anthropic') ?? [];
+  const turn: BuilderMessage[] = [
+    { role: 'system', content: 'GUIDE' },
+    { role: 'user', content: 'JOB' },
+  ];
+  const lookup = {
+    name: 'lookup',
+    description: 'Look something up.',
+    parameters: { type: 'object', properties: {} },
+  };
+
+  it.each(
+    ['claude-opus-5-5', 'claude-fable-5-1'].flatMap(
+      (id) =>
+        [
+          [id, undefined, undefined],
+          [id, 'max', 'max'],
+          [id, 'extra', 'xhigh'],
+        ] as const,
+    ),
+  )(
+    '%s at effort %s sends only fields the model accepts',
+    (id, effort, level) => {
+      const entry = anthropic.find((model) => model.id === id);
+      if (entry === undefined) throw new Error(`the catalog misses ${id}`);
+      const sampling = resolveTurnSampling(entry, effort);
+      const wire = buildChatRequest({
+        apiFormat: 'anthropic',
+        reasoningModel: entry.reasoning !== undefined,
+        baseUrl: 'https://api.example.test',
+        modelId: entry.id,
+        apiKey: 'secret-key',
+        messages: turn,
+        tools: [lookup],
+        maxTokens: sampling.maxTokens,
+        ...(sampling.temperature !== undefined
+          ? { temperature: sampling.temperature }
+          : {}),
+        ...(sampling.reasoning !== undefined
+          ? { reasoning: sampling.reasoning }
+          : {}),
+      });
+      const body: unknown = JSON.parse(wire.body);
+      for (const refused of [
+        'thinking',
+        'temperature',
+        'top_p',
+        'top_k',
+        'tool_choice',
+      ]) {
+        expect(body).not.toHaveProperty(refused);
+      }
+      // The 1M window leaves the whole 128K reply ceiling to the turn.
+      expect(body).toMatchObject({ model: id, max_tokens: 128_000 });
+      if (level === undefined) {
+        expect(body).not.toHaveProperty('output_config');
+      } else {
+        expect(body).toMatchObject({ output_config: { effort: level } });
+      }
+    },
+  );
 });
 
 describe('unusable payloads', () => {

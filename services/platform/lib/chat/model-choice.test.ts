@@ -160,6 +160,71 @@ describe('chooseChatModel — curated preference', () => {
     expect(choice?.source).toBe('cheapest');
   });
 
+  it('prefers Fable 5.1 over Fable 5 for a frontier turn, in either spelling', () => {
+    const native = chooseChatModel(
+      pool([
+        priced('claude-fable-5', 5000, { provider: 'anthropic' }),
+        priced('claude-fable-5-1', 5000, { provider: 'anthropic' }),
+      ]),
+      'frontier',
+    );
+    expect(native).toEqual({
+      entry: expect.objectContaining({ id: 'claude-fable-5-1' }),
+      source: 'preferred',
+    });
+    // OpenRouter spells the minor version with a dot.
+    const gateway = chooseChatModel(
+      pool([
+        priced('anthropic/claude-fable-5', 5000, { provider: 'openrouter' }),
+        priced('anthropic/claude-fable-5.1', 5000, { provider: 'openrouter' }),
+      ]),
+      'frontier',
+    );
+    expect(gateway?.entry.id).toBe('anthropic/claude-fable-5.1');
+  });
+
+  it('prefers Opus 5.5 over Opus 4.8 when no Fable or GPT pick is servable', () => {
+    const choice = chooseChatModel(
+      pool([
+        priced('claude-opus-4-8', 2500, { provider: 'anthropic' }),
+        priced('claude-opus-5-5', 2000, { provider: 'anthropic' }),
+        priced('claude-sonnet-5', 1000, { provider: 'anthropic' }),
+      ]),
+      'frontier',
+    );
+    expect(choice).toEqual({
+      entry: expect.objectContaining({ id: 'claude-opus-5-5' }),
+      source: 'preferred',
+    });
+    const gateway = chooseChatModel(
+      pool([
+        priced('anthropic/claude-opus-5.5', 2000, { provider: 'openrouter' }),
+      ]),
+      'frontier',
+    );
+    expect(gateway?.source).toBe('preferred');
+  });
+
+  it('keeps each successor directly ahead of the model it replaces', () => {
+    const frontier = PREFERRED_CHAT_MODELS.frontier;
+    // Presence first: a missing id's index (-1) would otherwise pass for a
+    // predecessor sitting at the head of the band.
+    expect(frontier).toEqual(
+      expect.arrayContaining([
+        'claude-fable-5-1',
+        'claude-fable-5',
+        'claude-opus-5-5',
+        'claude-opus-4-8',
+      ]),
+    );
+    expect(frontier.indexOf('claude-fable-5-1')).toBe(
+      frontier.indexOf('claude-fable-5') - 1,
+    );
+    expect(frontier.indexOf('claude-opus-5-5')).toBe(
+      frontier.indexOf('claude-opus-4-8') - 1,
+    );
+  });
+
   it('keeps the 6x-priced pro tier out of every curated band', () => {
     for (const band of Object.keys(PREFERRED_CHAT_MODELS) as Array<
       keyof typeof PREFERRED_CHAT_MODELS

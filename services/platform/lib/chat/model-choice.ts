@@ -46,14 +46,19 @@ import { MODEL_BANDS, type ModelBand } from './model-band';
  * list degrades to the price fallback, never to a broken pick.
  *
  * `gpt-5.5-pro` is deliberately absent from `frontier` — at 6× the price of
- * `gpt-5.5` it is an explicit-pin model, not an auto-pick.
+ * `gpt-5.5` it is an explicit-pin model, not an auto-pick. A successor sits
+ * directly ahead of the model it replaces (`claude-fable-5-1` before
+ * `claude-fable-5`, `claude-opus-5-5` before `claude-opus-4-8`), so an org
+ * that has not enabled the new one keeps its previous curated pick.
  */
 export const PREFERRED_CHAT_MODELS: Readonly<
   Record<ModelBand, readonly string[]>
 > = {
   frontier: [
+    'claude-fable-5-1',
     'claude-fable-5',
     'gpt-5.5',
+    'claude-opus-5-5',
     'claude-opus-4-8',
     'gemini-3.1-pro-preview',
   ],
