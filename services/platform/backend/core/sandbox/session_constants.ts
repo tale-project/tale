@@ -28,8 +28,9 @@ export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
  * yields them oldest-first, so every sessionId-keyed read/patch must skip them.
  *
  * NOT the same set as the reuse/quota checks (creating|active — a degraded
- * sandbox isn't reused and doesn't hold the cap) or the owner-cascade teardown
- * (which includes `failed` to reap leaked containers).
+ * sandbox isn't reused and doesn't hold the cap) or the sandbox watchdog's
+ * collect pass (which walks `failed` rows to reap the containers their
+ * creates leaked).
  */
 export const SANDBOX_SESSION_LIVE_STATUSES = [
   'creating',

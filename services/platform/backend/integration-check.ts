@@ -50974,6 +50974,123 @@ async function checkWatchdogs(
     `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed}`,
   );
 
+  // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
+  // session is still live is destroyed and stamped by primary key, keeping
+  // `failed`; a failed row whose deterministic id a newer, hibernated
+  // incarnation carries is stamped WITHOUT a spawner call, and that
+  // incarnation's row and token stay untouched; a busy session and a failure
+  // inside the grace wait. The scripted spawner answers busy for every
+  // session outside this lane, so rows other lanes left are not disturbed.
+  const collectAt = now - 2 * 3_600_000;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, last_activity_at_ms
+    ) VALUES
+      (${orgId}, 'wd-collect-live', 'failed', 'workflow_run',
+       'itest-wd-collect-run:@workflow', 'itest:wd', ${collectAt},
+       ${collectAt + 24 * 3_600_000}, ${collectAt}),
+      (${orgId}, 'wd-collect-reused', 'failed', 'project_agent',
+       'itest-wd-collect-agent', 'itest:wd', ${collectAt - 3_600_000},
+       ${collectAt + 23 * 3_600_000}, ${collectAt - 3_600_000}),
+      (${orgId}, 'wd-collect-reused', 'stopped', 'project_agent',
+       'itest-wd-collect-agent', 'itest:wd', ${collectAt},
+       ${collectAt + 24 * 3_600_000}, ${collectAt}),
+      (${orgId}, 'wd-collect-busy', 'failed', 'workflow_run',
+       'itest-wd-collect-busy:@workflow', 'itest:wd', ${collectAt},
+       ${collectAt + 24 * 3_600_000}, ${collectAt}),
+      (${orgId}, 'wd-collect-recent', 'failed', 'workflow_run',
+       'itest-wd-collect-recent:@workflow', 'itest:wd', ${now},
+       ${now + 24 * 3_600_000}, ${now})
+  `;
+  const reusedTokenHash = `itest-wd-collect-${randomUUID()}`;
+  await sql`
+    INSERT INTO app.sandbox_session_tokens (
+      org_id, session_id, token_hash, scope, created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, 'wd-collect-reused', ${reusedTokenHash},
+      ${sql.json({ agentKind: 'claude-code', allowedModels: [], connectorGrants: [], budgetCents: 100 })},
+      ${now}, ${now + 3_600_000}
+    )
+  `;
+  const collectAsked: string[] = [];
+  const collectSpawner = {
+    isAlive: (): Promise<boolean> => Promise.resolve(true),
+    destroyIfIdle: (
+      sessionId: string,
+    ): Promise<{ destroyed: boolean; busy: boolean }> => {
+      collectAsked.push(sessionId);
+      return Promise.resolve(
+        sessionId === 'wd-collect-live'
+          ? { destroyed: true, busy: false }
+          : { destroyed: false, busy: true },
+      );
+    },
+  };
+  const readCollectRows = () => sql<
+    {
+      sessionId: string;
+      status: string;
+      destroyedAt: number | null;
+      visitedAt: number | null;
+    }[]
+  >`
+    SELECT session_id AS "sessionId", status,
+           destroyed_at_ms::float8 AS "destroyedAt",
+           last_reconciled_at_ms::float8 AS "visitedAt"
+    FROM app.sandbox_sessions
+    WHERE session_id LIKE 'wd-collect-%'
+    ORDER BY session_id, created_at_ms
+  `;
+  // The fair walk may need more than one batch when earlier lanes left
+  // failed rows past the grace; walk until this lane's candidates were seen.
+  let collectRows = await readCollectRows();
+  let collectedTotal = 0;
+  let collectPasses = 0;
+  while (
+    collectRows.some(
+      (r) =>
+        r.status === 'failed' &&
+        r.sessionId !== 'wd-collect-recent' &&
+        r.visitedAt === null,
+    ) &&
+    collectPasses < 8
+  ) {
+    const tick = await sandboxWatchdogs.runSandboxWatchdog(sql, {
+      collectBatch: 50,
+      spawner: collectSpawner,
+    });
+    collectedTotal += tick.collected;
+    collectPasses += 1;
+    collectRows = await readCollectRows();
+  }
+  const collectRow = (sessionId: string, status: string) =>
+    collectRows.find((r) => r.sessionId === sessionId && r.status === status);
+  const reusedTokenRows = await sql<{ revokedAt: number | null }[]>`
+    SELECT revoked_at_ms::float8 AS "revokedAt"
+    FROM app.sandbox_session_tokens WHERE token_hash = ${reusedTokenHash}
+  `;
+  record(
+    'sandbox watchdog collects failed creates: a live leftover is destroyed and stamped by id, a reused id is stamped without a spawner call, busy and in-grace rows wait',
+    // The live leftover: destroyed spawner-side, stamped, still `failed`.
+    collectAsked.includes('wd-collect-live') &&
+      collectRow('wd-collect-live', 'failed')?.destroyedAt != null &&
+      // The reused id: its failed row settles without the spawner, and the
+      // hibernated incarnation keeps its row, its workspace and its token.
+      !collectAsked.includes('wd-collect-reused') &&
+      collectRow('wd-collect-reused', 'failed')?.destroyedAt != null &&
+      collectRow('wd-collect-reused', 'stopped')?.destroyedAt === null &&
+      reusedTokenRows[0]?.revokedAt === null &&
+      // Busy: asked, refused, left for a later tick.
+      collectAsked.includes('wd-collect-busy') &&
+      collectRow('wd-collect-busy', 'failed')?.destroyedAt === null &&
+      // Inside the grace: never a candidate.
+      !collectAsked.includes('wd-collect-recent') &&
+      collectRow('wd-collect-recent', 'failed')?.destroyedAt === null &&
+      collectedTotal >= 2,
+    `passes=${collectPasses} asked=${[...new Set(collectAsked)].join(',')} rows=${collectRows.map((r) => `${r.sessionId}=${r.status}/${r.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} token=${reusedTokenRows[0]?.revokedAt === null ? 'live' : 'revoked'} collected=${collectedTotal}`,
+  );
+
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
   // settles idle and the pending placeholder fails.
   const thread = await sql<{ id: string }[]>`

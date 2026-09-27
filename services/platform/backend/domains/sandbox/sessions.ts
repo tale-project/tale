@@ -375,7 +375,10 @@ export async function resumeSessionSlot(
 /** Terminal: revoke the gateway keys + mark destroyed + revoke tokens. The
  * single bottom of EVERY destroy — the admin Destroy, the watchdog's
  * phantom heal and ended-run reclaim, the session teardown — so credential
- * reclaim cannot be missed on one of them. */
+ * reclaim cannot be missed on one of them. The one exception is a failed
+ * create's row, which never minted credentials: the watchdog's collect pass
+ * stamps it by primary key, because its session id may already name a live
+ * successor this function would settle too. */
 export async function markSessionDestroyed(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
