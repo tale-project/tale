@@ -106,8 +106,9 @@ import {
  * BYO corpus → deployment default, pgvector + FTS), so search/fetch reuse
  * them VERBATIM through the ctx shim; only three seams re-point at 0.5:
  * the org-row lookup, the credential row loads, and the retrievable-file
- * access filter (Tier A: document, chat-thread and CONVERSATION scopes, plus
- * the email-message (`msg:`) branch, decided by the message's conversation).
+ * access filter (Tier A: document and chat-thread scopes, plus MAIL — emailed
+ * attachments and email-message (`msg:`) bodies — decided by the conversation
+ * the mail arrived on).
  *
  * Ingest is a 0.5-native composition of the same exported pieces
  * (extractText → embedder → indexDocument) with status writes on
@@ -192,14 +193,16 @@ async function allowedConversationIds(
  * ref, active lifecycle, in scope — a replaced version's ref or a trashed/
  * expired document is dark immediately, whatever the physical purge is
  * still doing) or a LIVE unbound file row holds it: a thread file inside its
- * thread's scope, an emailed attachment inside the scope of the conversation
- * it arrived on, and a row bound to neither is denied. An email message ref
- * (`msg:`) passes when its inbound email still exists, its conversation is
- * live and not spam, the door asked for message bodies, and the caller may
- * read that conversation. The DECISIONS are `decideRetrievable` and
- * `decideMessageRetrievable` (pure, tested); this wrapper fetches their
- * candidates and resolves which of THEIR conversations the caller may read —
- * attachments' and messages' together, in one read.
+ * thread's scope, and a row bound to neither is denied. MAIL — an emailed
+ * attachment (an unbound file row bound to a conversation) or an email
+ * message ref (`msg:`, whose inbound email must still exist) — passes only
+ * when its conversation is live and not spam, the door asked for mail, and
+ * the caller may read that conversation. The DECISIONS are
+ * `decideRetrievable` and `decideMessageRetrievable`, both deciding mail by
+ * `decideMailRetrievable` (pure, tested); this wrapper fetches their
+ * candidates and, for a door that asked for mail, resolves which of THEIR
+ * conversations the caller may read — attachments' and messages' together,
+ * in one read.
  *
  * `folder` (canonical spelling) re-checks the folder filter against each
  * document's CURRENT folder — the corpus row's stamp is a copy that can lag
@@ -267,23 +270,33 @@ async function filterRetrievableRagFileIds(
           ),
         )
       : new Map<string, string>();
+  // An emailed attachment is read with its conversation's lifecycle and
+  // status, which decide it the way they decide an email body.
   const fileRows =
     blobRefs.length === 0
       ? []
       : await sql<({ storageRef: string } & UnboundFileCandidate)[]>`
           SELECT fm.storage_ref AS "storageRef", fm.thread_id AS "threadId",
                  fm.conversation_id AS "conversationId",
-                 fm.lifecycle_status AS "lifecycleStatus"
+                 fm.lifecycle_status AS "lifecycleStatus",
+                 c.lifecycle_status AS "conversationLifecycleStatus",
+                 c.status AS "conversationStatus"
           FROM app.file_metadata fm
+          LEFT JOIN app.conversations c
+            ON c.id = fm.conversation_id AND c.org_id = fm.org_id
           WHERE fm.org_id = ${args.organizationId}
             AND fm.storage_ref = ANY(${blobRefs})
             AND fm.document_id IS NULL
         `;
+  // Mail is decided only for a door that asked for it — for any other the
+  // decision is a deny, so the message and assignment reads would be wasted.
+  const wantsMail =
+    args.access?.includeConversationMessages === true &&
+    args.access.includeConversationScoped !== false;
   // The inbound emails the message refs name, with the conversation each
-  // decides by. Read only for a door that asked for message bodies — for any
-  // other the decision is a deny, and the read would be wasted.
+  // decides by.
   const messageRows =
-    messageIds.length === 0 || args.access?.includeConversationMessages !== true
+    messageIds.length === 0 || !wantsMail
       ? []
       : await sql<({ id: string } & MessageCandidate)[]>`
           SELECT m.id, m.conversation_id AS "conversationId",
@@ -304,14 +317,16 @@ async function filterRetrievableRagFileIds(
   // thousands of ids into every dispatch's scope.
   const conversationIds = await allowedConversationIds(sql, {
     organizationId: args.organizationId,
-    candidates: [
-      ...new Set([
-        ...fileRows.flatMap((row) =>
-          row.conversationId !== null ? [row.conversationId] : [],
-        ),
-        ...messageRows.map((row) => row.conversationId),
-      ]),
-    ],
+    candidates: wantsMail
+      ? [
+          ...new Set([
+            ...fileRows.flatMap((row) =>
+              row.conversationId !== null ? [row.conversationId] : [],
+            ),
+            ...messageRows.map((row) => row.conversationId),
+          ]),
+        ]
+      : [],
     teamIds: args.access?.teamIds ?? [],
     ...(args.caller !== undefined ? { caller: args.caller } : {}),
   });
@@ -855,6 +870,20 @@ async function stampExtractionMetadata(
 }
 
 /**
+ * The conversation an emailed attachment's corpus row is stamped with: the
+ * one its file row is bound to, unless the file has been filed into a
+ * document — then it indexes as that document, under the document's scope.
+ * The indexer's rule; the backfill (`reconcileMailAttachmentStamps`) walks
+ * exactly the rows it stamps.
+ */
+export function emailedAttachmentConversation(file: {
+  readonly documentId: string | null;
+  readonly conversationId?: string | null;
+}): string | null {
+  return file.documentId === null ? (file.conversationId ?? null) : null;
+}
+
+/**
  * Index one uploaded file into the org's corpus: extract → PII gate →
  * embed → upsert chunks. Idempotent (re-running replaces the document's
  * chunks); the `rag.index_file` job drives it with retries.
@@ -878,12 +907,13 @@ export async function indexUploadedFile(
       fileName: string;
       contentType: string;
       documentId: string | null;
+      conversationId: string | null;
       skipRagIndexing: boolean | null;
     }[]
   >`
     SELECT org_id AS "organizationId", storage_ref AS "storageRef",
            file_name AS "fileName", content_type AS "contentType",
-           document_id AS "documentId",
+           document_id AS "documentId", conversation_id AS "conversationId",
            skip_rag_indexing AS "skipRagIndexing"
     FROM app.file_metadata WHERE id = ${fileId} LIMIT 1
   `;
@@ -901,7 +931,9 @@ export async function indexUploadedFile(
   // own (`liveness.ts`), so the two can never disagree about a ref; a
   // release that lands while this run is already embedding is caught by the
   // indexer itself (`stillWanted`, and the write path). No status write: the
-  // row is out of circulation, and a stale marker on it is read by nobody.
+  // row is out of circulation, and a stale marker on it is read by nobody —
+  // or it is an emailed attachment whose conversation is marked spam, which
+  // is never embedded (lifting the verdict queues it again).
   const stillLive = (): Promise<boolean> =>
     isCorpusRefLive(sql, {
       organizationId: file.organizationId,
@@ -1015,6 +1047,11 @@ export async function indexUploadedFile(
         );
       }
     }
+    // An emailed attachment is stamped with the conversation it arrived on
+    // (`emailedAttachmentConversation`): the corpus pre-filter then keeps it
+    // out of every door that does not wrap mail, and the chat tools label
+    // and wrap it as mail. A file filed into a document is that document's.
+    const conversationId = emailedAttachmentConversation(file);
 
     await writeRagStatus(sql, fileId, {
       ragStatus: 'running',
@@ -1039,6 +1076,7 @@ export async function indexUploadedFile(
         folderPath,
         teamIds,
         projectId,
+        conversationId,
         signal: options.signal,
         stillWanted: stillLive,
       },
@@ -1340,7 +1378,7 @@ export async function queueRagIndexIfUnstarted(
 
 /** Enqueue-side marker so the UI shows queued state immediately. */
 export async function markRagQueued(
-  tx: TransactionSql,
+  tx: TransactionSql | Sql,
   fileId: string,
 ): Promise<void> {
   await tx`
@@ -1637,6 +1675,79 @@ async function reconcileScopeStampPage(
     corrected: result.count ?? 0,
     lastId: docs.at(-1)?.id ?? null,
   };
+}
+
+/** Emailed attachments compared per corpus statement in the stamp pass. */
+const ATTACHMENT_STAMP_PAGE = 1000;
+
+/**
+ * Stamp the conversation on the corpus rows of emailed attachments that lack
+ * it, and report how many did — the BACKFILL for every attachment indexed
+ * before the indexer stamped one (`emailedAttachmentConversation`), and the
+ * backstop for a stamp that drifted since.
+ *
+ * An unstamped attachment is not served where it must not be: the
+ * retrievable filter decides it from its file row, as mail, whatever the
+ * corpus says. But every scope column NULL reads as an org-wide hub row in
+ * the SQL pre-filter, so the row competes for every caller's document slots
+ * until it is stamped, and a door that labels mail by the corpus stamp
+ * would read it as a document.
+ *
+ * Walks the organization's attachment rows — unbound file rows bound to a
+ * conversation, live — a keyset page at a time, one corpus statement per
+ * page; the guard is `IS DISTINCT FROM`, so the row count IS the number
+ * corrected and an in-sync corpus writes nothing. `updated_at` is left
+ * alone: it is the hit's modification time for a row with no source time,
+ * and a stamp is not an edit of the attachment.
+ */
+export async function reconcileMailAttachmentStamps(
+  sql: Sql,
+  args: { organizationId: string; orgSlug: string; limit?: number },
+): Promise<{ scanned: number; corrected: number }> {
+  const pageSize = args.limit ?? ATTACHMENT_STAMP_PAGE;
+  let scanned = 0;
+  let corrected = 0;
+  let afterId: string | null = null;
+  for (;;) {
+    const page: { id: string; storageRef: string; conversationId: string }[] =
+      await sql<{ id: string; storageRef: string; conversationId: string }[]>`
+        SELECT id, storage_ref AS "storageRef",
+               conversation_id AS "conversationId"
+        FROM app.file_metadata
+        WHERE org_id = ${args.organizationId}
+          AND document_id IS NULL
+          AND conversation_id IS NOT NULL
+          AND storage_ref IS NOT NULL
+          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
+          AND (${afterId}::text IS NULL OR id > ${afterId})
+        ORDER BY id
+        LIMIT ${pageSize}
+      `;
+    if (page.length === 0) break;
+    scanned += page.length;
+    const pool = await getKnowledgePoolForOrg(args.orgSlug);
+    const result = await pool.unsafe(
+      `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+          SET conversation_id = v.conversation_id
+         FROM jsonb_to_recordset($2::jsonb)
+              AS v(file_id text, conversation_id text)
+        WHERE d.org_slug = $1 AND d.file_id = v.file_id
+          AND d.conversation_id IS DISTINCT FROM v.conversation_id`,
+      [
+        args.orgSlug,
+        pool.json(
+          page.map((row) => ({
+            file_id: row.storageRef,
+            conversation_id: row.conversationId,
+          })),
+        ),
+      ],
+    );
+    corrected += result.count ?? 0;
+    if (page.length < pageSize) break;
+    afterId = page.at(-1)?.id ?? null;
+  }
+  return { scanned, corrected };
 }
 
 /**

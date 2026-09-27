@@ -185,29 +185,33 @@ export interface KnowledgeAccessScope {
    */
   readonly archivedProjectIds?: readonly string[];
   /**
-   * Whether conversation-scoped rows — emailed attachments — may be ADMITTED by
-   * the SQL pre-filter for the Convex-truth re-check to decide.
+   * Whether conversation-scoped rows — the uploads of the caller's chat
+   * threads, and the mail of the inbox conversations below — are in play at
+   * all. `false` refuses both, whatever else this scope says.
    *
-   * Not a grant. The re-check applies `conversationAssignmentAllows` against the
-   * conversation's current assignment, so this only says "consider them"; a
-   * caller who can read no conversation gets none of them back. Absent means
-   * they are not considered at all, which is the fail-closed default for a
-   * surface that has not thought about it.
+   * Not a grant. A thread upload is decided by `threadIds`, and mail only
+   * ever reaches a door that also asks for it (`includeConversationMessages`)
+   * and then by the conversation's current assignment
+   * (`conversationAssignmentAllows`), so this only says "consider them"; a
+   * caller who can read no conversation gets none of its mail back.
    */
   readonly includeConversationScoped?: boolean;
   /**
-   * Whether indexed EMAIL BODIES (`msg:` refs, `message-ref.ts`) are in play —
-   * a narrowing of the conversation-scoped rows above, never a widening.
+   * Whether MAIL is in play: indexed EMAIL BODIES (`msg:` refs,
+   * `message-ref.ts`) and emailed ATTACHMENTS — the corpus rows stamped with
+   * the conversation they arrived on. A narrowing of the conversation-scoped
+   * rows above, never a widening.
    *
-   * A body is text anyone who can email the organization chose, so it may
+   * Mail is text anyone who can email the organization chose, so it may
    * reach only a door that labels it as mail and wraps it as untrusted: the
    * chat assistant's `rag_search` / `rag_fetch`, which set this when the
-   * caller's role reads conversations. Absent — every other door, the org-wide
-   * callers included — message rows are excluded from the SQL candidates and
-   * refused by the re-check, so a new corpus class reaches no door by default.
-   * Present, bodies are searched as a partition with a candidate pool of its
-   * own (`DocumentCorpusReader`), so bodies the re-check refuses never take
-   * a document's slot.
+   * caller's role reads conversations. Absent — every other door, the REST
+   * and MCP doors, the sandbox bridge and the org-wide callers included —
+   * mail rows are excluded from the SQL candidates and refused by the
+   * re-check, so a new corpus class reaches no door by default. Present,
+   * mail is searched as a partition with a candidate pool of its own
+   * (`DocumentCorpusReader`), so mail the re-check refuses never takes a
+   * document's slot.
    */
   readonly includeConversationMessages?: boolean;
   /**
@@ -307,6 +311,10 @@ export function knowledgeScopeAllows(
 }
 
 /** What a caller asks for. */
+/** The two kinds of mail the documents corpus holds (see
+ * `KnowledgeAccessScope.includeConversationMessages`). */
+export type MailKind = 'bodies' | 'attachments';
+
 export interface KnowledgeQuery {
   readonly query: string;
   /** Defaults to `all`. */
@@ -323,13 +331,14 @@ export interface KnowledgeQuery {
    */
   readonly access?: KnowledgeAccessScope;
   /**
-   * Search the indexed email bodies alone (documents corpus only) — the chat
-   * assistant's `conversation` narrow, where a document or an attachment
-   * could only take a candidate slot and then be dropped. Bodies still need
-   * `access.includeConversationMessages`; without it the documents corpus
-   * answers nothing.
+   * Search one kind of mail alone (documents corpus only): `bodies`, the
+   * indexed email bodies — the chat assistant's `conversation` narrow — or
+   * `attachments`, the emailed attachments — its `mail-attachment` narrow.
+   * Anything else could only take a candidate slot and then be dropped. Mail
+   * still needs `access.includeConversationMessages`; without it the
+   * documents corpus answers nothing.
    */
-  readonly onlyEmailBodies?: boolean;
+  readonly mailOnly?: MailKind;
   /** Drop dense hits below this cosine similarity before fusing. */
   readonly minSimilarity?: number;
 }

@@ -14,7 +14,10 @@ import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { assessMessageRefLiveness, assessRefLiveness } from './liveness.ts';
-import { reconcileDocumentScopeStamps } from './service.ts';
+import {
+  reconcileDocumentScopeStamps,
+  reconcileMailAttachmentStamps,
+} from './service.ts';
 
 /**
  * Ref release — THE shared seam for taking content out of circulation.
@@ -416,6 +419,17 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
         // failed silently, and until now nothing said so.
         console.warn(
           `[knowledge] corpus scope drift for ${org.slug}: corrected=${scope.corrected} of scanned=${scope.scanned} — the per-edit sync had failed for these`,
+        );
+      }
+      // The emailed attachments' conversation stamp: the backfill of every
+      // attachment indexed before the indexer stamped one, then the backstop.
+      const mail = await reconcileMailAttachmentStamps(sql, {
+        organizationId: org.id,
+        orgSlug: org.slug,
+      });
+      if (mail.corrected > 0) {
+        console.info(
+          `[knowledge] stamped the conversation on ${mail.corrected} emailed attachment(s) for ${org.slug} (of scanned=${mail.scanned})`,
         );
       }
     } catch (error) {

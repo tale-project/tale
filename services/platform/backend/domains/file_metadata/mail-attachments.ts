@@ -40,6 +40,11 @@ import { viewerIsAdmin } from '../conversations/service.ts';
  * `hasTeam` still happens at most once, and only for a conversation whose
  * decision actually turns on it.
  *
+ * The conversation's own state gates the listing the way it gates retrieval
+ * (`decideMailRetrievable`): an attachment of a conversation marked spam, or
+ * one in the Trash, is not listed — retrieval would refuse its ref anyway,
+ * and a listing that names what no fetch can read misleads.
+ *
  * A row the caller cannot read is skipped, which means the walk may pass more
  * rows than it keeps. {@link SCAN_CAP} bounds that, and it is reported: a
  * caller who can read little should be told the reach was bounded rather than
@@ -159,7 +164,11 @@ export async function listMailAttachments(
           FROM app.conversations
           WHERE org_id = ${args.organizationId}
             AND id = ANY(${conversationIds})
+            AND coalesce(lifecycle_status, 'active') = 'active'
+            AND status IS DISTINCT FROM 'spam'
         `;
+  // A conversation absent here — deleted, another org's id on the file row,
+  // in the Trash or marked spam — lists none of its attachments.
   const stamps = new Map(
     conversations.map((row) => [
       row.id,
@@ -185,8 +194,8 @@ export async function listMailAttachments(
     let allowed = decided.get(row.conversationId);
     if (allowed === undefined) {
       const stamp = stamps.get(row.conversationId);
-      // A conversation missing from this org's rows (deleted, or another
-      // org's id on the file row) is fail-closed, never org-readable.
+      // A conversation missing from the rows above is fail-closed, never
+      // org-readable.
       allowed =
         stamp !== undefined &&
         (await conversationAssignmentAllows(stamp, {
@@ -210,4 +219,36 @@ export async function listMailAttachments(
   }
 
   return { attachments, truncated };
+}
+
+/**
+ * Which of these refs name an emailed attachment, and the conversation each
+ * arrived on — read from the file rows, the app's own truth, not from the
+ * corpus row's copy of it.
+ *
+ * The door that serves mail (the chat tools) wraps it as untrusted by
+ * provenance. The corpus stamps an attachment's conversation, but a stamp is
+ * a copy that can be missing: an attachment indexed before the indexer
+ * stamped one keeps an unstamped row until the backfill reaches it. The
+ * retrievable filter decides such a row from its file row as mail, so it can
+ * be served to that door — and a door that read provenance from the corpus
+ * alone would then hand an outsider's text to the model unwrapped. The same
+ * rule the filter and the indexer use: a file row bound to a conversation
+ * and to no document.
+ */
+export async function emailedAttachmentConversations(
+  sql: Sql,
+  args: { organizationId: string; refs: readonly string[] },
+): Promise<{ storageId: string; conversationId: string }[]> {
+  if (args.refs.length === 0) return [];
+  return sql<{ storageId: string; conversationId: string }[]>`
+    SELECT DISTINCT ON (storage_ref) storage_ref AS "storageId",
+           conversation_id AS "conversationId"
+    FROM app.file_metadata
+    WHERE org_id = ${args.organizationId}
+      AND storage_ref = ANY(${[...args.refs]}::text[])
+      AND conversation_id IS NOT NULL
+      AND document_id IS NULL
+    ORDER BY storage_ref, created_at_ms
+  `;
 }

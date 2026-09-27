@@ -716,6 +716,47 @@ export function createChatToolExecutor(
     return access.allowed;
   };
 
+  /**
+   * The emailed attachments among these corpus refs whose corpus row does not
+   * carry its conversation — an attachment indexed before the indexer
+   * stamped one, until the backfill reaches it — read from the file rows.
+   * The retrievable filter decides such a row from its file row as mail, so
+   * this door may be handed it; its provenance must come from the same
+   * truth, or an outsider's text would reach the model unwrapped. Not
+   * best-effort: a failed read fails the call rather than serving mail as a
+   * document.
+   */
+  const unstampedAttachmentConversations = async (
+    hits: readonly {
+      readonly corpus: string;
+      readonly source: {
+        readonly ref: string;
+        readonly conversationId?: string | null;
+      };
+    }[],
+  ): Promise<Map<string, string>> => {
+    const refs = [
+      ...new Set(
+        hits
+          .filter(
+            (hit) =>
+              hit.corpus === 'documents' &&
+              hit.source.conversationId == null &&
+              !isMessageRef(hit.source.ref),
+          )
+          .map((hit) => hit.source.ref),
+      ),
+    ];
+    if (refs.length === 0) return new Map();
+    const rows: { storageId: string; conversationId: string }[] =
+      await ctx.runQuery(
+        internal.file_metadata.internal_queries
+          .lookupMailAttachmentConversations,
+        { organizationId: who.organizationId, storageIds: refs },
+      );
+    return new Map(rows.map((row) => [row.storageId, row.conversationId]));
+  };
+
   /** Best-effort observability: the audit row and the ledger row must never
    * fail a tool call the model already made. */
   const recordDispatch = async (
@@ -993,11 +1034,14 @@ export function createChatToolExecutor(
     /** Email-body hits leg 1 returned — conversation rows, which leg 8's
      * source label has to count as matches. */
     let emailBodyHits = 0;
-    // Bodies are conversation content: the role that gates the inbox gates
-    // them. A `conversation` narrow for a role that cannot read the inbox
-    // has nothing leg 1 could return, so it runs no embedding and no query.
-    const wantEmailBodies = conversationsAllowed && runLeg('conversation');
-    if (runLeg('document', 'mail-attachment', 'web-page') || wantEmailBodies) {
+    // Mail — the bodies of inbound email and their attachments — is
+    // conversation content: the role that gates the inbox gates it. A mail
+    // narrow (`conversation`, `mail-attachment`) for a role that cannot read
+    // the inbox has nothing leg 1 could return, so it runs no embedding and
+    // no query.
+    const wantMail =
+      conversationsAllowed && runLeg('conversation', 'mail-attachment');
+    if (runLeg('document', 'web-page') || wantMail) {
       // One corpus leg serves four kinds; a narrow selects within it. An
       // emailed attachment and an email body live in the documents corpus
       // (their conversation is what marks them), so every kind but a web
@@ -1024,33 +1068,45 @@ export function createChatToolExecutor(
             // `minSimilarity`), else the built-in default — resolved next
             // to the model, not hard-wired here.
             floorByDefault: true,
-            // Email bodies are conversation content: the role that gates the
-            // inbox gates them, on top of each conversation's own assignment
-            // (which the admission re-check decides). This door labels and
-            // wraps them as mail, so it is the one door that asks for them —
-            // and only when conversation rows are wanted, or a narrow to
-            // another kind would spend its page on hits it then drops. They
-            // are searched with a candidate pool of their own, so bodies the
-            // caller may not read never push a document out of the page.
+            // Mail is conversation content: the role that gates the inbox
+            // gates it, on top of each conversation's own assignment (which
+            // the admission re-check decides). This door labels and wraps it
+            // as mail, so it is the one door that asks for it — and only when
+            // mail rows are wanted, or a narrow to another kind would spend
+            // its page on hits it then drops. Mail is searched with a
+            // candidate pool of its own, so mail the caller may not read
+            // never pushes a document out of the page.
             access: {
               ...docAccess,
-              includeConversationMessages: wantEmailBodies,
+              includeConversationMessages: wantMail,
             },
-            // A `conversation` narrow reads bodies alone: a document or an
-            // attachment could only take a slot and then be dropped below.
-            ...(kindFilter === 'conversation' && { onlyEmailBodies: true }),
+            // A mail narrow reads that kind of mail alone: anything else
+            // could only take a slot and then be dropped below.
+            ...(kindFilter === 'conversation' && {
+              mailOnly: 'bodies' as const,
+            }),
+            ...(kindFilter === 'mail-attachment' && {
+              mailOnly: 'attachments' as const,
+            }),
           });
+          const unstamped = await unstampedAttachmentConversations(
+            knowledge.hits,
+          );
           const found = { document: 0, mailAttachment: 0, webPage: 0 };
           let corpusSnippetLeft = CORPUS_SNIPPET_TOTAL_CHARS;
           for (const hit of knowledge.hits) {
             // A hit that arrived by email is attacker-controlled: anyone who
-            // can email the organization chose its text, and #3014 puts the
-            // mail's subject and correspondent INSIDE the chunk, so the whole
-            // passage is wrapped rather than any one field stripped. The title
-            // is short attacker text and is sanitized wherever it came from.
+            // can email the organization chose its text — a body, or a file
+            // attached to it — so the whole passage is wrapped rather than
+            // any one field stripped. The title is short attacker text and is
+            // sanitized wherever it came from. Provenance is the corpus
+            // stamp, or the file row where the stamp is missing.
             const emailBody =
               hit.corpus === 'documents' && isMessageRef(hit.source.ref);
-            const fromMail = emailBody || hit.source.conversationId != null;
+            const fromMail =
+              emailBody ||
+              hit.source.conversationId != null ||
+              unstamped.has(hit.source.ref);
             // The kind vocabulary the list action already speaks: a mail
             // attachment is its own kind, never a "document" — so a narrow
             // to either kind returns exactly that kind. An email body cites
@@ -1112,8 +1168,9 @@ export function createChatToolExecutor(
                 : 'searched (no matches — the document index may also still be empty)';
           }
           if (runLeg('mail-attachment')) {
-            sources.mailAttachments =
-              found.mailAttachment > 0
+            sources.mailAttachments = !conversationsAllowed
+              ? 'access denied for your role'
+              : found.mailAttachment > 0
                 ? 'searched'
                 : 'searched (no matches — indexed emailed attachments only)';
           }
@@ -1144,7 +1201,9 @@ export function createChatToolExecutor(
             sources.documents = unavailable;
           }
           if (runLeg('mail-attachment')) {
-            sources.mailAttachments = unavailable;
+            sources.mailAttachments = conversationsAllowed
+              ? unavailable
+              : 'access denied for your role';
           }
           if (runLeg('web-page')) {
             sources.webPages = unavailable;
@@ -1161,6 +1220,9 @@ export function createChatToolExecutor(
           sources.webPages = 'access denied for your role';
         }
       }
+    } else if (runLeg('mail-attachment')) {
+      // A `mail-attachment` narrow for a role that cannot read the inbox.
+      sources.mailAttachments = 'access denied for your role';
     }
 
     // Legs 2–5 are capped EACH — never by a global slice over the
@@ -2315,13 +2377,18 @@ export function createChatToolExecutor(
     // change) is not a capability, and a denied document reads as the same
     // not_found as a missing one. The shared reader serves the corpus text,
     // the row's inline content, or a text file's bytes on demand — and
-    // names the file's true indexing state when none can be served.
+    // names the file's true indexing state when none can be served. An
+    // emailed attachment is mail: this door asks for it only when the role
+    // reads the inbox, and the conversation's assignment decides the rest.
     const access = await knowledgeAccess();
     const read = await readDocumentText(ctx, {
       organizationId: who.organizationId,
       orgSlug: slug,
       fileId: ref,
-      access,
+      access: {
+        ...access,
+        includeConversationMessages: await readAllowed('conversations'),
+      },
     });
     if (read.status === 'not_found') {
       const result: ToolFailure = {
@@ -2337,10 +2404,17 @@ export function createChatToolExecutor(
     const { text, filename } = read;
 
     // Anything that arrived by email is attacker-controlled — its contents,
-    // and the subject and correspondent #3014 bakes into the chunk — so it
-    // reads wrapped, exactly like a video-link document. The corpus already
-    // knows which refs those are.
-    const fromMail = read.conversationId != null;
+    // and its name — so it reads wrapped, exactly like a video-link
+    // document. The corpus stamp names those refs; where it is missing (an
+    // attachment indexed before the stamp, or read on demand), the file row
+    // does.
+    const fromMail =
+      read.conversationId != null ||
+      (
+        await unstampedAttachmentConversations([
+          { corpus: 'documents', source: { ref } },
+        ])
+      ).has(ref);
 
     // A document that arrived through a video link is third-party content;
     // it reads wrapped, like every other untrusted source.

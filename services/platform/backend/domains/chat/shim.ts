@@ -7,7 +7,10 @@ import { wordStartPatterns } from '../../lib/word-match.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
-import { listMailAttachments } from '../file_metadata/mail-attachments.ts';
+import {
+  emailedAttachmentConversations,
+  listMailAttachments,
+} from '../file_metadata/mail-attachments.ts';
 import {
   resolveFileReadAccess,
   viewerForUser,
@@ -108,10 +111,10 @@ function pageOf<T>(
 
 /** The turn user's knowledge scope — their teams (and whether they are an
  * admin, whom the audience rule never restricts), readable projects, the
- * hub, and the emailed attachments of the conversations they may read — the
- * 0.5 twin of `resolveKnowledgeAccessForUser`. The one resolver every door a
- * member's identity opens uses (the chat tools, the MCP key's
- * get_knowledge). */
+ * hub, and the conversation-scoped rows they may read — the 0.5 twin of
+ * `resolveKnowledgeAccessForUser`. The one resolver every door a member's
+ * identity opens uses (the chat tools, the MCP key's get_knowledge, a
+ * user-keyed sandbox session); only the chat tools add mail to it. */
 export async function resolveAccessScope(
   sql: Sql,
   organizationId: string,
@@ -146,12 +149,14 @@ export async function resolveAccessScope(
     isAdmin: isAudienceAdmin(member.role),
     projectIds: projects.map((project) => project.id),
     includeHub: true,
-    // A person asks here, so conversation-scoped rows (emailed attachments)
-    // are ADMITTED by the SQL pre-filter for the live-truth re-check to
-    // decide by the conversation's assignment (`filterRetrievableRagFileIds`
-    // resolves the caller from the `userId` this scope carries). Not a
-    // grant: absent, the rows were never even considered, and the #3220
-    // decision could not fire for anyone.
+    // A person asks here, so conversation-scoped rows are in play: the
+    // uploads of the turn's own threads, and — for the one door that also
+    // asks for mail (`includeConversationMessages`, the chat tools, which
+    // wrap it as untrusted) — the mail of the conversations the caller may
+    // read (`filterRetrievableRagFileIds` resolves the caller from the
+    // `userId` this scope carries). Not a grant: the MCP door and the
+    // sandbox bridge resolve this same scope and never ask for mail, so no
+    // email body and no emailed attachment reaches them.
     includeConversationScoped: true,
     archivedProjectIds: projects
       .filter((project) => project.archivedAt !== null)
@@ -637,6 +642,19 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         limit: number;
       };
       return listMailAttachments(sql, args);
+    },
+    // Which refs are emailed attachments, from the file rows — the chat
+    // tools wrap such text as untrusted mail even when the corpus row does
+    // not carry its conversation yet.
+    'file_metadata/internal_queries:lookupMailAttachmentConversations': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the tool legs pass exactly this shape
+      const args = raw as { organizationId: string; storageIds: string[] };
+      return emailedAttachmentConversations(sql, {
+        organizationId: args.organizationId,
+        refs: args.storageIds,
+      });
     },
     'file_metadata/internal_queries:lookupVideoLinkSources': async (raw) => {
       // Inline SQL (not the video_links service) — that service composes
