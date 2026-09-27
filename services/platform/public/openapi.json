@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.1.0",
+    "version": "3.2.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -37396,7 +37396,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.1.0"
+          "example": "3.2.0"
         }
       },
       "Location": {
@@ -39898,7 +39898,7 @@
               "lastSkippedAt": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "The last time the binding came due (a schedule occurrence, an event, a webhook delivery) and started nothing — `lastSkipReason` says why; null until it has.",
+                "description": "The last time the binding came due (a schedule occurrence, an event, a webhook delivery) and started nothing — `lastSkipReason` says why; null until it has. With `paused_after_failures`, the moment the schedule paused itself.",
                 "nullable": true
               },
               "lastSkipReason": {
@@ -39907,10 +39907,11 @@
                   "not_deployed",
                   "unusable_cron",
                   "start_refused",
+                  "paused_after_failures",
                   null
                 ],
                 "nullable": true,
-                "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule)."
+                "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule). `paused_after_failures`: the schedule turned itself off (`enabled: false`) after 5 runs in a row failed for a reason the next occurrence would repeat — fix the automation, then save the trigger with `enabled: true`. Saving the trigger clears this reason, whatever `enabled` it sets."
               }
             },
             "description": "What starts the automation, if a trigger is bound: its kind, whether it is switched on, and its health — the same `lastFiredAt`, `lastSkippedAt` and `lastSkipReason` that `GET …/triggers` reads, so one listing call finds every binding that is enabled and not firing (a `lastSkipReason` of `not_deployed` beside a null `deployedVersion` is a trigger waiting for a deploy); null when none is bound. `GET …/triggers` has the rest — the cron, the event, `lastRunId`.",
@@ -40067,7 +40068,7 @@
       },
       "Trigger": {
         "type": "object",
-        "description": "The binding, and its health: `lastFiredAt` and `lastRunId` name the last run it started, `lastSkippedAt` and `lastSkipReason` the last time it came due and started nothing. A binding is alive when `lastFiredAt` keeps pace with its cadence; one whose `lastSkippedAt` is the newer stamp is coming due and not running — the reason says what to fix.",
+        "description": "The binding, and its health: `lastFiredAt` and `lastRunId` name the last run it started, `lastSkippedAt` and `lastSkipReason` the last time it came due and started nothing. A binding is alive when `lastFiredAt` keeps pace with its cadence; one whose `lastSkippedAt` is the newer stamp is coming due and not running — the reason says what to fix. `consecutiveFailures` counts the runs it started that failed in a row, and `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of them — a schedule that reaches the threshold pauses itself.",
         "required": [
           "id",
           "name",
@@ -40077,7 +40078,11 @@
           "lastFiredAt",
           "lastRunId",
           "lastSkippedAt",
-          "lastSkipReason"
+          "lastSkipReason",
+          "consecutiveFailures",
+          "lastFailedAt",
+          "lastFailureCode",
+          "lastFailedRunId"
         ],
         "properties": {
           "id": {
@@ -40124,14 +40129,51 @@
           "lastSkippedAt": {
             "type": "integer",
             "minimum": 0,
-            "description": "The last time the binding came due (a schedule occurrence, an event, a webhook delivery) and started nothing — `lastSkipReason` says why; null until it has.",
+            "description": "The last time the binding came due (a schedule occurrence, an event, a webhook delivery) and started nothing — `lastSkipReason` says why; null until it has. With `paused_after_failures`, the moment the schedule paused itself.",
             "nullable": true
           },
           "lastSkipReason": {
             "type": "string",
-            "enum": ["not_deployed", "unusable_cron", "start_refused", null],
+            "enum": [
+              "not_deployed",
+              "unusable_cron",
+              "start_refused",
+              "paused_after_failures",
+              null
+            ],
             "nullable": true,
-            "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule)."
+            "description": "`not_deployed`: the automation had no deployed version to run — deploy one. `unusable_cron`: the schedule’s expression or time zone could not be read; the scheduler leaves the binding alone until it is edited. `start_refused`: the deployed version’s `inputs` schema refused the run’s input (`{trigger, firedAt}` for a schedule). `paused_after_failures`: the schedule turned itself off (`enabled: false`) after 5 runs in a row failed for a reason the next occurrence would repeat — fix the automation, then save the trigger with `enabled: true`. Saving the trigger clears this reason, whatever `enabled` it sets."
+          },
+          "consecutiveFailures": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Runs in a row this binding started that failed for a reason the next occurrence would repeat — a `failureCode` of `node_error`, `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`, `credit_exhausted`, `model_not_found`. A success sets it back to 0, and so does saving the trigger; any other failure neither counts nor breaks the streak. A schedule pauses itself when it reaches 5 (`lastSkipReason: \"paused_after_failures\"`); webhook and event bindings keep counting and are never paused."
+          },
+          "lastFailedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "When the last run counted in the streak finished; null until one has. Kept after the streak resets; cleared by a rebind to another kind.",
+            "nullable": true
+          },
+          "lastFailureCode": {
+            "type": "string",
+            "enum": [
+              "node_error",
+              "connector_error",
+              "llm_output_invalid",
+              "auth_error",
+              "missing_api_key",
+              "credit_exhausted",
+              "model_not_found",
+              null
+            ],
+            "nullable": true,
+            "description": "That run’s `failureCode`."
+          },
+          "lastFailedRunId": {
+            "type": "string",
+            "nullable": true,
+            "description": "That run — `GET …/runs/{runId}` has its failure sentence; null once the run is deleted."
           }
         }
       },

@@ -203,6 +203,11 @@ describe('scanScheduledTriggers', () => {
       expect(claim.text).toContain(
         'GREATEST(last_due_at_ms, last_fired_at_ms) < ?',
       );
+      // A paused or edited binding invalidates a page read before it: the
+      // write, not only the page, must still see an enabled schedule.
+      expect(claim.text).toContain("kind = 'schedule' AND enabled = true");
+      expect(claim.text).toContain('updated_at_ms = ?');
+      expect(claim.values).toContain(now - 600_000);
       expect(claim.text).toContain('RETURNING id');
       expect(claim.text).not.toContain('last_fired_at_ms =');
     }

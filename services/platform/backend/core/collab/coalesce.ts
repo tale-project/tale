@@ -63,6 +63,10 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   // Whether a member is asking for more credits: asking again while the
   // admin's row is unread is the same request, not a second one.
   usage_credits_requested: 'credits',
+  // Whether a schedule is paused by its failures: pausing again (someone
+  // turned it back on too soon) while the admin's row is unread is the same
+  // broken schedule, not a second one.
+  automation_failed: 'paused',
   // Deliberately absent — each carries its own content, so each is its own row:
   // mention, task_commented, conversation_message.
 };
@@ -109,6 +113,9 @@ function coalesceSubject(args: {
     return `sync_config:${args.resourceId}`;
   }
   if (args.resourceType === 'member') return `member:${args.resourceId}`;
+  if (args.resourceType === 'automation_trigger') {
+    return `automation_trigger:${args.resourceId}`;
+  }
   // A dimension we can't tie to a subject would collapse unrelated rows
   // together, so it collapses nothing instead.
   return null;

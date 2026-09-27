@@ -218,9 +218,19 @@
  * or new message carries the part; a client drops a branch it could not
  * reach. Major because a named schema was removed.
  *
- * 3.1.0 — 2026-09-27: 404 `ORG_SLUG_INVALID` and 403 `ORG_FORBIDDEN` carry
+ * 3.1.0 — 2026-09-27: a schedule pauses itself after five runs in a row
+ * fail for a reason the next occurrence would repeat (`node_error`,
+ * `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`,
+ * `credit_exhausted`, `model_not_found`): `enabled` turns false and
+ * `lastSkipReason` — on `Trigger` and on `AutomationSummary.trigger` —
+ * gains `paused_after_failures` until the trigger is saved again. `Trigger`
+ * carries the streak: `consecutiveFailures`, and the last counted failure's
+ * `lastFailedAt`, `lastFailureCode` and `lastFailedRunId`. Saving a trigger
+ * resets the streak.
+ *
+ * 3.2.0 — 2026-09-28: 404 `ORG_SLUG_INVALID` and 403 `ORG_FORBIDDEN` carry
  * `data.organizations` — the slugs the key holder may send — the way 400
  * `ORG_SLUG_REQUIRED` already did, so a mistyped or foreign
  * `X-Organization-Slug` says what to send instead.
  */
-export const API_CONTRACT_VERSION = '3.1.0';
+export const API_CONTRACT_VERSION = '3.2.0';

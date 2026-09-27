@@ -56,6 +56,8 @@ import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
+import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
@@ -54599,8 +54601,16 @@ async function main(): Promise<void> {
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
       [
+        'checkTriggerPauseAfterFailures',
+        () => checkTriggerPauseAfterFailures(sql, authCtx, record),
+      ],
+      [
         'checkDeletedOrgSchedules',
         () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
+      [
+        'checkTriggerStreakLockOrder',
+        () => checkTriggerStreakLockOrder(sql, authCtx, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [

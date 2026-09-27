@@ -739,6 +739,10 @@ describe('triggers of an automation nobody saved', () => {
         lastRunId: null,
         lastSkippedAt: 1_789_193_100_000,
         lastSkipReason: 'not_deployed',
+        consecutiveFailures: 0,
+        lastFailedAt: null,
+        lastFailureCode: null,
+        lastFailedRunId: null,
       },
     ]);
     const res = await mount().app.request(
@@ -754,6 +758,46 @@ describe('triggers of an automation nobody saved', () => {
           lastRunId: null,
           lastSkippedAt: 1_789_193_100_000,
           lastSkipReason: 'not_deployed',
+        }),
+      ],
+    });
+  });
+
+  it('GET answers a schedule its failures paused, with the streak and the last failure', async () => {
+    vi.mocked(listTriggers).mockResolvedValueOnce([
+      {
+        id: 'trig-1',
+        name: SAVED,
+        kind: 'schedule',
+        cron: '*/5 * * * *',
+        timezone: 'UTC',
+        event: null,
+        hasToken: false,
+        enabled: false,
+        lastFiredAt: 1_789_193_400_000,
+        lastRunId: 'run-5',
+        lastSkippedAt: 1_789_193_460_000,
+        lastSkipReason: 'paused_after_failures',
+        consecutiveFailures: 5,
+        lastFailedAt: 1_789_193_460_000,
+        lastFailureCode: 'connector_error',
+        lastFailedRunId: 'run-5',
+      },
+    ]);
+    const res = await mount().app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      name: SAVED,
+      triggers: [
+        expect.objectContaining({
+          enabled: false,
+          lastSkipReason: 'paused_after_failures',
+          consecutiveFailures: 5,
+          lastFailedAt: 1_789_193_460_000,
+          lastFailureCode: 'connector_error',
+          lastFailedRunId: 'run-5',
         }),
       ],
     });
