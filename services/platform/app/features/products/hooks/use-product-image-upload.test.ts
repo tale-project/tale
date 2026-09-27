@@ -2,6 +2,11 @@
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+import {
+  LAPSED_SESSION_ANSWER,
+  SESSION_ENDED,
+} from '@/tests/utils/lapsed-session';
+
 import { useProductImageUpload } from './use-product-image-upload';
 
 const mutation = vi.fn();
@@ -129,26 +134,23 @@ describe('useProductImageUpload', () => {
   });
 
   // A lapsed session answers the flat envelope: the sentence in `error`, the
-  // code beside it. The field reads `UNAUTHORIZED`, not the sentence.
-  it("carries the flat envelope's code, not its sentence", async () => {
+  // code beside it. The field reads `UNAUTHORIZED` from `code`, and the
+  // words are the app's session-ended sentence, not the door's guidance for
+  // API clients.
+  it("carries the flat envelope's code, and the app's words for it", async () => {
     mutation.mockResolvedValue('https://upload.example/post');
-    const sentence =
-      'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1';
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          Response.json(
-            { error: sentence, code: 'UNAUTHORIZED' },
-            { status: 401 },
-          ),
-        ),
+      vi.fn().mockResolvedValue(
+        Response.json(LAPSED_SESSION_ANSWER.body, {
+          status: LAPSED_SESSION_ANSWER.status,
+        }),
+      ),
     );
 
     const { result } = renderHook(() => useProductImageUpload());
     await expect(result.current.uploadImage(file())).rejects.toMatchObject({
-      data: { code: 'UNAUTHORIZED', message: sentence },
+      data: { code: 'UNAUTHORIZED', message: SESSION_ENDED.en },
     });
   });
 

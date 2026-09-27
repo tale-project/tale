@@ -1,0 +1,64 @@
+import { useEffect } from 'react';
+
+import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
+import { onSessionLapsed } from '@/app/lib/auth/session-lapse';
+import { authClient } from '@/lib/auth-client';
+
+/**
+ * Take a signed-in tab to sign-in once a backend answer says its session has
+ * ended (signed out in another tab, expired, revoked), the way the dashboard
+ * does when its session probe finds nobody: re-check with Better Auth, and
+ * on a clean signed-out answer hard-navigate to `/log-in`, carrying the page
+ * to come back to and the notice to show there. The surface that met the
+ * answer has already said "your session has ended" in its own toast.
+ *
+ * Only a clean answer redirects. A re-check that gets no answer (0, 5xx, a
+ * thrown fetch) holds the page — a blip must not sign anyone out — and a
+ * session that is alive after all (the old one rotated away while a request
+ * was in flight, as a TOTP verify does) keeps it. Either way the next
+ * lapsed-session answer checks again; answers that land while a check runs
+ * share it.
+ *
+ * `enabled` is the dashboard's own verdict that the tab is signed in: while
+ * its probe says otherwise, that lane is the one re-checking and redirecting.
+ */
+export function useSessionLapseRedirect(enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let active = true;
+    let checking = false;
+    const unsubscribe = onSessionLapsed(() => {
+      if (checking) return;
+      checking = true;
+      void sessionIsGone().then((gone) => {
+        checking = false;
+        if (gone && active) redirectToLogIn('session-ended');
+      });
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [enabled]);
+}
+
+/** Better Auth's own verdict: true only for a clean "nobody is signed in". */
+async function sessionIsGone(): Promise<boolean> {
+  try {
+    const session = await authClient.getSession();
+    const status = session?.error?.status;
+    if (status !== undefined && (status === 0 || status >= 500)) {
+      console.warn(
+        `[auth] Session re-check after a lapsed-session answer failed with ${status}`,
+      );
+      return false;
+    }
+    return !session?.data?.user;
+  } catch (error) {
+    console.warn(
+      '[auth] Session re-check after a lapsed-session answer failed',
+      error,
+    );
+    return false;
+  }
+}

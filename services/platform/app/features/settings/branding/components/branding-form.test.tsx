@@ -6,9 +6,17 @@ import {
   type EditorController,
 } from '@tale/ui/editor';
 import { act, cleanup, fireEvent, waitFor } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { adjustColorForTheme } from '@/lib/utils/color';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
 import { render, screen } from '@/tests/utils/render';
 
 // Mock next-intl
@@ -432,3 +440,51 @@ describe('BrandingForm', () => {
     });
   });
 });
+
+// The session door's 401 names the REST API in English; the admin whose
+// session ended reads why in their own language, under the localized title.
+describe.each(SHIPPED_LOCALES)(
+  'BrandingForm after a lapsed session (%s)',
+  (locale) => {
+    const tCommon = (key: string) => i18n.getFixedT(locale, 'common')(key);
+    const tToast = (key: string) => i18n.getFixedT(locale, 'toast')(key);
+
+    beforeEach(() => {
+      saveLocale(locale);
+    });
+    afterEach(forgetSavedLocale);
+
+    it('says the session has ended when the reset cannot be saved', async () => {
+      mockMutateAsync.mockImplementationOnce(lapsedSessionRefusal);
+      render(
+        <ActiveEditorProvider>
+          <BrandingForm
+            organizationId="org_test"
+            onPreviewChange={vi.fn()}
+            branding={{ accentColor: '#E11D48', logoUrl: '/logo.png' }}
+          />
+        </ActiveEditorProvider>,
+      );
+      const resetLabel = tCommon('actions.reset');
+      await waitFor(() =>
+        expect(
+          registeredActions.current.some((a) => a.label === resetLabel),
+        ).toBe(true),
+      );
+      const reset = registeredActions.current.find(
+        (a) => a.label === resetLabel,
+      );
+      act(() => reset?.onClick());
+      fireEvent.click(await screen.findByRole('button', { name: resetLabel }));
+
+      await waitFor(() =>
+        expect(mockToast).toHaveBeenCalledWith({
+          title: tToast('error.brandingUpdateFailed.title'),
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+      expect(JSON.stringify(mockToast.mock.calls)).not.toContain('API key');
+    });
+  },
+);

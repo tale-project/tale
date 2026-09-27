@@ -74,3 +74,5 @@ Sous **Paramètres > Compte > Tes chats**, les actions **Archiver tous les chats
 Lis la confirmation avant de continuer. Le résultat indique combien de chats ont été modifiés et combien n’ont pas pu l’être. Utilise le menu d’un chat dans **Accueil** si tu souhaites seulement ranger celui-ci. Les chats archivés restent sous **Archivés**, en bas de la liste d’**Accueil**, où **Désarchiver** dans le menu d’un chat le fait revenir.
 
 **Se déconnecter** dans le menu de profil ferme la session actuelle et ramène à la connexion. Déconnecte-toi après usage sur un appareil partagé. Pour un espace dédié sur ton propre appareil, consulte [Installer l’application](/fr/platform/member/install-as-app).
+
+Si ta session prend fin pendant que Tale est ouvert, par exemple après une déconnexion dans un autre onglet, ta prochaine action n’est pas exécutée : Tale affiche **Ta session a pris fin. Reconnecte-toi.** et ouvre la page de connexion avec le même avis. Après la connexion, tu reviens sur la page où tu étais et tu peux refaire l’action.

@@ -10,7 +10,9 @@ import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-fra
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
+import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
 import { useSessionUser } from '@/app/hooks/use-session-user';
+import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import {
   passwordExpiryQuery,
@@ -57,6 +59,10 @@ function DashboardRedirect() {
   // SESSION_IDLE_TIMEOUT_MINUTES. The authenticated layout is the right mount
   // point — it wraps every signed-in page and is gated on a live session.
   useSessionIdleWatchdog();
+  // A session that ends under the open tab (signed out elsewhere, expired,
+  // revoked): the first answer that says so leads to sign-in, re-checked
+  // the same way as the probe below.
+  useSessionLapseRedirect(isAuthenticated);
 
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
@@ -148,14 +154,7 @@ function DashboardRedirect() {
 
   useEffect(() => {
     if (sessionVerified && !hasValidSession) {
-      const basePath = getEnv('BASE_PATH');
-      const pathname = window.location.pathname;
-      const routePath = basePath
-        ? pathname.replace(new RegExp(`^${basePath}`), '')
-        : pathname;
-      const returnTo =
-        routePath + window.location.search + window.location.hash;
-      window.location.href = `${basePath}/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
+      redirectToLogIn();
     }
   }, [sessionVerified, hasValidSession]);
 

@@ -48,15 +48,15 @@ export function backendUserMessage(err: unknown, fallback: string): string {
  * a bare code as the message) or nothing structured at all. A toast puts
  * it under its localized title; it never replaces one.
  *
- * A lapsed session (the session door's 401 `UNAUTHORIZED`) gives no reason
- * either: its sentence tells an API client to send a key to the REST API,
- * in English, and a person recovers by signing in again, not by reading
- * the door's guidance.
+ * A lapsed session (the session door's 401 `UNAUTHORIZED`) reads as the
+ * app's localized "session ended" sentence: the app's error normalization
+ * (`toBackendError` in `app/lib/backend/adapters.ts`) puts it in place of
+ * the door's guidance for API clients, so this reader, like every other,
+ * needs no case of its own.
  */
 export function backendRefusalReason(err: unknown): string | undefined {
   const message = stringField(err, 'message');
   if (message === undefined || message.length === 0) return undefined;
   const code = stringField(err, 'code');
-  if (code === 'UNAUTHORIZED') return undefined;
   return message === code ? undefined : message;
 }

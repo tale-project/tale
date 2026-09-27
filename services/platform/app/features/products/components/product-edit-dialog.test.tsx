@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from '@tale/ui/use-toast';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 // Verifies the user-facing half of the duplicate-name fix in the edit flow: a
@@ -223,3 +231,44 @@ describe('ProductEditDialog — price and stock', () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 });
+
+// The session door's 401 names the REST API in English; the person whose
+// session ended reads why in their own language, under the localized title.
+describe.each(SHIPPED_LOCALES)(
+  'ProductEditDialog after a lapsed session (%s)',
+  (locale) => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      saveLocale(locale);
+    });
+    afterEach(forgetSavedLocale);
+
+    it('says the session has ended under the save error title', async () => {
+      mockMutate.mockImplementation(
+        (_args, opts: { onError: (error: unknown) => void }) => {
+          void lapsedSessionRefusal().catch(opts.onError);
+        },
+      );
+
+      const { user } = renderDialog();
+      const nameInput = screen.getByLabelText('products.edit.labels.name', {
+        exact: false,
+      });
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Renamed product');
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.save' }),
+      );
+
+      const toastMock = vi.mocked(toast);
+      await waitFor(() =>
+        expect(toastMock).toHaveBeenCalledWith({
+          title: 'products.edit.toast.error',
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+      expect(JSON.stringify(toastMock.mock.calls)).not.toContain('API key');
+    });
+  },
+);

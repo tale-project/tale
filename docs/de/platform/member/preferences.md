@@ -74,3 +74,5 @@ Unter **Einstellungen > Konto > Deine Chats** findest du **Alle Chats archiviere
 Lies die Bestätigung, bevor du fortfährst. Das Ergebnis zeigt, wie viele Chats geändert wurden und wie viele nicht geändert werden konnten. Verwende das Menü eines einzelnen Chats im Bereich **Start**, wenn du nur dieses Gespräch ordnen möchtest. Archivierte Chats bleiben dort unter **Archiviert** am Ende der Liste; **Dearchivieren** im Menü eines Chats holt ihn zurück.
 
 **Abmelden** im Profilmenü beendet die aktuelle Sitzung und führt zur Anmeldung zurück. Melde dich auf gemeinsam genutzten Geräten nach der Arbeit ab. Für ein eigenes App-Fenster auf deinem Gerät lies [Als App installieren](/de/platform/member/install-as-app).
+
+Endet deine Sitzung, während Tale geöffnet ist, etwa weil du dich in einem anderen Browser-Tab abgemeldet hast, führt Tale deine nächste Aktion nicht aus. Stattdessen zeigt Tale **Deine Sitzung ist beendet. Melde dich erneut an.** und öffnet die Anmeldeseite mit demselben Hinweis. Nach der Anmeldung kommst du auf die Seite zurück, auf der du warst, und kannst die Aktion wiederholen.

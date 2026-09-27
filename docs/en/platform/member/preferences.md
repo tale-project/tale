@@ -74,3 +74,5 @@ Each usage limit shows the amount used, the limit, and when it resets in your lo
 Read the confirmation before proceeding. The result reports how many chats changed and how many could not be changed. Use an individual chat's menu in Home when you only want to organize that conversation. Archived chats stay under **Archived** at the bottom of the Home list, where **Unarchive** in a chat's menu brings it back.
 
 **Log out** in the profile menu ends the current session and returns you to sign-in. Sign out on a shared device when you finish using Tale. For a dedicated app window on your own device, see [Install as app](/platform/member/install-as-app).
+
+If your session ends while Tale is open, for example because you logged out in another tab, the next thing you do in Tale is not carried out: it shows **Your session has ended. Sign in again.** and Tale opens the sign-in page with the same notice. After you sign in, you return to the page you were on and can repeat the action.
