@@ -2,10 +2,85 @@
 
 import type { ProjectColor, ProjectIcon } from '@tale/shared/schemas/projects';
 import { cn } from '@tale/ui/cn';
-import * as icons from 'lucide-react';
+import {
+  Atom,
+  Beaker,
+  BookOpen,
+  Box,
+  Briefcase,
+  Building2,
+  Code,
+  Compass,
+  Cpu,
+  Flag,
+  FlaskConical,
+  Folder,
+  FolderGit2,
+  FolderKanban,
+  FolderOpen,
+  FolderTree,
+  Globe,
+  GraduationCap,
+  Heart,
+  Layers,
+  Lightbulb,
+  Mail,
+  Map as MapIcon,
+  MessageSquare,
+  Microscope,
+  Phone,
+  Rocket,
+  Star,
+  Target,
+  Users,
+} from 'lucide-react';
 import type { ComponentType } from 'react';
 
 type IconComponent = ComponentType<{ className?: string }>;
+
+/**
+ * One import per allowlisted name, never `import * as icons`: a namespace
+ * read by a dynamic key keeps every one of lucide's ~1,500 icons alive in
+ * the bundle — 110 KB gzip on every cold load (2026-09-26 evaluation,
+ * G-08). The `Record<ProjectIcon, …>` type makes a name added to
+ * `PROJECT_ICONS` without an entry here a compile error.
+ */
+const PROJECT_ICON_COMPONENTS: Record<ProjectIcon, IconComponent> = {
+  FolderKanban,
+  Folder,
+  FolderOpen,
+  FolderTree,
+  FolderGit2,
+  Briefcase,
+  Building2,
+  Layers,
+  Box,
+  BookOpen,
+  GraduationCap,
+  Lightbulb,
+  Rocket,
+  Target,
+  Flag,
+  Compass,
+  Map: MapIcon,
+  Star,
+  Beaker,
+  FlaskConical,
+  Microscope,
+  Atom,
+  Cpu,
+  Code,
+  Heart,
+  Users,
+  MessageSquare,
+  Phone,
+  Mail,
+  Globe,
+};
+
+function isProjectIcon(name: string): name is ProjectIcon {
+  return Object.hasOwn(PROJECT_ICON_COMPONENTS, name);
+}
 
 const SIZE_CLASSES = {
   16: 'size-4 rounded',
@@ -66,10 +141,11 @@ export interface ProjectAvatarProps {
 }
 
 function resolveIcon(iconName: string | null | undefined): IconComponent {
-  const safeName = iconName ?? DEFAULT_ICON;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- The lucide-react module exports a record of icon components; we read by allowlisted name and fall back to default. The double-cast is the standard shape for indexing into an opaque module namespace.
-  const iconMap = icons as unknown as Record<string, IconComponent>;
-  return iconMap[safeName] ?? iconMap[DEFAULT_ICON];
+  const name =
+    iconName !== null && iconName !== undefined && isProjectIcon(iconName)
+      ? iconName
+      : DEFAULT_ICON;
+  return PROJECT_ICON_COMPONENTS[name];
 }
 
 function resolveColor(color: string | null | undefined): string {
