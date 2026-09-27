@@ -519,6 +519,13 @@ export interface AutomationListing {
   } | null;
 }
 
+/**
+ * The presentation a listing shows is the newest NON-NULL one: a version
+ * saved from the canvas, over MCP or by an upload without a manifest carries
+ * no presentation of its own, and reading the latest row alone made the
+ * name the wizard stored vanish on the next save (2026-09-26 evaluation,
+ * D-03). A declared name outlives the versions that did not restate it.
+ */
 export async function listAutomations(
   sql: Sql,
   organizationId: string,
@@ -541,7 +548,8 @@ export async function listAutomations(
            (array_agg(a.document->'inputs'
               ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
              AS inputs,
-           (array_agg(a.presentation ORDER BY a.version DESC))[1]
+           (array_agg(a.presentation ORDER BY a.version DESC)
+              FILTER (WHERE a.presentation IS NOT NULL))[1]
              AS presentation
     FROM app.automations a
     LEFT JOIN app.automation_deployments d
@@ -635,7 +643,8 @@ export async function listAutomationsForApp(
              AS "taskContract",
            (array_agg(a.settings ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
              AS settings,
-           (array_agg(a.presentation ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
+           (array_agg(a.presentation ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC)
+              FILTER (WHERE a.presentation IS NOT NULL))[1]
              AS presentation
     FROM app.automations a
     LEFT JOIN app.automation_deployments d

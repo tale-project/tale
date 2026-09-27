@@ -438,6 +438,14 @@ output:
       refusal under the field (`automations.trigger.cronInvalidReason`) and
       **Create automation** is disabled with that reason — no automation is
       created (the list is unchanged, no `blank.triggerFailed` toast).
+- [ ] `AUTO-F42` · **Blank wizard keeps the typed name** — **Blank** wizard,
+      Name `Eval-D agent 测试 🚀` → the field reads `Saved as: eval-d-agent`
+      (`automations.blank.slugHint`); after **Create automation** the editor
+      header, breadcrumb and list row show **Eval-D agent 测试 🚀** while the
+      URL carries `eval-d-agent`. Name `发票提醒` → `Saved as:
+      automation-<8 hex>`, **Next** enabled, the created automation is titled
+      `发票提醒`. Save a new version from the canvas (no presentation of its
+      own) → the list still shows the typed name, never "Automation <hex>".
 
 ## Boundary & error tests
 

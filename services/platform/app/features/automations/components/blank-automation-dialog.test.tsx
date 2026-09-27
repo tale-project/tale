@@ -167,6 +167,56 @@ describe('BlankAutomationDialog schedule validation', () => {
   });
 });
 
+/**
+ * The typed name is the display name — the slug only addresses the
+ * automation. The wizard used to send no presentation, so `eval-D-agent 测试
+ * 🚀` became "Eval d agent" and a name outside the Latin script could not be
+ * created at all (2026-09-26 evaluation, D-03).
+ */
+describe('BlankAutomationDialog display name', () => {
+  it('keeps the typed name as the presentation and slugifies only the address', async () => {
+    const { user } = renderDialog();
+    await user.type(screen.getByLabelText(/Name/i), 'Eval-D agent 测试 🚀');
+    expect(screen.getByText('Saved as: eval-d-agent')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /Agent model/i }));
+    await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+    await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+    await user.click(screen.getByRole('button', { name: /Next/i }));
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(saveAutomation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentation: { name: 'Eval-D agent 测试 🚀' },
+        automation: expect.objectContaining({ name: 'eval-d-agent' }),
+      }),
+    );
+  });
+
+  it('derives a generated slug for a name outside the Latin script and says so', async () => {
+    const { user } = renderDialog();
+    await user.type(screen.getByLabelText(/Name/i), '发票提醒');
+    const hint = screen.getByText(/^Saved as: automation-[0-9a-f]{8}$/);
+    expect(hint).toBeVisible();
+    const slug = hint.textContent?.replace('Saved as: ', '') ?? '';
+    await user.click(screen.getByRole('button', { name: /Agent model/i }));
+    await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+    await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+    const next = screen.getByRole('button', { name: /Next/i });
+    expect(next).toBeEnabled();
+    await user.click(next);
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(saveAutomation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentation: { name: '发票提醒' },
+        automation: expect.objectContaining({ name: slug }),
+      }),
+    );
+  });
+});
+
 describe('BlankAutomationDialog model pin', () => {
   it('offers one option per (provider, model) pair, harness-filtered', async () => {
     const { user } = renderDialog();

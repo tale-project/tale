@@ -68,6 +68,14 @@ function slugify(input: string): string {
     .slice(0, 64);
 }
 
+/** The slug a name outside the Latin script gets — `发票提醒` slugifies to
+ * nothing, and the typed name lives in the presentation, not the slug. One
+ * per dialog opening, so the "Saved as" line is stable while the author
+ * types. */
+function fallbackSlug(): string {
+  return `automation-${crypto.randomUUID().slice(0, 8)}`;
+}
+
 export function BlankAutomationDialog({
   organizationId,
   projectId,
@@ -111,6 +119,7 @@ export function BlankAutomationDialog({
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [secretNames, setSecretNames] = useState<readonly string[]>([]);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
+  const [generatedSlug, setGeneratedSlug] = useState(fallbackSlug);
 
   // Step 2 — the trigger.
   const [triggerKind, setTriggerKind] = useState<TriggerKind>('schedule');
@@ -128,6 +137,7 @@ export function BlankAutomationDialog({
     setBinding(EMPTY_BINDING);
     setSecretNames([]);
     setNameError(undefined);
+    setGeneratedSlug(fallbackSlug());
     setTriggerKind('schedule');
     setCron('0 */6 * * *');
     setTimezone('UTC');
@@ -204,7 +214,12 @@ export function BlankAutomationDialog({
   );
   const timezoneValid = isValidTimezone(timezone);
 
-  const slug = slugify(name);
+  // The slug is addressing; the typed name is what people see. A name the
+  // slugifier empties (Chinese, emoji) still creates — under a generated
+  // slug the "Saved as" line shows before Create.
+  const typedSlug = slugify(name);
+  const slug =
+    name.trim() === '' ? '' : typedSlug === '' ? generatedSlug : typedSlug;
   const canSubmitStep1 =
     slug.length > 0 && model !== '' && prompt.trim() !== '';
   const canSubmitStep2 =
@@ -255,6 +270,9 @@ export function BlankAutomationDialog({
       const saved = await saveAutomation({
         organizationId,
         automation,
+        // The display name as typed — case, script and emoji intact; the
+        // slug only addresses the automation.
+        presentation: { name: name.trim() },
         message: t('blank.initialMessage'),
         // Create-only: refuse rather than append a version to (and rebind the
         // trigger of) a live automation that already holds this slug.
