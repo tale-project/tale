@@ -1,4 +1,5 @@
 import { buttonVariants } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { SuspenseBoundary } from '@tale/ui/error-boundaries/suspense-boundary';
 import { Stack } from '@tale/ui/layout';
@@ -9,10 +10,11 @@ import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen, FileJson } from 'lucide-react';
 import { lazy } from 'react';
 
+import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { useT } from '@/lib/i18n/client';
-import { seo } from '@/lib/utils/seo';
 
 import 'swagger-ui-react/swagger-ui.css';
+import { seo } from '@/lib/utils/seo';
 
 const SwaggerUI = lazy(() => import('swagger-ui-react'));
 
@@ -136,9 +138,10 @@ export function ApiDocsPage() {
 
   return (
     // The app shell locks document scroll (`#root` is `overflow:clip`), so the
-    // docs page owns its own scroll region instead of unlocking the viewport.
+    // docs page owns its own scroll region instead of unlocking the viewport —
+    // the frame every page outside the shell shares.
     <div
-      className="bg-background h-dvh overflow-y-auto"
+      className={cn('bg-background', STANDALONE_PAGE)}
       onClickCapture={handleClick}
     >
       <DeveloperSurfaces />

@@ -1,10 +1,12 @@
 'use client';
 
+import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { rootRouteId, useMatch, useRouterState } from '@tanstack/react-router';
 
 import { DashboardNotFound } from '@/app/components/layout/dashboard-not-found';
 import { NotFoundState } from '@/app/components/layout/not-found-state';
+import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { LogoLink } from '@/app/components/logo/logo-link';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { seo } from '@/lib/utils/seo';
@@ -90,7 +92,10 @@ export function RouteNotFound() {
  */
 function StandaloneNotFound() {
   return (
-    <Stack gap={0} className="bg-background text-foreground min-h-dvh">
+    <Stack
+      gap={0}
+      className={cn('bg-background text-foreground', STANDALONE_PAGE)}
+    >
       <header className="pt-[calc(2rem+var(--safe-top))] pr-[calc(1rem+var(--safe-right))] pl-[calc(1rem+var(--safe-left))] sm:pr-[calc(2rem+var(--safe-right))] sm:pl-[calc(2rem+var(--safe-left))]">
         <LogoLink href="/" />
       </header>

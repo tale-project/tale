@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { Form } from '@tale/ui/form';
 import { FormSection } from '@tale/ui/form-section';
 import { Heading } from '@tale/ui/heading';
@@ -14,6 +15,7 @@ import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 import { z } from 'zod';
 
+import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { LogoLink } from '@/app/components/logo/logo-link';
 import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
@@ -147,7 +149,7 @@ function ForcedChangePasswordPage() {
     <VStack
       gap={0}
       align="stretch"
-      className="bg-background text-foreground min-h-dvh"
+      className={cn('bg-background text-foreground', STANDALONE_PAGE)}
     >
       <div className="px-4 pt-8 pb-16 sm:px-8">
         <LogoLink href="/" />

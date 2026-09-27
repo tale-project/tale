@@ -12,6 +12,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { ChevronLeft, X } from 'lucide-react';
 import { useState } from 'react';
 
+import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { TaleLogo } from '@/app/components/logo/tale-logo';
 import { UserButton } from '@/app/components/user-button';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
@@ -121,7 +122,7 @@ export function OnboardingWizard({
   };
 
   return (
-    <Stack gap={0} className="min-h-screen">
+    <Stack gap={0} className={STANDALONE_PAGE}>
       {/* Three zones, two distinct affordances: step Back (left) navigates
           within the flow; the close (right) leaves it. A back-chevron vs an
           ✕-close, on opposite sides — so they never read as duplicate "Back"s. */}

@@ -1,4 +1,5 @@
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { Heading } from '@tale/ui/heading';
 import { Input } from '@tale/ui/input';
@@ -27,6 +28,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
+import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { LogoLink } from '@/app/components/logo/logo-link';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
@@ -174,7 +176,7 @@ export function TwoFactorEnrollPage() {
     <VStack
       gap={0}
       align="stretch"
-      className="bg-background text-foreground min-h-dvh"
+      className={cn('bg-background text-foreground', STANDALONE_PAGE)}
     >
       <div className="px-4 pt-8 pb-8 sm:px-8">
         <LogoLink href="/" />

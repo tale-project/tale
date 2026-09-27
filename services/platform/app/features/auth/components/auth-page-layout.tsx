@@ -1,6 +1,8 @@
+import { cn } from '@tale/ui/cn';
 import { Row, Spacer, VStack } from '@tale/ui/layout';
 import type { ReactNode } from 'react';
 
+import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { LogoLink } from '@/app/components/logo/logo-link';
 
 /** One page frame keeps the OAuth handoff and the login form in place. */
@@ -15,7 +17,7 @@ export function AuthPageLayout({
     <VStack
       gap={0}
       align="stretch"
-      className="bg-background text-foreground min-h-dvh"
+      className={cn('bg-background text-foreground', STANDALONE_PAGE)}
     >
       {header ?? (
         <Row

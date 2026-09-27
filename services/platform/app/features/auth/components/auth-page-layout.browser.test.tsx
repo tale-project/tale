@@ -8,6 +8,7 @@ import { Route as AuthRoute } from '@/app/routes/_auth';
 import { render, screen } from '@/tests/utils/render';
 
 import { AuthFormLayout } from './auth-form-layout';
+import { AuthPageLayout } from './auth-page-layout';
 import { OAuthAuthorization } from './oauth-authorization';
 
 import '@/app/globals.css';
@@ -75,4 +76,29 @@ describe('OAuth login page geometry', () => {
       });
     }
   }
+});
+
+// The platform clips the document (`locals.css`), so nothing below the fold
+// of a page outside the app shell is reachable unless the page scrolls
+// itself. A phone held sideways is 390px tall; the sign-in form is taller.
+describe('AuthPageLayout scrolling (real layout)', () => {
+  it('scrolls a form taller than a phone held sideways to its last control', async () => {
+    await page.viewport(844, 390);
+    render(
+      <AuthPageLayout>
+        <form className="mx-auto flex w-80 flex-col gap-4">
+          <div className="h-[28rem]">Email and password</div>
+          <button type="submit">Log in</button>
+        </form>
+      </AuthPageLayout>,
+    );
+    const submit = screen.getByRole('button', { name: 'Log in' });
+    const frame = screen.getByRole('main').parentElement as HTMLElement;
+    // The frame is exactly the viewport, and it is the scroller.
+    expect(frame.getBoundingClientRect().height).toBeCloseTo(390, 0);
+    expect(getComputedStyle(frame).overflowY).toBe('auto');
+    expect(submit.getBoundingClientRect().top).toBeGreaterThan(390);
+    frame.scrollTop = frame.scrollHeight;
+    expect(submit.getBoundingClientRect().bottom).toBeLessThanOrEqual(390);
+  });
 });
