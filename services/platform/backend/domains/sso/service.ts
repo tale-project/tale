@@ -16,8 +16,10 @@ import {
   SSO_SYNC_ACTOR,
 } from '../teams/audit.ts';
 import {
+  findTeamNameCollision,
   resyncRetiredDocumentScopes,
   retireTeamScopes,
+  teamNameKey,
 } from '../teams/service.ts';
 import { anchorTwoFactorGraceOnSignIn } from '../two_factor/service.ts';
 import { resolveProvisioning } from './config.ts';
@@ -312,11 +314,13 @@ export async function syncTeamsFromGroupNames(
     membershipsRemoved: 0,
     errors: [],
   };
-  const excludeLower = new Set(
-    args.excludeGroups.map((g) => g.toLowerCase().trim()),
-  );
+  // Names compare by `teamNameKey` — case and inner whitespace folded —
+  // the key the team door itself refuses collisions on: an IdP group
+  // "Board  Members" is the admin-built team "board members", not a second
+  // team beside it.
+  const excludeKeys = new Set(args.excludeGroups.map(teamNameKey));
   const syncable = args.groupNames.filter(
-    (n) => !excludeLower.has(n.toLowerCase().trim()),
+    (n) => !excludeKeys.has(teamNameKey(n)),
   );
   const nowMs = Date.now();
 
@@ -328,22 +332,21 @@ export async function syncTeamsFromGroupNames(
     metadata: { door: 'sso' },
   };
 
-  const syncedNamesLower = new Set<string>();
+  const syncedNameKeys = new Set<string>();
   for (const name of syncable) {
     try {
-      syncedNamesLower.add(name.toLowerCase());
+      syncedNameKeys.add(teamNameKey(name));
       // One group, one transaction: the team, its provenance, the
       // membership and their audit rows land together or not at all — a
       // failed group is reported and the next one still runs.
       const outcome = await sql.begin(async (tx) => {
-        const teams = await tx<{ id: string; name: string }[]>`
-          SELECT "id", "name" FROM "team"
-          WHERE "organizationId" = ${args.organizationId}
-            AND lower("name") = ${name.toLowerCase()}
-          LIMIT 1
-        `;
-        let teamId = teams[0]?.id;
-        let teamName = teams[0]?.name ?? name;
+        const existing = await findTeamNameCollision(
+          tx,
+          args.organizationId,
+          name,
+        );
+        let teamId = existing?.id;
+        let teamName = existing?.name ?? name;
         let teamCreated = false;
         if (teamId === undefined) {
           const created = await tx<{ id: string }[]>`
@@ -427,8 +430,8 @@ export async function syncTeamsFromGroupNames(
   `;
   for (const row of synced) {
     if (row.teamName !== null) {
-      const lower = row.teamName.toLowerCase();
-      if (syncedNamesLower.has(lower) || excludeLower.has(lower.trim())) {
+      const key = teamNameKey(row.teamName);
+      if (syncedNameKeys.has(key) || excludeKeys.has(key)) {
         continue;
       }
     }

@@ -451,6 +451,64 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     ).toBe(true);
   });
 
+  // The team door refuses a name that reads the same as an existing team's
+  // (case and inner whitespace folded, E-01); the sync looked teams up by
+  // `lower(name)` alone, so an IdP group "Board  Members" created a second
+  // team beside the admin-built "board members".
+  it('finds an existing team through the whitespace- and case-folded key', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('SELECT "id", "name" FROM "team"'))
+        return [{ id: 't-board', name: 'board members' }];
+      if (text.startsWith('SELECT "id" FROM "teamMember"')) return [];
+      return [];
+    });
+
+    const result = await syncTeamsFromGroupNames(sql, {
+      ...syncArgs,
+      groupNames: ['  Board   Members '],
+    });
+
+    expect(result.teamsCreated).toBe(0);
+    expect(result.membershipsAdded).toBe(1);
+    const lookup = queries.find((q) =>
+      q.text.startsWith('SELECT "id", "name" FROM "team"'),
+    );
+    // The team door's own SQL: the stored name folded the same way as the
+    // key it is compared to.
+    expect(lookup?.text).toContain('regexp_replace(btrim("name")');
+    expect(lookup?.values).toContain('board members');
+    expect(queries.some((q) => q.text.startsWith('INSERT INTO "team"'))).toBe(
+      false,
+    );
+  });
+
+  it('keeps a synced membership whose group name only changed in case or spacing', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('SELECT "id", "name" FROM "team"'))
+        return [{ id: 't-board', name: 'Board Members' }];
+      if (text.startsWith('SELECT "id" FROM "teamMember"'))
+        return [{ id: 'tm-board' }];
+      if (text.startsWith('SELECT p.team_id AS "teamId"')) {
+        return [
+          {
+            teamId: 't-board',
+            teamName: 'Board Members',
+            membershipId: 'tm-board',
+          },
+        ];
+      }
+      return [];
+    });
+
+    const result = await syncTeamsFromGroupNames(sql, {
+      ...syncArgs,
+      groupNames: ['board  members'],
+    });
+
+    expect(result.membershipsRemoved).toBe(0);
+    expect(deletes(queries)).toHaveLength(0);
+  });
+
   it('does not adopt a membership that already existed (admin- or SCIM-granted)', async () => {
     const { sql, queries } = fakeSql((text) => {
       if (text.startsWith('SELECT "id", "name" FROM "team"'))
