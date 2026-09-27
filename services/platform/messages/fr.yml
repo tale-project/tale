@@ -765,9 +765,6 @@ automations:
       repeatUntilCapped: 'répéter jusqu’à {value}, {maxRepeats}× au plus'
       onError: continuer en cas d’erreur
   editor:
-    title: Nœud
-    noSelection: Sélectionne un nœud sur le canvas pour voir et modifier ce qu’il fait.
-    noSelectionReadOnly: Sélectionne un nœud sur le canvas pour voir ce qu’il fait.
     unknownType: 'Type de nœud inconnu : {type}'
     catalogUnavailable:
       Le catalogue des types de nœuds n’a pas pu être chargé, donc seuls

@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Dialog } from '@tale/ui/dialog/dialog';
@@ -65,6 +66,7 @@ import { nodeStatusMap, projectRun } from '../lib/run-view';
 import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
+  AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
 import { AutomationEditorActions } from './automation-editor-actions';
@@ -797,7 +799,12 @@ function AutomationEditorScope({
           </div>
         )}
 
-        <div className={AUTOMATION_EDITOR_WORKBENCH_GRID}>
+        <div
+          className={cn(
+            AUTOMATION_EDITOR_WORKBENCH_GRID,
+            selectedNode !== null && AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
+          )}
+        >
           <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
             {lastRun ? (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end p-2">
@@ -834,23 +841,27 @@ function AutomationEditorScope({
               {...(runStatusByNode !== undefined && { runStatusByNode })}
             />
           </div>
-          <NodeInspector
-            id={inspectorId}
-            variant="panel"
-            node={selectedNode}
-            nodeType={nodeTypes.find((def) => def.type === selectedNode?.type)}
-            catalogUnavailable={catalogQuery.isError}
-            runView={
-              selectedNode && showLastRun
-                ? lastRunProjection.byNode.get(selectedNode.id)
-                : undefined
-            }
-            readOnly={!canAuthor}
-            onChange={onChangeNode}
-            organizationId={organizationId}
-            {...(projectId !== undefined && { projectId })}
-            onDeselect={deselectNode}
-          />
+          {/* Only a picked node opens the inspector; until then the canvas
+              runs to the window's edge. */}
+          {selectedNode !== null && (
+            <NodeInspector
+              id={inspectorId}
+              variant="panel"
+              node={selectedNode}
+              nodeType={nodeTypes.find((def) => def.type === selectedNode.type)}
+              catalogUnavailable={catalogQuery.isError}
+              runView={
+                showLastRun
+                  ? lastRunProjection.byNode.get(selectedNode.id)
+                  : undefined
+              }
+              readOnly={!canAuthor}
+              onChange={onChangeNode}
+              organizationId={organizationId}
+              {...(projectId !== undefined && { projectId })}
+              onDeselect={deselectNode}
+            />
+          )}
         </div>
       </div>
 

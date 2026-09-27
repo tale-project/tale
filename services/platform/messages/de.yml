@@ -758,9 +758,6 @@ automations:
       repeatUntilCapped: 'wiederholen bis {value}, höchstens {maxRepeats}×'
       onError: bei Fehler weiterlaufen
   editor:
-    title: Node
-    noSelection: Wähle eine Node auf dem Canvas, um zu sehen und zu ändern, was sie tut.
-    noSelectionReadOnly: Wähle eine Node auf dem Canvas, um zu sehen, was sie tut.
     unknownType: 'Unbekannter Node-Typ: {type}'
     catalogUnavailable:
       Der Katalog der Node-Typen konnte nicht geladen werden, deshalb

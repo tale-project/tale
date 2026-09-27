@@ -13,12 +13,18 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return target.closest('[contenteditable="true"]') !== null;
 }
 
+/** The canvas button of one node, looked up inside `root`. */
+export function automationNodeElement(
+  nodeId: string,
+  root: ParentNode = document,
+): HTMLElement | null {
+  return root.querySelector<HTMLElement>(
+    `[${AUTOMATION_NODE_ATTR}="${CSS.escape(nodeId)}"]`,
+  );
+}
+
 export function focusAutomationNode(nodeId: string): void {
-  document
-    .querySelector<HTMLElement>(
-      `[${AUTOMATION_NODE_ATTR}="${CSS.escape(nodeId)}"]`,
-    )
-    ?.focus();
+  automationNodeElement(nodeId)?.focus();
 }
 
 /**

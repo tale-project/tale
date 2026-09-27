@@ -13,7 +13,7 @@
  * panel at its border instead of at a gutter.
  */
 export const AUTOMATION_EDITOR_WORKBENCH_GRID =
-  'grid min-h-[24rem] lg:flex-1 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
+  'grid min-h-[24rem] lg:flex-1 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
 
 /**
  * A run's canvas + inspector row sits above the run's effects, agent log and
@@ -23,7 +23,14 @@ export const AUTOMATION_EDITOR_WORKBENCH_GRID =
  * which would stretch the canvas when a node is selected.
  */
 export const AUTOMATION_RUN_WORKBENCH_GRID =
-  'grid min-h-[24rem] gap-4 lg:h-[max(24rem,calc(100dvh-15rem))] lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
+  'grid min-h-[24rem] gap-4 lg:h-[max(24rem,calc(100dvh-15rem))] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
+
+/**
+ * The inspector's column, added to either workbench while a node is picked.
+ * With nothing picked there is no inspector and the canvas takes the width.
+ */
+export const AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS =
+  'lg:grid-cols-[minmax(0,1fr)_22rem]';
 
 /** The canvas column fills the workbench cell and never grows with the inspector.
  * `relative` hosts canvas chrome (last-run controls) as overlays so they

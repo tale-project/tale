@@ -19,10 +19,17 @@ import {
   type Node,
 } from '@xyflow/react';
 import { AlertTriangle, Workflow } from 'lucide-react';
-import { useCallback, useMemo, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+} from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { automationNodeElement } from '../hooks/use-deselect-on-escape';
 import type { NodePosition } from '../lib/document';
 import type { AutomationGraph } from '../lib/graph';
 import type { NodeRunStatus } from '../lib/run-view';
@@ -72,6 +79,28 @@ export interface AutomationCanvasProps {
 
 const EMPTY_STATUSES: ReadonlyMap<string, NodeRunStatus> = new Map();
 
+/** Room left between a box brought into view and the frame's edge. */
+const REVEAL_MARGIN = 24;
+
+/**
+ * How far to move the span `[start, end]` so it shows inside `[min, max]`:
+ * nothing when it already does, otherwise the least shift that leaves the
+ * margin — aligned to its start when the span is longer than the room.
+ */
+function revealShift(
+  start: number,
+  end: number,
+  min: number,
+  max: number,
+): number {
+  if (start >= min && end <= max) return 0;
+  const lo = min + REVEAL_MARGIN;
+  const hi = max - REVEAL_MARGIN;
+  if (end - start > hi - lo) return lo - start;
+  if (end > hi) return hi - end;
+  return lo - start;
+}
+
 function CanvasInner({
   graph,
   positions,
@@ -82,7 +111,7 @@ function CanvasInner({
   framed = true,
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
-  const { setCenter, getZoom } = useReactFlow();
+  const { getViewport, setViewport } = useReactFlow();
 
   const incomingByNode = useMemo(() => {
     const grouped = new Map<string, typeof graph.edges>();
@@ -163,31 +192,41 @@ function CanvasInner({
 
   const nodes = needsLayout ? laidOut : baseNodes;
 
-  const centerOnNode = useCallback(
-    (nodeId: string, zoom: number, duration: number): boolean => {
-      const node = nodes.find((candidate) => candidate.id === nodeId);
-      if (!node) return false;
+  // Bring a node's box fully into the frame with the least pan, at the zoom
+  // the author chose. Measured on the page, so it holds even right after the
+  // frame changed size — React Flow only learns its new size a frame later.
+  const frameRef = useRef<HTMLDivElement>(null);
+  const revealNode = useCallback(
+    (nodeId: string) => {
+      const frame = frameRef.current;
+      const box = frame === null ? null : automationNodeElement(nodeId, frame);
+      if (frame === null || box === null) return;
+      const bounds = frame.getBoundingClientRect();
+      const rect = box.getBoundingClientRect();
+      const dx = revealShift(rect.left, rect.right, bounds.left, bounds.right);
+      const dy = revealShift(rect.top, rect.bottom, bounds.top, bounds.bottom);
+      if (dx === 0 && dy === 0) return;
+      const viewport = getViewport();
       // The pan resolves when the animation ends and there is nothing to do
       // afterwards, so it is not awaited.
-      void setCenter(
-        node.position.x + NODE_WIDTH / 2,
-        node.position.y + NODE_HEIGHT / 2,
-        { zoom, duration },
+      void setViewport(
+        { x: viewport.x + dx, y: viewport.y + dy, zoom: viewport.zoom },
+        { duration: 200 },
       );
-      return true;
     },
-    [nodes, setCenter],
+    [getViewport, setViewport],
   );
 
-  const onFocusNode = useCallback(
-    (nodeId: string) => {
-      // Keep the zoom the author chose and only pan: a keyboard user tabbing
-      // through the graph must see the box that just took focus, without the
-      // viewport jumping scale under them.
-      centerOnNode(nodeId, getZoom(), 200);
-    },
-    [centerOnNode, getZoom],
-  );
+  // A keyboard user tabbing through the graph must see the box that just
+  // took focus — without the viewport jumping scale, or moving at all when
+  // the box is already in sight.
+  const onFocusNode = revealNode;
+
+  // Picking a node opens the inspector beside the canvas and narrows it; a
+  // picked box the inspector now covers pans back into view.
+  useEffect(() => {
+    if (selectedNodeId !== null) revealNode(selectedNodeId);
+  }, [selectedNodeId, revealNode]);
 
   const canvasContext = useMemo<CanvasNodeContextValue>(
     () => ({
@@ -232,6 +271,7 @@ function CanvasInner({
         />
       )}
       <div
+        ref={frameRef}
         // A definite height at mount matters: React Flow measures its frame
         // once, and a `flex-1` box inside a scrolling column can start at
         // zero — which paints an empty canvas that never re-fits.

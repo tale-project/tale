@@ -66,20 +66,6 @@ const llmNode = {
 };
 
 describe('NodeInspector', () => {
-  it('asks the author to pick a node when none is selected', () => {
-    render(
-      <NodeInspector
-        id="inspector"
-        node={null}
-        nodeType={undefined}
-        readOnly={false}
-        organizationId="org_test"
-        onChange={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/select a node on the canvas/i)).toBeVisible();
-  });
-
   it('fills the workbench column in either frame', () => {
     const { container, rerender } = render(
       <NodeInspector
@@ -314,6 +300,25 @@ describe('NodeInspector', () => {
     expect(screen.getByRole('textbox', { name: 'For each' })).toHaveValue('');
   });
 
+  it('opens on the control flow a node has, without repeating it as badges', () => {
+    render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Control flow').closest('details')).toHaveAttribute(
+      'open',
+    );
+    expect(screen.getByRole('textbox', { name: 'When' })).toBeVisible();
+    // The canvas box badges the condition; here the open field is enough.
+    expect(screen.queryByText(/^when \{\{/)).toBeNull();
+  });
+
   it('keeps unused control flow behind a disclosure', async () => {
     const { user } = render(
       <NodeInspector
@@ -455,19 +460,7 @@ describe('NodeInspector', () => {
   });
 
   it('moves focus into the inspector when a node is selected', () => {
-    const { rerender } = render(
-      <NodeInspector
-        id="inspector"
-        node={null}
-        nodeType={undefined}
-        readOnly={false}
-        organizationId="org_test"
-        onChange={vi.fn()}
-        onDeselect={vi.fn()}
-      />,
-    );
-    expect(document.getElementById('inspector')).not.toHaveFocus();
-    rerender(
+    render(
       <NodeInspector
         id="inspector"
         node={llmNode}

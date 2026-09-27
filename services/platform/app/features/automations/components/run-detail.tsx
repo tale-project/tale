@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
@@ -43,6 +44,7 @@ import {
 import {
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
   AUTOMATION_RUN_WORKBENCH_GRID,
+  AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
 import { AgentExecutionLog } from './agent-execution-log';
 import { AutomationCanvas } from './automation-canvas';
@@ -326,7 +328,12 @@ export function RunDetail({
           />
         )}
 
-      <div className={AUTOMATION_RUN_WORKBENCH_GRID}>
+      <div
+        className={cn(
+          AUTOMATION_RUN_WORKBENCH_GRID,
+          selectedNode !== null && AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
+        )}
+      >
         <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
           <AutomationCanvas
             graph={graph}
@@ -337,21 +344,21 @@ export function RunDetail({
             runStatusByNode={runStatusByNode}
           />
         </div>
-        <NodeInspector
-          id={inspectorId}
-          node={selectedNode}
-          nodeType={nodeTypes.find((def) => def.type === selectedNode?.type)}
-          catalogUnavailable={catalogQuery.isError}
-          runView={
-            selectedNode ? projection.byNode.get(selectedNode.id) : undefined
-          }
-          readOnly
-          onChange={() => {
-            // A recorded run is history: the inspector renders it read-only.
-          }}
-          organizationId={organizationId}
-          onDeselect={deselectNode}
-        />
+        {selectedNode !== null && (
+          <NodeInspector
+            id={inspectorId}
+            node={selectedNode}
+            nodeType={nodeTypes.find((def) => def.type === selectedNode.type)}
+            catalogUnavailable={catalogQuery.isError}
+            runView={projection.byNode.get(selectedNode.id)}
+            readOnly
+            onChange={() => {
+              // A recorded run is history: the inspector renders it read-only.
+            }}
+            organizationId={organizationId}
+            onDeselect={deselectNode}
+          />
+        )}
       </div>
 
       {/* What an `agent` node did inside the sandbox — the one window into a

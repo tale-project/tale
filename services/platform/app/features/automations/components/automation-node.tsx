@@ -110,7 +110,9 @@ export function AutomationNodeBox({
     <button
       type="button"
       aria-expanded={selected}
-      aria-controls={inspectorId}
+      // The inspector exists only for the picked node, so only its button
+      // names it; a collapsed disclosure points at nothing.
+      aria-controls={selected ? inspectorId : undefined}
       // Must match AUTOMATION_NODE_ATTR — Close/Escape restore focus here.
       data-automation-node={node.id}
       onClick={onSelect}

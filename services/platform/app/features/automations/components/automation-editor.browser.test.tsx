@@ -30,34 +30,35 @@ import '@/app/globals.css';
  * cuts those controls off first.
  */
 
-const { automation } = vi.hoisted(() => ({
-  automation: {
-    name: 'pr-digest',
-    nodes: [
-      { id: 'pulls', type: 'transform', code: 'return { items: [] };' },
-      {
-        id: 'diff',
-        type: 'transform',
-        input: { pulls: '{{ nodes.pulls.output.items }}' },
-        code: 'return { text: "" };',
-      },
-      {
-        id: 'summary',
-        type: 'transform',
-        input: { diff: '{{ nodes.diff.output.text }}' },
-        code: 'return { text: "" };',
-      },
-    ],
-    // Every node placed, so the canvas never waits on the layout engine.
-    ui: {
-      positions: {
-        pulls: { x: 0, y: 0 },
-        diff: { x: 0, y: 196 },
-        summary: { x: 0, y: 392 },
-      },
+const { automation } = vi.hoisted(() => {
+  const nodes: {
+    id: string;
+    type: string;
+    code: string;
+    input?: Record<string, string>;
+  }[] = [
+    { id: 'pulls', type: 'transform', code: 'return { items: [] };' },
+    {
+      id: 'diff',
+      type: 'transform',
+      input: { pulls: '{{ nodes.pulls.output.items }}' },
+      code: 'return { text: "" };',
     },
-  },
-}));
+    {
+      id: 'summary',
+      type: 'transform',
+      input: { diff: '{{ nodes.diff.output.text }}' },
+      code: 'return { text: "" };',
+    },
+  ];
+  // Every node placed, so the canvas never waits on the layout engine.
+  const positions: Record<string, { x: number; y: number }> = {
+    pulls: { x: 0, y: 0 },
+    diff: { x: 0, y: 196 },
+    summary: { x: 0, y: 392 },
+  };
+  return { automation: { name: 'pr-digest', nodes, ui: { positions } } };
+});
 
 // Browser ESM links named imports eagerly, so every mocked module keeps its
 // real exports and overrides only the hooks this page reads.
@@ -253,7 +254,6 @@ describe('automation editor workbench in Chromium', () => {
     await page.viewport(1280, 800);
     renderEditorTab();
     const canvas = await expectWholeCanvas();
-    const inspector = screen.getByRole('region', { name: 'Node' });
     const strip = screen.getByRole('navigation', {
       name: 'Automations navigation',
     });
@@ -261,14 +261,22 @@ describe('automation editor workbench in Chromium', () => {
     // scrollbar's reserved gutter, which is the page layout's, not an inset.
     const pageScroll = scrollContainerOf(canvas);
     const frame = pageScroll.getBoundingClientRect();
-    const canvasBox = canvas.getBoundingClientRect();
-    const inspectorBox = inspector.getBoundingClientRect();
 
     // No inset around the workbench: the canvas starts at the page's left
-    // edge right under the strip, the inspector ends at its right and bottom
-    // edges, and the two meet at the inspector's border with no gutter.
+    // edge right under the strip, and with no node picked there is no
+    // inspector — the canvas runs to the page's right edge.
+    let canvasBox = canvas.getBoundingClientRect();
     expect(canvasBox.left).toBeCloseTo(frame.left, 0);
     expect(canvasBox.top).toBeCloseTo(strip.getBoundingClientRect().bottom, 0);
+    expect(canvasBox.right).toBeCloseTo(frame.left + pageScroll.clientWidth, 0);
+    expect(screen.queryByRole('region', { name: 'pulls' })).toBeNull();
+
+    // A picked node opens the inspector: it ends at the page's right and
+    // bottom edges, and meets the canvas at its border with no gutter.
+    await selectNode('pulls');
+    const inspector = screen.getByRole('region', { name: 'pulls' });
+    canvasBox = canvas.getBoundingClientRect();
+    const inspectorBox = inspector.getBoundingClientRect();
     expect(inspectorBox.right).toBeCloseTo(
       frame.left + pageScroll.clientWidth,
       0,
@@ -283,5 +291,47 @@ describe('automation editor workbench in Chromium', () => {
     expect(getComputedStyle(canvas).borderLeftWidth).toBe('0px');
     expect(getComputedStyle(inspector).borderLeftWidth).toBe('1px');
     expect(getComputedStyle(inspector).borderTopWidth).toBe('0px');
+  });
+
+  it('pans a picked box back into view when the inspector narrows the canvas', async () => {
+    await page.viewport(1280, 800);
+    const { nodes } = automation;
+    const { positions } = automation.ui;
+    // A box fitted against the canvas's right edge: the inspector's column
+    // opens right over where it was drawn.
+    automation.nodes = [
+      ...nodes,
+      { id: 'archive', type: 'transform', code: 'return {};' },
+    ];
+    automation.ui.positions = { ...positions, archive: { x: 1600, y: 0 } };
+    try {
+      renderEditorTab();
+      const canvas = await expectWholeCanvas();
+      const box = await screen.findByRole('button', { name: /^archive/i });
+      await userEvent.click(box);
+      await screen.findByRole('textbox', { name: 'Code' });
+      await expect
+        .poll(() => {
+          const frame = canvas.getBoundingClientRect();
+          const rect = box.getBoundingClientRect();
+          return rect.left >= frame.left - 1 && rect.right <= frame.right + 1;
+        })
+        .toBe(true);
+
+      // Closing hands the width back without moving the graph: focus returns
+      // to the box, which is already in sight. (Both reads wait out the
+      // 200ms pan.)
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const settled = box.getBoundingClientRect();
+      await userEvent.keyboard('{Escape}');
+      await expect.poll(() => document.activeElement).toBe(box);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const after = box.getBoundingClientRect();
+      expect(after.left).toBeCloseTo(settled.left, 0);
+      expect(after.top).toBeCloseTo(settled.top, 0);
+    } finally {
+      automation.nodes = nodes;
+      automation.ui.positions = positions;
+    }
   });
 });

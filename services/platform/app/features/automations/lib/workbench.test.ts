@@ -4,6 +4,7 @@ import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_RUN_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
+  AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from './workbench';
 
 /**
@@ -38,6 +39,18 @@ describe('AUTOMATION_RUN_WORKBENCH_GRID', () => {
     expect(AUTOMATION_RUN_WORKBENCH_GRID).toContain('lg:overflow-hidden');
     expect(AUTOMATION_RUN_WORKBENCH_GRID).not.toContain(
       'min-h-[max(24rem,calc(100dvh-15rem))]',
+    );
+  });
+});
+
+describe('AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS', () => {
+  it('is the only place a workbench makes room for the inspector', () => {
+    // With no node picked the canvas has the whole row: neither grid
+    // reserves the inspector's column on its own.
+    expect(AUTOMATION_EDITOR_WORKBENCH_GRID).not.toContain('grid-cols');
+    expect(AUTOMATION_RUN_WORKBENCH_GRID).not.toContain('grid-cols');
+    expect(AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS).toBe(
+      'lg:grid-cols-[minmax(0,1fr)_22rem]',
     );
   });
 });

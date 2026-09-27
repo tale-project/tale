@@ -181,11 +181,13 @@ vi.mock('./automation-canvas', () => ({
   AutomationCanvas: ({
     graph,
     onSelectNode,
+    inspectorId,
   }: {
     graph: { nodes: readonly { id: string }[] };
     onSelectNode: (nodeId: string | null) => void;
+    inspectorId: string;
   }) => (
-    <div>
+    <div data-testid="canvas" data-inspector-id={inspectorId}>
       {graph.nodes.map((node) => (
         <button
           key={node.id}
@@ -323,6 +325,12 @@ describe('AutomationEditor missing version', () => {
   });
 });
 
+/** The node inspector — on the page only while a node is picked. */
+function inspector(): HTMLElement | null {
+  const id = screen.getByTestId('canvas').dataset.inspectorId;
+  return id === undefined ? null : document.getElementById(id);
+}
+
 describe('AutomationEditor', () => {
   it('omits the pack description from the workbench header', () => {
     state.presentation = {
@@ -333,37 +341,39 @@ describe('AutomationEditor', () => {
     renderPage();
     expect(screen.queryByText('Sends the dunning ladder.')).toBeNull();
     expect(screen.queryByText('Chases unpaid invoices.')).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'select summary' }),
+    ).toBeVisible();
   });
 
   it("leaves the automation's own settings to the General tab", () => {
     renderPage();
-    // With nothing selected the inspector asks for a node; the trigger and
+    // With nothing picked the canvas has the row to itself; the trigger and
     // the project bindings are not on the workbench any more.
-    expect(screen.getByText(/select a node on the canvas/i)).toBeVisible();
+    expect(inspector()).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Trigger' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Projects' })).toBeNull();
   });
 
-  it('swaps the inspector from the prompt to a node and back', async () => {
+  it('opens the inspector for a picked node and closes it again', async () => {
     const { user } = renderPage();
-    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
+    expect(inspector()).toBeNull();
     await user.click(screen.getByRole('button', { name: 'select summary' }));
+    expect(inspector()).not.toBeNull();
     expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'Node' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'deselect' }));
-    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
+    expect(inspector()).toBeNull();
   });
 
-  it('returns to the prompt from Close and Escape', async () => {
+  it('closes the inspector from Close and Escape', async () => {
     const { user } = renderPage();
     await user.click(screen.getByRole('button', { name: 'select summary' }));
     expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Close' }));
-    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
+    expect(inspector()).toBeNull();
     await user.click(screen.getByRole('button', { name: 'select summary' }));
     await user.keyboard('{Escape}');
-    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
+    expect(inspector()).toBeNull();
   });
 
   it('keeps the node inspector open on Escape while typing', async () => {
@@ -539,7 +549,7 @@ describe('AutomationEditor', () => {
     expect(
       screen.getByRole('button', { name: 'select destination' }),
     ).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
+    expect(inspector()).toBeNull();
     expect(saveButton()).toBeDisabled();
     expect(discardButton()).toBeDisabled();
     expect(saveMutation.mutateAsync).not.toHaveBeenCalled();

@@ -17,7 +17,6 @@ import { useT } from '@/lib/i18n/client';
 
 import type { NodeTypeSummary } from '../hooks/backend';
 import { useDeselectOnEscape } from '../hooks/use-deselect-on-escape';
-import { controlFlowBadges } from '../lib/graph';
 import type { NodeRunView } from '../lib/run-view';
 import { AGENT_EQUIPMENT_FIELDS, AgentNodeFields } from './agent-node-fields';
 import { LlmModelField } from './llm-model-field';
@@ -199,9 +198,11 @@ function JsonField({
 }
 
 export interface NodeInspectorProps {
-  /** The region id the canvas's node buttons point at. */
+  /** The region id the canvas's selected node button points at. */
   id: string;
-  node: NodeDef | null;
+  /** The node picked on the canvas. The inspector exists only while one is:
+   * with nothing picked the canvas has the whole width. */
+  node: NodeDef;
   /** The node's registry entry, when the catalog knows the type. */
   nodeType: NodeTypeSummary | undefined;
   /** The node-type catalog could not be loaded at all. */
@@ -225,12 +226,12 @@ export interface NodeInspectorProps {
 }
 
 /**
- * The inspector beside the canvas.
+ * The inspector beside the canvas, for the node picked on it.
  *
- * With no node selected it asks the reader to pick one — the automation's own
- * settings (trigger, projects) are its General tab. Clicking a box shows that
- * node's fields; clicking the same box again, Close, Escape (when not typing),
- * or the empty canvas returns to the prompt. Focus moves into this panel on
+ * Clicking a box opens this panel with that node's fields; clicking the same
+ * box again, Close, Escape (when not typing), or the empty canvas closes it
+ * and hands the width back to the canvas — the automation's own settings
+ * (trigger, projects) are its General tab. Focus moves into this panel on
  * select so Tab reaches the fields next.
  *
  * It edits the document, not a model of it: the id and type identify the node,
@@ -251,20 +252,17 @@ export function NodeInspector({
   onDeselect,
   variant = 'card',
 }: NodeInspectorProps) {
-  const { t } = useT('automations');
   const headingId = useId();
   const sectionRef = useRef<HTMLElement>(null);
-  const selectedNodeId = node?.id;
+  const selectedNodeId = node.id;
 
-  useDeselectOnEscape(selectedNodeId !== undefined, onDeselect);
+  useDeselectOnEscape(true, onDeselect);
 
   useEffect(() => {
     const section = sectionRef.current;
     if (section === null) return;
     section.scrollTop = 0;
-    if (selectedNodeId !== undefined) {
-      section.focus({ preventScroll: true });
-    }
+    section.focus({ preventScroll: true });
   }, [selectedNodeId]);
 
   return (
@@ -282,33 +280,21 @@ export function NodeInspector({
             'bg-background border-t lg:border-t-0 lg:border-l',
       )}
     >
-      {node === null && (
-        <SectionHeader
-          as="h3"
-          size="sm"
-          title={<span id={headingId}>{t('editor.title')}</span>}
-          // A read-only canvas (a run, an older version) offers nothing to
-          // edit, so it does not promise to.
-          description={t(
-            readOnly ? 'editor.noSelectionReadOnly' : 'editor.noSelection',
-          )}
-        />
-      )}
-
-      {node !== null && (
-        <NodeFields
-          headingId={headingId}
-          node={node}
-          nodeType={nodeType}
-          catalogUnavailable={catalogUnavailable}
-          runView={runView}
-          readOnly={readOnly}
-          onChange={onChange}
-          organizationId={organizationId}
-          {...(projectId !== undefined && { projectId })}
-          {...(onDeselect !== undefined && { onDeselect })}
-        />
-      )}
+      <NodeFields
+        // Each node opens on its own fields: its disclosures start from its
+        // own state, and no half-typed JSON follows the reader to the next.
+        key={node.id}
+        headingId={headingId}
+        node={node}
+        nodeType={nodeType}
+        catalogUnavailable={catalogUnavailable}
+        runView={runView}
+        readOnly={readOnly}
+        onChange={onChange}
+        organizationId={organizationId}
+        {...(projectId !== undefined && { projectId })}
+        {...(onDeselect !== undefined && { onDeselect })}
+      />
     </section>
   );
 }
@@ -338,7 +324,6 @@ function NodeFields({
 }) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
-  const badges = controlFlowBadges(node);
   const isAgent = node.type === 'agent';
   const isLlm = node.type === 'llm';
   const declaredFields = (nodeType?.allowedFields ?? []).filter(
@@ -391,16 +376,6 @@ function NodeFields({
           icon={AlertTriangle}
           description={t('editor.catalogUnavailable')}
         />
-      )}
-
-      {badges.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {badges.map((badge) => (
-            <Badge key={badge.kind} variant="blue">
-              {t(`canvas.controlFlow.${badge.kind}`, { value: badge.value })}
-            </Badge>
-          ))}
-        </div>
       )}
 
       {declaredFields.map((fieldName) => {
@@ -506,7 +481,9 @@ function NodeFields({
 
       <CollapsibleDetails
         summary={t('editor.controlFlowTitle')}
-        {...(hasControlFlow ? { defaultOpen: true } : {})}
+        // Set control flow is part of what the node does, so it opens on it;
+        // unused, it stays folded under the fields that matter.
+        defaultOpen={hasControlFlow}
       >
         <div className="mt-3 flex flex-col gap-3">
           {CONTROL_FLOW_FIELDS.map((fieldName) => (

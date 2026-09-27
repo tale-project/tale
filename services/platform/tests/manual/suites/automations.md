@@ -198,10 +198,9 @@ output:
       `automations.versions.versionLabel`, **Deploy this version**
       (`automations.detail.deployThis`) when looking ≠ live, **Test run**, **Run
       live**, **Discard**, **Save** — nothing sits in the title row's right
-      half. Body: canvas + inspector two-column grid filling the tab edge to
-      edge under the strip (AUTO-F37; canvas does not grow with inspector
-      content). With no node selected the inspector asks for one
-      (`automations.editor.title` + `automations.editor.noSelection`); the
+      half. Body: the canvas alone fills the tab edge to edge under the strip
+      — with no node selected there is no inspector column at all (AUTO-F37;
+      a selected node's inspector does not grow the canvas); the
       trigger and the project bindings are the **General** tab (AUTO-F51),
       versions and runs the last two tabs (AUTO-F35) — none of them panels
       beside or under the canvas.
@@ -216,8 +215,9 @@ output:
       First click opens the node's fields, rings the box, and moves focus into the
       inspector (Tab reaches the fields next; scroll is at the top). **Close**,
       Escape (not while typing in a field), a second click on the same box, and
-      empty canvas all return the inspector to its prompt
-      (`automations.editor.noSelection`). Canvas height stays
+      empty canvas all close the inspector and hand its width back to the
+      canvas. A box near the canvas's right edge that the opening inspector
+      would cover pans back into view. Canvas height stays
       put; extra node fields scroll inside the inspector. Inspector heading is the
       node id with a type badge (catalog copy is not dumped into the header).
       Typed fields come first (e.g. **Prompt**), then **Input**
@@ -394,10 +394,11 @@ output:
       instead of erroring; after **Save version** the URL loses `?version=` and
       the canvas shows the new latest.
 - [ ] `AUTO-F37` · **The Editor runs edge to edge** — On the **Editor** tab
-      at a desktop width, measure the workbench (DevTools, or the console
-      one-liner below) → Every gap reads **0px**: the canvas starts right under
-      the tab strip and at the page's left edge, draws no border of its own,
-      and meets the inspector at the inspector's left border; the
+      at a desktop width, select a node, then measure the workbench (DevTools,
+      or the console one-liner below) → Every gap reads **0px**: the canvas
+      starts right under the tab strip and at the page's left edge, draws no
+      border of its own, and meets the inspector at the inspector's left
+      border; the
       inspector ends at the window's right and bottom edges (a classic
       scrollbar's reserved gutter aside). A refused run or deploy shows its
       alert in a padded band above the workbench. The Automations list, the
