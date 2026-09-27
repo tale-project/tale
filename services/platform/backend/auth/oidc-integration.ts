@@ -765,7 +765,12 @@ export async function checkNativeIdentity(
     auth.options.plugins.some((plugin) => plugin.id === 'oauth-provider'),
   );
   await sql.begin((tx) =>
-    deleteOrganization(tx, { userId: owner.id, email: owner.email }, org.id),
+    deleteOrganization(
+      tx,
+      { userId: owner.id, email: owner.email },
+      org.id,
+      'Identity test',
+    ),
   );
   const clientsAfterRetirement =
     await sql`SELECT "id" FROM "oauthClient" WHERE "clientId" = ${clientId}`;
