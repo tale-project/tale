@@ -57,7 +57,7 @@ export interface BakedSkillPaths {
 
 /** A session's paths: the Dockerfile's bake, the entrypoint's HOME, and the
  * `workdir` the platform hands every harness turn. */
-export const SESSION_SKILL_PATHS: BakedSkillPaths = {
+const SESSION_SKILL_PATHS: BakedSkillPaths = {
   baked: '/opt/agents/skills',
   home: '/agent/.runtime/home',
   workspace: '/agent/workspace',
