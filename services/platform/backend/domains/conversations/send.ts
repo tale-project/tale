@@ -767,7 +767,11 @@ export async function composeEmailConversation(
 }
 
 /** Cancel a still-queued send: delete the row (the email never existed) and
- * hand the composer draft back. The scheduled job no-ops on the gone row. */
+ * hand the composer draft back — its markdown AND its files, so undoing a
+ * reply that carried only an attachment still gives something back. The
+ * files are the blobs the send named; deleting the row releases none of
+ * them, so a re-send names the same refs and re-proves ownership at the door.
+ * The scheduled job no-ops on the gone row. */
 export async function undoSendMessage(
   sql: Sql,
   args: {
@@ -775,7 +779,7 @@ export async function undoSendMessage(
     messageId: string;
     actor: { userId: string; email?: string };
   },
-): Promise<{ sourceMarkdown: string | null }> {
+): Promise<{ sourceMarkdown: string | null; attachments: SendAttachment[] }> {
   return sql.begin(async (tx) => {
     const message = await loadMessage(tx, args.messageId);
     if (!message || message.organizationId !== args.organizationId) {
@@ -856,6 +860,14 @@ export async function undoSendMessage(
     return {
       sourceMarkdown:
         typeof sourceMarkdown === 'string' ? sourceMarkdown : null,
+      attachments: (attachmentsFromMetadata(metadata.attachments) ?? []).map(
+        (attachment) => ({
+          storageId: attachment.storageRef,
+          fileName: attachment.fileName,
+          contentType: attachment.contentType,
+          size: attachment.size,
+        }),
+      ),
     };
   });
 }
