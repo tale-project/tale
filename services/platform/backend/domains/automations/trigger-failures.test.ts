@@ -7,8 +7,11 @@
  * counts — and the one that brings an ENABLED SCHEDULE to the threshold
  * pauses it, audits the pause and notifies the owners and admins, all in
  * the caller's transaction. Webhook and event bindings count but never
- * pause. The real-Postgres probe (`trigger-pause.integration.ts`) drives an
- * always-failing schedule through the stepper until it pauses.
+ * pause, and a paused schedule keeps the streak that paused it. The row
+ * lock `finishRun` takes ahead of its audit row (`lockTriggerForRunOutcome`)
+ * reads exactly the rows the streak will write. The real-Postgres probe
+ * (`trigger-pause.integration.ts`) drives an always-failing schedule
+ * through the stepper until it pauses.
  */
 
 import type { TransactionSql } from 'postgres';
@@ -24,6 +27,7 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../collab/service.ts', () => ({ notifyTriggerPaused }));
 
 import {
+  lockTriggerForRunOutcome,
   recordTriggerRunOutcome,
   type TriggerRunOutcome,
 } from './trigger-failures.ts';
@@ -41,11 +45,14 @@ interface CountedRow {
   consecutiveFailures: number;
 }
 
-/** Scripted transaction: the success reset answers `resetRows`, the count
- * answers `counted` (nothing when the trigger is gone or was saved after
- * the run started) or throws `countFault`, the pause answers nothing. A
- * savepoint runs its body on the same handle and counts how deep it went. */
+/** Scripted transaction: the row lock answers `lockRows` or throws
+ * `lockFault`, the success reset answers `resetRows`, the count answers
+ * `counted` (nothing when the trigger is gone or was saved after the run
+ * started) or throws `countFault`, the pause answers nothing. A savepoint
+ * runs its body on the same handle and counts how deep it went. */
 function fakeTx(script: {
+  lockRows?: { id: string }[];
+  lockFault?: Error;
   resetRows?: { name: string }[];
   counted?: CountedRow | null;
   countFault?: Error;
@@ -56,6 +63,12 @@ function fakeTx(script: {
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
     statements.push({ text, values });
+    if (text.includes('FOR UPDATE')) {
+      if (script.lockFault !== undefined) {
+        return Promise.reject(script.lockFault);
+      }
+      return Promise.resolve(script.lockRows ?? []);
+    }
     if (text.includes('SET consecutive_failures = 0')) {
       return Promise.resolve(script.resetRows ?? []);
     }
@@ -135,6 +148,19 @@ describe('recordTriggerRunOutcome', () => {
     expect(reset?.text).toContain('consecutive_failures > 0');
     expect(reset?.text).toContain('updated_at_ms <= ?');
     expect(reset?.values).toEqual(['trg_1', 'org_1', 1_000]);
+  });
+
+  it('leaves the streak of a schedule its failures paused to the next save', async () => {
+    // A run that overlapped the pause and succeeded after it must not make
+    // the paused schedule read "0 runs in a row failed".
+    const fake = fakeTx({ resetRows: [] });
+    await recordTriggerRunOutcome(
+      fake.tx,
+      outcome({ status: 'success', failureCode: null }),
+    );
+    expect(fake.statements[0]?.text).toContain(
+      "last_skip_reason IS DISTINCT FROM 'paused_after_failures'",
+    );
   });
 
   it('answers null when a success had no streak to reset', async () => {
@@ -310,6 +336,66 @@ describe('recordTriggerRunOutcome', () => {
     expect(logged).toHaveBeenCalledWith(
       expect.stringContaining('ops/nightly: the pause notice was not sent'),
       'mail queue down',
+    );
+    logged.mockRestore();
+  });
+});
+
+describe('lockTriggerForRunOutcome', () => {
+  it.each([
+    ['a run no trigger started', outcome({ startedBy: 'user:u_1' })],
+    ['a transient failure', outcome({ failureCode: 'rate_limited' })],
+    ['an unclassified failure', outcome({ failureCode: null })],
+  ])('takes no lock for %s', async (_label, landing) => {
+    const fake = fakeTx({ lockRows: [{ id: 'trg_1' }] });
+    await expect(lockTriggerForRunOutcome(fake.tx, landing)).resolves.toBe(
+      false,
+    );
+    expect(fake.statements).toEqual([]);
+    expect(fake.savepoints).toEqual([]);
+  });
+
+  it('locks the trigger a permanent failure will count, in a savepoint', async () => {
+    const fake = fakeTx({ lockRows: [{ id: 'trg_1' }] });
+    await expect(lockTriggerForRunOutcome(fake.tx, outcome())).resolves.toBe(
+      true,
+    );
+    expect(fake.savepoints).toEqual([1]);
+    expect(fake.statements).toHaveLength(1);
+    const [lock] = fake.statements;
+    expect(lock?.text).toContain('FROM app.automation_triggers');
+    expect(lock?.text).toContain('FOR UPDATE');
+    // The rows the count will write: this trigger, unsaved since the run
+    // started; a failure needs no streak to be there already.
+    expect(lock?.text).toContain('updated_at_ms <= ?');
+    expect(lock?.values).toEqual(['trg_1', 'org_1', 1_000, true]);
+  });
+
+  it('locks for a success only the trigger whose streak it will reset', async () => {
+    const fake = fakeTx({ lockRows: [] });
+    await expect(
+      lockTriggerForRunOutcome(
+        fake.tx,
+        outcome({ status: 'success', failureCode: null }),
+      ),
+    ).resolves.toBe(false);
+    const [lock] = fake.statements;
+    expect(lock?.values).toEqual(['trg_1', 'org_1', 1_000, false]);
+    expect(lock?.text).toContain('consecutive_failures > 0');
+    expect(lock?.text).toContain(
+      "last_skip_reason IS DISTINCT FROM 'paused_after_failures'",
+    );
+  });
+
+  it('answers false when the lock fails, logged — the run lands regardless', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fake = fakeTx({ lockFault: new Error('deadlock detected') });
+    await expect(lockTriggerForRunOutcome(fake.tx, outcome())).resolves.toBe(
+      false,
+    );
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining('run_9: trigger trg_1 could not be locked'),
+      'deadlock detected',
     );
     logged.mockRestore();
   });

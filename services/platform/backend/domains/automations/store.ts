@@ -45,7 +45,11 @@ import {
 } from '../collab/service.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
-import { recordTriggerRunOutcome } from './trigger-failures.ts';
+import {
+  lockTriggerForRunOutcome,
+  recordTriggerRunOutcome,
+  type TriggerRunOutcome,
+} from './trigger-failures.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
@@ -2414,6 +2418,22 @@ export async function finishRun(
     // full fold (approvals + connector effects) grows with those domains;
     // the terminal audit row is the contract that must never be missing.
     if (row.mode === 'live') {
+      // A trigger's run keeps the trigger's failure streak — and the
+      // schedule it pauses, when its runs keep failing the same way. The
+      // trigger's row lock comes first: every other writer of a trigger row
+      // (the schedule scan, an event dispatch in a producer that audits
+      // afterwards) locks it before the audit chain, and so must this one.
+      const outcome: TriggerRunOutcome = {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        startedBy: row.startedBy,
+        startedAt: row.startedAt,
+        status: args.status,
+        failureCode:
+          args.status === 'failed' ? (args.failureCode ?? null) : null,
+        now,
+      };
+      const keepsStreak = await lockTriggerForRunOutcome(tx, outcome);
       await createAuditLog(tx, {
         organizationId: args.organizationId,
         actorId: row.startedBy,
@@ -2430,18 +2450,9 @@ export async function finishRun(
           executions: args.executions,
         },
       });
-      // A trigger's run keeps the trigger's failure streak — and the
-      // schedule it pauses, when its runs keep failing the same way.
-      const trigger = await recordTriggerRunOutcome(tx, {
-        organizationId: args.organizationId,
-        runId: args.runId,
-        startedBy: row.startedBy,
-        startedAt: row.startedAt,
-        status: args.status,
-        failureCode:
-          args.status === 'failed' ? (args.failureCode ?? null) : null,
-        now,
-      });
+      const trigger = keepsStreak
+        ? await recordTriggerRunOutcome(tx, outcome)
+        : null;
       if (trigger !== null) {
         await emitDefinitionHint(tx, args.organizationId, trigger.name);
       }

@@ -31,6 +31,18 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * delivery or a platform event, which a paused trigger would drop, while a
  * schedule's occurrence carries nothing a later run cannot redo.
  *
+ * A paused schedule keeps the streak that paused it: a run still in flight
+ * when the pause landed may succeed afterwards, and it must not leave a
+ * paused schedule reading "0 runs in a row failed". Only a save clears it.
+ *
+ * Lock order: `finishRun` takes the trigger's row lock
+ * ({@link lockTriggerForRunOutcome}) BEFORE the run's own audit row takes
+ * the organization's audit chain, the order every other writer of a trigger
+ * row takes them in — the schedule scan's claim, an event dispatch stamping
+ * the trigger inside a producer that audits afterwards (a comment edit's
+ * `comment.mentioned`). Keeping the streak after the audit row without that
+ * lock would take the two the other way round and deadlock against them.
+ *
  * The bookkeeping rides a savepoint, like an event dispatch (`emitEvent`):
  * the run's own terminal write is the contract, and a fault here must never
  * leave the run unfinished for the liveness sweep to re-poke forever — it is
@@ -61,6 +73,61 @@ interface CountedTrigger {
   consecutiveFailures: number;
 }
 
+/** The trigger whose streak a landing run moves, or null when the run
+ * leaves every streak alone: not a trigger's run, or a failure the next
+ * occurrence might not repeat (a transient code, no code). */
+function streakTriggerId(outcome: TriggerRunOutcome): string | null {
+  const starter = parseRunStarter(outcome.startedBy);
+  if (starter.kind !== 'trigger') return null;
+  if (
+    outcome.status !== 'success' &&
+    !isPermanentFailureCode(outcome.failureCode)
+  ) {
+    return null;
+  }
+  return starter.triggerId;
+}
+
+/**
+ * Lock the row of the trigger whose streak this landing run will move —
+ * called by `finishRun` before the run's audit row, so the trigger row is
+ * always locked ahead of the audit chain (see the module note). The lock
+ * reads exactly the rows {@link recordTriggerRunOutcome} will write: a
+ * success locks only a trigger with a streak to reset, so the common case (a
+ * healthy trigger's run) takes no lock at all. Answers whether the streak
+ * will move; false also when the lock could not be taken (logged — the run
+ * lands regardless, and the streak misses it).
+ */
+export async function lockTriggerForRunOutcome(
+  tx: TransactionSql,
+  outcome: TriggerRunOutcome,
+): Promise<boolean> {
+  const triggerId = streakTriggerId(outcome);
+  if (triggerId === null) return false;
+  const success = outcome.status === 'success';
+  try {
+    return await tx.savepoint(async (sp) => {
+      const rows = await sp<{ id: string }[]>`
+        SELECT id FROM app.automation_triggers
+        WHERE id = ${triggerId} AND org_id = ${outcome.organizationId}
+          AND updated_at_ms <= ${outcome.startedAt}
+          AND (${!success}::boolean OR (
+            consecutive_failures > 0
+            AND last_skip_reason IS DISTINCT FROM 'paused_after_failures'
+          ))
+        FOR UPDATE
+      `;
+      return rows.length > 0;
+    });
+  } catch (error) {
+    console.error(
+      `[automations] run ${outcome.runId}: trigger ${triggerId} could not be locked, its failure streak misses this run`,
+      error instanceof Error ? error.message : error,
+    );
+    return false;
+  }
+}
+
 /**
  * Keep the streak of the trigger that started a landing run. Answers the
  * automation whose trigger read changed — the caller emits its definition
@@ -70,19 +137,17 @@ export async function recordTriggerRunOutcome(
   tx: TransactionSql,
   outcome: TriggerRunOutcome,
 ): Promise<StreakChange> {
-  const starter = parseRunStarter(outcome.startedBy);
-  if (starter.kind !== 'trigger') return null;
-  const success = outcome.status === 'success';
-  if (!success && !isPermanentFailureCode(outcome.failureCode)) return null;
+  const triggerId = streakTriggerId(outcome);
+  if (triggerId === null) return null;
   try {
     return await tx.savepoint((sp) =>
-      success
-        ? resetStreak(sp, starter.triggerId, outcome)
-        : countFailure(sp, starter.triggerId, outcome),
+      outcome.status === 'success'
+        ? resetStreak(sp, triggerId, outcome)
+        : countFailure(sp, triggerId, outcome),
     );
   } catch (error) {
     console.error(
-      `[automations] run ${outcome.runId}: the failure streak of trigger ${starter.triggerId} was not kept`,
+      `[automations] run ${outcome.runId}: the failure streak of trigger ${triggerId} was not kept`,
       error instanceof Error ? error.message : error,
     );
     return null;
@@ -94,10 +159,14 @@ async function resetStreak(
   triggerId: string,
   outcome: TriggerRunOutcome,
 ): Promise<StreakChange> {
+  // A schedule its failures paused keeps the streak that paused it until
+  // someone saves it: a run that overlapped the pause and succeeded after
+  // it does not make the banner read "0 runs in a row failed".
   const reset = await tx<{ name: string }[]>`
     UPDATE app.automation_triggers SET consecutive_failures = 0
     WHERE id = ${triggerId} AND org_id = ${outcome.organizationId}
       AND consecutive_failures > 0
+      AND last_skip_reason IS DISTINCT FROM 'paused_after_failures'
       AND updated_at_ms <= ${outcome.startedAt}
     RETURNING name
   `;
