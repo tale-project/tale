@@ -128,8 +128,14 @@ export function CompareTable<TK extends string>({
 
   return (
     <Reveal delay={0.08} className="mx-auto mt-12 max-w-[1120px]">
-      <div className="border-border-base/40 bg-surface-site-raised overflow-hidden rounded-2xl border">
-        <table className="w-full table-fixed border-collapse">
+      {/* On a phone the table lays out on its content (`table-auto`) and the
+          card scrolls sideways when that is wider than the screen — a spec
+          such as "64GB (DDR5 ECC)" does not break, and four fixed columns at
+          320px cut it off inside a clipping card. From `sm` the designed
+          fixed columns hold. `relative`: the sr-only caption is laid out
+          against the scrolling card, not a box outside it. */}
+      <div className="border-border-base/40 bg-surface-site-raised relative overflow-x-auto rounded-2xl border">
+        <table className="w-full table-auto border-collapse sm:table-fixed">
           <caption className="sr-only">{caption}</caption>
           <colgroup>
             <col
