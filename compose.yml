@@ -928,16 +928,8 @@ services:
         max-size: '10m'
         max-file: '3'
     networks:
-      # Transitional `llm-gateway` alias: keeps the pre-rename hostname resolving
-      # for one release so in-flight sandbox sessions (whose injected gateway URL
-      # / NO_PROXY still say `llm-gateway`) survive the deploy that lands the
-      # rename. Drop the aliases once no old-name traffic remains.
-      internal:
-        aliases:
-          - llm-gateway
-      sandbox:
-        aliases:
-          - llm-gateway
+      - internal
+      - sandbox
 
 # ============================================================================
 # Volumes

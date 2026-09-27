@@ -127,7 +127,7 @@ describe('buildDockerSessionRunArgs', () => {
     // `backend-api` is the bridge/staging host; the retired aliases stay
     // one release for in-flight sessions.
     expect(args).toContain(
-      'NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway,backend-api,backend-relay,convex',
+      'NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
     );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);

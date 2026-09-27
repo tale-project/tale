@@ -393,11 +393,9 @@ export function buildDockerSessionRunArgs(
     // and the bridge calls http://backend-api:3005, so both must be in
     // NO_PROXY or the CONNECT would be denied. If
     // EXTERNAL_AGENT_CONNECTORS_URL overrides the host, this list must
-    // match. The retired 0.4 `convex` alias and the old `llm-gateway` alias
-    // stay for one release so in-flight sessions pinned to pre-rename
-    // hostnames keep resolving.
+    // match.
     '--env',
-    `NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway,backend-api,backend-relay,convex`,
+    `NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay`,
     // Per-org shared dep caches (empty under DinD — see cacheEnv above).
     ...cacheEnv,
     // HOME on the persistent workspace volume so agent state (~/.claude,
