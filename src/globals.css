@@ -1,0 +1,815 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Inter webfont bundled locally (GDPR + air-gapped: no Google Fonts CDN). The
+   @fontsource `@font-face` rules + woff2 files are loaded from `./fonts.ts` as a
+   JS side-effect import (pulled in by app-shell.tsx), NOT via CSS `@import` here:
+   Tailwind v4's @tailwindcss/postcss inlines @import'ed CSS without rebasing its
+   `url()` refs, so importing the font CSS through this file would leave the woff2
+   paths unresolved and 404 at runtime. See fonts.ts for the full rationale. */
+
+/* Metric-matched fallback so the swap from the system font to Inter (which
+   @fontsource ships with `font-display: swap`) is dimensionally invisible:
+   no reflow / font-size jump after the woff2 lands, and no stale measurement
+   for layout-measured UI like the tab underline. The override metrics are
+   next/font's published Inter-vs-Arial numbers; `local('Arial')` resolves to
+   Arial / Helvetica / Liberation Sans on every platform, with the system
+   stack below as a last resort. */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  ascent-override: 90.49%;
+  descent-override: 22.56%;
+  line-gap-override: 0%;
+  size-adjust: 107.06%;
+}
+
+@source '../src/**/*.{ts,tsx}';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Canonical shared stylesheet for the Tale monorepo. Every other globals.css
+ * (platform, web, docs, templates) is a single-line import of this file.
+ * Service-specific overrides live in sibling stylesheets next to each
+ * service's globals.css and are imported separately from main.tsx.
+ *
+ * Two token systems coexist:
+ *   1. @tale/ui base tokens (`--color-bg-base`, `--color-accent-base`, ...)
+ *      consumed by @tale/ui components.
+ *   2. HSL legacy tokens (`--background`, `--primary`, `--chart-N`, ...)
+ *      consumed by the platform app and the shadcn-style components that
+ *      pre-date the @tale/ui design system.
+ */
+
+@theme {
+  /* Brand font tokens. Without these, Tailwind v4's `font-sans`/`font-mono`
+     utilities resolve to its built-in *system* stacks instead of Inter, so any
+     element carrying `font-sans` (e.g. the platform `<body>`) overrides the
+     `@layer base` Inter rule with the system font. Defining them here makes the
+     utilities — and the Preflight `--default-font-family` derived from
+     `--font-sans` — resolve to the bundled Inter stack everywhere. The `--font-mono`
+     value matches the json-diff-viewer stack below. */
+  --font-sans: 'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-bg-base: #ffffff;
+  --color-bg-elevated: #f9fafb;
+  --color-bg-muted: #f3f4f6;
+  --color-bg-overlay: rgba(0, 0, 0, 0.4);
+
+  --color-fg-base: #030712;
+  --color-fg-muted: #4b5563;
+  --color-fg-subtle: #6b7280;
+  --color-fg-inverse: #ffffff;
+
+  --color-border-base: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  /* Form fields need a more visible edge than incidental borders. In light mode
+     the base #e5e7eb on a white field/card is barely perceptible (~1.2:1), so
+     inputs use a stronger border. Dark mode already reads well (see .dark). */
+  --color-border-input: var(--color-border-strong);
+
+  --color-accent-base: #030712;
+  --color-accent-fg: #ffffff;
+
+  --color-success-bg: #dcfce7;
+  --color-warning-bg: #fef9c3;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fee2e2;
+  --color-info-bg: #dbeafe;
+
+  --shadow-card: 0 1px 2px 0 rgba(3, 7, 18, 0.04);
+  --shadow-card-hover: 0 4px 8px -2px rgba(3, 7, 18, 0.08);
+  --shadow-overlay:
+    0 8px 24px -4px rgba(0, 0, 0, 0.06), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-fade-in: fade-in 480ms var(--ease-out-quint) both;
+  --animate-rise: rise 600ms var(--ease-out-quint) both;
+  --animate-marquee: marquee 32s linear infinite;
+
+  /* HSL legacy token aliases (platform / shadcn-style components). */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-muted: hsl(var(--primary-muted));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-table-header-foreground: hsl(var(--table-header-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-tab: hsl(var(--tab));
+
+  --color-sidebar: hsl(var(--sidebar));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  /* Semantic chart fills — theme-aware via the raw `--chart-*` tokens defined
+     in `:root` / `.dark`. Charts must read these (e.g. `var(--color-chart-success)`
+     or the `bg-chart-success` utility) rather than hardcoding hex, so dark mode
+     resolves correctly. See packages/ui/src/lib/chart-theme.ts. */
+  --color-chart-success: hsl(var(--chart-success));
+  --color-chart-failure: hsl(var(--chart-failure));
+  --color-chart-warning: hsl(var(--chart-warning));
+  --color-chart-neutral: hsl(var(--chart-neutral));
+  --color-chart-primary: hsl(var(--chart-primary));
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: var(--radius, 0.5rem);
+  --radius-xl: 1rem;
+
+  --nav-size: 3.25rem;
+
+  --duration-instant: 0ms;
+  --duration-micro: 100ms;
+  --duration-short: 150ms;
+  --duration-standard: 200ms;
+  --duration-medium: 300ms;
+  --duration-long: 400ms;
+  --duration-slow: 500ms;
+
+  --ease-linear: linear;
+  --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-in: cubic-bezier(0.42, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.58, 1);
+  --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  --distance-xs: 2px;
+  --distance-sm: 4px;
+  --distance-md: 8px;
+  --distance-lg: 16px;
+
+  --scale-pressed: 0.97;
+  --scale-hover: 1.02;
+  --scale-exit: 0.95;
+}
+
+:root {
+  /* iOS safe-area insets exposed as CSS variables so components can read them
+     via arbitrary-value utilities (e.g. `pt-[var(--safe-top)]`). The `env()`
+     fallback is 0 on browsers without `viewport-fit=cover`, so they degrade
+     to a flat layout. Set via the viewport meta in services/platform/index.html. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  --background: 0 0% 98.8%;
+  --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --primary-muted: 240 4% 60%;
+  --secondary: 220 9% 65%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  /* Header text sits on `--muted`, not the page: `--muted-foreground` there
+     is 4.40:1, under the 4.5:1 AA bar for 14px text. zinc-600 gives 7.03:1. */
+  --table-header-foreground: 240 5.2% 33.9%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --success: 155 92% 24%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 98%;
+  --info: 214 95% 93%;
+  --info-foreground: 214 100% 45%;
+  --border: 240 5.9% 90%;
+  --input: 0 0% 100%;
+  --ring: 240 10% 3.9%;
+  --sidebar: 0 0% 98.8%;
+  --tab: 0 0% 100%;
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+  /* Semantic chart fills (light). Tuned for legibility on light surfaces;
+     dark equivalents live in `.dark` below. */
+  --chart-success: 158 64% 39%;
+  --chart-failure: 0 72% 51%;
+  --chart-warning: 38 92% 50%;
+  --chart-neutral: 240 4% 60%;
+  --chart-primary: 217 91% 60%;
+  --radius: 0.5rem;
+  --chat-max-width: 48rem;
+}
+
+.dark {
+  /* Dark surfaces + prose use Tailwind's NEUTRAL family (true grayscale), not
+     GRAY (blue-tinted). The old gray-950 base (#030712 → rgb 3,7,18) gave the
+     whole @tale/ui-based surface — most visibly the docs page background — a
+     cool blue cast that didn't match the platform's neutral HSL shell
+     (`--background: 0 0% 3.92%`). Each value below is the neutral-N equivalent
+     of the gray-N it replaces (same lightness, hue stripped). */
+  --color-bg-base: #0a0a0a;
+  --color-bg-elevated: #0f0f0f;
+  --color-bg-muted: #1a1a1a;
+  --color-bg-overlay: rgba(10, 10, 10, 0.8);
+
+  /* Body prose lifts a notch (neutral-300 vs neutral-400) for legibility on
+     dark backgrounds. fg-subtle slides up to fill the lower-contrast slot for
+     captions / muted metadata. */
+  --color-fg-base: #f5f5f5;
+  --color-fg-muted: #d4d4d4;
+  --color-fg-subtle: #a3a3a3;
+  --color-fg-inverse: #0a0a0a;
+
+  --color-border-base: #404040;
+  --color-border-strong: #525252;
+  /* Dark inputs already have a clearly visible edge — keep the existing base. */
+  --color-border-input: var(--color-border-base);
+
+  --color-accent-base: #ffffff;
+  --color-accent-fg: #030712;
+
+  --background: 0 0% 3.92%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 9.02%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 3.92%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 222 73% 3%;
+  /* Dark-mode neutrals: dropped the slight blue tint (was hue 218) on the
+     muted / secondary / muted-foreground / accent tokens so the surface
+     palette reads as a true grayscale in dark mode, matching the platform's
+     white `--color-accent-base`. Light mode is already grayscale; `--info`,
+     `--destructive`, `--warning`, and `--chart-*` keep their hues because
+     they're semantic (informational badges, charts) rather than chrome. */
+  --primary-muted: 0 0% 75%;
+  --secondary: 0 0% 85%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 14.9%;
+  --muted-foreground: 0 0% 65%;
+  --table-header-foreground: 0 0% 65%;
+  --accent: 0 0% 17%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 91% 71%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 155 85% 35%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 98%;
+  --info: 214 35% 18%;
+  --info-foreground: 214 80% 65%;
+  --border: 0 0% 24%;
+  --input: 0 0% 5.88%;
+  /* Focus ring: was a saturated blue (`217 100% 66%`) that read as a hard
+     halo on dark surfaces. Drop to a near-white neutral — still clearly
+     visible for keyboard focus while matching the white `--primary` /
+     `--color-accent-base` intent color used everywhere else. */
+  --ring: 0 0% 90%;
+  --sidebar: 0 0% 5.88%;
+  --tab: 0 0% 25.1%;
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+  /* Semantic chart fills (dark) — lifted lightness/saturation for contrast on
+     the near-black dark surface. */
+  --chart-success: 158 58% 52%;
+  --chart-failure: 0 84% 68%;
+  --chart-warning: 43 96% 56%;
+  --chart-neutral: 0 0% 55%;
+  --chart-primary: 213 94% 68%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --animate-fade-in: none;
+    --animate-rise: none;
+    --animate-marquee: none;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  :where(.dark, .dark *) {
+    --tw-shadow-color: rgb(255 255 255 / 0.06);
+  }
+
+  /* A control that can be pressed shows the hand. Tailwind v4's Preflight sets
+     `cursor: default` on buttons (v3 set `pointer`), and the shared Button /
+     IconButton primitives each re-added `cursor-pointer` — which quietly left
+     every hand-rolled `<button>` in the app pointing an arrow at something
+     unmistakably clickable: a deliverable row, a disclosure header, a comment
+     action. Restoring it here fixes the class of bug instead of its instances.
+
+     This is `base`, so any utility still wins: a row that is deliberately inert
+     keeps its `cursor-default`, and the primitives' `disabled:cursor-not-allowed`
+     keeps overriding the pointer. The `not-allowed` pair below carries the same
+     courtesy to raw controls, which have no primitive to inherit it from. */
+  button:not(:disabled):not([aria-disabled='true']),
+  [role='button']:not(:disabled):not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  button[aria-disabled='true'],
+  [role='button'][aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  /* `html`/`body` use `100vh` (the LARGE viewport) so the page can draw into
+     the iOS home-indicator band. By default iOS standalone reports
+     `innerHeight` as the SMALL viewport (excluding ~34px of home-indicator
+     zone), but the window iOS actually renders is the larger size. With
+     `height:100%` on body, the page would stop ~34px short of the screen
+     bottom, leaving an empty band the user perceives as "extra space below
+     the bottom nav." Pinning to `100vh` lets the shell fill the full window;
+     components that need home-indicator clearance still opt in via
+     `pb-(--safe-bottom)`. `#root` keeps `100%` so it chains from body. */
+  html,
+  body {
+    height: 100vh;
+  }
+
+  #root {
+    height: 100%;
+  }
+
+  body {
+    font-family:
+      'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* Paint the real element's border box. Geometry, display and border radius
+     stay owned by the component, including native input/textarea surfaces
+     where pseudo-element overlays are unsupported. Hide every foreground
+     layer so pulsing opacity can never reveal the content underneath. */
+  [data-skeleton-mask] {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    background: var(--color-muted) !important;
+    border-color: transparent !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    outline: none !important;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  [data-skeleton-mask] *,
+  [data-skeleton-mask]::before,
+  [data-skeleton-mask]::after,
+  [data-skeleton-mask]::placeholder,
+  [data-skeleton-mask]::file-selector-button {
+    visibility: hidden !important;
+  }
+
+  [data-skeleton-mask]::-webkit-calendar-picker-indicator,
+  [data-skeleton-mask]::-webkit-inner-spin-button {
+    visibility: hidden !important;
+  }
+
+  /* Hide scrollbar across browsers. */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .animate-cursor-blink {
+    animation: cursor-blink 1s ease-in-out infinite;
+  }
+
+  /* Inline code line numbering via CSS counters on Shiki `.line` spans. */
+  .code-line-numbers code {
+    counter-reset: line;
+  }
+
+  .code-line-numbers .line {
+    display: block;
+  }
+
+  .code-line-numbers .line::before {
+    counter-increment: line;
+    content: counter(line);
+    display: inline-block;
+    min-width: 2rem;
+    margin-right: 1rem;
+    text-align: right;
+    color: hsl(var(--muted-foreground));
+    user-select: none;
+    opacity: 0.5;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-skeleton-mask] {
+      animation: none;
+    }
+
+    .animate-cursor-blink {
+      animation: none;
+      opacity: 1;
+    }
+  }
+}
+
+/* Shiki line numbering. Driven by a single `code-block-numbered` class on
+   the wrapper instead of Tailwind arbitrary-property utilities so the
+   selector chain (counter-reset on <pre>, counter on each `.line::before`)
+   stays a single coherent block that's easy to debug. */
+.code-block-numbered pre {
+  counter-reset: line;
+}
+
+.code-block-numbered .line::before {
+  content: counter(line);
+  counter-increment: line;
+  display: inline-block;
+  width: 1.75rem;
+  margin-right: 1rem;
+  text-align: right;
+  color: var(--color-fg-subtle);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Streaming markdown reveal (Gemini-style): content arrives in SEGMENTS
+   (prose clauses, code lines, table rows) and each newly mounted node fades
+   from 0% → 100% opacity. CSS animations only run when an element is
+   INSERTED into the DOM, and React preserves prior nodes across re-renders,
+   so already-revealed segments never re-fade. Scoped to `.stream-reveal`
+   (the streaming half of IncrementalMarkdown) so completed/stable markdown
+   renders without any animation. */
+/* Text clauses: a plain opacity fade with a fast attack (mostly visible by
+   mid-animation) and a soft landing. No `filter: blur` — filters force
+   per-frame repaints of the inline boxes and visibly jank long streams;
+   opacity composites on the GPU. */
+@keyframes stream-segment-in {
+  0% {
+    opacity: 0;
+  }
+  55% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Block-level units (list items, code blocks, quotes, images): fade + a
+   gentle lift that settles. */
+@keyframes stream-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Table rows / rules: plain fade — transforms and filters on table-internal
+   boxes render inconsistently across engines. */
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* easeOutQuint-style curve: fast attack, long soft landing. */
+.stream-reveal .stream-seg {
+  animation: stream-segment-in 600ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.stream-reveal li,
+.stream-reveal pre,
+.stream-reveal blockquote,
+.stream-reveal img {
+  animation: stream-block-in 560ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.stream-reveal tr,
+.stream-reveal hr {
+  animation: stream-fade-in 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-reveal .stream-seg,
+  .stream-reveal li,
+  .stream-reveal tr,
+  .stream-reveal pre,
+  .stream-reveal blockquote,
+  .stream-reveal hr,
+  .stream-reveal img {
+    animation: none;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+@keyframes attention {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.animate-attention {
+  animation: attention 1s ease-in-out 2;
+}
+
+@keyframes checkmark-draw {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-checkmark {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: checkmark-draw 0.3s ease-out forwards;
+}
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-row-enter {
+  animation: row-enter 0.2s ease-out;
+}
+
+/* Structured message sections (chat / agent output rendering). */
+.structured-conclusion {
+  border-left: 2px solid hsl(var(--primary));
+  padding-left: 0.75rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  background: hsl(var(--primary) / 0.05);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
+.structured-details > summary {
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  padding: 0.25rem 0;
+  list-style: revert;
+}
+
+.structured-details[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+.structured-questions {
+  border-left: 2px solid hsl(var(--muted-foreground) / 0.3);
+  padding-left: 0.75rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.structured-next-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .structured-details {
+    transition: none;
+  }
+}
+
+/* Global reduced motion: collapse all animations and transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Browsers re-apply autofill masking after toggling input type. Force it off
+   so the password visibility toggle can reveal the cached value. */
+input[type='text']:-webkit-autofill {
+  -webkit-text-security: none !important;
+}
+
+/* json-diff-kit Viewer theme overrides. */
+.json-diff-wrapper .json-diff-viewer {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.json-diff-wrapper .json-diff-viewer pre {
+  font-size: 0.8125rem;
+  line-height: 1.625;
+}
+
+.json-diff-wrapper .json-diff-viewer td {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+}
+
+.json-diff-wrapper .json-diff-viewer tr .line-add {
+  background: hsl(var(--success) / 0.12);
+}
+
+.json-diff-wrapper .json-diff-viewer tr .line-remove {
+  background: hsl(var(--destructive) / 0.12);
+}
+
+.json-diff-wrapper .json-diff-viewer tr .line-modify {
+  background: hsl(var(--warning) / 0.1);
+}
+
+.json-diff-wrapper .json-diff-viewer tr:hover td::before {
+  background: hsl(var(--foreground) / 0.04);
+}
+
+.json-diff-wrapper .json-diff-viewer pre .inline-diff-add {
+  background: hsl(var(--success) / 0.25);
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.json-diff-wrapper .json-diff-viewer pre .inline-diff-remove {
+  background: hsl(var(--destructive) / 0.25);
+  text-decoration: line-through;
+  border-radius: 2px;
+}
+
+.json-diff-wrapper .json-diff-viewer tr.expand-line button {
+  color: hsl(var(--ring));
+}
+
+.json-diff-wrapper .json-diff-viewer tr.message-line,
+.json-diff-wrapper .json-diff-viewer tr.expand-line .has-lines-before,
+.json-diff-wrapper .json-diff-viewer tr.expand-line .has-lines-after {
+  border-color: hsl(var(--border));
+}
+
+/* ReactFlow Handle Overrides — remove default styles for invisible handles. */
+.react-flow__handle.size-2\! {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.react-flow__handle.size-2\.5\! {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+.react-flow__handle.border-0\! {
+  border-width: 0;
+}
+
+.react-flow__handle.bg-transparent\! {
+  background-color: transparent;
+}
+
+.react-flow__handle.bg-muted-foreground\! {
+  background-color: hsl(var(--muted-foreground));
+}
+
+/* ReactFlow Panel Overrides — allow centering panels. */
+.react-flow__panel.mx-0\! {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.react-flow__panel.left-1\/2\! {
+  left: 50%;
+}
+
+.react-flow__panel.-translate-x-1\/2\! {
+  transform: translateX(-50%);
+}

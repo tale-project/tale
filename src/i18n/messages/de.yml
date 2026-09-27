@@ -1,0 +1,291 @@
+languageSwitcher:
+  ariaLabel: Sprache wechseln
+markdownCallout:
+  note: Hinweis
+  tip: Tipp
+  info: Info
+  warning: Warnung
+  danger: Vorsicht
+  check: Erfolg
+markdownCodeGroup:
+  examples: Codebeispiele
+  tab: 'Tab {number}'
+markdownDiagram:
+  preparingLabel: Mermaid-Diagramm wird vorbereitet
+  preparing: Diagramm wird vorbereitet…
+  failedLabel: Mermaid-Diagramm konnte nicht dargestellt werden
+  failed: Diagramm konnte nicht dargestellt werden
+  showSource: Quelltext anzeigen
+  hideSource: Quelltext ausblenden
+  zoomOut: Verkleinern
+  zoomIn: Vergrößern
+  reset: Zoom und Position zurücksetzen
+  openFullscreen: Vollbild öffnen
+  exitFullscreen: Vollbild beenden
+  label: Mermaid-Diagramm
+  fullscreenLabel: Mermaid-Diagramm im Vollbild
+markdownCopy:
+  copyLink: Link zu diesem Abschnitt kopieren
+  linkCopied: Link kopiert
+  copyCode: Code kopieren
+  codeCopied: Kopiert
+markdownImage:
+  zoom: Bild vergrößern
+  close: Schließen
+skeleton:
+  loading: Inhalt wird geladen
+themeSwitcher:
+  ariaLabel: Design wechseln
+  light: Hell
+  dark: Dunkel
+  system: System
+search:
+  title: Suchen
+  placeholder: Suchen
+  empty: Tippe los, um zu suchen.
+  emptyHint: Finde alles in diesem Arbeitsbereich.
+  keepTyping: Tippe weiter, um zu suchen…
+  noResultsTitle: Keine Ergebnisse
+  noResultsHint: Probiere andere Begriffe.
+  errorTitle: Etwas ist schiefgelaufen
+  errorHint: Prüfe deine Verbindung und versuche es erneut.
+  resultsGroup: Ergebnisse
+  loading: Suche läuft…
+  close: Suche schließen
+  recent: Letzte Suchen
+  clearRecent: Leeren
+  removeRecent: Aus den letzten Suchen entfernen
+  tipNavigate: zum Navigieren
+  tipSelect: zum Öffnen
+  tipClose: zum Schließen
+  results: '{count, plural, =0 {keine Ergebnisse} =1 {# Ergebnis} other {# Ergebnisse}}'
+docs:
+  skipToMain: Zum Hauptinhalt springen
+  openSearch: Suche öffnen
+  openMenu: Navigationsmenü öffnen
+  closeMenu: Navigationsmenü schließen
+  searchPlaceholder: Dokumentation durchsuchen
+  breadcrumbs: Brotkrumennavigation
+  onThisPage: Auf dieser Seite
+  previous: Zurück
+  next: Weiter
+  pagination: Seitennavigation
+  readingTime: '{minutes} Min. Lesezeit'
+  lastUpdated: Zuletzt aktualisiert am {date}
+  editOnGithub: Auf GitHub bearbeiten
+  backToTop: Nach oben
+  pageActions:
+    copyPage: Seite kopieren
+    copied: Kopiert
+    viewMarkdown: Als Markdown anzeigen
+    openIn: Öffnen in
+    openChatGpt: In ChatGPT öffnen
+    openClaude: In Claude öffnen
+    openCursor: In Cursor öffnen
+  notFound:
+    title: Seite nicht gefunden
+    body: Diese Seite konnten wir nicht finden. Vielleicht hilft eine der folgenden Seiten weiter – oder nutze die Suche.
+    suggestions: Meintest du
+    backHome: Zurück zur Doku-Startseite
+  search:
+    title: Dokumentation durchsuchen
+    placeholder: Dokumentation durchsuchen
+    empty: Tippe los, um die Doku zu durchsuchen.
+    emptyHint: Finde Anleitungen, Referenzen und Konzepte über alle Bereiche hinweg.
+    noResultsHint: Probiere andere Begriffe oder nutze die Navigation.
+auth:
+  userButton:
+    iosInstall:
+      description: Füge Tale zu deinem Home-Bildschirm hinzu, damit es im Vollbild wie eine App läuft.
+      done: OK
+      step1: Tippe in der Symbolleiste deines Browsers auf „Teilen“.
+      step2: Wähle „Zum Home-Bildschirm“ und tippe dann auf „Hinzufügen“.
+      title: Tale installieren
+common:
+  actions:
+    archiveSelected: Ausgewählte archivieren
+    cancel: Abbrechen
+    clearAll: Alle löschen
+    confirm: Bestätigen
+    copied: Kopiert
+    copy: Kopieren
+    delete: Löschen
+    deleteSelected: Ausgewählte löschen
+    deleting: Lösche...
+    discard: Verwerfen
+    openMenu: Menü öffnen
+    reset: Zurücksetzen
+    save: Speichern
+    saved: Gespeichert
+    source: Quelle
+    tryAgain: Erneut versuchen
+    loading: Lädt...
+  aria:
+    back: Zurück
+    close: Schließen
+    collapseRow: Zeile einklappen
+    expandRow: Zeile ausklappen
+    goToPage: Zur Seite
+    hidePassword: Passwort ausblenden
+    invalid: ungültig
+    moreInfo: Weitere Informationen
+    moreTabs: Weitere Tabs
+    nextPage: Nächste Seite
+    previousPage: Vorherige Seite
+    removeFile: Datei entfernen
+    resizePanel: Panelgröße ändern
+    rowActions: Aktionen für die Zeile
+    scrollDown: Nach unten scrollen
+    selectAll: Alle auswählen
+    selectRow: Zeile auswählen
+    showPassword: Passwort anzeigen
+    unsavedChanges: Nicht gespeicherte Änderungen
+    valid: gültig
+    validationRequirements: Validierungsanforderungen
+    validationStatus: "{message}: {status}"
+  bulkActions:
+    archiveFailed: Einige Elemente konnten nicht archiviert werden
+    archiveSuccess: "{count, plural, one {# Element} other {# Elemente}} archiviert"
+    archiving: Archiviere...
+    confirmArchiveDescription: "{count, plural, one {Dieses Element} other {Diese {count} Elemente}} archivieren? Du kannst {count, plural, one {es} other {sie}} später wiederherstellen."
+    confirmArchiveTitle: "{count, plural, one {# Element} other {# Elemente}} archivieren"
+    confirmDeleteDescription: "{count, plural, one {Dieses Element} other {Diese {count} Elemente}} löschen? Das lässt sich nicht rückgängig machen."
+    confirmDeleteTitle: "{count, plural, one {# Element} other {# Elemente}} löschen"
+    deleteFailed: Einige Elemente konnten nicht gelöscht werden
+    deleteSuccess: "{count, plural, one {# Element} other {# Elemente}} gelöscht"
+    deleting: Lösche...
+    itemsSelected: "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}"
+  confirmDialog:
+    typeToConfirmLabel: Tippe "{phrase}" zum Bestätigen
+  dataTable:
+    dateFilterUnavailable: Datumsfilter nicht verfügbar
+  datePicker:
+    nextMonth: Nächster Monat
+    placeholder: Datum wählen
+    presets:
+      custom: Benutzerdefiniert
+      today: Heute
+      last7Days: Letzte 7 Tage
+      last14Days: Letzte 14 Tage
+      last30Days: Letzte 30 Tage
+      last3Months: Letzte 3 Monate
+      last12Months: Letzte 12 Monate
+      monthToDate: Aktueller Monat
+      quarterToDate: Aktuelles Quartal
+      yearToDate: Aktuelles Jahr
+      allTime: Gesamter Zeitraum
+    previousMonth: Vorheriger Monat
+  dates:
+    today: Heute
+    yesterday: Gestern
+  discardChangesConfirm: Ungespeicherte Änderungen verwerfen?
+  editor:
+    fixHighlightedFields: Bitte korrigiere die hervorgehobenen Felder und versuche es erneut.
+  errors:
+    contactSupport: kontaktiere den Support
+    errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
+    hideDetails: Details ausblenden
+    persistsProblem: Wenn das immer wieder passiert,
+    showDetails: Details anzeigen
+    somethingWentWrong: Etwas ist schiefgelaufen. Versuch es erneut.
+    tryAgain: Erneut versuchen
+  flow:
+    aiEditor: KI-Editor
+    resetView: Ansicht zurücksetzen
+    zoomIn: Vergrößern
+    zoomOut: Verkleinern
+  keyboardShortcuts:
+    ctrlEnter: Ctrl+Enter
+    escape: Esc
+    hintToCancel: zum Abbrechen
+    hintToSave: zum Speichern,
+  labels:
+    filter: Filter
+    filters: Filter
+    nSelected: "{count} ausgewählt"
+  loading:
+    label: Wird geladen
+    navigating: Seite wird geladen
+  localeTabs:
+    default: Standard
+    untranslated: nicht übersetzt
+    autoTranslate: Automatisch übersetzen
+    hasError: enthält einen Fehler
+  moreTabs: Mehr
+  optional: optional
+  pagination:
+    loadMore: Mehr laden
+    loading: Weitere werden geladen...
+    noMore: Keine weiteren Einträge
+    rowsPerPage: Zeilen pro Seite
+    showing: "{start}–{end} von {total}"
+    showingAll: "{count, plural, one {# {entityOne} wird angezeigt} other {Alle # {entityOther} werden angezeigt}}"
+    showingFiltered: "{total, plural, one {{filtered} von # {entityOne} wird angezeigt} other {{filtered} von # {entityOther} werden angezeigt}}"
+    showingRange: "{total, plural, one {{start}-{end} von # {entityOne} wird angezeigt} other {{start}-{end} von # {entityOther} werden angezeigt}}"
+  search:
+    noResults: Keine Ergebnisse gefunden
+    placeholder: Suchen
+    tryAdjusting: Passe deine Suchkriterien an
+  select:
+    noOptionsHint: Noch nichts zum Auswählen.
+  unsavedChanges:
+    description: Du hast ungespeicherte Änderungen. Wenn du jetzt gehst, gehen sie verloren.
+    discardAndLeave: Verwerfen & Gehen
+    stay: Weiter bearbeiten
+    title: Ungespeicherte Änderungen
+  upload:
+    dropFilesHere: Dateien hier ablegen zum Hochladen
+    pickADate: Datum auswählen
+  validation:
+    invalidJson: Ungültiges JSON-Format
+    schemaValidationFailed: "Schema-Validierung fehlgeschlagen{error, select, empty {} other {: {error}}}"
+envEditor:
+  add: Variable hinzufügen
+  badKey: „{key}“ ist kein gültiger Variablenname (Buchstaben, Ziffern, Unterstrich; nicht mit einer Ziffer beginnend).
+  confirmRemoveDescription: Sie wird beim Speichern deiner Änderungen entfernt. Dies kann nicht rückgängig gemacht werden.
+  confirmRemoveTitle: Variable entfernen?
+  dupKey: Doppelter Variablenname — jeder NAME muss eindeutig sein.
+  keyPlaceholder: NAME
+  remove: Entfernen
+  save: Speichern
+  saveError: Umgebung konnte nicht gespeichert werden
+  saved: Umgebung gespeichert
+  saving: Wird gespeichert…
+  secret: Geheim
+  typeTokenSource: Token-Quelle
+  typeValue: Wert
+  valuePlaceholder: Wert
+  valueType: Typ
+metrics:
+  period:
+    label: Zeitraum
+    last24Hours: Letzte 24 Stunden
+    last7Days: Letzte 7 Tage
+    last30Days: Letzte 30 Tage
+    last90Days: Letzte 90 Tage
+    allTime: Gesamter Zeitraum
+pwa:
+  offlineReady: Tale ist offline einsatzbereit.
+  updateAvailableDescription: Eine neue Version von Tale ist bereit.
+  updateAvailableTitle: Aktualisierung verfügbar
+  updateNow: Jetzt aktualisieren
+  updateLater: Später
+settings:
+  agents:
+    form:
+      addModel: Modell hinzufügen
+      modelSelector:
+        dragHandle: Ziehen zum Neuordnen des Modells
+        moveDown: Modell nach unten verschieben
+        moveUp: Modell nach oben verschieben
+      noModelsFound: Keine Modelle gefunden
+      removeModel: Entfernen
+      searchModels: Modelle suchen
+toast:
+  success:
+    deleted:
+      description: Das Element wurde gelöscht.
+      title: Gelöscht
+tables:
+  headers:
+    description: Beschreibung
