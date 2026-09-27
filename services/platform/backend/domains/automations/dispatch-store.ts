@@ -175,6 +175,31 @@ async function writableActorProject(
 
 const TRIGGER_KINDS = new Set(['schedule', 'webhook', 'event']);
 
+/** How long one model's serving walk may take before the validator gives
+ * up on it: the walk reads live provider catalogs, and a save waiting on a
+ * stalled one is worse than a warning not given. */
+export const MODEL_AVAILABILITY_BUDGET_MS = 5_000;
+
+/** `work()`'s answer, or `undefined` ("cannot tell") once the budget is
+ * spent — the work itself is not cancelled, only no longer waited for. */
+function withinBudget<T>(
+  budgetMs: number,
+  work: () => Promise<T>,
+): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(
+        `[automations] model availability not answered within ${budgetMs} ms; cannot tell`,
+      );
+      resolve(undefined);
+    }, budgetMs);
+  });
+  return Promise.race([work(), expiry]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
 export interface PgStoreScope {
   organizationId: string;
   /** Who saves/runs are attributed to (`api-key:<userId>` or a user id). */
@@ -219,7 +244,8 @@ export function pgAutomationStore(
   // An agent node may also be served by a subscription lane the direct walk
   // does not cover: when one is connected the answer is "cannot tell", never
   // a false warning. Any failure (an unreachable catalog, the database) is
-  // "cannot tell" too — availability is a warning, never a refusal.
+  // "cannot tell" too — availability is a warning, never a refusal. So is
+  // a walk that outlasts its budget: a slow catalog must not hold a save.
   const modelAnswers = new Map<string, Promise<boolean | undefined>>();
   const modelAvailability = (
     modelId: string,
@@ -228,7 +254,7 @@ export function pgAutomationStore(
     const key = `${nodeType}:${modelId}`;
     let pending = modelAnswers.get(key);
     if (pending === undefined) {
-      pending = (async () => {
+      pending = withinBudget(MODEL_AVAILABILITY_BUDGET_MS, async () => {
         const shim = createCtxShim({
           ...chatShimHandlers(sql),
           ...credentialShimHandlers(sql),
@@ -251,7 +277,7 @@ export function pgAutomationStore(
           if (subscription) return undefined;
         }
         return false;
-      })().catch((error: unknown) => {
+      }).catch((error: unknown) => {
         console.warn(
           '[automations] model availability could not be answered:',
           error instanceof Error ? error.message : error,

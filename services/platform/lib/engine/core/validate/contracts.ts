@@ -181,6 +181,19 @@ export async function validateContracts(
     return pending;
   };
 
+  // Every distinct model is asked up front so the host answers them side by
+  // side — the loop below awaits each in turn, which walked the catalogs one
+  // model after another on a document naming several.
+  for (const n of unique) {
+    if (
+      (n.type === 'llm' || n.type === 'agent') &&
+      typeof n.model === 'string' &&
+      n.model !== ''
+    ) {
+      void modelAvailable(n.model, n.type);
+    }
+  }
+
   for (const n of unique) {
     const def = nodeTypes().get(n.type);
 

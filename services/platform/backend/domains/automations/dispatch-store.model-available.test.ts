@@ -25,7 +25,10 @@ vi.mock('../provider_credentials/service.ts', () => ({
 }));
 vi.mock('../chat/shim.ts', () => ({ chatShimHandlers: () => ({}) }));
 
-import { pgAutomationStore } from './dispatch-store.ts';
+import {
+  MODEL_AVAILABILITY_BUDGET_MS,
+  pgAutomationStore,
+} from './dispatch-store.ts';
 
 const sql = {} as unknown as Sql;
 const scope = { organizationId: 'org_1', actor: 'user_1' };
@@ -110,5 +113,23 @@ describe('pgAutomationStore.modelAvailable', () => {
     ).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('cannot tell once a walk outlasts its budget, without waiting for it', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      walkLlmServing.mockReturnValue(new Promise(() => {}));
+      const store = pgAutomationStore(sql, scope);
+      const answer = store.modelAvailable?.('slow/catalog', 'llm');
+      await vi.advanceTimersByTimeAsync(MODEL_AVAILABILITY_BUDGET_MS);
+      await expect(answer).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('not answered within'),
+      );
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });

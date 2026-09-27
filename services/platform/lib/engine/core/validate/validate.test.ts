@@ -757,6 +757,38 @@ describe('model availability', () => {
       'LLM_MODEL_UNAVAILABLE',
     );
 
+    // Distinct models are asked side by side, not one after another: the
+    // second question is put before the first is answered.
+    let release: (() => void) | undefined;
+    const asked: string[] = [];
+    const slow = {
+      ...memoryStore(),
+      modelAvailable: (modelId: string) => {
+        asked.push(modelId);
+        return new Promise<boolean>((resolve) => {
+          if (asked.length === 1) {
+            release = () => resolve(false);
+          } else {
+            resolve(false);
+            release?.();
+          }
+        });
+      },
+    };
+    const two: Automation = {
+      version: 1,
+      name: 'digest',
+      nodes: [
+        { id: 'a', type: 'llm', model: 'first/model', prompt: 'x' },
+        { id: 'b', type: 'llm', model: 'second/model', prompt: 'x' },
+      ],
+    };
+    const parallel = await validate(two, { store: slow });
+    expect(asked).toEqual(['first/model', 'second/model']);
+    expect(
+      parallel.warnings.filter((w) => w.code === 'LLM_MODEL_UNAVAILABLE'),
+    ).toHaveLength(2);
+
     const failing = {
       ...memoryStore(),
       modelAvailable: async () => {
