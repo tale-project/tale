@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import type { Context } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -27,6 +28,7 @@ const {
   loadVisibleConversation,
   listConversationMessages,
   loadMessageForViewer,
+  addMessageToConversation,
   undoSendMessage,
   retrySendMessage,
   discardOutboundMessage,
@@ -38,6 +40,7 @@ const {
   loadVisibleConversation: vi.fn(),
   listConversationMessages: vi.fn(),
   loadMessageForViewer: vi.fn(),
+  addMessageToConversation: vi.fn(),
   undoSendMessage: vi.fn(),
   retrySendMessage: vi.fn(),
   discardOutboundMessage: vi.fn(),
@@ -54,6 +57,7 @@ vi.mock('./service.ts', async (importOriginal) => {
     loadVisibleConversation,
     listConversationMessages,
     loadMessageForViewer,
+    addMessageToConversation,
   };
 });
 
@@ -159,6 +163,54 @@ describe('POST /improve — the composer rewrite', () => {
     await expect(res.json()).resolves.toMatchObject({
       error: 'IMPROVE_UNAVAILABLE',
     });
+  });
+});
+
+/**
+ * A logged message's `sentAt` is what the Inbox dates and orders it by, and
+ * `z.number()` let in stamps no `Date` can hold: one `9e15` made its
+ * organization's whole Inbox list answer 500. The door holds it to
+ * `epochMsSchema` and refuses anything else before a row is read.
+ */
+describe('POST /:id/messages — the send time is a stamp a Date can hold', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    viewerRole.current = 'admin';
+  });
+
+  const post = (body: unknown) =>
+    createConversationRoutes({
+      sql: { begin: (fn: (tx: unknown) => unknown) => fn({}) } as never,
+      auth: {} as never,
+    }).request('/c1/messages?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it.each([9e15, EPOCH_MS_MAX + 1, -1, 1.5, '1790400000000'])(
+    'refuses sentAt %s with a 400',
+    async (sentAt) => {
+      const res = await post({ content: 'A note', sentAt });
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toEqual({ error: 'invalid body' });
+      expect(loadVisibleConversation).not.toHaveBeenCalled();
+      expect(addMessageToConversation).not.toHaveBeenCalled();
+    },
+  );
+
+  it('logs a message sent at the latest instant a Date can hold', async () => {
+    loadVisibleConversation.mockResolvedValue({ id: 'c1' });
+    addMessageToConversation.mockResolvedValue({
+      messageId: 'm1',
+      conversationId: 'c1',
+    });
+    const res = await post({ content: 'A note', sentAt: EPOCH_MS_MAX });
+    expect(res.status).toBe(201);
+    expect(addMessageToConversation).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ conversationId: 'c1', sentAt: EPOCH_MS_MAX }),
+    );
   });
 });
 

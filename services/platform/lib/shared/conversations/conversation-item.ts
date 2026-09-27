@@ -8,8 +8,13 @@
  * transform and the 0.5 route cannot drift into two different "same" shapes
  * — a divergence the UI would show as blank previews and missing titles.
  *
- * Pure: callers fetch, this projects.
+ * Pure: callers fetch, this projects. It never throws on a row's stamps: the
+ * doors hold every timestamp to `epochMsSchema`, but a row stored before they
+ * did may carry one no `Date` can hold — and one such row used to fail its
+ * organization's whole Inbox list.
  */
+
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 
 import { getConversationMessageSortTime } from './message-order';
 
@@ -88,6 +93,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** ISO 8601 for a stored stamp. The callers fall back to the row's creation
+ * time first; a creation time no `Date` can hold renders as the epoch. */
+function isoTimestamp(ms: number): string {
+  return new Date(isEpochMs(ms) ? ms : 0).toISOString();
+}
+
 function projectConversationMessage(
   message: ProjectableMessage,
 ): ProjectedMessage {
@@ -140,19 +151,17 @@ function projectConversationMessage(
     // the row was written. A reply still queued for an API app has no send
     // time until the app acknowledges it, and the thread drops a message
     // without a timestamp, so an empty one hid the reply, its undo and its
-    // retry until then.
-    timestamp: new Date(
+    // retry until then. A stamp no `Date` can hold counts as absent.
+    timestamp: isoTimestamp(
       getConversationMessageSortTime({
         _id: message.id,
         _creationTime: message.createdAt,
-        ...(typeof message.sentAt === 'number'
-          ? { sentAt: message.sentAt }
-          : {}),
-        ...(typeof message.deliveredAt === 'number'
+        ...(isEpochMs(message.sentAt) ? { sentAt: message.sentAt } : {}),
+        ...(isEpochMs(message.deliveredAt)
           ? { deliveredAt: message.deliveredAt }
           : {}),
       }),
-    ).toISOString(),
+    ),
     isCustomer: message.direction === 'inbound',
     status: deliveryState,
     // The undo countdown's source: meaningful only while still queued —
@@ -192,7 +201,7 @@ export function projectConversationItem(args: {
           email: missingEmail,
           locale: 'en',
           source: 'unknown',
-          created_at: new Date(conversation.createdAt).toISOString(),
+          created_at: isoTimestamp(conversation.createdAt),
         }
       : {
           id: args.contact.id,
@@ -200,7 +209,7 @@ export function projectConversationItem(args: {
           email: args.contact.email || missingEmail,
           locale: args.contact.locale || 'en',
           source: args.contact.source || 'unknown',
-          created_at: new Date(args.contact.createdAt).toISOString(),
+          created_at: isoTimestamp(args.contact.createdAt),
         };
   const lastMessage = messages[messages.length - 1];
   return {
@@ -225,8 +234,7 @@ export function projectConversationItem(args: {
       ? { connectorName: conversation.connectorName }
       : {}),
     ...(args.credentialId ? { credentialId: args.credentialId } : {}),
-    ...(conversation.lastMessageAt !== null &&
-    conversation.lastMessageAt !== undefined
+    ...(isEpochMs(conversation.lastMessageAt)
       ? { lastMessageAt: conversation.lastMessageAt }
       : {}),
     metadata: conversation.metadata ?? undefined,
@@ -246,13 +254,13 @@ export function projectConversationItem(args: {
     message_count: messages.length,
     unread_count:
       typeof metadata.unread_count === 'number' ? metadata.unread_count : 0,
-    last_message_at:
-      conversation.lastMessageAt !== null &&
-      conversation.lastMessageAt !== undefined
-        ? new Date(conversation.lastMessageAt).toISOString()
-        : lastMessage !== undefined
-          ? lastMessage.timestamp
-          : new Date(conversation.createdAt).toISOString(),
+    // A cursor no `Date` can hold counts as absent, as a message's stamps
+    // do: the newest message dates the row, else its creation.
+    last_message_at: isEpochMs(conversation.lastMessageAt)
+      ? isoTimestamp(conversation.lastMessageAt)
+      : lastMessage !== undefined
+        ? lastMessage.timestamp
+        : isoTimestamp(conversation.createdAt),
     ...(typeof metadata.last_read_at === 'string'
       ? { last_read_at: metadata.last_read_at }
       : {}),
@@ -263,8 +271,8 @@ export function projectConversationItem(args: {
     ...(typeof metadata.resolved_by === 'string'
       ? { resolved_by: metadata.resolved_by }
       : {}),
-    created_at: new Date(conversation.createdAt).toISOString(),
-    updated_at: new Date(conversation.createdAt).toISOString(),
+    created_at: isoTimestamp(conversation.createdAt),
+    updated_at: isoTimestamp(conversation.createdAt),
     contact,
     messages,
     ...(args.pendingApproval ? { pendingApproval: args.pendingApproval } : {}),

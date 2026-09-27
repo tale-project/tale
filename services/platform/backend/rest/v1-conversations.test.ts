@@ -1,9 +1,11 @@
 // @vitest-environment node
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
+import { apiSnapshotSchema } from '../../lib/shared/conversations/api-sync.ts';
 import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createConversationRestRoutes } from './v1-conversations.ts';
 
@@ -190,6 +192,71 @@ describe('conversations door — strict bodies', () => {
     expect(
       body.data.issues.filter((issue) => issue.path === 'version'),
     ).toHaveLength(1);
+  });
+});
+
+/**
+ * A mirrored message's `createdAt` becomes its send time, which the Inbox
+ * dates and orders it by. `.int()` let in safe integers no `Date` can hold,
+ * and one `9e15` made the organization's whole Inbox list answer 500, so the
+ * door holds it to `epochMsSchema`: refused by its path, nothing applied.
+ */
+describe('conversations door — message times a Date can hold', () => {
+  const snapshot = (createdAt: number) => ({
+    source: 'vatplus',
+    externalId: 'c1',
+    externalContactId: 'k1',
+    version: 1,
+    subject: 's',
+    status: 'open',
+    messages: [
+      {
+        externalId: 'm1',
+        content: 'x',
+        isCustomer: true,
+        authorName: 'A',
+        createdAt,
+      },
+    ],
+  });
+  const sync = async (createdAt: number) => {
+    const { app, queries } = mount(['org-1']);
+    const res = await app.request('http://localhost/conversations/sync', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(snapshot(createdAt)),
+    });
+    return { res, queries };
+  };
+
+  it.each([9e15, EPOCH_MS_MAX + 1, -1, 1.5])(
+    'refuses a message createdAt of %s',
+    async (createdAt) => {
+      const { res, queries } = await sync(createdAt);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: {
+          issues: [expect.objectContaining({ path: 'messages.0.createdAt' })],
+        },
+      });
+      expect(queries).toEqual([]);
+    },
+  );
+
+  it('reports an over-range message createdAt once, not twice', async () => {
+    const { res } = await sync(Number.MAX_SAFE_INTEGER + 2);
+    expect(res.status).toBe(400);
+    const body: { data: { issues: { path: string }[] } } = await res.json();
+    expect(
+      body.data.issues.filter((issue) => issue.path === 'messages.0.createdAt'),
+    ).toHaveLength(1);
+  });
+
+  it('takes the latest instant a Date can hold', () => {
+    expect(apiSnapshotSchema.safeParse(snapshot(EPOCH_MS_MAX)).success).toBe(
+      true,
+    );
   });
 });
 

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { epochMsSchema } from './epoch-ms';
+
 /** The last observed upstream issue, separate from a person's Tale edits.
  * `id` is vendor-stable (never a repository name, project slug, or title). */
 export const taskExternalIssueSchema = z
@@ -10,9 +12,8 @@ export const taskExternalIssueSchema = z
     url: z.url({ protocol: /^https?$/ }).max(4000),
     state: z.enum(['open', 'closed', 'resolved', 'ignored']),
     updatedAt: z.iso.datetime({ offset: true }).optional(),
-    // JavaScript Date has a smaller range than a lossless integer. A valid
-    // stored timestamp must also remain renderable by every task card.
-    syncedAt: z.number().int().nonnegative().max(8_640_000_000_000_000),
+    // A valid stored timestamp must remain renderable by every task card.
+    syncedAt: epochMsSchema,
     unavailable: z.boolean().optional(),
     repositoryId: z
       .number()

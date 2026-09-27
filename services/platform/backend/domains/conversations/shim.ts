@@ -1,3 +1,4 @@
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
@@ -218,8 +219,8 @@ export function conversationShimHandlers(
               attachments: z.array(z.unknown()).optional(),
               externalMessageId: z.string().optional(),
               metadata: z.record(z.string(), z.unknown()).optional(),
-              sentAt: z.number().optional(),
-              deliveredAt: z.number().optional(),
+              sentAt: epochMsSchema.optional(),
+              deliveredAt: epochMsSchema.optional(),
               connectorName: z.string().optional(),
               credentialId: z.string().optional(),
             })
@@ -315,8 +316,8 @@ export function conversationShimHandlers(
           attachments: z.array(z.unknown()).optional(),
           externalMessageId: z.string().optional(),
           metadata: z.record(z.string(), z.unknown()).optional(),
-          sentAt: z.number().optional(),
-          deliveredAt: z.number().optional(),
+          sentAt: epochMsSchema.optional(),
+          deliveredAt: epochMsSchema.optional(),
           connectorName: z.string().optional(),
           credentialId: z.string().optional(),
         })
@@ -369,8 +370,8 @@ export function conversationShimHandlers(
           deliveryState: z
             .enum(['queued', 'sent', 'delivered', 'failed'])
             .optional(),
-          sentAt: z.number().optional(),
-          deliveredAt: z.number().optional(),
+          sentAt: epochMsSchema.optional(),
+          deliveredAt: epochMsSchema.optional(),
           metadata: z.record(z.string(), z.unknown()).optional(),
           retryCount: z.number().optional(),
         })
@@ -461,7 +462,7 @@ export function conversationShimHandlers(
         .extend({
           storageId: z.string(),
           conversationId: z.string(),
-          receivedAt: z.number().optional(),
+          receivedAt: epochMsSchema.optional(),
         })
         .parse(raw);
       const rows = await sql<
@@ -572,8 +573,8 @@ export function conversationShimHandlers(
       const args = org
         .extend({
           credentialId: z.string(),
-          mailSyncInboundSince: z.number().optional(),
-          mailSyncOutboundSince: z.number().optional(),
+          mailSyncInboundSince: epochMsSchema.optional(),
+          mailSyncOutboundSince: epochMsSchema.optional(),
           config: z
             .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
             .optional(),

@@ -107,3 +107,99 @@ describe('message timestamps', () => {
     ).toBe(new Date(delivered).toISOString());
   });
 });
+
+/**
+ * One stored stamp no `Date` can hold made `toISOString()` throw, and the
+ * listing projects every row of its page, so the whole Inbox list of the
+ * organization answered 500. `9e15` is a safe integer: the doors' `.int()`
+ * let it in. The projection dates such a row by its creation time instead.
+ */
+describe('stamps no Date can hold', () => {
+  const WRITTEN_AT = Date.UTC(2026, 8, 27, 8, 15);
+  const CREATED_AT = Date.UTC(2026, 8, 27, 8);
+  const OUT_OF_RANGE = 9e15;
+
+  function project(
+    conversation: { lastMessageAt?: number; createdAt?: number },
+    messages: Record<string, unknown>[],
+  ) {
+    const item = projectConversationItem({
+      conversation: {
+        id: 'thread',
+        organizationId: 'org',
+        channel: 'email',
+        createdAt: CREATED_AT,
+        ...conversation,
+      },
+      contact: null,
+      messages: messages.map((message, index) => ({
+        id: `m${index}`,
+        direction: 'inbound',
+        content: 'Hello',
+        createdAt: WRITTEN_AT,
+        ...message,
+      })),
+    });
+    return {
+      item,
+      messages: item.messages as { id: string; timestamp: string }[],
+    };
+  }
+
+  it('dates a message with sentAt: 9e15 by when its row was written', () => {
+    const { messages } = project({}, [{ sentAt: OUT_OF_RANGE }]);
+    const timestamp = messages[0]?.timestamp ?? '';
+    expect(timestamp).toBe(new Date(WRITTEN_AT).toISOString());
+    expect(new Date(timestamp).toISOString()).toBe(timestamp);
+    // The thread renders only what it can group by date.
+    expect(
+      groupMessagesByDate(messages).flatMap((group) => group.messages),
+    ).toHaveLength(1);
+  });
+
+  it('passes over only the stamp it cannot hold', () => {
+    const delivered = WRITTEN_AT - 60_000;
+    const { messages } = project({}, [
+      { sentAt: OUT_OF_RANGE, deliveredAt: delivered },
+      { sentAt: -1, deliveredAt: OUT_OF_RANGE },
+    ]);
+    expect(messages.map((message) => message.timestamp)).toEqual([
+      new Date(delivered).toISOString(),
+      new Date(WRITTEN_AT).toISOString(),
+    ]);
+  });
+
+  it('dates the row by its newest message when its lastMessageAt cannot be held', () => {
+    // `lastMessageAt` only ever advances, so the poisoned message's stamp
+    // is copied onto its conversation for good.
+    const { item } = project({ lastMessageAt: OUT_OF_RANGE }, [
+      { sentAt: OUT_OF_RANGE },
+    ]);
+    expect(item.last_message_at).toBe(new Date(WRITTEN_AT).toISOString());
+    expect(item).not.toHaveProperty('lastMessageAt');
+  });
+
+  it('dates a row without messages by its creation', () => {
+    const { item } = project({ lastMessageAt: OUT_OF_RANGE }, []);
+    expect(item.last_message_at).toBe(new Date(CREATED_AT).toISOString());
+  });
+
+  it('renders a creation time no Date can hold as the epoch rather than throwing', () => {
+    const epoch = new Date(0).toISOString();
+    const { item, messages } = project({ createdAt: OUT_OF_RANGE }, [
+      { createdAt: -OUT_OF_RANGE },
+    ]);
+    expect(item).toMatchObject({
+      created_at: epoch,
+      updated_at: epoch,
+      contact: { created_at: epoch },
+    });
+    expect(messages[0]?.timestamp).toBe(epoch);
+    const withContact = projectConversationItem({
+      conversation: { id: 'thread', organizationId: 'org', createdAt: 0 },
+      contact: { id: 'client', createdAt: OUT_OF_RANGE },
+      messages: [],
+    });
+    expect(withContact.contact).toMatchObject({ created_at: epoch });
+  });
+});

@@ -29,6 +29,9 @@ Every subpath below is declared in `package.json` `exports`.
 - **`@tale/shared/schemas/{automation-pack,automation-settings,task-contract}`**
   — automation package declarations and limits, operator settings forms and task
   bindings. Catalog reads, ZIP decoding and engine validation stay in the platform.
+- **`@tale/shared/schemas/epoch-ms`** — the one timestamp bound: `epochMsSchema`
+  takes whole epoch milliseconds from 0 to `EPOCH_MS_MAX`, the latest instant a
+  JavaScript `Date` holds; `isEpochMs` is the same test for readers of stored rows.
 - **`@tale/shared/net/private-ip`** and **`@tale/shared/utils/{session-idle,model-ref,project-key}`**
   — pure validation helpers used by those contracts and their consumers.
 

@@ -21,6 +21,7 @@
     "./schemas/providers": "./src/schemas/providers.ts",
     "./schemas/configuration": "./src/schemas/configuration.ts",
     "./schemas/connectors": "./src/schemas/connectors.ts",
+    "./schemas/epoch-ms": "./src/schemas/epoch-ms.ts",
     "./schemas/skills": "./src/schemas/skills.ts",
     "./schemas/projects": "./src/schemas/projects.ts",
     "./schemas/pii": "./src/schemas/pii.ts",
