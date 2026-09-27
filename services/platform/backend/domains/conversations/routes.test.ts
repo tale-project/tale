@@ -32,6 +32,9 @@ const {
   undoSendMessage,
   retrySendMessage,
   discardOutboundMessage,
+  replyToConversation,
+  composeEmailConversation,
+  firstForeignUpload,
 } = vi.hoisted(() => ({
   listConversationsPage: vi.fn(),
   countConversationsByStatus: vi.fn(),
@@ -44,6 +47,9 @@ const {
   undoSendMessage: vi.fn(),
   retrySendMessage: vi.fn(),
   discardOutboundMessage: vi.fn(),
+  replyToConversation: vi.fn(),
+  composeEmailConversation: vi.fn(),
+  firstForeignUpload: vi.fn(),
 }));
 
 vi.mock('./service.ts', async (importOriginal) => {
@@ -68,8 +74,12 @@ vi.mock('./send.ts', async (importOriginal) => {
     undoSendMessage,
     retrySendMessage,
     discardOutboundMessage,
+    replyToConversation,
+    composeEmailConversation,
   };
 });
+
+vi.mock('../files/upload-intents.ts', () => ({ firstForeignUpload }));
 
 const { improveConversationMessage } = vi.hoisted(() => ({
   improveConversationMessage: vi.fn(),
@@ -365,6 +375,113 @@ describe('conversations route — the detail door reads the thread once', () => 
 });
 
 /**
+ * The composer offers Send for files with no text and sends an empty body
+ * beside them. Both send doors took `content` as `min(1)` and answered that
+ * attachment-only email 400. An empty body is a real one when files go with
+ * it; a send carrying neither is still refused, before the door reads
+ * anything.
+ */
+describe('conversations route — an email that carries only files', () => {
+  const FILE = {
+    storageId: 'blob-1',
+    fileName: 'invoice.pdf',
+    contentType: 'application/pdf',
+    size: 1024,
+  };
+  const COMPOSE = {
+    contactId: 'ct1',
+    connectorName: 'imap-smtp',
+    subject: 'Invoice',
+  };
+
+  const post = (path: string, body: unknown) =>
+    makeApp().request(`${path}?orgId=o1`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadVisibleConversation.mockResolvedValue({
+      id: 'c1',
+      organizationId: 'o1',
+    });
+    firstForeignUpload.mockResolvedValue(null);
+    replyToConversation.mockResolvedValue('m1');
+    composeEmailConversation.mockResolvedValue({
+      conversationId: 'c-new',
+      messageId: 'm1',
+    });
+  });
+
+  it('POST /:id/reply sends an empty body beside its files', async () => {
+    const res = await post('/c1/reply', { content: '', attachments: [FILE] });
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toEqual({ messageId: 'm1' });
+    // The files are still checked as the sender's own uploads.
+    expect(firstForeignUpload).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'o1', userId: 'u1' },
+      ['blob-1'],
+    );
+    expect(replyToConversation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        conversationId: 'c1',
+        content: '',
+        attachments: [FILE],
+      }),
+    );
+  });
+
+  it('POST /compose sends an empty body beside its files', async () => {
+    const res = await post('/compose', {
+      ...COMPOSE,
+      content: '',
+      attachments: [FILE],
+    });
+
+    expect(res.status).toBe(201);
+    expect(composeEmailConversation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ content: '', attachments: [FILE] }),
+    );
+  });
+
+  it.each([
+    ['no attachments', {}],
+    ['an empty attachment list', { attachments: [] }],
+  ])(
+    'refuses an empty body with %s before reading anything',
+    async (_, extra) => {
+      const reply = await post('/c1/reply', { content: '', ...extra });
+      const compose = await post('/compose', {
+        ...COMPOSE,
+        content: '',
+        ...extra,
+      });
+
+      expect(reply.status).toBe(400);
+      expect(compose.status).toBe(400);
+      await expect(reply.json()).resolves.toEqual({ error: 'invalid body' });
+      expect(loadVisibleConversation).not.toHaveBeenCalled();
+      expect(firstForeignUpload).not.toHaveBeenCalled();
+      expect(replyToConversation).not.toHaveBeenCalled();
+      expect(composeEmailConversation).not.toHaveBeenCalled();
+    },
+  );
+
+  it('still refuses a missing body, files or not', async () => {
+    const res = await post('/c1/reply', { attachments: [FILE] });
+
+    expect(res.status).toBe(400);
+    expect(replyToConversation).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * The message-level doors act on a message only inside a conversation the
  * viewer can open. Org scoping alone let a member holding a messageId cancel,
  * resend, or discard a colleague's outbound mail in a conversation the
@@ -593,8 +710,8 @@ describe('conversations route — the write gate decides by role', () => {
 
   /**
    * The other direction: an editor is never refused BY THE GATE. Only the
-   * message-door services are mocked here, so the other doors reach the real
-   * service over a stub `sql` and answer 500 — which is itself past the gate,
+   * message-door and send services are mocked here, so the other doors reach
+   * the real service over a stub `sql` and answer 500 — which is itself past the gate,
    * but a bare `!== 403` would accept that 500 even if the gate were broken
    * open in a different way. So check the refusal ENVELOPE, which only the
    * gate produces, and then pin the four doors the mocks carry end to end.

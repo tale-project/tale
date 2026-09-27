@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 52 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 53 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -472,6 +472,17 @@ subject.
   `{origin}/dashboard/{org}/conversations/{status}?conversation={id}` with
   nothing else in its query, and the other admin lands on that same
   conversation, open in the reading pane.
+- [ ] `CONV-F32` · **Send only an attachment** — With CONV-F7's precondition
+  met and nothing typed in the reply box, **Send message**
+  (`conversations.editor.send`) is disabled; attach a PDF with **Attach file**
+  (`conversations.editor.attachFile`), still typing nothing, and send → No
+  **Couldn't send message. Try again.** toast
+  (`conversations.editor.sendFailed`); after a reload the reply's bubble lists
+  the file (**1 attachment**, `conversations.attachment.attachments`) under an
+  empty body, and once the undo window has passed the correspondent's mailbox
+  holds the email with that file and no text. **New email**
+  (`home.inbox.compose`) with a recipient, a subject and only a file sends the
+  same way and opens the new thread.
 
 ## Boundary & error tests
 

@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
+import { hasBodyOrAttachments } from '../../../lib/shared/conversations/outbound-content.ts';
 import { inboundRecipientAddress } from '../../../lib/shared/conversations/reply-from.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { validateConversationAttachmentCaps } from '../../core/conversations/attachments.ts';
@@ -403,6 +404,8 @@ async function sendMessageViaConnectorInTx(
 
 const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
 
+/** Reply on a conversation. An empty `content` beside files is an
+ * attachment-only reply; one with neither is refused before any read. */
 export async function replyToConversation(
   sql: Sql,
   args: {
@@ -414,6 +417,12 @@ export async function replyToConversation(
     actor: { userId: string; email?: string };
   },
 ): Promise<string> {
+  if (!hasBodyOrAttachments(args)) {
+    throw new ConversationError(
+      'reply_content_required',
+      'A reply needs a message or an attachment',
+    );
+  }
   const rows = await sql<
     {
       organizationId: string;
@@ -659,6 +668,13 @@ export async function composeEmailConversation(
     throw new ConversationError(
       'compose_subject_required',
       'A subject is required to start an email',
+    );
+  }
+  // An empty body beside files is an attachment-only email.
+  if (!hasBodyOrAttachments(args)) {
+    throw new ConversationError(
+      'compose_content_required',
+      'An email needs a message or an attachment',
     );
   }
   const contacts = await sql<
