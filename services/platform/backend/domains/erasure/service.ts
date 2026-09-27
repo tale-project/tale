@@ -1,3 +1,4 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { isRecord } from '../../../lib/utils/type-utils.ts';
@@ -1172,11 +1173,10 @@ export async function processErasure(
   // workflow-era rows every review door leaves alone, and a waiting row
   // whose task is gone or that was decided in the meantime.
   await pass('reviewDecisions', async () => {
-    const cleared = await sql<{ id: string }[]>`
-      UPDATE app.tasks SET reviewer_user_id = NULL
+    const designated = await sql<{ id: string }[]>`
+      SELECT id FROM app.tasks
       WHERE org_id = ${organizationId}
         AND reviewer_user_id = ${targetUserId}
-      RETURNING id
     `;
     const waiting = await sql<{ id: string; taskId: string }[]>`
       SELECT id, resource_id AS "taskId" FROM app.approvals
@@ -1184,9 +1184,23 @@ export async function processErasure(
         AND status = 'pending' AND wf_execution_id IS NULL
         AND metadata->>'requestedFor' = ${targetUserId}
     `;
+    let cleared = 0;
     let handedOver = 0;
-    for (const taskId of new Set(waiting.map((row) => row.taskId))) {
-      const moved = await sql.begin(async (tx) => {
+    const taskIds = new Set([
+      ...designated.map((row) => row.id),
+      ...waiting.map((row) => row.taskId),
+    ]);
+    for (const taskId of taskIds) {
+      // The designation, review and hint move together. A concurrent task
+      // edit retries this read instead of letting a stale reviewer overwrite
+      // the designation that edit just selected.
+      const moved = await transactSerializable(sql, async (tx) => {
+        const removed = await tx<{ id: string }[]>`
+          UPDATE app.tasks SET reviewer_user_id = NULL
+          WHERE id = ${taskId} AND org_id = ${organizationId}
+            AND reviewer_user_id = ${targetUserId}
+          RETURNING id
+        `;
         let task: TaskRow;
         try {
           task = await loadTaskOrThrow(tx, taskId, organizationId);
@@ -1194,19 +1208,37 @@ export async function processErasure(
           // A row whose task is gone has nowhere to move: the pseudonym
           // below covers it.
           if (error instanceof TaskError && error.code === 'TASK_NOT_FOUND') {
-            return false;
+            return { cleared: removed.length, handedOver: 0 };
           }
           throw error;
         }
-        await retargetPendingTaskReview(tx, {
-          task,
-          excludeUserId: targetUserId,
-        });
-        return true;
+        // Discovery was outside this transaction: someone may already have
+        // decided or reassigned the review. Only a request still addressed
+        // to the subject needs a handover.
+        const pending = await tx<{ id: string }[]>`
+          SELECT id FROM app.approvals
+          WHERE org_id = ${organizationId} AND resource_type = 'task_review'
+            AND resource_id = ${taskId} AND status = 'pending'
+            AND wf_execution_id IS NULL
+            AND metadata->>'requestedFor' = ${targetUserId}
+        `;
+        if (pending.length > 0) {
+          await retargetPendingTaskReview(tx, {
+            task,
+            excludeUserId: targetUserId,
+          });
+        }
+        if (removed.length > 0 || pending.length > 0) {
+          await emitHintInTx(tx, {
+            orgId: organizationId,
+            entity: 'task',
+            entityId: taskId,
+          });
+        }
+        return { cleared: removed.length, handedOver: pending.length };
       });
-      if (moved) {
-        handedOver += waiting.filter((row) => row.taskId === taskId).length;
-      }
+      cleared += moved.cleared;
+      handedOver += moved.handedOver;
     }
     const decisions = await sql<
       { id: string; approvedBy: string | null; metadata: unknown }[]
@@ -1238,7 +1270,7 @@ export async function processErasure(
       `;
       changed++;
     }
-    return handedOver + changed + cleared.length;
+    return handedOver + changed + cleared;
   });
 
   // Global auth state: the lockout trail is keyed by email and the two-factor

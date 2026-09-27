@@ -96,7 +96,16 @@ function fakeSql(
     statements.push({ text, values });
     return Promise.resolve(answer(text, values) ?? []);
   };
-  tag.begin = (callback: (tx: typeof tag) => unknown): unknown => callback(tag);
+  tag.begin = (
+    optionsOrCallback: string | ((tx: typeof tag) => unknown),
+    callback?: (tx: typeof tag) => unknown,
+  ): unknown => {
+    if (typeof optionsOrCallback === 'string') {
+      statements.push({ text: `BEGIN ${optionsOrCallback}`, values: [] });
+      return callback?.(tag);
+    }
+    return optionsOrCallback(tag);
+  };
   tag.json = (value: unknown): unknown => value;
   return { sql: tag as unknown as Sql, statements };
 }
@@ -458,7 +467,7 @@ describe('processErasure — the review pass', () => {
   it('hands a waiting review on through the cleared chain, then pseudonymizes what still names the subject', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const task = { id: 'task-1', reviewerUserId: null } as unknown as TaskRow;
-    const fake = fakeSql((text) => {
+    const fake = fakeSql((text, values) => {
       if (
         text.startsWith(
           "UPDATE app.gdpr_erasure_requests SET status = 'running'",
@@ -471,8 +480,12 @@ describe('processErasure — the review pass', () => {
             status: 'running',
           },
         ];
-      if (text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'))
+      if (text.startsWith('SELECT id FROM app.tasks'))
         return [{ id: 'task-1' }];
+      if (text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'))
+        return values[0] === 'task-1' ? [{ id: 'task-1' }] : [];
+      if (text.startsWith('SELECT id FROM app.approvals'))
+        return [{ id: 'review-open' }];
       if (text.startsWith('SELECT id, resource_id AS "taskId"'))
         return [
           { id: 'review-open', taskId: 'task-1' },
@@ -525,6 +538,16 @@ describe('processErasure — the review pass', () => {
       'org_1',
     );
     expect(retargetPendingTaskReview).toHaveBeenCalledTimes(1);
+    const transactionAt = fake.statements.findIndex(
+      (s) => s.text === 'BEGIN isolation level serializable',
+    );
+    expect(transactionAt).toBeGreaterThanOrEqual(0);
+    expect(clearedAt).toBeGreaterThan(transactionAt);
+    expect(emitHintInTx).toHaveBeenCalledWith(expect.anything(), {
+      orgId: 'org_1',
+      entity: 'task',
+      entityId: 'task-1',
+    });
     expect(retargetPendingTaskReview).toHaveBeenCalledWith(expect.anything(), {
       task,
       excludeUserId: 'subject',
@@ -553,6 +576,50 @@ describe('processErasure — the review pass', () => {
     expect(settle?.values[0]).toBe('done');
     // One handed over, two pseudonymized, one designation cleared.
     expect(settle?.values[2]).toMatchObject({ reviewDecisions: 4 });
+  });
+
+  it('leaves a review that was reassigned after discovery with its new reviewer', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      ) {
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      }
+      if (text.startsWith('SELECT id, resource_id AS "taskId"')) {
+        return [{ id: 'review-open', taskId: 'task-1' }];
+      }
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      // No designation or pending review still points to the subject in
+      // the transaction: the concurrent edit already handed it over.
+      return undefined;
+    });
+    vi.mocked(loadTaskOrThrow).mockResolvedValue({
+      id: 'task-1',
+      reviewerUserId: 'new-reviewer',
+    } as unknown as TaskRow);
+
+    await processErasure(fake.sql, 'req-1');
+
+    expect(retargetPendingTaskReview).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ entity: 'task' }),
+    );
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ reviewDecisions: 0 });
   });
 });
 
