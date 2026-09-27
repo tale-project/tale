@@ -300,7 +300,8 @@ function TaskListRow({
       style={style}
       onClick={() => onOpen?.(task)}
       className={cn(
-        'group relative flex w-full cursor-pointer items-center gap-2.5 py-1.5 pr-3 text-left transition-colors',
+        // Keep raised inline controls below the sticky section header.
+        'group relative isolate flex w-full cursor-pointer items-center gap-2.5 py-1.5 pr-3 text-left transition-colors',
         // Hairline between rows, like a regular table; the floating drag clone
         // keeps its card chrome instead.
         !dragging && 'border-border/60 border-b',

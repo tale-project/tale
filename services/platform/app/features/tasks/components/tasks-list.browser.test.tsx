@@ -101,6 +101,7 @@ const child = makeTask('child-1', 'Confirm the total', 'a0', first._id);
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  localStorage.removeItem('tale.platform.tasks.all.collapsedStatuses');
   document.documentElement.classList.remove('dark');
 });
 
@@ -235,5 +236,60 @@ it.each([400, 1280])(
     await page.getByRole('button', { name: 'Priority', exact: true }).click();
     await expect.element(page.getByRole('listbox')).toBeVisible();
     expect(onOpenTask).toHaveBeenCalledTimes(1);
+  },
+);
+
+it.each([400, 1280])(
+  'keeps the sticky status header above scrolled row controls at %ipx',
+  async (width) => {
+    await page.viewport(width, 900);
+    const tasks = Array.from({ length: 25 }, (_, index) =>
+      makeTask(
+        `scroll-${index}`,
+        `Task ${index}`,
+        `a${String(index).padStart(2, '0')}`,
+      ),
+    );
+    const onOpenTask = vi.fn();
+    render(
+      <div className="h-60 w-full max-w-3xl">
+        <TasksList tasks={tasks} canEdit onOpenTask={onOpenTask} />
+      </div>,
+    );
+    const heading = screen.getByRole('button', { name: 'To do 25' });
+    const header = heading.parentElement;
+    const scroller = header?.parentElement?.parentElement;
+    const priority = screen.getAllByRole('button', { name: 'Priority' })[2];
+    const assignee = screen.getAllByRole('button', { name: 'Assign' })[2];
+    if (!header || !scroller || !priority || !assignee) {
+      throw new Error('The scrollable task list is missing its controls');
+    }
+    // Place a row's inline controls directly underneath the sticky header.
+    scroller.scrollTop +=
+      priority.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top -
+      8;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    for (const control of [priority, assignee]) {
+      const bounds = control.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2,
+      );
+      expect(header.contains(hit)).toBe(true);
+    }
+    const controlBounds = priority.getBoundingClientRect();
+    const headingBounds = heading.getBoundingClientRect();
+    await page.elementLocator(heading).click({
+      position: {
+        x: controlBounds.left + controlBounds.width / 2 - headingBounds.left,
+        y: controlBounds.top + controlBounds.height / 2 - headingBounds.top,
+      },
+    });
+    expect(heading).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(onOpenTask).not.toHaveBeenCalled();
   },
 );
