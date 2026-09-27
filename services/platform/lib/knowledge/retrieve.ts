@@ -87,6 +87,8 @@ export interface CorpusLegQuery {
   readonly folder?: string;
   /** The caller's document visibility. Absent = org-wide. */
   readonly access?: KnowledgeAccessScope;
+  /** Search the indexed email bodies alone (see `KnowledgeQuery`). */
+  readonly onlyEmailBodies?: boolean;
 }
 
 /**
@@ -185,6 +187,7 @@ export async function retrieve(
     ...(query.refs !== undefined && { refs: query.refs }),
     ...(query.folder !== undefined && { folder: query.folder }),
     ...(query.access !== undefined && { access: query.access }),
+    ...(query.onlyEmailBodies === true && { onlyEmailBodies: true }),
   };
 
   const rankings: { leg: string; hits: readonly KnowledgeHit[] }[] = [];

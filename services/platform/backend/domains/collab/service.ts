@@ -870,6 +870,63 @@ export async function notifyTaskAssigned(
   });
 }
 
+/** The humans a mention list names, each once. */
+function mentionedUserIdsOf(
+  mentions: Array<{ type: string; id: string }>,
+): Set<string> {
+  return new Set(
+    mentions
+      .filter((mention) => mention.type === 'user')
+      .map((mention) => mention.id),
+  );
+}
+
+/**
+ * The mention bell, one surface's worth: every named human except the actor
+ * starts following the task and gets the precedence 'mention' row, which
+ * points at the text that named them (a comment, or the task itself for its
+ * description).
+ */
+async function notifyMentionedUsers(
+  db: Db,
+  args: {
+    task: TaskFacts;
+    userIds: Iterable<string>;
+    resource: { type: 'comment' | 'task'; id: string };
+    actorType: NotificationActorType;
+    actorId: string;
+    actorName: string | null;
+  },
+): Promise<void> {
+  for (const userId of args.userIds) {
+    if (args.actorType === 'user' && userId === args.actorId) continue;
+    await autoSubscribe(db, {
+      organizationId: args.task.organizationId,
+      taskId: args.task.id,
+      subscriberType: 'user',
+      subscriberId: userId,
+      reason: 'mention',
+    });
+    await notifyUser(db, {
+      userId,
+      organizationId: args.task.organizationId,
+      type: 'mention',
+      titleKey: 'mention',
+      bodyKey: args.actorName ? 'mentionByBody' : 'mentionBody',
+      params: {
+        title: args.task.title,
+        projectId: args.task.projectId,
+        ...(args.actorName ? { actor: args.actorName } : {}),
+      },
+      resourceType: args.resource.type,
+      resourceId: args.resource.id,
+      taskId: args.task.id,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}
+
 /**
  * The comment fan-out: the human commenter starts following; mentioned
  * humans are subscribed and get the precedence 'mention' row; other
@@ -895,39 +952,16 @@ export async function notifyTaskComment(
       reason: 'commenter',
     });
   }
-  const mentionedUserIds = new Set(
-    args.mentions
-      .filter((mention) => mention.type === 'user')
-      .map((mention) => mention.id),
-  );
+  const mentionedUserIds = mentionedUserIdsOf(args.mentions);
   const actorName = await resolveActorName(db, args.actorType, args.actorId);
-  for (const userId of mentionedUserIds) {
-    if (args.actorType === 'user' && userId === args.actorId) continue;
-    await autoSubscribe(db, {
-      organizationId: args.task.organizationId,
-      taskId: args.task.id,
-      subscriberType: 'user',
-      subscriberId: userId,
-      reason: 'mention',
-    });
-    await notifyUser(db, {
-      userId,
-      organizationId: args.task.organizationId,
-      type: 'mention',
-      titleKey: 'mention',
-      bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
-      params: {
-        title: args.task.title,
-        projectId: args.task.projectId,
-        ...(actorName ? { actor: actorName } : {}),
-      },
-      resourceType: 'comment',
-      resourceId: args.commentId,
-      taskId: args.task.id,
-      actorType: args.actorType,
-      actorId: args.actorId,
-    });
-  }
+  await notifyMentionedUsers(db, {
+    task: args.task,
+    userIds: mentionedUserIds,
+    resource: { type: 'comment', id: args.commentId },
+    actorType: args.actorType,
+    actorId: args.actorId,
+    actorName,
+  });
   if (args.notifySubscribers === false) return;
   const subscribers = withoutActor(
     await taskSubscriberUserIds(db, args.task.id),
@@ -954,6 +988,35 @@ export async function notifyTaskComment(
       actorId: args.actorId,
     });
   }
+}
+
+/**
+ * The mention fan-out for the task's DESCRIPTION — the mention half of
+ * {@link notifyTaskComment} for `@`s typed into the description (the 0.4
+ * `notifyTaskMentions`). The row points at the task, since no comment carries
+ * the mention. Callers pass only the mentions a write NEWLY introduced, so an
+ * unrelated description edit never re-notifies everyone already named, and
+ * watchers are not told: a description edit is not a new comment.
+ */
+export async function notifyTaskMentions(
+  db: Db,
+  args: {
+    task: TaskFacts;
+    mentions: Array<{ type: string; id: string }>;
+    actorType: NotificationActorType;
+    actorId: string;
+  },
+): Promise<void> {
+  const mentionedUserIds = mentionedUserIdsOf(args.mentions);
+  if (mentionedUserIds.size === 0) return;
+  await notifyMentionedUsers(db, {
+    task: args.task,
+    userIds: mentionedUserIds,
+    resource: { type: 'task', id: args.task.id },
+    actorType: args.actorType,
+    actorId: args.actorId,
+    actorName: await resolveActorName(db, args.actorType, args.actorId),
+  });
 }
 
 // ------------------------------------------------------- agent-ask bells

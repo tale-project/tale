@@ -9,7 +9,7 @@ Die Kontoeinstellungen bestimmen, welchen Namen deine Kollegen sehen und wie du 
 
 Öffne **Einstellungen > Konto**. Ändere unter **Profil** das Feld **Name** und klicke oben auf **Speichern**. Mit **Verwerfen** stellst du den gespeicherten Wert wieder her. Die E-Mail-Adresse ist schreibgeschützt, weil sie dein Konto bei der Anmeldung und für Benachrichtigungen identifiziert.
 
-Dein Name ist für Kollegen sichtbar. Er ist keine persönliche Anweisung an den Assistenten.
+Dein Name ist für Kollegen sichtbar und darf höchstens 100 Zeichen lang sein. Er ist keine persönliche Anweisung an den Assistenten.
 
 ## Die Anmeldung absichern
 

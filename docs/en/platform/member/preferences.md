@@ -9,7 +9,7 @@ Your account settings control how teammates recognize you and how you sign in. Y
 
 Open **Settings > Account**. Under **Profile**, edit **Name** and click **Save** in the page header. **Discard** restores the saved value. Your email address is shown as read-only because it identifies the account used to sign in and receive notifications.
 
-The name is visible to teammates. It is not a private instruction to the assistant.
+The name is visible to teammates and can be at most 100 characters long. It is not a private instruction to the assistant.
 
 ## Protect your sign-in
 

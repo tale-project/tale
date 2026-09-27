@@ -100,6 +100,23 @@ describe('stepActivityLabel — rag_fetch on a document', () => {
     );
   });
 
+  it('names an email read by its subject, and never shows its raw ref', () => {
+    const detail = 'msg:6f3c2a1e-8b7d-4e5f-9a0b-1c2d3e4f5a6b';
+    expect(
+      stepActivityLabel(t, {
+        tool: 'rag_fetch',
+        detail,
+        resultName: 'Application: field sales agent',
+      }),
+    ).toBe(
+      'thinking.readingDocument {"name":"Application: field sales agent"}',
+    );
+    // A miss names nothing it may not know: the ref is an address.
+    expect(stepActivityLabel(t, { tool: 'rag_fetch', detail })).toBe(
+      'thinking.readingDocumentUnnamed',
+    );
+  });
+
   it('keeps a human-readable legacy ref as the name', () => {
     expect(
       stepActivityLabel(t, { tool: 'rag_fetch', detail: 'Pricing.pdf' }),

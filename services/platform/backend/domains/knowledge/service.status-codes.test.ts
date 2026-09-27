@@ -11,6 +11,7 @@ import {
   RAG_ERROR_NOT_TEXT,
   RAG_ERROR_PII_BLOCKED,
   RAG_ERROR_SECRET_DETECTED,
+  RAG_ERROR_UNSUPPORTED_TYPE,
 } from '../../core/knowledge/rag_error_codes.ts';
 import { ExtractionError } from '../../core/lib/knowledge/extraction/errors.ts';
 import { indexUploadedFile } from './service.ts';
@@ -76,7 +77,7 @@ interface Query {
   values: unknown[];
 }
 
-function fakeSql(log: Query[]): Sql {
+function fakeSql(log: Query[], fileName = 'refunds.txt'): Sql {
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$');
     log.push({ text, values });
@@ -85,7 +86,7 @@ function fakeSql(log: Query[]): Sql {
         {
           organizationId: 'org-1',
           storageRef: 's3:org-1/blob-1',
-          fileName: 'refunds.txt',
+          fileName,
           contentType: 'text/plain',
           documentId: null,
           skipRagIndexing: null,
@@ -131,6 +132,21 @@ beforeEach(() => {
 });
 
 describe('indexUploadedFile — one stable code per failure', () => {
+  it('lands a file no extractor reads on `unsupported` with `unsupported_type` before any work', async () => {
+    const log: Query[] = [];
+    await indexUploadedFile(fakeSql(log, 'standup.loop'), 'file-1');
+    const write = lastStatusWrite(log);
+    expect(write).toContain('unsupported');
+    expect(write).toContain(RAG_ERROR_UNSUPPORTED_TYPE);
+    // The same sentence a sync import writes when it decides this itself.
+    expect(write).toContain('No text extractor exists for "standup.loop".');
+    const statuses = log
+      .filter((query) => query.text.includes('UPDATE app.file_metadata'))
+      .flatMap((query) => query.values);
+    expect(statuses).not.toContain('running');
+    expect(indexWholeDocument).not.toHaveBeenCalled();
+  });
+
   it('lands an empty file on the terminal `unsupported` with `empty`, never `failed`', async () => {
     vi.mocked(indexWholeDocument).mockResolvedValue(skipped('empty'));
     const log: Query[] = [];

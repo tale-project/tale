@@ -68,7 +68,17 @@ function handleError<E extends OrgEnv>(
   error: unknown,
 ): Response {
   if (error instanceof FileError) {
-    return c.json({ error: error.code }, error.status);
+    // A refusal's sentence is written for the uploader ("The file exceeds
+    // the 512 MiB limit"), so it rides beside the code for the surface to
+    // show. A 5xx keeps the code alone: its message can name the object
+    // store's own failure.
+    return c.json(
+      {
+        error: error.code,
+        ...(error.status < 500 ? { message: error.message } : {}),
+      },
+      error.status,
+    );
   }
   if (error instanceof TranscriptionModelError) {
     const transient =

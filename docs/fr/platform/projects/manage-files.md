@@ -33,7 +33,7 @@ L’onglet **Connaissances** du projet contient les fichiers consultables par se
 
 Une intégration peut importer un fichier sans l’indexer. Il reste visible dans l’arborescence. Un fichier texte compatible peut être lu directement lorsqu’il est nommé, mais il n’apparaît pas dans la recherche textuelle avant indexation.
 
-Les règles de l’organisation peuvent imposer des limites supplémentaires de taille ou de stockage. Si l’import échoue, commence par un petit fichier compatible. Un admin peut vérifier [Politiques et limites](/fr/platform/admin/governance/policies-and-limits), le stockage et le modèle d’embedding.
+Si tous les fichiers n’arrivent pas, le compte rendu de l’import liste les autres avec leur motif : les fichiers **Ignorés** n’ont pas passé le contrôle de type ou de taille avant l’envoi, et les fichiers **Non ajoutés** ont été refusés par Tale, qui en donne la raison. Les règles de l’organisation peuvent imposer des limites supplémentaires de taille ou de stockage. Si l’import échoue, commence par un petit fichier compatible. Un admin peut vérifier [Politiques et limites](/fr/platform/admin/governance/policies-and-limits), le stockage et le modèle d’embedding.
 
 ## Poser la question dans un chat du projet
 

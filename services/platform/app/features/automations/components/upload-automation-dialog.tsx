@@ -23,6 +23,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useBackendClient } from '@/app/hooks/use-backend-client';
+import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 import type { ArgsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
@@ -208,7 +209,9 @@ export function UploadAutomationDialog({
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`uploading the package failed (HTTP ${response.status})`);
+      // The door's own refusal (a package past the size cap, a spent upload
+      // budget), so the dialog says why instead of an HTTP status.
+      throw await backendErrorFromResponse(response);
     }
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the presign endpoint's response shape is Convex's own upload contract
     const { storageId } = (await response.json()) as {

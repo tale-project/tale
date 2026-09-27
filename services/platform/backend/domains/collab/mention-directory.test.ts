@@ -91,4 +91,69 @@ describe('mention directory — a leg that cannot be listed fails loudly', () =>
     // An unclaimed token is a miss reported back, not a guessed agent.
     expect(resolved.unresolvedMentionTokens).toEqual(['ghost']);
   });
+
+  it('a serialization conflict in a leg reaches the retry loop unwrapped', async () => {
+    // `transactSerializable` reruns on the SQLSTATE of the error it catches;
+    // wrapped as MENTION_DIRECTORY_UNAVAILABLE the conflict became a 503
+    // instead of a transparent rerun of the comment or task write.
+    const conflict = Object.assign(
+      new Error('could not serialize access due to read/write dependencies'),
+      { code: '40001' },
+    );
+    const db = fakeDb((text) => {
+      if (text.startsWith('SELECT m."userId"')) throw conflict;
+      return [];
+    });
+    await expect(
+      resolveSurfaceMentions(db, { organizationId: 'org-1', body: '@ada' }),
+    ).rejects.toBe(conflict);
+  });
+});
+
+describe('mention directory — an edit names only who it adds', () => {
+  const BOB = {
+    userId: 'u-bob',
+    role: 'member',
+    email: 'bob@example.com',
+    displayName: 'Bob Stone',
+  };
+  const members = fakeDb((text) =>
+    text.startsWith('SELECT m."userId"') ? [ADA, BOB] : [],
+  );
+
+  it('without a previous text every mention is new', async () => {
+    const resolved = await resolveSurfaceMentions(members, {
+      organizationId: 'org-1',
+      body: '@ada and @bob please look',
+    });
+    expect(resolved.added).toEqual(resolved.mentions);
+    expect(resolved.added.map((mention) => mention.id)).toEqual([
+      'u-ada',
+      'u-bob',
+    ]);
+  });
+
+  it('diffs against the replaced text, whichever handle names the person', async () => {
+    const resolved = await resolveSurfaceMentions(members, {
+      organizationId: 'org-1',
+      previousBody: '@ada please look',
+      // Ada is still named, through another of her handles; Bob is new.
+      body: '@ada.lovelace please look, cc @bob',
+    });
+    expect(resolved.mentions.map((mention) => mention.id)).toEqual([
+      'u-ada',
+      'u-bob',
+    ]);
+    expect(resolved.added).toEqual([{ type: 'user', id: 'u-bob' }]);
+  });
+
+  it('a reworded text that names the same people adds nobody', async () => {
+    const resolved = await resolveSurfaceMentions(members, {
+      organizationId: 'org-1',
+      previousBody: '@ada and @bob please look',
+      body: 'Please look by Friday, @bob and @ada',
+    });
+    expect(resolved.mentions).toHaveLength(2);
+    expect(resolved.added).toEqual([]);
+  });
 });

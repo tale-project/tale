@@ -21,6 +21,10 @@ import {
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  indexedMessageRefsOf,
+  queueMessageRefRelease,
+} from '../conversations/message-corpus.ts';
 import { emitDocumentChangeHints } from '../documents/hints.ts';
 import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
 import {
@@ -1162,6 +1166,16 @@ async function sweepContacts(
  * window makes. A file promoted into a Document is left alone: the
  * `documents` category owns that lifecycle, the same `document_id IS NULL`
  * guard `sweepTempFiles` uses.
+ *
+ * Nor do the corpus copies of the inbound email bodies (`rag.index_message`,
+ * keyed by `msg:` ref): they live in the knowledge database, so their
+ * release is queued in the transaction that deletes the conversations — the
+ * posture `deleteConversation` takes. The job runs once the rows are gone
+ * (pg-boss retries it, the daily corpus reconcile finishes one that gives
+ * up, and the retrievable filter refuses a deleted message's rows
+ * meanwhile), so a knowledge database that cannot be reached never holds
+ * the window back, and a body indexed late — by a job in flight while the
+ * sweep ran — is released by it too.
  */
 async function sweepExternalConversations(
   sql: Sql,
@@ -1260,6 +1274,12 @@ async function sweepExternalConversations(
   // note); the conversations — and with them every email body — go in the
   // transaction that writes the category's row.
   const conversations = await sql.begin(async (tx) => {
+    // Read before the rows go: the refs are the messages' ids.
+    const bodyRefs = await indexedMessageRefsOf(
+      tx,
+      org.organizationId,
+      deletable,
+    );
     const removed =
       deletable.length === 0
         ? []
@@ -1267,6 +1287,7 @@ async function sweepExternalConversations(
             DELETE FROM app.conversations WHERE id IN ${tx(deletable)}
             RETURNING id
           `;
+    await queueMessageRefRelease(tx, org.organizationId, bodyRefs);
     await recordDestruction(tx, trail, {
       deleted: removed.length + attachmentsDeleted,
       counts: {

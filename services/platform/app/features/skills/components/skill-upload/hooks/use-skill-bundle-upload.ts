@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
+import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 import { isAbortError } from '@/lib/utils/abort-error';
 import { fetchJson } from '@/lib/utils/type-utils';
 
@@ -65,7 +66,8 @@ export function useSkillBundleUpload(organizationId: string) {
         throw err;
       }
       if (!resp.ok) {
-        throw new Error(`Upload failed (HTTP ${resp.status})`);
+        // The door's own refusal, so the pane's toast can say why.
+        throw await backendErrorFromResponse(resp);
       }
       const { storageId: rawStorageId } = await fetchJson<{
         storageId: string;
