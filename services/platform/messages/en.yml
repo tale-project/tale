@@ -953,7 +953,9 @@ automations:
       newFolderFailed: Couldn't create the folder — try again.
       uploading: Uploading…
       uploaded: '{count} file(s) uploaded.'
+      uploadedPartial: '{ok} of {total} file(s) uploaded.'
       uploadFailed: Couldn't upload the file — try again.
+      uploadFailedDetail: '{name}: {reason}'
       wrongType: 'Only these file types are accepted: {types}'
       wrongName: The file name doesn't match the expected pattern for this form.
       tooLarge: File exceeds the {max} MB limit.
@@ -1149,6 +1151,7 @@ chat:
   uploadedSuccessfully: '{filename} uploaded'
   uploadFailed: Couldn't upload the file
   failedToUpload: Couldn't upload {filename}
+  failedToUploadReason: "Couldn't upload {filename}: {reason}"
   tooManyFiles: Too many files
   tooManyFilesDescription: You can attach up to {max} files per message.
     {rejected} {rejected, plural, one {file was} other {files were}} not added.
@@ -1624,6 +1627,7 @@ common:
   errors:
     generic: Something went wrong — try again, or reload the page if it keeps happening.
     failedToCopy: Couldn't copy to clipboard
+    sessionEnded: Your session has ended. Sign in again.
   notFound:
     title: Page not found
     description: The page you're looking for doesn't exist or may have been moved.
@@ -5140,6 +5144,7 @@ projects:
     moreSkipped: +{count} more file(s) were skipped.
     attachPartial: '{ok, plural, one {# file} other {# files}} of {total} added'
     skippedList: 'Skipped: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+    failedList: 'Not added: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: That folder no longer exists.
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder
@@ -7147,6 +7152,7 @@ tasks:
     uploading: Uploading…
     dropHint: Drop files here, or click to browse
     uploadFailed: Couldn't finish the upload — try again.
+    uploadFailedDetail: '{name}: {reason}'
     remove: 'Delete {name}'
     removeTitle: Delete this file?
     removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
@@ -7503,6 +7509,7 @@ toast:
   error:
     profileUpdateFailed:
       title: Couldn't update profile
+      withReason: "Couldn't update profile: {reason}"
     passwordChangeFailed:
       title: Couldn't change password
       description: Check your current password and try again.

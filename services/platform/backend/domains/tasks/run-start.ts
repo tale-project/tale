@@ -24,6 +24,27 @@ export async function taskAutomationEnabled(
   return policy?.enabled !== false;
 }
 
+/** Whether an @mention may start work: the same switch, with a broken
+ * policy read as off. It blocks the automatic start, not the comment or the
+ * description edit that asked for one; explicit start actions keep their
+ * actionable configuration error. */
+export async function mentionAutomationEnabled(
+  tx: TransactionSql,
+  organizationId: string,
+): Promise<boolean> {
+  try {
+    return await taskAutomationEnabled(tx, organizationId);
+  } catch (error) {
+    if (
+      error instanceof TaskError &&
+      error.code === 'TASK_AUTOMATION_UNAVAILABLE'
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function assertTaskAutomationEnabled(
   tx: TransactionSql,
   organizationId: string,

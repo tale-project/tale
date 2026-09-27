@@ -25,6 +25,7 @@ import {
   WRITE_EFFECT_TOOLS,
 } from '../../sandbox/tool_names';
 import type { SessionActionSubject } from '../../sandbox/workspace_access';
+import { TASK_TITLE_MAX } from '../../tasks/helpers';
 import {
   isWorkspaceTaskTool,
   runDocumentCreate,
@@ -143,7 +144,8 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Read one task in full — description, project, subtasks, blockers, and ' +
     'recent comments. Args: {taskId: string, commentLimit?: number}.',
   task_create:
-    'Create a task. Args: {title: string, description?: string, projectId?: ' +
+    `Create a task. Args: {title: string (≤ ${TASK_TITLE_MAX} characters), ` +
+    'description?: string, projectId?: ' +
     "string (fixed to the run's project on a project-bound run; required on " +
     'an org-level run), priority?: "p0"|"p1"|"p2"|"p3", labels?: string[], ' +
     'status?: "backlog"|"todo" (default backlog), parentTaskId?: string}. ' +

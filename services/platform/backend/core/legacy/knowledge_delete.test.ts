@@ -180,6 +180,7 @@ describe('listKnowledgeDocumentRefs', () => {
   it('walks the same pool the purge uses', async () => {
     const page = await listKnowledgeDocumentRefs({
       orgSlug: 'acme',
+      refs: 'blobs',
       afterFileId: null,
       limit: 100,
     });
@@ -187,6 +188,48 @@ describe('listKnowledgeDocumentRefs', () => {
     expect(page).toEqual(['ref-a', 'ref-b']);
     expect(opened).toEqual([DEFAULT_URL]);
     expect(statements).toHaveLength(1);
-    expect(statements[0]?.params).toEqual(['acme', null, 100]);
+    expect(statements[0]?.params).toEqual([
+      'acme',
+      null,
+      100,
+      null,
+      'msg:%',
+      false,
+    ]);
+  });
+
+  it('walks the blob refs apart from the email bodies', async () => {
+    // `msg:` sorts ahead of `s3:`: in one bounded walk that restarts at its
+    // head, a large inbox would take every run's budget and push the blob
+    // refs out of the reconcile's reach for good.
+    await listKnowledgeDocumentRefs({
+      orgSlug: 'acme',
+      refs: 'blobs',
+      afterFileId: null,
+      limit: 100,
+    });
+    expect(statements[0]?.text).toContain('(file_id LIKE $5) = $6::boolean');
+    expect(statements[0]?.params[5]).toBe(false);
+  });
+
+  it('walks the email bodies within a keyset range', async () => {
+    await listKnowledgeDocumentRefs({
+      orgSlug: 'acme',
+      refs: 'messages',
+      afterFileId: null,
+      beforeFileId: 'msg:8',
+      limit: 50,
+    });
+    const statement = statements[0];
+    expect(statement?.text).toContain('(file_id LIKE $5) = $6::boolean');
+    expect(statement?.text).toContain('file_id < $4');
+    expect(statement?.params).toEqual([
+      'acme',
+      null,
+      50,
+      'msg:8',
+      'msg:%',
+      true,
+    ]);
   });
 });

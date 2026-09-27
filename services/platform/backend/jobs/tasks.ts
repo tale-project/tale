@@ -67,6 +67,8 @@ export interface TaskPayloads {
     tools: string[];
     secrets: string[];
     feedback: string;
+    /** Which text `feedback` is; absent reads as a comment. */
+    mentionSource?: 'comment' | 'description';
     author: string;
     authorId: string;
     attempt: number;
@@ -80,6 +82,9 @@ export interface TaskPayloads {
   'realtime.reclaim_outbox': Record<string, never>;
   /** Index one uploaded file into the org's RAG corpus. */
   'rag.index_file': { fileId: string };
+  /** Index one inbound email's body into the org's RAG corpus (enqueued in
+   * the transaction that stores the message). */
+  'rag.index_message': { messageId: string };
   /** Release rotated-away blob refs: de-index dead corpus rows, delete
    * unreferenced bytes (enqueued transactionally by every ref rotation). */
   'knowledge.release_refs': { organizationId: string; refs: string[] };
@@ -397,6 +402,19 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'rag.index_file': {
     retryLimit: 5,
     retryDelay: 5,
+    retryBackoff: true,
+    expireInSeconds: 900,
+  },
+  // Its own queue, so a mailbox backlog — one job per inbound email, a new
+  // mailbox's first sync included — never stands in front of an upload in
+  // `rag.index_file` (past the queues, both wait for the organization's
+  // embedding limiter in arrival order: `PRIORITY_INTERACTIVE`). Nothing
+  // re-queues a message the way a BM25 rebuild or an embedding fix
+  // re-queues a file, so the ladder is long enough (~40 minutes) to outlast
+  // a rebuild; the job ends quietly on the refusals no retry can change.
+  'rag.index_message': {
+    retryLimit: 8,
+    retryDelay: 10,
     retryBackoff: true,
     expireInSeconds: 900,
   },

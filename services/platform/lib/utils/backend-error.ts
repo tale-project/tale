@@ -47,11 +47,18 @@ export function backendUserMessage(err: unknown, fallback: string): string {
  * when the payload carries only the code (the app's fetch boundary repeats
  * a bare code as the message) or nothing structured at all. A toast puts
  * it under its localized title; it never replaces one.
+ *
+ * A lapsed session (the session door's 401 `UNAUTHORIZED`) gives no reason
+ * either: its sentence tells an API client to send a key to the REST API,
+ * in English, and a person recovers by signing in again, not by reading
+ * the door's guidance.
  */
 export function backendRefusalReason(err: unknown): string | undefined {
   const message = stringField(err, 'message');
   if (message === undefined || message.length === 0) return undefined;
-  return message === stringField(err, 'code') ? undefined : message;
+  const code = stringField(err, 'code');
+  if (code === 'UNAUTHORIZED') return undefined;
+  return message === code ? undefined : message;
 }
 
 /** The code every app door answers a body its schema refused with

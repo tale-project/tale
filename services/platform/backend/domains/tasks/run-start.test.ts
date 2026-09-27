@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
   assertTaskAutomationEnabled,
+  mentionAutomationEnabled,
   taskAutomationEnabled,
 } from './run-start.ts';
 
@@ -52,5 +53,21 @@ describe('task automation start policy', () => {
       code: 'TASK_AUTOMATION_UNAVAILABLE',
       status: 409,
     });
+  });
+});
+
+describe('the switch an @mention reads', () => {
+  it('follows the policy, and reads a broken one as off instead of failing the write', async () => {
+    await expect(mentionAutomationEnabled(tx, 'synthetic')).resolves.toBe(true);
+    await writeFile(policy, 'enabled: false\n');
+    await expect(mentionAutomationEnabled(tx, 'synthetic')).resolves.toBe(
+      false,
+    );
+    // The comment or description that named the agent still saves; only
+    // the automatic start is withheld until the configuration is fixed.
+    await writeFile(policy, 'enabled: not-a-boolean\n');
+    await expect(mentionAutomationEnabled(tx, 'synthetic')).resolves.toBe(
+      false,
+    );
   });
 });

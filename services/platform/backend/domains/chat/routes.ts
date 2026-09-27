@@ -1324,6 +1324,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/threads/:threadId/messages', async (c) => {
     const body = sendSchema.safeParse(await c.req.json());
     if (!body.success) {
+      // The composer toasts the sentence: which field, and why.
       return invalidBodyResponse(c, body.error);
     }
     const { organizationId, userId } = caller(c);

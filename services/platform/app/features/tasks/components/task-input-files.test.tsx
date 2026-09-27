@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 // The FILES zone is always open and previews a FEW names: a folder holding a
 // quarter's documents plus one derived artifact per document must not push the
@@ -24,9 +24,15 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({ data: mocks.documents }),
 }));
 
+// One stand-in for every write the card makes: the upload-URL mint and the
+// document create.
+const backendMutation = vi.hoisted(() => vi.fn());
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
-  useBackendMutation: () => ({ mutateAsync: vi.fn() }),
+  useBackendMutation: () => ({ mutateAsync: backendMutation }),
 }));
+
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
 vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
   DocumentPreviewDialog: () => null,
@@ -185,5 +191,125 @@ describe('TaskInputFilesCard', () => {
 
     expect(screen.queryByRole('group', { name: 'Files' })).toBeNull();
     expect(screen.getByText('sales.csv')).toBeInTheDocument();
+  });
+});
+
+/**
+ * A refused upload used to throw `upload failed: 400`, and the toast said
+ * "try again" with nothing the door had said. It now names each file that
+ * did not land beside the door's reason, and a refused file no longer keeps
+ * the rest of the pick from landing.
+ */
+describe('TaskInputFilesCard upload refusals', () => {
+  beforeEach(() => {
+    mocks.documents = [];
+    toastMock.mockReset();
+    backendMutation.mockReset();
+    // The upload-URL mint answers a URL; the document create a row id.
+    backendMutation.mockImplementation((args: unknown) =>
+      Promise.resolve(
+        args !== null && typeof args === 'object' && 'fileId' in args
+          ? 'doc_new'
+          : '/api/app/files/upload?orgId=org_1',
+      ),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function dropZoneInput(): HTMLInputElement {
+    const input = document.getElementById('task-input-files-upload');
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error('drop-zone input missing');
+    }
+    return input;
+  }
+
+  const pdf = (name: string) =>
+    new File(['%PDF-1.7'], name, { type: 'application/pdf' });
+
+  /** The files door's answer to a body past its ceiling. */
+  const tooLarge = () =>
+    Response.json(
+      {
+        error: 'FILE_SIZE_INVALID',
+        message: 'The file exceeds the 512 MiB limit',
+      },
+      { status: 413 },
+    );
+
+  it("names the refused file beside the door's reason", async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(tooLarge());
+    const { user } = renderCard();
+
+    await user.upload(dropZoneInput(), pdf('invoice.pdf'));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith({
+        title: "Couldn't finish the upload — try again.",
+        description: 'invoice.pdf: The file exceeds the 512 MiB limit',
+        variant: 'destructive',
+      });
+    });
+    // Only the URL mint ran: nothing was filed for a refused upload.
+    expect(backendMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('names the bare code when the door sends no sentence', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        { error: 'RATE_LIMITED', code: 'RATE_LIMITED' },
+        { status: 429 },
+      ),
+    );
+    const { user } = renderCard();
+
+    await user.upload(dropZoneInput(), pdf('invoice.pdf'));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'invoice.pdf: RATE_LIMITED' }),
+      );
+    });
+  });
+
+  it('names only the file for a failure the door did not answer', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new TypeError('Failed to fetch'),
+    );
+    const { user } = renderCard();
+
+    await user.upload(dropZoneInput(), pdf('invoice.pdf'));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith({
+        title: "Couldn't finish the upload — try again.",
+        description: 'invoice.pdf',
+        variant: 'destructive',
+      });
+    });
+  });
+
+  it('files the rest of the pick past a refused file, and says which one it was', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(tooLarge())
+      .mockResolvedValueOnce(Response.json({ storageId: 'blob_b' }));
+    const { user } = renderCard();
+
+    await user.upload(dropZoneInput(), [pdf('a.pdf'), pdf('b.pdf')]);
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledTimes(1);
+    });
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'a.pdf: The file exceeds the 512 MiB limit',
+      }),
+    );
+    expect(backendMutation).toHaveBeenCalledWith(
+      expect.objectContaining({ fileId: 'blob_b', fileName: 'b.pdf' }),
+    );
   });
 });
