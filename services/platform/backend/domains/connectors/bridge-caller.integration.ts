@@ -1,11 +1,12 @@
 /** Real Postgres proof that a connector equipped on a project agent runs in
  * its task run for the member who started the run. The Start agent door
  * writes the run's starter. The host's own token writer
- * (`insertTaskTurnSessionToken`, on the task shim) resolves whom the turn
- * acts for from that run and stores the token. The connectors bridge finds
- * the row by the bearer's hash and runs a real connector action for that
- * member. A member who left, and a run whose starter names no member, are
- * refused with what to do, and the status listing says the same. */
+ * (`insertTaskTurnSessionToken`, on the task shim) binds the token to the
+ * run's exec and names no person. The connectors bridge finds the row by the
+ * bearer's hash, reads the live run's starter and runs a real connector
+ * action for that member. A member who left, a run that ended, and a run
+ * whose starter names no member are refused with what to do, and the status
+ * listing says the same. */
 import { createHash, randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
@@ -224,8 +225,10 @@ export async function checkTaskRunConnectorCaller(
       'connectors bridge: a task run calls its equipped connector for its starter',
       memberKick.started.started &&
         memberRun.startedBy === starterId &&
+        // The token names the run's exec, never the person.
         JSON.stringify(scope.connectorCaller) ===
-          JSON.stringify({ kind: 'user', userId: starterId }) &&
+          JSON.stringify({ kind: 'task-run', execId: memberRun.execId }) &&
+        !JSON.stringify(scope).includes(starterId) &&
         // Never user-keyed: the workspace tools keep the binding's authority.
         !('userId' in scope) &&
         called.status === 'ok' &&
@@ -255,6 +258,26 @@ export async function checkTaskRunConnectorCaller(
         refusedListing.connectors[0].blockers?.[0]?.code === 'access_denied' &&
         afterRefusal.length === 1,
       `execute=${refused.status} ${JSON.stringify(refused.blockers)}, status=${JSON.stringify(refusedListing.connectors?.[0])}, forensic rows=${afterRefusal.length} (want 1: the refusal ran nothing)`,
+    );
+
+    // ---- the run ends: its token acts for nobody, though unexpired -------
+    await sql`
+      UPDATE app.project_agent_runs SET status = 'cancelled',
+        settled_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
+      WHERE id = ${memberRun.id}
+    `;
+    await sql`
+      UPDATE "member" SET "role" = 'editor'
+      WHERE "organizationId" = ${orgId} AND "userId" = ${starterId}
+    `;
+    const ended = await bridge('execute', memberToken, listFolder);
+    const afterEnded = await toolCallUsers(memberRun.sessionId);
+    record(
+      'connectors bridge: the token of a task run that ended is refused',
+      ended.status === 'unavailable' &&
+        ended.blockers?.[0]?.code === 'run_ended' &&
+        afterEnded.length === 1,
+      `execute=${ended.status} ${JSON.stringify(ended.blockers)}, forensic rows=${afterEnded.length} (want 1: the refusal ran nothing)`,
     );
 
     // ---- a run no member started: refused, and told what to do ----------
@@ -295,7 +318,7 @@ export async function checkTaskRunConnectorCaller(
     record(
       'connectors bridge: a task run no member started is refused with what to do',
       JSON.stringify(systemScope[0]?.scope.connectorCaller) ===
-        JSON.stringify({ kind: 'nobody', opKind: 'task-agent' }) &&
+        JSON.stringify({ kind: 'task-run', execId: systemRun.execId }) &&
         nobody.status === 'unavailable' &&
         nobody.blockers?.[0]?.code === 'no_user_context' &&
         guidance.includes('Start agent') &&

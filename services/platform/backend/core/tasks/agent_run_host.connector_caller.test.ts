@@ -3,7 +3,8 @@
  * member who started that run. The test drives the REAL start and steer
  * hosts (only external I/O replaced), keeps the session-token rows they
  * write, and sends each minted token through the REAL connectors bridge
- * route, which finds the row by the token's hash as it does in production.
+ * route, which finds the row by the token's hash and reads the run's
+ * starter from the run the token names, as it does in production.
  *
  * Observed 2026-09-27: the VAT agent had the GlitchTip connector equipped,
  * and every call from its task run answered `unavailable` /
@@ -22,8 +23,11 @@ import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 const io = vi.hoisted(() => ({
   /** Every session-token row the hosts wrote, by token hash. */
   tokens: new Map<string, Record<string, unknown>>(),
-  /** Members of `org-1` who may still be acted for. */
-  members: new Set<string>(),
+  /** Members of `org-1` by user id, with the role Better Auth stores. */
+  members: new Map<string, string>(),
+  /** The task run on session `pa-alice`: the hosts move it, the bridge
+   * reads it. */
+  run: { status: 'queued', execId: 'exec-1', startedBy: 'user-starter' },
   /** The forensic rows the bridge wrote (the insert's bound values). */
   toolCalls: [] as unknown[][],
   /** The gateway key the next mint hands out. */
@@ -131,20 +135,43 @@ const { startTaskAgentTurnImpl, steerTaskAgentTurnImpl } =
 const { createConnectorBridgeRoutes } =
   await import('../../domains/connectors/bridge-routes.ts');
 
-/** postgres.js as far as the bridge uses it: the membership read and the
+/** postgres.js as far as the bridge uses it: the membership read, the task
+ * run reads (liveness, then the spend attribution's starter) and the
  * forensic insert. */
 const bridgeSql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
   const text = strings.join('?');
   if (text.includes('FROM "member"')) {
     const [organizationId, userId] = values;
+    const role =
+      organizationId === 'org-1' && typeof userId === 'string'
+        ? io.members.get(userId)
+        : undefined;
     return Promise.resolve(
-      organizationId === 'org-1' &&
-        typeof userId === 'string' &&
-        io.members.has(userId)
-        ? [{ userId }]
-        : [],
+      role === undefined
+        ? []
+        : [{ id: 'member-row', organizationId, userId, role }],
     );
   }
+  if (text.includes('FROM app.project_agent_runs')) {
+    const [organizationId, sessionId, execId] = values;
+    const run = io.run;
+    if (
+      organizationId !== 'org-1' ||
+      sessionId !== 'pa-alice' ||
+      execId !== run.execId
+    ) {
+      return Promise.resolve([]);
+    }
+    if (text.includes("status IN ('queued', 'running')")) {
+      return Promise.resolve(
+        run.status === 'queued' || run.status === 'running'
+          ? [{ id: 'run-1' }]
+          : [],
+      );
+    }
+    return Promise.resolve([{ startedBy: run.startedBy, agentId: 'alice' }]);
+  }
+  if (text.includes('FROM app.sandbox_session_ops')) return Promise.resolve([]);
   if (text.includes('INSERT INTO app.sandbox_tool_calls')) {
     io.toolCalls.push(values);
     return Promise.resolve([]);
@@ -163,19 +190,18 @@ function callBridge(route: 'execute' | 'status', token: string, body = {}) {
   });
 }
 
-interface RunState {
-  status: string;
-  execId: string;
-}
-
-function makeCtx(run: RunState, attribution: unknown) {
-  const queries: Array<{ name: string; args: Record<string, unknown> }> = [];
+function makeCtx() {
+  const run = io.run;
   const ctx = {
-    runQuery: async (ref: unknown, args: Record<string, unknown>) => {
+    runQuery: async (ref: unknown) => {
       const name = functionRefName(ref);
-      queries.push({ name, args });
       if (name === 'tasks/agent_runs:getTaskAgentRunForDrive') {
-        return { ...run, sessionId: 'pa-alice', organizationId: 'org-1' };
+        return {
+          status: run.status,
+          execId: run.execId,
+          sessionId: 'pa-alice',
+          organizationId: 'org-1',
+        };
       }
       if (name === 'projects/internal_queries:getProjectAgentSkillScope') {
         return null;
@@ -198,7 +224,7 @@ function makeCtx(run: RunState, attribution: unknown) {
         return { status: 'running', finalized: false };
       }
       if (name === 'sandbox/session_queries:getSessionOpAttribution') {
-        return attribution;
+        return { userId: run.startedBy };
       }
       if (name === 'governance/queries:getContextCapInternal') return null;
       throw new Error(`unexpected query ${name}`);
@@ -228,7 +254,7 @@ function makeCtx(run: RunState, attribution: unknown) {
       cancel: async () => undefined,
     },
   };
-  return { ctx: ctx as never, queries };
+  return { ctx: ctx as never };
 }
 
 const KEYS = {
@@ -263,7 +289,8 @@ function scopeOf(token: string): Record<string, unknown> | undefined {
 beforeEach(() => {
   vi.clearAllMocks();
   io.tokens.clear();
-  io.members = new Set(['user-starter']);
+  io.members = new Map([['user-starter', 'editor']]);
+  io.run = { status: 'queued', execId: 'exec-1', startedBy: 'user-starter' };
   io.toolCalls = [];
   io.nextKey = 'vk-turn-1';
   runConnectorAction.mockResolvedValue({
@@ -273,12 +300,17 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
+async function refusalOf(res: Response) {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the refusal shape is the bridge's own
+  return (await res.json()) as {
+    status: string;
+    blockers: Array<{ code: string; guidance: string }>;
+  };
+}
+
 describe('a task run of an agent equipped with a connector', () => {
-  it('mints a token that acts for the run’s starter, and the bridge runs the connector for them', async () => {
-    const { ctx, queries } = makeCtx(
-      { status: 'queued', execId: 'exec-1' },
-      { userId: 'user-starter', agentSlug: 'alice' },
-    );
+  it('mints a token bound to its run, and the bridge runs the connector for the run’s starter', async () => {
+    const { ctx } = makeCtx();
 
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
     const res = await callBridge('execute', 'vk-turn-1', LIST_ISSUES);
@@ -289,22 +321,13 @@ describe('a task run of an agent equipped with a connector', () => {
       status: 'ok',
       output: { issues: [{ id: 'GT-1' }] },
     });
-    // Whom the turn acts for is read through this very exec's attribution:
-    // the run's starter, the person its spend is booked under.
-    expect(
-      queries.find(
-        (q) => q.name === 'sandbox/session_queries:getSessionOpAttribution',
-      )?.args,
-    ).toEqual({
-      organizationId: 'org-1',
-      sessionId: 'pa-alice',
-      execId: 'exec-1',
-      kind: 'task-agent',
-    });
+    // The token names the exec, never the person: the bridge reads the
+    // starter from the live run, the person its spend is booked under.
     expect(scopeOf('vk-turn-1')).toMatchObject({
       connectorGrants: ['glitchtip'],
-      connectorCaller: { kind: 'user', userId: 'user-starter' },
+      connectorCaller: { kind: 'task-run', execId: 'exec-1' },
     });
+    expect(JSON.stringify(scopeOf('vk-turn-1'))).not.toContain('user-starter');
     // Never a user-keyed token: the workspace tools keep reading with the
     // project binding's authority alone.
     expect(scopeOf('vk-turn-1')).not.toHaveProperty('userId');
@@ -325,10 +348,7 @@ describe('a task run of an agent equipped with a connector', () => {
   });
 
   it('lists the equipped connector as usable for the starter', async () => {
-    const { ctx } = makeCtx(
-      { status: 'queued', execId: 'exec-1' },
-      { userId: 'user-starter' },
-    );
+    const { ctx } = makeCtx();
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
 
     const res = await callBridge('status', 'vk-turn-1');
@@ -338,11 +358,9 @@ describe('a task run of an agent equipped with a connector', () => {
     });
   });
 
-  it('keeps acting for the starter after a steer restart, on the rotated exec', async () => {
-    const { ctx, queries } = makeCtx(
-      { status: 'running', execId: 'exec-1' },
-      { userId: 'user-starter' },
-    );
+  it('keeps acting for the starter after a steer restart, and retires the first exec’s token', async () => {
+    const { ctx } = makeCtx();
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
     io.nextKey = 'vk-turn-2';
 
     // Codex has no stdin steering: the comment restarts the process and
@@ -356,46 +374,37 @@ describe('a task run of an agent equipped with a connector', () => {
       attempt: 0,
     } as never);
 
-    expect(
-      queries.find(
-        (q) => q.name === 'sandbox/session_queries:getSessionOpAttribution',
-      )?.args,
-    ).toMatchObject({ execId: 'exec-rotated', kind: 'task-agent' });
-    // The comment's author steers; the run still acts for its starter.
     expect(scopeOf('vk-turn-2')).toMatchObject({
       connectorGrants: ['glitchtip'],
-      connectorCaller: { kind: 'user', userId: 'user-starter' },
+      connectorCaller: { kind: 'task-run', execId: 'exec-rotated' },
     });
-
+    // The comment's author steers; the run still acts for its starter.
     const res = await callBridge('execute', 'vk-turn-2', LIST_ISSUES);
-
     expect(await res.json()).toMatchObject({ status: 'ok' });
     expect(runConnectorAction.mock.calls[0]?.[1]).toMatchObject({
       caller: { kind: 'user', userId: 'user-starter' },
     });
+    // The superseded exec's token no longer acts for anyone.
+    const stale = await refusalOf(
+      await callBridge('execute', 'vk-turn-1', LIST_ISSUES),
+    );
+    expect(stale.blockers[0]?.code).toBe('run_ended');
+    expect(runConnectorAction).toHaveBeenCalledTimes(1);
   });
 
   it.each([
-    ['names nobody', null],
-    ['names the automation sentinel', { userId: AUTOMATION_SUBJECT_ID }],
+    ['a trigger', 'trigger:schedule-1'],
+    ['the automation sentinel', AUTOMATION_SUBJECT_ID],
   ])(
-    'refuses with what to do when the run’s attribution %s',
-    async (_label, attribution) => {
-      const { ctx } = makeCtx(
-        { status: 'queued', execId: 'exec-1' },
-        attribution,
-      );
+    'refuses with what to do when %s started the run',
+    async (_label, startedBy) => {
+      io.run.startedBy = startedBy;
+      const { ctx } = makeCtx();
 
       await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
-
-      expect(scopeOf('vk-turn-1')).toMatchObject({
-        connectorCaller: { kind: 'nobody', opKind: 'task-agent' },
-      });
-      const res = await callBridge('execute', 'vk-turn-1', LIST_ISSUES);
-      const body = (await res.json()) as {
-        status: string;
-        blockers: Array<{ code: string; guidance: string }>;
-      };
+      const body = await refusalOf(
+        await callBridge('execute', 'vk-turn-1', LIST_ISSUES),
+      );
 
       expect(body.status).toBe('unavailable');
       expect(body.blockers).toHaveLength(1);
@@ -409,10 +418,7 @@ describe('a task run of an agent equipped with a connector', () => {
   );
 
   it('refuses a starter who left the organization since the kick', async () => {
-    const { ctx } = makeCtx(
-      { status: 'queued', execId: 'exec-1' },
-      { userId: 'user-starter' },
-    );
+    const { ctx } = makeCtx();
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
     io.members.delete('user-starter');
 
@@ -425,11 +431,32 @@ describe('a task run of an agent equipped with a connector', () => {
     expect(runConnectorAction).not.toHaveBeenCalled();
   });
 
-  it('resolves no caller for a turn without connectors', async () => {
-    const { ctx, queries } = makeCtx(
-      { status: 'queued', execId: 'exec-1' },
-      { userId: 'user-starter' },
-    );
+  it.each(['settled', 'failed', 'cancelled'])(
+    'refuses the token once its run has %s, though the token itself has not expired',
+    async (status) => {
+      const { ctx } = makeCtx();
+      await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
+      io.run.status = status;
+
+      const body = await refusalOf(
+        await callBridge('execute', 'vk-turn-1', LIST_ISSUES),
+      );
+      const listing = await callBridge('status', 'vk-turn-1');
+
+      expect(body).toMatchObject({
+        status: 'unavailable',
+        blockers: [{ code: 'run_ended' }],
+      });
+      expect(await listing.json()).toMatchObject({
+        connectors: [{ usable: false, blockers: [{ code: 'run_ended' }] }],
+      });
+      expect(runConnectorAction).not.toHaveBeenCalled();
+      expect(io.toolCalls).toEqual([]);
+    },
+  );
+
+  it('binds no caller for a turn without connectors', async () => {
+    const { ctx } = makeCtx();
 
     await startTaskAgentTurnImpl(ctx, {
       ...KEYS,
@@ -439,10 +466,5 @@ describe('a task run of an agent equipped with a connector', () => {
 
     expect(scopeOf('vk-turn-1')).toMatchObject({ connectorGrants: [] });
     expect(scopeOf('vk-turn-1')).not.toHaveProperty('connectorCaller');
-    expect(
-      queries.some(
-        (q) => q.name === 'sandbox/session_queries:getSessionOpAttribution',
-      ),
-    ).toBe(false);
   });
 });

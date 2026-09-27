@@ -41,7 +41,7 @@ Under **Skills, connectors & tools**, add the bundles, services and platform ope
 
 Read the **Writes data** label before granting a platform write tool: it authorizes real operations within that tool’s access rules. Connector broker actions available to agents are read-only; direct GitHub tooling or explicit secrets use separate access paths.
 
-A run’s connector calls act for the member who started it, whether with **Start agent**, **Retry**, a move to **In progress** or an @mention of the agent. They use the organization’s [connector credentials](/platform/admin/connectors) and are recorded under that member. If that member leaves the organization or is disabled, the calls are refused; start the run again so it acts for you.
+A run’s connector calls act for the member who started it, whether with **Start agent**, **Retry**, a move to **In progress** or an @mention of the agent. They use the organization’s [connector credentials](/platform/admin/connectors) and are recorded under that member. If that member leaves the organization or is disabled, the calls are refused: use **Cancel run** (or let the run finish), then start it again so it acts for you.
 
 Write **Instructions** that define responsibility, evidence and boundaries. For the launch reviewer: “Read the supplied brief. Report missing approvals and conflicting dates with the source passage. Do not mark the task complete.”
 

@@ -34,21 +34,18 @@ function readOperations(connectorSlug: string): string[] {
 }
 
 /**
- * Whom a turn's connector calls act for. The host decides it when it
- * provisions the turn and carries it on the turn's session token
+ * Whom a turn's connector calls act for, as its session token records it
  * (`connectorCaller`). The session alone cannot say: a project agent's
  * standing session serves every task the agent works, and each run was
  * started by someone else.
  *
- *  - `user`: the member the calls act for, i.e. the run's starter, the person
- *    its spend is booked under.
- *  - `nobody`: the run's starter names no member (a trigger, or a form no
- *    reader knows). `opKind` is the lane that decided so, and it picks the
- *    remedy the refusal names.
+ * `task-run`: the calls act for the starter of the task run that this exec
+ * serves (the person its spend is booked under), and only while that run is
+ * live. The token names the exec, never the person: the bridge reads the
+ * person from the run on every call, so a token that outlives its run, or
+ * that another process on the agent's shared session read, acts for nobody.
  */
-export type TurnConnectorCaller =
-  | { kind: 'user'; userId: string }
-  | { kind: 'nobody'; opKind: 'task-agent' };
+export type TurnConnectorCaller = { kind: 'task-run'; execId: string };
 
 /** A token scope's `connectorCaller`, or undefined when it carries none
  * (a token minted before the field existed, or a lane that sets none). */
@@ -57,39 +54,47 @@ export function readTurnConnectorCaller(
 ): TurnConnectorCaller | undefined {
   if (!isRecord(value)) return undefined;
   if (
-    value.kind === 'user' &&
-    typeof value.userId === 'string' &&
-    value.userId !== ''
+    value.kind === 'task-run' &&
+    typeof value.execId === 'string' &&
+    value.execId !== ''
   ) {
-    return { kind: 'user', userId: value.userId };
-  }
-  if (value.kind === 'nobody' && value.opKind === 'task-agent') {
-    return { kind: 'nobody', opKind: 'task-agent' };
+    return { kind: 'task-run', execId: value.execId };
   }
   return undefined;
 }
 
-/** Why a turn's connector calls cannot run when they act for no member. The
- * remedy is the lane's own; a token that records no decision (an
- * automation's agent node, a turn minted before the field existed) is told
- * both. */
-export function noConnectorCallerBlocker(
-  caller: Extract<TurnConnectorCaller, { kind: 'nobody' }> | undefined,
-): BridgeBlocker {
-  if (caller?.opKind === 'task-agent') {
-    return {
-      code: 'no_user_context',
-      guidance:
-        'This task run was not started by a member, so its connector calls act for nobody and cannot run. ' +
-        "Tell the user to have a project member start the run (Start agent on the task, or an @mention of the agent in a comment); the agent's connector calls then run for that member.",
-    };
-  }
+/** The refusal for a task run whose starter names no member (a run a
+ * trigger started): its connector calls act for nobody. */
+export function taskRunActsForNobodyBlocker(): BridgeBlocker {
+  return {
+    code: 'no_user_context',
+    guidance:
+      'This task run was not started by a member, so its connector calls act for nobody and cannot run. ' +
+      "Tell the user to have a project member cancel the run (or let it finish) and start it again (Start agent on the task, or an @mention of the agent in a comment); the agent's connector calls then run for that member.",
+  };
+}
+
+/** The refusal for a token that records no caller at all: an automation's
+ * agent node, or a task turn minted before the field existed. It cannot
+ * tell which, so it names both remedies. */
+export function noConnectorCallerBlocker(): BridgeBlocker {
   return {
     code: 'no_user_context',
     guidance:
       'This turn does not act for a member, so connector calls cannot run from it. ' +
-      "Tell the user: a project agent's task run acts for the member who starts it, so a member should start the run again from the task; " +
+      "Tell the user: a project agent's task run acts for the member who starts it, so a member should cancel the run (or let it finish) and start it again from the task; " +
       'an automation calls a connector from a connector node, not from its agent node.',
+  };
+}
+
+/** The refusal for a token whose task run is no longer live (it settled,
+ * failed or was cancelled, or a steer restart moved it to a new exec). */
+export function taskRunEndedBlocker(): BridgeBlocker {
+  return {
+    code: 'run_ended',
+    guidance:
+      'The task run this turn belongs to is no longer running (it finished, failed, was cancelled or was restarted), so its connector calls cannot run. ' +
+      'Do not retry: a member starts a new run from the task.',
   };
 }
 
@@ -99,7 +104,7 @@ export function connectorCallerNotAMemberBlocker(): BridgeBlocker {
     code: 'access_denied',
     guidance:
       'The member this turn acts for (the person who started its run) is no longer an active member of this organization, so connector calls cannot run for them. ' +
-      'Tell the user: a current member can start the run again, and its connector calls then run for that member. Do not retry.',
+      'Tell the user: a current member can cancel the run (or let it finish) and start it again, and its connector calls then run for that member. Do not retry.',
   };
 }
 

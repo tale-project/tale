@@ -437,8 +437,10 @@ export interface SessionTokenScope {
   /** A user-keyed session: its connector calls act for this user, and its
    * workspace tools may READ as them. */
   userId?: string;
-  /** Whom a run-scoped turn's connector calls act for (the connectors
-   * bridge reads it; the workspace tools never do). */
+  /** The task run a turn's connector calls act through: the exec whose
+   * live run's starter they act for. It names no person, so the scope holds
+   * no identity (the connectors bridge reads it; the workspace tools never
+   * do). */
   connectorCaller?: TurnConnectorCaller;
 }
 

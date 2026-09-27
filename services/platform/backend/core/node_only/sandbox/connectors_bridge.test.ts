@@ -253,23 +253,22 @@ describe('bridgeConnectorStatusImpl', () => {
 });
 
 describe('readTurnConnectorCaller', () => {
-  it('reads the two callers a host writes', async () => {
+  it('reads the task run a host binds a turn to', async () => {
     const { readTurnConnectorCaller } = await import('./connectors_bridge');
 
-    expect(readTurnConnectorCaller({ kind: 'user', userId: 'user_1' })).toEqual(
-      { kind: 'user', userId: 'user_1' },
-    );
     expect(
-      readTurnConnectorCaller({ kind: 'nobody', opKind: 'task-agent' }),
-    ).toEqual({ kind: 'nobody', opKind: 'task-agent' });
+      readTurnConnectorCaller({ kind: 'task-run', execId: 'exec_1' }),
+    ).toEqual({ kind: 'task-run', execId: 'exec_1' });
   });
 
   it.each([
     ['absent', undefined],
-    ['not an object', 'user_1'],
-    ['a user without an id', { kind: 'user', userId: '' }],
+    ['not an object', 'exec_1'],
+    ['a task run without an exec', { kind: 'task-run', execId: '' }],
+    // A person on the token is never a caller: the bridge reads the person
+    // from the live run, so a scope cannot name one.
+    ['a person named directly', { kind: 'user', userId: 'user_1' }],
     ['a caller mode no host writes', { kind: 'system', reason: 'x' }],
-    ['nobody from an unknown lane', { kind: 'nobody', opKind: 'chat' }],
   ])('reads %s as no caller at all', async (_label, value) => {
     const { readTurnConnectorCaller } = await import('./connectors_bridge');
 

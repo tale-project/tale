@@ -37,7 +37,6 @@ import {
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
   resolveHarnessTurnContextWindow,
-  resolveTurnConnectorCaller,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
@@ -51,6 +50,7 @@ import {
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   sessionCancelExec,
@@ -622,9 +622,10 @@ async function mintTurnServing(
 /**
  * Write the turn's session-token row: the capability the in-sandbox bridges
  * authenticate. It carries the connectors and tools the agent was EQUIPPED
- * with and, when it has connectors, the member its connector calls act for
- * (the run's starter). The first start and a steer restart both write through
- * here, so a restarted turn can never lose what its first exec could do.
+ * with and, when it has connectors, the exec whose task run its connector
+ * calls act through: the bridge acts for that run's starter while the run is
+ * live. The first start and a steer restart both write through here, so a
+ * restarted turn can never lose what its first exec could do.
  */
 export async function insertTaskTurnSessionToken(
   ctx: ActionCtx,
@@ -644,14 +645,9 @@ export async function insertTaskTurnSessionToken(
   },
 ): Promise<void> {
   // Only a turn with connectors mounts the bridge that reads the caller.
-  const connectorCaller =
+  const connectorCaller: TurnConnectorCaller | undefined =
     args.connectors.length > 0
-      ? await resolveTurnConnectorCaller(ctx, {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          execId: args.execId,
-          kind: 'task-agent',
-        })
+      ? { kind: 'task-run', execId: args.execId }
       : undefined;
   await ctx.runMutation(internal.sandbox.session_mutations.insertSessionToken, {
     organizationId: args.organizationId,
@@ -671,10 +667,10 @@ export async function insertTaskTurnSessionToken(
       // grants — writes included, since an explicit grant IS the
       // standing authorization on this async lane.
       toolGrants: [...KNOWLEDGE_READ_TOOLS, ...normalizeToolGrants(args.tools)],
-      // Read by the connectors bridge alone. It is not `userId`: the
-      // workspace tools read that one as a user-keyed session, and would
-      // fall back to reading org-wide as the starter wherever this
-      // session's project binding stops resolving.
+      // Read by the connectors bridge alone, and it names the exec, never
+      // the person. It is not `userId`: the workspace tools read that one as
+      // a user-keyed session, and would fall back to reading org-wide as the
+      // starter wherever this session's project binding stops resolving.
       ...(connectorCaller !== undefined ? { connectorCaller } : {}),
     },
     expiresAt: args.deadlineAt,
