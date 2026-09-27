@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 import { loadConnectors } from '../connectors/registry';
 import { runAutomationTests } from '../engine/api/tests';
+import { execute } from '../engine/core/execute';
 import { setCodeRunner } from '../engine/core/runner';
-import { nodeTypes } from '../engine/core/slots';
+import { nodeTypes, registerNodeType } from '../engine/core/slots';
 import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { compileSchema } from '../engine/core/validate/schema';
@@ -44,8 +45,10 @@ function connectorsUsedBy(automation: Automation): string[] {
 describe('the shipped automation packs', () => {
   it('are all discovered, each with a manifest, a document and an icon', () => {
     expect(packs.map((pack) => pack.slug)).toEqual([
+      'github/import-issues',
       'github/review-pull-requests',
       'github/triage-issues',
+      'glitchtip/import-issues',
       'gmail/sync-emails',
       'gmail/triage-inbox',
       'imap-smtp/sync-emails',
@@ -275,4 +278,80 @@ describe('a scheduled pack accepts the trigger wrapper', () => {
       expect(closedAgainst).toEqual([]);
     });
   }
+});
+
+describe('issue synchronization stays inside the engine execution ceiling', () => {
+  it.each(['github', 'glitchtip'])(
+    '%s imports and refreshes 500 sources each in six nodes',
+    async (provider) => {
+      const pack = packBySlug(`${provider}/import-issues`);
+      const list = nodeTypes().get(`${provider}.list_import_issues`)!;
+      const known = nodeTypes().get('task.list_external_issues')!;
+      const sources = (prefix: string) =>
+        Array.from({ length: 500 }, (_, at) => {
+          const externalId = `${prefix}/web#${at + 1}`;
+          const url = `https://example.com/issues/${at + 1}`;
+          const externalIssue = {
+            id: `${prefix}-${at + 1}`,
+            title: 'Issue',
+            description: '',
+            url,
+            state: 'open',
+            syncedAt: 0,
+          };
+          return {
+            externalSystem: provider,
+            externalId,
+            title: 'Issue',
+            description: '',
+            externalUrl: url,
+            externalIssue,
+          };
+        });
+      if (!list.connector || !known.connector)
+        throw new Error('Missing issue connector');
+      registerNodeType({
+        ...list,
+        connector: {
+          ...list.connector,
+          mock: () => ({
+            issues: sources('new'),
+            nextCursor: null,
+            truncated: false,
+            repositoryId: 1,
+            sourceOrigin: 'https://example.com',
+            sourceProjectId: '1',
+          }),
+        },
+      });
+      registerNodeType({
+        ...known,
+        connector: {
+          ...known.connector,
+          mock: () => ({ issues: sources('known'), hasMore: false }),
+        },
+      });
+      try {
+        const result = await execute(pack.automation, {
+          mode: 'mock',
+          input: {
+            projectId: 'project-1',
+            limit: 500,
+            ...(provider === 'github'
+              ? { owner: 'example', repo: 'web' }
+              : { organization: 'example', project: 'web' }),
+          },
+        });
+        expect(result.status, result.error?.message).toBe('success');
+        expect(result.output).toMatchObject({
+          imported: 1000,
+          truncated: false,
+        });
+        expect(result.trace).toHaveLength(6);
+      } finally {
+        registerNodeType(list);
+        registerNodeType(known);
+      }
+    },
+  );
 });

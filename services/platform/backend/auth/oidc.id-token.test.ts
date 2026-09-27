@@ -28,6 +28,7 @@ import { z } from 'zod';
 
 import {
   createOidcProvider,
+  OIDC_ACR_VALUE,
   OIDC_ORGANIZATION_CLAIM,
   OIDC_SCOPES,
 } from './oidc.ts';
@@ -323,6 +324,17 @@ describe('the ID token the token endpoint mints', () => {
     const info = z.record(z.string(), z.unknown()).parse(await userinfo.json());
     expect(standardClaims(payload)).toStrictEqual(standardClaims(info));
     expect(Object.keys(standardClaims(payload))).toHaveLength(5);
+  });
+
+  it('agrees with discovery and the documented authentication context', async () => {
+    const discovery = await call('/api/auth/.well-known/openid-configuration');
+    expect(discovery.status).toBe(200);
+    const metadata = z
+      .object({ acr_values_supported: z.array(z.string()) })
+      .parse(await discovery.json());
+    const { payload } = await signIn(OIDC_SCOPES, ['acr']);
+    expect(metadata.acr_values_supported).toEqual([OIDC_ACR_VALUE]);
+    expect(payload.acr).toBe(OIDC_ACR_VALUE);
   });
 
   it('leaves the email out without the email scope, and the profile out without the profile scope', async () => {

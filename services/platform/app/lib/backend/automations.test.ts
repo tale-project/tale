@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { automationWriteAdapters } from './automations';
+import { automationReadAdapters, automationWriteAdapters } from './automations';
 
 /**
  * The save adapter carries the wizard's whole contract to the store door:
@@ -29,6 +29,22 @@ afterEach(() => {
   vi.restoreAllMocks();
   delete window.__ENV__;
 });
+
+it.each([null, 'p1'])(
+  'normalizes run project scope %s for continuation pickers',
+  async (projectId) => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, { run: { id: 'r1', projectId } }),
+    );
+    const query = automationReadAdapters['automations/queries:getRun']?.(
+      { organizationId: 'org1', runId: 'r1' },
+      {},
+    );
+    expect(query).toBeTruthy();
+    const run = await query?.queryFn();
+    expect(run).toMatchObject({ id: 'r1', projectId: projectId ?? undefined });
+  },
+);
 
 describe('saveAutomation adapter', () => {
   it('forwards create and projectId to the save door', async () => {

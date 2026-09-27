@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Field } from '@tale/ui/field';
@@ -10,7 +11,15 @@ import { z } from 'zod';
 
 import { useT } from '@/lib/i18n/client';
 
+import { guidedIssueSource } from '../lib/issue-import';
+import {
+  IssueImportFields,
+  type IssueImportProject,
+} from './issue-import-fields';
+
 export interface AutomationRunRequest {
+  automationSlug?: string;
+  initialInput?: Record<string, unknown>;
   mode: 'mock' | 'live';
   version: number;
   schema?: Record<string, unknown>;
@@ -18,20 +27,37 @@ export interface AutomationRunRequest {
   scopeText: string;
 }
 
+const NO_PROJECTS: readonly IssueImportProject[] = [];
+
 /** Mounted for one reviewed version and run scope. The server remains the
  * authority; client validation gives feedback before scheduling any work. */
 export function AutomationRunDialog({
   request,
+  projects = NO_PROJECTS,
+  pending = false,
+  error,
   onClose,
   onConfirm,
 }: {
   request: AutomationRunRequest;
+  projects?: readonly IssueImportProject[];
+  pending?: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: (input: unknown) => void;
 }) {
   const { t } = useT('automations');
   const inputId = useId();
-  const [text, setText] = useState('{}');
+  const [text, setText] = useState(() =>
+    JSON.stringify(request.initialInput ?? {}, null, 2),
+  );
+  const source = guidedIssueSource(request.automationSlug, request.schema);
+  const [values, setValues] = useState<Record<string, unknown>>(() => ({
+    ...(request.projectId !== undefined && { projectId: request.projectId }),
+    limit: 100,
+    ...(source === 'glitchtip' && { query: 'is:unresolved' }),
+    ...request.initialInput,
+  }));
   const schema = useMemo(() => {
     if (request.schema === undefined) return null;
     try {
@@ -48,7 +74,7 @@ export function AutomationRunDialog({
   const parsed = useMemo(() => {
     let input: unknown;
     try {
-      input = JSON.parse(text);
+      input = source === null ? JSON.parse(text) : values;
     } catch {
       return { valid: false as const, error: t('detail.runInput.invalidJson') };
     }
@@ -70,7 +96,7 @@ export function AutomationRunDialog({
     }
     // Send the original JSON, not a converter's transformed/stripped value.
     return { valid: true as const, input };
-  }, [schema, text, t]);
+  }, [schema, text, source, values, t]);
 
   return (
     <ConfirmDialog
@@ -88,38 +114,65 @@ export function AutomationRunDialog({
         request.mode === 'live' ? t('detail.runLive') : t('detail.runMock')
       }
       disableConfirm={!parsed.valid}
+      isLoading={pending}
       onConfirm={() => {
         if (parsed.valid) onConfirm(parsed.input);
       }}
     >
-      <Text as="p" variant="muted" className="text-sm">
-        {request.scopeText}
-      </Text>
-      {request.schema !== undefined && (
-        <div className="mt-4 space-y-3">
-          <Field
-            label={t('detail.runInput.label')}
-            htmlFor={inputId}
-            description={t('detail.runInput.description', {
-              version: request.version,
-            })}
-            error={parsed.valid ? undefined : parsed.error}
-          >
-            <Textarea
-              id={inputId}
-              rows={6}
-              className="font-mono text-xs"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              spellCheck={false}
-            />
-          </Field>
-          <CollapsibleDetails summary={t('detail.runInput.schema')}>
-            <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
-              {JSON.stringify(request.schema, null, 2)}
-            </pre>
-          </CollapsibleDetails>
-        </div>
+      {error && <Alert variant="destructive" description={error} />}
+      {source === null && (
+        <Text as="p" variant="muted" className="text-sm">
+          {request.scopeText}
+        </Text>
+      )}
+      {source !== null ? (
+        <>
+          <IssueImportFields
+            source={source}
+            value={values}
+            projects={
+              request.projectId === undefined
+                ? projects
+                : projects.filter(
+                    (project) => project._id === request.projectId,
+                  )
+            }
+            disabled={pending}
+            onChange={setValues}
+          />
+          {!parsed.valid && (
+            <Text as="p" variant="muted" className="mt-3 text-sm" role="status">
+              {parsed.error}
+            </Text>
+          )}
+        </>
+      ) : (
+        request.schema !== undefined && (
+          <div className="mt-4 space-y-3">
+            <Field
+              label={t('detail.runInput.label')}
+              htmlFor={inputId}
+              description={t('detail.runInput.description', {
+                version: request.version,
+              })}
+              error={parsed.valid ? undefined : parsed.error}
+            >
+              <Textarea
+                id={inputId}
+                rows={6}
+                className="font-mono text-xs"
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                spellCheck={false}
+              />
+            </Field>
+            <CollapsibleDetails summary={t('detail.runInput.schema')}>
+              <pre className="bg-muted mt-2 max-h-48 overflow-auto rounded-md p-3 text-xs">
+                {JSON.stringify(request.schema, null, 2)}
+              </pre>
+            </CollapsibleDetails>
+          </div>
+        )
       )}
     </ConfirmDialog>
   );

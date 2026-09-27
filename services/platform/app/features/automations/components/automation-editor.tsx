@@ -481,7 +481,6 @@ function AutomationEditorScope({
     input?: unknown,
   ): void => {
     setRefusal(null);
-    setRunRequest(null);
     startRun.mutate(
       {
         organizationId,
@@ -493,7 +492,10 @@ function AutomationEditorScope({
           projectId: request.projectId,
         }),
       },
-      { onError: (error) => setRefusal(automationErrorMessage(error)) },
+      {
+        onSuccess: () => setRunRequest(null),
+        onError: (error) => setRefusal(automationErrorMessage(error)),
+      },
     );
   };
 
@@ -701,6 +703,7 @@ function AutomationEditorScope({
               onClick={() => {
                 if (meta == null || stored === null) return;
                 const request: AutomationRunRequest = {
+                  automationSlug,
                   mode: 'mock',
                   version: meta.version,
                   ...(stored.inputs !== undefined && { schema: stored.inputs }),
@@ -731,6 +734,7 @@ function AutomationEditorScope({
                   if (meta?.deployedVersion === undefined || deployed === null)
                     return;
                   setRunRequest({
+                    automationSlug,
                     mode: 'live',
                     version: meta.deployedVersion,
                     ...(deployed.inputs !== undefined && {
@@ -886,7 +890,13 @@ function AutomationEditorScope({
       {runRequest !== null && (
         <AutomationRunDialog
           request={runRequest}
-          onClose={() => setRunRequest(null)}
+          projects={projects}
+          pending={startRun.isPending}
+          error={refusal}
+          onClose={() => {
+            setRunRequest(null);
+            setRefusal(null);
+          }}
           onConfirm={(input) => scheduleRun(runRequest, input)}
         />
       )}

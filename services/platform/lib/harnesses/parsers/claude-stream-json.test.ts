@@ -385,6 +385,44 @@ describe('claude-stream-json parser', () => {
     ]);
   });
 
+  it('refuses the Qwen CLI authentication error reported as a successful zero-token reply', () => {
+    // Pinned Qwen 0.23.3, real HTTP 401 against an isolated gateway:
+    // the process exits 0 and both success flags are wrong.
+    const text = readFixture('qwen-code', 'authentication-error-turn');
+    const events = collectEvents(createParser('qwen-code'), text, 7);
+    expect(events.at(-2)).toMatchObject({
+      type: 'error',
+      message: '401 Synthetic credential rejected',
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn-ended',
+      status: 'error',
+      isError: true,
+      apiErrorStatus: 401,
+    });
+  });
+
+  it.each(['claude-code', 'qwen-code'] as const)(
+    'does not mistake a model-authored error quotation for a %s failure',
+    (slug) => {
+      const events = collectEvents(
+        createParser(slug),
+        JSON.stringify({
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: '[API Error: 401 Synthetic credential rejected]',
+          usage: { input_tokens: 10, output_tokens: 9 },
+        }),
+      );
+      expect(events.at(-1)).toMatchObject({
+        type: 'turn-ended',
+        status: 'completed',
+        isError: false,
+      });
+    },
+  );
+
   it('maps error_max_turns to the max-turns status', () => {
     const line = `${JSON.stringify({
       type: 'result',

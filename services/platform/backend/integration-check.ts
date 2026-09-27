@@ -62,6 +62,8 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -135,18 +137,30 @@ async function checkSerializableRetry(sql: Sql): Promise<void> {
   // Each begin runs the callback exactly once, so counting callback entries
   // counts transaction attempts — >2 total proves a serialization retry.
   let attempts = 0;
+  let firstReads = 0;
+  let releaseReads = () => {};
+  const bothRead = new Promise<void>((resolve) => {
+    releaseReads = resolve;
+  });
   const bump = (): Promise<void> =>
     transactSerializable(sql, async (tx) => {
       attempts += 1;
+      const attempt = attempts;
       const rows = await tx<{ value: number }[]>`
         SELECT value FROM itest_counter WHERE id = 1
       `;
       const current = rows[0]?.value ?? 0;
-      await sleep(50); // widen the race window so the two transactions overlap
+      // Both initial snapshots must read zero before either writes. A timed
+      // sleep can elapse before the other connection starts on a busy host.
+      if (attempt <= 2) {
+        firstReads += 1;
+        if (firstReads === 2) releaseReads();
+        await bothRead;
+      }
       await tx`UPDATE itest_counter SET value = ${current + 1} WHERE id = 1`;
     });
 
-  await Promise.all([bump(), bump()]);
+  await Promise.all([bump(), bump()]).finally(releaseReads);
 
   const rows = await sql<{ value: number }[]>`
     SELECT value FROM itest_counter WHERE id = 1
@@ -14301,11 +14315,9 @@ async function checkRestMachineJourney(
       await (await v1(`/projects/${projectId}/tasks/${taskId}`)).json(),
     );
 
-  // The external lifecycle is a two-way door for the mirror (round e,
-  // E2-02): `closed` parks the task at in_review and stamps the park as the
-  // mirror's; `open` lifts exactly that park back to backlog and clears the
-  // stamp — `open` used to lift `done` alone, so a mirror could never undo
-  // a close it made.
+  // Source-only issue lifecycle also protects historical REST callers that
+  // supply externalState without the new source snapshot. Generic desk
+  // lifecycle mirroring is covered by the task-review integrity lane.
   const mirrorRef = {
     externalSystem: 'github',
     externalId: 'journey-issue-7',
@@ -14328,8 +14340,8 @@ async function checkRestMachineJourney(
   const afterReopen = await stampOf();
   const mirrorLaneOk =
     mirrorClosed.status === 200 &&
-    afterClose?.status === 'in_review' &&
-    typeof afterClose.externalClosedAt === 'number' &&
+    afterClose?.status === 'backlog' &&
+    afterClose.externalClosedAt === null &&
     mirrorReopened.status === 200 &&
     afterReopen?.status === 'backlog' &&
     afterReopen.externalClosedAt === null;
@@ -14653,7 +14665,7 @@ async function checkRestMachineJourney(
       twinDeleted.status === 204 &&
       twinGone.status === 404 &&
       twinKeyFree.status === 201,
-    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'} facts=${fileFactsOk}(bind size=${bindBody.success ? bindBody.data.file.size : 'ERR'}/${LEDGER_BYTES.length} type=${bindBody.success ? bindBody.data.file.mimeType : 'ERR'}/text/csv listed=${JSON.stringify(ledgerListed ?? null)} want size + indexing.status=skipped), content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), retry=${retryLaneOk}(${retryIndexing.success ? retryIndexing.data.status : 'ERR'} row=${JSON.stringify(retryRow ?? null)} want indexing + skip=false + a status; hub=${hubRetry.status}/${hubRetryBody.success ? hubRetryBody.data.code : 'ERR'} want 404 DOCUMENT_NOT_FOUND), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), mirror close/open=${mirrorLaneOk}(${mirrorClosed.status}/${afterClose?.status}/${typeof afterClose?.externalClosedAt} → ${mirrorReopened.status}/${afterReopen?.status}/${String(afterReopen?.externalClosedAt)} want 200/in_review/number → 200/backlog/null), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId} list=${listedProjects.success && listedProjects.data.projects.some((p) => p.id === projectId)} twin=${twinCreated.success}/${twinRefused.status}/${twinFound.success && twinFound.data.projects[0]?.id === twinId} (want ok/409/found) archive=${archived.success && typeof archived.data.project.archivedAt === 'number'}/${activeList.success && !activeList.data.projects.some((p) => p.id === twinId)}/${archivedList.success && archivedList.data.projects.some((p) => p.id === twinId)}/${restored.success && restored.data.project.archivedAt === undefined} identity=${identityLaneOk}(patch=${identityPatch.success} lookup=${identityLookup.success && identityLookup.data.projects[0]?.id === projectId} taken=${identityTaken.status}/409 empty=${identityEmpty.status}/400 cleared=${identityCleared.success && identityCleared.data.project.externalItemId === undefined} rekey=${identityRestoredKey.status}/200), delete bound=${deleteBound.status} ${deleteBoundBody.success ? deleteBoundBody.data.code : 'BAD SHAPE'} (want 409 PROJECT_HAS_BOUND_AUTOMATIONS) twin=${twinDeleted.status}/${twinGone.status}/${twinKeyFree.status} (want 204/404/201), folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId} tree=${folderTreeOk}(child=${childCreated.success} children=${childrenListed.success ? childrenListed.data.folders.length : 'ERR'}/1 read=${childRead.success} foreign=${foreignFolderRead.status}/${foreignFolderList.status} want 404/404), upload cap=${mintCapOk}(maxBytes=${handoffMaxBytes.success ? handoffMaxBytes.data.maxBytes : 'ERR'} oversized=${oversizedMint.status}/400) put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'} facts=${fileFactsOk}(bind size=${bindBody.success ? bindBody.data.file.size : 'ERR'}/${LEDGER_BYTES.length} type=${bindBody.success ? bindBody.data.file.mimeType : 'ERR'}/text/csv listed=${JSON.stringify(ledgerListed ?? null)} want size + indexing.status=skipped), content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES} range=${contentRange.status}/206(${contentRange.headers.get('content-range')}) unsatisfiable=${contentRangeUnsatisfiable.status}/416(${contentRangeUnsatisfiable.headers.get('content-range')} len=${contentRangeUnsatisfiable.headers.get('content-length')} type=${contentRangeUnsatisfiable.headers.get('content-type')}) head=${contentHead.status}/200(etag=${contentHead.headers.get('etag') !== null} lm=${contentHead.headers.get('last-modified') !== null} ar=${contentHead.headers.get('accept-ranges')}), retry=${retryLaneOk}(${retryIndexing.success ? retryIndexing.data.status : 'ERR'} row=${JSON.stringify(retryRow ?? null)} want indexing + skip=false + a status; hub=${hubRetry.status}/${hubRetryBody.success ? hubRetryBody.data.code : 'ERR'} want 404 DOCUMENT_NOT_FOUND), delete file=${fileDeleted.status}/${contentAfterDelete.status}/${fileDeletedAgain.status} (want 204/404/404) folder=${folderDeleted.status} gone=${foldersAfterDelete.success && !foldersAfterDelete.data.folders.some((f) => f.id === folderId)}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'} labels=${labelsOk}(want Ops|P1, index=${labelIndex.length}/1), mirror close/open=${mirrorLaneOk}(${mirrorClosed.status}/${afterClose?.status}/${typeof afterClose?.externalClosedAt} → ${mirrorReopened.status}/${afterReopen?.status}/${String(afterReopen?.externalClosedAt)} want 200/backlog/object → 200/backlog/null), comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
   );
 }
 
@@ -16025,7 +16037,17 @@ async function checkRestPagination(
   base: string,
   ctx: { cookie: string; orgId: string },
 ): Promise<void> {
-  const apiKey = await mintRestKey(base, ctx.cookie, 'itest-pagination');
+  // REST limits belong to the user, not the key. Earlier lanes can spend
+  // the shared actor's budget while walking their own pages; give this
+  // independent contract a fresh actor in the same organization.
+  const { cookie, memberId } = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    'rest-pagination',
+    'admin',
+  );
+  const apiKey = await mintRestKey(base, cookie, 'itest-pagination');
   const v1 = (
     route: string,
     init: { method?: string; body?: unknown } = {},
@@ -16100,7 +16122,7 @@ async function checkRestPagination(
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        cookie: ctx.cookie,
+        cookie,
         origin: base,
       },
       body: JSON.stringify(body),
@@ -16138,20 +16160,30 @@ async function checkRestPagination(
       body: { input: { n: 2 }, mode: 'mock' },
     }),
   ]);
-  const runsOne = runsSchema.safeParse(
-    await (await v1('/automations/ops__pager/runs?limit=1')).json(),
-  );
+  const runsOneResponse = await v1('/automations/ops__pager/runs?limit=1');
+  const runsOneBody: unknown = await runsOneResponse.json();
+  const runsOne = runsSchema.safeParse(runsOneBody);
   const runsCursor = runsOne.success ? runsOne.data.continueCursor : '';
-  const runsNext = runsSchema.safeParse(
-    await (
-      await v1(
-        `/automations/ops__pager/runs?limit=1&cursor=${encodeURIComponent(runsCursor)}`,
-      )
-    ).json(),
+  const runsNextResponse = await v1(
+    `/automations/ops__pager/runs?limit=1&cursor=${encodeURIComponent(runsCursor)}`,
   );
-  const runsAll = runsSchema.safeParse(
-    await (await v1('/automations/ops__pager/runs')).json(),
-  );
+  const runsNextBody: unknown = await runsNextResponse.json();
+  const runsNext = runsSchema.safeParse(runsNextBody);
+  const runsAllResponse = await v1('/automations/ops__pager/runs');
+  const runsAllBody: unknown = await runsAllResponse.json();
+  const runsAll = runsSchema.safeParse(runsAllBody);
+  const runErrors = [
+    [runsOneResponse, runsOne, runsOneBody],
+    [runsNextResponse, runsNext, runsNextBody],
+    [runsAllResponse, runsAll, runsAllBody],
+  ] as const;
+  for (const [response, parsed, body] of runErrors) {
+    if (!parsed.success) {
+      console.error(
+        `[itest] pagination runs response ${response.status}: ${JSON.stringify(body)}`,
+      );
+    }
+  }
 
   record(
     'REST pagination walks to the last page (contacts, products) + runs limit',
@@ -16174,6 +16206,9 @@ async function checkRestPagination(
       runsAll.data.runs.length >= 2,
     `contacts: done=${contactsWalk.done} pages=${contactsWalk.pages} walked=${contactsWalk.seen.length} all=${contactsAll.length} covers=${covers(contactsWalk.seen, contactsAll)}; products: done=${productsWalk.done} pages=${productsWalk.pages} walked=${productsWalk.seen.length} all=${productsAll.length} covers=${covers(productsWalk.seen, productsAll)}; runs: started=${started.map((res) => res.status).join('/')} limit=1 → ${runsOne.success ? runsOne.data.runs.length : 'ERR'} (want 1) done=${runsOne.success ? runsOne.data.isDone : 'ERR'} (want false), cursor → ${runsNext.success ? runsNext.data.runs.length : 'ERR'} other row (want 1), all → ${runsAll.success ? runsAll.data.runs.length : 'ERR'} (want ≥2)`,
   );
+  // This actor's admin access lasts only for this lane. Leaving it in the
+  // shared org changes the audience of later ask-notification scenarios.
+  await sql`DELETE FROM "member" WHERE "id" = ${memberId}`;
 }
 
 /**
@@ -17180,7 +17215,7 @@ async function checkEntraLogin(
   const { serializeSsoConnectionYaml, resolveSsoDir } =
     await import('./core/enterprise_sso/file_utils.ts');
   const tenantId = '8f1e2b3c-4d5a-6789-abcd-ef0123456789';
-  const appRoleId = 'b31e4c77-11aa-4c8d-9f3e-2b6d5a7c9e01';
+  const appRoleValue = 'Tale.Developer';
   const ssoDir = resolveSsoDir(orgSlug);
   const connectionPath = path.join(ssoDir, 'connection.yml');
   const secretsPath = path.join(ssoDir, 'connection.secrets.json');
@@ -17216,6 +17251,7 @@ async function checkEntraLogin(
     if (url.includes('/oauth2/v2.0/token')) {
       return json({
         access_token: 'itest-graph-token',
+        id_token: `${Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ sub: 'entra-user-9', roles: [appRoleValue] })).toString('base64url')}.itest-signature`,
         token_type: 'Bearer',
         expires_in: 3600,
         scope: 'openid profile email https://graph.microsoft.com/User.Read',
@@ -17246,7 +17282,9 @@ async function checkEntraLogin(
       });
     }
     if (url.includes('/me/appRoleAssignments')) {
-      return json({ value: [{ appRoleId }] });
+      return new Response('Graph app-role permissions are not granted', {
+        status: 403,
+      });
     }
     if (url.includes('/me')) {
       return json({
@@ -17284,7 +17322,11 @@ async function checkEntraLogin(
           autoProvisionRole: true,
           defaultRole: 'member',
           roleMappingRules: [
-            { source: 'appRole', pattern: appRoleId, targetRole: 'developer' },
+            {
+              source: 'appRole',
+              pattern: appRoleValue,
+              targetRole: 'developer',
+            },
           ],
           autoProvisionTeam: true,
           excludeGroups: ['Everyone'],
@@ -17338,7 +17380,7 @@ async function checkEntraLogin(
     `;
 
     record(
-      'Entra ID: Graph identity + groups + app roles drive provisioning',
+      'Entra ID: Graph identity and groups + ID-token app roles drive provisioning',
       authorizeRes.status === 302 &&
         authorizeUrl?.origin === 'https://login.microsoftonline.com' &&
         authorizeUrl.pathname === `/${tenantId}/oauth2/v2.0/authorize` &&
@@ -17355,9 +17397,10 @@ async function checkEntraLogin(
         session.data.user?.email === 'entra.user@door.test' &&
         graphCalls.includes('/v1.0/me') &&
         graphCalls.includes('/v1.0/me/memberOf') &&
-        graphCalls.includes('/v1.0/me/appRoleAssignments') &&
+        !graphCalls.includes('/v1.0/me/appRoleAssignments') &&
         graphAuthorization === 'Bearer itest-graph-token' &&
-        // The app-role rule decides the role; the directory ROLE is not a
+        // The app-role Value in this application's ID token decides the role,
+        // without broader Graph app-role permissions; the directory ROLE is not a
         // group, and `Everyone` is excluded — so exactly one team.
         provisioned[0]?.role === 'developer' &&
         provisioned[0].teams === 'EntraOps',
@@ -24649,8 +24692,7 @@ async function checkMailboxSyncLane(
       SELECT mail_sync_inbound_since_ms::float8 AS inbound
       FROM app.connector_credentials
       WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
-        AND status = 'active'
-      LIMIT 1
+        AND status = 'active' AND is_default = true
     `;
 
     // Idempotency: the same window again UPDATES in place (the 0.4
@@ -39351,6 +39393,7 @@ async function checkChatThreadSurface(
     .safeParse(
       await get(`/api/app/chat/project/${projectTwoId}/threads?orgId=${orgId}`),
     );
+  await seedArenaRoundReplies(sql, orgId, arenaA, arenaB);
   const settled = z
     .object({ continueThreadId: z.string() })
     .safeParse(
@@ -46867,6 +46910,31 @@ async function checkMetricsSurface(
   `;
 }
 
+/** Complete one real comparison round after pairing, not the copied history. */
+async function seedArenaRoundReplies(
+  sql: Sql,
+  orgId: string,
+  threadA: string,
+  threadB: string,
+): Promise<void> {
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, parts, model,
+      status, created_at_ms
+    )
+    SELECT gen_random_uuid()::text, t.thread_id, ${orgId},
+           coalesce((SELECT max("order") FROM app.messages m
+                     WHERE m.thread_id = t.thread_id), -1) + 1,
+           0, 'assistant', ${sql.json([{ type: 'text', text: 'comparison reply' }])},
+           t.model, 'complete',
+           greatest(${Date.now()}::bigint, (meta.arena->>'createdAt')::bigint + 1)
+    FROM (VALUES (${threadA}, 'model-a'), (${threadB}, 'model-b'))
+      AS t (thread_id, model)
+    JOIN app.thread_metadata meta ON meta.thread_id = t.thread_id
+      AND meta.org_id = ${orgId}
+  `;
+}
+
 async function checkArenaAndQuestions(
   sql: Sql,
   base: string,
@@ -47025,21 +47093,22 @@ async function checkArenaAndQuestions(
   );
 
   // ---- settle with verdict → feedback row; repeat matchup stacks ---------
-  // Pin the newest assistant models on both sides so the synthetic
-  // message id is deterministic even after the failed-turn error rows.
-  await sql`
-    INSERT INTO app.messages (
-      id, thread_id, org_id, "order", step_order, role, parts, model,
-      status, created_at_ms
-    )
-    SELECT 'arena-pin-' || t.thread_id, t.thread_id, ${orgId},
-           coalesce((SELECT max("order") FROM app.messages m
-                     WHERE m.thread_id = t.thread_id), -1) + 1,
-           0, 'assistant', ${sql.json([{ type: 'text', text: 'pinned' }])},
-           t.model, 'complete', ${now}
-    FROM (VALUES (${threadA}, 'model-a'), (${threadB}, 'model-b'))
-      AS t (thread_id, model)
-  `;
+  const beforeReply = z
+    .object({ refused: z.string() })
+    .parse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/settle?orgId=${orgId}`,
+          { verdict: 'a_better' },
+        )
+      ).json(),
+    );
+  record(
+    'arena: a verdict cannot judge copied history or failed turns',
+    beforeReply.refused === 'one_sided',
+    `refused=${beforeReply.refused} (want one_sided)`,
+  );
+  await seedArenaRoundReplies(sql, orgId, threadA, threadB);
   const settled1 = z
     .object({ continueThreadId: z.string() })
     .safeParse(
@@ -47067,7 +47136,7 @@ async function checkArenaAndQuestions(
   const verdictRows1 = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.message_feedback
     WHERE org_id = ${orgId} AND message_id = 'arena:model-a:model-b'
-      AND user_id = ${userId}
+      AND user_id = ${userId} AND thread_id = ${threadA}
   `;
   // Second run of the SAME matchup — a fresh pair, same models, same user.
   const ensured2 = z
@@ -47081,10 +47150,7 @@ async function checkArenaAndQuestions(
       ).json(),
     );
   const threadB2 = ensured2.success ? ensured2.data.threadIdB : '';
-  await sql`
-    UPDATE app.messages SET model = 'model-b'
-    WHERE thread_id = ${threadB2} AND role = 'assistant' AND model = 'model-a'
-  `;
+  await seedArenaRoundReplies(sql, orgId, threadA, threadB2);
   const settled2 = z
     .object({ continueThreadId: z.string() })
     .safeParse(
@@ -47098,7 +47164,7 @@ async function checkArenaAndQuestions(
   const verdictRows2 = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.message_feedback
     WHERE org_id = ${orgId} AND message_id = 'arena:model-a:model-b'
-      AND user_id = ${userId}
+      AND user_id = ${userId} AND thread_id = ${threadA}
   `;
   const settleAgain = z
     .object({ refused: z.string() })
@@ -52003,6 +52069,20 @@ async function checkOrganizationLifecycle(
   const slugB = `itest-life-b-${orgSuffix}`;
   const orgA = await createOrg(owner.cookie, 'Life A', slugA);
   const orgB = await createOrg(owner.cookie, 'Life B', slugB);
+  // Creation asynchronously scaffolds each org with cleanFirst. Its worker
+  // must finish before the markers below, or it can remove the very tree
+  // this lane is checking while the retirement assertions run.
+  const scaffoldsDrained = await waitFor(async () => {
+    const rows = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM pgboss.job
+      WHERE name = 'org.scaffold'
+        AND data ->> 'orgSlug' IN (${slugA}, ${slugB})
+        AND state IN ('created', 'retry', 'active', 'failed')
+    `;
+    return rows[0]?.count === 0;
+  }, 10_000);
+  if (!scaffoldsDrained)
+    throw new Error('Organization lifecycle fixture scaffolds did not drain');
   const dirA = path.join(configRoot, slugA);
   const dirB = path.join(configRoot, slugB);
   for (const dir of [dirA, dirB]) {
@@ -52840,6 +52920,28 @@ async function main(): Promise<void> {
   await ensureQueues(boss);
   await alignQueuePolicies(sql);
   await registerSchedules(boss);
+  const triggerSchedules = await boss.getSchedules('automation.trigger_scan');
+  record(
+    'schedule scan is registered for every minute',
+    triggerSchedules.length === 1 && triggerSchedules[0]?.cron === '* * * * *',
+    `schedules=${triggerSchedules.length}, cron=${triggerSchedules[0]?.cron}`,
+  );
+  // The delivery lanes drive the real scan explicitly, including overlapping
+  // workers and fleets across pages. A wall-clock tick competing with those
+  // calls makes their per-scan counts depend on the host's minute boundary.
+  // Disable only that recurring clock, before starting any worker; any tick
+  // queued during schedule registration is cancelled as well.
+  await boss.unschedule('automation.trigger_scan');
+  const queuedScans = await sql<{ id: string }[]>`
+    SELECT id FROM pgboss.job WHERE name = 'automation.trigger_scan'
+      AND state IN ('created', 'retry')
+  `;
+  if (queuedScans.length > 0) {
+    await boss.cancel(
+      'automation.trigger_scan',
+      queuedScans.map((job) => job.id),
+    );
+  }
   setEnqueueBoss(boss);
   // No itest job may ever open a real IMAP/SMTP connection.
   setMailTransportForTesting(DEFAULT_MAIL_FAKE);
@@ -53332,6 +53434,14 @@ async function main(): Promise<void> {
       ['checkTurnReattach', () => checkTurnReattach(sql, authCtx)],
       ['checkQueuedRunRecovery', () => checkQueuedRunRecovery(sql, authCtx)],
       ['checkOneLiveRunPerTask', () => checkOneLiveRunPerTask(sql, authCtx)],
+      [
+        'checkTaskRunStartFence',
+        () => checkTaskRunStartFence(sql, authCtx, record),
+      ],
+      [
+        'checkTaskExternalIssueSync',
+        () => checkTaskExternalIssueSync(sql, authCtx, record),
+      ],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),

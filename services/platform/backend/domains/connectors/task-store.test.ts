@@ -70,6 +70,31 @@ describe('pgTaskStore.get', () => {
     });
   });
 
+  it('preserves external linkage for issue automation follow-up', async () => {
+    const external = {
+      externalSystem: 'github',
+      externalId: 'example/web#1',
+      externalUrl: 'https://github.com/example/web/issues/1',
+    };
+    const store = pgTaskStore(
+      sqlStub({
+        rows: [
+          {
+            id: 'task-1',
+            title: 'Issue',
+            status: 'backlog',
+            description: null,
+            projectId: 'project-1',
+            ...external,
+          },
+        ],
+      }),
+    );
+    await expect(
+      store.get({ organizationId: 'org-1', taskId: 'task-1' }),
+    ).resolves.toMatchObject(external);
+  });
+
   it('propagates a database failure instead of calling it "not found"', async () => {
     const failure = Object.assign(new Error('connection terminated'), {
       code: '57P01',

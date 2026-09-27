@@ -196,6 +196,50 @@ describe('pi-jsonl parser', () => {
     ]);
   });
 
+  it.each(['toolUse', 'stop', 'length'])(
+    'does not invent a successful turn at EOF after a %s message',
+    (stopReason) => {
+      const parser = createParser('pi');
+      const events = parser.feed(
+        ndjson([
+          { type: 'session', version: 3, id: 'pi-interrupted' },
+          {
+            type: 'message_end',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'I will check this now.' }],
+              stopReason,
+              usage: { input: 12, output: 4 },
+            },
+          },
+          ...(stopReason === 'toolUse'
+            ? [
+                {
+                  type: 'tool_execution_start',
+                  toolCallId: 'call-interrupted',
+                  toolName: 'bash',
+                  args: { command: 'sleep 60' },
+                },
+              ]
+            : []),
+        ]),
+      );
+      if (stopReason === 'toolUse') {
+        expect(events).toContainEqual({
+          type: 'tool-use',
+          toolUseId: 'call-interrupted',
+          toolName: 'bash',
+          input: { command: 'sleep 60' },
+        });
+      }
+      // A process may die after a model message but before its tools or the
+      // agent loop finish. Only agent_end confirms successful completion;
+      // leaving no result lets the shared host classify the exit as a crash.
+      expect(parser.end()).toEqual([]);
+      expect(events.some((event) => event.type === 'turn-ended')).toBe(false);
+    },
+  );
+
   it('surfaces wrapper failures as an errored turn', () => {
     const events = collectEvents(
       createParser('pi'),

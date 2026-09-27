@@ -156,8 +156,11 @@ describe('tale-vision', () => {
     try {
       const png = join(workDir, 'a.png');
       writeFileSync(png, TINY_PNG);
-      const { status, stdout } = await runCli([png], gatewayEnv(url));
-      expect(status).toBe(0);
+      const result = await runCli([png], gatewayEnv(url));
+      // Keep the synthetic CLI's NDJSON and stderr on an exit failure so a
+      // gateway refusal, image error or host-resource failure is diagnosable.
+      expect(result).toMatchObject({ status: 0 });
+      const { stdout } = result;
       const lines = ndjson(stdout);
       expect(lines).toHaveLength(1);
       expect(lines[0]).toMatchObject({

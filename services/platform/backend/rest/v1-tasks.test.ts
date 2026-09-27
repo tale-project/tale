@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TaskError } from '../domains/tasks/service.ts';
 import { mintCursorFor, type RestEnv } from './shared.ts';
 import { createTaskRestRoutes } from './v1-tasks.ts';
 
@@ -893,6 +894,25 @@ describe('project-scoped task reads and operations', () => {
     ).toBe(403);
     expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { code: 'TASK_HAS_LIVE_RUN', status: 409 as const },
+    { code: 'TASK_AUTOMATION_DISABLED', status: 403 as const },
+    { code: 'TASK_AUTOMATION_UNAVAILABLE', status: 409 as const },
+  ])(
+    'preserves the $code start refusal at the REST door',
+    async ({ code, status }) => {
+      service.startWorkflowForTaskInTx.mockRejectedValue(
+        new TaskError(code, 'Task start refused', status),
+      );
+      const { request } = mount();
+      const response = await request(`${item}/start`, 'POST', {
+        workflowSlug: 'triage',
+      });
+      expect(response.status).toBe(status);
+      expect(await response.json()).toMatchObject({ code });
+    },
+  );
 
   it('starts a workflow under the execution budget with checked project and fresh task in the transaction', async () => {
     const { request, queries, tx } = mount({ role: 'editor' });

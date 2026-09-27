@@ -193,7 +193,7 @@ Utilise une bibliothèque OIDC maintenue avec le flux Authorization Code, PKCE S
 
 Le jeton d’identité contient les claims standard des scopes demandés, avec les valeurs que renvoie Userinfo : tu n’as donc pas besoin d’appeler Userinfo pour les lire. `email` ajoute `email` et `email_verified`. `profile` ajoute `name`, ainsi que `given_name` (tous les mots sauf le dernier) et `family_name` (le dernier mot) quand le nom compte au moins deux mots, et `picture` si le compte a une image.
 
-Le jeton contient toujours `acr: "urn:mace:incommon:iap:bronze"`, valeur également annoncée dans `acr_values_supported` et `claims_supported`. Elle ne prouve pas un niveau d’authentification plus fort, notamment une authentification MFA. N’en déduis aucune autorisation supplémentaire.
+Le jeton contient toujours `acr: "0"`. La découverte annonce `"0"` dans `acr_values_supported` et `acr` dans `claims_supported`. Elle ne prouve pas un niveau d’authentification plus fort, notamment une authentification MFA. N’en déduis aucune autorisation supplémentaire.
 
 La découverte annonce `none`, `login` et `consent` dans `prompt_values_supported`. `select_account` et `create` ne sont pas pris en charge. Tale vérifie l’appartenance actuelle à l’organisation et l’exigence MFA native avant d’émettre les jetons, puis à chaque appel à Userinfo. L’application applique sa propre politique d’accès.
 
@@ -1352,7 +1352,9 @@ Tale retire les espaces de début et de fin des deux identifiants externes et le
 
 Le `projectId` vient de l’URL : le répéter dans le corps provoque **400**. La création exige l’accès en édition à un projet actif.
 
-`externalState` synchronise l’état de l’élément source :
+Avec `externalSystem: "github"` ou `"glitchtip"`, `externalState` ne modifie jamais le statut de la tâche Tale. Les nouvelles tâches arrivent dans `backlog` ; fermer, résoudre ou rouvrir l’issue à la source ne change pas leur avancement local. Les automatisations d’import affichent l’état de la source séparément sur la tâche.
+
+Pour les autres systèmes sources, `externalState` synchronise l’état de l’élément source :
 
 - `closed` place la tâche en `in_review` pour qu’une personne puisse la terminer. Dans ce parcours de synchronisation, seul un appel du moteur de workflow lui-même peut directement la placer en `done`.
 - `open` ramène en `backlog` une tâche que la synchronisation avait placée en `in_review`, ou une tâche en `done`.
@@ -1412,6 +1414,10 @@ Le démarrage exige l’accès en édition à un projet actif et une tâche acti
 L’exécution reçoit la tâche dans `{task: ...}`. Aucune capacité développeur supplémentaire n’est requise pour ce démarrage. Le journal l’attribue à la clé utilisée. Suis ensuite `GET /api/v1/projects/{id}/runs/{runId}` avec `runId` ; `executionId` est son ancien alias déprécié.
 
 Une réponse **200** ne prouve pas qu’une nouvelle exécution a commencé. Lis `started`. Si la réponse contient `started: false` et `reason: "already_running"`, elle fournit le `runId` de l’exécution déjà en cours — une tâche ne tient qu’une exécution vivante à la fois, quelle que soit l’automatisation qui l’a démarrée, cette exécution peut donc appartenir à une autre automatisation (son `name` dit laquelle) : suis celle-ci. Un workflow lié à d’autres projets répond **403**, `AUTOMATION_PROJECT_FORBIDDEN`.
+
+Si un agent de projet travaille déjà sur la tâche, le démarrage du workflow est refusé avec **409** `TASK_HAS_LIVE_RUN`. Attends que l’agent termine ou annule son exécution avant de lancer le workflow. De même, aucun agent ne peut démarrer tant qu’un workflow travaille sur la tâche.
+
+Une nouvelle exécution est aussi refusée avec **403** `TASK_AUTOMATION_DISABLED` si l’automatisation des tâches est désactivée, ou **409** `TASK_AUTOMATION_UNAVAILABLE` si sa politique est illisible. Demande à un administrateur de l’activer ou de rétablir la politique. Les exécutions en cours peuvent se terminer et les commentaires restent enregistrés.
 
 `workflowSlug` nomme l’automatisation telle que `GET /api/v1/automations` la liste — la forme avec `/` (`billing/dunning`), jamais l’orthographe `__` du chemin d’URL — et doit désigner une automatisation existante et déployée. Sinon, la route renvoie respectivement **404**, `AUTOMATION_NOT_FOUND`, ou **409**, `AUTOMATION_NOT_DEPLOYED`, en nommant l’automatisation. Ce sont les mêmes exigences que pour l’attribution d’une tâche avec `automationSlug`.
 

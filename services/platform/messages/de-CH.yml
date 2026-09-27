@@ -166,3 +166,8 @@ webdav:
 sandboxes:
   capacity:
     memoryHint: Genutzter und gesamter Host-Speicher, einschliesslich anderer Dienste.
+
+
+tasks:
+  sourceIssue:
+    independentStatus: Der Status der Quelle gilt unabhängig von dieser Aufgabe. Prüfe die Aufgabe und schliesse sie in Tale ab.

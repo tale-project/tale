@@ -28,6 +28,7 @@ import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
+import { issueImportResultSchema, issueSource } from '../lib/issue-import';
 import {
   isRunFinished,
   nodeStatusMap,
@@ -43,6 +44,8 @@ import {
 import { AgentExecutionLog } from './agent-execution-log';
 import { AutomationCanvas } from './automation-canvas';
 import { EffectList } from './effect-list';
+import { IssueImportContinuation } from './issue-import-continuation';
+import { IssueImportResult } from './issue-import-result';
 import { NodeInspector } from './node-inspector';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
@@ -148,6 +151,10 @@ export function RunDetail({
   const status = readRunStatus(run.status);
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const issueImport =
+    issueSource(automationSlug) === null
+      ? null
+      : issueImportResultSchema.safeParse(run.output);
 
   return (
     // Full width rather than the `narrow` configuration measure: a run is read
@@ -243,6 +250,28 @@ export function RunDetail({
           />
         );
       })()}
+
+      <IssueImportResult
+        organizationId={organizationId}
+        automationSlug={automationSlug}
+        output={run.output}
+        mock={run.mode === 'mock'}
+      />
+      {status === 'success' &&
+        issueImport?.success &&
+        issueImport.data.nextCursor &&
+        automation?.inputs && (
+          <IssueImportContinuation
+            organizationId={organizationId}
+            projectId={run.projectId}
+            automationSlug={automationSlug}
+            version={run.version}
+            mode={run.mode}
+            input={run.input}
+            schema={automation.inputs}
+            cursor={issueImport.data.nextCursor}
+          />
+        )}
 
       <div className={AUTOMATION_RUN_WORKBENCH_GRID}>
         <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>

@@ -688,7 +688,12 @@ export async function drainHarnessWindow(args: {
   // into a completed turn and cut the process under it. The next window
   // re-parses from seq 0, so nothing buffered here is lost.
   if (exited) {
-    for (const e of parser.end()) events.push(e);
+    for (const e of parser.end()) {
+      events.push(e);
+      // Some families hold failures until EOF (Pi retries); retain their
+      // reason just as we do for errors emitted by feed().
+      if (e.type === 'error') harnessError = e.message;
+    }
   }
 
   const text = textFromEvents(events);

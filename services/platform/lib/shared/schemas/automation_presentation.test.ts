@@ -55,6 +55,19 @@ describe('automationDisplayName', () => {
     );
   });
 
+  it('keeps an authored name unchanged even when its slug names a provider', () => {
+    const presentation = {
+      name: 'My github watchlist',
+      i18n: { de: { name: 'My custom Glitchtip workflow' } },
+    };
+    expect(
+      automationDisplayName(presentation, 'github-import-issues', 'en'),
+    ).toBe('My github watchlist');
+    expect(
+      automationDisplayName(presentation, 'glitchtip-import-issues', 'de'),
+    ).toBe('My custom Glitchtip workflow');
+  });
+
   it('follows the locale chain: exact tag, base language, then English', () => {
     expect(automationDisplayName(PACK, 'document-verify-desk', 'de')).toBe(
       'Dokumentenprüfung-Arbeitsplatz',

@@ -19,6 +19,18 @@ describe('parseIssueNumber', () => {
   it('handles a ref whose owner/repo itself contains no hash', () => {
     expect(parseIssueNumber('a/b#42')).toBe(42);
   });
+
+  it.each([
+    '',
+    'owner/repo#',
+    'owner/repo#0',
+    'owner/repo#-1',
+    'owner/repo#1.5',
+    'owner/repo#1e3',
+    'owner/repo#9007199254740993',
+  ])('refuses a missing, non-positive, or unsafe issue number: %s', (ref) => {
+    expect(parseIssueNumber(ref)).toBeNull();
+  });
 });
 
 describe('parseRepoRef', () => {

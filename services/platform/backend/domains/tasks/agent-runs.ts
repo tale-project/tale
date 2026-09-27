@@ -10,7 +10,9 @@ import {
 } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
+import { TaskError } from './errors.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
+import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
 
 /**
  * The project-agent run ledger over PG — the 0.5 twin of
@@ -98,6 +100,21 @@ export async function kickAgentRun(
   tx: TransactionSql,
   args: KickAgentRunArgs,
 ): Promise<{ runId: string; execId: string; reused: boolean }> {
+  await lockTaskRunStart(tx, args.organizationId, args.taskId);
+  const automations = await tx<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+      AND status IN ('queued', 'running', 'waiting')
+      AND input -> 'task' ->> 'id' = ${args.taskId}
+    LIMIT 1
+  `;
+  if (automations.length > 0) {
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'An automation holds this task; cancel it before starting an agent',
+      409,
+    );
+  }
   const liveRun = async (): Promise<
     { id: string; execId: string } | undefined
   > => {
@@ -112,6 +129,7 @@ export async function kickAgentRun(
   if (standing) {
     return { runId: standing.id, execId: standing.execId, reused: true };
   }
+  await assertTaskAutomationEnabled(tx, args.organizationId);
   const now = Date.now();
   const execId = randomUUID();
   // "At most one live run per task" is the schema's rule (migration 0080's

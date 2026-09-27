@@ -5,6 +5,7 @@
  * shape in exactly one place here (`id` → `_id`, null → omitted-optional).
  */
 
+import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
@@ -54,6 +55,7 @@ interface TaskWire {
   externalSystem: string | null;
   externalId: string | null;
   externalUrl: string | null;
+  externalIssue?: unknown;
   threadId: string | null;
   discussionThreadId: string | null;
   sourceDiscussionThreadId: string | null;
@@ -79,6 +81,7 @@ interface TaskWire {
 }
 
 function taskView(row: TaskWire): TaskItem {
+  const externalIssue = taskExternalIssueSchema.safeParse(row.externalIssue);
   const view: Record<string, unknown> = {
     _id: row.id,
     _creationTime: row.createdAt,
@@ -110,6 +113,7 @@ function taskView(row: TaskWire): TaskItem {
       : {}),
     ...(row.externalId !== null ? { externalId: row.externalId } : {}),
     ...(row.externalUrl !== null ? { externalUrl: row.externalUrl } : {}),
+    ...(externalIssue.success ? { externalIssue: externalIssue.data } : {}),
     ...(row.threadId !== null ? { threadId: row.threadId } : {}),
     ...(row.discussionThreadId !== null
       ? { discussionThreadId: row.discussionThreadId }

@@ -1,9 +1,9 @@
 ---
 title: Built-in automations
-description: Choose a shipped mail or GitHub workflow, check its inputs and connections, and understand what it reads or writes before deployment.
+description: Choose a shipped mail, GitHub or GlitchTip workflow, check its inputs and connections, and understand what it reads or writes before deployment.
 ---
 
-Tale includes eight automation packages: three mailbox syncs, three inbox digests, and two GitHub workflows. Each starts as version 1 with a schedule and **Not deployed**. Use them as starting points: inspect their inputs, model, connections, and writes before an Owner, Admin, or Developer deploys a version.
+Tale includes ten automation packages: three mailbox syncs, three inbox digests, two GitHub review workflows, and GitHub and GlitchTip issue imports. Each starts as version 1 and **Not deployed**. The issue importers run manually; the other packages include schedules. Inspect their inputs, model, connections, and writes before an Owner, Admin, or Developer deploys a version.
 
 <Frame caption="The Automations catalog shows package names, version counts, and deployment status.">
 
@@ -38,6 +38,19 @@ These workflows read recent messages from every connected mailbox of their kind 
 | Triage the Gmail inbox | Gmail | Every 6 hours |
 | Triage the Outlook inbox | Outlook | Every 6 hours |
 | Triage the IMAP inbox | IMAP/SMTP | Every 6 hours |
+
+## Import and synchronize issues
+
+**Import GitHub issues** and **Import GlitchTip issues** use the same form to turn source issues into tasks. They start without a schedule. These imports read the source and write Tale tasks; they never comment on, close, or change the upstream issue and do not start an agent.
+
+1. Connect the source under **Settings > Connectors** and choose its default credential. GitHub needs repository access with read permission for issues. GlitchTip needs its instance URL and a token with `project:read` and `event:read`; a project-provisioning token alone cannot read issues. Self-hosted instances must be allowed by the deployment's connector host policy.
+2. Open the importer and choose **Test run**. Select the **Tale project**, then enter the GitHub owner and repository or the GlitchTip organization and project slugs. Optional labels or a GlitchTip search narrow new issue discovery. **Maximum issues** accepts 1–500, defaulting to 100.
+3. Inspect the test result, deploy the version, and choose **Run live** with the same destination and filters. A test run uses fixtures and creates no tasks; only a live run verifies the real connection.
+4. Open **Runs** and select the run. **Imported tasks** links to the corresponding Tale tasks. If another batch remains, **Continue import** carries the same source, destination, and continuation position into the next run.
+
+Each synchronization discovers new issues and refreshes up to 500 linked issues, prioritizing the oldest checks. Linked issues are refreshed even when they no longer match the discovery filter. Run again to keep large collections current. GitHub pull requests are excluded. Repeating or retrying an import reuses the same source identity within a Tale project; repository and project renames update the canonical source link instead of creating a second task. Issues moved to another repository or source project remain linked and continue to refresh through earlier imports, provided the connection can read their new location.
+
+A task's source card shows the latest source title, description and status separately. Closing or resolving a source issue leaves the Tale task's status, title, description, assignee and priority unchanged. A source issue that becomes unavailable retains its last known snapshot; authentication and rate-limit errors fail the run rather than declaring the issue deleted. Review and complete work in Tale as usual.
 
 ## Review GitHub work
 

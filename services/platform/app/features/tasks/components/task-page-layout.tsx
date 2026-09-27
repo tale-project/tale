@@ -71,7 +71,8 @@ export function TaskPageLayout({
   const canDock = useMediaQuery(DOCKED_DETAILS_QUERY);
   const [sheetOpen, setSheetOpen] = useState(false);
   const docked = canDock && detailsOpen;
-  const toggleLabel = docked
+  const showingDetails = canDock ? detailsOpen : sheetOpen;
+  const toggleLabel = showingDetails
     ? t('detail.hideDetails')
     : t('detail.showDetails');
 
@@ -100,11 +101,18 @@ export function TaskPageLayout({
                   canDock ? setDetailsOpen(!detailsOpen) : setSheetOpen(true)
                 }
                 aria-label={toggleLabel}
-                aria-expanded={canDock ? detailsOpen : sheetOpen}
-                aria-controls={canDock ? 'task-details' : undefined}
+                aria-expanded={showingDetails}
+                aria-haspopup={canDock ? undefined : 'dialog'}
+                aria-controls={
+                  canDock
+                    ? 'task-details'
+                    : sheetOpen
+                      ? 'task-details-sheet'
+                      : undefined
+                }
                 className="text-muted-foreground hover:text-foreground size-8"
               >
-                {docked ? (
+                {showingDetails ? (
                   <PanelRightClose className="size-4" />
                 ) : (
                   <PanelRightOpen className="size-4" />
@@ -126,9 +134,13 @@ export function TaskPageLayout({
               {/* The brief is the thread's opening: what the task is, what it
                   needs, what it splits into. */}
               <div className="border-border bg-card flex flex-col gap-5 rounded-2xl border p-5 shadow-xs">
+                <h2 className="sr-only">{t('detail.overview')}</h2>
                 {brief}
               </div>
-              {conversation}
+              <section>
+                <h2 className="sr-only">{t('detail.conversation')}</h2>
+                {conversation}
+              </section>
             </div>
           </div>
           {composer !== undefined &&
@@ -149,6 +161,7 @@ export function TaskPageLayout({
           )}
         >
           <div className="scrollbar-thin flex h-full w-80 flex-col gap-4 overflow-y-auto px-5 py-5">
+            <h2 className="sr-only">{t('detail.details')}</h2>
             {panel}
           </div>
         </aside>
@@ -164,7 +177,9 @@ export function TaskPageLayout({
             : 'w-80 overflow-y-auto p-5'
         }
       >
-        <div className="flex flex-col gap-4 pt-2">{panel}</div>
+        <div id="task-details-sheet" className="flex flex-col gap-4 pt-2">
+          {panel}
+        </div>
       </Sheet>
     </Skeletonize>
   );

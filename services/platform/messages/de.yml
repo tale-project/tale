@@ -540,6 +540,29 @@ auth:
       completeMfa: Multi-Faktor-Anmeldung abschließen
       contactAdminMessage: Wende dich an deine Administration, um das zu beheben.
 automations:
+  issueImport:
+    description: Importiere Issues als Tale-Aufgaben. Bei einem erneuten Import werden die verknüpften Aufgaben wiederverwendet; ihr Status und ihre Beschreibung bleiben erhalten. Richte zuerst die Zugangsdaten der Quelle unter Einstellungen > Connectors ein.
+    chooseProject: Tale-Projekt wählen
+    noProjects: Keine Projekte gefunden. Erstelle vor dem Import ein Projekt.
+    limitHint: 'Lies 1 bis 500 Issues der Quelle pro Durchlauf. Wenn weitere Issues passen, setze den Import im Ergebnis fort.'
+    fields:
+      projectId: Tale-Projekt
+      owner: GitHub-Inhaber oder Organisation
+      repo: GitHub-Repository
+      labels: GitHub-Labels (kommagetrennt)
+      organization: GlitchTip-Organisationskennung
+      project: GlitchTip-Projektkennung
+      query: GlitchTip-Suche
+      limit: Maximale Anzahl an Issues
+    resultTitle: Importierte Aufgaben
+    summary: 'Verarbeitete Issues: {imported}. Neue Aufgaben: {created}. Vorhandene Aufgaben: {updated}.'
+    mockResult: Dies ist ein Testergebnis. Es wurden keine Issues abgerufen und keine Aufgaben geschrieben.
+    openTask: 'Aufgabe {id} öffnen'
+    truncated: 'Weitere Issues passen zu den Filtern. Setze den Import mit dem nächsten Stapel fort. Bereits verknüpfte Issues verwenden ihre Tale-Aufgaben weiter.'
+    continuing: 'Setze den Import mit dem nächsten Stapel fort. Wenn du die Quellfilter oder das Tale-Projekt änderst, beginnt ein neuer Suchlauf.'
+    continue: 'Import fortsetzen'
+    skipped: 'Übersprungene Issues: {count}. Geschlossene oder gelöste Issues ohne verknüpfte Tale-Aufgabe werden nicht importiert.'
+    refreshHasMore: 'Weitere verknüpfte Aufgaben brauchen eine Aktualisierung der Quelle. Starte den Import erneut für die nächste Gruppe; Tale prüft die ältesten Abfragen zuerst.'
   title: Automatisierungen
   entityLabel: Automatisierungen
   entityLabelOne: Automatisierung
@@ -6811,6 +6834,17 @@ projectSecrets:
       Projekt-Administratoren können sie ansehen oder verwalten.
     PROJECT_NOT_FOUND: Dieses Projekt existiert nicht mehr.
 tasks:
+  sourceIssue:
+    heading: '{provider}-Issue'
+    state:
+      open: In der Quelle offen
+      closed: In der Quelle geschlossen
+      resolved: In der Quelle behoben
+      ignored: In der Quelle ignoriert
+    unavailable: Diese Verbindung kann nicht mehr auf das Issue zugreifen. Die zuletzt bekannten Angaben bleiben erhalten; die Tale-Aufgabe bleibt unverändert.
+    synced: 'Quelle geprüft: {date}'
+    independentStatus: Der Status der Quelle gilt unabhängig von dieser Aufgabe. Prüfe die Aufgabe und schließe sie in Tale ab.
+    description: Beschreibung aus der Quelle
   run:
     started: '{name} ist gestartet und übernimmt diese Aufgabe ab jetzt.'
     alreadyRunning: '{name} arbeitet schon an dieser Aufgabe.'
@@ -6846,6 +6880,9 @@ tasks:
     cancelConfirmBody: 'Der {name}-Lauf zu dieser Aufgabe stoppt; die Aufgabe parkt auf Abgebrochen und lässt sich erneut starten.'
     cancelConfirmMove: Ein Lauf arbeitet noch an dieser Aufgabe — verschiebst du sie aus In Bearbeitung, bricht das den Lauf ab. Danach lässt er sich erneut starten.
   agentRun:
+    automationDisabled: 'Die Aufgabenautomatisierung ist ausgeschaltet. Bitte einen Organisationsadmin, sie einzuschalten.'
+    automationUnavailable: 'Die Aufgabenautomatisierung ist nicht verfügbar. Bitte einen Organisationsadmin, die Richtlinie zu prüfen.'
+    previousRun: 'Vorheriger Durchlauf von {name}'
     label: Lauf
     started: Der Agent ist dran — er meldet sich zur Prüfung an dieser Aufgabe zurück.
     alreadyRunning: Der Agent dieser Aufgabe läuft bereits.

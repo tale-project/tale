@@ -186,7 +186,7 @@ Verwende einen gepflegten OIDC-Client mit Authorization Code Flow, S256 PKCE sow
 
 Das ID-Token enthält die Standard-Claims der angeforderten Scopes mit denselben Werten, die Userinfo liefert. Um sie zu lesen, brauchst du also keine Userinfo-Anfrage. `email` ergänzt `email` und `email_verified`. `profile` ergänzt `name`, dazu `given_name` (alle Wörter außer dem letzten) und `family_name` (das letzte Wort), wenn der Name aus mindestens zwei Wörtern besteht, sowie `picture`, wenn das Konto ein Bild hat.
 
-Jedes ID-Token trägt denselben Wert `acr: "urn:mace:incommon:iap:bronze"`. Die Discovery führt ihn unter `acr_values_supported` und `claims_supported`. Er bescheinigt keinen stärkeren Authentifizierungskontext und keine abgeschlossene MFA-Prüfung; verwende ihn dafür nicht als Zugangskriterium. `prompt_values_supported` nennt die unterstützten Werte `none`, `login` und `consent`; `select_account` und `create` werden nicht angeboten.
+Jedes ID-Token trägt denselben Wert `acr: "0"`. Die Discovery führt `"0"` unter `acr_values_supported` und `acr` unter `claims_supported`. Er bescheinigt keinen stärkeren Authentifizierungskontext und keine abgeschlossene MFA-Prüfung; verwende ihn dafür nicht als Zugangskriterium. `prompt_values_supported` nennt die unterstützten Werte `none`, `login` und `consent`; `select_account` und `create` werden nicht angeboten.
 
 Tale prüft vor der Token-Ausgabe und beim Abruf von Userinfo die aktuelle Mitgliedschaft und die native MFA-Pflicht erneut. Die Anwendung bleibt für ihre eigene Zugangsrichtlinie verantwortlich. Codes, Zugriffs- und ID-Tokens laufen nach fünf Minuten ab, und ein Code lässt sich einmal einlösen. Dynamische Registrierung, Implicit Grants und Refresh Tokens sind deaktiviert.
 
@@ -1123,7 +1123,9 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 Das Anlegen einer Aufgabe ist pro `(projectId, externalSystem, externalId)` idempotent: Der erste Aufruf legt sie an (**201**, `created: true`) — in `backlog`, der Eingangsspalte des Spiegels, während die App eine neu angelegte Aufgabe unter „To do“ einsortiert —, ein erneuter liefert dieselbe Aufgabe (**200**, `created: false`). Beide Schlüssel werden nach NFC-Normalisierung und Trimmen gespeichert und verglichen — dieselbe Regel wie bei der `externalItemId` eines Projekts —, eine Wiederholung mit Leerzeichen drumherum oder anderer Normalisierung ist also noch dieselbe Aufgabe, und ein Schlüssel, der getrimmt leer ist, ergibt **400**. Die `projectId` kommt aus der URL; im Anfrageinhalt ergibt sie **400**. Zum Anlegen brauchst du Bearbeitungsrechte auf ein aktives Projekt.
 
-`externalState` übernimmt den Zustand des Quelldatensatzes nach folgenden Regeln:
+Bei `externalSystem: "github"` oder `"glitchtip"` ändert `externalState` den Status der Tale-Aufgabe nicht. Neue Aufgaben landen in `backlog`; wenn ein Issue an der Quelle geschlossen, gelöst oder wieder geöffnet wird, bleibt der lokale Fortschritt erhalten. Die Automatisierungen zum Issue-Import zeigen den Quellstatus separat an der Aufgabe an.
+
+Für andere Quellsysteme übernimmt `externalState` den Zustand des Quelldatensatzes nach folgenden Regeln:
 
 - `closed` setzt die Aufgabe auf `in_review`, damit eine Person den Abschluss prüft. Nur die Workflow-Engine setzt einen automatischen Abschluss direkt auf `done`.
 - `open` setzt eine zuvor durch diese Spiegelung geschlossene Aufgabe aus `in_review` oder `done` zurück auf `backlog`.
@@ -1171,6 +1173,10 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 Zum Starten brauchst du Bearbeitungsrechte auf ein aktives Projekt und eine aktive Aufgabe — eine archivierte Aufgabe ergibt **403**, `TASK_ARCHIVED` (das Lesen der Aufgabe trägt `archivedAt`, solange sie es ist; `PATCH …/tasks/{taskId}` mit `{ "archived": false }` stellt sie wieder her — siehe unten). Der Lauf erhält die Aufgabe als `{task: ...}`; eine zusätzliche Entwickler-Fähigkeit ist dafür nicht nötig. Das Laufprotokoll ordnet den Start deinem Schlüssel zu. Polle `GET /api/v1/projects/{id}/runs/{runId}` mit der `runId` (`executionId` trägt denselben Wert und ist veraltet).
 
 Die Antwort ist **200**, ob ein Lauf gestartet ist oder nicht, verzweige also auf `started`, nie auf den Status allein: Bei `started: false` liefert `reason: "already_running"` die `runId` des bereits laufenden Laufs — eine Aufgabe hält höchstens einen lebenden Lauf, egal welche Automatisierung ihn gestartet hat, dieser Lauf kann also zu einer anderen Automatisierung gehören (sein `name` sagt, zu welcher); polle diesen. Ein Workflow, der an andere Projekte gebunden ist, ergibt **403**, `AUTOMATION_PROJECT_FORBIDDEN`.
+
+Solange ein Projektagent an der Aufgabe arbeitet, wird ein Workflow-Start mit **409** `TASK_HAS_LIVE_RUN` abgelehnt. Warte, bis der Agent fertig ist, oder brich seinen Lauf ab, bevor du den Workflow startest. Umgekehrt kann kein Agent starten, solange ein Workflow die Aufgabe bearbeitet.
+
+Neue Läufe werden außerdem mit **403** `TASK_AUTOMATION_DISABLED` abgelehnt, wenn die Aufgabenautomatisierung ausgeschaltet ist, oder mit **409** `TASK_AUTOMATION_UNAVAILABLE`, wenn ihre Richtlinie nicht gelesen werden kann. Bitte einen Admin, die Aufgabenautomatisierung einzuschalten oder die Richtlinie wiederherzustellen. Bereits laufende Arbeit kann fertig werden; Kommentare werden weiterhin gespeichert.
 
 Der `workflowSlug` benennt die Automatisierung so, wie `GET /api/v1/automations` sie listet — in der `/`-Form (`billing/dunning`), nie in der `__`-Schreibweise des URL-Pfads —, und muss eine benennen, die es gibt — sonst **404**, `AUTOMATION_NOT_FOUND` — und die eine bereitgestellte Version hat: Eine gespeicherte, aber nicht bereitgestellte ergibt **409**, `AUTOMATION_NOT_DEPLOYED`, und nennt sie — dieselben zwei Ablehnungen, die das Anlegen einer Aufgabe einem `automationSlug` gibt, beurteilt, bevor das Execute-Budget belastet wird; `reason: "not_started"` bleibt dem einen Restfall vorbehalten, einer Bereitstellung, die zwischen dieser Prüfung und dem Start zurückgezogen wurde.
 

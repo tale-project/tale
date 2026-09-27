@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import {
@@ -17,6 +18,9 @@ import {
 } from './reviews.ts';
 import { TaskError, type TaskRow } from './service.ts';
 
+vi.mock('../../lib/org-config.ts', () => ({
+  readGovernancePolicyForOrg: vi.fn().mockResolvedValue(null),
+}));
 vi.mock('../automations/store.ts', () => ({
   beginRunInTx: vi.fn(),
   cancelRunInTx: vi.fn(),
@@ -93,6 +97,7 @@ const task = {
 };
 
 beforeEach(() => {
+  vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
   vi.mocked(beginRunInTx).mockReset();
   vi.mocked(requestTaskReview).mockReset();
   vi.mocked(closePendingTaskReviewOnStatusLeave).mockReset();
@@ -115,7 +120,9 @@ describe('startWorkflowForTask — the one-live-run guard is atomic', () => {
     expect(statements[0]).toMatch(
       /^SELECT pg_advisory_xact_lock\(\s*hashtext\(\?\)\s*\)$/,
     );
-    expect(statements[1]).toContain('SELECT id FROM app.automation_runs');
+    expect(statements[1]).toContain('UPDATE app.tasks');
+    expect(statements[2]).toContain('SELECT id FROM app.project_agent_runs');
+    expect(statements[3]).toContain('SELECT id FROM app.automation_runs');
     expect(beginRunInTx).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
@@ -126,6 +133,23 @@ describe('startWorkflowForTask — the one-live-run guard is atomic', () => {
         projectId: 'p-1',
       }),
     );
+  });
+
+  it('refuses a live agent run without starting an automation', async () => {
+    const { sql } = fakeDb((text) =>
+      text.includes('SELECT id FROM app.project_agent_runs')
+        ? [{ id: 'agent-run-live' }]
+        : [],
+    );
+    await expect(
+      startWorkflowForTask(sql, {
+        organizationId: 'org-1',
+        task,
+        workflowSlug: 'triage',
+        startedByUserId: 'u-1',
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_HAS_LIVE_RUN', status: 409 });
+    expect(beginRunInTx).not.toHaveBeenCalled();
   });
 
   it('answers the live run it finds under the lock instead of inserting a twin', async () => {
@@ -202,6 +226,38 @@ describe('startWorkflowForTask — the one-live-run guard is atomic', () => {
         startedBy: 'api-key:u-1',
       }),
     );
+  });
+
+  it('refuses a new workflow when task automation is disabled', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({ enabled: false });
+    const { tx } = fakeDb(() => []);
+    await expect(
+      startWorkflowForTaskInTx(tx, {
+        organizationId: 'org-1',
+        task,
+        workflowSlug: 'triage',
+        startedByUserId: 'u-1',
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_AUTOMATION_DISABLED', status: 403 });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+  });
+
+  it('reuses an existing workflow even after task automation is disabled', async () => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue({ enabled: false });
+    const { tx } = fakeDb((text) =>
+      text.includes('SELECT id FROM app.automation_runs')
+        ? [{ id: 'standing' }]
+        : [],
+    );
+    await expect(
+      startWorkflowForTaskInTx(tx, {
+        organizationId: 'org-1',
+        task,
+        workflowSlug: 'triage',
+        startedByUserId: 'u-1',
+      }),
+    ).resolves.toEqual({ runId: 'standing', alreadyRunning: true });
+    expect(beginRunInTx).not.toHaveBeenCalled();
   });
 
   it('answers null for an undeployed automation only', async () => {
@@ -452,6 +508,69 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
       expect(column(updates[0], 'external_closed_at_ms')).toBeNull();
     }
   });
+
+  it.each(['github', 'glitchtip'])(
+    '%s source-less intakes preserve Tale decisions for every actor and source state',
+    async (externalSystem) => {
+      for (const actorId of ['u-2', 'workflow']) {
+        for (const externalState of ['open', 'closed'] as const) {
+          for (const status of [
+            'todo',
+            'in_review',
+            'done',
+            'cancelled',
+          ] as const) {
+            const { tx, updates } = captured(
+              parked({
+                externalSystem,
+                status,
+                completedAt: status === 'done' ? 5 : null,
+                externalClosedAt: 1_789_000_000_000,
+              }),
+            );
+            await upsertTaskByExternalRef(tx, {
+              ...intake,
+              externalSystem,
+              actorId,
+              externalState,
+            });
+            expect(column(updates[0], 'status')).toBe(status);
+            expect(column(updates[0], 'completed_at_ms')).toBe(
+              status === 'done' ? 5 : null,
+            );
+            expect(column(updates[0], 'status_changed_at_ms')).toBe(1);
+          }
+        }
+      }
+      expect(requestTaskReview).not.toHaveBeenCalled();
+      expect(closePendingTaskReviewOnStatusLeave).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['github', 'glitchtip'])(
+    '%s source-less closed create starts in backlog even for a workflow',
+    async (externalSystem) => {
+      let inserted: unknown[] = [];
+      const { tx } = fakeDb((text, values) => {
+        if (text.startsWith('INSERT INTO app.tasks')) {
+          inserted = values;
+          return [{ id: 't-new' }];
+        }
+        if (text.startsWith('SELECT id FROM app.projects'))
+          return [{ id: 'p-1' }];
+        if (text.startsWith('UPDATE app.projects SET task_counter'))
+          return [{ taskCounter: 3 }];
+        return [];
+      });
+      await upsertTaskByExternalRef(tx, {
+        ...intake,
+        externalSystem,
+        actorId: 'workflow',
+        externalState: 'closed',
+      });
+      expect(inserted[4]).toBe('backlog');
+    },
+  );
 });
 
 /**

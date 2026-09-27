@@ -1,9 +1,9 @@
 ---
 title: Automatisations livrées
-description: Choisis un workflow de courrier ou GitHub et vérifie ses données, connexions et écritures avant sa mise en service.
+description: Choisis un workflow fourni pour les e-mails, GitHub ou GlitchTip, vérifie ses entrées et connexions et découvre ce qu’il lit ou écrit avant le déploiement.
 ---
 
-Tale fournit huit paquets d’automatisation : trois synchronisations de courrier, trois résumés de boîte de réception et deux workflows GitHub. Chacun commence en version 1, avec une planification et le statut **Pas en service**. Utilise-les comme points de départ. Examine les données attendues, le modèle, les connexions et les écritures avant qu’un Propriétaire, Admin ou Développeur mette une version en service.
+Tale fournit dix paquets d’automatisation : trois synchronisations de courrier, trois résumés de boîte de réception, deux workflows de revue GitHub et des imports d’issues GitHub et GlitchTip. Chacun commence en version 1 avec le statut **Pas en service**. Les imports d’issues s’exécutent manuellement ; les autres paquets incluent une planification. Examine les données attendues, le modèle, les connexions et les écritures avant qu’un Propriétaire, Admin ou Développeur mette une version en service.
 
 <Frame caption="Le catalogue affiche les noms des paquets, le nombre de versions et leur état de mise en service.">
 
@@ -38,6 +38,19 @@ Ces workflows lisent toutes les six heures les messages récents de chaque boît
 | Trier la boîte de réception Gmail | Gmail | Toutes les 6 heures |
 | Trier la boîte de réception Outlook | Outlook | Toutes les 6 heures |
 | Trier la boîte de réception IMAP | IMAP/SMTP | Toutes les 6 heures |
+
+## Importer et synchroniser des issues
+
+**Importer les issues GitHub** et **Importer les issues GlitchTip** utilisent le même formulaire pour créer des tâches à partir des issues. Ces imports commencent sans planification. Ils lisent la source et écrivent des tâches Tale, sans commenter, fermer ni modifier les issues externes et sans démarrer d’agent.
+
+1. Connecte la source dans **Paramètres > Connectors** et choisis ses identifiants par défaut. GitHub nécessite un accès au dépôt avec le droit de lire les issues. GlitchTip nécessite l’URL de l’instance et un token disposant de `project:read` et `event:read`. Un token réservé à la configuration des projets ne peut pas lire les issues. Une instance auto-hébergée doit être autorisée par la politique des hôtes du connecteur.
+2. Ouvre l’import et choisis **Essai**. Sélectionne le **Projet Tale**, puis saisis le propriétaire et le dépôt GitHub ou les identifiants de l’organisation et du projet GlitchTip. Des labels facultatifs ou une recherche GlitchTip permettent de filtrer les nouvelles issues. **Nombre maximal d'issues** accepte 1–500, avec 100 par défaut.
+3. Vérifie le résultat du test, mets la version en service, puis choisis **Exécuter en réel** avec la même destination et les mêmes filtres. Un test utilise des données d’exemple et ne crée aucune tâche. Seule une exécution réelle vérifie la connexion.
+4. Ouvre **Exécutions** et sélectionne l’exécution. **Tâches importées** contient les liens vers les tâches Tale correspondantes. S’il reste un lot, **Poursuivre l'import** reprend la source, la destination et la position de continuation pour l’exécution suivante.
+
+Chaque synchronisation recherche de nouvelles issues et actualise jusqu’à 500 issues déjà liées, en commençant par celles dont la vérification est la plus ancienne, même lorsqu’elles ne correspondent plus au filtre. Relance la synchronisation pour maintenir les grandes collections à jour. Les pull requests GitHub sont exclues. Un nouvel import réutilise la même identité source dans un projet Tale. Renommer un dépôt ou un projet actualise le lien vers la source sans créer une deuxième tâche. Une issue déplacée vers un autre dépôt ou projet source reste liée et continue d’être actualisée par les imports précédents, si la connexion peut accéder à son nouvel emplacement.
+
+La fiche source d’une tâche affiche séparément le titre, la description et le statut actuels de l’issue. Fermer ou résoudre une issue conserve le statut, le titre, la description, l’attribution et la priorité de la tâche Tale. Si une issue devient inaccessible, ses dernières informations connues restent visibles. Les erreurs d’authentification et les limites de requêtes font échouer l’exécution, sans déclarer l’issue supprimée. Vérifie et termine le travail dans Tale comme d’habitude.
 
 ## Examiner le travail sur GitHub
 

@@ -22,6 +22,7 @@ Newest first. `R<n>` numbers are consumed in order and never reused.
 
 | Round | Date | Scope | Findings | Verdict |
 |---|---|---|---|---|
+| [R7](r0007.md) | 2026-09-27 | Issue-import validation, task details, accessibility and localized API reference | 3 bug | fixed + pinned |
 | [R6](r0006.md) | 2026-09-14 | Hub folder browsing in EN/DE/FR, native list scope and document recaptures | 1 docs | fixed + pinned |
 | [R5](r0005.md) | 2026-09-14 | Incoming navigation, API concurrency, terminal indexing, provider DNS and current screenshots | 6 bug · 1 docs | fixed + pinned |
 | [R4](r0004.md) | 2026-09-14 | Documentation completion: WebDAV, dates, CLI, current automation tabs and screenshot fixtures | 6 bug · 1 docs | fixed + pinned |

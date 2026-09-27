@@ -1,6 +1,7 @@
+import { toast } from '@tale/ui/use-toast';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TaskAgentRunEntry } from './task-agent-run-entry';
 
@@ -8,6 +9,10 @@ vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       if (key === 'run.details') return 'Details';
+      if (key === 'agentRun.start') return 'Start agent';
+      if (key === 'agentRun.retry') return 'Retry';
+      if (key === 'agentRun.previousRun')
+        return `Previous run by ${String(values?.name)}`;
       if (key === 'run.detailsTitle') {
         return `${String(values?.name)} — run details`;
       }
@@ -51,8 +56,10 @@ vi.mock('@tale/ui/responsive-dialog', () => ({
   ),
 }));
 
+vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
+const { startRun } = vi.hoisted(() => ({ startRun: vi.fn() }));
 vi.mock('../hooks/mutations', () => ({
-  useStartTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
+  useStartTaskAgentRun: () => ({ mutateAsync: startRun }),
   useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
 }));
 
@@ -88,6 +95,69 @@ function settledRun() {
 }
 
 describe('TaskAgentRunEntry details', () => {
+  beforeEach(() => {
+    startRun.mockReset().mockResolvedValue({ started: true });
+    vi.mocked(toast).mockClear();
+  });
+
+  it.each(['TASK_AUTOMATION_DISABLED', 'TASK_AUTOMATION_UNAVAILABLE'])(
+    'explains %s when a new run is refused',
+    async (code) => {
+      state.run = null;
+      startRun.mockRejectedValue({ data: { code } });
+      const user = userEvent.setup();
+      render(
+        <TaskAgentRunEntry
+          organizationId="org-1"
+          taskId={taskId}
+          assigneeId="agent-2"
+          canEdit
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Start agent' }));
+      expect(toast).toHaveBeenCalledWith({
+        title:
+          code === 'TASK_AUTOMATION_DISABLED'
+            ? 'agentRun.automationDisabled'
+            : 'agentRun.automationUnavailable',
+        variant: 'destructive',
+      });
+      expect(screen.getByRole('button', { name: 'Start agent' })).toBeEnabled();
+    },
+  );
+  it.each(['settled', 'failed', 'cancelled'])(
+    'offers Start after reassigning a task with a %s run, while preserving its transcript',
+    async (status) => {
+      const user = userEvent.setup();
+      state.run = { ...settledRun(), status };
+      state.op = {
+        execId: 'e1',
+        status: 'completed',
+        startedAt: 1,
+        liveTimeline: [{ type: 'text', text: 'previous report' }],
+      };
+      render(
+        <TaskAgentRunEntry
+          organizationId="org-1"
+          taskId={taskId}
+          assigneeId="agent-2"
+          canEdit
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'Start agent' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Retry' }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('Previous run by Alice')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Start agent' }));
+      expect(startRun).toHaveBeenCalledWith({ taskId });
+      await user.click(screen.getByRole('button', { name: 'Details' }));
+      expect(screen.getByText('previous report')).toBeInTheDocument();
+    },
+  );
+
   it('opens the transcript dialog from the Details entry, for readers too', async () => {
     const user = userEvent.setup();
     state.run = settledRun();
@@ -109,6 +179,7 @@ describe('TaskAgentRunEntry details', () => {
       <TaskAgentRunEntry
         organizationId="org-1"
         taskId={taskId}
+        assigneeId="agent-1"
         canEdit={false}
       />,
     );
@@ -139,7 +210,12 @@ describe('TaskAgentRunEntry details', () => {
       liveTimeline: [{ type: 'text', text: 'read the slides' }],
     };
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Details' }));
@@ -163,7 +239,12 @@ describe('TaskAgentRunEntry details', () => {
       liveTimeline: [{ type: 'text', text: 'read the slides' }],
     };
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Details' }));
@@ -177,7 +258,12 @@ describe('TaskAgentRunEntry details', () => {
     state.run = { ...settledRun(), status: 'queued', waitingForCapacity: true };
     state.op = null;
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
     expect(screen.getByText('Waiting for a sandbox slot')).toBeInTheDocument();
     expect(screen.queryByText('Queued')).not.toBeInTheDocument();
@@ -196,7 +282,12 @@ describe('TaskAgentRunEntry details', () => {
     };
     state.op = null;
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
     expect(screen.getByText('Auto-retry 2 of 3')).toBeInTheDocument();
   });
@@ -214,7 +305,12 @@ describe('TaskAgentRunEntry details', () => {
     };
     state.op = null;
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
     expect(screen.queryByText(/Auto-retry/)).not.toBeInTheDocument();
     expect(
@@ -227,7 +323,12 @@ describe('TaskAgentRunEntry details', () => {
     state.run = { ...settledRun(), status: 'running', settledAt: undefined };
     state.op = { execId: 'e1', status: 'running', startedAt: 1 };
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Details' }));
@@ -240,7 +341,12 @@ describe('TaskAgentRunEntry details', () => {
     state.run = settledRun();
     state.op = null;
     render(
-      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Details' }));

@@ -49,6 +49,7 @@ export function AssigneeAvatar({
   if (!assigneeType || !assigneeId) {
     return (
       <span
+        role="img"
         className={cn(
           dimension,
           'border-border text-muted-foreground inline-flex items-center justify-center rounded-full border border-dashed',
@@ -74,6 +75,7 @@ export function AssigneeAvatar({
 
   return (
     <span
+      role="img"
       title={label}
       aria-label={label}
       className={cn(

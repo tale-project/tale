@@ -1,3 +1,5 @@
+import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
+
 /**
  * `tasks` — the wire contract for the backend calls the app makes into this
  * family: one entry per function name, carrying its argument and response
@@ -291,6 +293,7 @@ export interface TasksContract {
         commentCount?: number;
         externalSystem?: string;
         externalUrl?: string;
+        externalIssue?: TaskExternalIssue;
         startDate?: number;
         startNotifiedAt?: number;
         slaLevel?: number;
@@ -452,6 +455,7 @@ export interface TasksContract {
         commentCount?: number;
         externalSystem?: string;
         externalUrl?: string;
+        externalIssue?: TaskExternalIssue;
         startDate?: number;
         startNotifiedAt?: number;
         slaLevel?: number;
@@ -562,6 +566,7 @@ export interface TasksContract {
           commentCount?: number;
           externalSystem?: string;
           externalUrl?: string;
+          externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
           slaLevel?: number;
@@ -626,6 +631,7 @@ export interface TasksContract {
           commentCount?: number;
           externalSystem?: string;
           externalUrl?: string;
+          externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
           slaLevel?: number;
@@ -717,6 +723,7 @@ export interface TasksContract {
           commentCount?: number;
           externalSystem?: string;
           externalUrl?: string;
+          externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
           slaLevel?: number;
@@ -807,6 +814,7 @@ export interface TasksContract {
           commentCount?: number;
           externalSystem?: string;
           externalUrl?: string;
+          externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
           slaLevel?: number;

@@ -509,6 +509,29 @@ auth:
       completeMfa: Complete multi-factor sign-in
       contactAdminMessage: Contact your administrator to resolve this.
 automations:
+  issueImport:
+    description: Import issues into Tale tasks. Repeating an import reuses the linked tasks and preserves their status and description. Configure the source credential in Settings > Connectors first.
+    chooseProject: Choose a Tale project
+    noProjects: No projects found. Create a project before importing issues.
+    limitHint: 'Read between 1 and 500 source issues per run. Continue from the result if more issues match.'
+    fields:
+      projectId: Tale project
+      owner: GitHub owner or organization
+      repo: GitHub repository
+      labels: GitHub labels (comma-separated)
+      organization: GlitchTip organization slug
+      project: GlitchTip project slug
+      query: GlitchTip search
+      limit: Maximum issues
+    resultTitle: Imported tasks
+    summary: 'Processed issues: {imported}. New tasks: {created}. Existing tasks: {updated}.'
+    mockResult: This is a test result. No issues were fetched and no tasks were written.
+    openTask: 'Open task {id}'
+    truncated: 'More issues match. Continue the import to read the next batch. Previously linked issues reuse their Tale tasks.'
+    continuing: 'Continue from the next batch. Changing the source filters or Tale project starts a new scan.'
+    continue: 'Continue import'
+    skipped: 'Issues skipped: {count}. Closed or resolved issues without a linked Tale task are not imported.'
+    refreshHasMore: 'More linked tasks need a source refresh. Run the import again to refresh the next group; Tale prioritizes the oldest checks.'
   title: Automations
   entityLabel: automations
   entityLabelOne: automation
@@ -6881,6 +6904,17 @@ projectSecrets:
       administrators can view or manage them.
     PROJECT_NOT_FOUND: This project no longer exists.
 tasks:
+  sourceIssue:
+    heading: '{provider} issue'
+    state:
+      open: Open at source
+      closed: Closed at source
+      resolved: Resolved at source
+      ignored: Ignored at source
+    unavailable: The source issue is no longer available to this connection. Its last known details are retained; the Tale task stays unchanged.
+    synced: 'Source checked {date}'
+    independentStatus: Source status is separate from this task. Review and complete the task in Tale.
+    description: Source description
   run:
     started: '{name} has started — it takes this task from here.'
     alreadyRunning: '{name} is already working on this task.'
@@ -6916,6 +6950,9 @@ tasks:
     cancelConfirmBody: 'The {name} run working this task stops; the task parks at Cancelled and can be started again.'
     cancelConfirmMove: A run is still working this task — moving it out of In progress cancels that run. It can be started again afterwards.
   agentRun:
+    automationDisabled: 'Task automation is turned off. Ask an organization admin to enable it.'
+    automationUnavailable: 'Task automation is unavailable. Ask an organization admin to check its policy.'
+    previousRun: 'Previous run by {name}'
     label: Run
     started: The agent is on it — it reports back to this task for review.
     alreadyRunning: This task's agent is already running.

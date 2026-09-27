@@ -34,8 +34,8 @@ interface MentionTextareaProps extends Omit<
 
 /**
  * A {@link Textarea} with an `@`-mention autocomplete over the project's
- * mentionable actors (org members + project agents). Combobox pattern: the
- * textarea keeps focus; typing `@` opens the listbox, Up/Down navigate,
+ * mentionable actors (org members + project agents). The native multiline
+ * textbox keeps focus; typing `@` opens the listbox, Up/Down navigate,
  * Enter/Tab insert the selected actor's plain-text `@handle` (the format the
  * task mutations parse), Escape closes. Caret moves only update/close an
  * already-open picker, so clicking into existing `@handle` prose doesn't
@@ -175,10 +175,8 @@ export function MentionTextarea({
           setTrigger(null);
           onBlur?.(e);
         }}
-        role="combobox"
         aria-autocomplete="list"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
+        aria-controls={open && results.length > 0 ? listboxId : undefined}
         aria-activedescendant={
           open && results.length > 0 ? optionId(clampedHighlight) : undefined
         }

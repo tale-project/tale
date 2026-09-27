@@ -675,3 +675,69 @@ actions:
         const j = r.json();
         return { total_count: j.total_count, items: j.items };
     exampleInput: { q: 'addEventListener repo:octocat/hello-world' }
+  - name: list_import_issues
+    description: Read matching issues for task intake. Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
+    effects: read
+    input:
+      type: object
+      required: [owner, repo]
+      additionalProperties: false
+      properties:
+        owner: { type: string, minLength: 1, maxLength: 100 }
+        repo: { type: string, minLength: 1, maxLength: 100 }
+        labels: { type: string, maxLength: 1000 }
+        limit: { type: integer, minimum: 1, maximum: 500 }
+        cursor: { type: string, maxLength: 12000 }
+    output: '{ issues: Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>, truncated: boolean, nextCursor: string | null, repositoryId?: number, sourceOrigin?: string, sourceProjectId?: string }'
+    mock: |
+      const externalId = String(input.owner).toLowerCase() + '/' + String(input.repo).toLowerCase() + '#1';
+      const url = 'https://github.com/' + input.owner + '/' + input.repo + '/issues/1';
+      const issue = { externalSystem: 'github', externalId, title: 'Example issue', description: 'Mock issue body.', externalUrl: url, externalIssue: { id: '1', title: 'Example issue', description: 'Mock issue body.', url, state: 'open', syncedAt: 0, repositoryId: 1, number: 1 } };
+      return { issues: [issue], truncated: false, nextCursor: null, repositoryId: 1 };
+    backend:
+      kind: native
+      impl: github.list_import_issues
+    exampleInput: { owner: example, repo: web, limit: 100 }
+  - name: get_import_issue
+    description: Refresh a previously imported issue by immutable source identity, including closed or resolved issues outside the discovery filter. Marks a missing source unavailable without changing its Tale task.
+    effects: read
+    input:
+      type: object
+      required: [issue]
+      additionalProperties: false
+      properties:
+        issue: { type: object }
+        organization: { type: string, minLength: 1, maxLength: 100 }
+        repositoryId: { type: integer, minimum: 1 }
+        sourceProjectId: { type: string, minLength: 1 }
+    output: '{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }'
+    mock: |
+      const source = input.issue.externalIssue;
+      return { externalSystem: 'github', externalId: input.issue.externalId, externalUrl: source.url, title: source.title, description: source.description, externalIssue: source };
+    backend:
+      kind: native
+      impl: github.get_import_issue
+    exampleInput:
+      organization: example
+      issue:
+        externalId: example/web#1
+        externalIssue: { id: '1', title: Example, description: Details, url: 'https://example.com/issues/1', state: open, syncedAt: 0 }
+  - name: refresh_import_issues
+    description: Refresh up to 500 linked source snapshots with bounded request concurrency. Closed and unavailable issues remain linked to their existing Tale tasks.
+    effects: read
+    input:
+      type: object
+      required: [issues]
+      additionalProperties: false
+      properties:
+        issues: { type: array, maxItems: 500, items: { type: object } }
+        organization: { type: string, minLength: 1, maxLength: 100 }
+        repositoryId: { type: integer, minimum: 1 }
+        sourceProjectId: { type: string, minLength: 1 }
+    output: 'Array<{ externalSystem: string, externalId: string, title: string, description: string, externalUrl: string, externalIssue: object }>'
+    mock: |
+      return input.issues.map((issue) => ({ externalSystem: 'github', externalId: issue.externalId, externalUrl: issue.externalIssue.url, title: issue.externalIssue.title, description: issue.externalIssue.description, externalIssue: issue.externalIssue }));
+    backend:
+      kind: native
+      impl: github.refresh_import_issues
+    exampleInput: { issues: [] }

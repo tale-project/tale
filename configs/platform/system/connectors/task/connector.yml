@@ -122,3 +122,64 @@ actions:
       kind: native
       impl: task.list_comments
     exampleInput: { taskId: 'tsk_1', authorTypes: [user], limit: 20 }
+  - name: upsert
+    description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. Does not start an agent.
+    effects: write
+    input:
+      type: object
+      required: [projectId, externalSystem, externalId, title]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        externalSystem: { type: string, minLength: 1, maxLength: 100 }
+        externalId: { type: string, minLength: 1, maxLength: 2000 }
+        externalIssue: { type: object }
+        title: { type: string, minLength: 1, maxLength: 10000 }
+        description: { type: string, maxLength: 100000 }
+        externalUrl: { type: string, maxLength: 4000 }
+    output: '{ taskId: string | null, created: boolean, title: string }'
+    mock: |
+      return { taskId: 'task_' + String(input.externalSystem) + '_' + String(input.externalId), created: true, title: input.title };
+    backend:
+      kind: native
+      impl: task.upsert
+    exampleInput: { projectId: 'proj_mock', externalSystem: github, externalId: 'octocat/demo#1', title: Example issue }
+  - name: list_external_issues
+    description: List previously imported issue sources for this project and immutable upstream repository/project. Oldest snapshots come first so repeated runs make progress through large boards.
+    effects: read
+    input:
+      type: object
+      required: [projectId, externalSystem]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        externalSystem: { type: string, enum: [github, glitchtip] }
+        repositoryId: { type: integer, minimum: 1 }
+        sourceOrigin: { type: string }
+        sourceProjectId: { type: string, minLength: 1 }
+        limit: { type: integer, minimum: 1, maximum: 500 }
+        legacyPrefixes: { type: array, maxItems: 2, items: { type: string, minLength: 1, maxLength: 4000 } }
+    output: '{ issues: Array<{ taskId: string, externalId: string, externalIssue: object }>, hasMore: boolean }'
+    mock: |
+      return { issues: [], hasMore: false };
+    backend:
+      kind: native
+      impl: task.list_external_issues
+    exampleInput: { projectId: proj_mock, externalSystem: github, repositoryId: 1 }
+  - name: upsert_issues
+    description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Returns one result per source, with taskId null when a closed source has no task.
+    effects: write
+    input:
+      type: object
+      required: [projectId, issues]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        issues: { type: array, maxItems: 500, items: { type: object } }
+    output: 'Array<{ taskId: string | null, created: boolean, title: string }>'
+    mock: |
+      return input.issues.map((issue) => ({ taskId: 'task_' + String(issue.externalSystem) + '_' + String(issue.externalId), created: true, title: issue.title }));
+    backend:
+      kind: native
+      impl: task.upsert_issues
+    exampleInput: { projectId: proj_mock, issues: [] }

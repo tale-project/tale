@@ -160,6 +160,29 @@ function snapTarget(log: HTMLElement): number {
 const gapToBottom = (log: HTMLElement) =>
   log.scrollHeight - log.clientHeight - log.scrollTop;
 
+/** Observe the first moving frame, rather than guessing how far the browser
+ * has glided after a wall-clock delay. Fast frames can already be near the
+ * target by then, making a correct cancellation look like a failure. */
+async function waitForGlide(log: HTMLElement, initialTop: number) {
+  const started = performance.now();
+  await new Promise<void>((resolve, reject) => {
+    const observe = () => {
+      if (log.scrollTop > initialTop) {
+        resolve();
+        return;
+      }
+      if (performance.now() - started >= 2000) {
+        reject(new Error('The send glide did not start'));
+        return;
+      }
+      requestAnimationFrame(observe);
+    };
+    requestAnimationFrame(observe);
+  });
+  expect(log.scrollTop).toBeGreaterThan(initialTop);
+  expect(snapTarget(log) - log.scrollTop).toBeGreaterThan(40);
+}
+
 beforeAll(() => {
   // Seeded BEFORE the first mount: the hook loads the persisted positions
   // once per module instance.
@@ -231,6 +254,7 @@ describe('MessageThread send-snap', () => {
     await nextFrame();
     log.scrollTop = log.scrollHeight;
     await nextFrame();
+    const initialTop = log.scrollTop;
 
     intentRef.current = 'smooth';
     rerender(
@@ -244,7 +268,7 @@ describe('MessageThread send-snap', () => {
         isGenerating
       />,
     );
-    await settle(120); // the glide is in flight
+    await waitForGlide(log, initialTop);
     const midway = log.scrollTop;
     log.dispatchEvent(new WheelEvent('wheel', { deltaY: 3, bubbles: true }));
 
@@ -272,6 +296,7 @@ describe('MessageThread send-snap', () => {
     await nextFrame();
     log.scrollTop = log.scrollHeight;
     await nextFrame();
+    const initialTop = log.scrollTop;
 
     intentRef.current = 'smooth';
     rerender(
@@ -285,7 +310,7 @@ describe('MessageThread send-snap', () => {
         isGenerating
       />,
     );
-    await settle(120);
+    await waitForGlide(log, initialTop);
     log.dispatchEvent(new WheelEvent('wheel', { deltaY: -3, bubbles: true }));
     const stopped = log.scrollTop;
     await settle(600);

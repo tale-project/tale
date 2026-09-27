@@ -9,6 +9,10 @@
  * live today.
  */
 
+import {
+  taskExternalIssueSchema,
+  type TaskExternalIssue,
+} from '@tale/shared/schemas/task-external-issue';
 import { z } from 'zod';
 
 import {
@@ -18,6 +22,7 @@ import {
 import type {
   NativeConnectorContext,
   NativeConnectorImpl,
+  ConnectorCaller,
 } from '../dispatcher';
 import { ConnectorError } from '../errors';
 
@@ -57,8 +62,54 @@ export interface WorkflowTaskComment {
   createdAt: number;
 }
 
+export interface WorkflowIssueInput {
+  externalSystem: string;
+  externalId: string;
+  title: string;
+  description?: string;
+  externalUrl?: string;
+  externalIssue?: TaskExternalIssue;
+}
+
 /** What the rim needs from the platform's task domain. */
 export interface WorkflowTaskStore {
+  upsertIssues(args: {
+    organizationId: string;
+    caller: ConnectorCaller;
+    projectId: string;
+    issues: WorkflowIssueInput[];
+  }): Promise<
+    Array<{ taskId: string | null; created: boolean; title: string }>
+  >;
+  listExternalIssues(args: {
+    organizationId: string;
+    caller: ConnectorCaller;
+    projectId: string;
+    externalSystem: 'github' | 'glitchtip';
+    repositoryId?: number;
+    sourceOrigin?: string;
+    sourceProjectId?: string;
+    limit: number;
+    legacyPrefixes?: string[];
+  }): Promise<{
+    issues: Array<{
+      taskId: string;
+      externalId: string;
+      externalIssue: TaskExternalIssue | null;
+    }>;
+    hasMore: boolean;
+  }>;
+  upsert(args: {
+    organizationId: string;
+    caller: ConnectorCaller;
+    projectId: string;
+    externalSystem: string;
+    externalId: string;
+    title: string;
+    description?: string;
+    externalUrl?: string;
+    externalIssue?: TaskExternalIssue;
+  }): Promise<{ taskId: string | null; created: boolean }>;
   get(args: {
     organizationId: string;
     taskId: string;
@@ -83,6 +134,48 @@ export interface WorkflowTaskStore {
 }
 
 const taskRef = z.object({ taskId: z.string().min(1) });
+
+const upsertInput = z
+  .object({
+    projectId: z.string().trim().min(1),
+    externalSystem: z.string().trim().min(1).max(100),
+    externalId: z.string().trim().min(1).max(2000),
+    title: z.string().trim().min(1).max(10000),
+    description: z.string().max(100000).optional(),
+    externalIssue: taskExternalIssueSchema.optional(),
+    externalUrl: z
+      .url({ protocol: /^https?$/ })
+      .max(4000)
+      .optional(),
+  })
+  .strict();
+
+const upsertIssuesInput = z
+  .object({
+    projectId: z.string().trim().min(1),
+    issues: z.array(upsertInput.omit({ projectId: true })).max(500),
+  })
+  .strict();
+
+const listExternalInput = z
+  .object({
+    projectId: z.string().trim().min(1),
+    externalSystem: z.enum(['github', 'glitchtip']),
+    repositoryId: z.number().int().positive().safe().optional(),
+    sourceOrigin: z.url({ protocol: /^https$/ }).optional(),
+    sourceProjectId: z.string().min(1).max(2000).optional(),
+    legacyPrefixes: z.array(z.string().min(1).max(4000)).max(2).optional(),
+    limit: z.number().int().min(1).max(500).default(500),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.externalSystem === 'github'
+        ? value.repositoryId !== undefined
+        : value.sourceOrigin !== undefined &&
+          value.sourceProjectId !== undefined,
+    { message: 'Supply the immutable source repository or project identity.' },
+  );
 
 const updateStatusInput = taskRef
   .extend({ status: z.enum(AUTOMATION_TASK_STATUSES) })
@@ -146,6 +239,74 @@ function notFound(taskId: string): never {
 export function platformTaskNatives(
   store: WorkflowTaskStore,
 ): Readonly<Record<string, NativeConnectorImpl>> {
+  const upsert: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = upsertInput.safeParse(input);
+    if (!parsed.success) refuse('upsert', parsed.error);
+    if (
+      parsed.data.externalIssue &&
+      parsed.data.externalIssue.syncedAt > Date.now()
+    ) {
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'An issue observation cannot be dated in the future.',
+        {},
+      );
+    }
+    if (!ctx.caller) {
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'task.upsert requires an authenticated caller',
+        {},
+      );
+    }
+    const result = await store.upsert({
+      ...parsed.data,
+      organizationId: ctx.organizationId,
+      caller: ctx.caller,
+    });
+    return { ...result, title: parsed.data.title };
+  };
+  const upsertIssues: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = upsertIssuesInput.safeParse(input);
+    if (!parsed.success) refuse('upsert_issues', parsed.error);
+    if (!ctx.caller)
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'task.upsert_issues requires an authenticated caller',
+        {},
+      );
+    if (
+      parsed.data.issues.some(
+        (issue) =>
+          issue.externalIssue && issue.externalIssue.syncedAt > Date.now(),
+      )
+    )
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'An issue observation cannot be dated in the future.',
+        {},
+      );
+    return store.upsertIssues({
+      ...parsed.data,
+      organizationId: ctx.organizationId,
+      caller: ctx.caller,
+    });
+  };
+  const listExternal: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = listExternalInput.safeParse(input);
+    if (!parsed.success) refuse('list_external_issues', parsed.error);
+    if (!ctx.caller)
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        'task.list_external_issues requires an authenticated caller',
+        {},
+      );
+    return store.listExternalIssues({
+      ...parsed.data,
+      organizationId: ctx.organizationId,
+      caller: ctx.caller,
+    });
+  };
   const get: NativeConnectorImpl = async (
     input: unknown,
     ctx: NativeConnectorContext,
@@ -248,6 +409,9 @@ export function platformTaskNatives(
   };
 
   return {
+    'task.upsert': upsert,
+    'task.upsert_issues': upsertIssues,
+    'task.list_external_issues': listExternal,
     'task.get': get,
     'task.update_status': updateStatus,
     'task.comment': comment,

@@ -171,7 +171,14 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         ).then(
           (body) =>
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg run rows are the 0.4 doc superset; ids bridged
-            ({ ...body.run, _id: body.run.id }) as unknown as GetRunResult,
+            ({
+              ...body.run,
+              _id: body.run.id,
+              projectId:
+                typeof body.run.projectId === 'string'
+                  ? body.run.projectId
+                  : undefined,
+            }) as unknown as GetRunResult,
         ),
     };
   },

@@ -341,6 +341,22 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
           ...(cost !== undefined ? { costEstimateUsd: cost } : {}),
         };
       }
+      // Qwen 0.23.3 wraps a rejected API call as assistant text and reports
+      // success even for HTTP 401 (including exit 0). Its generated error
+      // envelope has zero output tokens; a model-authored quotation with
+      // real output usage remains ordinary text. Claude's flags stay its
+      // authority: this compatibility path belongs only to the Qwen fork.
+      const qwenError =
+        this.slug === 'qwen-code' && asNumber(usage?.output_tokens) === 0
+          ? finalText?.match(/^\[API Error:\s*([\s\S]+)\]$/)?.[1]
+          : undefined;
+      if (qwenError !== undefined) {
+        out.status = 'error';
+        out.isError = true;
+        const status = qwenError.match(/^([45]\d{2})(?:\s|:)/)?.[1];
+        if (status !== undefined) out.apiErrorStatus = Number(status);
+        return [{ type: 'error', message: qwenError, raw: ev }, out];
+      }
       return [out];
     }
 

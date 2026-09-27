@@ -30,6 +30,9 @@ class OpenCodeJsonlParser implements HarnessEventParser {
    * no text of its own, so the LAST text part IS the reply (the same
    * semantics as Codex's final agent_message). */
   private lastText: string | undefined;
+  /** The CLI usually emits only a completed tool part; a running phase is
+   * optional. Every result still needs one named call in the transcript. */
+  private readonly toolStarted = new Set<string>();
 
   constructor(private readonly slug: HarnessSlug) {}
 
@@ -91,18 +94,21 @@ class OpenCodeJsonlParser implements HarnessEventParser {
         events.push({ type: 'raw', harness: this.slug, payload: ev });
         return events;
       }
-      if (status === 'completed' || status === 'error') {
-        const out: HarnessEvent = { type: 'tool-result', toolUseId };
-        if (state?.output !== undefined) out.output = state.output;
-        if (status === 'error') out.isError = true;
-        events.push(out);
-      } else {
+      if (!this.toolStarted.has(toolUseId)) {
+        this.toolStarted.add(toolUseId);
         events.push({
           type: 'tool-use',
           toolUseId,
           toolName: asString(part?.tool) ?? '',
           input: state?.input,
         });
+      }
+      if (status === 'completed' || status === 'error') {
+        const out: HarnessEvent = { type: 'tool-result', toolUseId };
+        const output = state?.output ?? state?.error;
+        if (output !== undefined) out.output = output;
+        if (status === 'error') out.isError = true;
+        events.push(out);
       }
       return events;
     }

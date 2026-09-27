@@ -84,7 +84,7 @@ export function HomeViewSwitcher({
               'focus-visible:ring-ring relative z-10 flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none',
               selected
                 ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+                : 'text-fg-muted hover:text-foreground',
             )}
           >
             <span className="truncate">{t(`views.${option.view}`)}</span>
