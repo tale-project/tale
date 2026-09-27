@@ -295,6 +295,14 @@ select lists only the current admin's keys (`useApiKeys`).
   the date reads **Revoked by** your name. **Logs** lists
   `competence_granted` and `competence_revoked`; the Developer's `/api/v1/me`
   answers `capabilities.actAs: false` on its next call.
+- [ ] `GOV-F34` · **Removal revokes qualifications too** — Grant GOV-F22's
+  member a **Qualification** named `removal-check` with **Expires** =
+  **Never**, then remove the member from the org (**Members** → row menu →
+  remove) → back on `competences` the **Active** view no longer lists the
+  member; **Filter** → **Status** → **Revoked** shows both the capability and
+  `removal-check` as **Former member**, revoked today. Re-add the same e-mail
+  → the **Active** view stays empty for them (no grant re-attaches) and
+  **Logs** shows a `competence_revoked` line per grant.
 - [ ] `GOV-F25` · **Route by mailbox and address** — With TWO mailboxes on one
   email connector (A and B) and a team T1 and T2, `policies-limits` →
   **Conversation routing** → add three rules: **Any mailbox** · `support@…` →

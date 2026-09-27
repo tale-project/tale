@@ -20716,6 +20716,54 @@ async function checkCompetences(
     `revoke=${revoked.status}, retained=${afterRevoke.length === 1}/${afterRevoke[0]?.revokedBy === userId}, refusal=${refusedRes.status}/${refusedBody.success ? `${refusedBody.data.error}:${refusedBody.data.message.includes('iso-13485-auditor')}` : 'ERR'}, audits=${[...actions].sort().join(',')}`,
   );
 
+  // ---- migration 0120: grants of former members are closed ------------
+  // A grant whose holder is no longer a member (what the cascade used to
+  // leave live for a qualification) is revoked by 'system' on re-apply, a
+  // member's live grant is untouched, and a second pass changes nothing.
+  const formerUserId = `former-${now}`;
+  await sql`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms
+    ) VALUES
+      (${orgId}, ${formerUserId}, 'former-qualification', ${userId}, ${now}),
+      (${orgId}, ${userId}, 'member-qualification', ${userId}, ${now})
+  `;
+  const formerMemberGrants = await readFile(
+    new URL(
+      './db/migrations/0120_competence_grants_of_former_members.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const grantsAfter = async () =>
+    sql<{ user: string; revokedAt: number | null; revokedBy: string | null }[]>`
+      SELECT user_id AS "user", revoked_at_ms::float8 AS "revokedAt",
+             revoked_by AS "revokedBy"
+      FROM app.competence_records
+      WHERE org_id = ${orgId}
+        AND competence IN ('former-qualification', 'member-qualification')
+      ORDER BY competence
+    `;
+  await sql.unsafe(formerMemberGrants);
+  const firstSweep = await grantsAfter();
+  await sql.unsafe(formerMemberGrants);
+  const secondSweep = await grantsAfter();
+  const formerGrant = firstSweep.find((row) => row.user === formerUserId);
+  const memberGrant = firstSweep.find((row) => row.user === userId);
+  record(
+    'competences: migration 0120 revokes the grants of former members only, idempotently',
+    formerGrant?.revokedBy === 'system' &&
+      formerGrant.revokedAt !== null &&
+      memberGrant?.revokedAt === null &&
+      JSON.stringify(secondSweep) === JSON.stringify(firstSweep),
+    `former=${formerGrant?.revokedBy ?? 'live'}/${formerGrant?.revokedAt ?? 'null'}, member=${memberGrant?.revokedAt ?? 'live'}, idempotent=${JSON.stringify(secondSweep) === JSON.stringify(firstSweep)}`,
+  );
+  await sql`
+    DELETE FROM app.competence_records
+    WHERE org_id = ${orgId}
+      AND competence IN ('former-qualification', 'member-qualification')
+  `;
+
   // Leave the org as we found it: the policy file off, the seeded card gone
   // (a pending review row would skew every later approvals fold).
   await writeFile(path.join(governanceDir, 'review-policy.yml'), '{}\n');

@@ -83,7 +83,8 @@ describe('the plugin’s remove-member door', () => {
       statement.includes('app.competence_records'),
     );
     expect(revoke).toBeDefined();
-    expect(revoke).toContain("competence LIKE 'tale:%'");
+    // Every live grant — qualifications included, not only `tale:` rights.
+    expect(revoke).not.toContain('LIKE');
     expect(revoke).toContain('revoked_at_ms IS NULL');
     // The rest of the membership's footprint goes with it, exactly as the
     // app door's removal does.
