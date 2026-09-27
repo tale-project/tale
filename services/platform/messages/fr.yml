@@ -868,11 +868,26 @@ automations:
     # pour distinguer sa relance de la tienne.
     autoRetrying: 'Tentative automatique {n} sur {max}'
     cancel: Arrêter l’exécution
-    startedBy: 'Lancée par {actor}'
+    # Qui ou quoi a lancé l’exécution — jamais la porte `user:<id>` /
+    # `trigger:<id>` que porte l’enregistrement.
     starter:
-      apiKey: '{name} via une clé API'
-      trigger: un déclencheur
-      formerMember: un ancien membre
+      you: Lancée par toi
+      youApi: Lancée par toi (API)
+      member: 'Lancée par {name}'
+      apiKey: 'Lancée par {name} (API)'
+      formerMember: Lancée par un ancien membre
+      formerMemberApi: Lancée par un ancien membre (API)
+      schedule: Lancée par la planification
+      webhook: Lancée par un webhook
+      event: Lancée par un événement de la plateforme
+      trigger: Lancée par un déclencheur
+      unknown: Lanceur non enregistré
+    # Ce sur quoi une exécution en attente est arrêtée, en mots.
+    waiting:
+      approval: En attente d’approbation
+      ask: En attente de ta réponse
+      agent: Agent au travail
+      repeat: 'Interrogation — étape {node}'
     startedAt: 'Lancée {date}'
     finishedAt: 'Terminée {date}'
     inputTitle: Entrée de l’exécution

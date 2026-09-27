@@ -194,5 +194,11 @@
  * including concurrent requests under frozen snapshots. New task work
  * obeys the task-automation policy: 403 `TASK_AUTOMATION_DISABLED` or 409
  * `TASK_AUTOMATION_UNAVAILABLE`.
+ *
+ * 2.1.0 — 2026-09-27: `startedVia` (`schedule` | `webhook` | `event`) on
+ * `RunSummary` and `Run` — which kind of trigger started a `trigger:<id>`
+ * run, read off the run's own input so it stays true after the binding
+ * changes kind; absent on a run a person or an API key started. A listing
+ * could not tell a scheduled run from a webhook delivery before.
  */
-export const API_CONTRACT_VERSION = '2.0.0';
+export const API_CONTRACT_VERSION = '2.1.0';

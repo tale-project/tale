@@ -627,6 +627,8 @@ Polle `GET /api/v1/projects/{id}/runs/{runId}?fields=status,finishedAt`, bis `st
 
 Bei fehlgeschlagenen Läufen ergänzt der stabile `failureCode` die lesbare Fehlerbeschreibung in `detail`. Andere Zustände liefern `null`; auch ältere fehlgeschlagene Läufe können noch keinen Code haben. In Zusammenfassungen fehlt ein nicht gesetzter Code.
 
+Ein Lauf, den ein Trigger gestartet hat (`startedBy: "trigger:<id>"`), trägt außerdem `startedVia` — `schedule`, `webhook` oder `event` —, gelesen aus der Eingabe des Laufs selbst. So unterscheidet eine Auflistung einen geplanten Lauf von einer Webhook-Zustellung, und ein alter Lauf behält seine Art, auch wenn die Bindung später ihre Art wechselt. Läufe, die eine Person oder ein API-Schlüssel gestartet hat, lassen das Feld weg (Vertrag 2.1.0).
+
 | Fehlergruppe | Beispiele und nächster Schritt |
 | --- | --- |
 | Automatisierung | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`: Prüfe den betroffenen Knoten und die Ablaufspur. Korrigiere Eingabe oder Definition. Wurde eine Aktion abgelehnt, kläre den Grund vor einem neuen Lauf. |

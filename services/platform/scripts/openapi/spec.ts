@@ -408,6 +408,14 @@ const runProperties: Record<string, Json> = {
       'in-product builder recorded before it prefixed them. Split ' +
       'on the first `:`; treat a value without one as a user id.',
   },
+  startedVia: {
+    type: 'string',
+    enum: ['schedule', 'webhook', 'event'],
+    description:
+      'Which kind of trigger started a `trigger:<id>` run — read off the ' +
+      'run’s own input (`input.trigger`), so it stays true after the ' +
+      'binding changes kind. Absent on a run a person or an API key started.',
+  },
   input: {},
   output: {},
   checkpoints: {},
@@ -8538,6 +8546,15 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'the trigger read answers), or a bare user id on runs the ' +
                 'in-product builder recorded before it prefixed them. Split ' +
                 'on the first `:`; treat a value without one as a user id.',
+            },
+            startedVia: {
+              type: 'string',
+              enum: ['schedule', 'webhook', 'event'],
+              description:
+                'Which kind of trigger started a `trigger:<id>` run — read ' +
+                'off the run’s own input, so it stays true after the ' +
+                'binding changes kind. Absent on a run a person or an API ' +
+                'key started.',
             },
             detail: {
               ...str,

@@ -862,11 +862,26 @@ automations:
     # wiederholt — damit klar ist, dass nicht du es warst.
     autoRetrying: 'Automatischer Versuch {n} von {max}'
     cancel: Lauf stoppen
-    startedBy: 'Gestartet von {actor}'
+    # Wer oder was den Lauf gestartet hat — nie die `user:<id>`- /
+    # `trigger:<id>`-Tür, die der Datensatz trägt.
     starter:
-      apiKey: '{name} über einen API-Schlüssel'
-      trigger: einem Auslöser
-      formerMember: einem ehemaligen Mitglied
+      you: Von dir gestartet
+      youApi: Von dir gestartet (API)
+      member: 'Gestartet von {name}'
+      apiKey: 'Gestartet von {name} (API)'
+      formerMember: Gestartet von einem ehemaligen Mitglied
+      formerMemberApi: Gestartet von einem ehemaligen Mitglied (API)
+      schedule: Gestartet vom Zeitplan
+      webhook: Gestartet von einem Webhook
+      event: Gestartet von einem Plattform-Ereignis
+      trigger: Gestartet von einem Trigger
+      unknown: Starter nicht erfasst
+    # Worauf ein wartender Lauf parkt, in Worten.
+    waiting:
+      approval: Wartet auf Freigabe
+      ask: Wartet auf deine Antwort
+      agent: Agent arbeitet
+      repeat: 'Pollt — Schritt {node}'
     startedAt: 'Gestartet {date}'
     finishedAt: 'Beendet {date}'
     inputTitle: Eingabe des Laufs

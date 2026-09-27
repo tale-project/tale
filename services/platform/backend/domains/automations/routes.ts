@@ -36,6 +36,7 @@ import {
   saveVersion,
   setAutomationProjects,
   setTrigger,
+  toRunDetail,
   versionRow,
   deployedVersion,
   bindingProjectIds,
@@ -396,24 +397,28 @@ export function createAutomationRoutes(deps: {
     }
   });
 
+  // Both run reads answer the read model (`waitingFor`, `startedVia`), never
+  // the raw row: the app names what a run waits on and what started it in
+  // words, and the row's ask fact is the read's own input.
   app.get('/runs/:runId', async (c) => {
     const run = await getRun(deps.sql, c.get('orgId'), c.req.param('runId'));
     return run === null
       ? c.json({ error: 'run not found' }, 404)
-      : c.json({ run });
+      : c.json({ run: toRunDetail(run) });
   });
 
   app.get('/runs', async (c) => {
     const name = c.req.query('name');
     const projectId = c.req.query('projectId');
     const limitRaw = Number(c.req.query('limit') ?? '50');
-    return c.json({
-      runs: await listRuns(deps.sql, c.get('orgId'), {
-        ...(name !== undefined ? { name } : {}),
-        ...(projectId !== undefined ? { projectId } : {}),
-        ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
-      }),
+    const rows = await listRuns(deps.sql, c.get('orgId'), {
+      ...(name !== undefined ? { name } : {}),
+      ...(projectId !== undefined ? { projectId } : {}),
+      ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
     });
+    // The full rows, not summaries: the editor overlays the last run's
+    // trace and checkpoints on the canvas from this listing.
+    return c.json({ runs: rows.map(toRunDetail) });
   });
 
   app.post('/:name{.+}/save', async (c) => {

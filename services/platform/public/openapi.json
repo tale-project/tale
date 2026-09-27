@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -34732,7 +34732,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "2.0.0"
+          "example": "2.1.0"
         }
       },
       "Location": {
@@ -37523,6 +37523,11 @@
             "type": "string",
             "description": "What started the run — one of four forms: `api-key:<userId>` (a start through this API or the MCP endpoint), `user:<userId>` (a start from the product), `trigger:<triggerId>` (a schedule, webhook or event — the id the trigger read answers), or a bare user id on runs the in-product builder recorded before it prefixed them. Split on the first `:`; treat a value without one as a user id."
           },
+          "startedVia": {
+            "type": "string",
+            "enum": ["schedule", "webhook", "event"],
+            "description": "Which kind of trigger started a `trigger:<id>` run — read off the run’s own input, so it stays true after the binding changes kind. Absent on a run a person or an API key started."
+          },
           "detail": {
             "type": "string",
             "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
@@ -37644,6 +37649,11 @@
             "type": "string",
             "description": "What started the run — one of four forms: `api-key:<userId>` (a start through this API or the MCP endpoint), `user:<userId>` (a start from the product), `trigger:<triggerId>` (a schedule, webhook or event — the id the trigger read answers), or a bare user id on runs the in-product builder recorded before it prefixed them. Split on the first `:`; treat a value without one as a user id."
           },
+          "startedVia": {
+            "type": "string",
+            "enum": ["schedule", "webhook", "event"],
+            "description": "Which kind of trigger started a `trigger:<id>` run — read off the run’s own input (`input.trigger`), so it stays true after the binding changes kind. Absent on a run a person or an API key started."
+          },
           "input": {},
           "output": {},
           "checkpoints": {},
@@ -37756,6 +37766,11 @@
           "startedBy": {
             "type": "string",
             "description": "What started the run — one of four forms: `api-key:<userId>` (a start through this API or the MCP endpoint), `user:<userId>` (a start from the product), `trigger:<triggerId>` (a schedule, webhook or event — the id the trigger read answers), or a bare user id on runs the in-product builder recorded before it prefixed them. Split on the first `:`; treat a value without one as a user id."
+          },
+          "startedVia": {
+            "type": "string",
+            "enum": ["schedule", "webhook", "event"],
+            "description": "Which kind of trigger started a `trigger:<id>` run — read off the run’s own input (`input.trigger`), so it stays true after the binding changes kind. Absent on a run a person or an API key started."
           },
           "input": {},
           "output": {},

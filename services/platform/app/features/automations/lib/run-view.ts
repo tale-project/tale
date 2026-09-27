@@ -45,6 +45,62 @@ export function isRunFinished(status: RunStatus): boolean {
   return status === 'success' || status === 'failed' || status === 'cancelled';
 }
 
+const WAITING_KINDS = new Set(['approval', 'ask', 'agent', 'repeat']);
+
+/** The `waitingFor` the read model answers on a parked run, or nothing. */
+export function readRunWaitingFor(
+  value: unknown,
+): 'approval' | 'ask' | 'agent' | 'repeat' | undefined {
+  return typeof value === 'string' && WAITING_KINDS.has(value)
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership checked against the union's own set
+      (value as 'approval' | 'ask' | 'agent' | 'repeat')
+    : undefined;
+}
+
+/**
+ * The node a `repeat:<nodeId>` / `agent:<nodeId>` park names — the one
+ * place the park's detail prefix is read, so the page can say "polling —
+ * step {node}" instead of printing the raw `repeat:tick`.
+ */
+export function readRunParkNode(
+  detail: string | null | undefined,
+): string | undefined {
+  if (typeof detail !== 'string') return undefined;
+  const match = /^(?:repeat|agent):(.+)$/.exec(detail);
+  return match?.[1];
+}
+
+/**
+ * What a run row says beside its starter: the failure sentence of a failed
+ * run, the park of a waiting one, in words — never the raw park string.
+ * Returns the i18n key (under `runs.`) and its values, or nothing when the
+ * run has no reason to show (a queued, running, succeeded or stopped run).
+ */
+export function runReasonKey(run: {
+  status: unknown;
+  detail?: string | null | undefined;
+  waitingFor?: unknown;
+}):
+  | { kind: 'failed'; detail: string }
+  | { kind: 'waiting'; key: string; values: Record<string, string> }
+  | undefined {
+  const status = readRunStatus(run.status);
+  if (status === 'failed') {
+    return typeof run.detail === 'string' && run.detail !== ''
+      ? { kind: 'failed', detail: run.detail }
+      : undefined;
+  }
+  if (status !== 'waiting') return undefined;
+  const waitingFor = readRunWaitingFor(run.waitingFor);
+  if (waitingFor === undefined) return undefined;
+  const node = readRunParkNode(run.detail);
+  return {
+    kind: 'waiting',
+    key: `runs.waiting.${waitingFor}`,
+    values: node === undefined ? {} : { node },
+  };
+}
+
 /** What the overlay shows on one node. `running` is the node the stepper is ON
  * right now (a live run's cursor); `pending` is a node the run has not reached
  * yet — distinct from the engine's `not_run`, which is a node the run finished

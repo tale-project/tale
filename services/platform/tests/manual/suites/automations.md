@@ -259,8 +259,9 @@ output:
 - [ ] `AUTO-F19` · **Runs tab** — **Runs** tab (`automations.navigation.runs`)
       after AUTO-F18 → `…/{slug}/runs` lists the runs newest first under the
       heading (`automations.runs.title` + `automations.runs.description`): each
-      row shows status badge, mode, version, and starter
-      (`automations.runs.startedBy`); an automation that never ran reads
+      row shows status badge, mode, version, and starter in words
+      (`automations.runs.starter.you` for your own runs — never a raw
+      `user:<id>`); an automation that never ran reads
       `automations.runs.empty`; clicking a run row navigates to the run route,
       where the strip stays and **Runs** remains the active tab.
 - [ ] `AUTO-F20` · **Run live** — (env-gated: deployed version + live
@@ -409,6 +410,18 @@ output:
       floating action dock, not under it; the dock's own row is fully
       readable. Repeat on **Settings > Account** and on a project's Tasks
       board, which reserve the same clearance.
+- [ ] `AUTO-F39` · **Starters and waiting reasons read as words** — Start a
+      Test run yourself, let a schedule or webhook start one, park a live run
+      on an approval (AUTO-F25) and start a `repeatUntil` polling run → On the
+      **Runs** tab and in the run header: your run reads
+      `automations.runs.starter.you`, another member's run names that member,
+      an API-key start carries "(API)" (`automations.runs.starter.apiKey`), a
+      scheduled run reads `automations.runs.starter.schedule` and a webhook
+      delivery `automations.runs.starter.webhook` — the two are told apart;
+      the waiting rows read `automations.runs.waiting.approval` /
+      `automations.runs.waiting.repeat` (naming the step), never
+      `approval:<uuid>` or `repeat:tick`; a failed run's row and header keep
+      its failure sentence; a succeeded run's row shows its starter only.
 
 ## Boundary & error tests
 

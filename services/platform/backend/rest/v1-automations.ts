@@ -165,7 +165,7 @@ const ASK_ANSWER_MAX = 20_000;
 
 /** What a run read may project: every stored key, plus the wait family
  * the read derives while a run is parked (`waitingFor`). */
-const RUN_READ_FIELDS = [...RUN_FIELDS, 'waitingFor'] as const;
+const RUN_READ_FIELDS = [...RUN_FIELDS, 'waitingFor', 'startedVia'] as const;
 
 /** The query every run listing takes: the page pair, a status set and the
  * full-row fields to inline. */

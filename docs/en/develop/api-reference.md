@@ -598,6 +598,8 @@ Poll `GET /api/v1/projects/{id}/runs/{runId}?fields=status,finishedAt` until `st
 
 Failed runs expose a stable `failureCode` alongside the human-readable `detail`. Non-failed runs return `null`; older failed records can also have no code. Run summaries omit an unset code.
 
+A run a trigger started (`startedBy: "trigger:<id>"`) also carries `startedVia` — `schedule`, `webhook` or `event` — read off the run's own input, so a listing tells a scheduled run from a webhook delivery, and an old run keeps its kind after the binding changes. Runs a person or an API key started omit it (contract 2.1.0).
+
 | Failure family | Examples and next action |
 | --- | --- |
 | Automation engine | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`: inspect the failed node and its trace. Correct the input or definition; if a person rejected an operation, address their reason before requesting another run. |

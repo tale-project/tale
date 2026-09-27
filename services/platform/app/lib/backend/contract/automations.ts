@@ -221,6 +221,10 @@ export interface AutomationsContract {
         | 'cancelled';
       mode: 'mock' | 'live';
       startedBy: string;
+      /** Which kind of trigger started a `trigger:<id>` run. */
+      startedVia?: 'schedule' | 'webhook' | 'event';
+      /** What a `waiting` run is parked on. */
+      waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
       input: unknown;
     };
   };
@@ -270,6 +274,10 @@ export interface AutomationsContract {
         | 'cancelled';
       mode: 'mock' | 'live';
       startedBy: string;
+      /** Which kind of trigger started a `trigger:<id>` run. */
+      startedVia?: 'schedule' | 'webhook' | 'event';
+      /** What a `waiting` run is parked on. */
+      waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
     }>;
   };
   'automations/queries:listTriggers': {

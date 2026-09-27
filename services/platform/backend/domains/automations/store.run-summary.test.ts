@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type RunRow,
+  runStartedVia,
   runWaitingFor,
   toRunDetail,
   toRunSummary,
@@ -78,7 +79,82 @@ describe('runWaitingFor', () => {
   );
 });
 
+/**
+ * `startedVia` — which KIND of trigger started a `trigger:<id>` run, read off
+ * the run's own input (each trigger door writes `{trigger: <kind>}`), so a
+ * listing tells a scheduled run from a webhook delivery, and an old run
+ * stays true after its binding changes kind (2026-09-26 evaluation, D-08).
+ */
+describe('runStartedVia', () => {
+  it.each(['schedule', 'webhook', 'event'] as const)(
+    'reads %s off a trigger run’s input',
+    (kind) => {
+      expect(
+        runStartedVia(
+          row({
+            startedBy: 'trigger:t-1',
+            input: JSON.stringify({ trigger: kind, payload: {} }),
+          }),
+        ),
+      ).toBe(kind);
+    },
+  );
+
+  it('reads an input the row stores decoded as well as encoded', () => {
+    expect(
+      runStartedVia(
+        row({ startedBy: 'trigger:t-1', input: { trigger: 'schedule' } }),
+      ),
+    ).toBe('schedule');
+  });
+
+  it('answers nothing off a person’s or a key’s run, whatever the input says', () => {
+    const input = JSON.stringify({ trigger: 'schedule' });
+    expect(
+      runStartedVia(row({ startedBy: 'user:u-1', input })),
+    ).toBeUndefined();
+    expect(
+      runStartedVia(row({ startedBy: 'api-key:u-1', input })),
+    ).toBeUndefined();
+    expect(runStartedVia(row({ startedBy: 'u-1', input }))).toBeUndefined();
+  });
+
+  it('answers nothing off a trigger run whose input names no known kind', () => {
+    expect(
+      runStartedVia(row({ startedBy: 'trigger:t-1', input: '{}' })),
+    ).toBeUndefined();
+    expect(
+      runStartedVia(
+        row({ startedBy: 'trigger:t-1', input: '{"trigger":"cron"}' }),
+      ),
+    ).toBeUndefined();
+    expect(
+      runStartedVia(row({ startedBy: 'trigger:t-1', input: 'not json' })),
+    ).toBeUndefined();
+    expect(
+      runStartedVia(row({ startedBy: 'trigger:t-1', input: null })),
+    ).toBeUndefined();
+  });
+});
+
 describe('toRunSummary', () => {
+  it('carries startedVia on a trigger run and omits it otherwise', () => {
+    const scheduled = toRunSummary(
+      row({
+        status: 'success',
+        detail: null,
+        startedBy: 'trigger:t-1',
+        input: '{"trigger":"webhook","payload":{}}',
+        finishedAt: 1,
+      }),
+    );
+    expect(scheduled.startedVia).toBe('webhook');
+    const manual = toRunSummary(
+      row({ status: 'success', detail: null, startedBy: 'user:u-1' }),
+    );
+    expect(manual).not.toHaveProperty('startedVia');
+  });
+
   it('carries waitingFor beside detail while waiting, and drops the raw ask fact', () => {
     const summary = toRunSummary(
       row({ detail: 'agent:review', askPending: true }),
@@ -148,9 +224,24 @@ describe('toRunDetail', () => {
   });
 
   it('answers a terminal row unchanged bar the ask fact', () => {
-    const detail = toRunDetail(row({ status: 'success', detail: null }));
+    const detail = toRunDetail(
+      row({ status: 'success', detail: null, startedBy: 'user:u-1' }),
+    );
     expect(detail).not.toHaveProperty('waitingFor');
+    expect(detail).not.toHaveProperty('startedVia');
     expect(detail).not.toHaveProperty('askPending');
     expect(detail.detail).toBeNull();
+  });
+
+  it('carries startedVia beside the full row of a trigger run', () => {
+    const detail = toRunDetail(
+      row({
+        status: 'success',
+        detail: null,
+        input: '{"trigger":"schedule","firedAt":1}',
+      }),
+    );
+    expect(detail.startedVia).toBe('schedule');
+    expect(detail.input).toBe('{"trigger":"schedule","firedAt":1}');
   });
 });

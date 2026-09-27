@@ -714,6 +714,8 @@ Pour repérer les exécutions qui nécessitent une personne, filtre donc sur `wa
 
 Une exécution en échec expose un `failureCode` stable en plus du message lisible dans `detail`. Les autres états renvoient `null` ; une ancienne exécution en échec peut aussi ne pas avoir de code. Les résumés omettent un code non renseigné.
 
+Une exécution lancée par un déclencheur (`startedBy: "trigger:<id>"`) porte aussi `startedVia` — `schedule`, `webhook` ou `event` —, lu dans l’entrée de l’exécution elle-même : une liste distingue ainsi une exécution planifiée d’une livraison webhook, et une ancienne exécution garde son type même si la liaison change ensuite. Les exécutions lancées par une personne ou une clé API omettent ce champ (contrat 2.1.0).
+
 | Origine de l’échec | Exemples et action |
 | --- | --- |
 | Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |

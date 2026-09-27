@@ -13,6 +13,7 @@ import {
   EMITTED_EVENT_TYPES,
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   boundCheckpointTrace,
@@ -1314,6 +1315,7 @@ export function toRunSummary(
     | 'status'
     | 'mode'
     | 'startedBy'
+    | 'input'
     | 'detail'
     | 'failureCode'
     | 'startedAt'
@@ -1322,6 +1324,7 @@ export function toRunSummary(
   >,
 ): RunSummary {
   const waitingFor = runWaitingFor(row);
+  const startedVia = runStartedVia(row);
   return {
     // One value under both names: the listing rows said `runId` and the
     // single read `id`, so a client mapping rows by `id` read undefined.
@@ -1336,12 +1339,44 @@ export function toRunSummary(
     status: row.status,
     mode: row.mode,
     startedBy: row.startedBy,
+    ...(startedVia !== undefined ? { startedVia } : {}),
     ...(row.detail !== null ? { detail: row.detail } : {}),
     ...(row.failureCode !== null ? { failureCode: row.failureCode } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
     startedAt: row.startedAt,
     ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
   };
+}
+
+/** The run row stores `input` as a JSON-encoded string (the stepper's
+ * contract); the engine-facing detail hands back the decoded value. */
+export function decodeRunInput(input: unknown): unknown {
+  if (typeof input !== 'string') return input;
+  try {
+    return JSON.parse(input);
+  } catch {
+    return input;
+  }
+}
+
+/**
+ * Which KIND of trigger started a run — derived from the run's input, where
+ * every trigger door writes `{trigger: 'schedule' | 'webhook' | 'event'}`
+ * beside its payload. `startedBy` names only the binding's id, and a binding
+ * keeps its id when its kind changes, so mapping the id through the current
+ * trigger row would misreport old runs; the input is the record of what
+ * fired. Present only on trigger-started runs whose input names a kind.
+ */
+export function runStartedVia(
+  row: Pick<RunRow, 'startedBy' | 'input'>,
+): RunSummary['startedVia'] {
+  if (parseRunStarter(row.startedBy).kind !== 'trigger') return undefined;
+  const input = decodeRunInput(row.input);
+  if (input === null || typeof input !== 'object') return undefined;
+  const kind = (input as { trigger?: unknown }).trigger;
+  return kind === 'schedule' || kind === 'webhook' || kind === 'event'
+    ? kind
+    : undefined;
 }
 
 /**
@@ -1364,13 +1399,20 @@ export function runWaitingFor(
 }
 
 /** The full row as the single read answers it: every column, `waitingFor`
- * beside `detail` while the run is parked, and never the raw ask fact. */
-export function toRunDetail(
-  row: RunRow,
-): Omit<RunRow, 'askPending'> & { waitingFor?: RunSummary['waitingFor'] } {
+ * beside `detail` while the run is parked, `startedVia` on a trigger's run,
+ * and never the raw ask fact. */
+export function toRunDetail(row: RunRow): Omit<RunRow, 'askPending'> & {
+  waitingFor?: RunSummary['waitingFor'];
+  startedVia?: RunSummary['startedVia'];
+} {
   const { askPending: _askPending, ...rest } = row;
   const waitingFor = runWaitingFor(row);
-  return waitingFor === undefined ? rest : { ...rest, waitingFor };
+  const startedVia = runStartedVia(row);
+  return {
+    ...rest,
+    ...(startedVia !== undefined ? { startedVia } : {}),
+    ...(waitingFor !== undefined ? { waitingFor } : {}),
+  };
 }
 
 export interface ListRunsOptions {

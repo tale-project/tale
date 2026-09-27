@@ -25,6 +25,7 @@ import {
   useRunPendingAsk,
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
+import { useRunStarterLabel } from '../hooks/use-run-starter-label';
 import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
@@ -36,6 +37,7 @@ import {
   readRunAgentRetry,
   readRunCursorNode,
   readRunStatus,
+  runReasonKey,
 } from '../lib/run-view';
 import {
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
@@ -96,6 +98,7 @@ export function RunDetail({
   );
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const cancel = useCancelAutomationRun();
+  const starterLabel = useRunStarterLabel(organizationId);
 
   const automation = useMemo(
     () => readDocument(versionQuery.data?.document),
@@ -188,6 +191,9 @@ export function RunDetail({
           {t('versions.versionLabel', { version: run.version })}
         </span>
         <Text as="span" variant="muted" className="text-xs">
+          {starterLabel(run)}
+        </Text>
+        <Text as="span" variant="muted" className="text-xs">
           {t('runs.startedAt', {
             date: formatDate(new Date(run.startedAt), 'long'),
           })}
@@ -242,12 +248,17 @@ export function RunDetail({
             />
           );
         }
-        if (run.detail == null) return null;
+        // The failure sentence of a failed run; the park of a waiting one
+        // in words (the ask card above already says what an ask waits on).
+        // The raw `repeat:<node>` / `agent:<node>` detail never renders.
+        const reason = runReasonKey(run);
+        if (reason === undefined) return null;
+        if (reason.kind === 'failed') {
+          return <Alert variant="destructive" description={reason.detail} />;
+        }
+        if (run.waitingFor === 'ask' && pendingAsk !== null) return null;
         return (
-          <Alert
-            variant={status === 'failed' ? 'destructive' : 'info'}
-            description={run.detail}
-          />
+          <Alert variant="info" description={t(reason.key, reason.values)} />
         );
       })()}
 

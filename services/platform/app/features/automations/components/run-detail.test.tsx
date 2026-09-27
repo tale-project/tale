@@ -7,6 +7,9 @@ const { state, resolveApproval, readApproval } = vi.hoisted(() => ({
     status: 'waiting',
     finishedAt: null as number | null,
     detail: 'approval:250a93eb-9413-4699-94e8-ee3164e5e545' as string | null,
+    waitingFor: 'approval' as string | undefined,
+    startedBy: 'user:user-me',
+    startedVia: undefined as string | undefined,
   },
   resolveApproval: vi.fn(),
   readApproval: vi.fn(),
@@ -51,6 +54,21 @@ vi.mock('../hooks/mutations', () => ({
   useCancelAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useResolveRunApproval: () => ({ mutate: resolveApproval, isPending: false }),
 }));
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({
+    members: [
+      { userId: 'user-me', displayName: 'Zoe A.', email: 'zoe@example.test' },
+      {
+        userId: 'user-dana',
+        displayName: 'Dana K.',
+        email: 'dana@example.test',
+      },
+    ],
+  }),
+}));
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
+}));
 vi.mock('./automation-canvas', () => ({ AutomationCanvas: () => null }));
 vi.mock('./node-inspector', () => ({ NodeInspector: () => null }));
 vi.mock('./agent-execution-log', () => ({ AgentExecutionLog: () => null }));
@@ -66,6 +84,9 @@ beforeEach(() => {
   state.status = 'waiting';
   state.finishedAt = null;
   state.detail = 'approval:250a93eb-9413-4699-94e8-ee3164e5e545';
+  state.waitingFor = 'approval';
+  state.startedBy = 'user:user-me';
+  state.startedVia = undefined;
   vi.clearAllMocks();
 });
 
@@ -115,7 +136,62 @@ describe('RunDetail native run state', () => {
 
   it('renders a null run detail without an empty waiting alert', () => {
     state.detail = null;
+    state.waitingFor = undefined;
     renderRun();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+/**
+ * The header names the starter and the park in words — the record's
+ * `user:<id>` door and `repeat:<node>` park used to print verbatim
+ * (2026-09-26 evaluation, D-01 and D-08).
+ */
+describe('RunDetail starter and reason', () => {
+  it('names the reader as the starter, never the raw door', () => {
+    renderRun();
+    expect(screen.getByText('Started by you')).toBeVisible();
+    expect(screen.queryByText(/user:user-me/)).toBeNull();
+  });
+
+  it('names another member, and the trigger kind of a trigger run', () => {
+    state.startedBy = 'api-key:user-dana';
+    const first = renderRun();
+    expect(screen.getByText('Started by Dana K. (API)')).toBeVisible();
+    first.unmount();
+    state.startedBy = 'trigger:t-1';
+    state.startedVia = 'webhook';
+    renderRun();
+    expect(screen.getByText('Started by a webhook')).toBeVisible();
+    expect(screen.queryByText(/trigger:t-1/)).toBeNull();
+  });
+
+  it('says a polling park in words instead of the raw repeat detail', () => {
+    state.detail = 'repeat:tick';
+    state.waitingFor = 'repeat';
+    renderRun();
+    expect(screen.getByRole('alert')).toHaveTextContent('Polling — step tick');
+    expect(screen.queryByText('repeat:tick')).toBeNull();
+  });
+
+  it('keeps the failure sentence of a failed run', () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = 'send: no usable credential for imap-smtp';
+    state.waitingFor = undefined;
+    renderRun();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'send: no usable credential for imap-smtp',
+    );
+  });
+
+  it('shows no reason on a stopped run whose park is history', () => {
+    state.status = 'cancelled';
+    state.finishedAt = 1789363170729;
+    state.detail = 'repeat:tick';
+    state.waitingFor = undefined;
+    renderRun();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/repeat/)).toBeNull();
   });
 });

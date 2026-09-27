@@ -32,6 +32,7 @@ import {
   beginRunInTx,
   cancelRun,
   cancelRunInTx,
+  decodeRunInput,
   deleteTrigger,
   deployedVersion,
   deploy as deployVersion,
@@ -174,17 +175,6 @@ export interface PgStoreScope {
    * runs this store starts so their spend books to the key as well. */
   apiKeyId?: string;
   projectId?: string;
-}
-
-/** The run row stores `input` as a JSON-encoded string (the stepper's
- * contract); the engine-facing detail hands back the decoded value. */
-function decodeRunInput(input: unknown): unknown {
-  if (typeof input !== 'string') return input;
-  try {
-    return JSON.parse(input);
-  } catch {
-    return input;
-  }
 }
 
 export function pgAutomationStore(

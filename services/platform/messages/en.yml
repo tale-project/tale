@@ -822,11 +822,26 @@ automations:
     # to tell the platform's retry from their own rerun.
     autoRetrying: 'Auto-retry {n} of {max}'
     cancel: Stop the run
-    startedBy: 'Started by {actor}'
+    # Who or what started the run — never the `user:<id>` / `trigger:<id>`
+    # door the record carries.
     starter:
-      apiKey: '{name} via an API key'
-      trigger: a trigger
-      formerMember: a former member
+      you: Started by you
+      youApi: Started by you (API)
+      member: 'Started by {name}'
+      apiKey: 'Started by {name} (API)'
+      formerMember: Started by a former member
+      formerMemberApi: Started by a former member (API)
+      schedule: Started by the schedule
+      webhook: Started by a webhook
+      event: Started by a platform event
+      trigger: Started by a trigger
+      unknown: Starter not recorded
+    # What a waiting run is parked on, in words.
+    waiting:
+      approval: Waiting for approval
+      ask: Waiting for your answer
+      agent: Agent working
+      repeat: 'Polling — step {node}'
     startedAt: 'Started {date}'
     finishedAt: 'Finished {date}'
     inputTitle: Run input
