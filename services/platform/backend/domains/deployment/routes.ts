@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   DeploymentError,
   requireInstanceAdmin,
@@ -57,7 +58,7 @@ export function createDeploymentRoutes(deps: {
         expectedHash: z.string().max(200).nullable().optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const auth = await requireInstanceAdmin(deps.sql, caller(c), {
         write: true,

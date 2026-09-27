@@ -61,17 +61,6 @@ import {
   MAX_SESSION_TTL_MS,
 } from '../../backend/domains/browser_sessions/service.ts';
 import {
-  CONTACT_EMAIL_LOCAL_PART_MAX,
-  CONTACT_EMAIL_MAX,
-  CONTACT_EXTERNAL_ID_MAX,
-  CONTACT_LOCALE_MAX,
-  CONTACT_NAME_MAX,
-  CONTACT_NOTES_MAX,
-  CONTACT_PHONE_MAX,
-  CONTACT_TAG_MAX,
-  CONTACT_TAGS_MAX,
-} from '../../backend/domains/contacts/input-schema.ts';
-import {
   PRODUCT_EXTERNAL_ID_MAX,
   PRODUCT_TAG_MAX,
   PRODUCT_TAGS_MAX,
@@ -91,7 +80,18 @@ import {
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
 import { EMITTED_EVENT_TYPES } from '../../lib/shared/event-types.ts';
-import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
+import {
+  CONTACT_EMAIL_LOCAL_PART_MAX,
+  CONTACT_EMAIL_MAX,
+  CONTACT_EXTERNAL_ID_MAX,
+  CONTACT_LOCALE_MAX,
+  CONTACT_NAME_MAX,
+  CONTACT_NOTES_MAX,
+  CONTACT_PHONE_MAX,
+  CONTACT_TAG_MAX,
+  CONTACT_TAGS_MAX,
+  dataSourceSchema,
+} from '../../lib/shared/schemas/common.ts';
 import { FREE_FORM_JSON_BOUNDS } from '../../lib/shared/utils/json-bounds.ts';
 
 export type Json = Record<string, unknown>;

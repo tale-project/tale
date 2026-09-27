@@ -107,7 +107,10 @@ describe('POST /asks/:askId/answer', () => {
     const res = await answer(body);
 
     expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toEqual({ error: 'invalid body' });
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'invalid body',
+      data: { issues: [{ path: 'answer' }] },
+    });
     expect(answerAsk).not.toHaveBeenCalled();
   });
 

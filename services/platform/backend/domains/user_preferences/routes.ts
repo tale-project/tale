@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   getMyPreferences,
   PreferencesError,
@@ -49,7 +50,7 @@ export function createUserPreferenceRoutes(deps: {
   app.post('/custom-instructions', async (c) => {
     const body = customInstructionsSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const scope = scopeOf(c);
     try {
@@ -80,7 +81,7 @@ export function createUserPreferenceRoutes(deps: {
     app.post(route, async (c) => {
       const body = enabledSchema.safeParse(await c.req.json());
       if (!body.success) {
-        return c.json({ error: 'invalid body' }, 400);
+        return invalidBodyResponse(c, body.error);
       }
       const scope = scopeOf(c);
       await transactSerializable(deps.sql, (tx) =>
@@ -93,7 +94,7 @@ export function createUserPreferenceRoutes(deps: {
   app.post('/onboarding-completed', async (c) => {
     const body = completedSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const scope = scopeOf(c);
     await transactSerializable(deps.sql, (tx) =>
@@ -105,7 +106,7 @@ export function createUserPreferenceRoutes(deps: {
   app.post('/chat-model', async (c) => {
     const body = chatModelSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const scope = scopeOf(c);
     try {
