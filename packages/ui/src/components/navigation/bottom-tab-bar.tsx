@@ -54,13 +54,19 @@ export interface BottomTabBarProps extends Omit<
 // stand-in a loading shell renders has the bar's exact height by
 // construction: a top border, then per tab the padding, a 28px icon pill, the
 // gap and one label line.
+//
+// The label keeps to one line and gets all of the tab's width it can: 2px of
+// side padding and tight tracking, so the longest section names — German's
+// "Automatisierungen", French's "Automatisations" — read whole on a 360px
+// phone (and French on a 320px one) instead of ending in an ellipsis.
 const BAR_FRAME_CLASS =
   'border-border flex border-t pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left) md:hidden';
 const TAB_CLASS =
-  'relative flex min-h-12 min-w-0 flex-1 basis-0 flex-col items-center justify-start gap-0.5 px-1 pt-2 pb-1.5';
+  'relative flex min-h-12 min-w-0 flex-1 basis-0 flex-col items-center justify-start gap-0.5 px-0.5 pt-2 pb-1.5';
 const PILL_CLASS =
   'relative inline-flex h-7 min-w-12 items-center justify-center rounded-full px-3';
-const LABEL_CLASS = 'w-full truncate text-center text-[10px] leading-tight';
+const LABEL_CLASS =
+  'w-full truncate text-center text-[10px] leading-tight tracking-tight';
 
 /**
  * In-flow bottom tab bar primitive. Renders 2-5 items as a row of equally-sized
