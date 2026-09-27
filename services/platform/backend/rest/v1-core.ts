@@ -5,6 +5,7 @@ import {
   parseEntityTag,
   parseEntityTagList,
 } from '@tale/shared/http/entity-tag';
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import {
   isValidSkillSlug,
   SKILL_EDIT_VISIBILITIES,
@@ -177,12 +178,7 @@ const skillEditBodySchema = z
 /** The contacts/products precondition: the `updatedAt` last read; a row
  * another writer moved on answers 409 `CONTACT_STALE` / `PRODUCT_STALE`. */
 const expectedUpdatedAtField = {
-  expectedUpdatedAt: z
-    .number()
-    .int()
-    .min(0)
-    .max(Number.MAX_SAFE_INTEGER)
-    .optional(),
+  expectedUpdatedAt: epochMsSchema.optional(),
 };
 
 /**
@@ -947,7 +943,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           folderId: z.string().max(64).nullable().optional(),
           // The contacts/products precondition: the `updatedAt` last read;
           // a document another writer moved on answers 409 DOCUMENT_STALE.
-          expectedUpdatedAt: z.number().int().min(0).optional(),
+          expectedUpdatedAt: epochMsSchema.optional(),
         })
         .strict(),
       { maxBytes: DOCUMENT_BODY_BYTES },
