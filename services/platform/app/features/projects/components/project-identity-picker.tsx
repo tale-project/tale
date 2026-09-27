@@ -24,15 +24,6 @@ export interface ProjectIdentityValue {
   readonly color: string | null;
 }
 
-/** `FolderKanban` → `Folder kanban`, `Building2` → `Building 2`. */
-function humanizeIconName(name: string): string {
-  const spaced = name
-    .replace(/([a-z])([A-Z0-9])/g, '$1 $2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-    .toLowerCase();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
 function isProjectColor(value: string | null): value is ProjectColor {
   return (
     value !== null && (PROJECT_COLORS as readonly string[]).includes(value)
@@ -214,10 +205,10 @@ export function ProjectIdentityPicker({
             options={PROJECT_ICONS}
             selected={selectedIcon}
             onSelect={(icon) => onChange({ ...value, icon })}
-            optionLabel={humanizeIconName}
+            optionLabel={(icon) => t(`identity.icons.${icon}`)}
             renderOption={(icon, isSelected) => (
               <ProjectAvatar
-                name={humanizeIconName(icon)}
+                name={t(`identity.icons.${icon}`)}
                 icon={icon}
                 color={selectedColor}
                 size={24}

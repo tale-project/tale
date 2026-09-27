@@ -1,6 +1,10 @@
+import { PROJECT_ICONS } from '@tale/shared/schemas/projects';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
+import deMessages from '@/messages/de.yml';
+import enMessages from '@/messages/en.yml';
+import frMessages from '@/messages/fr.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
 
@@ -39,6 +43,14 @@ describe('ProjectIdentityPicker', () => {
     // for `null`.
     expect(within(colors).getByRole('radio', { name: 'Gray' })).toBeChecked();
     expect(within(icons).getByRole('radio', { name: 'Folder' })).toBeChecked();
+    // Icon names are translated labels, never the lucide identifier split
+    // into words (`Folder kanban`, `Building 2`).
+    expect(
+      within(icons).getByRole('radio', { name: 'Kanban folder' }),
+    ).toBeInTheDocument();
+    expect(
+      within(icons).getByRole('radio', { name: 'Building' }),
+    ).toBeInTheDocument();
     expect(within(colors).getAllByRole('radio')).toHaveLength(19);
     expect(within(icons).getAllByRole('radio')).toHaveLength(30);
     await checkAccessibility(baseElement);
@@ -74,5 +86,20 @@ describe('ProjectIdentityPicker', () => {
     expect(
       within(icons).getByRole('radio', { name: 'Microscope' }),
     ).toBeChecked();
+  });
+
+  it.each([
+    ['en', enMessages],
+    ['de', deMessages],
+    ['fr', frMessages],
+  ] as const)('names every project icon in %s', (_locale, messages) => {
+    const icons = (
+      messages as unknown as {
+        projects: { identity: { icons: Record<string, unknown> } };
+      }
+    ).projects.identity.icons;
+    for (const icon of PROJECT_ICONS) {
+      expect(icons[icon], icon).toEqual(expect.any(String));
+    }
   });
 });

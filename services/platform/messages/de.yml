@@ -7784,6 +7784,37 @@ projects:
       fuchsia: Fuchsia
       pink: Pink
       rose: Rosé
+    icons:
+      FolderKanban: Kanban-Ordner
+      Folder: Ordner
+      FolderOpen: Geöffneter Ordner
+      FolderTree: Ordnerbaum
+      FolderGit2: Git-Ordner
+      Briefcase: Aktentasche
+      Building2: Gebäude
+      Layers: Ebenen
+      Box: Kiste
+      BookOpen: Aufgeschlagenes Buch
+      GraduationCap: Doktorhut
+      Lightbulb: Glühbirne
+      Rocket: Rakete
+      Target: Zielscheibe
+      Flag: Flagge
+      Compass: Kompass
+      Map: Karte
+      Star: Stern
+      Beaker: Becherglas
+      FlaskConical: Erlenmeyerkolben
+      Microscope: Mikroskop
+      Atom: Atom
+      Cpu: Prozessor
+      Code: Code
+      Heart: Herz
+      Users: Personen
+      MessageSquare: Sprechblase
+      Phone: Telefon
+      Mail: Briefumschlag
+      Globe: Globus
   instructions:
     label: Anweisungen
     hint: Jeder Chat in diesem Projekt startet mit diesen Anweisungen.

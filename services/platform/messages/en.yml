@@ -5106,6 +5106,37 @@ projects:
       fuchsia: Fuchsia
       pink: Pink
       rose: Rose
+    icons:
+      FolderKanban: Kanban folder
+      Folder: Folder
+      FolderOpen: Open folder
+      FolderTree: Folder tree
+      FolderGit2: Git folder
+      Briefcase: Briefcase
+      Building2: Building
+      Layers: Layers
+      Box: Box
+      BookOpen: Open book
+      GraduationCap: Graduation cap
+      Lightbulb: Light bulb
+      Rocket: Rocket
+      Target: Target
+      Flag: Flag
+      Compass: Compass
+      Map: Map
+      Star: Star
+      Beaker: Beaker
+      FlaskConical: Flask
+      Microscope: Microscope
+      Atom: Atom
+      Cpu: Chip
+      Code: Code
+      Heart: Heart
+      Users: People
+      MessageSquare: Speech bubble
+      Phone: Phone
+      Mail: Envelope
+      Globe: Globe
   instructions:
     label: Instructions
     hint: Every chat in this project starts with these instructions.
