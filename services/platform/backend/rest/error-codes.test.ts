@@ -237,6 +237,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_PARENT_ARCHIVED',
   'TASK_PARENT_PROJECT_MISMATCH',
   'TASK_REVIEWER_INVALID',
+  'TASK_REVIEWER_NO_EDIT_ACCESS',
   'TASK_SCHEDULE_INVALID',
   // Tasks: the door's schemas trim and cap the title, description, labels
   // and comment body at the domain's own constants and canonicalize the

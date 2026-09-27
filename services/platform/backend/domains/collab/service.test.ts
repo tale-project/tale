@@ -7,6 +7,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { CollabNotificationInput } from './service.ts';
 import {
+  dismissReviewerAssignedNotifications,
   dismissReviewRequestNotifications,
   dismissTriggerPausedNotifications,
   markAllNotificationsRead,
@@ -14,6 +15,7 @@ import {
   notifyTaskMentions,
   notifyTaskReviewerAssigned,
   notifyTriggerPaused,
+  notifyTaskReviewRequested,
   writeCoalescedNotification,
 } from './service.ts';
 
@@ -360,6 +362,87 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
     });
     expect(calls).toEqual([]);
     expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+  });
+
+  it('a moved designation marks only the former designee’s unread heads-up on this task read, and hints them', async () => {
+    // Before the fix a change of reviewer ahead of In review left "You're
+    // the reviewer" ringing for the person it was taken from.
+    const { db, calls } = recordingDb((text) =>
+      text.startsWith('UPDATE app.user_notifications') ? [{ id: 'n-1' }] : [],
+    );
+    await expect(
+      dismissReviewerAssignedNotifications(db, {
+        organizationId: 'org-1',
+        taskId: 'task-1',
+        userId: 'u-recipient',
+      }),
+    ).resolves.toBe(1);
+    const update = calls.find((call) =>
+      call.text.startsWith('UPDATE app.user_notifications'),
+    );
+    expect(update?.text).toContain('read = true');
+    expect(update?.text).toContain("type = 'task_reviewer_assigned'");
+    expect(update?.text).toContain('read = false');
+    expect(update?.values).toEqual(
+      expect.arrayContaining(['org-1', 'u-recipient', 'task-1']),
+    );
+    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledWith(db, {
+      orgId: 'org-1',
+      userId: 'u-recipient',
+      entity: NOTIFICATION_HINT_ENTITY,
+      entityId: null,
+    });
+  });
+
+  it('a moved designation with no unread heads-up hints nobody', async () => {
+    const { db } = recordingDb(() => []);
+    await expect(
+      dismissReviewerAssignedNotifications(db, {
+        organizationId: 'org-1',
+        taskId: 'task-1',
+        userId: 'u-recipient',
+      }),
+    ).resolves.toBe(0);
+    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+  });
+
+  it('a review handed over by no person (an erasure) asks impersonally, as the system', async () => {
+    const { db, calls } = recordingDb((text) =>
+      text.startsWith('INSERT INTO app.user_notifications')
+        ? [{ id: 'n-request' }]
+        : [],
+    );
+    await notifyTaskReviewRequested(db, {
+      organizationId: 'org-1',
+      task: designation.task,
+      reviewerUserId: 'u-recipient',
+      approvalId: 'approval-1',
+      submitter: { kind: 'system' },
+    });
+    // No actor to name: nobody's display name is read.
+    expect(calls.some((call) => call.text.includes('FROM "user"'))).toBe(false);
+    const insert = calls.find((call) =>
+      call.text.startsWith('INSERT INTO app.user_notifications'),
+    );
+    expect(insert?.values).toEqual(
+      expect.arrayContaining([
+        'u-recipient',
+        'task_review_requested',
+        'taskReviewRequested',
+        'taskReviewRequestedBodyHuman',
+        'task_review',
+        'approval-1',
+        'system',
+        null,
+      ]),
+    );
+    expect(insert?.values).toContainEqual({
+      taskId: 'task-1',
+      projectId: 'proj-1',
+      taskTitle: 'Ship the brief',
+      approvalId: 'approval-1',
+    });
   });
 });
 

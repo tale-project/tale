@@ -6,7 +6,6 @@ import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
 import {
   checkProjectAccess,
   EDITOR_ROLES,
@@ -35,6 +34,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import {
   autoSubscribe,
+  dismissReviewerAssignedNotifications,
   notifyTaskAssigned,
   notifyTaskMentions,
   notifyTaskReviewerAssigned,
@@ -56,6 +56,7 @@ import {
   collectPendingReviewsForProjects,
   requestTaskReview,
   retargetPendingTaskReview,
+  reviewerEligibility,
   type TaskReviewTrigger,
 } from './reviews.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
@@ -1415,9 +1416,13 @@ export async function updateTask(
     }
   }
   // A NEW designee (not a clear, not a re-select) is about to be subscribed
-  // and belled: only a live member of THIS org can be on the hook — the
-  // picker offers members only, so a miss is a stale or hand-built request,
-  // and a disabled account cannot review.
+  // and belled, so they must be someone the gate would actually hand the
+  // review to — the one rule `reviewerEligibility` holds the gate to. A
+  // designee without project edit access used to be stored and then routed
+  // past at mint, the review silently landing on a creator. The picker
+  // offers eligible members only, so a miss is a stale or hand-built
+  // request; re-selecting a designee who has since lost access is no
+  // designation and passes, and the gate routes past them as before.
   const designatedReviewer =
     args.reviewerUserId !== undefined &&
     reviewerUserId !== null &&
@@ -1425,15 +1430,21 @@ export async function updateTask(
       ? reviewerUserId
       : null;
   if (designatedReviewer !== null) {
-    const member = await findOrganizationMember(
-      tx,
-      auth.organizationId,
-      designatedReviewer,
-    );
-    if (member === null || member.role === 'disabled') {
+    const eligibility = await reviewerEligibility(tx, {
+      organizationId: auth.organizationId,
+      projectTeamIds: project.teamIds,
+      userId: designatedReviewer,
+    });
+    if (eligibility === 'not_member') {
       throw new TaskError(
         'TASK_REVIEWER_INVALID',
         'The reviewer must be an active member of this organization',
+      );
+    }
+    if (eligibility === 'cannot_edit') {
+      throw new TaskError(
+        'TASK_REVIEWER_NO_EDIT_ACCESS',
+        'The reviewer must be able to edit this project',
       );
     }
   }
@@ -1521,6 +1532,16 @@ export async function updateTask(
           actorUserId: auth.userId,
         })
       : undefined;
+  // The previous designee is off the hook: an unread "You're the reviewer"
+  // heads-up would keep telling them otherwise. Their request bell, when the
+  // review was open, went with the retarget above.
+  if (task.reviewerUserId !== null && reviewerUserId !== task.reviewerUserId) {
+    await dismissReviewerAssignedNotifications(tx, {
+      organizationId: auth.organizationId,
+      taskId: task.id,
+      userId: task.reviewerUserId,
+    });
+  }
   if (designatedReviewer !== null) {
     // The designee owns the gate from now on: they follow the task (its
     // progress, not just the request moment) and get the heads-up bell —
