@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { relative, resolve } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
@@ -74,9 +74,11 @@ describe('documented general platform configuration', () => {
  * without them as `test` inputs (`tools/cli/turbo.json`) a docs-only edit
  * replays this suite's cached verdict instead of parsing the new examples. */
 test('turbo re-runs this suite when an install page changes', () => {
+  // `bun x`, not a `bunx` shim: the CLI workflow runs this suite on Windows.
   const run = Bun.spawnSync(
     [
-      'bunx',
+      process.execPath,
+      'x',
       'turbo',
       'run',
       'test',
@@ -102,8 +104,9 @@ test('turbo re-runs this suite when an install page changes', () => {
   );
   // `$TURBO_DEFAULT$` stays in the list, or the suite's own sources drop out.
   expect(inputs.has('package.json')).toBe(true);
+  // Turbo keys inputs by `/`-separated paths relative to the workspace.
   const unhashed = LOCALES.map((locale) =>
-    relative(CLI_ROOT, installPage(locale)),
+    relative(CLI_ROOT, installPage(locale)).split(sep).join('/'),
   ).filter((page) => !inputs.has(page));
   expect(unhashed).toEqual([]);
 });
