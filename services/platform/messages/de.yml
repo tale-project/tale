@@ -7098,6 +7098,7 @@ tasks:
     add: Hinzufügen
     archive: Archivieren
     restore: Wiederherstellen
+    delete: Löschen
   searchPlaceholder: Tasks durchsuchen
   views:
     board: Board
@@ -7117,6 +7118,11 @@ tasks:
     error: Aufgabe konnte nicht archiviert werden
     restoreSuccess: Aufgabe wiederhergestellt
     restoreError: Aufgabe konnte nicht wiederhergestellt werden
+  delete:
+    confirmTitle: "Aufgabe löschen?"
+    confirmDescription: Löscht diese Aufgabe und ihre Teilaufgaben samt Kommentaren und Dateien und stoppt ihre laufenden Agentenläufe. Das lässt sich nicht rückgängig machen.
+    success: Aufgabe gelöscht
+    error: Aufgabe konnte nicht gelöscht werden
   detail:
     overview: Übersicht
     comments: Kommentare

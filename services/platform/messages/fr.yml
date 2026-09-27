@@ -7204,6 +7204,7 @@ tasks:
     add: Ajouter
     archive: Archiver
     restore: Restaurer
+    delete: Supprimer
   searchPlaceholder: Rechercher des tâches
   views:
     board: Tableau
@@ -7223,6 +7224,11 @@ tasks:
     error: Impossible d'archiver la tâche
     restoreSuccess: Tâche restaurée
     restoreError: Impossible de restaurer la tâche
+  delete:
+    confirmTitle: "Supprimer la tâche ?"
+    confirmDescription: "Supprime cette tâche et ses sous-tâches avec leurs commentaires et fichiers, et arrête leurs exécutions d'agent en cours. Cette action est irréversible."
+    success: Tâche supprimée
+    error: Impossible de supprimer la tâche
   detail:
     overview: Aperçu
     comments: Commentaires

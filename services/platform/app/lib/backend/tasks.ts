@@ -811,7 +811,19 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
         { method: 'DELETE', orgId },
       );
     },
-    invalidate: taskWriteInvalidate,
+    // The deleted task's own reads can only answer 404 now, and the dialog
+    // showing them closes as soon as the delete lands: refetching them would
+    // log one failed request per read. Every other task read refreshes.
+    invalidate: (client, args, ctx) => {
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      const taskId = args.taskId;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'task'),
+        predicate: (query) =>
+          typeof taskId !== 'string' || !query.queryKey.includes(taskId),
+      });
+    },
   },
   'tasks/mutations:addTaskComment': {
     run: async (args, ctx) => {

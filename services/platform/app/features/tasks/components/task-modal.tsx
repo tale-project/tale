@@ -34,6 +34,7 @@ import {
   ArchiveRestore,
   Plus,
   Settings2,
+  Trash2,
   Workflow,
 } from 'lucide-react';
 import {
@@ -110,6 +111,7 @@ import {
   TaskComments,
 } from './task-comments';
 import { TaskConversation } from './task-conversation';
+import { TaskDeleteDialog } from './task-delete-dialog';
 import { TaskDependencies } from './task-dependencies';
 import { TaskDetailFallback } from './task-detail-fallback';
 import { TaskExternalIssueCard } from './task-external-issue-card';
@@ -1143,6 +1145,7 @@ export function EditTaskBody({
 
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const pasteCounterRef = useRef(1);
 
   const onMutationError = (error: unknown) => {
@@ -1987,6 +1990,19 @@ export function EditTaskBody({
           >
             {isArchived ? t('actions.restore') : t('actions.archive')}
           </Button>
+          {/* Deleting is for owners and admins — the backend refuses anyone
+                    else — so nobody else is offered a door that would fail. */}
+          {me?.isAdmin === true && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive w-full shrink-0"
+              icon={Trash2}
+              onClick={() => setDeleteOpen(true)}
+            >
+              {t('actions.delete')}
+            </Button>
+          )}
         </>
       )}
     </>
@@ -2113,6 +2129,13 @@ export function EditTaskBody({
         taskTitle={task.title}
         isArchived={isArchived}
         onArchived={onClose}
+      />
+      <TaskDeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        taskId={task._id}
+        taskTitle={task.title}
+        onDeleted={onClose}
       />
       {ownedBy?.settings != null && settingsFolder !== null && (
         <AutomationSettingsDialog

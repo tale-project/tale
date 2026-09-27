@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
+import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { backendKey } from './query-keys';
 import {
   taskPaginatedAdapters,
   taskReadAdapters,
@@ -276,6 +278,25 @@ describe('task write adapters', () => {
     );
     const [url] = fetchSpy.mock.calls[0] ?? [];
     expect(url).toBe('/api/app/tasks/labels/l1?detach=true&orgId=org-1');
+  });
+
+  it('refreshes every task read after a delete except the deleted task', () => {
+    // The dialog showing the deleted task closes as soon as the delete
+    // lands; refetching its reads would only answer 404s under it.
+    const client = new QueryClient();
+    const board = backendKey('org-1', 'task', 'by-project', 'p1');
+    const deleted = backendKey('org-1', 'task', 'detail', 't1');
+    client.setQueryData(board, []);
+    client.setQueryData(deleted, {});
+
+    taskWriteAdapters['tasks/mutations:deleteTask']?.invalidate?.(
+      client,
+      { taskId: 't1' },
+      { organizationId: 'org-1' },
+    );
+
+    expect(client.getQueryState(board)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(deleted)?.isInvalidated).toBe(false);
   });
 
   it('creates a task and answers the new id', async () => {

@@ -56,6 +56,11 @@ export function useRestoreTask() {
   return useBackendMutation('tasks/mutations:restoreTask');
 }
 
+/** Delete a task with its subtasks for good (owners and admins only). */
+export function useDeleteTask() {
+  return useBackendMutation('tasks/mutations:deleteTask');
+}
+
 export function useMoveTask() {
   const { t } = useT('tasks');
   const { t: tToast } = useT('toast');

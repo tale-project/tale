@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 49 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 50 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -184,6 +184,12 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   their trigger and cost; archiving toasts `tasks.archive.success` and removes
   the card from the default views; restoring (`tasks.archive.restoreSuccess`)
   returns it — both persisted across reload.
+- [ ] `TASK-F33` · **Delete a task** — As an organization owner or admin, open
+  a task that has a subtask → **Delete** (`tasks.actions.delete`) under
+  **Details** → confirm (`tasks.delete.confirmTitle`) → The toast reads
+  `tasks.delete.success`, the task view closes, and the task and its subtask
+  are gone from the board, the list and Home — also after a reload. Signed in
+  as a member without an admin role, **Delete** is not offered.
 - [ ] `TASK-F17` · **Retry after switching the agent's harness** — Let a run
   fail mid-work (stop the sandbox's spawner while the CLI is busy), then
   change the agent's **Harness** (e.g. Claude Code → Codex) and **Retry**

@@ -7225,6 +7225,7 @@ tasks:
     add: Add
     archive: Archive
     restore: Restore
+    delete: Delete
   searchPlaceholder: Search tasks
   views:
     board: Board
@@ -7245,6 +7246,11 @@ tasks:
     error: Couldn't archive task
     restoreSuccess: Task restored
     restoreError: Couldn't restore task
+  delete:
+    confirmTitle: "Delete task?"
+    confirmDescription: "Deletes this task and its subtasks with their comments and files, and stops their running agent runs. This can't be undone."
+    success: Task deleted
+    error: "Couldn't delete task"
   detail:
     overview: Overview
     comments: Comments
