@@ -111,9 +111,9 @@ describe('SettingsUploadsPanel', () => {
       Response.json(
         {
           error: 'FILE_SIZE_INVALID',
-          message: 'Uploaded object is too large',
+          message: 'The file exceeds the 512 MiB limit',
         },
-        { status: 400 },
+        { status: 413 },
       ),
     );
     try {
@@ -130,7 +130,8 @@ describe('SettingsUploadsPanel', () => {
         expect(toastMock).toHaveBeenCalledWith(
           expect.objectContaining({
             title: "Couldn't upload the file — try again.",
-            description: 'history-2026-q1.json: Uploaded object is too large',
+            description:
+              'history-2026-q1.json: The file exceeds the 512 MiB limit',
             variant: 'destructive',
           }),
         );
@@ -157,9 +158,9 @@ describe('SettingsUploadsPanel', () => {
         Response.json(
           {
             error: 'FILE_SIZE_INVALID',
-            message: 'Uploaded object is too large',
+            message: 'The file exceeds the 512 MiB limit',
           },
-          { status: 400 },
+          { status: 413 },
         ),
       )
       .mockResolvedValueOnce(Response.json({ storageId: 'blob_b' }));
@@ -178,7 +179,7 @@ describe('SettingsUploadsPanel', () => {
       expect(toastMock).toHaveBeenLastCalledWith({
         title: '1 of 3 file(s) uploaded.',
         description:
-          "a.pdf: Uploaded object is too large · notes.json: The file name doesn't match the expected pattern for this form.",
+          "a.pdf: The file exceeds the 512 MiB limit · notes.json: The file name doesn't match the expected pattern for this form.",
         variant: 'destructive',
       });
     } finally {
