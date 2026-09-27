@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 59 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 60 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -515,6 +515,14 @@ loaded, and reads **No teams** for an account in none.
   panel shows a `/api/health` probe every ~5 s while offline. Restore the
   network → the overlay clears within ~5 s on its own, no reload, and the
   list underneath is still mounted.
+- [ ] `NAV-B12` · **Leaving pages on a slow network is not an outage** — With
+  `SENTRY_DSN` pointing at an error-reporting project you can read, throttle
+  DevTools to **Slow 3G** and, about one click a second, go **Knowledge** →
+  **Contacts** → **Home** → a chat in its list, five rounds; then wait 15 s →
+  The Network panel lists the left pages' reads as `(canceled)`, yet neither
+  **Can't reach Tale** (`connectivity.backendTitle`) nor **You're offline**
+  (`connectivity.deviceTitle`) appears at any point, and the project receives
+  no `AbortError` event.
 
 ## Accessibility (WCAG 2.1 AA)
 
