@@ -13,11 +13,12 @@ import {
  * standard `Retry-After` header (whole seconds, rounded up, never zero) for
  * every generic client and proxy in between. One shape for every door, so a
  * spent budget never reads as an outage. By default the code rides in BOTH
- * `error` (the 0.4 wire shape the app client still reads as the code) and
- * `code` (the field the REST error model tells a client to branch on); the
- * REST door passes `message` so `error` is the sentence its envelope
- * promises everywhere else, and `requestId` so the envelope matches its
- * 413 (2026-09-14 evaluation, g4-11) — the app doors keep the bare shape.
+ * `error` (the 0.4 wire shape, still the code for an app bundle that reads
+ * only `error`) and `code` (the field the REST error model tells a client to
+ * branch on, and the one the app client prefers); the REST door passes
+ * `message` so `error` is the sentence its envelope promises everywhere
+ * else, and `requestId` so the envelope matches its 413 (2026-09-14
+ * evaluation, g4-11) — the app doors keep the bare shape.
  */
 export function rateLimitedResponse<E extends Env>(
   c: Context<E>,

@@ -137,6 +137,7 @@ const steerSchema = z.object({
   tools: z.array(z.string()),
   secrets: z.array(z.string()),
   feedback: z.string(),
+  mentionSource: z.enum(['comment', 'description']).optional(),
   author: z.string(),
   authorId: z.string(),
   attempt: z.number(),
@@ -249,6 +250,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       `;
       console.log(`[maintenance] rate_limit_gc removed ${deleted.count} rows`);
     },
+    'maintenance.expired_sessions': async (_payload, context) => {
+      const { reapExpiredSessions } =
+        await import('../auth/expired-sessions.ts');
+      const { deleted, drained } = await reapExpiredSessions(deps.sql, {
+        signal: context?.signal,
+      });
+      console.log(
+        `[maintenance] expired_sessions removed ${deleted} rows${drained ? '' : ' (stopped before draining; the next run carries on)'}`,
+      );
+    },
     'realtime.reclaim_outbox': async () => {
       const { OUTBOX_RECLAIM_CRON_MAX_BATCHES, reclaimOutbox } =
         await import('../realtime/outbox.ts');
@@ -308,6 +319,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // server, a queue of other jobs' batches). The run stops when pg-boss
       // gives up on it, and the retry resumes after the stored slices.
       await indexUploadedFile(deps.sql, input.fileId, {
+        signal: context?.signal,
+      });
+    },
+    'rag.index_message': async (payload, context) => {
+      const input = z.object({ messageId: z.string().min(1) }).parse(payload);
+      const { indexConversationMessage } =
+        await import('../domains/knowledge/message-index.ts');
+      await indexConversationMessage(deps.sql, input.messageId, {
         signal: context?.signal,
       });
     },
@@ -826,6 +845,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           model: string;
           modelProvider: string | null;
           feedback: string | null;
+          mentionSource: 'comment' | 'description' | null;
           deadlineAt: number;
           status: string;
           execId: string;
@@ -834,6 +854,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         SELECT task_id AS "taskId", agent_id AS "agentId",
                session_id AS "sessionId", harness, model,
                model_provider AS "modelProvider", feedback,
+               mention_source AS "mentionSource",
                deadline_at_ms::float8 AS "deadlineAt", status,
                exec_id AS "execId"
         FROM app.project_agent_runs
@@ -908,6 +929,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           tools: agent.tools,
           secrets: agent.secrets,
           ...(run.feedback !== null ? { feedback: run.feedback } : {}),
+          ...(run.mentionSource !== null
+            ? { mentionSource: run.mentionSource }
+            : {}),
           ...plan,
         },
       );

@@ -3,7 +3,7 @@
 import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@tale/shared/schemas/projects';
 import { cn } from '@tale/ui/cn';
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
-import { FormSection } from '@tale/ui/form-section';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useCallback, useMemo } from 'react';
@@ -111,6 +111,9 @@ export function ProjectInstructionsEditor({
   // A settings section like Project and Sharing around it: the section header
   // carries the label + hint (so the textarea only needs an accessible name),
   // and the shared marker-driven divider rule draws the hairline above it.
+  // The section IS this one field, so its body is the bare textarea and its
+  // counter — no field row (it would repeat the section's title as its
+  // label) and no unnamed group around them.
   return (
     <form id={FORM_ID} onSubmit={editor.submit}>
       <fieldset disabled={!canEdit || editor.isLoading} className="contents">
@@ -118,7 +121,7 @@ export function ProjectInstructionsEditor({
           title={t('instructions.label')}
           description={t('instructions.hint')}
         >
-          <FormSection>
+          <Stack gap={2}>
             <Textarea
               id="project-instructions"
               aria-label={t('instructions.label')}
@@ -154,7 +157,7 @@ export function ProjectInstructionsEditor({
                     })
                   : ''}
             </Text>
-          </FormSection>
+          </Stack>
         </SettingsSection>
       </fieldset>
     </form>

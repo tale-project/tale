@@ -1,3 +1,4 @@
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -21,14 +22,21 @@ import {
   TASK_LABELS_MAX,
   TASK_TITLE_MAX,
 } from '../../core/tasks/helpers.ts';
+import {
+  type MentionSource,
+  parseMentionTokens,
+} from '../../core/tasks/mentions.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import {
   autoSubscribe,
   notifyTaskAssigned,
+  notifyTaskMentions,
   notifyTaskReviewerAssigned,
   notifyTaskStatusChanged,
 } from '../collab/service.ts';
@@ -50,6 +58,7 @@ import {
   retargetPendingTaskReview,
   type TaskReviewTrigger,
 } from './reviews.ts';
+import { mentionAutomationEnabled } from './run-start.ts';
 
 /**
  * Tasks domain, Tier A — the task board core: CRUD, status choreography
@@ -260,11 +269,14 @@ function validateDescription(
   return description;
 }
 
+/** A start date may not follow the due date. A stored date no `Date` can
+ * hold (written before the doors held one to the epoch bound) reads as none
+ * here, as it does on the board, so it never blocks setting the other. */
 function assertScheduleOrder(
   startDate: number | undefined | null,
   dueDate: number | undefined | null,
 ): void {
-  if (startDate != null && dueDate != null && startDate > dueDate) {
+  if (isEpochMs(startDate) && isEpochMs(dueDate) && startDate > dueDate) {
     throw new TaskError('TASK_SCHEDULE_INVALID', 'startDate must be ≤ dueDate');
   }
 }
@@ -1176,13 +1188,29 @@ export async function createTask(
       assigneeId: assignee?.assigneeId ?? null,
     });
   }
-  if (status === 'in_review') {
-    await requestTaskReview(tx, {
-      task: await loadTaskOrThrow(tx, taskId, auth.organizationId),
-      trigger: { kind: 'human', actorId: auth.userId },
+  // After the In progress kick, so an agent the card was born working for
+  // keeps its run: one engine per task, and the dispatcher yields to it.
+  if (description !== undefined) {
+    await fanOutDescriptionMentions(tx, auth, {
+      taskId,
+      project,
+      description,
     });
   }
-  // TODO(collab): description mention fan-out rides the mention directory.
+  // Before the review gate: a named agent put to work moves the card to In
+  // progress, whatever column it was born in (a comment naming it on a
+  // closed card does the same). A review opened first would ring the
+  // reviewer and be withdrawn in this same write. The gate opens for a card
+  // still at In review — no agent named, or its start refused.
+  if (status === 'in_review') {
+    const born = await loadTaskOrThrow(tx, taskId, auth.organizationId);
+    if (born.status === 'in_review') {
+      await requestTaskReview(tx, {
+        task: born,
+        trigger: { kind: 'human', actorId: auth.userId },
+      });
+    }
+  }
   return taskId;
 }
 
@@ -1511,6 +1539,16 @@ export async function updateTask(
         actorUserId: auth.userId,
       });
     }
+  }
+  // An edit fans out only the mentions it ADDS: prose reworded around an
+  // existing `@handle` must not ring the bell or start the agent again.
+  if (newState.description !== undefined && description !== null) {
+    await fanOutDescriptionMentions(tx, auth, {
+      taskId: task.id,
+      project,
+      description,
+      previousDescription: task.description ?? '',
+    });
   }
 }
 
@@ -3024,10 +3062,10 @@ async function taskHasLiveRun(
 
 /** Whether a live AUTOMATION run holds this task (subject-linked, the 0.4
  * `findLiveAutomationRunForTask` probe) — the automation half of
- * `taskHasLiveRun`, exported for lanes that treat the two families
- * differently (the comment-mention dispatcher steers an agent run but
- * yields entirely to an automation). */
-export async function taskHasLiveAutomationRun(
+ * `taskHasLiveRun`, for lanes that treat the two families differently (the
+ * mention dispatcher steers an agent run but yields entirely to an
+ * automation). */
+async function taskHasLiveAutomationRun(
   tx: TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
 ): Promise<boolean> {
@@ -3039,6 +3077,294 @@ export async function taskHasLiveAutomationRun(
     LIMIT 1
   `;
   return automation.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Mention dispatch (what an @agent in a comment or a description sets off)
+// ---------------------------------------------------------------------------
+
+/**
+ * @mentions in a task DESCRIPTION fan out the way a comment's do (the 0.4
+ * `fanOutDescriptionMentions`): a named project agent is put to work through
+ * the comment lane's dispatcher, under the task automation switch the
+ * composer's trigger chips preview (`mentionTriggerPreview`), and the named
+ * humans follow the task and get the mention bell. On create every mention
+ * is new; an edit passes the text it replaces, and only the mentions it adds
+ * fan out. An automation named here starts nothing: the chips preview
+ * agents only, and a workflow reads its task's description when it runs.
+ */
+async function fanOutDescriptionMentions(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: {
+    taskId: string;
+    project: ProjectRow;
+    description: string;
+    /** The text an edit replaces; absent on create. */
+    previousDescription?: string;
+  },
+): Promise<void> {
+  // Most descriptions name nobody, and most edits add no `@token`: the token
+  // pre-check keeps the directory build (an org-wide member scan, and more
+  // reads for a SERIALIZABLE save to conflict on) off both. Resolution maps
+  // each token on its own, so a text whose tokens the replaced text already
+  // had resolves to nobody new — the answer a build would give.
+  const tokens = parseMentionTokens(args.description);
+  if (tokens.length === 0) return;
+  if (args.previousDescription !== undefined) {
+    const before = new Set(parseMentionTokens(args.previousDescription));
+    if (tokens.every((token) => before.has(token))) return;
+  }
+  const { added } = await resolveSurfaceMentions(tx, {
+    organizationId: auth.organizationId,
+    projectId: args.project.id,
+    body: args.description,
+    ...(args.previousDescription !== undefined
+      ? { previousBody: args.previousDescription }
+      : {}),
+  });
+  if (added.length === 0) return;
+  const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
+  await dispatchMentionedProjectAgent(tx, {
+    auth,
+    task,
+    project: args.project,
+    mentions: added,
+    authorType: 'user',
+    authorId: auth.userId,
+    text: args.description,
+    source: 'description',
+  });
+  await notifyTaskMentions(tx, {
+    task,
+    mentions: added,
+    actorType: 'user',
+    actorId: auth.userId,
+  });
+}
+
+/**
+ * The @mention work dispatcher for the project's agent INSTANCES — the 0.4
+ * `triggerMentionedProjectAgent` wire, shared by the two texts that name
+ * someone on a task: a posted comment, and the description (on create, and
+ * the mentions an edit adds). `text` is that text and `source` says which
+ * it is. The FIRST mentioned instance belonging to THIS project picks the
+ * lane:
+ *
+ * - the task's live run is RUNNING and its agent is mentioned → STEER the
+ *   live turn with the text (the steer host injects it over the harness's
+ *   held-open stdin, or restarts the exec around it), phrased by its source;
+ * - the live run is QUEUED → nothing: its start reads the brief AFTER this
+ *   write commits;
+ * - another engine holds the task (a different instance's live run, a live
+ *   automation run) → nothing: a mention adds work, never preempts it, and
+ *   it never reassigns under a live run;
+ * - the task is idle → (re)assign it to the instance when it isn't the
+ *   assignee yet (`assignTask` — the picker's own choreography) and kick a
+ *   fresh 'mention' run; the kick moves the card to In progress. A comment
+ *   rides the run as its feedback. A description does not: the run reads
+ *   it as it stands when it starts, so an edit made while the run waits is
+ *   never contradicted by the text it replaced (a resumed conversation,
+ *   which does not re-read the brief, is handed that current text).
+ *
+ * Every refusal is quiet — the text is saved and its humans are notified
+ * either way. The gate is WRITE access: commenting is read-level, but
+ * assigning and running are edits, so a read-only member's `@` stays a plain
+ * mention. Only a HUMAN's text dispatches — an agent's own comment naming
+ * itself would loop.
+ */
+export async function dispatchMentionedProjectAgent(
+  tx: TransactionSql,
+  args: {
+    auth: ProjectAuthContext;
+    task: TaskRow;
+    project: ProjectRow;
+    mentions: { type: string; id: string }[];
+    authorType: string;
+    authorId: string;
+    text: string;
+    source: MentionSource;
+  },
+): Promise<void> {
+  if (args.authorType !== 'user') return;
+  const mentionedAgentIds = new Set(
+    args.mentions
+      .filter((mention) => mention.type === 'agent')
+      .map((mention) => mention.id),
+  );
+  if (mentionedAgentIds.size === 0) return;
+  if (args.task.archivedAt !== null) return;
+  try {
+    assertTaskWritable(args.project, args.auth);
+  } catch {
+    console.warn(
+      `[tasks] agent mention on ${args.task.id} stays a plain mention (author lacks write access)`,
+    );
+    return;
+  }
+
+  const runs = await tx<
+    {
+      id: string;
+      agentId: string;
+      status: string;
+      execId: string;
+      sessionId: string;
+      harness: string;
+      model: string;
+      modelProvider: string | null;
+      deadlineAt: number;
+    }[]
+  >`
+    SELECT id, agent_id AS "agentId", status, exec_id AS "execId",
+           session_id AS "sessionId", harness, model,
+           model_provider AS "modelProvider",
+           deadline_at_ms::float8 AS "deadlineAt"
+    FROM app.project_agent_runs
+    WHERE task_id = ${args.task.id} AND org_id = ${args.auth.organizationId}
+      AND status IN ('queued', 'running')
+    LIMIT 1
+  `;
+  const run = runs[0];
+  if (run !== undefined) {
+    // A queued run needs nothing (its start reads the brief after this
+    // write commits); a live run of an UNMENTIONED instance is never
+    // preempted or reassigned over.
+    if (run.status !== 'running' || !mentionedAgentIds.has(run.agentId)) {
+      return;
+    }
+    const agents = await tx<
+      {
+        instructions: string | null;
+        skills: string[];
+        connectors: string[];
+        tools: string[];
+        secrets: string[];
+      }[]
+    >`
+      SELECT instructions, skills, connectors, tools, secrets
+      FROM app.project_agents WHERE id = ${run.agentId} LIMIT 1
+    `;
+    const agent = agents[0];
+    if (agent === undefined) return;
+
+    const authors = await tx<{ name: string | null; email: string | null }[]>`
+      SELECT "name", "email" FROM "user" WHERE "id" = ${args.authorId} LIMIT 1
+    `;
+    const author =
+      (authors[0]?.name ?? '').trim() ||
+      (authors[0]?.email ?? '').trim() ||
+      'a teammate';
+
+    await addJobInTx(tx, 'task.agent_steer', {
+      organizationId: args.auth.organizationId,
+      runId: run.id,
+      taskId: args.task.id,
+      agentId: run.agentId,
+      execId: run.execId,
+      sessionId: run.sessionId,
+      harness: run.harness,
+      deadlineAt: run.deadlineAt,
+      model: run.model,
+      ...(run.modelProvider !== null
+        ? { modelProvider: run.modelProvider }
+        : {}),
+      ...(agent.instructions !== null
+        ? { instructions: agent.instructions }
+        : {}),
+      skills: agent.skills,
+      connectors: agent.connectors,
+      tools: agent.tools,
+      secrets: agent.secrets,
+      feedback: args.text,
+      mentionSource: args.source,
+      author,
+      authorId: args.authorId,
+      attempt: 0,
+    });
+    return;
+  }
+
+  // Idle lane: resolve the FIRST mentioned id that is an instance OF THIS
+  // project (mention order is appearance order — the 0.4 rule).
+  let instance:
+    | {
+        id: string;
+        harness: string;
+        model: string;
+        modelProvider: string | null;
+      }
+    | undefined;
+  for (const mention of args.mentions) {
+    if (mention.type !== 'agent') continue;
+    const candidates = await tx<
+      {
+        id: string;
+        harness: string;
+        model: string;
+        modelProvider: string | null;
+      }[]
+    >`
+      SELECT id, harness, model, model_provider AS "modelProvider"
+      FROM app.project_agents
+      WHERE id = ${mention.id} AND project_id = ${args.task.projectId}
+        AND org_id = ${args.auth.organizationId}
+      LIMIT 1
+    `;
+    if (candidates[0] !== undefined) {
+      instance = candidates[0];
+      break;
+    }
+  }
+  if (instance === undefined) return;
+  if (!(await mentionAutomationEnabled(tx, args.auth.organizationId))) return;
+  // An automation-driven task keeps its automation — one engine per task.
+  if (await taskHasLiveAutomationRun(tx, args.task)) return;
+  if (instance.model === '') {
+    console.warn(
+      `[tasks] mention kick for agent ${instance.id} refused: agent_model_missing`,
+    );
+    return;
+  }
+  if (
+    args.task.assigneeType !== 'agent' ||
+    args.task.assigneeId !== instance.id
+  ) {
+    // (Re)assign exactly like the picker — activity, audit, notify.
+    await assignTask(tx, args.auth, {
+      taskId: args.task.id,
+      assigneeType: 'agent',
+      assigneeId: instance.id,
+    });
+  }
+  const kicked = await kickAgentRun(tx, {
+    organizationId: args.auth.organizationId,
+    projectId: args.task.projectId,
+    taskId: args.task.id,
+    agentId: instance.id,
+    harness: instance.harness,
+    model: instance.model,
+    ...(instance.modelProvider !== null
+      ? { modelProvider: instance.modelProvider }
+      : {}),
+    startedBy: args.auth.userId,
+    trigger: 'mention',
+    mentionSource: args.source,
+    ...(args.source === 'comment' ? { feedback: args.text } : {}),
+  });
+  if (kicked.reused) {
+    // A racing kick landed between this transaction's live-run probe and
+    // here — the text rides the standing run instead.
+    console.warn(
+      `[tasks] mention kick for agent ${instance.id} reused the standing run`,
+    );
+    return;
+  }
+  await handTaskToInProgressForKick(tx, {
+    organizationId: args.auth.organizationId,
+    taskId: args.task.id,
+    userId: args.auth.userId,
+  });
 }
 
 /**

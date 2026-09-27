@@ -61,3 +61,24 @@ export function turnNamedFailureToastContent(
     ...(description !== undefined ? { description } : {}),
   };
 }
+
+/**
+ * Toast copy for a regenerate that produced no reply. A refused turn's reason
+ * can be a provider's raw error, so it is sanitized like any named turn
+ * failure; a request the door refused outright — `persisted` absent, whether
+ * the turn landed unknown — carries the platform's own words (its sentence,
+ * else its code), shown as they are: a provider-error reading would misname
+ * them (`RBAC_FORBIDDEN` is no provider's rejected key).
+ */
+export function regenerateFailureToastContent(
+  outcome: { readonly reason?: string; readonly persisted?: boolean },
+  t: ChatT,
+): TurnToastContent {
+  if (outcome.persisted === undefined) {
+    return {
+      titleKey: 'regenerateFailed',
+      ...(outcome.reason !== undefined ? { description: outcome.reason } : {}),
+    };
+  }
+  return turnNamedFailureToastContent(outcome.reason, 'regenerateFailed', t);
+}

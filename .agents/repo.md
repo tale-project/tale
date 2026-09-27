@@ -108,7 +108,11 @@ until its inputs change, and "it passes on `main`" is not evidence the suite ran
 concluding that a failure is yours, open the job log and look for `cache hit, replaying logs`
 beside the task; `--force` re-runs it locally. A task whose result depends on anything but its
 declared inputs — test file ordering, wall-clock, a shared browser page — is not safely
-cacheable, and the fix is the determinism, not the cache.
+cacheable, and the fix is the determinism, not the cache. A test that reads a file outside its
+workspace declares that file in the workspace's `turbo.json` `test.inputs` (`$TURBO_EXTENDS$`,
+`$TURBO_DEFAULT$`, then `$TURBO_ROOT$/<path>`), as `services/platform/turbo.json` does for the
+root `.env.example`, `knip.config.ts` and the tale-db init scripts; without it, an edit to that
+file alone replays the cached verdict.
 
 ## Skills index
 

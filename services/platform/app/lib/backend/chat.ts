@@ -6,7 +6,12 @@ import {
   VIDEO_LINK_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
 
-import { BackendApiError, backendFetch, backendUrl } from './api-client';
+import {
+  BackendApiError,
+  backendApiErrorFromBody,
+  backendFetch,
+  backendUrl,
+} from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 /**
@@ -537,10 +542,10 @@ export async function sendChatTurn(
     }
   }
   if (!response.ok) {
-    throw new BackendApiError(
-      response.status,
-      `Turn request failed with status ${response.status}`,
-    );
+    // Not a turn outcome but the door refusing the request itself (a body
+    // it would not take, a thread it cannot find): carry its own code and
+    // message, as `backendFetch` would, so the surface can say why.
+    throw backendApiErrorFromBody(response.status, payload);
   }
   return { status: 'completed' };
 }

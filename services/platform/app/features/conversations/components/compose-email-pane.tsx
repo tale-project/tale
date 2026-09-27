@@ -33,6 +33,10 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
+import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
+} from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -373,7 +377,8 @@ export function ComposeEmailPane({
           headers: { 'Content-Type': file.type || 'application/octet-stream' },
           body: file,
         });
-        if (!result.ok) throw new Error('upload failed');
+        // The door's own refusal, so the toast below can say why.
+        if (!result.ok) throw await backendErrorFromResponse(result);
         const { storageId } = await result.json();
         if (typeof storageId !== 'string') throw new Error('upload failed');
         return {
@@ -399,7 +404,11 @@ export function ComposeEmailPane({
         uploaded = await uploadAttachments(attachments);
       } catch (error) {
         console.error('Error uploading attachments:', error);
-        toast({ title: t('compose.uploadFailed'), variant: 'destructive' });
+        toast({
+          title: t('compose.uploadFailed'),
+          description: backendRefusalDetail(error),
+          variant: 'destructive',
+        });
         return;
       }
     }
