@@ -22,10 +22,8 @@ services/platform/.env*.local
 # Provider secrets
 # ============================================================================
 # *.secrets.json carries credentials in either form (SOPS-encrypted or
-# plaintext). The convex image ships seeds from builtin-configs/providers/, but
-# the secrets siblings should never bake into a layer — the entrypoint
-# already filters them at seed time, but exclude them from the build
-# context entirely so they cannot leak via image inspection.
+# plaintext). Such a file must never bake into a layer, so exclude it from the
+# build context entirely — it cannot leak via image inspection.
 **/*.secrets.json
 
 # ============================================================================
@@ -53,9 +51,7 @@ services/platform/.env*.local
 # ============================================================================
 # Repo-level directories not shipped in service images
 # ============================================================================
-# NOTE: keep tools/ and builtin-configs/ — Dockerfiles reference them:
-#   - platform image copies tools/cli/package.json
-#   - convex image copies builtin-configs/{agents,workflows,apps,connectors,providers,branding,skills,prompts,governance}
+# NOTE: keep tools/ — the platform image copies tools/cli/package.json.
 # Connector/container test suites + AI-QA playbooks (live in @tale/platform,
 # never shipped in the image).
 services/platform/tests/
@@ -71,10 +67,6 @@ knip-results.json
 docs/
 !docs/package.json
 README.md
-# Skill bundles ship their SKILL.md alongside the scripts; without
-# this carve-out the convex image's COPY of builtin-configs/ would
-# drop every skill's README and break runtime skill discovery.
-!builtin-configs/**/*.md
 
 # ============================================================================
 # IDE and Editor Files

@@ -13,7 +13,7 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
-      - 'builtin-configs/skills/visual-aspect-analyzer/**'
+      - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'
@@ -35,7 +35,7 @@ on:
     paths:
       - 'services/**'
       - 'packages/**'
-      - 'builtin-configs/skills/visual-aspect-analyzer/**'
+      - 'configs/platform/custom/skills/visual-aspect-analyzer/**'
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.github/actions/setup-turbo/**'

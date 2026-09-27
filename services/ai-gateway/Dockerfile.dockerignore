@@ -123,7 +123,6 @@ services/platform/
 services/web/
 services/docs/
 services/ui-docs/
-services/convex/
 services/db/
 services/proxy/
 services/sandbox/
@@ -134,7 +133,6 @@ services/sandbox-runtime/
 !services/sandbox-runtime/daemon/package.json
 packages/shared/
 tools/
-builtin-configs/
 
 # `bun install` needs every workspace package.json present at its declared
 # path so the workspace graph resolves (the root manifest names

@@ -177,7 +177,6 @@ ENV NODE_ENV=development \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
@@ -377,7 +376,6 @@ ENV NODE_ENV=production \
     # rewrite has a reachable origin on every docker deploy. Direct rather
     # than the Caddy proxy because Caddy is HTTPS-only with a self-signed
     # cert and would 308-redirect plain HTTP POSTs.
-    SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
     DO_NOT_TRACK=1 \
     # The file-config parent path. Under the org-first layout, every
     # per-domain config dir is derived as $TALE_CONFIG_DIR/<orgSlug>/<domain>/
@@ -473,7 +471,6 @@ ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \

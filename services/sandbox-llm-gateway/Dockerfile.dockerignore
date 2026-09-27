@@ -117,8 +117,6 @@ compose.*.yml
 # =============================================================================
 services/platform/
 services/web/
-services/convex/
 services/db/
 packages/
 tools/
-builtin-configs/

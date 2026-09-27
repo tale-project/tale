@@ -120,4 +120,3 @@ services/web/
 services/proxy/
 packages/
 tools/
-builtin-configs/

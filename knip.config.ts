@@ -132,7 +132,6 @@ export default {
         // SSR build target — passed to `vite build --ssr` in package.json scripts;
         // vite's plugin only sees the client-side index.html input.
         'app/entry-server.tsx',
-        'vitest.ui.config.ts',
         // Playwright specs (config builds via the shared @tale/e2e factory, so
         // knip's playwright plugin can't trace testDir/testMatch).
         'tests/e2e/specs/**/*.spec.ts',

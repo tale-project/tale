@@ -116,7 +116,6 @@ compose.*.yml
 # =============================================================================
 # Other services this image doesn't need
 # =============================================================================
-services/convex/
 services/db/
 services/docs/
 services/platform/

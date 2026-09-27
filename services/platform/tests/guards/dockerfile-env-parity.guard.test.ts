@@ -77,7 +77,7 @@ describe('Dockerfile squash-stage ENV parity', () => {
     const runnerEnv = envOfStage(runner);
     const squashEnv = envOfStage(squash);
     // Sanity: the parser actually saw the blocks.
-    expect(runnerEnv.size).toBeGreaterThanOrEqual(10);
+    expect(runnerEnv.size).toBeGreaterThanOrEqual(9);
     // Set equality with per-var messages: a drift names the variable.
     for (const [name, value] of runnerEnv) {
       expect(squashEnv.get(name), `squash ENV drops or changes ${name}`).toBe(
