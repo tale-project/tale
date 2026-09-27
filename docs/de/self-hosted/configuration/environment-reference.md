@@ -207,22 +207,6 @@ Diese Variablen steuern Backend-Anmeldung, Datei-Ereignisse und Betreiberrechte.
 
 Die Freigabe privater Crawl-Ziele betrifft zwei Grenzen: Website-Registrierung und Crawler-Anfragen sowie die Validierung der `imageUrl` eines Produkts. Ohne Freigabe erhält ein privates Website-Ziel `400 WEBSITE_DOMAIN_NOT_CRAWLABLE`; eine private Produktbild-URL erhält `400 INVALID_BODY`. Bei Produktbildern wird nur die Hostzeichenfolge geprüft, ohne Bildabruf oder DNS-Auflösung. Website-Registrierung und Crawler prüfen zusätzlich die aufgelösten Adressen. Aktiviere die Variable nur, wenn die Installation diese privaten Ziele braucht. Sie ist unabhängig von der Freigabe privater Modellanbieter.
 
-## RAG-Retrieval-Tuning
-
-Diese optionalen `RAG_`-Variablen steuern Wissenssuche und Neubewertung durch den Cross-Encoder. Die Backend-Prozesse lesen sie beim Start. Erstelle nach einer Änderung der Bereitstellungsumgebung die betroffenen Backend-Container neu; `docker compose restart` behält ihre bisherige Umgebung.
-
-| Name                         | Default                                | Beschreibung                                                                                                                                                                                                  |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RAG_RERANKING_ENABLED` | `false` | Aktiviert die erneute Bewertung zusammengeführter BM25- und Vektortreffer. Konfiguriere zusätzlich den API-Anbieter unten. Miss Relevanz und zusätzliche Antwortzeit mit deinem Korpus. |
-| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-Encoder-Modellkennung, die an den Rerank-Provider übergeben wird.                                                                                                                                       |
-| `RAG_RERANKING_PROVIDER`     | `local`                                | Muss auf `api` gesetzt sein, um Re-Ranking zu aktivieren — es schickt die Kandidaten an einen externen `/rerank`-Endpoint (Cohere/Jina-kompatibel). `local` wird nicht mehr unterstützt und scheitert sofort. |
-| `RAG_RERANKING_TOP_K`        | `10`                                   | Maximale Anzahl Ergebnisse, die der Reranker zurückgibt. Die Antwort übersteigt nie das `top_k` der Anfrage.                                                                                                  |
-| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Grösse des Kandidaten-Pools für den Reranker. Ein breiterer Pool verbessert die Neubewertung und kostet proportional mehr Zeit pro Query.                                                                     |
-| `RAG_RERANKING_API_BASE_URL` | unset                                  | Basis-URL für den Rerank-Provider; das Backend ruft `{base_url}/rerank` auf. Pflicht, wenn Re-Ranking aktiviert ist.                                                                                          |
-| `RAG_RERANKING_API_KEY`      | unset                                  | Bearer-Token für den externen Rerank-Endpoint. Unset lassen für unauthentifizierte Endpoints.                                                                                                                 |
-
-Re-Ranking ist standardmäßig deaktiviert. Setze zum Aktivieren `RAG_RERANKING_ENABLED=true`, `RAG_RERANKING_PROVIDER=api` und eine gültige `RAG_RERANKING_API_BASE_URL`; ergänze bei Bedarf Zugangsdaten. Das Backend führt kein lokales Re-Ranking-Modell aus. Vergleiche Ergebnisse und Antwortzeit vor der Freigabe.
-
 ## Deployment-Topologie
 
 Diese Werte prägen die Anwendungsrollen eines Workspace-Deployments: die Replikatzahlen, die `tale deploy` aus der Projektumgebung liest und mit einer Warnung auf den unterstützten Bereich begrenzt, und wie viel Arbeit ein einzelnes Worker-Replikat gleichzeitig übernimmt.

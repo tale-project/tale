@@ -207,22 +207,6 @@ Ces variables règlent l’authentification backend, les événements de fichier
 
 L’autorisation des cibles privées concerne deux contrôles : l’enregistrement des sites et les requêtes du crawler, ainsi que la validation de l’`imageUrl` d’un produit. Sans elle, une cible de site privée renvoie `400 WEBSITE_DOMAIN_NOT_CRAWLABLE` ; une URL d’image privée renvoie `400 INVALID_BODY`. Pour un produit, seule la chaîne du nom d’hôte est contrôlée, sans télécharger l’image ni résoudre le DNS. L’enregistrement d’un site et le crawler vérifient aussi les adresses résolues. Active cette variable uniquement si le déploiement a besoin de ces destinations privées. Elle est distincte de l’autorisation des fournisseurs privés.
 
-## Réglage du retrieval RAG
-
-Ces variables facultatives `RAG_` règlent la recherche et le reclassement par cross-encoder. Les processus backend les lisent au démarrage. Après avoir modifié leur environnement de déploiement, recrée les conteneurs concernés ; `docker compose restart` conserve leur ancien environnement.
-
-| Nom                          | Défaut                                 | Description                                                                                                                                                                                  |
-| ---------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RAG_RERANKING_ENABLED` | `false` | Active le reclassement des résultats BM25 et vectoriels fusionnés. Configure aussi le fournisseur API ci-dessous. Mesure la pertinence et la latence supplémentaire sur ton corpus. |
-| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Identifiant du modèle cross-encoder transmis au fournisseur de rerank.                                                                                                                       |
-| `RAG_RERANKING_PROVIDER`     | `local`                                | Doit être réglé sur `api` pour activer le re-ranking — il poste les candidats à un endpoint `/rerank` externe (compatible Cohere/Jina). `local` n'est plus supporté et échoue tout de suite. |
-| `RAG_RERANKING_TOP_K`        | `10`                                   | Nombre maximal de résultats que le reranker renvoie. La réponse ne dépasse jamais le `top_k` de la requête.                                                                                  |
-| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Taille du pool de candidats fourni au reranker. Un pool plus large améliore la qualité de re-notation et coûte proportionnellement plus de temps par requête.                                |
-| `RAG_RERANKING_API_BASE_URL` | non défini                             | URL de base du fournisseur de rerank ; le backend appelle `{base_url}/rerank`. Obligatoire quand le re-ranking est activé.                                                                   |
-| `RAG_RERANKING_API_KEY`      | non défini                             | Token Bearer envoyé à l'endpoint de rerank externe. Laisse-le non défini pour les endpoints sans authentification.                                                                           |
-
-Le reclassement est désactivé par défaut. Pour l’activer, définis `RAG_RERANKING_ENABLED=true`, `RAG_RERANKING_PROVIDER=api` et une `RAG_RERANKING_API_BASE_URL` valide, avec les identifiants nécessaires. Le backend n’exécute aucun modèle local de reclassement. Compare les résultats et la latence avant de l’ouvrir aux utilisateurs.
-
 ## Topologie du déploiement
 
 Ces valeurs façonnent les rôles applicatifs d’un déploiement de workspace : le nombre de réplicas, que `tale deploy` lit dans l’environnement du projet et ramène dans la plage autorisée avec un avertissement, et la quantité de travail qu’un réplica de worker prend en charge à la fois.

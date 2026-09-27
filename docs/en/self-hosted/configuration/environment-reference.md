@@ -207,22 +207,6 @@ These variables configure backend authentication, file events, and operator perm
 
 The private-crawl opt-in affects two boundaries: website registration and crawler requests, and validation of a product’s `imageUrl`. Without it, a private website target returns `400 WEBSITE_DOMAIN_NOT_CRAWLABLE`; a private product image URL returns `400 INVALID_BODY`. Product validation checks the hostname string without fetching the image or resolving DNS. Website registration and crawling also check resolved addresses. Enable the flag only for a deployment that needs these private destinations; it is separate from the private-provider flag.
 
-## RAG retrieval tuning
-
-These optional `RAG_` variables tune knowledge search and cross-encoder re-ranking. Backend processes read them at startup. After changing their deployment environment, recreate the affected backend containers through your deployment workflow; `docker compose restart` keeps their previous environment.
-
-| Name                         | Default                                | Description                                                                                                                                                                    |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `RAG_RERANKING_ENABLED` | `false` | Enable cross-encoder re-scoring of merged BM25 and vector candidates. Also configure the API provider below. Measure relevance and added latency with your corpus. |
-| `RAG_RERANKING_MODEL`        | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder model identifier passed to the rerank provider.                                                                                                                  |
-| `RAG_RERANKING_PROVIDER`     | `local`                                | Must be set to `api` to enable re-ranking — it posts the candidates to an external `/rerank` endpoint (Cohere/Jina-compatible). `local` is no longer supported and fails fast. |
-| `RAG_RERANKING_TOP_K`        | `10`                                   | Maximum number of results the reranker returns. The response never exceeds the request's own `top_k`.                                                                          |
-| `RAG_RERANKING_CANDIDATES`   | `30`                                   | Size of the candidate pool fed to the reranker. A wider pool improves re-scoring quality and costs proportionally more time per query.                                         |
-| `RAG_RERANKING_API_BASE_URL` | unset                                  | Base URL for the rerank provider; the backend calls `{base_url}/rerank`. Required when re-ranking is enabled.                                                                  |
-| `RAG_RERANKING_API_KEY`      | unset                                  | Bearer token sent to the external rerank endpoint. Leave unset for unauthenticated endpoints.                                                                                  |
-
-Re-ranking is disabled by default. To use it, set `RAG_RERANKING_ENABLED=true`, `RAG_RERANKING_PROVIDER=api`, and a valid `RAG_RERANKING_API_BASE_URL`, plus credentials when required. The backend does not run a local re-ranking model. Compare results and latency before enabling it for users.
-
 ## Deployment topology
 
 These values shape the application roles of a workspace deployment: the replica counts, which `tale deploy` reads from the project environment and clamps to the supported range with a warning, and how much work one worker replica takes on at once.
