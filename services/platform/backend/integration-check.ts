@@ -49,6 +49,7 @@ import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
+import { TASK_TITLE_MAX } from './core/tasks/helpers.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
@@ -66,6 +67,7 @@ import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integr
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
@@ -36618,6 +36620,16 @@ async function checkAutomationRunToolLane(
            created_by_type AS "createdByType"
     FROM app.tasks WHERE id = ${taskId} LIMIT 1
   `;
+  // A title over the limit is refused at the tool door with the limit named,
+  // not the domain's bare TASK_TITLE_INVALID, and no card lands.
+  const overLongTitle = `Overlong ${'x'.repeat(TASK_TITLE_MAX)}`;
+  const overLong = await dispatch(pinnedToken, 'task_create', {
+    title: overLongTitle,
+  });
+  const overLongRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${orgId} AND title = ${overLongTitle}
+  `;
   const found = await dispatch(pinnedToken, 'task_find', {});
   const moved = await dispatch(pinnedToken, 'task_update_status', {
     taskId,
@@ -36920,6 +36932,17 @@ async function checkAutomationRunToolLane(
       orgFindRaw.includes('Filed on a bound board') &&
       !orgFindRaw.includes("Someone else's card"),
     `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status}${syncedFirst.status === 'ok' ? '' : ` (first: ${syncedFirst.raw})`}${syncedAgain.status === 'ok' ? '' : ` (again: ${syncedAgain.raw})`} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
+  );
+  const namesTitleLimit = overLong.raw.includes(
+    `capped at ${TASK_TITLE_MAX} characters`,
+  );
+  record(
+    'task_create refuses an over-long title at the tool door, naming the limit',
+    overLong.status === 'invalid_args' &&
+      namesTitleLimit &&
+      !overLong.raw.includes('TASK_TITLE_INVALID') &&
+      overLongRows.length === 0,
+    `status=${overLong.status} (want invalid_args), namesLimit=${namesTitleLimit}, rows=${overLongRows.length} (want 0), raw=${overLong.raw.slice(0, 200)}`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
@@ -54285,6 +54308,10 @@ async function main(): Promise<void> {
         () => checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`),
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
+      [
+        'checkTaskDescriptionMentions',
+        () => checkTaskDescriptionMentions(sql, authCtx, record),
+      ],
       [
         'checkCompetences',
         () => checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`),

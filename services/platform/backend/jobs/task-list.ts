@@ -137,6 +137,7 @@ const steerSchema = z.object({
   tools: z.array(z.string()),
   secrets: z.array(z.string()),
   feedback: z.string(),
+  mentionSource: z.enum(['comment', 'description']).optional(),
   author: z.string(),
   authorId: z.string(),
   attempt: z.number(),
@@ -833,6 +834,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           model: string;
           modelProvider: string | null;
           feedback: string | null;
+          mentionSource: 'comment' | 'description' | null;
           deadlineAt: number;
           status: string;
           execId: string;
@@ -841,6 +843,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         SELECT task_id AS "taskId", agent_id AS "agentId",
                session_id AS "sessionId", harness, model,
                model_provider AS "modelProvider", feedback,
+               mention_source AS "mentionSource",
                deadline_at_ms::float8 AS "deadlineAt", status,
                exec_id AS "execId"
         FROM app.project_agent_runs
@@ -915,6 +918,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           tools: agent.tools,
           secrets: agent.secrets,
           ...(run.feedback !== null ? { feedback: run.feedback } : {}),
+          ...(run.mentionSource !== null
+            ? { mentionSource: run.mentionSource }
+            : {}),
           ...plan,
         },
       );

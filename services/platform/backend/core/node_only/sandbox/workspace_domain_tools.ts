@@ -23,6 +23,7 @@ import { taskCommentBodiesSchema } from '../../../../lib/shared/schemas/task-com
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import type { Doc, Id } from '../../lib/rows';
+import { TASK_TITLE_MAX } from '../../tasks/helpers';
 import {
   isRecord,
   readBoolean,
@@ -417,6 +418,19 @@ export async function runTaskTool(
         return {
           status: 'invalid_args',
           message: 'task_create needs a non-empty "title" string.',
+        };
+      }
+      // The domain's validateTitle refuses the same trimmed length, but as a
+      // bare TASK_TITLE_INVALID. Refused here, the model learns the limit it
+      // has to meet, and nothing is read or written for a call that cannot
+      // land.
+      if (title.length > TASK_TITLE_MAX) {
+        return {
+          status: 'invalid_args',
+          message:
+            `The task title is capped at ${TASK_TITLE_MAX} characters (this ` +
+            `one has ${title.length}) — shorten it and put the detail in ` +
+            '"description".',
         };
       }
       const target = resolveTargetProject(authority, callArgs);

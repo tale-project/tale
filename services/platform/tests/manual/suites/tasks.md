@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 51 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 52 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -107,6 +107,21 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   respond** (`tasks.mentionPreview.willRespond`); an edited comment is marked
   (`tasks.comment.edited`); delete confirms (`tasks.comment.deleteConfirm`);
   the thread survives reload (`tasks.detail.comments`)
+- [ ] `TASK-F34` · **Mentions in the description** — With a second member B
+  and a project agent: **Create task** (`tasks.actions.create`) with a
+  **Description** (`tasks.fields.description`) that mentions the agent, then
+  open the task, edit the description to add `@B` and save; then reword the
+  text around both mentions and save again → Before the create, the chip
+  **{slug} will respond** (`tasks.mentionPreview.willRespond`) shows under the
+  field; the new task is assigned to the agent and moves to **In progress**
+  (`tasks.status.in_progress`) with a run (the run itself is env-gated: mark
+  **ENVIRONMENT** without a runnable harness); after the first edit B's bell
+  shows **You were mentioned** (`inbox.mention`) and the row opens the task;
+  the rewording shows no chip while editing, and brings B no second row and the
+  agent no second run. Then **Create task** straight into **In review**
+  (`tasks.status.in_review`) with a description that mentions the agent → the
+  card lands in **In progress** with a run, and the reviewer gets no review
+  request that is withdrawn again
 - [ ] `TASK-F9` · **Attachments** — Sheet → **Attachments**
   (`tasks.attachments.label`) → add via **Add attachments**
   (`tasks.attachments.add`) or the drop hint (`tasks.attachments.dropHint`);
