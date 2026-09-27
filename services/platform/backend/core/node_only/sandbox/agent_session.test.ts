@@ -12,7 +12,7 @@ import {
 const runtime = vi.hoisted(() => ({
   sessionCreate: vi.fn(),
   sessionAcquire: vi.fn(),
-  sessionDestroy: vi.fn(),
+  sessionDestroyIfIdle: vi.fn(),
 }));
 vi.mock('./helpers/session_client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./helpers/session_client')>()),
@@ -65,9 +65,9 @@ function fixture(
   runtime.sessionCreate.mockImplementation(async () => {
     events.push('create');
   });
-  runtime.sessionDestroy.mockImplementation(async () => {
+  runtime.sessionDestroyIfIdle.mockImplementation(async () => {
     events.push('destroy');
-    return true;
+    return { destroyed: true, busy: false };
   });
   return {
     ctx,
@@ -199,7 +199,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
       );
       // The standing workspace is the incarnation's state: a failed resume
       // releases the slot and never destroys it.
-      expect(runtime.sessionDestroy).not.toHaveBeenCalled();
+      expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
     },
   );
 
@@ -246,7 +246,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
         status: 'active',
       });
       expect(runtime.sessionAcquire).toHaveBeenCalledTimes(adopt ? 1 : 0);
-      expect(runtime.sessionDestroy).not.toHaveBeenCalled();
+      expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
     },
   );
 
@@ -256,7 +256,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     await expect(f.ensure()).rejects.toBe(f.mutationError);
 
     expect(runtime.sessionCreate).not.toHaveBeenCalled();
-    expect(runtime.sessionDestroy).not.toHaveBeenCalled();
+    expect(runtime.sessionDestroyIfIdle).not.toHaveBeenCalled();
   });
 
   it('marks a failed fresh create as failed instead of leaving its quota occupied', async () => {
@@ -289,8 +289,8 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
 
     await expect(f.ensure()).rejects.toBe(error);
 
-    expect(runtime.sessionDestroy).toHaveBeenCalledTimes(1);
-    expect(runtime.sessionDestroy).toHaveBeenCalledWith('session_1');
+    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledTimes(1);
+    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledWith('session_1');
     // While the row is still `creating` it holds the owner's slot, so no
     // fresh create of the same id can start under the destroy.
     expect(f.events).toEqual([
@@ -315,7 +315,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
 
     await expect(f.ensure()).rejects.toBeInstanceOf(SessionNotFoundError);
 
-    expect(runtime.sessionDestroy).toHaveBeenCalledWith('session_1');
+    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledWith('session_1');
     expect(f.events).toEqual([
       'reserveSessionSlotAndInsert',
       'create',
@@ -329,13 +329,37 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     const error = new Error('container create failed');
     runtime.sessionCreate.mockRejectedValue(error);
     const destroyError = new Error('sandbox session destroy failed (502)');
-    runtime.sessionDestroy.mockRejectedValue(destroyError);
+    runtime.sessionDestroyIfIdle.mockRejectedValue(destroyError);
 
     await expect(f.ensure()).rejects.toBe(error);
 
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('destroy after failed create of session_1'),
       destroyError,
+    );
+    expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
+      rowId: 'row_1',
+      status: 'failed',
+    });
+  });
+
+  // A sibling turn of the same owner can resume the still-`creating` row and
+  // create or adopt the session itself: this turn's failure must never kill
+  // the exec that turn is running.
+  it('leaves a session a sibling turn is executing in, and still reads failed', async () => {
+    const f = fixture(scenario, null);
+    const error = new Error('runnerd did not become ready');
+    runtime.sessionCreate.mockRejectedValue(error);
+    runtime.sessionDestroyIfIdle.mockResolvedValue({
+      destroyed: false,
+      busy: true,
+    });
+
+    await expect(f.ensure()).rejects.toBe(error);
+
+    expect(runtime.sessionDestroyIfIdle).toHaveBeenCalledWith('session_1');
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining("runs a sibling turn's exec"),
     );
     expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
       rowId: 'row_1',
