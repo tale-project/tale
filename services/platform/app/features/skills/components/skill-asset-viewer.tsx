@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
@@ -12,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { previewCodeTextClasses } from '@/app/features/documents/components/preview-pane';
 import {
   markdownComponents,
   markdownWrapperStyles,
@@ -78,7 +80,7 @@ export function SkillAssetViewer({
   const { locale } = useLocale();
   const { t: tCommon } = useT('common');
   const { resolvedTheme } = useTheme();
-  const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
+  const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
 
   const ext = getFileExtensionLower(assetPath);
   const isImage = IMAGE_EXTS.has(ext);
@@ -257,11 +259,13 @@ export function SkillAssetViewer({
           ) : useShiki && highlightedHtml && !oversize ? (
             <div
               ref={highlightRef}
-              className={`code-line-numbers text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:p-4! ${
+              className={cn(
+                'code-line-numbers [&_pre]:m-0! [&_pre]:p-4!',
+                previewCodeTextClasses,
                 wrap
                   ? '[&_pre]:break-words [&_pre]:whitespace-pre-wrap'
-                  : '[&_pre]:overflow-auto'
-              }`}
+                  : '[&_pre]:overflow-auto',
+              )}
             />
           ) : (
             <>
@@ -278,13 +282,13 @@ export function SkillAssetViewer({
               ) : null}
               <pre
                 ref={preRef}
-                className={`m-0 p-4 ${
-                  wrap ? 'break-words whitespace-pre-wrap' : 'overflow-auto'
-                }`}
+                className={cn(
+                  'm-0 p-4',
+                  previewCodeTextClasses,
+                  wrap ? 'break-words whitespace-pre-wrap' : 'overflow-auto',
+                )}
               >
-                <code className="text-foreground font-mono text-xs leading-relaxed">
-                  {content}
-                </code>
+                <code className="text-foreground">{content}</code>
               </pre>
             </>
           )}

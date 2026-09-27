@@ -56,7 +56,7 @@ export const HighlightedCode = memo(function HighlightedCode({
   const [html, setHtml] = useState('');
   const highlightedForRef = useRef('');
   const { resolvedTheme } = useTheme();
-  const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
+  const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
 
   useEffect(() => {
     let cancelled = false;
