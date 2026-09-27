@@ -63,6 +63,10 @@ const SwitchBase = forwardRef<
           id={id}
           data-slot="switch"
           className={cn(
+            // An 18px-tall track, but a target over 24px (WCAG 2.5.8): the
+            // invisible ring around it takes the tap too. 5px, since the ring
+            // is laid out from inside the 1px border.
+            "relative after:absolute after:-inset-[5px] after:content-['']",
             // Light mode: the unchecked track (`bg-border`, 90% L) is barely
             // perceptible on the near-white page (~1.2:1) — and `disabled` halves
             // it again into invisibility. Give the unchecked track a visible
