@@ -864,6 +864,7 @@ function AutomationEditorScope({
                 organizationId={organizationId}
                 name={automationSlug}
                 canEdit={canAuthor}
+                deployedVersion={meta?.deployedVersion}
               />
             }
           />

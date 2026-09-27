@@ -26,6 +26,8 @@ export function useCronPreview(
   preview: CronPreview;
   description: string | undefined;
   invalidText: string | undefined;
+  /** The recognised pattern alone ("Every 5 minutes"), when there is one. */
+  pattern: string | undefined;
 } {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -42,6 +44,23 @@ export function useCronPreview(
         : t('trigger.cronInvalidReason', { reason: preview.reason })
       : undefined;
 
+  const pattern = useMemo(() => {
+    if (preview.kind !== 'ok') return undefined;
+    if (preview.pattern?.type === 'everyMinutes') {
+      return t('trigger.cronEveryMinutes', { n: preview.pattern.n });
+    }
+    if (preview.pattern?.type === 'everyHours') {
+      return t('trigger.cronEveryHours', { n: preview.pattern.n });
+    }
+    if (preview.pattern?.type === 'dailyAt') {
+      const { hour, minute } = preview.pattern;
+      const hh = String(hour).padStart(2, '0');
+      const mm = String(minute).padStart(2, '0');
+      return t('trigger.cronDailyAt', { time: `${hh}:${mm}` });
+    }
+    return undefined;
+  }, [preview, t]);
+
   const description = useMemo(() => {
     if (!active) return undefined;
     if (preview.kind === 'empty') return t('trigger.cronHint');
@@ -49,20 +68,8 @@ export function useCronPreview(
     const next = t('trigger.cronNext', {
       at: formatDate(preview.nextAt, 'long'),
     });
-    if (preview.pattern?.type === 'everyMinutes') {
-      return `${t('trigger.cronEveryMinutes', { n: preview.pattern.n })} · ${next}`;
-    }
-    if (preview.pattern?.type === 'everyHours') {
-      return `${t('trigger.cronEveryHours', { n: preview.pattern.n })} · ${next}`;
-    }
-    if (preview.pattern?.type === 'dailyAt') {
-      const { hour, minute } = preview.pattern;
-      const hh = String(hour).padStart(2, '0');
-      const mm = String(minute).padStart(2, '0');
-      return `${t('trigger.cronDailyAt', { time: `${hh}:${mm}` })} · ${next}`;
-    }
-    return next;
-  }, [active, preview, t, formatDate]);
+    return pattern === undefined ? next : `${pattern} · ${next}`;
+  }, [active, preview, pattern, t, formatDate]);
 
-  return { preview, description, invalidText };
+  return { preview, description, invalidText, pattern };
 }

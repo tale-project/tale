@@ -688,6 +688,8 @@ automations:
     cronInvalid: Cette expression cron n’est pas valide.
     cronInvalidReason: 'Cette expression cron n’est pas valide : {reason}'
     cronNext: 'Prochaine exécution {at}'
+    paused: En pause — aucune exécution ne démarre
+    notDeployed: 'Ne démarrera pas tant qu’aucune version n’est déployée · prochaine exécution prévue {at}'
     cronEveryMinutes: '{n, plural, one {Toutes les minutes} other {Toutes les # minutes}}'
     cronEveryHours: '{n, plural, one {Toutes les heures} other {Toutes les # heures}}'
     cronDailyAt: 'Tous les jours à {time}'

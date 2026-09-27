@@ -150,6 +150,57 @@ describe('TriggerEditor', () => {
     expect(mockSetTrigger).not.toHaveBeenCalled();
   });
 
+  // A schedule that will not fire — switched off, or on an automation with
+  // no deployed version — used to promise "Next run …" all the same
+  // (2026-09-26 evaluation, D-06).
+  describe('what the schedule will actually do', () => {
+    it('promises the next run only for an enabled schedule on a deployed automation', () => {
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="gmail-triage-inbox"
+          canEdit
+          deployedVersion={2}
+        />,
+      );
+      expect(screen.getByText(/Every 6 hours · Next run/)).toBeVisible();
+      expect(screen.queryByText(/Paused/)).toBeNull();
+      expect(screen.queryByText(/deployed/)).toBeNull();
+    });
+
+    it('reads paused, with no next run, while the switch is off', async () => {
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="gmail-triage-inbox"
+          canEdit
+          deployedVersion={2}
+        />,
+      );
+      await userEvent.click(screen.getByRole('switch', { name: 'Enabled' }));
+      expect(
+        screen.getByText('Every 6 hours · Paused — no runs start'),
+      ).toBeVisible();
+      expect(screen.queryByText(/Next run/)).toBeNull();
+    });
+
+    it('says the schedule will not start until a version is deployed, naming the would-be run', () => {
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="gmail-triage-inbox"
+          canEdit
+        />,
+      );
+      expect(
+        screen.getByText(
+          /Every 6 hours · Won't start until a version is deployed · would next run /,
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText(/^Next run/)).toBeNull();
+    });
+  });
+
   it('shows a minted webhook token exactly where the save reported it', async () => {
     triggersData = [];
     mockSetTrigger.mockImplementation(

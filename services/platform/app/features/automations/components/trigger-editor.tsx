@@ -60,8 +60,10 @@ export type TriggerEditorController = {
  * chance to copy it; afterwards only "a token exists" survives.
  *
  * A trigger fires nothing until a version is deployed — `beginRun` resolves
- * through the deployment — which is why the panel never warns about arming a
- * draft: arming is safe by construction.
+ * through the deployment — so arming a draft is safe by construction; the
+ * panel SAYS so under the schedule ("won't start until a version is
+ * deployed"), and says "paused" while the binding is off, instead of
+ * promising a next run that nothing will start.
  *
  * Lives in the inspector when no node is selected; fields stack in one
  * column so they fit the panel. Prefer {@link WorkflowSettings} for the
@@ -77,12 +79,16 @@ export function TriggerEditor({
    * through `onControllerChange` (the workflow inspector footer).
    */
   showActions = true,
+  deployedVersion,
   onControllerChange,
 }: {
   organizationId: string;
   name: string;
   canEdit: boolean;
   showActions?: boolean;
+  /** The version triggers start — undefined while nothing is deployed, when
+   * the panel says a schedule will not start rather than when it will. */
+  deployedVersion?: number | undefined;
   onControllerChange?: (controller: TriggerEditorController | null) => void;
 }) {
   const { t } = useT('automations');
@@ -157,9 +163,36 @@ export function TriggerEditor({
   // the blank-automation wizard, so both surfaces refuse the same crons.
   const {
     preview: cronPreview,
-    description: cronDescription,
+    description: cronNextDescription,
     invalidText: cronInvalidText,
+    pattern: cronPattern,
   } = useCronPreview(cron, timezone, kind === 'schedule');
+
+  // What the schedule will actually do: nothing while the switch is off,
+  // nothing until a version is deployed (the occurrence it WOULD take is
+  // still named, so the author knows what arming means), the next run else.
+  const cronDescription = useMemo(() => {
+    if (kind !== 'schedule' || cronPreview.kind !== 'ok') {
+      return cronNextDescription;
+    }
+    const lead = cronPattern === undefined ? '' : `${cronPattern} · `;
+    if (!enabled) return `${lead}${t('trigger.paused')}`;
+    if (deployedVersion === undefined) {
+      return `${lead}${t('trigger.notDeployed', {
+        at: formatDate(cronPreview.nextAt, 'long'),
+      })}`;
+    }
+    return cronNextDescription;
+  }, [
+    kind,
+    cronPreview,
+    cronNextDescription,
+    cronPattern,
+    enabled,
+    deployedVersion,
+    t,
+    formatDate,
+  ]);
 
   const save = (rotateToken?: boolean) => {
     setRefusal(null);

@@ -682,6 +682,8 @@ automations:
     cronInvalid: Dieser Cron-Ausdruck ist ungültig.
     cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
     cronNext: 'Nächster Lauf {at}'
+    paused: Pausiert — es starten keine Läufe
+    notDeployed: 'Startet erst, wenn eine Version bereitgestellt ist · nächster Lauf wäre {at}'
     cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
     cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'
     cronDailyAt: 'Jeden Tag um {time}'

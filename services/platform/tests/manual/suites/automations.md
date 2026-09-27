@@ -455,6 +455,14 @@ output:
       draws the latest version. `?version=abc` and `?version=0` still open
       the latest directly (AUTO-F36); an unknown slug still shows
       `automations.notFound.title`.
+- [ ] `AUTO-F44` · **A schedule says what it will do** — On a deployed
+      automation with an enabled schedule the Cron line reads the pattern and
+      `automations.trigger.cronNext`. Switch **Enabled** off → the line reads
+      `automations.trigger.paused` with no next run, before and after **Save
+      settings** + reload. Open a not-deployed automation with a schedule (a
+      fresh upload, or a built-in pack) → the line reads
+      `automations.trigger.notDeployed` naming the would-be occurrence, never
+      a bare "Next run"; deploy a version → the plain next run returns.
 
 ## Boundary & error tests
 

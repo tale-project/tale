@@ -650,6 +650,8 @@ automations:
     cronInvalid: That cron expression is not valid.
     cronInvalidReason: 'That cron expression is not valid: {reason}'
     cronNext: 'Next run {at}'
+    paused: Paused — no runs start
+    notDeployed: "Won't start until a version is deployed · would next run {at}"
     cronEveryMinutes: '{n, plural, one {Every minute} other {Every # minutes}}'
     cronEveryHours: '{n, plural, one {Every hour} other {Every # hours}}'
     cronDailyAt: 'Every day at {time}'
