@@ -200,5 +200,9 @@
  * run, read off the run's own input so it stays true after the binding
  * changes kind; absent on a run a person or an API key started. A listing
  * could not tell a scheduled run from a webhook delivery before.
+ * `DELETE /api/v1/products/{id}` answers 409 `LEGAL_HOLD_ACTIVE` under an
+ * organization-wide legal hold or a custodian hold on the uploader of the
+ * product's image, the way document and contact deletes do — the response
+ * is now documented on the operation.
  */
 export const API_CONTRACT_VERSION = '2.1.0';
