@@ -222,6 +222,12 @@ describe('filterRetrievableRagFileIds through the shim', () => {
     );
     expect(fileRead).toContain('LEFT JOIN app.conversations c');
     expect(fileRead).toContain('c.org_id = fm.org_id');
+    // The two columns the mail decision reads come from that join, not from
+    // a constant the canned rows above would satisfy anyway.
+    expect(fileRead).toContain(
+      'c.lifecycle_status AS "conversationLifecycleStatus"',
+    );
+    expect(fileRead).toContain('c.status AS "conversationStatus"');
     expect(
       await dispatch(
         { members, conversation: { ...assigned, status: 'spam' } },
