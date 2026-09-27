@@ -9,6 +9,9 @@ import { render, screen } from '@/tests/utils/render';
 
 let renderCount = 0;
 let capturedOnSend: (() => void) | null = null;
+let capturedOnFileAttach: ((file: AttachedFile) => void) | null = null;
+// What the persisted drafts start from — a typed body unless a test clears it.
+let persistedSeed = 'some content';
 
 // The HTML the mocked editor "displays" — the send path must deliver exactly
 // this document (serialized via the editor's own getHTML action), not a
@@ -59,7 +62,7 @@ vi.mock('@/app/hooks/use-session-user', () => ({
 
 vi.mock('@/app/hooks/use-persisted-state', () => ({
   usePersistedState: (key: string, initial: string) => {
-    const [value, setValue] = useState(initial || 'some content');
+    const [value, setValue] = useState(initial || persistedSeed);
     const clear = useCallback(() => {
       setValue(initial);
       window.localStorage.removeItem(key);
@@ -85,8 +88,15 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 vi.mock('./message-editor/editor-action-bar', () => ({
-  EditorActionBar: ({ onSend }: { onSend: () => void }) => {
+  EditorActionBar: ({
+    onSend,
+    onFileAttach,
+  }: {
+    onSend: () => void;
+    onFileAttach: (file: AttachedFile) => void;
+  }) => {
     capturedOnSend = onSend;
+    capturedOnFileAttach = onFileAttach;
     return (
       <button data-testid="send-button" onClick={onSend}>
         Send
@@ -107,12 +117,17 @@ vi.mock('./message-improvement-dialog', () => ({
   MessageImprovementDialog: () => null,
 }));
 
+import { toast } from '@tale/ui/use-toast';
+
 import { MessageEditor } from './message-editor';
+import type { AttachedFile } from './message-editor/types';
 
 describe('MessageEditor', () => {
   beforeEach(() => {
     renderCount = 0;
     capturedOnSend = null;
+    capturedOnFileAttach = null;
+    persistedSeed = 'some content';
     window.localStorage.clear();
   });
 
@@ -158,6 +173,44 @@ describe('MessageEditor', () => {
       [],
       'some content',
     );
+  });
+
+  // Nothing typed, a file attached: the editor offers Send, and the send it
+  // hands over is the file with an empty body and no draft to restore.
+  it('hands a file with no text over as an attachment-only send', async () => {
+    persistedSeed = '';
+    vi.mocked(toast).mockClear();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const attached: AttachedFile = {
+      id: 'f1',
+      file: new File(['%PDF-1.4'], 'invoice.pdf', { type: 'application/pdf' }),
+      type: 'document',
+    };
+
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
+
+    await act(async () => {
+      capturedOnFileAttach?.(attached);
+    });
+    await act(async () => {
+      capturedOnSend?.();
+    });
+
+    expect(onSave).toHaveBeenCalledWith('', [attached], undefined);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing with neither text nor a file', async () => {
+    persistedSeed = '';
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    render(<MessageEditor onSave={onSave} organizationId="org_test" />);
+
+    await act(async () => {
+      capturedOnSend?.();
+    });
+
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('clears localStorage after successful send', async () => {

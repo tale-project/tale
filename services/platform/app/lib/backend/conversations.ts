@@ -11,6 +11,8 @@
 
 import type { QueryClient } from '@tanstack/react-query';
 
+import { hasBodyOrAttachments } from '@/lib/shared/conversations/outbound-content';
+
 import type {
   AdaptedReadOptions,
   AdapterContext,
@@ -46,6 +48,23 @@ function stringArg(args: Record<string, unknown>, key: string): string {
     throw new Error(`Missing ${key} for adapted write`);
   }
   return value;
+}
+
+/** An outbound email's body. `''` is a real body when files go with it — an
+ * attachment-only email, which the composer offers Send for — and a missing
+ * argument when nothing does. */
+function emailContentArg(args: Record<string, unknown>): string {
+  const content = args.content;
+  if (
+    typeof content === 'string' &&
+    hasBodyOrAttachments({
+      content,
+      attachments: Array.isArray(args.attachments) ? args.attachments : [],
+    })
+  ) {
+    return content;
+  }
+  throw new Error('Missing content for adapted write');
 }
 
 function invalidateConversations(
@@ -247,7 +266,7 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
         {
           orgId: requireOrg(args, ctx),
           body: {
-            content: stringArg(args, 'content'),
+            content: emailContentArg(args),
             ...(typeof args.sourceMarkdown === 'string'
               ? { sourceMarkdown: args.sourceMarkdown }
               : {}),
@@ -270,7 +289,7 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
             ? { credentialId: args.credentialId }
             : {}),
           subject: stringArg(args, 'subject'),
-          content: stringArg(args, 'content'),
+          content: emailContentArg(args),
           ...(typeof args.sourceMarkdown === 'string'
             ? { sourceMarkdown: args.sourceMarkdown }
             : {}),

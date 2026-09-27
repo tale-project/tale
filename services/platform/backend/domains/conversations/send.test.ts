@@ -19,13 +19,19 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { runConnectorAction, createAuditLog, addJobInTx, emitHintInTx } =
-  vi.hoisted(() => ({
-    runConnectorAction: vi.fn(),
-    createAuditLog: vi.fn(async () => undefined),
-    addJobInTx: vi.fn(async () => 'job-1'),
-    emitHintInTx: vi.fn(async () => undefined),
-  }));
+const {
+  runConnectorAction,
+  createAuditLog,
+  addJobInTx,
+  emitHintInTx,
+  queueApiReply,
+} = vi.hoisted(() => ({
+  runConnectorAction: vi.fn(),
+  createAuditLog: vi.fn(async () => undefined),
+  addJobInTx: vi.fn(async () => 'job-1'),
+  emitHintInTx: vi.fn(async () => undefined),
+  queueApiReply: vi.fn(async () => 'm-api'),
+}));
 
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
@@ -35,6 +41,10 @@ vi.mock('../events/emit.ts', () => ({
   emitEvent: vi.fn(async () => undefined),
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
+vi.mock('./api-sync.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./api-sync.ts')>()),
+  queueApiReply,
+}));
 
 import {
   composeEmailConversation,
@@ -742,6 +752,161 @@ describe('replyToConversation — the mailbox', () => {
     await replyToConversation(sql, REPLY);
 
     expect(insertedCredential(statements)).toBeNull();
+  });
+});
+
+/**
+ * The composer sends an empty body beside files when nothing was typed — an
+ * attachment-only email. The service queues it like any other send, and
+ * refuses a send that carries neither a body nor a file before it reads or
+ * writes anything, whichever caller reached it.
+ */
+describe('replyToConversation and composeEmailConversation — files alone', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const FILE = {
+    storageId: 'blob-1',
+    fileName: 'invoice.pdf',
+    contentType: 'application/pdf',
+    size: 1024,
+  };
+  const threadOn = (channel: string) => ({
+    'FROM app.conversations c': [
+      {
+        organizationId: 'o1',
+        connectorName: 'imap-smtp',
+        channel,
+        subject: 'Order 42',
+        contactEmail: 'carla@ext.test',
+      },
+    ],
+    'FROM app.conversations WHERE id': [
+      { id: 'c1', organizationId: 'o1', metadata: null },
+    ],
+    'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+  });
+  const reply = (sql: Sql, extra: Record<string, unknown>) =>
+    replyToConversation(sql, {
+      conversationId: 'c1',
+      organizationId: 'o1',
+      content: '',
+      actor: { userId: 'u1', email: 'u@example.test' },
+      ...extra,
+    });
+  const COMPOSE_ANSWERS = {
+    'email FROM app.contacts': [
+      { organizationId: 'o1', email: 'carla@ext.test' },
+    ],
+    'INSERT INTO app.conversations': [{ id: 'c-new' }],
+    'FROM app.conversations WHERE id = ?': [
+      { id: 'c-new', organizationId: 'o1', metadata: null },
+    ],
+    'INSERT INTO app.conversation_messages': [{ id: 'm-new' }],
+  };
+  const compose = (sql: Sql, extra: Record<string, unknown>) =>
+    composeEmailConversation(sql, {
+      organizationId: 'o1',
+      contactId: 'ct1',
+      connectorName: 'imap-smtp',
+      subject: 'Invoice',
+      content: '',
+      actor: { userId: 'u1', role: 'member' },
+      ...extra,
+    });
+
+  /** The outbound row's `content` and `metadata`, by bound position: org,
+   * conversation, connector_name, credential_id, content, sent_at,
+   * delivered_at, metadata. */
+  function insertedMessage(statements: Statement[]) {
+    const insert = statements.find((st) =>
+      st.text.startsWith('INSERT INTO app.conversation_messages'),
+    );
+    return { content: insert?.values[4], metadata: insert?.values[7] };
+  }
+
+  it('queues an email reply with an empty body and its files', async () => {
+    const { sql, statements } = fakeSql(threadOn('email'));
+
+    await expect(reply(sql, { attachments: [FILE] })).resolves.toBe('m9');
+
+    const message = insertedMessage(statements);
+    expect(message.content).toBe('');
+    expect(message.metadata).toMatchObject({
+      sendContentType: 'Text',
+      attachments: [
+        expect.objectContaining({
+          storageId: 'blob-1',
+          filename: 'invoice.pdf',
+        }),
+      ],
+    });
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    // An empty plain-text part beside the file: every mail connector sends
+    // that as a body-less email with its attachment.
+    expect(payload).toMatchObject({
+      to: ['carla@ext.test'],
+      body: '',
+      contentType: 'Text',
+      attachments: [
+        {
+          storageRef: 'blob-1',
+          fileName: 'invoice.pdf',
+          contentType: 'application/pdf',
+          size: 1024,
+        },
+      ],
+    });
+  });
+
+  it('hands an API thread an empty body and its files', async () => {
+    const { sql } = fakeSql(threadOn('api'));
+
+    await expect(reply(sql, { attachments: [FILE] })).resolves.toBe('m-api');
+
+    expect(queueApiReply).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ content: '', body: '', attachments: [FILE] }),
+    );
+  });
+
+  it('queues a new email with an empty body and its files', async () => {
+    const { sql, statements, begins } = fakeSql(COMPOSE_ANSWERS);
+
+    await expect(compose(sql, { attachments: [FILE] })).resolves.toEqual({
+      conversationId: 'c-new',
+      messageId: 'm-new',
+    });
+
+    expect(begins).toEqual([{ status: 'committed' }]);
+    expect(insertedMessage(statements).content).toBe('');
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({
+      body: '',
+      contentType: 'Text',
+      attachments: [expect.objectContaining({ storageRef: 'blob-1' })],
+    });
+  });
+
+  it.each([
+    ['no attachments', {}],
+    ['an empty attachment list', { attachments: [] }],
+  ])('refuses an empty body with %s before any statement', async (_, extra) => {
+    const replied = fakeSql(threadOn('email'));
+    await expect(reply(replied.sql, extra)).rejects.toMatchObject({
+      code: 'reply_content_required',
+      status: 400,
+    });
+    expect(replied.statements).toEqual([]);
+
+    const composed = fakeSql(COMPOSE_ANSWERS);
+    await expect(compose(composed.sql, extra)).rejects.toMatchObject({
+      code: 'compose_content_required',
+      status: 400,
+    });
+    expect(composed.statements).toEqual([]);
+
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(queueApiReply).not.toHaveBeenCalled();
   });
 });
 

@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { hasBodyOrAttachments } from '../../../lib/shared/conversations/outbound-content.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -430,15 +431,17 @@ export function createConversationRoutes(deps: {
     }
   };
 
-  /** Send a reply through the conversation's connector (undo window). */
+  /** Send a reply through the conversation's connector (undo window). An
+   * empty `content` beside files is an attachment-only reply. */
   app.post('/:id/reply', async (c) => {
     if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
-        content: z.string().min(1).max(200_000),
+        content: z.string().max(200_000),
         sourceMarkdown: z.string().max(200_000).optional(),
         attachments: z.array(attachmentSchema).max(50).optional(),
       })
+      .refine(hasBodyOrAttachments)
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
@@ -462,7 +465,8 @@ export function createConversationRoutes(deps: {
     }
   });
 
-  /** Start a new outbound email conversation with a contact. */
+  /** Start a new outbound email conversation with a contact. As on a
+   * reply, an empty `content` beside files is an attachment-only email. */
   app.post('/compose', async (c) => {
     if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
@@ -471,13 +475,14 @@ export function createConversationRoutes(deps: {
         connectorName: z.string().min(1).max(128),
         credentialId: z.string().min(1).max(128).optional(),
         subject: z.string().min(1).max(1000),
-        content: z.string().min(1).max(200_000),
+        content: z.string().max(200_000),
         sourceMarkdown: z.string().max(200_000).optional(),
         from: z.string().max(320).optional(),
         assigneeUserId: z.string().max(128).optional(),
         assigneeTeamId: z.string().max(128).optional(),
         attachments: z.array(attachmentSchema).max(50).optional(),
       })
+      .refine(hasBodyOrAttachments)
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
