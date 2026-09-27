@@ -40,7 +40,7 @@ export const EXPIRED_SESSION_BATCH = 1_000;
  * on a deployment that has collected years of rows — drains over the
  * following nights instead of in one long job.
  */
-export const EXPIRED_SESSION_MAX_BATCHES = 100;
+const EXPIRED_SESSION_MAX_BATCHES = 100;
 
 export interface ExpiredSessionReap {
   /** Rows this run deleted. */
