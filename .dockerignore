@@ -53,8 +53,8 @@ services/platform/.env*.local
 # ============================================================================
 # Repo-level directories not shipped in service images
 # ============================================================================
-# NOTE: keep tools/, builtin-configs/, and patches/ — Dockerfiles reference them:
-#   - platform image copies tools/cli/package.json and patches/
+# NOTE: keep tools/ and builtin-configs/ — Dockerfiles reference them:
+#   - platform image copies tools/cli/package.json
 #   - convex image copies builtin-configs/{agents,workflows,apps,connectors,providers,branding,skills,prompts,governance}
 # Connector/container test suites + AI-QA playbooks (live in @tale/platform,
 # never shipped in the image).

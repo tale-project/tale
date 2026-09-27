@@ -41,7 +41,6 @@ COPY services/docs/package.json ./services/docs/
 COPY tools/cli/package.json ./tools/cli/
 COPY tools/plop/package.json ./tools/plop/
 COPY tools/opengrep/package.json ./tools/opengrep/
-COPY patches/ ./patches/
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -216,7 +215,6 @@ COPY --from=workspace-deps /app/services/web/package.json /tmp/workspace/service
 COPY --from=workspace-deps /app/services/docs/package.json /tmp/workspace/services/docs/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
 COPY --from=workspace-deps /app/tools/plop/package.json /tmp/workspace/tools/plop/
-COPY --from=workspace-deps /app/patches/ /tmp/workspace/patches/
 
 WORKDIR /tmp/workspace
 RUN HUSKY=0 bun install --production \

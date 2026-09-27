@@ -33,7 +33,6 @@ COPY services/ai-gateway/package.json ./services/ai-gateway/
 COPY tools/cli/package.json ./tools/cli/
 COPY tools/plop/package.json ./tools/plop/
 COPY tools/opengrep/package.json ./tools/opengrep/
-COPY patches/ ./patches/
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/* \

@@ -122,4 +122,3 @@ services/db/
 packages/
 tools/
 builtin-configs/
-patches/

@@ -130,6 +130,8 @@ export default {
         // Listed in `optimizeDeps.include` in vite.config.ts as string literals so vite prebundles them;
         // consumed transitively via @tale/ui markdown source, never imported by name from platform code.
         'rehype-katex',
+        'rehype-raw',
+        'rehype-sanitize',
         'remark-math',
         // Peer of @vitest/browser-playwright, required at runtime by vitest's browser test mode
         // but never imported directly.
@@ -138,36 +140,6 @@ export default {
         // which is NOT part of CI. Available transitively via @vitest/browser's
         // playwright driver, so it never needs to be a declared dependency.
         'playwright',
-        // ------------------------------------------------------------
-        // AI-BACKEND REWRITE PARKING (PR #2857) — dependencies of the parked
-        // subsystems ignored above. Same debt ledger, same exit: delete a
-        // line when its consumer wires up, or drop the dependency with it.
-        // ------------------------------------------------------------
-        '@measured/puck',
-        '@modelcontextprotocol/sdk',
-        '@tanstack/react-virtual',
-        '@types/mssql',
-        '@types/mustache',
-        '@types/seedrandom',
-        '@types/turndown',
-        'bcryptjs',
-        'diff',
-        'hast-util-to-html',
-        'json-diff-kit',
-        'linkedom',
-        'mdast-util-from-markdown',
-        'mdast-util-gfm',
-        'mdast-util-to-hast',
-        'mermaid',
-        'micromark-extension-gfm',
-        'mssql',
-        'mustache',
-        'parse5',
-        'rehype-raw',
-        'rehype-sanitize',
-        'seedrandom',
-        'sucrase',
-        'turndown',
       ],
     },
     'services/web': {
