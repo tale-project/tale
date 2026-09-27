@@ -14,6 +14,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
@@ -138,7 +139,7 @@ export function createProjectRoutes(deps: {
   app.post('/', async (c) => {
     const body = createProjectSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -186,7 +187,7 @@ export function createProjectRoutes(deps: {
       .object({ name: z.string().max(200).optional() })
       .safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -229,7 +230,7 @@ export function createProjectRoutes(deps: {
       .object({ pinned: z.boolean() })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -245,7 +246,7 @@ export function createProjectRoutes(deps: {
   app.post('/:id/identity', async (c) => {
     const body = updateProjectIdentitySchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -264,7 +265,7 @@ export function createProjectRoutes(deps: {
   app.post('/:id/instructions', async (c) => {
     const body = updateProjectInstructionsSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -285,7 +286,7 @@ export function createProjectRoutes(deps: {
   app.post('/:id/sharing', async (c) => {
     const body = updateProjectSharingSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -304,7 +305,7 @@ export function createProjectRoutes(deps: {
   app.delete('/:id', async (c) => {
     const body = deleteProjectInputSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -350,7 +351,7 @@ export function createProjectRoutes(deps: {
   app.post('/:id/agents', async (c) => {
     const body = projectAgentInputSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -369,7 +370,7 @@ export function createProjectRoutes(deps: {
   app.post('/agents/:agentId', async (c) => {
     const body = projectAgentInputSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -419,7 +420,7 @@ export function createProjectRoutes(deps: {
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -445,7 +446,7 @@ export function createProjectRoutes(deps: {
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const auth = await authCtx(c);

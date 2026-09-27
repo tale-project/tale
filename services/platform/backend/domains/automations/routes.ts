@@ -15,6 +15,10 @@ import { assembleAutomationAuthoringHost } from '../../core/automations/authorin
 import { loadConnectorDefinitions } from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveWorkflowAgentServing } from '../../core/lib/providers/agent_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import {
+  invalidBodyIssuesResponse,
+  invalidBodyResponse,
+} from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
@@ -319,7 +323,7 @@ export function createAutomationRoutes(deps: {
     const denied = requireAuthor(c);
     if (denied) return denied;
     const body = uploadSchema.safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const orgSlug = await resolveOrgSlug(deps.sql, c.get('orgId'));
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
@@ -365,7 +369,7 @@ export function createAutomationRoutes(deps: {
   // role. The answer records and the resume job rides its transaction.
   app.post('/asks/:askId/answer', async (c) => {
     const body = answerSchema.safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await answerAsk(deps.sql, {
         organizationId: c.get('orgId'),
@@ -424,8 +428,11 @@ export function createAutomationRoutes(deps: {
     const denied = requireAuthor(c);
     if (denied) return denied;
     const body = saveSchema.safeParse(await c.req.json());
-    if (!body.success || body.data.document === undefined) {
-      return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.document === undefined) {
+      return invalidBodyIssuesResponse(c, [
+        { path: 'document', message: 'is required' },
+      ]);
     }
     try {
       assembleAutomationAuthoringHost();
@@ -490,7 +497,7 @@ export function createAutomationRoutes(deps: {
     if (denied) return denied;
     const body = deploySchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       assembleAutomationAuthoringHost();
@@ -531,7 +538,7 @@ export function createAutomationRoutes(deps: {
     if (denied) return denied;
     const body = triggerSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       return c.json(
@@ -564,7 +571,7 @@ export function createAutomationRoutes(deps: {
     if (denied) return denied;
     const body = projectsSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       await setAutomationProjects(deps.sql, {
@@ -582,7 +589,7 @@ export function createAutomationRoutes(deps: {
   app.post('/:name{.+}/start', async (c) => {
     const body = startSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const mode = body.data.mode ?? 'mock';
     if (mode === 'live') {

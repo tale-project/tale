@@ -14,6 +14,7 @@ import { requireSession } from '../../auth/session.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { TranscriptionModelError } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
@@ -153,7 +154,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .object({ contentType: z.string().max(255).optional() })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const userId = c.get('sessionBundle').user.id;
@@ -188,7 +189,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .object({ storageRef: z.string().min(1).max(1024) })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       return c.json(
@@ -209,7 +210,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/register', async (c) => {
     const body = registerSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = {
@@ -272,7 +273,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         mimeType: z.string().min(1).max(255),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const audio = new Uint8Array(
         Buffer.from(body.data.audioBase64, 'base64'),
@@ -311,7 +312,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ storageRef: z.string().min(1).max(1024) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await loadReadableByRef(c, body.data.storageRef);
       await skipTranscription(deps.sql, c.get('orgId'), body.data.storageRef);
@@ -325,7 +326,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ storageRef: z.string().min(1).max(1024) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await loadReadableByRef(c, body.data.storageRef);
       await retryTranscription(deps.sql, c.get('orgId'), body.data.storageRef);
@@ -342,7 +343,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ storageIds: z.array(z.string().min(1).max(1024)).max(20) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const orgId = c.get('orgId');
     const viewer = await viewerOf(c);
     const statuses: Record<string, unknown>[] = [];
@@ -454,7 +455,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ fileIds: z.array(z.string().min(1).max(1024)).max(200) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const orgId = c.get('orgId');
     const viewer = await viewerOf(c);
     const requestOrigin = publicOrigin(c.req.raw);
