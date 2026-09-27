@@ -370,7 +370,7 @@ export function readEvent(
 /** Settle the accumulated tool-call drafts into parsed requests, in the
  * provider's index order. Arguments that fail to parse become `{}` with the
  * raw string kept, so the executor can answer with a correctable error. */
-export function settleToolCalls(
+function settleToolCalls(
   drafts: Map<number, ToolCallDraft>,
 ): ToolCallRequest[] {
   const ordered = [...drafts.entries()]
@@ -548,7 +548,7 @@ export async function* streamSse(
 /** Ceiling for one inlined image. The composer compresses images toward
  * 1 MB before upload; anything past this bound reads as its text surface
  * instead of becoming a request body the provider would reject. */
-export const INLINE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const INLINE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
 /** The text surface an image attachment falls back to when it cannot ride
  * the wire as pixels — the same spelling `messageText` uses everywhere. */
@@ -604,7 +604,7 @@ async function loadWireImage(
  * blob, oversize image — falls back to the attachment's text surface so the
  * model still knows a file was there.
  */
-export async function settleWireAttachments(
+async function settleWireAttachments(
   ctx: ActionCtx,
   organizationId: string,
   messages: ChatWireMessage[],
@@ -637,7 +637,7 @@ export async function settleWireAttachments(
 /** Build the real streaming model call for direct execution over a wire
  * the host resolved UP FRONT (`resolveDirectWire`) — so a credential fault
  * is a pre-turn refusal, never a failed bubble inside the stream. */
-export function createDirectModelCall(
+function createDirectModelCall(
   ctx: ActionCtx,
   organizationId: string,
   connector: ProviderDefinition,
@@ -1073,9 +1073,7 @@ function attachmentsFromParts(parts: readonly MessagePart[]): TurnAttachment[] {
  * (a later read's failure never preempts an earlier read's refusal), and a
  * discarded branch's rejection is already captured, never unhandled.
  */
-export function settled<T>(
-  promise: Promise<T>,
-): Promise<PromiseSettledResult<T>> {
+function settled<T>(promise: Promise<T>): Promise<PromiseSettledResult<T>> {
   return promise.then(
     (value) => ({ status: 'fulfilled' as const, value }),
     (reason: unknown) => ({ status: 'rejected' as const, reason }),
@@ -1105,7 +1103,7 @@ export function chatToolContextForTurn(args: {
   };
 }
 
-export function unwrap<T>(result: PromiseSettledResult<T>): T {
+function unwrap<T>(result: PromiseSettledResult<T>): T {
   if (result.status === 'rejected') throw result.reason;
   return result.value;
 }

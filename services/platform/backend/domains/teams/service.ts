@@ -120,7 +120,7 @@ function emptyRetirement(): TeamScopeRetirement {
 }
 
 /** Anything at all changed. */
-export function retirementTouchedRows(r: TeamScopeRetirement): boolean {
+function retirementTouchedRows(r: TeamScopeRetirement): boolean {
   return (
     r.projectsRetagged +
       r.foldersRetagged +

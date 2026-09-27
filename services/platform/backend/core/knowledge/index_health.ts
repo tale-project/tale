@@ -64,7 +64,7 @@ import {
 
 /** Advisory lock key, on the KNOWLEDGE database, serializing repairs across
  * processes. Distinct from the app database's migration lock. */
-export const INDEX_REPAIR_LOCK_KEY = 72_085_010;
+const INDEX_REPAIR_LOCK_KEY = 72_085_010;
 
 /** Largest index rebuilt synchronously by default: 1 GiB. */
 export const DEFAULT_INLINE_REPAIR_MAX_BYTES = 1024 ** 3;

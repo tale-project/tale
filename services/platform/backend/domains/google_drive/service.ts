@@ -48,7 +48,7 @@ export async function resolveDriveTokenForUser(
   };
 }
 
-export const GOOGLE_DRIVE_SYNC_ADAPTER: SyncProviderAdapter = {
+const GOOGLE_DRIVE_SYNC_ADAPTER: SyncProviderAdapter = {
   displayName: 'Google Drive',
   sourceProvider: 'google_drive',
   configTable: GOOGLE_DRIVE_CONFIG_TABLE,

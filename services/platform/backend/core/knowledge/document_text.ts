@@ -143,7 +143,7 @@ function mib(bytes: number): string {
 }
 
 /** The model-facing sentence for bytes that cannot be served as text. */
-export function describeUnreadable(
+function describeUnreadable(
   file: Extract<OnDemandFileRead, { kind: 'unreadable' }>,
 ): string {
   const name = `"${file.filename}"`;

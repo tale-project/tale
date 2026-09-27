@@ -28,27 +28,3 @@ export type Doc<_TableName extends TableNames = TableNames> = Record<
 
 /** A row id. Strings at rest, strings in flight. */
 export type Id<_TableName extends TableNames = TableNames> = string;
-
-/**
- * Permissive by construction: any table, any document, any named index. The
- * generated model encoded a schema that no longer governs anything, and
- * `AnyDataModel` is the opposite mistake — it declares NO indexes, so every
- * `withIndex('by_x')` in a reused body would fail to compile against a runtime
- * that in fact accepts it.
- */
-export type DataModel = Record<
-  string,
-  {
-    document: any;
-    fieldPaths: string;
-    indexes: Record<string, string[]>;
-    searchIndexes: Record<
-      string,
-      { searchField: string; filterFields: string }
-    >;
-    vectorIndexes: Record<
-      string,
-      { vectorField: string; dimensions: number; filterFields: string }
-    >;
-  }
->;

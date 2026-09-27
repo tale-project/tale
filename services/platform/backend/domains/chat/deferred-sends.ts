@@ -382,7 +382,7 @@ export async function listDeferredSends(
 }
 
 /** Readiness per the module-doc matrix. Exported for the integration run. */
-export async function isDeferredSendReady(
+async function isDeferredSendReady(
   sql: Sql,
   row: DeferredSendRow,
 ): Promise<boolean> {

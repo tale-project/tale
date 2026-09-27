@@ -28,11 +28,3 @@
  * it selects the org default for that connector.
  */
 export type ConnectorAuthMethod = 'api-key' | 'bearer' | 'basic' | 'oauth2';
-
-/**
- * `disabled` is an operator decision; `needs-reauth` is the system's — an
- * oauth2 grant whose refresh failed. They are distinct because only the second
- * one is fixed by re-running the consent flow, and the settings UI must say
- * which is which instead of showing one ambiguous "broken" state.
- */
-export type ConnectorCredentialStatus = 'active' | 'disabled' | 'needs-reauth';

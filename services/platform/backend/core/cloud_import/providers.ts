@@ -35,14 +35,6 @@ export const MICROSOFT_CLOUD_IMPORT_SCOPES = [
   'offline_access',
 ] as const;
 
-const PROVIDER_RE = /^(onedrive|google-drive)$/;
-
-export function isCloudImportProvider(
-  value: string,
-): value is CloudImportProvider {
-  return PROVIDER_RE.test(value);
-}
-
 export function getCloudImportProviderEndpoints(
   provider: CloudImportProvider,
   microsoftUrls?: { authorizeUrl: string; tokenUrl: string },

@@ -50,7 +50,7 @@ export function deriveAgePublicKey(secretKey: string): string {
  * below, and encryption addresses all of them, so any key still in the
  * file can decrypt newly written ciphertext.
  */
-export function resolveAgeSecretKeys(): string[] {
+function resolveAgeSecretKeys(): string[] {
   const inline = process.env.SOPS_AGE_KEY?.trim();
   if (inline) return [inline];
 

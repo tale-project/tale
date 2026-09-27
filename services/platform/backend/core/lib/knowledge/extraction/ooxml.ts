@@ -10,7 +10,7 @@
 
 import JSZip from 'jszip';
 
-export const MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024; // 500 MB
+const MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024; // 500 MB
 
 /** A zip reader that tracks cumulative decompressed bytes against a cap. */
 export class GuardedZip {

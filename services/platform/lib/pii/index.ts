@@ -25,17 +25,12 @@
 export { normalizeForDetection } from './core/normalize';
 export {
   blocked,
-  flagged,
   modified,
   pass,
   type FilterOutcome,
   type GuardrailsDirection,
 } from './core/outcome';
-export {
-  MAX_MESSAGE_BYTES,
-  REGEX_EXEC_BUDGET_MS,
-  clampMessage,
-} from './core/regex-safety';
+export { MAX_MESSAGE_BYTES, clampMessage } from './core/regex-safety';
 export type {
   LocaleCode,
   PiiMatch,
@@ -54,7 +49,6 @@ export type { PatternToggle, ScrubberOptions } from './engine/options';
 export { PatternRegistry } from './engine/registry';
 export { createScrubber, type Scrubber } from './engine/scrubber';
 export {
-  applyTokenization,
   createTokenizer,
   type TokenEntry,
   type TokenizeResult,
@@ -65,8 +59,6 @@ export {
   resolveScrubberOptions,
 } from './resolve-config';
 export {
-  localeConfigSchema,
-  piiPatternFileSchema,
   type LocaleConfig,
   type NationalIdSpec,
   type PiiPatternFile,

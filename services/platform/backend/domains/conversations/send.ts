@@ -65,7 +65,7 @@ import { resolveThreadCredentials } from './thread-mailbox.ts';
 
 /** The undo window (0.4 parity: 10s). Read at call time so the integration
  * harness can shorten it via CONVERSATION_UNDO_SEND_DELAY_MS. */
-export function undoSendDelayMs(): number {
+function undoSendDelayMs(): number {
   return Number(process.env.CONVERSATION_UNDO_SEND_DELAY_MS ?? '') || 10_000;
 }
 
@@ -202,7 +202,7 @@ export interface SendMessageViaConnectorArgs {
  * pending approval on the conversation (an agent-drafted reply awaiting a
  * human) completes when the human sends.
  */
-export async function sendMessageViaConnector(
+async function sendMessageViaConnector(
   sql: Sql,
   args: SendMessageViaConnectorArgs,
 ): Promise<string> {
@@ -216,7 +216,7 @@ export async function sendMessageViaConnector(
  * the conversation in the same transaction). Runs no cap check of its own —
  * the caller validates before its first write, as compose already did.
  */
-export async function sendMessageViaConnectorInTx(
+async function sendMessageViaConnectorInTx(
   tx: TransactionSql,
   args: SendMessageViaConnectorArgs,
 ): Promise<string> {

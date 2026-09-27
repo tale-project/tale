@@ -413,7 +413,7 @@ const STAMP_INTERVAL_MS = 60_000;
  * already flipped this run to a terminal state — a fresh run may be copying
  * — so this engine must stop and leave the terminal row exactly as it is.
  */
-export class BackfillFencedError extends Error {
+class BackfillFencedError extends Error {
   constructor(runId: string) {
     super(`backfill run ${runId} is no longer running; stopping`);
     this.name = 'BackfillFencedError';

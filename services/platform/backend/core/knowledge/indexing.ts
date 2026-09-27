@@ -63,7 +63,7 @@ import { applyPiiPolicyForIndexing } from './pii_gate';
 
 /** Chunks committed per slice. Small enough that a slice fits comfortably in
  * one invocation's budget, large enough that the per-slice overhead is noise. */
-export const CHUNKS_PER_SLICE = 64;
+const CHUNKS_PER_SLICE = 64;
 
 export interface IndexDocumentArgs {
   readonly sql: Sql;
@@ -241,7 +241,7 @@ export interface PrepareDocumentArgs {
  * always ran it: the secret scan first (a credential must never be chunked),
  * then the organization's PII policy, then the chunker and the hash.
  */
-export function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
+function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
   if (args.bytes !== undefined) {
     const scan = scanForSecrets(args.bytes);
     if (scan.rejected) {

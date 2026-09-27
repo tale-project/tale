@@ -71,7 +71,7 @@ import {
  * capability, mock start needs membership).
  */
 
-export class ActorAuthError extends Error {
+class ActorAuthError extends Error {
   readonly code: string;
 
   constructor(code: string, message: string) {

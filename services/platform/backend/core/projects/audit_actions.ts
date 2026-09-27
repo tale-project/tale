@@ -24,7 +24,4 @@ export const PROJECT_AUDIT_ACTIONS = {
   deleted: 'project.deleted',
 } as const;
 
-export type ProjectAuditAction =
-  (typeof PROJECT_AUDIT_ACTIONS)[keyof typeof PROJECT_AUDIT_ACTIONS];
-
 export const PROJECT_RESOURCE_TYPE = 'project';

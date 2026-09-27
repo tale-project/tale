@@ -90,8 +90,6 @@ export const RAG_ERROR_CODES = [
   RAG_ERROR_INDEXER_ERROR,
 ] as const;
 
-export type RagErrorCode = (typeof RAG_ERROR_CODES)[number];
-
 /** The codes that land on `unsupported`: a retry reproduces the answer, so
  * the retry door refuses instead of queueing. */
 export const TERMINAL_RAG_ERROR_CODES: ReadonlySet<string> = new Set([

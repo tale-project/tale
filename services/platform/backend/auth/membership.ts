@@ -123,7 +123,7 @@ export async function requireOrganizationMember(
 
 /** The roles that carry an org's elevated seat — Better Auth creates orgs
  * with `creatorRole: 'owner'`, and `admin` is the granted twin. */
-export const ADMIN_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+const ADMIN_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 const ADMIN_OR_DEVELOPER_ROLES = new Set(['owner', 'admin', 'developer']);
 
 export function isAdminRole(role: string): boolean {
@@ -138,7 +138,7 @@ export function isAdminOrDeveloperRole(role: string): boolean {
  * Authority rank for the owner-protection / strict-outrank guards. Higher =
  * more authority. Unknown roles rank 0 (fail closed: they can outrank nobody).
  */
-export const ROLE_RANK: Readonly<Record<string, number>> = {
+const ROLE_RANK: Readonly<Record<string, number>> = {
   owner: 5,
   admin: 4,
   developer: 3,

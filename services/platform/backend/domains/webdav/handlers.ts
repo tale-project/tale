@@ -83,7 +83,7 @@ import {
  * carry `folder_path` (ledger).
  */
 
-export const MAX_CHILDREN_PER_PROPFIND = 1000;
+const MAX_CHILDREN_PER_PROPFIND = 1000;
 const MAX_LOCK_TIMEOUT_MS = 60 * 60 * 1000;
 const MAX_LOCKS_PER_APP_PASSWORD = 200;
 const MAX_WEBDAV_BULK_NODES = 5_000;

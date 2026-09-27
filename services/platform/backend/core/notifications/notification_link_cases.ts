@@ -25,14 +25,14 @@ import type { OrgNotificationLink } from './org_notification_link';
  * Routes that mean "somewhere sensible", not "the thing this is about". A
  * row landing here has told the reader to go and find it by hand.
  */
-export const GENERIC_LANDING_ROUTES: readonly string[] = [
+const GENERIC_LANDING_ROUTES: ReadonlySet<string> = new Set([
   '/dashboard/$id',
   '/dashboard/$id/automations',
   '/dashboard/$id/settings/governance',
-];
+]);
 
 export function isGenericLanding(to: string): boolean {
-  return GENERIC_LANDING_ROUTES.includes(to);
+  return GENERIC_LANDING_ROUTES.has(to);
 }
 
 export interface NotificationLinkCase {

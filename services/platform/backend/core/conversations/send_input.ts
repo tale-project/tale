@@ -9,12 +9,12 @@ import { isRecord } from '../../../lib/utils/type-utils';
 import { sendConnectorAction } from './connector_slug';
 import { normalizeExternalMessageId } from './ingest/normalize_external_message_id';
 
-export function isHtmlContentType(contentType: string | undefined): boolean {
+function isHtmlContentType(contentType: string | undefined): boolean {
   const normalized = (contentType ?? 'HTML').toLowerCase();
   return normalized.includes('html');
 }
 
-export function joinRecipients(addresses: readonly string[]): string {
+function joinRecipients(addresses: readonly string[]): string {
   return addresses
     .map((address) => address.trim())
     .filter((address) => address !== '')

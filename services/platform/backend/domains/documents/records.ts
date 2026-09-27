@@ -31,8 +31,8 @@ import {
  * in the same transaction as the transition.
  */
 
-export const DOCUMENT_RECORD_MAX_APPROVED_VERSIONS = 200;
-export const DOCUMENT_RECORD_FEEDBACK_MAX = 4000;
+const DOCUMENT_RECORD_MAX_APPROVED_VERSIONS = 200;
+const DOCUMENT_RECORD_FEEDBACK_MAX = 4000;
 
 const RECORD_AUDIT_ACTIONS = {
   controlled: 'document.record_controlled',
@@ -293,7 +293,7 @@ async function memberRole(
  * could never respond would strand the review) who can see the document
  * (team scope), with edit access to the owning project for project files.
  */
-export async function isEligibleDocumentReviewer(
+async function isEligibleDocumentReviewer(
   db: Sql | TransactionSql,
   doc: DocumentRow,
   userId: string,

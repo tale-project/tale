@@ -22,7 +22,7 @@ import { resolveProvidersDir } from '../providers/org_providers';
 export type DomainDirResolver = (orgSlug: string) => string;
 
 /** `ConfigDomain.name` → absolute on-disk domain dir for an org. */
-export const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
+const DOMAIN_DIR_RESOLVERS: Record<string, DomainDirResolver> = {
   governance: resolveGovernanceDir,
   // `sso` is nested under governance — resolves to `<org>/governance/sso/`.
   sso: resolveSsoDir,

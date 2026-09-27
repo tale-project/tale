@@ -60,16 +60,3 @@ export type NotificationType =
   // (`organizations/routes.ts`): one row per owner and admin, who alone can
   // raise the budget. Actionable.
   | 'usage_credits_requested';
-
-export type NotificationActorType = 'user' | 'agent' | 'system';
-
-export type SubscriptionReason =
-  | 'creator'
-  | 'assignee'
-  | 'commenter'
-  | 'mention'
-  // The designated reviewer follows the task from designation onward: they own
-  // the gate, so they need its progress (comments, status, outcome) — not just
-  // the moment the request lands.
-  | 'reviewer'
-  | 'manual';

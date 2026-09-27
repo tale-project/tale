@@ -10,7 +10,7 @@
 
 import { isRecord } from '../../../../lib/utils/type-utils';
 
-export class JsonPathError extends Error {
+class JsonPathError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'JsonPathError';

@@ -29,7 +29,7 @@ const FLOW_COOKIE = 'sso_flow';
 /** The login-page key a completion not started in this browser bounces with. */
 export const SSO_FLOW_MISMATCH_KEY = 'sso.errors.flowMismatch';
 /** A flow is complete within minutes; the OIDC state expires at ten. */
-export const FLOW_COOKIE_MAX_AGE_S = 10 * 60;
+const FLOW_COOKIE_MAX_AGE_S = 10 * 60;
 
 /**
  * `__Host-` over HTTPS: the browser then refuses the cookie unless it is

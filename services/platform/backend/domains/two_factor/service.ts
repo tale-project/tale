@@ -291,7 +291,7 @@ export async function evaluateTwoFactorEnforcement(
 }
 
 /** Persist the grace anchor idempotently (first sign-in only). */
-export async function setGraceUntilIfAbsent(
+async function setGraceUntilIfAbsent(
   db: Db,
   userId: string,
   graceUntil: number,

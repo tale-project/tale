@@ -233,7 +233,7 @@ const RECONCILE_PAGE = 100;
  * for a release job that exhausted its retries. Bounded per run; the daily
  * schedule drains large backlogs incrementally.
  */
-export async function reconcileCorpusForOrg(
+async function reconcileCorpusForOrg(
   sql: Sql,
   args: { organizationId: string; orgSlug: string },
 ): Promise<{ scanned: number; released: number; failures: number }> {

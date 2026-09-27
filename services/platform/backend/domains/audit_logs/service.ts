@@ -282,30 +282,6 @@ export function logSuccess(
   });
 }
 
-export function logFailure(
-  tx: TransactionSql,
-  options: LogEventOptions & { errorMessage: string },
-): Promise<string> {
-  const { auditCtx, ...rest } = options;
-  return createAuditLog(tx, {
-    ...auditCtxFields(auditCtx),
-    ...rest,
-    status: 'failure',
-  });
-}
-
-export function logDenied(
-  tx: TransactionSql,
-  options: LogEventOptions & { errorMessage?: string },
-): Promise<string> {
-  const { auditCtx, ...rest } = options;
-  return createAuditLog(tx, {
-    ...auditCtxFields(auditCtx),
-    ...rest,
-    status: 'denied',
-  });
-}
-
 /** Member-POV "joined organization" row (org create / invitation accept). */
 export function logJoinedOrganization(
   tx: TransactionSql,

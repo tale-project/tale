@@ -53,16 +53,6 @@ function readKey(): Buffer {
   return Buffer.from(derived);
 }
 
-/**
- * Stable 12-character fingerprint of the current encryption key. Rows written
- * under a different fingerprint cannot decrypt after a key rotation; callers
- * compare fingerprints and surface "re-enter the secret" instead of throwing.
- */
-export function keyFingerprint(): string {
-  const key = readKey();
-  return createHash('sha256').update(key).digest('hex').slice(0, 12);
-}
-
 export interface EncryptedSecret {
   ciphertext: string;
   nonce: string;

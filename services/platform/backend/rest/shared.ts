@@ -202,7 +202,7 @@ export function documentDeleteRefusal(
 }
 
 /** The `{code, 4xx status}` shape every domain error class carries. */
-export function isDomainError(
+function isDomainError(
   error: unknown,
 ): error is Error & { code: string; status: number } {
   if (!(error instanceof Error)) return false;
@@ -221,7 +221,7 @@ export function isDomainError(
  * published `Error.code` enum) is told what it is missing. */
 const unregisteredCodes = new Set<string>();
 
-export function noteRestErrorCode(code: string): void {
+function noteRestErrorCode(code: string): void {
   if (isRestErrorCode(code) || unregisteredCodes.has(code)) return;
   unregisteredCodes.add(code);
   const message = `[rest] error code "${code}" is not registered in backend/rest/error-codes.ts — add it so the OpenAPI Error.code enum stays true`;
@@ -330,7 +330,7 @@ export const DEFAULT_BODY_BYTES = 1024 * 1024;
  * 8 MiB for a snapshot), and a refusal that says only "Request refused"
  * sends the caller to the documentation for a number the door knows.
  */
-export function bodyTooLarge(maxBytes: number): HTTPException {
+function bodyTooLarge(maxBytes: number): HTTPException {
   return new HTTPException(413, {
     message: `Request body exceeds the ${describeByteCap(maxBytes)} limit of this route`,
   });
@@ -936,7 +936,7 @@ export function invalidQueryResponse(
 
 /** The 400 for a query string a zod schema refused (`INVALID_QUERY`), every
  * problem named by parameter — the query-side twin of `invalidBodyResponse`. */
-export function invalidQueryFromSchema(
+function invalidQueryFromSchema(
   c: Context<RestEnv>,
   error: ZodError,
 ): Response {
@@ -1198,7 +1198,7 @@ export function mintCursor(
 }
 
 /** The position inside a signed cursor this list answered, or null. */
-export function verifyCursor(
+function verifyCursor(
   c: Context<RestEnv>,
   list: string,
   token: string,

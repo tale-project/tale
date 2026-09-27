@@ -78,11 +78,6 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'website_find', effect: 'read', module: 'websites' },
 ] as const;
 
-export type AgentGrantableTool = (typeof AGENT_TOOL_CATALOG)[number]['name'];
-
-/** The org domains the grantable tools group under, in picker order. */
-export type AgentToolModule = (typeof AGENT_TOOL_CATALOG)[number]['module'];
-
 /** The grantable tools that change org data (status listings badge these). */
 export const WRITE_EFFECT_TOOLS: readonly string[] = AGENT_TOOL_CATALOG.filter(
   (tool) => tool.effect === 'write',

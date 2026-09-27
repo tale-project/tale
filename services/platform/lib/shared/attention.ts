@@ -31,9 +31,6 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   'usage_credits_requested',
 ] as const;
 
-type ActionableNotificationType =
-  (typeof ACTIONABLE_NOTIFICATION_TYPES)[number];
-
 const ACTIONABLE_SET = new Set<string>(ACTIONABLE_NOTIFICATION_TYPES);
 
 export function isActionableNotificationType(type: string): boolean {

@@ -226,7 +226,7 @@ export async function listCloudAuthorizations(
   `;
 }
 
-export async function markCloudAuthorizationNeedsReauth(
+async function markCloudAuthorizationNeedsReauth(
   db: Sql | TransactionSql,
   args: {
     organizationId: string;

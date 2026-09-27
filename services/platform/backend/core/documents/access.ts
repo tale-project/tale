@@ -26,7 +26,7 @@ type DocumentRecordFields = Pick<Doc<'documents'>, 'record'>;
  * `contentHash`) — renames, folder moves, team/metadata edits stay allowed
  * in every state (title is identity, not content).
  */
-export function isRecordContentFrozen(doc: DocumentRecordFields): boolean {
+function isRecordContentFrozen(doc: DocumentRecordFields): boolean {
   return doc.record !== undefined && doc.record.state !== 'draft';
 }
 
@@ -35,7 +35,7 @@ export function isRecordContentFrozen(doc: DocumentRecordFields): boolean {
  * wired into EVERY content write path (public update, internal/REST update,
  * WebDAV PUT, connector/sync upsert) — a new content writer MUST call this.
  */
-export function assertRecordContentWritable(doc: DocumentRecordFields): void {
+function assertRecordContentWritable(doc: DocumentRecordFields): void {
   if (!isRecordContentFrozen(doc)) return;
   throw new AppError({
     code: 'DOCUMENT_RECORD_FROZEN',
@@ -87,7 +87,7 @@ export function assertGenericDocumentContentWritable(
  */
 export type RecordTrashRefusal = 'in_review' | 'approved' | 'retained_history';
 
-export function recordTrashRefusal(
+function recordTrashRefusal(
   record: Doc<'documents'>['record'],
 ): RecordTrashRefusal | null {
   if (record === undefined) return null;

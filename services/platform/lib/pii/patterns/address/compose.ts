@@ -334,9 +334,7 @@ function composeZipCityForLocale(locale: LocaleConfig): string {
 // identify the vocabulary. Composition runs once per distinct data set.
 const ADDRESS_REGEX_CACHE = new Map<string, RegExp>();
 
-export function composeAddressRegex(
-  locales: ReadonlyArray<LocaleConfig>,
-): RegExp {
+function composeAddressRegex(locales: ReadonlyArray<LocaleConfig>): RegExp {
   const cacheKey = JSON.stringify(
     locales
       .map((l) => ({

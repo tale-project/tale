@@ -82,11 +82,6 @@ import {
   verifyPathWithinBase,
 } from '../lib/file_io';
 
-// Re-exported alongside the scaffold/cleanup primitives so a caller of this
-// module doesn't need a second import from `lib/file_io` just for the slug
-// shape check (same regex/behavior — this is a re-export, not a fork).
-export { validateOrgSlug };
-
 export type DomainResult = {
   domain: string;
   ok: boolean;
@@ -151,7 +146,7 @@ async function dirHasFiles(dir: string): Promise<boolean> {
  * sides; treat ENOENT on either side as "not yet a symlink concern"
  * and fall back to `path.resolve`.
  */
-export async function pathsOverlap(a: string, b: string): Promise<boolean> {
+async function pathsOverlap(a: string, b: string): Promise<boolean> {
   const resolveReal = async (p: string): Promise<string> => {
     try {
       return await realpath(p);
@@ -242,7 +237,7 @@ function catalogConfigFileIsValid(
   return true;
 }
 
-export async function writeFileFromCatalog(
+async function writeFileFromCatalog(
   src: string,
   dst: string,
   domain?: ConfigDomain,
@@ -279,7 +274,7 @@ export async function writeFileFromCatalog(
  * is schema-checked (via its `seedSchemas` mapping, when it has one) before being
  * written — omit it to copy unchecked.
  */
-export async function copyTree(
+async function copyTree(
   sourceDir: string,
   targetDir: string,
   allowSubdirs = true,
@@ -358,7 +353,7 @@ export async function copyTree(
  * Exported for the pre-rewrite `v0_3_4/33` migration, which reuses this exact
  * seed primitive for one domain of one org.
  */
-export async function seedDomain(
+async function seedDomain(
   domain: ConfigDomain,
   catalogRoot: string,
   orgSlug: string,
@@ -469,7 +464,7 @@ export async function seedDomain(
  * and `scaffoldNewOrganization` so reseed paths sweep too.
  */
 const CONDEMNED_TTL_MS = 24 * 60 * 60 * 1000;
-export async function sweepStaleCondemnedDirs(root: string): Promise<void> {
+async function sweepStaleCondemnedDirs(root: string): Promise<void> {
   let rootEntries: string[];
   try {
     rootEntries = await readdir(root);

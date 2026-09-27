@@ -2,7 +2,7 @@ import type { TransactionSql } from 'postgres';
 
 /** The actor the workflow's own task-timeline cards carry — the "Question
  * for you" card an `ask_human` posts names it (`workspace_tools_bridge`). */
-export const WORKFLOW_COMMENT_ACTOR = 'workflow';
+const WORKFLOW_COMMENT_ACTOR = 'workflow';
 
 /**
  * Retract a question card on a task's timeline once its ask stops taking an

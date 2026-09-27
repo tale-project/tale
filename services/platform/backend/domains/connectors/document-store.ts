@@ -90,7 +90,7 @@ async function resolveOrgFolder(
  * hosts' `files` mounts are a different contract (blob refs only,
  * path-prefixed names) and list through `documents/agent-list.ts`.
  */
-export async function listWorkflowFolderFiles(
+async function listWorkflowFolderFiles(
   sql: Sql,
   {
     organizationId,

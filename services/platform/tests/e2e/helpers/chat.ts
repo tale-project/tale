@@ -1,7 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { CANNED_REPLY } from '../../../lib/mocks/overrides/canned';
-import { ENTITY_ID, isMockLlmMode, TIMEOUT } from './env';
+import { ENTITY_ID, TIMEOUT } from './env';
 import { t } from './i18n';
 
 /**
@@ -27,7 +26,7 @@ export function sendButton(page: Page): Locator {
 }
 
 /** The same toggle in its Stop state (visible only while a turn is in flight). */
-export function stopButton(page: Page): Locator {
+function stopButton(page: Page): Locator {
   return page.getByRole('button', {
     name: t('chat.stopGenerating'),
     exact: true,
@@ -39,13 +38,6 @@ export function messageLog(page: Page): Locator {
   return page.getByRole('log', { name: t('chat.aria.messageHistory') });
 }
 
-/** Assistant message bubbles only. */
-export function assistantMessages(page: Page): Locator {
-  return page.locator(
-    '[data-testid="chat-message"][data-message-role="assistant"]',
-  );
-}
-
 /**
  * Fill the composer reliably despite the draft-key flip: the controlled
  * textarea re-seeds from storage once the resolved-user-id key settles, so a
@@ -53,7 +45,7 @@ export function assistantMessages(page: Page): Locator {
  * key flips at most once, so a later attempt always wins). ONE implementation
  * for the whole suite.
  */
-export async function fillComposer(page: Page, message: string): Promise<void> {
+async function fillComposer(page: Page, message: string): Promise<void> {
   const box = composer(page);
   await expect(box).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await expect(box).toBeEnabled();
@@ -90,19 +82,6 @@ export async function sendNewThreadMessage(
 }
 
 /**
- * Send a follow-up turn into the already-open thread (no navigation). Asserts
- * the optimistic user bubble; the reply is the caller's concern.
- */
-export async function sendFollowUp(page: Page, message: string): Promise<void> {
-  await fillComposer(page, message);
-  await expect(sendButton(page)).toBeEnabled();
-  await sendButton(page).click();
-  await expect(page.getByText(message).first()).toBeVisible({
-    timeout: TIMEOUT.VISIBLE,
-  });
-}
-
-/**
  * Wait for the in-flight turn to finish: the Stop affordance reverts to Send.
  * Polls the authoritative `isGenerating` toggle (not a text race) by asserting
  * the Stop button is gone and the Send button is back. NOTE: a completed turn
@@ -113,14 +92,6 @@ export async function sendFollowUp(page: Page, message: string): Promise<void> {
 export async function waitForReplyComplete(page: Page): Promise<void> {
   await expect(stopButton(page)).toBeHidden({ timeout: TIMEOUT.REPLY });
   await expect(sendButton(page)).toBeVisible({ timeout: TIMEOUT.REPLY });
-}
-
-/** Assert the canned mock reply rendered (mock mode only — no-op live). */
-export async function expectCannedReply(page: Page): Promise<void> {
-  if (!isMockLlmMode()) return;
-  await expect(page.getByText(CANNED_REPLY).first()).toBeVisible({
-    timeout: TIMEOUT.REPLY,
-  });
 }
 
 /**

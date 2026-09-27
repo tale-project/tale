@@ -21,9 +21,7 @@ import {
   parseYamlOrThrow,
   stringifyYaml,
 } from '../../../lib/shared/config/yaml';
-import { getConfigRoot, safeJoinWithinDir, sha256 } from '../lib/file_io';
-
-export { sha256 };
+import { getConfigRoot, safeJoinWithinDir } from '../lib/file_io';
 export type { DeploymentConfig };
 
 /** Deployment config is tiny; cap well below the per-org file caps. */

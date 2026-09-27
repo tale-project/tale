@@ -88,7 +88,7 @@ export function changedBrandingFields(
 const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
 /** Platform-wide bucket read by the pre-auth shell when no org is in scope. */
-export const DEFAULT_ORG_SLUG = 'default';
+const DEFAULT_ORG_SLUG = 'default';
 
 export class BrandingError extends Error {
   readonly code: string;

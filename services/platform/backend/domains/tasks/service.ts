@@ -86,13 +86,8 @@ export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'cancelled',
 ]);
 
-export {
-  TASK_DESCRIPTION_MAX,
-  TASK_LABEL_CHARS_MAX,
-  TASK_LABELS_MAX,
-  TASK_TITLE_MAX,
-} from '../../core/tasks/helpers.ts';
-export const TASK_BOARD_CAP = 2000;
+export { TASK_DESCRIPTION_MAX } from '../../core/tasks/helpers.ts';
+const TASK_BOARD_CAP = 2000;
 
 export { TaskError } from './errors.ts';
 
@@ -794,7 +789,7 @@ async function assertAssigneeValid(
  * `task` is the row as it stood BEFORE the write (its old status and
  * archive state drive the rollup delta and the from→to copy).
  */
-export async function settleTaskStatusChange(
+async function settleTaskStatusChange(
   tx: TransactionSql,
   args: {
     task: TaskRow;
@@ -880,7 +875,7 @@ export async function settleTaskStatusChange(
  * the new human assignee is subscribed and belled, the one who lost the
  * work is told. `task` is the row BEFORE the write.
  */
-export async function settleTaskAssigneeChange(
+async function settleTaskAssigneeChange(
   tx: TransactionSql,
   args: {
     task: TaskRow;
@@ -1504,7 +1499,7 @@ export async function updateTask(
   }
 }
 
-export async function hasOpenChildren(
+async function hasOpenChildren(
   tx: TransactionSql,
   taskId: string,
 ): Promise<boolean> {
@@ -2644,7 +2639,7 @@ export async function listTasksByProject(
 
 /** How many cards one `task_find` may walk. The tool answers a working set,
  * not a board: an agent that needs more should filter harder. */
-export const AGENT_TASK_LIST_CAP = 200;
+const AGENT_TASK_LIST_CAP = 200;
 
 /**
  * The `task_find` read — undecorated rows for an agent, NOT a board page.

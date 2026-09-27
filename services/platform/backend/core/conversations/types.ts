@@ -7,8 +7,6 @@ import type { ApprovalItem } from '../approvals/types';
 
 export type ConversationStatus = 'open' | 'closed' | 'spam' | 'archived';
 
-export type ConversationPriority = 'low' | 'medium' | 'high' | 'urgent';
-
 type MessageStatus = 'queued' | 'sent' | 'delivered' | 'failed';
 
 export type MessageDirection = 'inbound' | 'outbound';

@@ -146,7 +146,7 @@ export interface RunCheckpoints {
   executions: number;
 }
 
-export const EMPTY_CHECKPOINTS: RunCheckpoints = { nodes: {}, executions: 0 };
+const EMPTY_CHECKPOINTS: RunCheckpoints = { nodes: {}, executions: 0 };
 
 /** Narrow a stored `v.any()` checkpoints blob back to its type. Anything
  * unrecognizable is treated as "nothing done yet", which is safe: the run

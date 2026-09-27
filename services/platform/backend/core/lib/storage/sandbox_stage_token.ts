@@ -31,7 +31,7 @@ const KEY_DERIVATION_CONTEXT = 'sandbox-blob-stage:v1';
 /** Staging URLs are consumed by the daemon within the same exec call; 10
  * minutes absorbs a slow multi-hundred-MB stage without leaving a long-lived
  * bearer lying around in spawner logs. */
-export const STAGE_TOKEN_TTL_MS = 10 * 60 * 1000;
+const STAGE_TOKEN_TTL_MS = 10 * 60 * 1000;
 
 export interface StageTokenPayload {
   /** Blob reference — an `s3:<key>` ref (the `_storage` lane has its own
@@ -85,10 +85,6 @@ function hmacRoot(): string | null {
   const raw = process.env.WEBDAV_APP_PASSWORD_HMAC_KEY;
   if (!raw || raw.length < 64) return null;
   return raw;
-}
-
-export function stageTokenSigningAvailable(): boolean {
-  return hmacRoot() !== null;
 }
 
 async function deriveKey(root: string): Promise<CryptoKey> {

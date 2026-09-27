@@ -47,7 +47,7 @@ export const productNameSchema = z
   .max(PRODUCT_NAME_MAX);
 
 /** An ISO 4217 code — any case in, uppercase out. */
-export const productCurrencySchema = z
+const productCurrencySchema = z
   .string()
   .trim()
   .toUpperCase()
@@ -105,7 +105,7 @@ export const productFieldsShape = {
 };
 
 /** The REST door's shape: every field optional, unknown keys refused. */
-export const productFieldsSchema = z.object(productFieldsShape).strict();
+const productFieldsSchema = z.object(productFieldsShape).strict();
 
 /** Create requires the name; update leaves every field optional. */
 export const productCreateSchema = productFieldsSchema.extend({

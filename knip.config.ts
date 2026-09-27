@@ -57,13 +57,6 @@ export default {
         // Bun production server — invoked by docker-entrypoint.sh, not from
         // package.json scripts, so knip can't auto-detect it via the npm plugin.
         'server.ts',
-        // Postgres backend — a separate Node runtime not reachable via the
-        // SPA's import graph. Domain files are the public surface
-        // (name-dispatched via the `internal.x.y.z` shim); knip cannot see
-        // that second graph, so they must be entries. Covers the ported
-        // logic under `backend/core/` and `backend/integration-check.ts`
-        // (invoked by `backend:integration`).
-        'backend/**/*.ts',
         // Mock gateway (folded in from @tale/mocks): the `start` entry is
         // launched by playwright's webServer (`bun lib/mocks/start.ts`), not
         // imported, so knip can't auto-detect it. It anchors gateway/registry.
@@ -102,29 +95,11 @@ export default {
         'tests/docs-screenshots/readme-assets.ts',
       ],
       project: ['**/*.{ts,tsx}'],
-      // ----------------------------------------------------------------
-      // AI-BACKEND REWRITE PARKING (PR #2857). These subsystems were rebuilt
-      // with their consumers not yet wired (the agent runtime, automations
-      // engine, knowledge/PII pipelines, native connector backends, the
-      // parked chat capability surface). Their exports read as dead until
-      // each consumer lands — parking them keeps the sweep loud for NEW dead
-      // code everywhere else. Every entry is a debt line: delete it when its
-      // subsystem is wired (or truly retired) and let knip re-audit it.
-      // ----------------------------------------------------------------
       ignore: [
         // The docs-demo E2E fixture tree is symlinks into configs/platform/custom
         // (real skill/agent/automation sources with their own tests). Following
         // them would read those files as platform project files.
         'tests/e2e/fixtures/config/**',
-        'lib/pii/**',
-        'lib/connectors/natives/**',
-        // Shared contract layer: types declared for the parked consumers
-        // above (schemas, provider catalog shapes). Same debt, same exit.
-        'lib/shared/file-types.ts',
-        'lib/shared/providers/attribution.ts',
-        'lib/shared/schemas/enterprise_sso.ts',
-        // E2E helper for the parked chat specs.
-        'tests/e2e/helpers/chat.ts',
       ],
       ignoreDependencies: [
         // Listed in `optimizeDeps.include` in vite.config.ts as string literals so vite prebundles them;

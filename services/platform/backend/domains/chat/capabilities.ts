@@ -29,7 +29,7 @@ import { resolveAccessScope } from './shim.ts';
  * list when it cannot run.
  */
 
-export class CapabilityAuthError extends Error {
+class CapabilityAuthError extends Error {
   readonly code: string;
 
   constructor(code: string, message: string) {

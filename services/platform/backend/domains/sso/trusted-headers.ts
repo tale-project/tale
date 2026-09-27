@@ -554,7 +554,7 @@ function refusalMessage(
  * browser gets. Says nothing about the response: the callers decide how to
  * answer.
  */
-export async function handOffFromHeaders(
+async function handOffFromHeaders(
   sql: Sql,
   req: Request,
 ): Promise<HandOffOutcome> {

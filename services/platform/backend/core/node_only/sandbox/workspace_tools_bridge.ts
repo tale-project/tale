@@ -47,7 +47,7 @@ import {
  * field, validated against `AGENT_TOOL_CATALOG`). The task family and
  * `document_create` are registered in `workspace_domain_tools.ts`.
  */
-export const WORKSPACE_READ_TOOLS = [
+const WORKSPACE_READ_TOOLS = [
   'rag_search',
   'rag_fetch',
   'document_find',

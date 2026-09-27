@@ -55,7 +55,7 @@ let plaintextWarnEmitted = false;
  * healthy sops answers in well under a second; anything near this bound is
  * a wedged binary (a hung key-file read, a stuck KMS call) and the caller
  * gets an error instead of an indefinitely pending request. */
-export const SOPS_TIMEOUT_MS = 10_000;
+const SOPS_TIMEOUT_MS = 10_000;
 
 export interface SopsOptions {
   /** Kill the `sops` child after this many milliseconds (default

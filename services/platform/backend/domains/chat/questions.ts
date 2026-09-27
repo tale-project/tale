@@ -1,4 +1,4 @@
-import type { Sql, TransactionSql } from 'postgres';
+import type { Sql } from 'postgres';
 
 import {
   questionSetSchema,
@@ -22,45 +22,6 @@ const RESOURCE_TYPE = 'human_input_request';
  * a pending question occupies the composer, so it is always among the
  * newest few messages. */
 const ASK_SCAN_LIMIT = 20;
-
-/**
- * Register a question set for a thread — the pipeline seam (the 0.4
- * `createQuestionRequestInternal`; the `ask_question` tool is still off the
- * wire, so nothing calls this yet — it completes the domain for the day the
- * tool lands). Supersedes any open row on the thread.
- */
-export async function createQuestionRequest(
-  sql: Sql | TransactionSql,
-  args: {
-    organizationId: string;
-    threadId: string;
-    messageId?: string;
-    set: QuestionSet;
-  },
-): Promise<string> {
-  const now = Date.now();
-  await sql`
-    UPDATE app.approvals
-    SET status = 'rejected', reviewed_at_ms = ${now}
-    WHERE thread_id = ${args.threadId} AND status = 'pending'
-      AND resource_type = ${RESOURCE_TYPE}
-      AND org_id = ${args.organizationId}
-  `;
-  const rows = await sql<{ id: string }[]>`
-    INSERT INTO app.approvals (
-      org_id, status, resource_type, resource_id, thread_id, message_id,
-      priority, metadata, created_at_ms
-    ) VALUES (
-      ${args.organizationId}, 'pending', ${RESOURCE_TYPE}, ${args.threadId},
-      ${args.threadId}, ${args.messageId ?? null}, 'medium',
-      ${sql.json(toJson({ set: args.set, requestedAt: now }))}, ${now}
-    )
-    RETURNING id
-  `;
-  const id = rows[0]?.id;
-  if (id === undefined) throw new Error('question insert returned no row');
-  return id;
-}
 
 /** The pending question set for a thread, or null. The composer watches
  * this — owner-only, like the 0.4 read (a project reader must not learn

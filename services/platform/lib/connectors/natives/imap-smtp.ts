@@ -399,10 +399,7 @@ function configPort(
  * plaintext greeting, or the reverse). Non-standard ports honour the
  * configured fallback.
  */
-export function secureForPort(
-  port: number,
-  configuredSecure: boolean,
-): boolean {
+function secureForPort(port: number, configuredSecure: boolean): boolean {
   if (port === IMAPS_PORT || port === SMTPS_PORT) return true;
   if (port === IMAP_PORT || port === SUBMISSION_PORT) return false;
   return configuredSecure;
@@ -560,7 +557,7 @@ const sendInput = z.object({
 });
 
 /** From address for system notification mail on the mailbox's send domain. */
-export function notificationSenderFrom(baseFrom: string): string {
+function notificationSenderFrom(baseFrom: string): string {
   const at = baseFrom.lastIndexOf('@');
   if (at === -1) return baseFrom;
   return `notification@${baseFrom.slice(at + 1).toLowerCase()}`;

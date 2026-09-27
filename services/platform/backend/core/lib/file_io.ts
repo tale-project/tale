@@ -26,8 +26,6 @@ import path from 'node:path';
 import { isValidOrgSlug as sharedIsValidOrgSlug } from '../../../lib/shared/constants/org-slug';
 import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config';
 
-const TIMESTAMP_REGEX = /^\d{13,}(-[a-f0-9]+)?$/;
-
 export type FileReadResult<T> =
   | {
       ok: true;
@@ -91,7 +89,7 @@ export function errnoCode(err: unknown): string | undefined {
   return undefined;
 }
 
-export async function isSymlink(filePath: string): Promise<boolean> {
+async function isSymlink(filePath: string): Promise<boolean> {
   try {
     const stats = await lstat(filePath);
     return stats.isSymbolicLink();
@@ -157,10 +155,6 @@ export function safeJoinWithinDir(dir: string, name: string): string {
     throw new Error(`Path traversal detected: ${name}`);
   }
   return resolved;
-}
-
-export function validateTimestamp(ts: string): boolean {
-  return TIMESTAMP_REGEX.test(ts);
 }
 
 /**
@@ -505,30 +499,6 @@ export async function removeDirSafe(dirPath: string): Promise<boolean> {
   }
   await rm(dirPath, { recursive: true });
   return true;
-}
-
-/**
- * Byte-preserving sibling of `readFileSafe`. Returns the raw bytes of a
- * file, or null if the file does not exist. Use this for binary assets
- * (PNGs, PDFs, fonts) where the UTF-8 round-trip in `readFileSafe` would
- * corrupt non-text bytes.
- */
-export async function readFileBufferSafe(
-  filePath: string,
-): Promise<Buffer | null> {
-  try {
-    const fd = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
-    try {
-      return await fd.readFile();
-    } finally {
-      await fd.close();
-    }
-  } catch (err) {
-    if (!isFileNotFound(err)) {
-      console.warn('[readFileBufferSafe] failed:', filePath, err);
-    }
-    return null;
-  }
 }
 
 /**

@@ -68,7 +68,7 @@ const APPROVAL_COLUMNS = `
   created_at_ms::float8 AS "createdAt"
 `;
 
-export function approvalRunId(
+function approvalRunId(
   approval: Pick<ApprovalRow, 'metadata'>,
 ): string | undefined {
   const runId = approval.metadata?.runId;
@@ -92,7 +92,7 @@ async function listTaskReviewApprovals(
  * explicit `reviewerUserId` → human task creator → project creator; the
  * first candidate who still holds project canEdit wins.
  */
-export async function resolveReviewer(
+async function resolveReviewer(
   tx: TransactionSql | Sql,
   task: TaskRow,
 ): Promise<string | undefined> {
@@ -248,7 +248,7 @@ export interface TaskReviewPolicyOutcome {
  * (`governance/competence.ts`): a refusal NAMES the missing slugs, and an
  * approval carries back the grants that justified it.
  */
-export async function checkReviewPolicyForResponder(
+async function checkReviewPolicyForResponder(
   tx: TransactionSql | Sql,
   args: { approval: ApprovalRow; task: TaskRow; responderUserId: string },
 ): Promise<TaskReviewPolicyOutcome> {
@@ -458,7 +458,7 @@ export async function getPendingReviewForTask(
 }
 
 /** Bounded scan cap — mirrors the 0.4 board indicator cap. */
-export const PENDING_REVIEW_SCAN_CAP = 50;
+const PENDING_REVIEW_SCAN_CAP = 50;
 
 /**
  * Pending review-gate approvals whose `metadata.projectId` is in the set —

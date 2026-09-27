@@ -82,8 +82,6 @@ export const contactFieldsShape = {
 /** The REST door's shape: every field optional, unknown keys refused. */
 export const contactFieldsSchema = z.object(contactFieldsShape).strict();
 
-export type ContactFields = z.infer<typeof contactFieldsSchema>;
-
 /** Whether an identity field carries a value (not unset, cleared or blank). */
 const present = (value: string | number | null | undefined): boolean =>
   value !== undefined && value !== null && value !== '';

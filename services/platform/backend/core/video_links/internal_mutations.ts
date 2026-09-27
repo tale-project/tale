@@ -32,4 +32,3 @@ export type VideoLinkErrorReason =
   // Orchestrator-synthesized
   | 'videoTooLong'
   | 'whisperFailed';
-export type UpdateJobResult = 'ok' | 'cas_miss' | 'not_found';

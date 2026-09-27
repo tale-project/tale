@@ -66,7 +66,7 @@ export type UsageScope =
  * starter — so a cap sees the member's whole spend, whichever door it came
  * through (`governance/README.md`).
  */
-export async function periodUsage(
+async function periodUsage(
   sql: Sql | TransactionSql,
   organizationId: string,
   periodKey: string,

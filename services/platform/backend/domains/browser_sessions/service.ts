@@ -16,7 +16,7 @@ import { encryptString } from '../../core/lib/crypto/encrypt_string.ts';
  * rest (the reused `encryptString`) and never returned by any read.
  */
 
-export class BrowserSessionError extends Error {
+class BrowserSessionError extends Error {
   readonly code: string;
   readonly status: 400 | 401 | 403 | 404;
 

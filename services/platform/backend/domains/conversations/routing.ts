@@ -47,7 +47,7 @@ const SYSTEM: AssignmentActor = { type: 'system' };
  * the new owner / team is notified impersonally. Returns true when it wrote a
  * change.
  */
-export async function applyConversationAssignment(
+async function applyConversationAssignment(
   db: Db,
   conversation: RoutableConversation,
   next: { assigneeUserId?: string; assigneeTeamId?: string },

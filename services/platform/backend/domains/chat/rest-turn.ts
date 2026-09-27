@@ -101,7 +101,7 @@ export const apiTurnPayloadSchema = z.object({
  * poller whose send is queued. A job an older image enqueued without the
  * id keeps the unscoped clear.
  */
-export async function clearQueuedTurn(
+async function clearQueuedTurn(
   sql: Sql,
   threadId: string,
   streamId?: string,

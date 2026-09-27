@@ -14,9 +14,9 @@ import type { Sql, TransactionSql } from 'postgres';
  * the same change.
  */
 
-export const MINUTE = 60_000;
-export const HOUR = 60 * MINUTE;
-export const DAY = 24 * HOUR;
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 
 export interface TokenBucketRule {
   kind: 'token bucket';

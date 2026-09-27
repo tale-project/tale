@@ -54,7 +54,7 @@ export async function readSsoConnection(
  * or more enabled there is no right answer without org context — return
  * `'ambiguous'`; guessing sent users to another org's IdP.
  */
-export async function loadSingleEnabled(
+async function loadSingleEnabled(
   sql: Sql,
 ): Promise<LoadedSsoConnection | 'ambiguous' | null> {
   const orgs = await sql<{ id: string }[]>`

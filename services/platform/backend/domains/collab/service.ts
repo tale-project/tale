@@ -86,7 +86,7 @@ const PREF_FIELD: Record<string, string> = {
 
 /** Tri-state preference resolution: undefined → default ON. The review
  * group ignores any stored value — the settings UI locks it always-on. */
-export async function isNotificationAllowed(
+async function isNotificationAllowed(
   db: Db,
   userId: string,
   organizationId: string,
@@ -115,7 +115,7 @@ const UNREAD_SCAN_CAP = 100;
 
 /** The email debounce window (0.4 parity: 60s). Read at call time so the
  * integration harness can shorten it via NOTIFICATION_EMAIL_DEBOUNCE_MS. */
-export function notificationEmailDebounceMs(): number {
+function notificationEmailDebounceMs(): number {
   return (
     Number(process.env.NOTIFICATION_EMAIL_DEBOUNCE_MS ?? '') ||
     NOTIFICATION_EMAIL_DEBOUNCE_MS
@@ -487,7 +487,7 @@ export async function getTaskSubscription(
 }
 
 /** Unmuted human watchers of a task — the audience for outcomes. */
-export async function taskSubscriberUserIds(
+async function taskSubscriberUserIds(
   db: Db,
   taskId: string,
 ): Promise<string[]> {
@@ -500,22 +500,6 @@ export async function taskSubscriberUserIds(
 }
 
 // -------------------------------------------------------------- preferences
-
-const PREF_COLUMNS = [
-  'task_assigned',
-  'task_status_changed',
-  'task_commented',
-  'mention',
-  'task_deadlines',
-  'task_review',
-  'escalation',
-  'conversation_messages',
-  'actionable_email',
-] as const;
-
-export type NotificationPreferences = Partial<
-  Record<(typeof PREF_COLUMNS)[number], boolean | null>
->;
 
 export async function getNotificationPreferences(
   sql: Sql,
@@ -978,7 +962,7 @@ export async function notifyTaskComment(
 const MAX_ASK_RECIPIENTS = 500;
 const QUESTION_EXCERPT_MAX = 160;
 
-export function questionExcerpt(question: string): string {
+function questionExcerpt(question: string): string {
   const flat = question.replace(/\s+/g, ' ').trim();
   return flat.length <= QUESTION_EXCERPT_MAX
     ? flat

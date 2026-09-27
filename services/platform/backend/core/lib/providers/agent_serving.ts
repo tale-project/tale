@@ -115,7 +115,7 @@ function isAuthMethodName(
 /** Narrow an internal credential query's row to the fields read here —
  * constructed field by field, never asserted, so a shape drift surfaces as
  * `null` (→ "no active default credential") instead of an unsound read. */
-export function readAgentDefaultCredentialRow(
+function readAgentDefaultCredentialRow(
   row: unknown,
 ): AgentDefaultCredentialRow | null {
   if (!isRecord(row)) return null;
@@ -138,10 +138,7 @@ export function readAgentDefaultCredentialRow(
 /** The resolver only reads a model's identity; neutral values fill the
  * catalog fields it ignores (same convention as the composer's affordance
  * probe and the harness status derivation). */
-export function neutralModelEntry(
-  id: string,
-  provider: string,
-): ModelCatalogEntry {
+function neutralModelEntry(id: string, provider: string): ModelCatalogEntry {
   return {
     id,
     provider,

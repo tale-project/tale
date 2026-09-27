@@ -34,7 +34,7 @@ import { findHubFolderByPath } from '../folders/paths.ts';
 export const SYNC_FAILURE_NOTIFY_GRACE_MS = 60 * 60 * 1000;
 
 /** The personal-notification type — one row per config per episode. */
-export const CLOUD_SYNC_FAILED_NOTIFICATION_TYPE = 'cloud_sync_failed';
+const CLOUD_SYNC_FAILED_NOTIFICATION_TYPE = 'cloud_sync_failed';
 
 /** `last_sync_status` values a failed run stamps. */
 export type SyncFailureKind = 'error' | 'needs-reauth';

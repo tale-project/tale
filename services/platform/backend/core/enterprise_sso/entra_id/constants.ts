@@ -1,8 +1,6 @@
 export const MICROSOFT_LOGIN_BASE = 'https://login.microsoftonline.com';
 export const MICROSOFT_GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 
-export const DEFAULT_SCOPES = ['openid', 'profile', 'email', 'offline_access'];
-
 /**
  * Graph file scopes belong on Knowledge cloud-import OAuth, never on SSO
  * authorize. Strip both short and fully-qualified forms so a legacy Scopes
@@ -24,7 +22,7 @@ export function withoutGraphFileScopes(scopes: readonly string[]): string[] {
  * through. Kept as a single constant so the config form, the connection test,
  * and the sign-in path all read identically (and so a test can assert on it).
  */
-export const ENTRA_ISSUER_HELP =
+const ENTRA_ISSUER_HELP =
   'Issuer must be https://login.microsoftonline.com/{tenant-id}/v2.0';
 
 /**

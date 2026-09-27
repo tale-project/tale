@@ -118,13 +118,6 @@ export interface DatabaseReader {
   system: DatabaseReader;
 }
 
-export interface DatabaseWriter extends DatabaseReader {
-  insert(table: string, value: Record<string, any>): Promise<string>;
-  patch(id: string, value: Record<string, any>): Promise<void>;
-  replace(id: string, value: Record<string, any>): Promise<void>;
-  delete(id: string): Promise<void>;
-}
-
 /** The caller, as the shim resolves it from the session. */
 export interface UserIdentity {
   subject: string;
@@ -168,19 +161,6 @@ export interface Runner {
   runQuery(fn: any, args?: any): Promise<any>;
   runMutation(fn: any, args?: any): Promise<any>;
   runAction(fn: any, args?: any): Promise<any>;
-}
-
-export interface QueryCtx extends Runner {
-  db: DatabaseReader;
-  auth: Auth;
-  storage: StorageReader;
-}
-
-export interface MutationCtx extends Runner {
-  db: DatabaseWriter;
-  auth: Auth;
-  storage: StorageWriter;
-  scheduler: Scheduler;
 }
 
 export interface ActionCtx extends Runner {

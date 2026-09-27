@@ -15,7 +15,7 @@
  * catalog; tests wire doubles and need neither a network nor a database.
  */
 
-import { registerNativeImpl, nativeImplIds } from '../dispatcher';
+import { registerNativeImpl } from '../dispatcher';
 import {
   imapSmtpNatives,
   nodeMailTransport,
@@ -40,11 +40,6 @@ import {
 import { webdavNatives, type WebdavStore } from './webdav';
 
 export {
-  discoverSentMailbox,
-  imapSmtpNatives,
-  mailboxConfigFromCredential,
-  nodeMailTransport,
-  selectMailbox,
   type ImapSession,
   type ListedMailbox,
   type MailAttachmentResolver,
@@ -58,40 +53,30 @@ export {
   type SmtpSession,
 } from './imap-smtp';
 export {
-  webdavNatives,
   WebdavStoreError,
   type WebdavEntry,
   type WebdavFileBytes,
   type WebdavStore,
   type WebdavStoreErrorCode,
 } from './webdav';
+export { type OrgPath } from './webdav-paths';
 export {
-  formatChildPath,
-  formatOrgPath,
-  parseOrgPath,
-  type OrgPath,
-} from './webdav-paths';
-export {
-  sandboxScriptNatives,
   type SandboxScriptOutcome,
   type SandboxScriptRun,
   type SandboxScriptRunner,
 } from './sandbox-script';
 export {
-  platformTaskNatives,
   type WorkflowTaskComment,
   type WorkflowTaskStore,
   type WorkflowTaskView,
 } from './platform-tasks';
 export {
-  platformConversationNatives,
   type ConversationIngestResult,
   type ConversationSyncCursor,
   type ConversationSyncResult,
   type WorkflowConversationStore,
 } from './platform-conversations';
 export {
-  platformDocumentNatives,
   type WorkflowDocumentStore,
   type WorkflowFolderFile,
 } from './platform-documents';
@@ -200,7 +185,3 @@ export function registerNativeConnectors(
     for (const dispose of disposers) dispose();
   };
 }
-
-/** The native backends currently installed — re-exported so a host can log
- * what it wired without importing the dispatcher's registry directly. */
-export { nativeImplIds };

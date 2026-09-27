@@ -38,7 +38,7 @@ import { resolveGovernanceDir } from '../governance/file_utils';
 import { safeJoinWithinDir } from '../lib/file_io';
 
 export type { SsoConnectionFile, SsoConnectionSecrets };
-export { SSO_CONFIG_DOMAIN, SSO_CONNECTION_KEY };
+export { SSO_CONNECTION_KEY };
 
 export const MAX_FILE_SIZE_BYTES = 64 * 1024; // 64 KB
 

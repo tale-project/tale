@@ -60,13 +60,11 @@ const CAP_NAME: Record<BudgetViolation['code'], string> = {
 
 /** The sentence a refused sender reads — it starts with "Usage limit
  * reached" so a client that only has the text still recognises it. */
-export function budgetRefusalMessage(violation: BudgetViolation): string {
+function budgetRefusalMessage(violation: BudgetViolation): string {
   return `Usage limit reached. ${BUCKET_OWNER[violation.scope]} ${violation.period} ${CAP_NAME[violation.code]} limit is used up until ${new Date(violation.resetsAt).toISOString()}.`;
 }
 
-export function toChatBudgetRefusal(
-  violation: BudgetViolation,
-): ChatBudgetRefusal {
+function toChatBudgetRefusal(violation: BudgetViolation): ChatBudgetRefusal {
   return {
     code: 'BUDGET_EXCEEDED',
     message: budgetRefusalMessage(violation),

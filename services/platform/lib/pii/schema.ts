@@ -69,7 +69,7 @@ export type PiiPatternFile = z.infer<typeof piiPatternFileSchema>;
 // -----------------------------------------------------------------------------
 
 /** ISO 15924-ish script subtags — drive which address composer applies. */
-export const scriptSchema = z.enum([
+const scriptSchema = z.enum([
   'latn',
   'cyrl',
   'grek',
@@ -86,10 +86,9 @@ export const scriptSchema = z.enum([
   'telu',
   'guru',
 ]);
-export type Script = z.infer<typeof scriptSchema>;
 
 /** Postcode geometry — picks the postcode+city tail builder. */
-export const postcodeFormSchema = z.enum([
+const postcodeFormSchema = z.enum([
   'continental',
   'nl',
   'us',
@@ -99,7 +98,6 @@ export const postcodeFormSchema = z.enum([
   'kr',
   'none',
 ]);
-export type PostcodeForm = z.infer<typeof postcodeFormSchema>;
 
 /** Address form shapes a locale declares — each maps to one composer. */
 export const addressFormShapeSchema = z.enum([
@@ -120,7 +118,7 @@ export type AddressFormShape = z.infer<typeof addressFormShapeSchema>;
  * without a matching implementation is caught by the dispatch switch's
  * exhaustiveness check.
  */
-export const nationalIdChecksumSchema = z.enum([
+const nationalIdChecksumSchema = z.enum([
   'ar-cuil',
   'au-tfn',
   'be-nrn',
@@ -155,7 +153,6 @@ export const nationalIdChecksumSchema = z.enum([
   'tr-tckn',
   'verhoeff',
 ]);
-export type NationalIdChecksum = z.infer<typeof nationalIdChecksumSchema>;
 
 /**
  * One national-ID spec. The regex source is data compiled at registry
@@ -188,7 +185,7 @@ export type NationalIdSpec = z.infer<typeof nationalIdSpecSchema>;
 const keywordListSchema = z.array(z.string().min(1));
 
 /** The locale's address-detection configuration. */
-export const localeAddressConfigSchema = z
+const localeAddressConfigSchema = z
   .object({
     forms: z.array(addressFormShapeSchema).min(1),
     postcodeForm: postcodeFormSchema,
@@ -218,10 +215,9 @@ export const localeAddressConfigSchema = z
     requireUppercase: z.boolean(),
   })
   .strict();
-export type LocaleAddressConfig = z.infer<typeof localeAddressConfigSchema>;
 
 /** Date-of-birth vocabulary for textual detection. All fields optional. */
-export const dateOfBirthConfigSchema = z
+const dateOfBirthConfigSchema = z
   .object({
     monthsLong: keywordListSchema.optional(),
     monthsShort: keywordListSchema.optional(),
@@ -231,7 +227,6 @@ export const dateOfBirthConfigSchema = z
     dayMarker: z.string().min(1).optional(),
   })
   .strict();
-export type DateOfBirthConfig = z.infer<typeof dateOfBirthConfigSchema>;
 
 /** One locale dataset file. */
 export const localeConfigSchema = z

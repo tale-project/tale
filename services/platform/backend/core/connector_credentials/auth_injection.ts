@@ -27,7 +27,7 @@ import { z } from 'zod/v4';
 
 /** The scheme a `bearer` connector gets when its auth entry names none —
  * the same default `connectorAuthMethodSchema` applies. */
-export const DEFAULT_BEARER_SCHEME = 'Bearer';
+const DEFAULT_BEARER_SCHEME = 'Bearer';
 
 /**
  * A decrypted `encryptedData` envelope, tagged with the row's `authMethod`.

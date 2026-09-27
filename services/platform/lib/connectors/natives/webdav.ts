@@ -36,7 +36,7 @@ const CONNECTOR = 'webdav';
 /** Ceiling for one `read`. The contents cross a function boundary and land in
  * an agent's context, so a whole-file read is bounded well below what the
  * store can hold. */
-export const MAX_READ_BYTES = 1024 * 1024;
+const MAX_READ_BYTES = 1024 * 1024;
 
 /** Ceiling for one `write`, matching the read ceiling: an action writes a
  * document it composed, not a bulk upload (that is what `/dav` is for). */

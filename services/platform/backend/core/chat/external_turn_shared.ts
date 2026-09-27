@@ -57,16 +57,16 @@ import {
  * at one tree. */
 export const SKILLS_DIR = 'workspace/.tale/skills';
 /** One drain window; well under the Convex action execution ceiling. */
-export const DRAIN_WINDOW_MS = 90_000;
+const DRAIN_WINDOW_MS = 90_000;
 /** After the parser sees `turn-ended`, how long to keep draining for the
  * exec's natural exit (which carries a close-stdin harness's exit code)
  * before cutting the window. A hold-stdin harness (claude-code) never exits
  * on its own — without the cut, every reply would sit out the full window. */
-export const TURN_ENDED_EXIT_GRACE_MS = 1_500;
+const TURN_ENDED_EXIT_GRACE_MS = 1_500;
 /** Floor between two mid-window notifications of the accumulating output —
  * the cadence of the `onText`/`onTimeline` progress sinks, so a host's
  * per-notification write stays off the hot path. */
-export const STREAM_TEXT_THROTTLE_MS = 250;
+const STREAM_TEXT_THROTTLE_MS = 250;
 /** The `timeoutMs` handed to a harness exec. NOT a turn deadline: runnerd's
  * timer is a SLIDING orphan window (re-armed on every drain attach, see the
  * daemon's exec manager), not an absolute cap — an exec whose drainer keeps
@@ -359,7 +359,7 @@ function clampTimelineValue(value: unknown): unknown {
  * results fold into their call (keyed by `toolUseId`) so one tool shows as
  * one entry that moves from `input-available` to `output-available`/`error`.
  */
-export function timelineFromEvents(
+function timelineFromEvents(
   events: readonly HarnessEvent[],
 ): HarnessTimelinePart[] {
   // A harness that streams deltas ALSO emits the finished block for the same

@@ -16,7 +16,7 @@ import {
   AUTO_RETRY_PROGRESS_MS,
 } from '../tasks/task_auto_retry';
 
-export { AUTO_RETRY_MAX_ATTEMPTS, AUTO_RETRY_PROGRESS_MS };
+export { AUTO_RETRY_MAX_ATTEMPTS };
 
 /** Producer-side failure classification, stamped where each failure is
  * PRODUCED (the `agent_host.ts` settle sites) — never regex-derived from the
@@ -120,7 +120,7 @@ export function nextAttempt(prev: number, executedMs: number): number {
  * node execution past the nominal 4 attempts; the exclusion is soft (the
  * credential resolve falls back to the full pool when it would empty it),
  * so dropping the oldest entries only widens rotation, never starves it. */
-export const MAX_BURNED_BROKER_HASHES = 8;
+const MAX_BURNED_BROKER_HASHES = 8;
 
 /** Fold the settled attempt's broker-token hash into the carried exclusion
  * list: deduped, most recent last, oldest dropped past the cap. */

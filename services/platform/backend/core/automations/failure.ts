@@ -26,7 +26,7 @@ import type { WorkflowAgentFailureCode } from './agent_retry.ts';
  *   `turn_crashed`, `session_gone`, `deadline`, `ask_expired`,
  *   `budget_exceeded`, ….
  */
-export const ENGINE_FAILURE_CODES = [
+const ENGINE_FAILURE_CODES = [
   'node_error',
   'connector_error',
   'llm_output_invalid',
@@ -35,7 +35,7 @@ export const ENGINE_FAILURE_CODES = [
   'automation_deleted',
 ] as const;
 
-export const AGENT_FAILURE_CODES = [
+const AGENT_FAILURE_CODES = [
   'harness_error',
   'turn_crashed',
   'session_gone',

@@ -88,7 +88,7 @@ const MAX_PROJECT_AGENTS = 50;
  * `GET /api/v1/models` lists under `harnesses`. A hard-coded set once stood
  * beside it, and the refusal named nothing (2026-09-14 evaluation, h9).
  */
-export function eligibleProjectAgentHarnesses(): string[] {
+function eligibleProjectAgentHarnesses(): string[] {
   return loadHarnesses()
     .filter((harness) => harness.credentialPolicy.managed)
     .map((harness) => harness.slug)

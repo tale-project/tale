@@ -54,9 +54,9 @@ export interface OutboxRow {
  */
 export const OUTBOX_RETENTION_MS = 60 * 60 * 1000;
 /** Rows one DELETE reclaims — bounded so a sweep never holds many locks. */
-export const OUTBOX_RECLAIM_BATCH = 500;
+const OUTBOX_RECLAIM_BATCH = 500;
 /** DELETE rounds one sweep may run before it yields. */
-export const OUTBOX_RECLAIM_MAX_BATCHES = 20;
+const OUTBOX_RECLAIM_MAX_BATCHES = 20;
 /**
  * DELETE rounds the cron sweep may run: it is off the API hot path and is
  * the only reclaimer while no stream is open, so it takes a backlog of up
@@ -64,9 +64,9 @@ export const OUTBOX_RECLAIM_MAX_BATCHES = 20;
  */
 export const OUTBOX_RECLAIM_CRON_MAX_BATCHES = 200;
 /** How often a process with open streams sweeps. */
-export const OUTBOX_RECLAIM_INTERVAL_MS = 60_000;
+const OUTBOX_RECLAIM_INTERVAL_MS = 60_000;
 /** A sweep that spent its whole budget comes back sooner: a backlog drains. */
-export const OUTBOX_RECLAIM_CATCH_UP_MS = 1_000;
+const OUTBOX_RECLAIM_CATCH_UP_MS = 1_000;
 
 /** Emit a hint inside the transaction that performs the change it describes. */
 export async function emitHintInTx(

@@ -697,7 +697,7 @@ export async function s3DeleteObject(
 }
 
 /** Default presigned-URL lifetime (seconds) — long enough for a browser fetch. */
-export const DEFAULT_PRESIGN_TTL_SEC = 15 * 60;
+const DEFAULT_PRESIGN_TTL_SEC = 15 * 60;
 
 /**
  * Presign a time-limited GET URL for the browser to download the object

@@ -132,7 +132,7 @@ export type ConsumedAuthorization =
  * so a replay can never observe the row twice; an expired row is deleted too
  * (it can never become valid, and leaving it invites probing).
  */
-export async function consumePendingAuthorization(
+async function consumePendingAuthorization(
   sql: Sql,
   stateHash: string,
 ): Promise<ConsumedAuthorization> {

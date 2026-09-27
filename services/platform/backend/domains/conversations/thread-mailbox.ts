@@ -42,7 +42,7 @@ function normalizedAddress(address: string | undefined): string | undefined {
 
 /** A mailbox's own address as answer 2 compares it: its configured
  *  `fromAddress`, trimmed and lowercased. */
-export function mailboxAddressOf(row: {
+function mailboxAddressOf(row: {
   config: Record<string, string | number | boolean> | null;
 }): string | undefined {
   return normalizedAddress(

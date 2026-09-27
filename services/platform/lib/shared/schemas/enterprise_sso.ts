@@ -30,7 +30,6 @@ const roleMappingSourceLiterals = [
   'claim',
 ] as const;
 const roleMappingSourceSchema = z.enum(roleMappingSourceLiterals);
-export type RoleMappingSource = z.infer<typeof roleMappingSourceSchema>;
 
 export const roleMappingRuleSchema = z.object({
   source: roleMappingSourceSchema,
@@ -46,7 +45,6 @@ export type RoleMappingRule = z.infer<typeof roleMappingRuleSchema>;
 // ---------------------------------------------------------------------------
 
 const ssoProtocolSchema = z.enum(['oidc', 'oauth2', 'saml']);
-export type SsoProtocol = z.infer<typeof ssoProtocolSchema>;
 
 // ---------------------------------------------------------------------------
 // Normalized identity returned by every protocol's front-half, fed into the
@@ -104,7 +102,6 @@ export type SsoProviderCapabilities = z.infer<
 
 /** Concrete sign-in adapter kind (selects the OIDC/OAuth2 implementation). */
 const ssoProviderIdSchema = z.enum(['entra-id', 'generic-oidc', 'oauth2']);
-export type SsoProviderId = z.infer<typeof ssoProviderIdSchema>;
 
 // ---------------------------------------------------------------------------
 // Claim / attribute mappings (OIDC userinfo claims, SAML assertion attributes)
@@ -139,7 +136,6 @@ const oidcConfigViewSchema = z.object({
   /** @deprecated Ignored. File import uses Knowledge cloud-import OAuth, not SSO. */
   enableOneDriveAccess: z.boolean().optional(),
 });
-type OidcConfigView = z.infer<typeof oidcConfigViewSchema>;
 
 const samlConfigViewSchema = z.object({
   idpEntityId: z.string(),
@@ -154,7 +150,6 @@ const samlConfigViewSchema = z.object({
   spCertificate: z.string().optional(),
   attributeMappings: attributeMappingSchema.optional(),
 });
-type SamlConfigView = z.infer<typeof samlConfigViewSchema>;
 
 const provisioningViewSchema = z.object({
   autoProvisionRole: z.boolean(),
@@ -163,7 +158,6 @@ const provisioningViewSchema = z.object({
   autoProvisionTeam: z.boolean(),
   excludeGroups: z.array(z.string()),
 });
-type ProvisioningView = z.infer<typeof provisioningViewSchema>;
 
 const scimViewSchema = z.object({
   enabled: z.boolean(),
@@ -173,7 +167,6 @@ const scimViewSchema = z.object({
   /** Public SCIM base URL to paste into the IdP. */
   baseUrl: z.string().nullable(),
 });
-type ScimView = z.infer<typeof scimViewSchema>;
 
 export const ssoConnectionViewSchema = z.object({
   configured: z.boolean(),
@@ -236,7 +229,6 @@ const oidcFileConfigSchema = z.object({
   /** @deprecated Ignored. File import uses Knowledge cloud-import OAuth, not SSO. */
   enableOneDriveAccess: z.boolean().optional(),
 });
-type OidcFileConfig = z.infer<typeof oidcFileConfigSchema>;
 
 const samlFileConfigSchema = z.object({
   idpEntityId: z.string(),
@@ -248,16 +240,14 @@ const samlFileConfigSchema = z.object({
   wantAssertionsEncrypted: z.boolean().optional(),
   attributeMappings: attributeMappingSchema.optional(),
 });
-type SamlFileConfig = z.infer<typeof samlFileConfigSchema>;
 
-export const provisioningPolicySchema = z.object({
+const provisioningPolicySchema = z.object({
   autoProvisionRole: z.boolean().default(false),
   defaultRole: platformRoleSchema.default('member'),
   roleMappingRules: z.array(roleMappingRuleSchema).default([]),
   autoProvisionTeam: z.boolean().default(false),
   excludeGroups: z.array(z.string()).default([]),
 });
-export type ProvisioningPolicy = z.infer<typeof provisioningPolicySchema>;
 
 /** `connection.json` — the org's unified SSO connection, sans secrets. */
 export const ssoConnectionFileSchema = z.object({

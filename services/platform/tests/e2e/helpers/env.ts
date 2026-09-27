@@ -27,11 +27,6 @@ export const ORG_DASHBOARD_URL = new RegExp(
   `/dashboard/(?!create-organization(?:[/?#]|$))(${ENTITY_ID})(?:[/?#]|$)`,
 );
 
-/** Mock-LLM mode is the default; `E2E_MOCK_LLM=0` targets a live stack. */
-export function isMockLlmMode(): boolean {
-  return process.env.E2E_MOCK_LLM !== '0';
-}
-
 export const TIMEOUT = {
   /**
    * First navigation in a fresh worker can hit a cold Vite route compile, so

@@ -112,7 +112,7 @@ export class WebsiteError extends Error {
  * metadata host) — one rule for every write door, checked again by the
  * crawler before it dials.
  */
-export function crawlableDomain(input: string): string {
+function crawlableDomain(input: string): string {
   try {
     return toWebsiteDomain(input);
   } catch (error) {
@@ -185,7 +185,7 @@ export async function getWebsite(
   return rows[0] ?? null;
 }
 
-export async function getWebsiteByDomain(
+async function getWebsiteByDomain(
   db: Sql | TransactionSql,
   organizationId: string,
   domain: string,
@@ -204,7 +204,7 @@ export async function getWebsiteByDomain(
  * the sibling would crawl, embed and cite the same pages twice. The exact
  * spelling wins when, from before this rule, both exist.
  */
-export async function getWebsiteCoveringDomain(
+async function getWebsiteCoveringDomain(
   db: Sql | TransactionSql,
   organizationId: string,
   domain: string,
@@ -419,7 +419,7 @@ export async function patchWebsite(
   return rows[0] ?? null;
 }
 
-export async function deleteWebsiteRow(
+async function deleteWebsiteRow(
   db: Sql | TransactionSql,
   websiteId: string,
 ): Promise<string> {
@@ -496,7 +496,7 @@ export async function recordScanFailure(
 }
 
 /** Clear the failure bookkeeping after a completed scan (the 0.4 twin). */
-export async function clearScanFailures(
+async function clearScanFailures(
   sql: Sql,
   args: { organizationId: string; domain: string },
 ): Promise<void> {
@@ -787,10 +787,7 @@ async function homepageAllowsCrawler(
 }
 
 /** Validate a curated list's entries against the domain (route boundary). */
-export function normalizeListUrls(
-  domain: string,
-  urls: readonly string[],
-): string[] {
+function normalizeListUrls(domain: string, urls: readonly string[]): string[] {
   const hosts = siteHosts(domain);
   const normalized = new Set<string>();
   for (const entry of urls) {

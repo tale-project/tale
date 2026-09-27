@@ -4,9 +4,7 @@ import {
   deleteOrgObject,
   locateOrgObject,
   locateOrgObjectStore,
-  ObjectStoreUnconfiguredError,
   resolveOrgObjectStore,
-  resolveOrgObjectStoresForRead,
   s3DeleteObject,
   s3GetObjectBytes,
   s3HeadObject,
@@ -38,8 +36,6 @@ import {
  * default store until the blob backfill moves it, and the ref cannot say
  * which of the two holds it.
  */
-
-export { ObjectStoreUnconfiguredError };
 
 /** Test hook + config-write invalidation: drop every cached resolution. */
 export function clearObjectStoreCache(): void {
@@ -123,7 +119,6 @@ export {
   deleteOrgObject,
   locateOrgObject,
   locateOrgObjectStore,
-  resolveOrgObjectStoresForRead,
   s3DeleteObject,
   s3GetObjectBytes,
   s3HeadObject,

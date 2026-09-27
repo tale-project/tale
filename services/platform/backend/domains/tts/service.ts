@@ -507,7 +507,7 @@ export async function reserveChunk(
 
 // ----------------------------------------------------------------- settle
 
-export async function markChunkFailed(
+async function markChunkFailed(
   sql: Sql,
   args: { chunkId: string; attemptCreatedAt: number; error: string },
 ): Promise<{ stale: boolean }> {

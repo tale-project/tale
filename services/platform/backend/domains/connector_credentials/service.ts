@@ -79,6 +79,12 @@ function credentialState(row: {
 }
 
 type AuthMethod = 'api-key' | 'bearer' | 'basic' | 'oauth2';
+/**
+ * `disabled` is an operator decision; `needs-reauth` is the system's — an
+ * oauth2 grant whose refresh failed. They are distinct because only the second
+ * one is fixed by re-running the consent flow, and the settings UI must say
+ * which is which instead of showing one ambiguous "broken" state.
+ */
 type CredentialStatus = 'active' | 'disabled' | 'needs-reauth';
 
 export class ConnectorCredentialError extends Error {
@@ -867,7 +873,7 @@ export interface ResolvedConnectorCredential {
 /** The addressed row (explicit id-or-name ref, else the pair's default), or
  * null on a miss — the 0.4 `resolveCredentialRefInternal` contract the work
  * lanes' ctx shim serves to the reused credential broker. */
-export async function findCredentialForRef(
+async function findCredentialForRef(
   sql: Sql,
   args: {
     organizationId: string;

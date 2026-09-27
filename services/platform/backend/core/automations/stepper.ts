@@ -145,37 +145,20 @@ export interface AutomationApprovalGate {
 let approvalGate: AutomationApprovalGate | null = null;
 
 /** Install the gate. `stepRun` installs the real one per turn; passing `null`
- * takes it back out (what a test does when it is finished with it). */
+ * takes it back out (what a test does when it is finished with it). Client
+ * repositories' native workflow gates import this module by path and call it.
+ * @public */
 export function setAutomationApprovalGate(
   gate: AutomationApprovalGate | null,
 ): void {
   approvalGate = gate;
 }
 
-/**
- * How a run gets its llm door. A seam like the approval gate's, but held as a
- * factory: the real door reaches the network, which the stepper suite forbids,
- * so a test substitutes a recording factory. `stepRun` builds each turn's
- * instance from whichever factory is installed and carries it on the run
- * context, so the closure is always over that turn's ctx and organization.
- */
-export type AutomationLlmCallFactory = (
-  ctx: ActionCtx,
-  organizationId: string,
-) => AutomationLlmCall;
-
-let llmCallFactory: AutomationLlmCallFactory | null = null;
-
-/** Install a substitute llm door factory; `null` restores the real one. */
-export function setAutomationLlmCallFactory(
-  factory: AutomationLlmCallFactory | null,
-): void {
-  llmCallFactory = factory;
-}
-
-/** How a run gets its agent door — the llm seam's sibling: the real host
- * reaches the sandbox, which the stepper suite forbids, so a test installs a
- * recording factory. */
+/** How a run gets its agent door. A seam like the approval gate's, but held
+ * as a factory: the real host reaches the sandbox, so a harness installs a
+ * recording factory. `stepRun` builds each turn's instance from whichever
+ * factory is installed and carries it on the run context, so the closure is
+ * always over that turn's ctx and organization. */
 export type AutomationAgentHostFactory = (
   ctx: ActionCtx,
   organizationId: string,
@@ -183,7 +166,9 @@ export type AutomationAgentHostFactory = (
 
 let agentHostFactory: AutomationAgentHostFactory | null = null;
 
-/** Install a substitute agent host factory; `null` restores the real one. */
+/** Install a substitute agent host factory; `null` restores the real one.
+ * Client repositories' native workflow gates import this module by path and
+ * call it. @public */
 export function setAutomationAgentHostFactory(
   factory: AutomationAgentHostFactory | null,
 ): void {
@@ -1467,7 +1452,7 @@ async function stepClaimedRun(
       deadline: Date.now() + stepBudgetMs(),
       // Built fresh every turn, like the approval gate below: the door closes
       // over this invocation's ctx and the run's own organization.
-      llm: (llmCallFactory ?? automationLlmCall)(ctx, args.organizationId),
+      llm: automationLlmCall(ctx, args.organizationId),
       agent: (agentHostFactory ?? automationAgentHost)(
         ctx,
         args.organizationId,

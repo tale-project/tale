@@ -56,7 +56,7 @@ import {
  * durable cleanup work the sweeper drains.
  */
 
-export const REPLACEMENT_UPLOAD_LEASE_MS = 10 * 60 * 1000;
+const REPLACEMENT_UPLOAD_LEASE_MS = 10 * 60 * 1000;
 const REPLACEMENT_UPLOAD_RECOVERY_MS = 60 * 60 * 1000;
 const REPLACEMENT_UPLOAD_CLEANUP_GRACE_MS = 60 * 1000;
 const PRESIGN_TTL_SEC = 15 * 60;

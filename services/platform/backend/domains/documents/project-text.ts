@@ -75,7 +75,7 @@ function contentTypeFor(extension: string): string {
     : 'text/plain';
 }
 
-export function projectTextExternalId(args: {
+function projectTextExternalId(args: {
   projectId: string;
   folderName: string;
   fileName: string;

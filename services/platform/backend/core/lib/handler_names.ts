@@ -412,10 +412,5 @@ interface ComponentNames {
   };
 }
 
-/** `api` and `internal` were the retired runtime's PUBLIC/PRIVATE split. The
- *  shim has one table, so they are the same tree under two names — kept
- *  because 75 reused modules say one or the other, and rewriting them would
- *  churn files that are moving to 0.5 domains anyway. */
-export const api = createFunctionRefs<HandlerNames>();
 export const internal = createFunctionRefs<HandlerNames>();
 export const components = createComponentRefs<ComponentNames>();

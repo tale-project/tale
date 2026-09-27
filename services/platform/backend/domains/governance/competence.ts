@@ -47,11 +47,7 @@ const COMPETENCE_SCAN_CAP = 200;
 
 // The reserved namespace and its closed set live in `lib/shared` so the
 // governance screen offers exactly what this register accepts.
-export {
-  PLATFORM_CAPABILITIES,
-  PLATFORM_CAPABILITY_PREFIX,
-  type PlatformCapability,
-};
+export { PLATFORM_CAPABILITIES, type PlatformCapability };
 
 const KNOWN_PLATFORM_CAPABILITIES: ReadonlySet<string> = new Set(
   PLATFORM_CAPABILITIES,
@@ -87,7 +83,7 @@ const COLUMNS = `
 `;
 
 /** Whether the record vouches for its holder RIGHT NOW. */
-export function isCompetenceRecordActive(
+function isCompetenceRecordActive(
   record: { expiresAt: number | null; revokedAt: number | null },
   now: number,
 ): boolean {

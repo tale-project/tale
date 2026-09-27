@@ -31,8 +31,8 @@ const KNOWLEDGE_READS_CAP = 200;
  * pathological run, never the latest. */
 const TOOL_CALL_SCAN_CAP = 500;
 
-export const AGENT_RUN_LEDGER_ACTION = 'agent.run_settled';
-export const AGENT_RUN_LEDGER_RESOURCE_TYPE = 'agent_run';
+const AGENT_RUN_LEDGER_ACTION = 'agent.run_settled';
+const AGENT_RUN_LEDGER_RESOURCE_TYPE = 'agent_run';
 
 interface RunRow {
   id: string;

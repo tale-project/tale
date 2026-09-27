@@ -55,7 +55,7 @@ export class SessionNotFoundError extends Error {
  * event: the session is alive but knows no such exec. Distinguished so the
  * resilient drain can tell "the exec was never created" (re-POST it) from a
  * transient stream drop (re-attach). */
-export class ExecNotFoundError extends Error {
+class ExecNotFoundError extends Error {
   constructor(execId: string) {
     super(`sandbox session exec ${execId} not found on the spawner`);
     this.name = 'ExecNotFoundError';
@@ -76,7 +76,7 @@ export class SessionDuplicateError extends Error {
  * Distinct from the platform's per-workload `QUOTA_EXCEEDED`: the host is
  * shared across organizations. The retry hint lets each workload apply its
  * own failure/retry policy; an earlier capacity read reserves no compute. */
-export class SpawnerBusyError extends Error {
+class SpawnerBusyError extends Error {
   readonly retryAfterMs: number | undefined;
   constructor(retryAfterMs: number | undefined) {
     super('sandbox spawner at host capacity (429)');
@@ -129,7 +129,7 @@ function spawnerTargetLabel(target: string): string {
 }
 
 /** Parse an HTTP `retry-after` header (delta-seconds) into ms, if present. */
-export function parseRetryAfterMs(res: Response): number | undefined {
+function parseRetryAfterMs(res: Response): number | undefined {
   const raw = res.headers.get('retry-after');
   if (!raw) return undefined;
   const seconds = Number(raw);
@@ -142,7 +142,7 @@ export function parseRetryAfterMs(res: Response): number | undefined {
  * dead sandbox surfaces as a real fetch error on the re-attach (which DOES
  * count), while a merely-quiet-but-live exec resumes losslessly. Never a turn
  * failure on its own — the only bound on a quiet phase is the action window. */
-export class ExecStreamIdleError extends Error {
+class ExecStreamIdleError extends Error {
   constructor(execId: string) {
     super(`exec ${execId} stream idle past the read deadline`);
     this.name = 'ExecStreamIdleError';
@@ -850,7 +850,7 @@ export interface SessionExecCallbacks {
  * parser) and returns the terminal result. The raw stdout deltas are exactly
  * the agent's stream-json / JSONL bytes — byte-faithful and ordered.
  */
-export async function sessionExec(
+async function sessionExec(
   sessionId: string,
   body: SessionExecBody,
   signal: AbortSignal,
@@ -887,7 +887,7 @@ export async function sessionExec(
  * drain retries. The detach-grace on runnerd keeps the child alive across the
  * gap, and the seq cursor makes the replay idempotent.
  */
-export async function sessionAttachExec(
+async function sessionAttachExec(
   sessionId: string,
   execId: string,
   sinceSeq: number,

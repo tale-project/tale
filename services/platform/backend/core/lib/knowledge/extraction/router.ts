@@ -15,11 +15,11 @@ import { extractTextFromTextBytes, SUPPORTED_TEXT_EXTENSIONS } from './text';
 import type { VisionClient } from './vision_client';
 import { extractTextFromXlsxBytes } from './xlsx';
 
-export const PDF_EXTENSIONS = new Set<string>(['.pdf']);
-export const DOCX_EXTENSIONS = new Set<string>(['.docx']);
-export const PPTX_EXTENSIONS = new Set<string>(['.pptx']);
-export const XLSX_EXTENSIONS = new Set<string>(['.xlsx']);
-export const ODT_EXTENSIONS = new Set<string>(['.odt']);
+const PDF_EXTENSIONS = new Set<string>(['.pdf']);
+const DOCX_EXTENSIONS = new Set<string>(['.docx']);
+const PPTX_EXTENSIONS = new Set<string>(['.pptx']);
+const XLSX_EXTENSIONS = new Set<string>(['.xlsx']);
+const ODT_EXTENSIONS = new Set<string>(['.odt']);
 
 export const ALL_SUPPORTED_EXTENSIONS = new Set<string>([
   ...PDF_EXTENSIONS,

@@ -53,7 +53,7 @@ import {
   validateSsoConnectionData,
 } from '../file_utils';
 
-export const MAX_HISTORY_ENTRIES = 50;
+const MAX_HISTORY_ENTRIES = 50;
 
 export interface ExistingSsoFiles {
   config: SsoConnectionFile | null;

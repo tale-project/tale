@@ -775,19 +775,6 @@ export async function saveGovernanceSecret(
   `;
 }
 
-export async function hasGovernanceSecret(
-  sql: Sql,
-  organizationId: string,
-  name: string,
-): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
-    SELECT id FROM app.governance_secrets
-    WHERE org_id = ${organizationId} AND name = ${name}
-    LIMIT 1
-  `;
-  return rows[0] !== undefined;
-}
-
 /** Decrypt one guardrails secret; null on absence or a rotated key (the
  * enforcement pipeline treats that as "not configured", never a crash). */
 /** Masked view of a stored secret for the settings panel (the 0.4

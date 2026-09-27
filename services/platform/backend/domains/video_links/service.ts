@@ -61,7 +61,7 @@ export class VideoLinkError extends Error {
 const MAX_IN_FLIGHT_PER_ORG = 3;
 const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RETRY_COOLDOWN_MS = 15 * 60_000;
-export const TRANSCRIPT_REUSE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const TRANSCRIPT_REUSE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const DONOR_SCAN_LIMIT = 20;
 
 const NON_TERMINAL_STATUSES = [
@@ -78,7 +78,7 @@ function isNonTerminalStatus(status: string): boolean {
 }
 
 /** FNV-1a double-pass, hex — the 0.4 dedup key (stable, non-crypto). */
-export function hashUrlForDedup(normalized: string): string {
+function hashUrlForDedup(normalized: string): string {
   const fnv = (seed: number, str: string): number => {
     let h = seed >>> 0;
     for (let i = 0; i < str.length; i++) {
@@ -143,7 +143,7 @@ const JOB_COLUMNS = `
   created_at_ms::float8 AS "createdAt"
 `;
 
-export async function getJob(
+async function getJob(
   db: Sql | TransactionSql,
   jobId: string,
 ): Promise<VideoLinkJobRow | null> {
@@ -161,7 +161,7 @@ export type UpdateJobResult = 'ok' | 'cas_miss' | 'not_found';
  * stamps `status_changed_at_ms` (the watchdog's staleness clock), and the
  * optional `expectedStatus` CAS turns racing instances into silent no-ops.
  */
-export async function updateJob(
+async function updateJob(
   db: Sql | TransactionSql,
   args: {
     jobId: string;
@@ -227,7 +227,7 @@ export async function updateJob(
  * otherwise the blob deletes best-effort and a non-completed
  * file_metadata row drops.
  */
-export async function cleanupCancelledVideoLink(
+async function cleanupCancelledVideoLink(
   sql: Sql,
   jobId: string,
 ): Promise<void> {
@@ -1732,22 +1732,4 @@ export async function unbindJobsFromMessage(
       jobIds,
     });
   });
-}
-
-/** Video-link provenance for RAG retrieval wrapping (the 0.4
- * `lookupVideoLinkSources` leg the chat shim serves). */
-export async function lookupVideoLinkSources(
-  sql: Sql,
-  storageRefs: readonly string[],
-): Promise<{ storageId: string; sourceUrl: string; sourcePlatform: string }[]> {
-  if (storageRefs.length === 0) return [];
-  const rows = await sql<
-    { storageId: string; sourceUrl: string; sourcePlatform: string }[]
-  >`
-    SELECT storage_ref AS "storageId", source_url AS "sourceUrl",
-           source_platform AS "sourcePlatform"
-    FROM app.video_link_jobs
-    WHERE storage_ref = ANY(${[...storageRefs]})
-  `;
-  return rows;
 }

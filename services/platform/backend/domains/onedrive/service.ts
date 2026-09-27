@@ -197,7 +197,7 @@ export interface SyncImportOutcome {
   }[];
 }
 
-export async function getSyncConfigRow(
+async function getSyncConfigRow(
   db: Sql | TransactionSql,
   table: string,
   configId: string,
@@ -1067,7 +1067,7 @@ export function createSyncImportDeps(
  * corpus-purging hard delete, a metadata-only doc deletes directly; emptied
  * ancestor folders are reaped up to (never including) the sync root.
  */
-export async function pruneSyncedDocuments(
+async function pruneSyncedDocuments(
   sql: Sql,
   args: {
     organizationId: string;
@@ -1214,7 +1214,7 @@ async function listProviderDocumentRefs(
 }
 
 /** Sync a folder config: shared import pipeline + prune of departed files. */
-export async function reconcileFolderWith(
+async function reconcileFolderWith(
   sql: Sql,
   adapter: SyncProviderAdapter,
   args: {
@@ -1342,7 +1342,7 @@ async function collectOwnedSingleFileRefs(
  * id → update in place), collapse duplicate rows a prior no-dedup run
  * created, and — on a definitive 404 at the source — remove the mirror.
  */
-export async function reconcileSingleFileWith(
+async function reconcileSingleFileWith(
   sql: Sql,
   adapter: SyncProviderAdapter,
   args: {
@@ -1503,10 +1503,10 @@ export async function syncOneConfigWith(
 // ------------------------------------------------------------------- engine
 
 /** A run older than this may be re-claimed (crashed worker recovery). */
-export const SYNC_CLAIM_STALE_MS = 30 * 60 * 1000;
+const SYNC_CLAIM_STALE_MS = 30 * 60 * 1000;
 /** A live run refreshes its claim this often — well inside the stale window,
  * so only a run whose process died (no heartbeat) ever reads as stale. */
-export const SYNC_CLAIM_HEARTBEAT_MS = 5 * 60 * 1000;
+const SYNC_CLAIM_HEARTBEAT_MS = 5 * 60 * 1000;
 
 /** Refresh a live run's claim stamp; a no-op once the run has stamped its
  * outcome (the row is no longer 'running'). */

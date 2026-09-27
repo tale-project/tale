@@ -21,7 +21,7 @@ export interface ListFilesResult {
 }
 
 /** A search answers a picker, not an import — a smaller bound is plenty. */
-export const ONEDRIVE_SEARCH_MAX_ITEMS = 500;
+const ONEDRIVE_SEARCH_MAX_ITEMS = 500;
 
 interface GraphDriveItem {
   id: string;

@@ -51,7 +51,7 @@ export type BrandingReadResult =
  * only for the pre-auth shell and for org ids that no longer resolve
  * (deleted org / stale bookmark, #3019).
  */
-export function resolveBrandingDir(orgSlug: string): string {
+function resolveBrandingDir(orgSlug: string): string {
   if (!validateOrgSlug(orgSlug)) {
     throw new Error(`Invalid org slug: ${orgSlug}`);
   }
@@ -98,7 +98,7 @@ export function validateImageType(type: string): type is BrandingImageType {
   return IMAGE_TYPE_NAMES.has(type);
 }
 
-export function validateImageFilename(filename: string): boolean {
+function validateImageFilename(filename: string): boolean {
   if (!SAFE_IMAGE_FILENAME_RE.test(filename)) return false;
   const ext = filename.split('.').pop();
   if (!ext) return false;
@@ -172,4 +172,4 @@ export function buildBrandingImageUrl(
   return `${basePath}/branding/images/${orgSlug}/${filename}`;
 }
 
-export { ALLOWED_IMAGE_EXTENSIONS, MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };
+export { MAX_FILE_SIZE_BYTES, MAX_HISTORY_ENTRIES };

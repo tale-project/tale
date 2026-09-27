@@ -569,7 +569,7 @@ const EMBEDDING_FAILURE_CODE = {
 } as const;
 /** The embedding model's credential no longer resolves (deleted, or no
  * default left for the provider) — the remedy in the words the UI uses. */
-export const EMBEDDING_CREDENTIAL_MISSING_PROSE =
+const EMBEDDING_CREDENTIAL_MISSING_PROSE =
   "The embedding model's provider credential is missing — it was deleted, or the provider has no default credential. An admin adds or restores it under Settings → AI providers, or chooses another credential under Settings → Data residency → Embedding model, then retries indexing.";
 const EMBEDDING_FAILURE_PROSE = {
   credit:

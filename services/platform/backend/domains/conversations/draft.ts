@@ -69,7 +69,7 @@ export async function draftReplyToConversation(
   );
 }
 
-export async function draftReplyToConversationInTx(
+async function draftReplyToConversationInTx(
   tx: TransactionSql,
   args: DraftReplyArgs,
 ): Promise<DraftReplyResult> {

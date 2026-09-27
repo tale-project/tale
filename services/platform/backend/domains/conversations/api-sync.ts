@@ -916,7 +916,7 @@ export async function failApiDelivery(
 }
 
 /** The existing Inbox retry door restarts this outbox without an email job. */
-export async function retryApiDelivery(
+async function retryApiDelivery(
   tx: TransactionSql,
   organizationId: string,
   messageId: string,

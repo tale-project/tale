@@ -29,7 +29,7 @@ import {
 /** How long a finalized op's settlement may stay open before the watchdog
  * sweep picks it up — the host's own attempt and its scheduled retries get
  * this long first. */
-export const GATEWAY_KEY_RECONCILE_MIN_AGE_MS = 2 * 60_000;
+const GATEWAY_KEY_RECONCILE_MIN_AGE_MS = 2 * 60_000;
 
 export interface SessionOpSettlementRow {
   organizationId: string;
@@ -40,7 +40,7 @@ export interface SessionOpSettlementRow {
   keyRevoked: boolean;
 }
 
-export async function readSessionOpSettlement(
+async function readSessionOpSettlement(
   sql: Sql | TransactionSql,
   args: { sessionId: string; execId: string },
 ): Promise<SessionOpSettlementRow | null> {
@@ -286,7 +286,7 @@ export async function reconcilePendingSessionOpKeys(
 }
 
 /** The scheduled-ref name the hosts use for the settlement retry. */
-export const GATEWAY_KEY_RECONCILE_REF =
+const GATEWAY_KEY_RECONCILE_REF =
   'sandbox/gateway_reconcile:reconcileSessionOpKey';
 
 /**

@@ -45,7 +45,7 @@ const DEAD_GRANT_ERRORS = new Set([
 
 const DETAIL_MAX_CHARS = 300;
 
-export function parseOAuthTokenResponse(data: unknown): RefreshedTokens | null {
+function parseOAuthTokenResponse(data: unknown): RefreshedTokens | null {
   if (!isRecord(data)) return null;
   const accessToken = getString(data, 'access_token');
   if (accessToken === undefined) return null;

@@ -46,7 +46,7 @@ function handleError<E extends OrgEnv>(
  * Anything else is the caller's mistake and answers 400 — `Number('abc')`
  * used to ride into the SQL as NaN and surface as a 500.
  */
-export const listQuerySchema = z.object({
+const listQuerySchema = z.object({
   cursor: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   topic: z.string().max(500).optional(),

@@ -62,7 +62,7 @@ export interface RestContext {
  * answer `requireOrganizationMember` gives a session caller, so an API key is
  * never a way around a revoked membership.
  */
-export async function resolveRestOrgRole(rc: RestContext): Promise<string> {
+async function resolveRestOrgRole(rc: RestContext): Promise<string> {
   // The shim answers whatever its handler returns; a role is a string or
   // absent, and anything else is a broken handler, not a role.
   const role: unknown = await rc.ctx.runQuery(

@@ -206,7 +206,7 @@ export function requestTarget(c: Context): string {
 }
 
 /** The URL budget the contract documents: path and query together. */
-export const MAX_REQUEST_URI_BYTES = 32 * 1024;
+const MAX_REQUEST_URI_BYTES = 32 * 1024;
 
 /**
  * A request URL past the budget answers **414** in the envelope, before
@@ -349,7 +349,7 @@ export class BodilessAwareResponse<
  * reader lets a few KiB past that through, so this cap sits ABOVE the
  * proxy's plus that slack: everything the edge forwards is answered by
  * the door (a URL over 32 KiB with its own 414), never by a bare 431. */
-export const MAX_REQUEST_HEADER_BYTES = 80 * 1024;
+const MAX_REQUEST_HEADER_BYTES = 80 * 1024;
 
 /**
  * How long a request has to finish ARRIVING — headers and body together —
@@ -364,7 +364,7 @@ export const MAX_REQUEST_HEADER_BYTES = 80 * 1024;
  * buffer. The header phase keeps Node's 60 s (`headersTimeout`, which Node
  * requires to stay at or below this).
  */
-export const MAX_REQUEST_ARRIVAL_MS = 15 * 60_000;
+const MAX_REQUEST_ARRIVAL_MS = 15 * 60_000;
 
 /** The `http.createServer` options every backend listener runs with — the
  * production door (main.ts) and the integration harness alike, so what

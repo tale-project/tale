@@ -31,7 +31,7 @@ import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
  * (`agent-turn-shim.ts`).
  */
 
-export const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
+const TASK_AGENT_RUN_DEADLINE_MS = 12 * 60 * 60 * 1000;
 
 export interface AgentRunRow {
   id: string;
@@ -72,7 +72,7 @@ const RUN_COLUMNS = `
 `;
 
 /** The agent's STANDING session id — the workspace persists across runs. */
-export function sessionIdForProjectAgent(agentId: string): string {
+function sessionIdForProjectAgent(agentId: string): string {
   return `pa-${agentId}`;
 }
 

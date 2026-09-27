@@ -37,7 +37,7 @@ import { FileError } from './service.ts';
  */
 
 const DICTATION_TIMEOUT_MS = 60_000;
-export const MAX_DICTATION_BYTES = 8 * 1024 * 1024;
+const MAX_DICTATION_BYTES = 8 * 1024 * 1024;
 
 // ------------------------------------------------------------ row verbs
 
@@ -106,6 +106,8 @@ async function updateFileTranscription(
  * a skip/fail that lands between the engine's pre-check and its claim
  * refuses the claim instead of being resurrected to `running`.
  * Returns the winning run's id (the caller compares against its own).
+ * `backend/integration-check.ts` reads it through a cast, so the proof can
+ * also run against a tree that predates it. @public
  */
 export async function acquireTranscriptionLease(
   sql: Sql,
@@ -285,7 +287,7 @@ function transcriptionScheduler(sql: Sql): ShimScheduler {
 }
 
 /** Ledger minutes for one transcription call (the 0.4 governance twin). */
-export async function recordTranscriptionUsage(
+async function recordTranscriptionUsage(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;

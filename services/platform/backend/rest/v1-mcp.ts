@@ -33,14 +33,14 @@ import {
 
 /** Install the engine seams one dispatch needs (cheap, idempotent — the
  * 0.4 `assembleBuilderHost`). */
-export function assembleEngineHost(): void {
+function assembleEngineHost(): void {
   if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
   loadConnectorCatalog();
 }
 
 /** One engine method against the org store, live — the 0.4
  * `dispatchEngineMethod` twin. */
-export async function dispatchEngineMethod(
+async function dispatchEngineMethod(
   sql: Sql,
   args: {
     organizationId: string;

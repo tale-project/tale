@@ -10,8 +10,8 @@
  */
 
 /** Public app identity sent to gateways that attribute traffic to an app. */
-export const TALE_APP_URL = 'https://tale.dev';
-export const TALE_APP_NAME = 'Tale';
+const TALE_APP_URL = 'https://tale.dev';
+const TALE_APP_NAME = 'Tale';
 
 export interface ProviderAttributionInput {
   providerName: string;

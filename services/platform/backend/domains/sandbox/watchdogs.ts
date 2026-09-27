@@ -244,7 +244,7 @@ export async function reconcileOrgSessions(
  * are excluded outright, and a non-terminal run keeps its hibernated row for
  * the resume the next node performs.
  */
-export async function reclaimEndedRunSessions(
+async function reclaimEndedRunSessions(
   sql: Sql,
   spawner: WatchdogSpawner,
   args: { batch: number; graceMs: number; now: number },

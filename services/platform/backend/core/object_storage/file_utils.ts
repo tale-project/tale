@@ -35,7 +35,6 @@ import {
 import { decryptSecretsFile } from '../lib/sops';
 
 export type { ObjectStorageConnectionFile, ObjectStorageConnectionSecrets };
-export { OBJECT_STORAGE_CONFIG_DOMAIN, OBJECT_STORAGE_CONNECTION_KEY };
 
 /** `<orgSlug>/object-storage/` — the org's object-storage config directory. */
 export function resolveObjectStorageDir(orgSlug: string): string {

@@ -66,7 +66,7 @@ const CORPUS_SCHEMAS = [PRIVATE_KNOWLEDGE_SCHEMA, PUBLIC_WEB_SCHEMA] as const;
  * BEGIN/COMMIT, which would end an enclosing transaction (and its lock)
  * halfway through.
  */
-export const CORPUS_BOOTSTRAP_LOCK_KEY = 72_085_011;
+const CORPUS_BOOTSTRAP_LOCK_KEY = 72_085_011;
 
 const UP_MARKER = '-- migrate:up';
 const DOWN_MARKER = '-- migrate:down';

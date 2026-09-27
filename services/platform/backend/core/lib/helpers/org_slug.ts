@@ -36,7 +36,7 @@ type CtxWithRunQuery = {
  * `super()` so server logs keep the human sentence (the wire serializes
  * `data`, not `message`).
  */
-export class OrgSlugUnresolvableError extends AppError<{
+class OrgSlugUnresolvableError extends AppError<{
   code: string;
   message: string;
 }> {
@@ -55,9 +55,7 @@ export class OrgSlugUnresolvableError extends AppError<{
   }
 }
 
-export function isOrgSlugUnresolvable(
-  err: unknown,
-): err is OrgSlugUnresolvableError {
+function isOrgSlugUnresolvable(err: unknown): err is OrgSlugUnresolvableError {
   return err instanceof OrgSlugUnresolvableError;
 }
 
@@ -105,7 +103,7 @@ export interface OrgIdentity {
  * human display name are needed at once, e.g. branding reads that surface the
  * org name as the app name.
  */
-export async function orgIdentityFromId(
+async function orgIdentityFromId(
   ctx: CtxWithRunQuery,
   organizationId: string,
 ): Promise<OrgIdentity> {
@@ -162,31 +160,4 @@ export async function orgSlugFromIdOrNull(
     if (isOrgSlugUnresolvable(err)) return null;
     throw err;
   }
-}
-
-/**
- * Resolve an org `slug` back to its Better Auth `_id` — the inverse of
- * {@link orgSlugFromId}.
- *
- * Background contexts that are keyed by slug (the in-process crawler stores
- * `website_org_memberships.org_slug`, not the org id) need the id to read the
- * per-org `websites` rows, which are indexed `by_organizationId`. Returns
- * `null` when no org has that slug (deleted / renamed) so callers can no-op
- * rather than throw — these are best-effort background syncs, not user-facing
- * reads.
- *
- * **Does NOT verify membership** — same caveat as `orgSlugFromId`. Only call
- * with a slug obtained from a trusted server-side source (e.g. the corpus
- * membership table this deployment owns), never from a request body.
- */
-export async function orgIdFromSlug(
-  ctx: CtxWithRunQuery,
-  slug: string,
-): Promise<string | null> {
-  const row = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-    model: 'organization',
-    where: [{ field: 'slug', value: slug, operator: 'eq' }],
-  });
-  if (!isRecord(row)) return null;
-  return getString(row, '_id') || null;
 }

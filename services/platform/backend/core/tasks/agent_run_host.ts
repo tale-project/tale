@@ -130,7 +130,7 @@ async function ensureProjectAgentSession(
  * clears, and the settle harvests. Scoped per task because the session is
  * per AGENT: without it, concurrent or successive runs of the agent's other
  * tasks would share one box and cross-attach deliverables. */
-export function taskOutputDir(taskId: string): string {
+function taskOutputDir(taskId: string): string {
   return `${OUTPUT_DIR}/${taskId}`;
 }
 
@@ -141,7 +141,7 @@ export function taskOutputDir(taskId: string): string {
  * see the deck it is extending — the delivery box may have been swept, and
  * the shared standing workspace holds other tasks' stale files. Outside
  * `/agent/output` so the box sweep and the settle harvest never touch it. */
-export function taskInputsDir(taskId: string): string {
+function taskInputsDir(taskId: string): string {
   return `/agent/inputs/${taskId}`;
 }
 
@@ -152,7 +152,7 @@ export function taskInputsDir(taskId: string): string {
  * be writing there against instructions, and its files are always younger
  * than its own deadline — hygiene must not race a running turn. Exported
  * for its unit test. */
-export function isStaleLooseBoxFile(
+function isStaleLooseBoxFile(
   entry: { mtimeMs: number },
   nowMs: number,
 ): boolean {
@@ -164,7 +164,7 @@ export function isStaleLooseBoxFile(
  * length-capped at write time, so separators and dot-tricks must die here
  * (via the shared `safePathSegment`) — a traversal that survived would land
  * inside /agent under an attacker-chosen path. Exported for its unit test. */
-export function safeInputFileName(raw: string, taken: Set<string>): string {
+function safeInputFileName(raw: string, taken: Set<string>): string {
   const name = safePathSegment(raw);
   let candidate = name;
   for (let suffix = 2; taken.has(candidate); suffix += 1) {
@@ -250,7 +250,7 @@ async function stageTaskInputs(
  * named in the user prompt (not only the system addendum) because a resumed
  * standing-session conversation happily reuses last turn's path from memory,
  * and a deliverable written outside the box is not collected. */
-export function buildTaskPrompt(
+function buildTaskPrompt(
   brief: {
     title: string;
     description?: string;
@@ -353,7 +353,7 @@ export function buildTaskPrompt(
  * read-only copies: the conversation remembers writing files the sweep just
  * removed, and without the pointer it would rediscover (or worse, redo)
  * them. Exported for its unit test. */
-export function buildResumeKickPrompt(args: {
+function buildResumeKickPrompt(args: {
   outputDir: string;
   feedback?: string;
   discussion?: Array<{ author: 'user' | 'agent'; body: string }>;
@@ -437,7 +437,7 @@ export function buildResumeKickPrompt(args: {
  * previous conversation (no handle, a foreign incarnation, or a `--resume`
  * that failed to launch) and the box was left unswept: the fresh
  * conversation must know the leftovers exist, or it redoes the work. */
-export const FRESH_KICK_RESTART_NOTE =
+const FRESH_KICK_RESTART_NOTE =
   "A previous run of this task could not be continued as the same conversation, so you are starting fresh. Your workspace (/agent/workspace) and this task's delivery box may already hold work from earlier runs — inspect them and continue that work rather than starting over.";
 
 /** What one turn's exec authenticates with, minted per lane. */
@@ -1263,7 +1263,7 @@ export async function driveTaskAgentTurnImpl(
  * carries content and settles normally — and from an empty answer: the
  * conversation launched cleanly (the pinned CLI announces the resumed id
  * itself) and only its model said nothing. Exported for its unit test. */
-export function isResumeLaunchFailure(
+function isResumeLaunchFailure(
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
   attemptedResume?: string,
 ): boolean {
@@ -1285,7 +1285,7 @@ export function isResumeLaunchFailure(
  * cause behind a generic line (observed live: a mid-run "401 OAuth access
  * token has been revoked" surfaced as "the agent run failed"). Exported for
  * its unit test. */
-export function failureReasonFromFinalText(text: string): string | undefined {
+function failureReasonFromFinalText(text: string): string | undefined {
   const trimmed = text.trim();
   if (trimmed === '') return undefined;
   // The tail carries the terminal error; the head of a long transcript is
@@ -1754,7 +1754,7 @@ async function releaseProjectAgentSlotAfterSettle(
  * else `restart` — the CLI takes no input once launched, so the comment
  * reaches the run by killing the exec and continuing on a fresh
  * incarnation. Exported for its unit test. */
-export function steerLaneForHarness(harness: string): 'stdin' | 'restart' {
+function steerLaneForHarness(harness: string): 'stdin' | 'restart' {
   if (!isHarnessSlug(harness)) return 'restart';
   const def = loadHarnesses().find((h) => h.slug === harness);
   return def?.capabilities.steering === true ? 'stdin' : 'restart';
@@ -1763,7 +1763,7 @@ export function steerLaneForHarness(harness: string): 'stdin' | 'restart' {
 /** The injected line a live turn reads for a mid-run task comment. The CLI
  * queues a mid-step stdin line to its next API boundary, exactly like
  * interactive steering, so the turn absorbs it without losing work. */
-export function buildSteerCommentText(author: string, body: string): string {
+function buildSteerCommentText(author: string, body: string): string {
   return [
     `Task comment from ${author}, posted while you are working:`,
     body,
@@ -1773,7 +1773,7 @@ export function buildSteerCommentText(author: string, body: string): string {
 
 /** The opening prompt of a RESUMED restart — same task, same conversation,
  * continued on a fresh process with the comment in hand. */
-export function buildResumeSteerPrompt(author: string, body: string): string {
+function buildResumeSteerPrompt(author: string, body: string): string {
   return [
     'Your process was restarted to deliver a task comment that arrived while you were working. This is the SAME task and the SAME conversation — continue from where you left off and do NOT redo completed work.',
     `Task comment from ${author}:`,
@@ -1786,7 +1786,7 @@ export function buildResumeSteerPrompt(author: string, body: string): string {
  * resumed (no --resume handle captured yet): the fresh conversation leans on
  * the brief and on the standing workspace, which still holds everything the
  * interrupted attempt produced. */
-export const FRESH_RESTART_NOTE =
+const FRESH_RESTART_NOTE =
   'You were interrupted mid-run to receive a new task comment, and the previous conversation could not be resumed. Your workspace and delivery box still hold everything already produced — inspect them and continue the work rather than starting over.';
 
 /** Retry ladder while a turn is inside its settle window (finalize claimed,

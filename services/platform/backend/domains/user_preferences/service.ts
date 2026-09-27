@@ -150,7 +150,7 @@ export async function getChatModel(
 
 /** The pick a preferences row carries, or null when the user never pinned a
  * model (or cleared the pin by choosing Auto). */
-export function chatModelPickOf(
+function chatModelPickOf(
   row:
     | { chatModelId: string | null; chatModelProviderSlug: string | null }
     | undefined,

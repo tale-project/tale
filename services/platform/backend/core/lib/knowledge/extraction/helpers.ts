@@ -4,7 +4,7 @@
 
 import type { VisionClient } from './vision_client';
 
-export const MIN_IMAGE_SIZE = 10_000; // ~100x100 pixels
+const MIN_IMAGE_SIZE = 10_000; // ~100x100 pixels
 
 /** A simple async concurrency limiter (the asyncio.Semaphore replacement). */
 export class Semaphore {

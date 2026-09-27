@@ -79,13 +79,13 @@ export interface ParsedBundle {
  * the wrapper-strip and the user's `myskill/SKILL.md` would look nested —
  * failing with a misleading "missing SKILL.md".
  */
-export function isOsMetadataEntry(name: string): boolean {
+function isOsMetadataEntry(name: string): boolean {
   if (name.startsWith('__MACOSX/') || name === '__MACOSX') return true;
   const basename = name.split('/').pop() ?? '';
   return basename === '.DS_Store' || basename === 'Thumbs.db';
 }
 
-export function detectSingleTopLevelFolder(
+function detectSingleTopLevelFolder(
   entries: [string, JSZip.JSZipObject][],
 ): string | null {
   let prefix: string | null = null;

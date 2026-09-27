@@ -114,7 +114,7 @@ export const SCHEDULES: CronSchedule[] = [
  *   transaction that deletes the team) and every scope write validates its
  *   team ids (0109).
  */
-export const RETIRED_SCHEDULES: readonly string[] = ['teams.repair_scopes'];
+const RETIRED_SCHEDULES: readonly string[] = ['teams.repair_scopes'];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {
   for (const schedule of SCHEDULES) {

@@ -23,7 +23,7 @@ import { ConversationError } from './service.ts';
  */
 
 /** The agent slug the rewrite books its tokens under. */
-export const IMPROVE_AGENT_SLUG = 'inbox-improve';
+const IMPROVE_AGENT_SLUG = 'inbox-improve';
 /** A rewrite outlives no one's patience past this. */
 const IMPROVE_TIMEOUT_MS = 20_000;
 /** A reply is a few paragraphs; a rewrite is never longer than that. */

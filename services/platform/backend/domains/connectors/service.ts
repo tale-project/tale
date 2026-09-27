@@ -331,7 +331,7 @@ export async function runConnectorAction(
 
 /** Where a session's CONTAINER reaches the host-call door (the same origin
  * contract the staging callback and the tools bridge use). */
-export function connectorsHostcallUrlForSessions(): string {
+function connectorsHostcallUrlForSessions(): string {
   const origin = (
     process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'
   ).replace(/\/$/, '');

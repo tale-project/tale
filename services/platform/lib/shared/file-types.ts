@@ -72,58 +72,6 @@ type MimeType = (typeof MIME_TYPES)[keyof typeof MIME_TYPES];
 export const FALLBACK_MIME_TYPE = 'application/octet-stream';
 
 // ---------------------------------------------------------------------------
-// Grouped MIME sets (for validation)
-// ---------------------------------------------------------------------------
-
-export const IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.JPEG,
-  MIME_TYPES.PNG,
-  MIME_TYPES.GIF,
-  MIME_TYPES.WEBP,
-]);
-
-const DOCUMENT_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.PDF,
-  MIME_TYPES.DOC,
-  MIME_TYPES.DOCX,
-  MIME_TYPES.ODT,
-]);
-
-const PRESENTATION_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.PPT,
-  MIME_TYPES.PPTX,
-]);
-
-const SPREADSHEET_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.XLS,
-  MIME_TYPES.XLSX,
-  MIME_TYPES.CSV,
-]);
-
-const TEXT_MIME_TYPES: ReadonlySet<string> = new Set([MIME_TYPES.PLAIN]);
-
-const AUDIO_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.MP3,
-  MIME_TYPES.WAV,
-  MIME_TYPES.M4A,
-  MIME_TYPES.WEBM_AUDIO,
-  MIME_TYPES.OGG,
-]);
-
-const VIDEO_MIME_TYPES: ReadonlySet<string> = new Set([
-  MIME_TYPES.VIDEO_MP4,
-  MIME_TYPES.VIDEO_WEBM,
-  MIME_TYPES.VIDEO_QUICKTIME,
-  MIME_TYPES.VIDEO_MATROSKA,
-  MIME_TYPES.VIDEO_AVI,
-  MIME_TYPES.VIDEO_M4V,
-  MIME_TYPES.VIDEO_MPEG,
-  MIME_TYPES.VIDEO_OGG,
-  MIME_TYPES.VIDEO_3GP,
-  MIME_TYPES.VIDEO_MP2T,
-]);
-
-// ---------------------------------------------------------------------------
 // File classification
 // ---------------------------------------------------------------------------
 
@@ -131,7 +79,7 @@ export function isImage(mimeType: string): boolean {
   return mimeType.startsWith('image/');
 }
 
-export function isAudio(mimeType: string): boolean {
+function isAudio(mimeType: string): boolean {
   return mimeType.startsWith('audio/');
 }
 
@@ -154,11 +102,6 @@ export function isAudioOrVideo(mimeType: string): boolean {
  */
 export function isDocument(mimeType: string): boolean {
   return !isImage(mimeType) && !isAudioOrVideo(mimeType);
-}
-
-export function isTextFile(mimeType: string, fileName?: string): boolean {
-  if (!fileName) return mimeType.startsWith('text/plain');
-  return isTextBasedFile(fileName, mimeType);
 }
 
 export function isSpreadsheet(fileName: string): boolean {
@@ -504,9 +447,6 @@ export const TASK_UPLOAD_ALLOWED_TYPES: readonly string[] = [
   MIME_TYPES.CSV,
 ];
 
-/** Max attachments per task (parity with the chat per-message file cap). */
-export const TASK_MAX_ATTACHMENTS = 10;
-
 /** The extensions a document upload may carry — THE allowlist: a file name
  * must end in one of these, whatever MIME type the caller declares. */
 export const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
@@ -609,15 +549,6 @@ export const CHAT_MAX_TOTAL_SIZE = 200 * 1024 * 1024;
 
 /** Document upload max (100 MB) */
 export const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
-
-/**
- * Fail-loud ceiling for `getFileUrls` unique ids — Convex allows ~1000
- * concurrent IO ops per function. This is a safety rail, not a product batch
- * size: callers may resolve every harvested storage id in one query (same as
- * documents `batchGetStorageUrls`). Do **not** confuse with
- * `CHAT_MAX_FILE_COUNT` (upload attachments per message only).
- */
-export const MAX_FILE_URL_IDS = 1000;
 
 // ---------------------------------------------------------------------------
 // Attachment cap validation (shared by every server-side attachment gate)

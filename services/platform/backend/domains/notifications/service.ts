@@ -24,7 +24,7 @@ export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 export type NotificationSeverity = (typeof NOTIFICATION_SEVERITIES)[number];
 
 /** `security` notifications are admin-only; everything else is org-wide. */
-export function canSeeNotification(
+function canSeeNotification(
   role: string | null | undefined,
   category: NotificationCategory,
 ): boolean {

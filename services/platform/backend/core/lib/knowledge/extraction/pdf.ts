@@ -24,10 +24,10 @@ import type { VisionClient } from './vision_client';
 
 export type ProgressCallback = (pagesDone: number, totalPages: number) => void;
 
-export const LARGE_IMAGE_RATIO = 0.5;
-export const SCANNED_PAGE_TEXT_THRESHOLD = 50;
-export const MAX_PAGES = 2000;
-export const MIN_IMAGE_AREA = 10_000; // ~100x100 device pixels
+const LARGE_IMAGE_RATIO = 0.5;
+const SCANNED_PAGE_TEXT_THRESHOLD = 50;
+const MAX_PAGES = 2000;
+const MIN_IMAGE_AREA = 10_000; // ~100x100 device pixels
 
 export interface PdfExtractionResult {
   text: string;

@@ -126,7 +126,7 @@ export const PROJECT_TEAM_IDS_SQL =
   'CASE WHEN cardinality(team_ids) > 0 THEN team_ids ELSE array_remove(ARRAY[team_id] || shared_with_team_ids, NULL) END';
 
 /** {@link PROJECT_TEAM_IDS_SQL} as a fragment, nestable in any statement. */
-export function projectTeamIdsSql(sql: Sql | TransactionSql) {
+function projectTeamIdsSql(sql: Sql | TransactionSql) {
   return sql`CASE WHEN cardinality(team_ids) > 0 THEN team_ids ELSE array_remove(ARRAY[team_id] || shared_with_team_ids, NULL) END`;
 }
 

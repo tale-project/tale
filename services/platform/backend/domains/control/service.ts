@@ -93,7 +93,7 @@ export async function isBackendDraining(sql: Sql): Promise<boolean> {
  * `drain_started_at_ms` count. After a colour flip the live colour keeps
  * accepting turns; those new rows must not keep `inFlight > 0` for the
  * whole drain window or every busy deploy burns the 3-minute budget. */
-export async function countActiveGenerations(sql: Sql): Promise<number> {
+async function countActiveGenerations(sql: Sql): Promise<number> {
   const now = Date.now();
   const rows = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.generations

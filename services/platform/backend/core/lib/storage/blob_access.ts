@@ -38,7 +38,6 @@ import {
 } from './object_store';
 
 export type { BlobRef } from './blob_ref';
-export { encodeS3Ref, parseBlobRef, isS3Ref } from './blob_ref';
 
 /** A blob reference this deployment cannot resolve: anything but an `s3:`
  * ref — the retired Convex `_storage` lane, or a malformed string bound by a

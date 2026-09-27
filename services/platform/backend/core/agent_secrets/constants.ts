@@ -4,10 +4,10 @@
 
 /** The name IS the env var name: letters/digits/underscore, not starting with
  * a digit. */
-export const AGENT_SECRET_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-export const MAX_AGENT_SECRET_NAME_LEN = 128;
+const AGENT_SECRET_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const MAX_AGENT_SECRET_NAME_LEN = 128;
 /** Generous ceiling — OAuth tokens / PEM-ish secrets can be long. */
-export const MAX_AGENT_SECRET_VALUE_LEN = 8192;
+const MAX_AGENT_SECRET_VALUE_LEN = 8192;
 export const MAX_AGENT_SECRET_DESCRIPTION_LEN = 300;
 /** Per-org guardrail on the number of stored secrets. */
 export const MAX_AGENT_SECRETS_PER_ORG = 200;

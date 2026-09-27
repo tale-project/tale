@@ -163,7 +163,7 @@ export async function listSkillSlugs(orgSlug: string): Promise<string[]> {
  * treating either as absent would hide a broken bundle from the operator
  * who has to fix it.
  */
-export async function readSkillMdDocument(
+async function readSkillMdDocument(
   orgSlug: string,
   slug: string,
 ): Promise<SkillDocumentSource | null> {

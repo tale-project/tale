@@ -173,7 +173,7 @@ export async function loadDocumentOrThrow(
  * same snapshot and the second silently overwriting the first. Meaningful
  * only inside a transaction; the lock is released with it.
  */
-export async function loadDocumentForUpdate(
+async function loadDocumentForUpdate(
   tx: Sql | TransactionSql,
   documentId: string,
 ): Promise<DocumentRow> {

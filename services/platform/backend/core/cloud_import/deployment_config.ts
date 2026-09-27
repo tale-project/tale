@@ -19,8 +19,7 @@ import {
 } from '../lib/helpers/public_origin';
 import type { CloudImportProvider } from './types';
 
-export const CLOUD_IMPORT_OAUTH_CALLBACK_PATH =
-  '/api/cloud-import/oauth2/callback';
+const CLOUD_IMPORT_OAUTH_CALLBACK_PATH = '/api/cloud-import/oauth2/callback';
 
 export interface OauthAppCredentials {
   readonly clientId: string;

@@ -31,7 +31,7 @@ export function samlEndpoints(origin?: string): {
  * configured site origin, so the metadata registers each domain's reply URL
  * with the IdP in one import.
  */
-export function samlAcsUrls(): string[] {
+function samlAcsUrls(): string[] {
   const origins = siteOrigins();
   if (origins.length === 0) return [samlEndpoints().acsUrl];
   return origins.map((origin) => samlEndpoints(origin).acsUrl);

@@ -162,7 +162,7 @@ function moderationFacts(
  * One chain verdict as an event row — or null for a rewrite that detected
  * nothing (the tokenize restore on the way out), which is not an event.
  */
-export function chatFilterEventFor(
+function chatFilterEventFor(
   event: GuardrailOutcomeEvent,
   moderationExtras: ModerationExtras | undefined,
 ): Omit<

@@ -421,7 +421,7 @@ export interface NormalizedModerationResult {
   categories: Record<string, { flagged: boolean; score?: number }>;
 }
 
-export class ModerationParseError extends Error {
+class ModerationParseError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ModerationParseError';

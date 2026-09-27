@@ -39,10 +39,10 @@ import {
 } from '../lib/helpers/public_origin';
 
 /** Path of the OAuth2 callback, as registered with every vendor. */
-export const OAUTH_CALLBACK_PATH = '/api/connectors/oauth2/callback';
+const OAUTH_CALLBACK_PATH = '/api/connectors/oauth2/callback';
 
 /** Env var carrying the Slack app's request-signing secret. */
-export const SLACK_SIGNING_SECRET_ENV = 'CONNECTOR_SLACK_SIGNING_SECRET';
+const SLACK_SIGNING_SECRET_ENV = 'CONNECTOR_SLACK_SIGNING_SECRET';
 
 /**
  * `<origin><BASE_PATH>`, or null when `SITE_URL` is unconfigured. `origin`

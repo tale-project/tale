@@ -26,7 +26,7 @@ import { type RestEnv, RestRefusal } from './shared.ts';
  * register. The gate runs before any member row is read, so a caller
  * without the right learns nothing about the members.
  */
-export const ACT_AS_CAPABILITY = 'tale:rest.act-as';
+const ACT_AS_CAPABILITY = 'tale:rest.act-as';
 
 export const actorBodySchema = z
   .object({

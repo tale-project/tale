@@ -8,9 +8,6 @@
 export type {
   PlatformRole,
   RoleMappingRule,
-  RoleMappingSource,
-  SsoProtocol,
-  SsoProviderId,
   SsoUserInfo,
   SsoGroup,
   SsoTokens,

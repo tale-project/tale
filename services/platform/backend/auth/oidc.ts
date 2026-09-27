@@ -73,9 +73,9 @@ export const OIDC_DISCOVERY_PATHS = [
 
 /** The provider library's own error page — where an authorization request
  * that cannot be answered at the client's redirect URI lands. */
-export const OIDC_ERROR_PAGE_PATH = '/api/auth/error';
+const OIDC_ERROR_PAGE_PATH = '/api/auth/error';
 
-export const OIDC_USERINFO_PATH = '/oauth2/userinfo';
+const OIDC_USERINFO_PATH = '/oauth2/userinfo';
 export const OIDC_AUTHORIZE_PATH = '/oauth2/authorize';
 export const OIDC_TOKEN_PATH = '/oauth2/token';
 /** The endpoints a client authenticates to with its secret (RFC 6749 §2.3). */

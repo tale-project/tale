@@ -101,7 +101,7 @@ export async function decideFileRead(
 }
 
 /** The production probes — each binding resolved through its owning domain's gate. */
-export function fileAccessProbes(
+function fileAccessProbes(
   sql: Sql,
   viewer: ProjectAuthContext,
 ): FileAccessProbes {

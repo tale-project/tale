@@ -99,7 +99,7 @@ type VisionModelPolicyCode =
   | 'VISION_MODEL_RESOLUTION_FAILED';
 
 /** Safe to carry into a failed agent node: no provider response or credentials. */
-export class VisionModelPolicyError extends Error {
+class VisionModelPolicyError extends Error {
   constructor(
     readonly code: VisionModelPolicyCode,
     message: string,
