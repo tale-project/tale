@@ -62,7 +62,7 @@ SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-Le taux d’échantillonnage concerne les traces de performance du navigateur. Le backend envoie des erreurs, pas de traces de performance. Le taux par défaut des traces du navigateur est de 1.0 en développement. Choisis un taux adapté à ton budget de supervision en production. Les cadres de pile sont envoyés sans masquage ; choisis la destination selon tes exigences de traitement des données.
+Le taux d’échantillonnage concerne les traces de performance du navigateur. Le backend envoie des erreurs, pas de traces de performance. Le taux par défaut des traces du navigateur est de 1.0 en développement. Choisis un taux adapté à ton budget de supervision en production. Les événements du backend n’incluent jamais les cookies ni le corps des requêtes. Les en-têtes d’autorisation, de cookie, de clé d’API, de jeton, de secret et de session, les jetons de webhook et de partage dans les URL ainsi que les valeurs d’identification des paramètres de requête, comme les codes OAuth, sont remplacés par `[Filtered]` avant l’envoi. Les cadres de pile et les messages d’erreur sont envoyés tels quels ; choisis la destination selon tes exigences de traitement des données.
 
 ## Statistiques agrégées avec Umami
 
