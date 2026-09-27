@@ -8,6 +8,7 @@ import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { audienceMirror } from '../../core/lib/audience.ts';
+import { isSupported } from '../../core/lib/knowledge/extraction/router.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -29,7 +30,11 @@ import {
   getOrCreateHubFolderPath,
   reapEmptyAncestorFolders,
 } from '../folders/paths.ts';
-import { markRagQueued, syncRagDocumentScope } from '../knowledge/service.ts';
+import {
+  markRagQueued,
+  markRagUnsupportedType,
+  syncRagDocumentScope,
+} from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
 import {
@@ -540,7 +545,9 @@ async function fetchVendorContentToStorage(
 }
 
 /** Queue RAG indexing for a hub document's current blob — the 0.4
- * `scheduleHubDocumentRagIndexing` gates over the pg file row. */
+ * `scheduleHubDocumentRagIndexing` gates over the pg file row. A file no
+ * extractor reads is not queued: it lands on the terminal `unsupported`
+ * state here instead. */
 async function scheduleDocumentRagIndexing(
   sql: Sql,
   documentId: string,
@@ -585,7 +592,19 @@ async function scheduleDocumentRagIndexing(
     fileName,
     doc.mimeType ?? file.contentType,
   );
-  if (!isRagIndexableFile(fileName, contentType)) return false;
+  if (!isRagIndexableFile(fileName, contentType)) {
+    // A file no extractor reads — a Loop page (`.loop`, served as
+    // `application/octet-stream`), a legacy `.doc` — gets the terminal state
+    // the indexer would give it; its empty status used to read "Not indexed"
+    // with a Reindex that could never succeed. A file the indexer CAN read
+    // but the platform does not index by itself (`.log`) is not terminal: a
+    // Reindex of it succeeds, so it keeps the empty status. Written once —
+    // every scan re-offers an unchanged file.
+    if (!isSupported(fileName) && file.ragStatus !== 'unsupported') {
+      await markRagUnsupportedType(sql, file.id, fileName);
+    }
+    return false;
+  }
   await sql.begin(async (tx) => {
     await markRagQueued(tx, file.id);
     await addJobInTx(tx, 'rag.index_file', { fileId: file.id });
