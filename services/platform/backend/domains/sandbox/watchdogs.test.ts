@@ -1,20 +1,33 @@
 // @vitest-environment node
 
 /**
- * Unit lock for the sandbox sweep's spawner-facing passes: the reconcile
- * batch is a FAIR walk (least-recently-visited first, every visited row
- * stamped — not the 25 globally-oldest rows forever), the ended-run
- * reclaim settles a row only when the spawner confirmed the session is gone
- * or idle (busy and errors leave it for the next tick), and the failed-create
- * collect destroys a session only when no newer or live incarnation carries
- * its id, then stamps that one row. The real-Postgres probe
- * (`integration-check.ts`) proves the rotation and the reclaim and collect
- * guards on the actual schema.
+ * Unit lock for the sandbox sweep's passes: the TTL expiry spares a session
+ * while one of its running ops is live (last sign of life inside the recovery
+ * window) and lets it go once that op falls silent, the reconcile batch is a
+ * FAIR walk (least-recently-visited first, every visited row stamped — not
+ * the 25 globally-oldest rows forever), the ended-run reclaim settles a row
+ * only when the spawner confirmed the session is gone or idle (busy and
+ * errors leave it for the next tick), and the failed-create collect destroys
+ * a session only when no newer or live incarnation carries its id, then
+ * stamps that one row. The real-Postgres probe (`integration-check.ts`)
+ * proves the live-turn spare, the rotation and the reclaim and collect guards
+ * on the actual schema.
  */
 
 import type { Sql } from 'postgres';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from 'vitest';
 
+import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
+import { revokeSessionGatewayKeys } from './gateway-keys.ts';
+import { RECOVERY_STALE_MS } from './recovery.ts';
 import { reconcileSession } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import {
@@ -31,6 +44,11 @@ vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
 }));
 vi.mock('../tasks/agent-runs.ts', () => ({
   wakeParkedAgentRuns: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('./gateway-keys.ts', () => ({
+  revokeSessionGatewayKeys: vi.fn(() =>
+    Promise.resolve({ revoked: 0, failed: 0 }),
+  ),
 }));
 vi.mock('./service.ts', () => ({ reconcileSession: vi.fn() }));
 vi.mock('./sessions.ts', () => ({
@@ -49,12 +67,14 @@ interface Candidate {
 }
 
 /**
- * Scripted `sql`: the reconcile, reclaim and collect SELECTs pop from their
- * scripts; the supersession probe answers from `superseded` (row ids) and a
- * collected row's stamp settles it; the EXPIRE update and the visit stamps
- * answer with no rows. Every statement is recorded for shape assertions.
+ * Scripted `sql`: the EXPIRE update and the reconcile, reclaim and collect
+ * SELECTs pop from their scripts; the supersession probe answers from
+ * `superseded` (row ids) and a collected row's stamp settles it; the visit
+ * stamps answer with no rows. Every statement is recorded for shape
+ * assertions.
  */
 function fakeSql(script: {
+  expire?: { orgId: string; sessionId: string }[][];
   reconcile?: Candidate[][];
   reclaim?: Candidate[][];
   collect?: Candidate[][];
@@ -64,6 +84,9 @@ function fakeSql(script: {
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
     statements.push({ text, values });
+    if (text.includes("SET status = 'expired'")) {
+      return Promise.resolve(script.expire?.shift() ?? []);
+    }
     if (text.includes("s.owner_type = 'workflow_run'")) {
       return Promise.resolve(script.reclaim?.shift() ?? []);
     }
@@ -100,12 +123,89 @@ const stampsOf = (statements: Statement[]): Statement[] =>
 const collectStampsOf = (statements: Statement[]): Statement[] =>
   statements.filter((s) => s.text.includes('SET destroyed_at_ms'));
 
+const expiriesOf = (statements: Statement[]): Statement[] =>
+  statements.filter((s) => s.text.includes("SET status = 'expired'"));
+
 beforeEach(() => {
   vi.mocked(reconcileSession).mockResolvedValue('live');
 });
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe('runSandboxWatchdog — expiry spares a live turn', () => {
+  // A fixed tick, so the cuts the EXPIRE update binds are exact.
+  const NOW = 1_790_000_000_000;
+  let clock: MockInstance<() => number>;
+
+  beforeEach(() => {
+    clock = vi.spyOn(Date, 'now').mockReturnValue(NOW);
+  });
+
+  afterEach(() => {
+    clock.mockRestore();
+  });
+
+  // The regression: every unpinned session past its TTL expired whatever
+  // ran in it, so a turn still working when the window lapsed had its model
+  // key revoked mid-turn and its slot handed to a parked run.
+  it('keeps a session past its TTL while one of its running ops signed its lease inside the recovery window', async () => {
+    const { sql, statements } = fakeSql({});
+
+    const result = await runSandboxWatchdog(sql, { skipReconcile: true });
+
+    const expiries = expiriesOf(statements);
+    expect(expiries).toHaveLength(1);
+    const expire = expiries[0];
+    // The TTL cut, then the live cut one recovery window before the tick.
+    expect(expire?.values).toEqual([NOW, NOW - RECOVERY_STALE_MS]);
+    expect(expire?.text).toContain('s.pinned = false AND s.expires_at_ms < ?');
+    // Only a RUNNING op of the same session and organization holds it — a
+    // finished op spares nothing, whatever its stamps say…
+    expect(expire?.text).toMatch(
+      /AND NOT EXISTS \(\s*SELECT 1 FROM app\.sandbox_session_ops op\s+WHERE op\.session_id = s\.session_id AND op\.org_id = s\.org_id\s+AND op\.status = 'running'/,
+    );
+    // …and only while it is live by the re-attach sweeps' own rule: its last
+    // sign of life (`sessionOpLastSignOfLifeMs`) at or after the live cut.
+    expect(expire?.text).toMatch(
+      /greatest\(\s*op\.started_at_ms,\s*coalesce\(op\.heartbeat_at_ms, 0\),\s*coalesce\(op\.finalized_at_ms, 0\),\s*coalesce\(op\.finished_at_ms, 0\)\s*\) >= \?/,
+    );
+    // Spared: the turn keeps its keys and its slot.
+    expect(result.expired).toBe(0);
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+  });
+
+  it('expires it once that op falls silent past the window, so a dead op cannot pin the session, and reclaims its keys', async () => {
+    // Tick 1: the op's last heartbeat was a minute ago, inside the window,
+    // and Postgres spares the session. Tick 2, one window later with no
+    // heartbeat since: the op is stale and the session expires with the full
+    // teardown.
+    const { sql, statements } = fakeSql({
+      expire: [[], [{ orgId: 'org_1', sessionId: 'ses-stale' }]],
+    });
+
+    const first = await runSandboxWatchdog(sql, { skipReconcile: true });
+    clock.mockReturnValue(NOW + RECOVERY_STALE_MS);
+    const second = await runSandboxWatchdog(sql, { skipReconcile: true });
+
+    // The live cut moves with every tick, so no op outlasts it by going
+    // quiet: tick 2's cut is past the heartbeat tick 1 still counted.
+    expect(expiriesOf(statements).map((s) => s.values[1])).toEqual([
+      NOW - RECOVERY_STALE_MS,
+      NOW,
+    ]);
+    expect(first.expired).toBe(0);
+    expect(second.expired).toBe(1);
+    expect(revokeSessionGatewayKeys).toHaveBeenCalledTimes(1);
+    expect(revokeSessionGatewayKeys).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      sessionId: 'ses-stale',
+    });
+    expect(wakeParkedAgentRuns).toHaveBeenCalledTimes(1);
+    expect(wakeParkedAgentRuns).toHaveBeenCalledWith(sql, 'org_1');
+  });
 });
 
 describe('runSandboxWatchdog — fair reconcile', () => {

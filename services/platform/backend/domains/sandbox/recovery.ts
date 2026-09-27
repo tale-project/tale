@@ -13,7 +13,9 @@ import type { SandboxAgentOpKind } from '../../core/sandbox/session_constants.ts
  */
 
 /** A live drainer bumps the op heartbeat once per window (~90s); silence
- * past this means the chain is gone. Same knob as 0.4. */
+ * past this means the chain is gone — to the re-attach sweeps, and to the
+ * sandbox expiry sweep, which stops sparing a turn's session once its op has
+ * been silent this long. Same knob as 0.4. */
 export const RECOVERY_STALE_MS = (() => {
   const configured = Number(process.env.TALE_AGENT_TURN_RECOVERY_STALE_MS);
   return Number.isFinite(configured) && configured > 0

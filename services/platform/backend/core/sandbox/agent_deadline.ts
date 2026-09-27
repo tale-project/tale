@@ -39,8 +39,9 @@ export function agentWorkTurnDeadlineMs(): number {
  * contract). Every settle step is itself bounded (session-client and
  * gateway-admin calls carry 15–30s AbortSignal timeouts, mutations are
  * ms-scale), so a chain silent past the recovery staleness window is dead,
- * however slow or loaded the host. Read by the V8 recovery-claim mutation
- * and both lanes' stalled-turn queries.
+ * however slow or loaded the host. Read by the V8 recovery-claim mutation,
+ * both lanes' stalled-turn queries and the sandbox expiry sweep, which
+ * spares a session while one of its running ops is live by this rule.
  */
 export function sessionOpLastSignOfLifeMs(op: {
   startedAt: number;
