@@ -20,6 +20,10 @@ import {
   sandboxDeploymentLimitsSchema,
   type SandboxCapacityObservation,
 } from '../../../../../lib/shared/schemas/sandbox-capacity.ts';
+import {
+  hubDevicesSchema,
+  type HubDevices,
+} from '../../../../../lib/shared/schemas/sandbox-devices.ts';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
@@ -126,6 +130,45 @@ function spawnerTargetLabel(target: string): string {
   } catch {
     return target;
   }
+}
+
+/** The spawner's device hub answered for a session that lives on one of the
+ * organization's connected devices, and that device is not connected. The
+ * workspace is intact on the machine — NOT a "session gone" signal: callers
+ * must never mark the session destroyed on it. */
+export class SandboxDeviceOfflineError extends Error {
+  readonly deviceId: string;
+  constructor(deviceId: string) {
+    super(
+      `the device this sandbox runs on (${deviceId}) is not connected — its workspace stays on that machine; the work can continue once it reconnects`,
+    );
+    this.name = 'SandboxDeviceOfflineError';
+    this.deviceId = deviceId;
+  }
+}
+
+/** Header the hub sets on every answer it gave for a device. */
+const DEVICE_HEADER = 'x-tale-sandbox-device';
+
+/** A 503 the hub answered because a session's device is offline (judged on
+ * the already-read body), or null. */
+function deviceOfflineIn(
+  res: Response,
+  body: string,
+): SandboxDeviceOfflineError | null {
+  const deviceId = res.headers.get(DEVICE_HEADER);
+  return res.status === 503 &&
+    deviceId !== null &&
+    body.includes('device_offline')
+    ? new SandboxDeviceOfflineError(deviceId)
+    : null;
+}
+
+/** Throw the device-offline error a 503 carries; other answers pass. */
+async function throwIfDeviceOffline(res: Response): Promise<void> {
+  if (res.status !== 503 || res.headers.get(DEVICE_HEADER) === null) return;
+  const offline = deviceOfflineIn(res, await safeText(res));
+  if (offline) throw offline;
 }
 
 /** Parse an HTTP `retry-after` header (delta-seconds) into ms, if present. */
@@ -248,6 +291,10 @@ export interface SessionCreateBody {
   ttlMs?: number;
   idleTimeoutMs?: number;
   env?: Record<string, string>;
+  /** `device`: may start on one of the organization's connected devices
+   * (the hub picks one with room, else the server). Absent = the server. A
+   * session keeps the machine it first started on either way. */
+  placement?: 'device' | 'server';
 }
 
 export interface SessionInfo {
@@ -275,13 +322,17 @@ export async function sandboxCapacity(
   return sandboxCapacitySchema.parse(await response.json());
 }
 
-/** The spawner's current configured ceiling, independent of host telemetry. */
+/** The spawner's current configured ceiling, independent of host telemetry,
+ * plus the slots the organization's connected devices add. */
 export async function sandboxDeploymentLimits(organizationId: string): Promise<{
   maxSessions: number;
+  deviceSessions?: number;
 }> {
-  const response = await spawnerFetch('GET', '/v1/limits', {
-    signal: AbortSignal.timeout(5_000),
-  });
+  const response = await spawnerFetch(
+    'GET',
+    `/v1/limits?organizationId=${encodeURIComponent(organizationId)}`,
+    { signal: AbortSignal.timeout(5_000) },
+  );
   if (response.status === 404) {
     // A running older spawner already reports its configured global ceiling
     // through capacity. Read that endpoint afresh for this authenticated org;
@@ -298,6 +349,44 @@ export async function sandboxDeploymentLimits(organizationId: string): Promise<{
 
 const acquisitionSchema = z.object({ generation: z.string().min(1) });
 
+/** The organization's connected devices, as the spawner's hub sees them. An
+ * older spawner (no device routes) has none. */
+export async function sandboxDevices(
+  organizationId: string,
+): Promise<HubDevices> {
+  const response = await spawnerFetch(
+    'GET',
+    `/v1/devices?organizationId=${encodeURIComponent(organizationId)}`,
+    { signal: AbortSignal.timeout(10_000) },
+  );
+  if (response.status === 404) return { hub: false, devices: [] };
+  if (!response.ok)
+    throw new Error(`Sandbox devices unavailable (${response.status})`);
+  return hubDevicesSchema.parse(await response.json());
+}
+
+/** Cut a removed device's tunnel and forget where its sessions were. */
+export async function sandboxDeviceDisconnect(
+  deviceId: string,
+): Promise<{ disconnected: boolean; placementsDropped: number }> {
+  const response = await spawnerFetch(
+    'POST',
+    `/v1/devices/${encodeURIComponent(deviceId)}/disconnect`,
+    { body: '', signal: AbortSignal.timeout(10_000) },
+  );
+  if (response.status === 404) {
+    return { disconnected: false, placementsDropped: 0 };
+  }
+  if (!response.ok)
+    throw new Error(`Sandbox device disconnect failed (${response.status})`);
+  return z
+    .object({
+      disconnected: z.boolean(),
+      placementsDropped: z.number().int().nonnegative(),
+    })
+    .parse(await response.json());
+}
+
 /** Claim warm compute before staging any new work. A concurrent idle stop
  * finishes first; a definitive 404 then allows the caller to recreate it. */
 export async function sessionAcquire(sessionId: string): Promise<boolean> {
@@ -306,6 +395,7 @@ export async function sessionAcquire(sessionId: string): Promise<boolean> {
     `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
     { signal: AbortSignal.timeout(15_000) },
   );
+  await throwIfDeviceOffline(response);
   if (response.status === 404) {
     // Rolling upgrade: an old spawner has neither activity routes nor the
     // limits endpoint (and cannot pressure-reclaim compute). Only that
@@ -415,11 +505,15 @@ export async function sessionCreate(
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
     if (res.status === 429) throw new SpawnerBusyError(parseRetryAfterMs(res));
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
-    // `sandbox` alias re-resolves onto the now-active colour. A non-draining
-    // 503 (or exhausted retries) falls through to the generic failure below.
-    if (res.status === 503 && attempt < CREATE_DRAIN_RETRY_MAX) {
+    // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
+    // offline device is final for this create: the session's workspace lives
+    // there. A non-draining 503 (or exhausted retries) falls through to the
+    // generic failure below.
+    if (res.status === 503) {
       const peek = await safeText(res);
-      if (peek.includes('draining')) {
+      const offline = deviceOfflineIn(res, peek);
+      if (offline) throw offline;
+      if (peek.includes('draining') && attempt < CREATE_DRAIN_RETRY_MAX) {
         await new Promise((resolve) =>
           setTimeout(resolve, CREATE_DRAIN_RETRY_DELAY_MS),
         );
@@ -448,6 +542,7 @@ export async function sessionIsAlive(sessionId: string): Promise<boolean> {
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status === 404) return false;
+  await throwIfDeviceOffline(res);
   if (!res.ok) {
     throw new Error(`sandbox session get failed (${res.status})`);
   }

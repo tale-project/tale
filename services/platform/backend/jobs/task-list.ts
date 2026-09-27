@@ -42,6 +42,7 @@ import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
+import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
 import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
 import {
   agentTurnShimHandlers,
@@ -503,6 +504,19 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (result.expired > 0 || result.healed > 0 || result.reclaimed > 0) {
         console.log(
           `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reclaimed ${result.reclaimed} ended-run session(s)`,
+        );
+      }
+      // Removed sandbox devices the hub has not dropped yet (the spawner was
+      // unreachable when they were removed).
+      const released = await releaseRemovedDevices(deps.sql).catch(
+        (error: unknown) => {
+          console.error('[watchdog] sandbox device release failed:', error);
+          return 0;
+        },
+      );
+      if (released > 0) {
+        console.log(
+          `[watchdog] sandbox: released ${released} removed device(s)`,
         );
       }
     },

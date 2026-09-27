@@ -6,6 +6,8 @@ const measurement = z.number().nonnegative().nullable();
 /** Configured admission ceiling, readable even when runtime observation fails. */
 export const sandboxDeploymentLimitsSchema = z.object({
   maxSessions: z.number().int().positive(),
+  /** Slots the organization's connected devices add (their own machines). */
+  deviceSessions: z.number().int().nonnegative().optional(),
 });
 
 export type SandboxDeploymentLimits =
@@ -36,8 +38,20 @@ export const sandboxCapacitySchema = z.object({
     z.object({
       sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
       state: z.enum(['running', 'starting', 'stopped']),
+      /** Set when the session runs on one of the organization's devices. */
+      deviceId: z.string().min(1).max(64).optional(),
     }),
   ),
+  /** Where each of the organization's device-placed sessions lives — also
+   * while its device is offline. Absent from spawners without a device hub. */
+  placements: z
+    .array(
+      z.object({
+        sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+        deviceId: z.string().min(1).max(64),
+      }),
+    )
+    .optional(),
 });
 
 export type SandboxCapacityObservation = z.infer<typeof sandboxCapacitySchema>;

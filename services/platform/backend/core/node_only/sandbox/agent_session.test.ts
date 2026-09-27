@@ -125,10 +125,12 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     await expect(f.ensure()).resolves.toEqual({ liveCreatedAt: 123 });
 
     expect(f.events).toEqual(['resumeSessionSlotWithCapCheck', 'create']);
+    // Agent and workflow workspaces may start on a connected device.
     expect(runtime.sessionCreate).toHaveBeenCalledWith({
       organizationId: 'org_1',
       sessionId: 'session_1',
       profile: 'agent',
+      placement: 'device',
     });
   });
 

@@ -188,6 +188,14 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 40,
   },
+  // The sandbox-device door: a join token or device secret that matches
+  // nothing is charged to its source IP — the trusted-headers posture.
+  'sandbox-devices:auth-fail-ip': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
+  },
   'rest:upload': {
     kind: 'token bucket',
     rate: 240,
