@@ -19,6 +19,7 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { parseContactSupportUrl } from './lib/contact-support-url';
 import { createOrgFrameAncestorsProvider } from './lib/org-frame-ancestors';
 import { createOrgObjectStorageOriginsProvider } from './lib/org-storage-origins';
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
@@ -223,6 +224,11 @@ interface EnvConfig {
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION: string | undefined;
   SESSION_IDLE_TIMEOUT_MINUTES?: number;
+  /**
+   * Where the error displays' "contact support" link points; omitted (the
+   * `https://tale.dev/contact` default) when unset or not an http(s) URL.
+   */
+  TALE_CONTACT_SUPPORT_URL?: string;
   CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: readonly string[];
 }
 
@@ -399,6 +405,9 @@ function getEnvConfig(): EnvConfig {
     // Idle-timeout window for the client watchdog (#1502). Validated/clamped
     // server-side; `undefined` (omitted from __ENV__) when the feature is off.
     SESSION_IDLE_TIMEOUT_MINUTES: parseSessionIdleTimeoutMinutes() ?? undefined,
+    // The deployment's own support page for the error displays. Validated as
+    // an absolute http(s) URL; `undefined` (omitted from __ENV__) otherwise.
+    TALE_CONTACT_SUPPORT_URL: parseContactSupportUrl(),
     // Whitespace-separated origin list, e.g.
     // `CANVAS_PREVIEW_CSP_EXTRA_ORIGINS="https://cdn.jsdelivr.net https://unpkg.com"`.
     // Validated and appended to the canvas-preview CSP — see the policy
