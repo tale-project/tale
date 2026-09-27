@@ -16,7 +16,7 @@ import {
   WORKFLOW_AGENT_OP_KIND,
 } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
-import { toJson, withTransaction } from '../../db/sql.ts';
+import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
@@ -381,50 +381,47 @@ export async function resumeSessionSlot(
  * stamps it by primary key, because its session id may already name a live
  * successor this function would settle too. */
 export async function markSessionDestroyed(
-  sql: Sql | TransactionSql,
+  sql: Sql,
   args: { organizationId: string; sessionId: string },
 ): Promise<boolean> {
   // Credentials FIRST: the gateway key outlives the row (no native TTL), and
   // the token flip below is what elects a single revoker — running it after
   // the flip would find nothing to revoke. Best-effort by construction, so a
   // down gateway cannot wedge the destroy; see `gateway-keys.ts`.
-  const reclaim =
-    'savepoint' in sql
-      ? withTransaction(sql, (tx) => revokeSessionGatewayKeys(tx, args))
-      : revokeSessionGatewayKeys(sql, args);
-  await reclaim.catch((error: unknown) => {
+  await revokeSessionGatewayKeys(sql, args).catch((error: unknown) => {
     console.error(
       `[sandbox] gateway key reclaim for destroyed ${args.sessionId} failed:`,
       error,
     );
   });
-  return withTransaction(sql, async (tx) => {
-    const now = Date.now();
-    const rows = await tx<{ id: string }[]>`
+  return sql
+    .begin(async (tx) => {
+      const now = Date.now();
+      const rows = await tx<{ id: string }[]>`
       UPDATE app.sandbox_sessions SET
         status = 'destroyed', destroyed_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status <> 'destroyed'
       RETURNING id
     `;
-    if (rows.length === 0) return false;
-    await tx`
+      if (rows.length === 0) return false;
+      await tx`
       UPDATE app.sandbox_session_tokens SET revoked_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND revoked_at_ms IS NULL
     `;
-    return true;
-  }).then(async (destroyed) => {
-    if (destroyed) {
-      // Release edge: root callers wake after commit; a lifecycle
-      // transaction queues the wake atomically with the freed capacity.
-      await wakeParkedAgentRuns(sql, args.organizationId).catch(
-        (error: unknown) => {
-          console.warn('[sandbox] capacity wake failed:', error);
-        },
-      );
-    }
-    return destroyed;
-  });
+      return true;
+    })
+    .then(async (destroyed) => {
+      if (destroyed) {
+        // Release edge (see releaseProjectAgentSessionSlot) — after the commit.
+        await wakeParkedAgentRuns(sql, args.organizationId).catch(
+          (error: unknown) => {
+            console.warn('[sandbox] capacity wake failed:', error);
+          },
+        );
+      }
+      return destroyed;
+    });
 }
 
 // --- session tokens ---------------------------------------------------------

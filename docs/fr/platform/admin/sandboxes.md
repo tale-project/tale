@@ -65,7 +65,7 @@ Les Propriétaires et Admins disposent du menu de chaque ligne :
 | --- | --- |
 | **Arrêter la tâche** | Annule toutes les opérations en cours dans cet espace. Vérifie les tâches affichées : un agent peut en traiter plusieurs. |
 | **Épingler** / **Détacher** | Exempte l’espace du nettoyage automatique pour inactivité ou expiration, ou rétablit ce nettoyage. Une allocation épinglée peut continuer à occuper de la capacité. Si l’environnement d’un espace épinglé disparaît, par exemple après un redémarrage de l’hôte, Tale le relance avec ses fichiers, et l’espace reste épinglé. |
-| **Supprimer** | Demande confirmation, annule le travail et retire la sandbox avec ses fichiers. Le prochain démarrage de l’agent crée un environnement neuf. |
+| **Supprimer** | Demande confirmation, annule le travail et retire la sandbox avec ses fichiers. L’espace est d’abord détaché. Si la suppression échoue, il reste dans la liste et tu peux réessayer **Supprimer**. Le prochain démarrage de l’agent crée un environnement neuf. |
 
 Arrête la tâche si le travail doit cesser mais que ses fichiers doivent rester. Avant une suppression, conserve les résultats nécessaires et lis la confirmation. La récupération automatique de capacité inactive préserve les fichiers ; la suppression explicite les retire.
 

@@ -1,12 +1,12 @@
 /** Real PostgreSQL interleavings across independent one-connection pools. */
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
-import { createSql, withTransaction } from '../../db/sql.ts';
+import { createSql } from '../../db/sql.ts';
 import { pinSession, reconcileSession, teardownSession } from './service.ts';
-import { settleSessionOpSpend } from './spend-settlement.ts';
 
 function oneConnectionPool(databaseUrl: string): Sql {
   const before = process.env.DATABASE_POOL_MAX;
@@ -167,7 +167,7 @@ export async function checkSandboxLifecycle(
       'sandbox lifecycle: a Destroy in flight cannot resurrect an empty workspace',
       destroyWait &&
         didDestroy &&
-        afterDestroyOutcome === 'skipped' &&
+        afterDestroyOutcome === 'healed' &&
         !alive &&
         creates === 0 &&
         (await state())?.status === 'destroyed',
@@ -182,7 +182,7 @@ export async function checkSandboxLifecycle(
       WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${runId}
     `;
     record(
-      'sandbox lifecycle: destruction revokes tokens and wakes capacity on the same connection',
+      'sandbox lifecycle: destruction revokes tokens and wakes capacity with a one-connection app pool',
       tokens[0]?.revoked && jobs[0]?.count === '1',
       `revoked=${tokens[0]?.revoked}, wake jobs=${jobs[0]?.count} (want 1); pool max=1`,
     );
@@ -251,38 +251,186 @@ export async function checkSandboxLifecycle(
       `waited=${unpinWait}, spawner pinned=${remotePinned}, row pinned=${(await state())?.pinned}`,
     );
 
-    await sql`
-      INSERT INTO app.sandbox_session_ops (
-        org_id, session_id, exec_id, kind, status, started_at_ms
-      ) VALUES (${orgId}, ${sessionId}, ${execId}, 'task-agent', 'completed', ${now})
-    `;
-    const settlement = await withTransaction(first, async (tx) => {
-      const result = await settleSessionOpSpend(tx, {
-        sessionId,
-        execId,
-        spentCents: null,
-      });
-      // A caught savepoint error must leave the outer lifecycle usable.
-      await withTransaction(tx, async (inner) => {
-        await inner`SELECT 1 / 0`;
-      }).catch(() => {});
-      const stamped = await tx<{ settled: boolean }[]>`
-        SELECT spend_settled_at_ms IS NOT NULL AS settled FROM app.sandbox_session_ops
-        WHERE session_id = ${sessionId} AND exec_id = ${execId}
-      `;
-      return result === 'settled' && stamped[0]?.settled;
-    });
-    record(
-      'sandbox lifecycle: nested spend settlement and caught errors keep the transaction usable',
-      settlement,
-      `settled=${settlement}; independent pool max=1`,
-    );
+    await checkLifecycleDurability(sql, first, ctx, record);
   } finally {
     for (const item of gates) item.release();
     await Promise.all([first.end({ timeout: 1 }), second.end({ timeout: 1 })]);
     await sql`DELETE FROM pgboss.job WHERE data ->> 'organizationId' = ${orgId}`;
     await sql`DELETE FROM app.project_agent_runs WHERE org_id = ${orgId}`;
     await sql`DELETE FROM app.projects WHERE org_id = ${orgId}`;
+    await sql`DELETE FROM app.sandbox_session_ops WHERE org_id = ${orgId}`;
+    await sql`DELETE FROM app.sandbox_session_tokens WHERE org_id = ${orgId}`;
+    await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${orgId}`;
+  }
+}
+
+/** A gateway delete cannot be rolled back, nor can a destroyed workspace.
+ * Inject failures AFTER each remote effect and observe the durable state
+ * from another connection, including spend at the instant the key is deleted. */
+async function checkLifecycleDurability(
+  sql: Sql,
+  pool: Sql,
+  ctx: { orgId: string; userId: string },
+  record: (name: string, ok: boolean, detail: string) => void,
+): Promise<void> {
+  const orgId = `${ctx.orgId}:durability:${randomUUID()}`;
+  const sessionId = `durability-${randomUUID()}`;
+  const execId = randomUUID();
+  const keyId = `itest-key-${randomUUID()}`;
+  const args = { organizationId: orgId, sessionId };
+  let alive = true;
+  let keyAlive = true;
+  let creates = 0;
+  let committedBeforeDelete = false;
+  const durableSpend = () => sql<
+    { settled: boolean; spent: number; booked: number }[]
+  >`
+    SELECT spend_settled_at_ms IS NOT NULL AS settled,
+      spent_cents::float8 AS spent,
+      (SELECT coalesce(sum(cost_estimate_cents), 0)::float8 FROM app.usage_ledger
+        WHERE org_id = ${orgId} AND granularity = 'monthly') AS booked
+    FROM app.sandbox_session_ops
+    WHERE session_id = ${sessionId} AND exec_id = ${execId}
+  `;
+  const gateway = createServer((req, res) => {
+    req.resume();
+    res.setHeader('content-type', 'application/json');
+    if (req.method === 'GET' && keyAlive) {
+      res.end(
+        JSON.stringify({ virtual_key: { budgets: [{ current_usage: 0.25 }] } }),
+      );
+    } else if (req.method === 'DELETE') {
+      void durableSpend().then(
+        (rows) => {
+          committedBeforeDelete =
+            rows[0]?.settled && rows[0]?.spent === 25 && rows[0]?.booked === 25;
+          keyAlive = false;
+          res.end('{}');
+        },
+        () => {
+          res.statusCode = 500;
+          res.end('{}');
+        },
+      );
+    } else {
+      res.statusCode = 404;
+      res.end('{}');
+    }
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const address = gateway.address();
+  const port =
+    address !== null && typeof address === 'object' ? address.port : 0;
+  const previousUrl = process.env.SANDBOX_LLM_GATEWAY_URL;
+  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${port}`;
+  const failure = new Error('injected failure after the remote effect');
+  const spawner = {
+    isAlive: async () => alive,
+    create: async () => {
+      alive = true;
+      creates += 1;
+    },
+    setPinned: async () => true,
+  };
+  try {
+    const now = Date.now();
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, profile, status, owner_type, owner_id, created_by,
+        pinned, created_at_ms, expires_at_ms
+      ) VALUES (${orgId}, ${sessionId}, '"agent"'::jsonb, 'active',
+        'project_agent', ${sessionId}, ${ctx.userId}, true, ${now}, ${now + 3_600_000})
+    `;
+    // The remote may destroy the files even when its response never arrives.
+    const interrupted = await teardownSession(pool, args, async () => {
+      alive = false;
+      throw failure;
+    }).then(
+      () => false,
+      (error: unknown) => error === failure,
+    );
+    const before = (
+      await sql<{ status: string; pinned: boolean }[]>`
+      SELECT status, pinned FROM app.sandbox_sessions WHERE org_id = ${orgId}
+    `
+    )[0];
+    const healed = await reconcileSession(pool, args, spawner);
+    record(
+      'sandbox lifecycle: an uncertain Destroy persists unpin intent before losing its response',
+      interrupted &&
+        before?.status === 'active' &&
+        !before.pinned &&
+        healed === 'healed' &&
+        !alive &&
+        creates === 0,
+      `failed=${interrupted}, row before retry=${before?.status}/pinned=${before?.pinned}, retry=${healed}, alive=${alive}, recreates=${creates}`,
+    );
+
+    await sql`UPDATE app.sandbox_sessions SET status = 'active', pinned = true, destroyed_at_ms = NULL WHERE org_id = ${orgId}`;
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, started_at_ms, minted_key_id, user_id
+      ) VALUES (${orgId}, ${sessionId}, ${execId}, 'task-agent', 'completed', ${now}, ${keyId}, ${ctx.userId})
+    `;
+    await sql`
+      INSERT INTO app.sandbox_session_tokens (
+        org_id, session_id, token_hash, scope, created_at_ms, expires_at_ms, llm_gateway_key_id
+      ) VALUES (${orgId}, ${sessionId}, ${randomUUID()}, '{}'::jsonb, ${now}, ${now + 3_600_000}, ${keyId})
+    `;
+    // Fail the outer lifecycle transaction after every callback action. The
+    // key is already gone; the spend/row commits must survive independently.
+    const rollbackPool = new Proxy(pool, {
+      get(target, property, receiver) {
+        if (property === 'begin')
+          return (work: (tx: TransactionSql) => Promise<unknown>) =>
+            target.begin(async (tx) => {
+              await work(tx);
+              throw failure;
+            });
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const rolledBack = await teardownSession(rollbackPool, args, async () => {
+      alive = false;
+      return true;
+    }).then(
+      () => false,
+      (error: unknown) => error === failure,
+    );
+    const spent = (await durableSpend())[0];
+    const row = (
+      await sql<
+        { status: string }[]
+      >`SELECT status FROM app.sandbox_sessions WHERE org_id = ${orgId}`
+    )[0];
+    record(
+      'sandbox lifecycle: key deletion follows committed spend that survives a later lock-transaction rollback',
+      rolledBack &&
+        !keyAlive &&
+        committedBeforeDelete &&
+        spent?.settled &&
+        spent.spent === 25 &&
+        spent.booked === 25 &&
+        row?.status === 'destroyed',
+      `rolledBack=${rolledBack}, keyAlive=${keyAlive}, committedBeforeDelete=${committedBeforeDelete}, settled=${spent?.settled}, spent/booked=${spent?.spent}/${spent?.booked}, row=${row?.status}`,
+    );
+    const afterRollback = await reconcileSession(pool, args, spawner);
+    record(
+      'sandbox lifecycle: failed lock commit after remote Destroy cannot resurrect the workspace',
+      !alive &&
+        creates === 0 &&
+        (afterRollback === 'skipped' || afterRollback === 'healed'),
+      `retry=${afterRollback}, alive=${alive}, recreates=${creates}`,
+    );
+  } finally {
+    if (previousUrl === undefined) delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    else process.env.SANDBOX_LLM_GATEWAY_URL = previousUrl;
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+    await sql`DELETE FROM app.usage_ledger WHERE org_id = ${orgId}`;
     await sql`DELETE FROM app.sandbox_session_ops WHERE org_id = ${orgId}`;
     await sql`DELETE FROM app.sandbox_session_tokens WHERE org_id = ${orgId}`;
     await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${orgId}`;

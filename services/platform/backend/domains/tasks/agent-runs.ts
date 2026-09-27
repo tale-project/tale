@@ -9,7 +9,6 @@ import {
   AUTO_RETRY_MAX_ATTEMPTS,
   isAutoRetryableFailure,
 } from '../../core/tasks/task_auto_retry.ts';
-import { withTransaction } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
@@ -499,14 +498,13 @@ export async function cancelAgentRun(
  * deadline lane (failed as "waited for capacity past its time limit"), and
  * waking it would launch a turn the drive's deadline cut stops on arrival —
  * un-parking it first would also hide it from that lane, which keys on
- * `waiting_for_capacity_at_ms IS NOT NULL`. When joined to a release
- * transaction, the queued job becomes visible with the released capacity.
+ * `waiting_for_capacity_at_ms IS NOT NULL`.
  */
 export async function wakeParkedAgentRuns(
-  sql: Sql | TransactionSql,
+  sql: Sql,
   organizationId: string,
 ): Promise<number> {
-  return withTransaction(sql, async (tx) => {
+  return sql.begin(async (tx) => {
     const parked = await tx<{ id: string; execId: string }[]>`
       SELECT id, exec_id AS "execId" FROM app.project_agent_runs
       WHERE org_id = ${organizationId} AND status = 'queued'

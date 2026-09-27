@@ -16,6 +16,9 @@ import {
 } from './service.ts';
 import type { SessionRow } from './sessions.ts';
 
+const { postgresFactory } = vi.hoisted(() => ({ postgresFactory: vi.fn() }));
+vi.mock('postgres', () => ({ default: postgresFactory }));
+
 // The real error classes (the reconcile tells a duplicate create apart by
 // class); every spawner verb is a mock.
 vi.mock(
@@ -86,7 +89,8 @@ function fakeSql(row: SessionRow | null) {
         !values.includes(stored.organizationId)
       )
         return Promise.resolve([]);
-      stored.status = 'destroyed';
+      if (text.includes('pinned =')) stored.pinned = Boolean(values[0]);
+      else stored.status = 'destroyed';
       return Promise.resolve([{ id: stored.id }]);
     }
     return Promise.resolve([]);
@@ -103,11 +107,14 @@ function fakeSql(row: SessionRow | null) {
       query(strings, ...values),
     {
       unsafe: tx.unsafe,
+      options: { host: ['itest-host'], ssl: 'require', max: 3 },
+      end: vi.fn(async () => {}),
       begin: <T>(callback: (transaction: typeof query) => Promise<T>) =>
         callback(tx),
     },
   );
-  return { sql: sql as unknown as Sql, tx, statements, stored };
+  postgresFactory.mockReturnValue(sql);
+  return { sql: sql as unknown as Sql, tx, statements, stored, end: sql.end };
 }
 
 beforeEach(() => {
@@ -143,7 +150,7 @@ describe('teardownSession ownership and confirmed deletion', () => {
   it.each([true, false])(
     'settles an owned session after confirmed deletion or absence (%s)',
     async (destroyed) => {
-      const { sql, tx, statements, stored } = fakeSql(OWNED_SESSION);
+      const { sql, end, statements, stored } = fakeSql(OWNED_SESSION);
       let stateAtDestroy: unknown;
       vi.mocked(sessionDestroy).mockImplementationOnce(async () => {
         stateAtDestroy = {
@@ -159,21 +166,30 @@ describe('teardownSession ownership and confirmed deletion', () => {
 
       expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
       expect(stateAtDestroy).toEqual({
-        statements: 2,
+        statements: 3,
         status: 'active',
         revocations: 0,
       });
       expect(stored?.status).toBe('destroyed');
+      expect(postgresFactory).toHaveBeenCalledExactlyOnceWith({
+        host: ['itest-host'],
+        ssl: 'require',
+        max: 1,
+      });
+      expect(end).toHaveBeenCalledOnce();
       expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(
-        tx,
+        sql,
         args,
       );
-      expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(tx, 'org-a');
+      expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(sql, 'org-a');
     },
   );
 
   it('leaves an owned session retryable when the spawner cannot confirm deletion', async () => {
-    const { sql, statements, stored } = fakeSql(OWNED_SESSION);
+    const { sql, end, statements, stored } = fakeSql({
+      ...OWNED_SESSION,
+      pinned: true,
+    });
     const failure = new Error('sandbox session destroy failed (503)');
     vi.mocked(sessionDestroy).mockRejectedValueOnce(failure);
 
@@ -184,8 +200,10 @@ describe('teardownSession ownership and confirmed deletion', () => {
       }),
     ).rejects.toBe(failure);
 
-    expect(statements).toHaveLength(2);
+    expect(statements).toHaveLength(3);
     expect(stored?.status).toBe('active');
+    expect(stored?.pinned).toBe(false);
+    expect(end).toHaveBeenCalledOnce();
     expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
   });
@@ -385,14 +403,14 @@ describe('reconcileSession heals unpinned phantoms as before', () => {
   });
 
   it('settles a gone unpinned session as destroyed without recreating it', async () => {
-    const { sql, tx, stored } = fakeSql(OWNED_SESSION);
+    const { sql, stored } = fakeSql(OWNED_SESSION);
     const { spawner, calls } = fakeSpawner(false);
 
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('healed');
 
     expect(calls).toEqual(['isAlive session-a']);
     expect(stored?.status).toBe('destroyed');
-    expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(tx, ARGS);
-    expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(tx, 'org-a');
+    expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(sql, ARGS);
+    expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(sql, 'org-a');
   });
 });

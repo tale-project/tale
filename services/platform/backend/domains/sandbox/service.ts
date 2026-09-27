@@ -1,4 +1,4 @@
-import type { Sql, TransactionSql } from 'postgres';
+import postgres, { type Sql } from 'postgres';
 
 import {
   SessionDuplicateError,
@@ -8,7 +8,6 @@ import {
   sessionSetPinned,
   type SessionCreateBody,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
-import { withTransaction } from '../../db/sql.ts';
 import {
   getSessionBySessionId,
   markSessionDestroyed,
@@ -28,39 +27,63 @@ import {
  * verbatim.
  */
 
-/** Serialize the spawner operation AND row transition across replicas. A
- * fresh row read alone leaves a gap where Destroy can wipe the workspace
- * before a reconcile recreates it, or an unpin can be undone by a stale
- * re-pin. The callback uses this same connection, including nested spend
- * settlement and capacity wakes, so a full pool cannot deadlock itself. */
+/** Serialize spawner transitions across replicas. The transaction holds ONLY
+ * the advisory lock: lifecycle data commits independently so deleting a
+ * gateway key cannot be followed by rollback of its booked spend.
+ *
+ * Each admitted lock holder gets one short-lived data connection with the
+ * root pool's resolved connection options (including TLS and serializers).
+ * Using the root pool for that work can deadlock once all its connections
+ * are occupied by lock holders. Extra connections are bounded by that pool's
+ * maximum; waiters never open one, and finally always closes the data pool. */
 function withSessionLifecycleLock<T>(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
-  work: (tx: TransactionSql) => Promise<T>,
+  work: (sessionSql: Sql) => Promise<T>,
 ): Promise<T> {
-  return withTransaction(sql, async (tx) => {
-    const key = `sandbox-lifecycle:${JSON.stringify([args.organizationId, args.sessionId])}`;
-    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
-    return work(tx);
-  });
+  let result!: T;
+  return sql
+    .begin(async (lock) => {
+      const key = `sandbox-lifecycle:${JSON.stringify([args.organizationId, args.sessionId])}`;
+      await lock`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+      // postgres.js accepts these already-parsed options (its subscription
+      // pool does the same). Its public overload only types raw host/port;
+      // retain the resolved TLS, multi-host, credential and serializer state.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- postgres.js parseOptions explicitly accepts its own parsed options
+      const options = {
+        ...sql.options,
+        max: 1,
+      } as unknown as postgres.Options<{}>;
+      const sessionSql = postgres(options);
+      try {
+        result = await work(sessionSql);
+      } finally {
+        await sessionSql.end();
+      }
+    })
+    .then(() => result);
 }
 
 /** Authorize before contacting the spawner; settle the row only after it
- * confirms destruction or absence. Failures leave the session retryable. */
+ * confirms destruction or absence. Failures leave it retryable but unpinned. */
 export async function teardownSession(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
   destroy: (sessionId: string) => Promise<boolean> = sessionDestroy,
 ): Promise<boolean> {
-  return withSessionLifecycleLock(sql, args, async (tx) => {
+  return withSessionLifecycleLock(sql, args, async (sessionSql) => {
     const session = await getSessionBySessionId(
-      tx,
+      sessionSql,
       args.organizationId,
       args.sessionId,
     );
     if (session === null) return false;
+    // Persist the no-recreate intent BEFORE an irreversible remote delete.
+    // A lost response or a later database failure leaves a visible unpinned
+    // row to retry/heal, never authority to recreate a wiped workspace.
+    await setSessionPinned(sessionSql, { ...args, pinned: false });
     await destroy(args.sessionId);
-    return markSessionDestroyed(tx, args);
+    return markSessionDestroyed(sessionSql, args);
   });
 }
 
@@ -73,8 +96,8 @@ export async function pinSession(
     pinned: boolean,
   ) => Promise<boolean> = sessionSetPinned,
 ): Promise<boolean> {
-  return withSessionLifecycleLock(sql, args, async (tx) => {
-    const patched = await setSessionPinned(tx, args);
+  return withSessionLifecycleLock(sql, args, async (sessionSql) => {
+    const patched = await setSessionPinned(sessionSql, args);
     if (patched) {
       try {
         await setPinned(args.sessionId, args.pinned);
@@ -106,8 +129,7 @@ export interface ReconcileSpawner {
 
 /** The statuses under which a row holds compute — the reconcile pass's
  * candidates. A pin only keeps such a row running: a `stopped` row is
- * hibernated on purpose, a terminal one is history (a Destroy keeps the
- * row's pin flag). */
+ * hibernated on purpose, a terminal one is history. */
 const COMPUTE_HOLDING_STATUSES: ReadonlySet<string> = new Set([
   'creating',
   'active',
@@ -162,16 +184,16 @@ export async function reconcileSession(
     create: sessionCreate,
   },
 ): Promise<ReconcileOutcome> {
-  return withSessionLifecycleLock(sql, args, async (tx) => {
+  return withSessionLifecycleLock(sql, args, async (sessionSql) => {
     const alive = await spawner.isAlive(args.sessionId);
     const row = await getSessionBySessionId(
-      tx,
+      sessionSql,
       args.organizationId,
       args.sessionId,
     );
     if (row === null || !row.pinned) {
       if (alive) return 'live';
-      await markSessionDestroyed(tx, args);
+      await markSessionDestroyed(sessionSql, args);
       return 'healed';
     }
     if (!COMPUTE_HOLDING_STATUSES.has(row.status)) return 'skipped';

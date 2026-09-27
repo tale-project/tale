@@ -1,25 +1,7 @@
 import postgres from 'postgres';
-import type { JSONValue, Sql, TransactionSql } from 'postgres';
+import type { JSONValue, Sql } from 'postgres';
 
 import { resolvePostgresConnection } from './ssl.ts';
-
-/** Join an existing transaction through a savepoint, or start one on a root
- * pool. A postgres.js transaction has no `begin` at runtime: using the root
- * pool from inside it instead can deadlock when all pool connections are
- * already held by callers. A savepoint also keeps a caught failure from
- * aborting the caller's transaction. */
-export async function withTransaction<T>(
-  sql: Sql | TransactionSql,
-  work: (tx: TransactionSql) => Promise<T>,
-): Promise<T> {
-  let result!: T;
-  const run = async (tx: TransactionSql): Promise<void> => {
-    result = await work(tx);
-  };
-  if ('savepoint' in sql) await sql.savepoint(run);
-  else await sql.begin(run);
-  return result;
-}
 
 /**
  * Recast a JSON-shaped value for postgres.js's `sql.json()`, whose JSONValue
@@ -76,7 +58,9 @@ const jsonPassthrough = {
  * How many connections ONE process opens to the application database.
  *
  * The budget matters once the database is external: a replica costs this pool
- * plus pg-boss's own pool of the same size, and a managed Postgres can cap
+ * plus pg-boss's own pool of the same size. Sandbox lifecycle lock holders
+ * may each open one temporary data connection (at most this pool's size),
+ * so the peak is three times the configured size. A managed Postgres can cap
  * `max_connections` far below what a handful of replicas would then ask for
  * (Azure's smallest Flexible Server allows 50). Tunable so the arithmetic is
  * the operator's to do rather than the code's to assume.
