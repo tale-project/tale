@@ -175,7 +175,7 @@ export function BrandingForm({
   ]);
 
   const {
-    form: { watch, setValue, getValues, control },
+    form: { watch, setValue, getValues, control, reset: resetForm },
   } = editor;
 
   const watchedValues = watch();
@@ -262,26 +262,74 @@ export function BrandingForm({
     ],
   );
 
-  // Clear branding wipes the form fields AND deletes the uploaded image
-  // blobs. Distinct from the per-row Discard which only reverts unsaved
-  // edits — clearing is a destructive, server-mutating action.
+  // Reset deletes the uploaded image blobs AND persists the cleared config
+  // in the same confirmation — one commit model, not two. It used to stage
+  // the accent clear as a pending form edit beside the immediate image
+  // deletes, so leaving the page raised the unsaved-changes prompt and a
+  // reload still showed the old colour until a further Save (2026-09-26
+  // evaluation, E-11). The save rides the normal path, so it writes the
+  // one `branding.updated` audit row and adopts the cleared baseline.
+  // Distinct from the per-row Discard, which only reverts unsaved edits.
+  const [resetting, setResetting] = useState(false);
   const handleClearBranding = useCallback(async () => {
-    const opts = { shouldDirty: true };
-    setValue('accentColor', '', opts);
-    setValue('logoFilename', '', opts);
-    setValue('faviconLightFilename', '', opts);
-    setValue('faviconDarkFilename', '', opts);
-
-    await Promise.all([
-      deleteImage.mutateAsync({ organizationId, type: 'logo' }),
-      deleteImage.mutateAsync({ organizationId, type: 'favicon-light' }),
-      deleteImage.mutateAsync({ organizationId, type: 'favicon-dark' }),
-    ]).catch((err) => {
-      // Non-fatal: the form fields are already cleared and will be persisted on
-      // the next save; surface the blob-deletion failure rather than swallow it.
-      console.warn('[branding] failed to delete image blobs on clear', err);
-    });
-  }, [organizationId, setValue, deleteImage]);
+    const cleared: BrandingFormData = {
+      accentColor: '',
+      logoFilename: '',
+      faviconLightFilename: '',
+      faviconDarkFilename: '',
+    };
+    setResetting(true);
+    try {
+      const deletions = await Promise.allSettled([
+        deleteImage.mutateAsync({ organizationId, type: 'logo' }),
+        deleteImage.mutateAsync({ organizationId, type: 'favicon-light' }),
+        deleteImage.mutateAsync({ organizationId, type: 'favicon-dark' }),
+      ]);
+      for (const deletion of deletions) {
+        if (deletion.status === 'rejected') {
+          // Non-fatal: the config save below drops the reference either way;
+          // surface the blob-deletion failure rather than swallow it.
+          console.warn(
+            '[branding] failed to delete an image blob on reset',
+            deletion.reason,
+          );
+        }
+      }
+      try {
+        await save(cleared);
+      } catch (err) {
+        // The images are gone but the config is not: keep the clear staged
+        // so the header's Save can retry it, and say why.
+        const opts = { shouldDirty: true };
+        setValue('accentColor', '', opts);
+        setValue('logoFilename', '', opts);
+        setValue('faviconLightFilename', '', opts);
+        setValue('faviconDarkFilename', '', opts);
+        toast({
+          title:
+            err instanceof Error
+              ? err.message
+              : tToast('error.brandingUpdateFailed.title'),
+          variant: 'destructive',
+        });
+        return;
+      }
+      // The cleared values ARE the saved state now: nothing left unsaved.
+      resetForm(cleared);
+      toast({ title: t('branding.resetDone'), variant: 'success' });
+    } finally {
+      setResetting(false);
+    }
+  }, [
+    deleteImage,
+    organizationId,
+    resetForm,
+    save,
+    setValue,
+    t,
+    tToast,
+    toast,
+  ]);
 
   return (
     <Form
@@ -385,6 +433,7 @@ export function BrandingForm({
         title={t('branding.resetConfirmTitle')}
         description={t('branding.resetConfirmDescription')}
         confirmText={tCommon('actions.reset')}
+        isLoading={resetting}
         onConfirm={async () => {
           await handleClearBranding();
           setConfirmClearOpen(false);

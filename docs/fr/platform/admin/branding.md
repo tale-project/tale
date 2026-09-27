@@ -43,4 +43,4 @@ Après l’enregistrement, recharge la page et vérifie un élément de navigati
 
 La personnalisation s’applique à l’intérieur de l’espace de travail. Changer d’organisation charge l’apparence de la destination. Les pages de connexion s’affichent avant le choix d’une organisation et utilisent l’apparence par défaut de la plateforme.
 
-Si le navigateur montre encore une ancienne icône, recharge la page et vérifie les champs de favicon. Une favicon explicite a priorité sur celle dérivée du logo. Utilise **Réinitialiser** seulement pour retirer la personnalisation enregistrée de l’organisation, après avoir lu la confirmation.
+Si le navigateur montre encore une ancienne icône, recharge la page et vérifie les champs de favicon. Une favicon explicite a priorité sur celle dérivée du logo. Utilise **Réinitialiser** seulement pour retirer la personnalisation enregistrée de l’organisation, après avoir lu la confirmation. La confirmation prend effet immédiatement : les images sont supprimées et la couleur d’accent effacée est enregistrée, sans autre **Enregistrer** et sans rien laisser de non enregistré.

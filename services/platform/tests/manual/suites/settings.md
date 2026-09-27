@@ -586,6 +586,16 @@ any toggled setting after the run.
   The confirmation (`dialogs.confirmRemoveMember`) asks about removing the
   person **from this organization** and says they lose access to it — never
   "from the team" (teams have their own Delete flow) — then cancel.
+- [ ] `SET-F50` · **Branding Reset commits at once** — On a throwaway
+  organization with a saved accent color and an uploaded logo →
+  `/dashboard/{org}/settings/branding` → the header's **Reset** action
+  (`common.actions.reset`) → confirm (`settings.branding.resetConfirmTitle`)
+  → Toast `settings.branding.resetDone`; the accent field is empty, the logo
+  slot shows the placeholder and **Reset** is disabled; navigating away
+  raises no unsaved-changes prompt and no **Save** is needed; after a reload
+  the accent is still the default; `logs` → **Audit logs** shows one
+  **Branding updated** (`settings.logs.audit.actionLabels.branding.updated`)
+  row beside the image removals.
 
 ## Boundary & error tests
 

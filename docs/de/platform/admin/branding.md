@@ -43,4 +43,4 @@ Lade die Seite nach dem Speichern neu und prüfe einen ausgewählten Navigations
 
 Das Branding gilt innerhalb des jeweiligen Arbeitsbereichs. Beim Wechsel der Organisation wird deren Darstellung geladen. Anmeldeseiten erscheinen vor der Organisationsauswahl und verwenden das Standard-Branding der Plattform.
 
-Zeigt der Browser noch ein altes Tab-Symbol, lade die Seite neu und prüfe die Favicon-Felder. Ein eigenes Favicon hat Vorrang vor der Ableitung aus dem Logo. Verwende **Zurücksetzen** nur, wenn du das konfigurierte Branding der Organisation entfernen möchtest, und lies vorher die Bestätigung.
+Zeigt der Browser noch ein altes Tab-Symbol, lade die Seite neu und prüfe die Favicon-Felder. Ein eigenes Favicon hat Vorrang vor der Ableitung aus dem Logo. Verwende **Zurücksetzen** nur, wenn du das konfigurierte Branding der Organisation entfernen möchtest, und lies vorher die Bestätigung. Die Bestätigung wirkt sofort: Die Bilder werden gelöscht und die geleerte Akzentfarbe wird gespeichert – ein weiteres **Speichern** ist nicht nötig, und es bleibt nichts ungespeichert.

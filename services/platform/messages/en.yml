@@ -6724,6 +6724,7 @@ settings:
     resetConfirmDescription:
       This deletes the uploaded logo and favicons and clears
       the accent color. Removed images can’t be restored.
+    resetDone: Branding reset
   dataResidency:
     readOnly:
       title: Read-only access

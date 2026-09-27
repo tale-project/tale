@@ -5,7 +5,7 @@ import {
   useActiveEditor,
   type EditorController,
 } from '@tale/ui/editor';
-import { cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { adjustColorForTheme } from '@/lib/utils/color';
@@ -23,15 +23,32 @@ vi.mock('@tale/ui/use-toast', () => ({
 
 // Mock branding mutations
 const mockMutateAsync = vi.fn().mockResolvedValue(undefined);
+const mockDeleteImage = vi.fn().mockResolvedValue(undefined);
 const mockSaveImage = vi
   .fn()
   .mockResolvedValue({ filename: 'favicon-light.png' });
 vi.mock('../hooks/mutations', () => ({
   useSaveBranding: () => ({ mutateAsync: mockMutateAsync }),
   useSnapshotBrandingHistory: () => ({ mutateAsync: mockMutateAsync }),
-  useDeleteImage: () => ({ mutateAsync: mockMutateAsync }),
+  useDeleteImage: () => ({ mutateAsync: mockDeleteImage }),
   useSaveImage: () => ({ mutateAsync: mockSaveImage }),
 }));
+
+// The header's Reset action registers through the settings-header slot; the
+// capture stands in for the header so a test can press it.
+const registeredActions = {
+  current: [] as { label: string; onClick: () => void; disabled?: boolean }[],
+};
+vi.mock(
+  '@/app/features/settings/components/settings-secondary-action-context',
+  () => ({
+    useRegisterSettingsSecondaryAction: (
+      actions: { label: string; onClick: () => void; disabled?: boolean }[],
+    ) => {
+      registeredActions.current = actions;
+    },
+  }),
+);
 
 // Mock favicon derivation (jsdom has no canvas; the predicate is tested
 // directly in derive-favicon.test.ts).
@@ -267,6 +284,45 @@ describe('BrandingForm', () => {
 
     fireEvent.change(hexInput, { target: { value: 'FF0000' } });
     expect(screen.getByTestId('dirty')).toHaveTextContent('no');
+  });
+
+  // E-11: Reset used to delete the images at once but only STAGE the accent
+  // clear — the page raised the unsaved-changes prompt and a reload showed
+  // the old colour until a further Save. The confirm now commits everything.
+  describe('Reset', () => {
+    it('deletes the images, saves the cleared config and leaves nothing unsaved', async () => {
+      render(
+        <ActiveEditorProvider>
+          <BrandingForm
+            {...defaultProps}
+            branding={{ accentColor: '#E11D48', logoUrl: '/logo.png' }}
+          />
+          <DirtyProbe />
+        </ActiveEditorProvider>,
+      );
+
+      const reset = registeredActions.current.find((a) => a.label === 'Reset');
+      expect(reset?.disabled).toBe(false);
+      act(() => reset?.onClick());
+      fireEvent.click(await screen.findByRole('button', { name: 'Reset' }));
+
+      await waitFor(() =>
+        expect(mockMutateAsync).toHaveBeenCalledWith({
+          organizationId: 'org_test',
+          config: {
+            accentColor: undefined,
+            logoFilename: undefined,
+            faviconLightFilename: undefined,
+            faviconDarkFilename: undefined,
+          },
+        }),
+      );
+      expect(mockDeleteImage).toHaveBeenCalledTimes(3);
+      await waitFor(() =>
+        expect(screen.getByLabelText('Accent color hex value')).toHaveValue(''),
+      );
+      expect(screen.getByTestId('dirty')).toHaveTextContent('no');
+    });
   });
 
   describe('mode-aware accent storage (only the light color is stored)', () => {

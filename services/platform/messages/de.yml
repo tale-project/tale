@@ -6604,6 +6604,7 @@ settings:
     resetConfirmDescription:
       Logo und Favicons werden gelöscht, die Akzentfarbe wird
       entfernt. Gelöschte Bilder lassen sich nicht wiederherstellen.
+    resetDone: Branding zurückgesetzt
   dataResidency:
     readOnly:
       title: Nur Lesezugriff

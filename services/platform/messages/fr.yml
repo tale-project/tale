@@ -6707,6 +6707,7 @@ settings:
       Le logo et les favicons téléversés sont supprimés et la
       couleur d’accent est effacée. Les images supprimées ne peuvent pas être
       restaurées.
+    resetDone: Identité visuelle réinitialisée
   dataResidency:
     readOnly:
       title: Accès en lecture seule
