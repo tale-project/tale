@@ -198,17 +198,15 @@ describe('dispatchBridgeConnectorImpl', () => {
   });
 
   it('reports a credential the door cannot resolve as the no_credential blocker', async () => {
-    const runDispatch = vi
-      .fn()
-      .mockRejectedValue(
-        new ConnectorError(
-          'CREDENTIAL_UNRESOLVED',
-          'no usable credential for tavily: no active credential',
-          {
-            hint: 'connect the connector, or mark one of its credentials as the default',
-          },
-        ),
-      );
+    const runDispatch = vi.fn().mockRejectedValue(
+      new ConnectorError(
+        'CREDENTIAL_UNRESOLVED',
+        'no usable credential for tavily: no active credential',
+        {
+          hint: 'connect the connector, or mark one of its credentials as the default',
+        },
+      ),
+    );
     const { dispatch } = await getActions();
 
     const result = await dispatch(runDispatch as unknown as Dispatch, {
