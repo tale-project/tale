@@ -51,6 +51,12 @@ import {
 import { InboxMobileBackButton } from './inbox-mobile-back-button';
 import { Message } from './message';
 import { MessageEditorPlaceholder } from './message-editor/message-editor-placeholder';
+import {
+  type AttachedFile,
+  type MessageEditorProps,
+  type StoredAttachment,
+  storedAttachedFile,
+} from './message-editor/types';
 
 const MessageEditor = lazyComponent(
   () =>
@@ -70,12 +76,6 @@ import { useSwapFade } from '@tale/ui/use-swap-fade';
 
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 import { documentTitle } from '@/lib/utils/seo';
-
-interface AttachedFile {
-  id: string;
-  file: File | null;
-  type: 'image' | 'video' | 'audio' | 'document';
-}
 
 // Placeholder message bubbles for the loading window — no real messages exist
 // yet, so these synthetic rows stand in (each masked at its leaves). Sized to
@@ -181,11 +181,17 @@ export function ConversationPanel({
   const { mutate: discardOutboundMessage } = useDiscardOutboundMessage();
 
   // Draft handed back by an undo-send: seeds the composer's pendingMessage so
-  // the message the user just cancelled reappears exactly as they wrote it.
-  // Cleared via MessageEditor.onPendingMessageConsumed on a successful resend
-  // (same turn as the editor remount) so the remount cannot re-seed from it.
+  // the message the user just cancelled reappears exactly as they wrote it —
+  // its text and its files. Cleared via
+  // MessageEditor.onPendingMessageConsumed on a successful resend (same turn
+  // as the editor remount) so the remount cannot re-seed from it. It seeds
+  // only the conversation it was undone in: the panel outlives a switch, and
+  // another thread's reply must never pick up this one's text or files.
   const [restoredDraft, setRestoredDraft] = useState<
-    { id: string; content: string } | undefined
+    | (NonNullable<MessageEditorProps['pendingMessage']> & {
+        conversationId: string;
+      })
+    | undefined
   >(undefined);
 
   const { formatDate } = useFormatDate();
@@ -254,24 +260,20 @@ export function ConversationPanel({
       return;
     }
 
-    let uploadedAttachments:
-      | Array<{
-          storageId: string;
-          fileName: string;
-          contentType: string;
-          size: number;
-        }>
-      | undefined;
+    let uploadedAttachments: StoredAttachment[] | undefined;
 
     if (attachments && attachments.length > 0) {
       try {
-        const validAttachments = attachments.filter((a) => a.file);
+        const validAttachments = attachments.filter((a) => a.file || a.stored);
         if (validAttachments.length !== attachments.length) {
           throw new Error(tConversations('panel.invalidFileAttachment'));
         }
 
         uploadedAttachments = await Promise.all(
           validAttachments.map(async (attachment) => {
+            // A file an undone send handed back is already in storage: the
+            // re-send names the same blob rather than uploading it again.
+            if (attachment.stored) return attachment.stored;
             const file = attachment.file;
             if (!file)
               throw new Error(tConversations('panel.invalidFileAttachment'));
@@ -342,12 +344,22 @@ export function ConversationPanel({
   };
 
   const handleUndoSend = (messageId: string) => {
+    const conversationId = conversation?.id;
+    if (conversationId === undefined) return;
     undoSendMessage(
       { messageId: messageId },
       {
-        onSuccess: ({ sourceMarkdown }) => {
-          if (sourceMarkdown) {
-            setRestoredDraft({ id: messageId, content: sourceMarkdown });
+        onSuccess: ({ sourceMarkdown, attachments }) => {
+          // An attachment-only reply has no markdown to hand back; its files
+          // alone are the draft.
+          const files = (attachments ?? []).map(storedAttachedFile);
+          if (sourceMarkdown || files.length > 0) {
+            setRestoredDraft({
+              id: messageId,
+              content: sourceMarkdown ?? '',
+              attachments: files,
+              conversationId,
+            });
           }
         },
         onError: (error) => {
@@ -653,8 +665,18 @@ export function ConversationPanel({
                   onConversationResolved={() => {
                     onSelectedConversationChange(null);
                   }}
-                  pendingMessage={restoredDraft ?? pendingMessage}
-                  onPendingMessageConsumed={() => setRestoredDraft(undefined)}
+                  pendingMessage={
+                    restoredDraft?.conversationId === conversation.id
+                      ? restoredDraft
+                      : pendingMessage
+                  }
+                  onPendingMessageConsumed={() =>
+                    setRestoredDraft((draft) =>
+                      draft?.conversationId === conversation.id
+                        ? undefined
+                        : draft,
+                    )
+                  }
                   hasMessageHistory={displayMessages.length > 0}
                   organizationId={conversation.organizationId}
                   {...(replyDestination !== undefined

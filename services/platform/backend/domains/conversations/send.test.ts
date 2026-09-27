@@ -459,13 +459,79 @@ describe('undoSendMessage — after the claim', () => {
     });
     await expect(
       undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
-    ).resolves.toEqual({ sourceMarkdown: null });
+    ).resolves.toEqual({ sourceMarkdown: null, attachments: [] });
     const deletes = statements.filter((s) => s.text.startsWith('DELETE'));
     expect(deletes).toHaveLength(1);
     expect(deletes[0]?.text).toContain("delivery_state = 'queued'");
     expect(deletes[0]?.text).toContain("metadata->>'sendClaimedAt' IS NULL");
     expect(deletes[0]?.values).toEqual(['m1', 'o1']);
     expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+
+  // The undo hands the whole draft back: the markdown AND the files the send
+  // named, so undoing a reply that carried only an attachment still gives
+  // the person their message back. It used to hand back the markdown alone.
+  const INVOICE = {
+    id: 's3:o1/invoice',
+    filename: 'invoice.pdf',
+    contentType: 'application/pdf',
+    size: 8,
+    storageId: 's3:o1/invoice',
+  };
+  const HANDED_BACK = {
+    storageId: 's3:o1/invoice',
+    fileName: 'invoice.pdf',
+    contentType: 'application/pdf',
+    size: 8,
+  };
+
+  it('hands back the text and the files of the send it recalls', async () => {
+    const row = {
+      ...QUEUED_ROW,
+      metadata: {
+        ...QUEUED_ROW.metadata,
+        sourceMarkdown: 'The invoice is attached.',
+        attachments: [INVOICE],
+      },
+    };
+    const { sql } = fakeSql({ [LOAD]: [row], [UNDO_DELETE]: [{ id: 'm1' }] });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).resolves.toEqual({
+      sourceMarkdown: 'The invoice is attached.',
+      attachments: [HANDED_BACK],
+    });
+  });
+
+  it('hands back the files of an attachment-only send, which has no text', async () => {
+    const row = {
+      ...QUEUED_ROW,
+      content: '',
+      metadata: { ...QUEUED_ROW.metadata, attachments: [INVOICE] },
+    };
+    const { sql } = fakeSql({ [LOAD]: [row], [UNDO_DELETE]: [{ id: 'm1' }] });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).resolves.toEqual({ sourceMarkdown: null, attachments: [HANDED_BACK] });
+  });
+
+  it('hands back the files of an API-source reply in the same shape', async () => {
+    // `queueApiReply` stamps its files with the source's external id as `id`.
+    const row = {
+      ...QUEUED_ROW,
+      channel: 'api',
+      metadata: {
+        sourceMarkdown: 'Here it is.',
+        attachments: [{ ...INVOICE, id: 'ext-7' }],
+      },
+    };
+    const { sql } = fakeSql({ [LOAD]: [row], [UNDO_DELETE]: [{ id: 'm1' }] });
+    await expect(
+      undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ).resolves.toEqual({
+      sourceMarkdown: 'Here it is.',
+      attachments: [HANDED_BACK],
+    });
   });
 });
 

@@ -148,19 +148,36 @@ function MilkdownEditorInner({
 
   const pendingId = pendingMessage?.id;
   const pendingContent = pendingMessage?.content ?? '';
+  const pendingAttachments = pendingMessage?.attachments;
 
   useEffect(() => {
-    if (!pendingContent.trim()) {
+    const pendingFiles = pendingAttachments ?? [];
+    const hasPendingText = pendingContent.trim().length > 0;
+    if (!hasPendingText && pendingFiles.length === 0) {
       appliedPendingKeyRef.current = null;
       return;
     }
-    const applyKey = `${pendingId ?? ''}:${pendingContent}`;
+    const applyKey = `${pendingId ?? ''}:${pendingContent}:${pendingFiles
+      .map((file) => file.id)
+      .join(',')}`;
     if (appliedPendingKeyRef.current === applyKey) return;
     appliedPendingKeyRef.current = applyKey;
-    setMessage(pendingContent);
-    setProgrammaticContent(pendingContent);
-    setHasContent(true);
-  }, [pendingId, pendingContent, setMessage]);
+    if (hasPendingText) {
+      setMessage(pendingContent);
+      setProgrammaticContent(pendingContent);
+      setHasContent(true);
+    }
+    if (pendingFiles.length > 0) {
+      // An undone send's files come back beside anything attached since —
+      // never twice, and never dropping a file picked in the meantime.
+      setAttachedFiles((current) => [
+        ...pendingFiles,
+        ...current.filter(
+          (file) => !pendingFiles.some((pending) => pending.id === file.id),
+        ),
+      ]);
+    }
+  }, [pendingId, pendingContent, pendingAttachments, setMessage]);
 
   const handleOpenInstructionTextarea = useCallback(() => {
     setSavedEditorContent(message);

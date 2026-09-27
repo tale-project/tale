@@ -10,6 +10,8 @@ import { render, screen } from '@/tests/utils/render';
 let renderCount = 0;
 let capturedOnSend: (() => void) | null = null;
 let capturedOnFileAttach: ((file: AttachedFile) => void) | null = null;
+// The files the composer currently holds, as it hands them to the list.
+let listedFiles: AttachedFile[] = [];
 // What the persisted drafts start from — a typed body unless a test clears it.
 let persistedSeed = 'some content';
 
@@ -106,7 +108,10 @@ vi.mock('./message-editor/editor-action-bar', () => ({
 }));
 
 vi.mock('./message-editor/file-attachments-list', () => ({
-  FileAttachmentsList: () => null,
+  FileAttachmentsList: ({ files }: { files: AttachedFile[] }) => {
+    listedFiles = files;
+    return null;
+  },
 }));
 
 vi.mock('./message-editor/improve-mode', () => ({
@@ -120,13 +125,14 @@ vi.mock('./message-improvement-dialog', () => ({
 import { toast } from '@tale/ui/use-toast';
 
 import { MessageEditor } from './message-editor';
-import type { AttachedFile } from './message-editor/types';
+import { storedAttachedFile, type AttachedFile } from './message-editor/types';
 
 describe('MessageEditor', () => {
   beforeEach(() => {
     renderCount = 0;
     capturedOnSend = null;
     capturedOnFileAttach = null;
+    listedFiles = [];
     persistedSeed = 'some content';
     window.localStorage.clear();
   });
@@ -282,6 +288,91 @@ describe('MessageEditor', () => {
     });
 
     expect(onPendingMessageConsumed).not.toHaveBeenCalled();
+  });
+
+  // Undoing a send hands its draft back — the text and the files. The files
+  // used to be dropped, so undoing an attachment-only reply restored nothing.
+  describe('a draft handed back by an undo', () => {
+    const invoice = storedAttachedFile({
+      storageId: 's3:org_test/invoice',
+      fileName: 'invoice.pdf',
+      contentType: 'application/pdf',
+      size: 8,
+    });
+
+    it('comes back with its text and its files, and re-sends both', async () => {
+      const onSave = vi.fn().mockResolvedValue(undefined);
+
+      render(
+        <MessageEditor
+          onSave={onSave}
+          organizationId="org_test"
+          pendingMessage={{
+            id: 'msg_1',
+            content: 'The invoice is attached.',
+            attachments: [invoice],
+          }}
+        />,
+      );
+
+      expect(listedFiles).toEqual([invoice]);
+
+      await act(async () => {
+        capturedOnSend?.();
+      });
+
+      expect(onSave).toHaveBeenCalledWith(
+        expect.any(String),
+        [invoice],
+        'The invoice is attached.',
+      );
+    });
+
+    it('comes back with its files alone when the send carried no text', async () => {
+      persistedSeed = '';
+      const onSave = vi.fn().mockResolvedValue(undefined);
+
+      render(
+        <MessageEditor
+          onSave={onSave}
+          organizationId="org_test"
+          pendingMessage={{ id: 'msg_1', content: '', attachments: [invoice] }}
+        />,
+      );
+
+      expect(listedFiles).toEqual([invoice]);
+
+      await act(async () => {
+        capturedOnSend?.();
+      });
+
+      expect(onSave).toHaveBeenCalledWith('', [invoice], undefined);
+    });
+
+    it('keeps a file attached before the undo, and never lists one twice', async () => {
+      const picked: AttachedFile = {
+        id: 'f_picked',
+        file: new File(['x'], 'notes.txt', { type: 'text/plain' }),
+        type: 'document',
+      };
+      const { rerender } = render(<MessageEditor organizationId="org_test" />);
+      await act(async () => {
+        capturedOnFileAttach?.(picked);
+      });
+
+      const draft = { id: 'msg_1', content: 'Back', attachments: [invoice] };
+      rerender(
+        <MessageEditor organizationId="org_test" pendingMessage={draft} />,
+      );
+      rerender(
+        <MessageEditor
+          organizationId="org_test"
+          pendingMessage={{ ...draft, attachments: [invoice] }}
+        />,
+      );
+
+      expect(listedFiles).toEqual([invoice, picked]);
+    });
   });
 
   describe('accessibility', () => {

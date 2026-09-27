@@ -12,6 +12,7 @@ import '@/app/globals.css';
 
 import { useSendMessageViaConnector } from '../hooks/mutations';
 import { MessageEditor } from './message-editor';
+import { storedAttachedFile } from './message-editor/types';
 
 const persisted = vi.hoisted(() => ({ body: '' }));
 
@@ -96,6 +97,71 @@ describe('Inbox editor height (real layout)', () => {
   it('keeps to 30 % of a short viewport', async () => {
     await page.viewport(640, 360);
     expect(await focusedHeight()).toBeLessThanOrEqual(0.3 * 360 + 0.5);
+  });
+});
+
+/**
+ * The ✕ beside an attached file had no accessible name: a screen reader heard
+ * "button" and could not tell which file it removed (WCAG 4.1.2). It is named
+ * after the file, and so is every file an undone send hands back.
+ */
+describe('Inbox reply box file chips (real browser)', () => {
+  it('names the remove button after the file, and removes that file', async () => {
+    const { user, container } = render(
+      <MessageEditor organizationId="org1" placeholder="Write your message…" />,
+    );
+    await screen.findByRole('textbox', { name: 'Write your message…' });
+    const input =
+      container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('the reply box has no file input');
+    await user.upload(
+      input,
+      new File(['%PDF-1.4'], 'invoice.pdf', { type: 'application/pdf' }),
+    );
+
+    const remove = await screen.findByRole('button', {
+      name: 'Remove invoice.pdf',
+    });
+    await user.click(remove);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Remove invoice.pdf' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText('invoice.pdf')).not.toBeInTheDocument();
+  });
+
+  it('shows the text and the files an undone send handed back', async () => {
+    render(
+      <MessageEditor
+        organizationId="org1"
+        placeholder="Write your message…"
+        pendingMessage={{
+          id: 'm1',
+          content: 'The invoice is attached.',
+          attachments: [
+            storedAttachedFile({
+              storageId: 's3:org1/invoice',
+              fileName: 'invoice.pdf',
+              contentType: 'application/pdf',
+              size: 8,
+            }),
+          ],
+        }}
+      />,
+    );
+
+    const textbox = await screen.findByRole('textbox', {
+      name: 'Write your message…',
+    });
+    await waitFor(() =>
+      expect(textbox).toHaveTextContent('The invoice is attached.'),
+    );
+    expect(
+      screen.getByRole('button', { name: 'Remove invoice.pdf' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
   });
 });
 
