@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react';
+import { useAccentColor } from '@tale/ui/accent-color';
+import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { deriveAccentPalette } from '@/lib/utils/color';
 
-import { BrandingProvider } from './branding-provider';
+import { BrandingProvider, useBrandingContext } from './branding-provider';
 
 // The provider reads the active org, its branding, and the resolved theme, then
 // injects CSS variables on <html>. Mock the data sources so the test drives the
@@ -55,11 +56,40 @@ describe('BrandingProvider CSS injection', () => {
     expect(readVar('--color-accent-fg').toLowerCase()).toBe(
       palette.fg.toLowerCase(),
     );
-    // The legacy HSL tokens stay wired too (badges, chat cards, focus ring).
-    expect(readVar('--primary')).toBe(palette.baseHsl);
-    expect(readVar('--primary-foreground')).toBe(palette.fgHsl);
+    // The legacy HSL tokens carry the accent where it is the ink itself —
+    // `text-primary` links, mentions and citations, unread dots, the focus
+    // ring — so they get the text shade, not the 3:1 surface.
+    expect(readVar('--primary')).toBe(palette.textHsl);
+    expect(readVar('--primary-foreground')).toBe(palette.onTextHsl);
     expect(readVar('--primary-muted')).toBe(palette.mutedHsl);
-    expect(readVar('--ring')).toBe(palette.baseHsl);
+    expect(readVar('--ring')).toBe(palette.textHsl);
+  });
+
+  it('hands tinted navigation the text shade, not the raw pick', () => {
+    // #FF00FF clears 3:1 on the light page, so it stays the button's fill —
+    // but the open row sets the context accent as its text, where it read
+    // 2.4:1 on its own tint.
+    brandingData.current = { accentColor: '#FF00FF' };
+
+    function Probe() {
+      return (
+        <>
+          <span data-testid="context">{useBrandingContext().accentColor}</span>
+          <span data-testid="tinted">{useAccentColor()}</span>
+        </>
+      );
+    }
+    render(
+      <BrandingProvider>
+        <Probe />
+      </BrandingProvider>,
+    );
+
+    const palette = deriveAccentPalette('#FF00FF', 'light');
+    expect(palette.text).not.toBe(palette.base.toLowerCase());
+    expect(screen.getByTestId('context').textContent).toBe(palette.text);
+    expect(screen.getByTestId('tinted').textContent).toBe(palette.text);
+    expect(readVar('--color-accent-base')).toBe('#FF00FF');
   });
 
   it('does not touch any palette token when no accent color is set', () => {

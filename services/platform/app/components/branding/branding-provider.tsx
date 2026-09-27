@@ -47,9 +47,11 @@ interface BrandingProviderProps {
 // The single accent color (#1960 — it superseded the old two-field
 // brand/accent contract) drives the whole "primary action" palette in BOTH
 // shipped token vocabularies (see packages/ui/src/globals.css header): the
-// legacy HSL `--primary*` / `--ring` (badges, chat cards, focus rings) AND the
 // canonical `@tale/ui` `--color-accent-base`/`--color-accent-fg` that the
-// primary `Button` variant actually consumes (`bg-accent-base text-accent-fg`).
+// primary `Button` variant consumes (`bg-accent-base text-accent-fg`) carry
+// the accent as a surface; the legacy HSL `--primary*` / `--ring` carry it
+// where it is the ink itself — link, mention and citation text, unread dots,
+// focus rings — so they get the palette's text-legible shade.
 const CSS_OVERRIDES = [
   'primary',
   'primary-foreground',
@@ -80,8 +82,9 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   }, [data]);
 
   // One color is picked once but applied to both themes; derive the full
-  // legible palette (base, ink, muted shade) for the active theme so even a
-  // "bad" pick is normalized into contrast (the other theme derives its own).
+  // legible palette (surface, ink, text shade, muted shade) for the active
+  // theme so even a "bad" pick is normalized into contrast (the other theme
+  // derives its own).
   const palette = useMemo(
     () =>
       branding?.accentColor
@@ -159,12 +162,14 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
     const root = document.documentElement;
 
     if (palette) {
-      // Legacy HSL vocabulary: primary surface + matched ink + a muted shade,
-      // and the focus ring, which globals.css keys to the same intent color.
-      root.style.setProperty('--primary', palette.baseHsl);
-      root.style.setProperty('--primary-foreground', palette.fgHsl);
+      // Legacy HSL vocabulary: the platform sets `text-primary` as text on
+      // the page and on `bg-primary/10`, so `--primary` is the accent's text
+      // shade with its matched ink; the focus ring shares it, and a muted
+      // shade rides along.
+      root.style.setProperty('--primary', palette.textHsl);
+      root.style.setProperty('--primary-foreground', palette.onTextHsl);
       root.style.setProperty('--primary-muted', palette.mutedHsl);
-      root.style.setProperty('--ring', palette.baseHsl);
+      root.style.setProperty('--ring', palette.textHsl);
       // Canonical `@tale/ui` vocabulary (raw hex): what the primary `Button`
       // reads via `bg-accent-base` / `text-accent-fg`.
       root.style.setProperty('--color-accent-base', palette.base);
@@ -178,12 +183,13 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
     };
   }, [palette]);
 
-  // Expose the theme-adjusted accent as the context `accentColor` so every
-  // consumer (sidebar, tabs, mobile nav) gets the legible variant.
+  // Expose the accent's text shade as the context `accentColor`: every
+  // consumer (sidebar, section and sub-panel rows, tabs, mobile nav) sets it
+  // as the open item's text and icon colour over its own `…26` tint.
   const value = useMemo<BrandingContextValue>(
     () => ({
       ...(branding ?? { isLoaded: false }),
-      accentColor: palette?.base,
+      accentColor: palette?.text,
       refetch: async () => {
         await refetch();
       },

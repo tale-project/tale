@@ -232,7 +232,7 @@ const ConversationRow = memo(function ConversationRow({
               </Heading>
               {conversation && conversation.unread_count > 0 && (
                 <span
-                  className="size-1.5 shrink-0 rounded-full bg-blue-500"
+                  className="bg-primary size-1.5 shrink-0 rounded-full"
                   aria-label={tCommon('aria.unread')}
                   role="status"
                 />

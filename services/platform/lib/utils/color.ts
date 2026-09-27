@@ -113,8 +113,14 @@ export function contrastRatio(a: string, b: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-/** Page background each theme applies the branded color against. */
-const THEME_BACKGROUND = { light: '#FFFFFF', dark: '#0A0A0A' } as const;
+/**
+ * The page each theme applies the branded color against — the app's
+ * `--background` in `packages/ui/src/globals.css` (`0 0% 98.8%` light,
+ * `0 0% 3.92%` dark), which the panels and the chat column are painted in.
+ * Not pure white: a pick walked to 3:1 against `#FFFFFF` read 2.96:1 on the
+ * real page. `color.test.ts` holds these to the stylesheet.
+ */
+export const THEME_BACKGROUND = { light: '#FCFCFC', dark: '#0A0A0A' } as const;
 const LIGHTNESS_STEP = 2;
 /** The most steps a lightness walk can take from one end of the scale to
  * the other — the hard bound on every walk below, whatever the input. */
@@ -179,27 +185,97 @@ export function adjustColorForTheme(
 export const ACCENT_INK_DARK = '#030712';
 export const ACCENT_INK_LIGHT = '#ffffff';
 
-/** WCAG AA contrast for normal text — the target for ink on the accent. */
+/** WCAG AA contrast for normal text — the target for ink on the accent, and
+ * for the accent where it is itself the ink (a link, a mention, a nav row). */
 const MIN_FG_CONTRAST = 4.5;
 /** WCAG 1.4.11 non-text contrast — the floor for the accent vs. the page. */
 const MIN_BG_CONTRAST = 3;
+/**
+ * The densest tint the accent's own text sits on: a citation's hover
+ * `bg-primary/20`. At rest it is lighter still — a selected row's
+ * `${accent}26` (0x26 / 255 ≈ 15 %), a mention's `bg-primary/10` — so the
+ * text clears them with room to spare.
+ */
+const ACCENT_TINT_ALPHA = 0.2;
+
+/** `top` laid over `bottom` at `alpha` — how the browser composites a
+ * translucent fill onto an opaque one, channel by channel in sRGB. */
+function compositeOver(top: string, bottom: string, alpha: number): string {
+  const a = hexToRgb(top);
+  const b = hexToRgb(bottom);
+  const channel = (t: number, u: number) =>
+    Math.round((t * alpha + u * (1 - alpha)) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${channel(a.r, b.r)}${channel(a.g, b.g)}${channel(a.b, b.b)}`;
+}
+
+/** Whether `hex` reads as normal-size text on the page AND on its own tint. */
+function readsAsText(hex: string, background: string): boolean {
+  return (
+    contrastRatio(hex, background) >= MIN_FG_CONTRAST &&
+    contrastRatio(hex, compositeOver(hex, background, ACCENT_TINT_ALPHA)) >=
+      MIN_FG_CONTRAST
+  );
+}
+
+/** The ink (near-black or white) with the higher real contrast on `hex`. */
+function inkOn(hex: string): string {
+  return contrastRatio(hex, ACCENT_INK_DARK) >=
+    contrastRatio(hex, ACCENT_INK_LIGHT)
+    ? ACCENT_INK_DARK
+    : ACCENT_INK_LIGHT;
+}
 
 /**
  * The whole branded palette derived from one accent color, per theme. Hex
- * values feed the canonical `@tale/ui` tokens (`--color-accent-*`); the
- * space-separated HSL strings feed the legacy tokens (`--primary*`, `--ring`).
+ * values feed the canonical `@tale/ui` tokens (`--color-accent-*`) and the
+ * accent React context; the space-separated HSL strings feed the legacy
+ * tokens (`--primary*`, `--ring`).
  */
 interface AccentPalette {
-  /** The theme-adjusted accent surface (hex). */
+  /** The theme-adjusted accent surface (hex) — `--color-accent-base`, the
+   * primary button's fill. */
   base: string;
   /** Ink on top of `base` — `ACCENT_INK_DARK` or `ACCENT_INK_LIGHT` (hex). */
   fg: string;
-  /** `base` as CSS-variable HSL (for `--primary` / `--ring`). */
-  baseHsl: string;
-  /** `fg` as CSS-variable HSL (for `--primary-foreground`). */
-  fgHsl: string;
+  /** The accent where it is the ink itself (hex): link, mention and citation
+   * text, the selected navigation row, unread dots, the focus ring. */
+  text: string;
+  /** `text` as CSS-variable HSL (for `--primary` / `--ring`). */
+  textHsl: string;
+  /** The ink on a `text`-coloured fill as CSS-variable HSL (for
+   * `--primary-foreground`). */
+  onTextHsl: string;
   /** A low-emphasis shade of the accent hue (for `--primary-muted`). */
   mutedHsl: string;
+}
+
+/**
+ * The accent as text: the pick's own hue and saturation, walked one
+ * lightness point at a time toward the contrasting end (darker on light,
+ * lighter on dark) until it reads at 4.5:1 on the page and on its own tint.
+ * Black and white always do, so the walk always ends. The result is kept as
+ * whole HSL parts, so the hex and the `--primary` HSL string name the same
+ * color — a rounded HSL string of an arbitrary hex could land below a
+ * threshold its hex cleared.
+ */
+function deriveAccentText(
+  hex: string,
+  theme: 'light' | 'dark',
+): { hex: string; hsl: string } {
+  if (!isHexColor(hex)) return { hex, hsl: hexToHsl(hex) };
+  const background = THEME_BACKGROUND[theme];
+  const direction = theme === 'dark' ? 1 : -1;
+  const { h, s, l } = hexToHslParts(hex);
+  let lightness = l;
+  for (let step = 0; step <= 100; step++) {
+    if (readsAsText(hslToHex(h, s, lightness), background)) break;
+    const next = Math.min(100, Math.max(0, lightness + direction));
+    if (next === lightness) break;
+    lightness = next;
+  }
+  return { hex: hslToHex(h, s, lightness), hsl: `${h} ${s}% ${lightness}%` };
 }
 
 /**
@@ -207,14 +283,20 @@ interface AccentPalette {
  * the given theme (#1960). Any input — even a "bad" color — comes out usable:
  *
  * 1. `base` starts from {@link adjustColorForTheme}, so it clears the 3:1
- *    non-text floor against the theme background where reachable.
+ *    non-text floor against the theme's page where reachable.
  * 2. `fg` is whichever ink (near-black / white) has the HIGHER real contrast
  *    ratio on `base` — not a crude lightness guess. The better ink always
  *    clears ≈4.3:1 on any color; when it still falls short of the 4.5:1 AA
  *    text target, `base`'s lightness is nudged away from the ink until the
  *    target is met — stopping early rather than dropping below the 3:1
  *    background floor.
- * 3. `mutedHsl` keeps the accent hue at half saturation with the same
+ * 3. `text` is the accent where it is the ink itself. 3:1 is a floor for a
+ *    surface, not for letters: a mid-tone like `#FF00FF` clears it on the
+ *    light page, yet a link, a mention or a selected row set in it read
+ *    2.4:1. `text` walks the pick to 4.5:1 on the page and on its own tint
+ *    ({@link deriveAccentText}); the button keeps `base`, as close to the
+ *    pick as legibility allows. Its ink clears 4.5:1 by construction.
+ * 4. `mutedHsl` keeps the accent hue at half saturation with the same
  *    lightness the default `--primary-muted` grays use per theme, so muted
  *    text stays muted but on-brand.
  *
@@ -229,11 +311,7 @@ export function deriveAccentPalette(
   const background = THEME_BACKGROUND[theme];
   let base = adjustColorForTheme(hex, theme);
 
-  const fg =
-    contrastRatio(base, ACCENT_INK_DARK) >=
-    contrastRatio(base, ACCENT_INK_LIGHT)
-      ? ACCENT_INK_DARK
-      : ACCENT_INK_LIGHT;
+  const fg = inkOn(base);
 
   // Dark ink wants a lighter surface; white ink wants a darker one.
   const direction = fg === ACCENT_INK_DARK ? 1 : -1;
@@ -258,12 +336,14 @@ export function deriveAccentPalette(
     base = candidate;
   }
 
+  const text = deriveAccentText(hex, theme);
   const mutedLightness = theme === 'dark' ? 75 : 60;
   return {
     base,
     fg,
-    baseHsl: hexToHsl(base),
-    fgHsl: hexToHsl(fg),
+    text: text.hex,
+    textHsl: text.hsl,
+    onTextHsl: hexToHsl(inkOn(text.hex)),
     mutedHsl: `${h} ${Math.round(s / 2)}% ${mutedLightness}%`,
   };
 }

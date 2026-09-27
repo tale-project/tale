@@ -151,3 +151,19 @@ describe('ConversationsList accessibility', () => {
     expect(screen.getByLabelText('Loading more...')).toBeInTheDocument();
   });
 });
+
+describe('ConversationsList unread mark', () => {
+  it("wears the organization's accent, not a fixed blue", () => {
+    // `bg-primary` is `--primary`, which the branding provider sets from an
+    // org's accent; the Home rows and the notifications carry the same dot.
+    render(
+      <ConversationsList
+        conversations={[makeConversation({ id: 'c1', unread_count: 2 })]}
+      />,
+    );
+
+    const dot = screen.getByRole('status', { name: 'Unread' });
+    expect(dot).toHaveClass('bg-primary');
+    expect(dot.className).not.toMatch(/\bbg-blue-/);
+  });
+});
