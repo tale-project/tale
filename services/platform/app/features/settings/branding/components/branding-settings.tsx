@@ -62,11 +62,17 @@ function BrandingSettingsView({
         description={tSettings('menu.branding.description')}
         className="min-h-0 flex-1"
       >
-        {/* `justify-center` centers the fixed-width form on small screens where
-            the preview is hidden; it's inert on lg where the flex-1 preview fills
-            the row. `fullWidth` above drops the default max-w-3xl cap — otherwise
-            form (max-w-sm) + preview share ~768px and the mock dashboard
-            squashes into a ~300px strip. */}
+        {/* `justify-center` centers the fixed-width form where the preview is
+            hidden; it's inert once the flex-1 preview fills the row. `fullWidth`
+            above drops the default max-w-3xl cap — otherwise form (max-w-sm) +
+            preview share ~768px and the mock dashboard squashes into a ~300px
+            strip.
+            The preview joins the row only while the settings surface (the
+            `SettingsPage`, a `field-layout` size container) is 48rem wide —
+            room for the 24rem form, the gap and a legible mock. Keyed on the
+            viewport's `lg` it appeared in a 659px column at a 1024px window,
+            overflowed it, and the centered row pushed the overflow off both
+            edges, clipping the form's left side out of reach. */}
         <Row gap={6} align="stretch" justify="center" className="flex-1">
           <BrandingForm
             organizationId={organizationId}
@@ -74,7 +80,7 @@ function BrandingSettingsView({
             onPreviewChange={handlePreviewChange}
             onSaved={onSaved}
           />
-          <div className="hidden flex-1 lg:flex">
+          <div className="hidden flex-1 @3xl/field-layout:flex">
             <BrandingPreview data={previewData} />
           </div>
         </Row>
