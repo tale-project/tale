@@ -9,9 +9,12 @@ import type { DocsCrumb } from './docs-nav';
 /**
  * The page's breadcrumb trail in the app's header anatomy: a semantic
  * `nav > ol`, one `gap-2` everywhere, a `/` trailing each ancestor, and the
- * leaf marked `aria-current="page"`. Below `md` only the immediate parent
- * stays — the deeper trail is too wide for a phone, and the drawer covers
- * navigation.
+ * leaf marked `aria-current="page"`. Below `lg` only the immediate parent
+ * stays — beside the rail and the page actions a 768px window leaves the
+ * trail ~200px, too narrow for a deeper trail, and the rail and the drawer
+ * cover navigation. What remains shares the squeeze in proportion to its
+ * length — the short root crumb keeps its width — truncating with an
+ * ellipsis, so the trail never runs past the strip.
  *
  * Unlike the platform's `HeaderBreadcrumbs`, the leaf here is a plain span:
  * a docs page's single `h1` is the article title below, and two `h1`s would
@@ -32,23 +35,26 @@ function DocsBreadcrumbTrail({ crumbs }: { crumbs: readonly DocsCrumb[] }) {
           <li
             key={`${crumb.label}-${i}`}
             className={cn(
-              'shrink-0 items-center gap-2',
-              // Keep only the immediate parent on a phone.
-              i === ancestors.length - 1 ? 'flex' : 'hidden md:flex',
+              'items-center gap-2',
+              // The root crumb is short by nature and keeps its width; the
+              // others truncate in proportion to their length, like the leaf.
+              i === 0 ? 'shrink-0' : 'min-w-0',
+              // Keep only the immediate parent below `lg`.
+              i === ancestors.length - 1 ? 'flex' : 'hidden lg:flex',
             )}
           >
             {crumb.href ? (
               <Link
                 to={crumb.href}
                 activeOptions={{ exact: true }}
-                className={HEADER_CRUMB_LINK_CLASS}
+                className={cn(HEADER_CRUMB_LINK_CLASS, 'min-w-0 truncate')}
               >
                 {crumb.label}
               </Link>
             ) : (
-              <span>{crumb.label}</span>
+              <span className="min-w-0 truncate">{crumb.label}</span>
             )}
-            <span className="text-muted-foreground" aria-hidden="true">
+            <span className="text-muted-foreground shrink-0" aria-hidden="true">
               /
             </span>
           </li>
