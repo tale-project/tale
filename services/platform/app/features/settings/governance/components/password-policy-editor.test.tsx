@@ -46,13 +46,16 @@ function setLoading() {
 
 describe('PasswordPolicyEditor', () => {
   describe('loaded state', () => {
-    it('renders the real checkboxes, the rotation switch, and the min-length input', () => {
+    it('renders one switch per rule, the rotation switch, and the min-length input', () => {
       setLoaded();
       render(<PasswordPolicyEditor organizationId="org-1" />);
-      // requireUpper/Lower/Digit/Special.
-      expect(screen.getAllByRole('checkbox')).toHaveLength(4);
-      // The rotation enable switch.
-      expect(screen.getAllByRole('switch')).toHaveLength(1);
+      // requireUpper/Lower/Digit/Special and rotation — each an on/off
+      // setting, named by its row's label.
+      expect(screen.getAllByRole('switch')).toHaveLength(5);
+      expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+      expect(
+        screen.getByRole('switch', { name: /uppercase/i }),
+      ).toBeInTheDocument();
       // minLength number field (rotationDays input is hidden while rotation
       // is off, so exactly one spinbutton).
       expect(screen.getAllByRole('spinbutton')).toHaveLength(1);
@@ -80,11 +83,10 @@ describe('PasswordPolicyEditor', () => {
       expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
     });
 
-    it('masks the data-bearing controls (no live checkboxes/switch/inputs while loading)', () => {
+    it('masks the data-bearing controls (no live switches/inputs while loading)', () => {
       setLoading();
       render(<PasswordPolicyEditor organizationId="org-1" />);
-      // Checkbox → SkeletonBox, Switch → SkeletonBox, Input → aria-hidden box.
-      expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+      // Switch → SkeletonBox, Input → aria-hidden box.
       expect(screen.queryAllByRole('switch')).toHaveLength(0);
       expect(screen.queryAllByRole('spinbutton')).toHaveLength(0);
     });

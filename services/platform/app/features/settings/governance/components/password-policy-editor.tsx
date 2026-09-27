@@ -5,11 +5,9 @@ import {
   type PasswordPolicyConfig,
   passwordPolicyConfigSchema,
 } from '@tale/shared/schemas/governance';
-import { Checkbox } from '@tale/ui/checkbox';
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Input } from '@tale/ui/input';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Switch } from '@tale/ui/switch';
 import { useToast } from '@tale/ui/use-toast';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
@@ -19,6 +17,7 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
@@ -42,6 +41,14 @@ interface PasswordPolicyForm {
 
 const FORM_ID = 'governance-password-policy-form';
 
+/** The character classes a new password may be required to contain. */
+const CHARACTER_RULES = [
+  'requireUpper',
+  'requireLower',
+  'requireDigit',
+  'requireSpecial',
+] as const;
+
 const parseConfig = createConfigParser(
   passwordPolicyConfigSchema,
   () => DEFAULT_PASSWORD_POLICY,
@@ -50,7 +57,7 @@ const parseConfig = createConfigParser(
 // =============================================================================
 // Single editor — owns data fetching, the form controller, the save wiring,
 // and the loading state. Renders the REAL layout once, always, wrapped in
-// `<Skeletonize>`. The skeleton-aware `<Input>`/`<Checkbox>`/`<Switch>` mask
+// `<Skeletonize>`. The skeleton-aware `<Input>`/`<Switch>` mask
 // themselves to their exact size while loading. The `rotationDays` input
 // renders once `rotationEnabled` is true (matching the loaded behavior, since
 // the form value is `undefined`/`false` while loading).
@@ -106,7 +113,7 @@ export function PasswordPolicyEditor({
 
   // Save feedback belongs to the settings header's Save/Discard cluster: it
   // flashes "Saved" on success and raises the single destructive toast on
-  // failure. The checkboxes and the rotation switch below persist instantly
+  // failure. The rule switches and the rotation switch below persist instantly
   // through `persistToggle`, which has no cluster to report through and so
   // raises its own failure toast.
   const save = useCallback(
@@ -192,9 +199,10 @@ export function PasswordPolicyEditor({
           >
             {/* Same structure as the Organization details section: one divided
                 list of rows, each with its label + hint on the left and its
-                control pinned right. Each control carries `aria-label` with
-                the row's label so it keeps an accessible name of its own now
-                that the visible label lives on the row. */}
+                control pinned right. Each input carries `aria-label` with the
+                row's label so it keeps an accessible name of its own now that
+                the visible label lives on the row; a toggle row names its
+                switch by its label itself. */}
             <SettingsFieldList>
               <SettingsFieldRow
                 label={t('passwordPolicy.minLength')}
@@ -212,58 +220,26 @@ export function PasswordPolicyEditor({
                 />
               </SettingsFieldRow>
 
-              <SettingsFieldRow label={t('passwordPolicy.requireUpper')}>
-                <Checkbox
-                  aria-label={t('passwordPolicy.requireUpper')}
-                  checked={watch('requireUpper') ?? false}
-                  onCheckedChange={(v) =>
-                    persistToggle('requireUpper', Boolean(v))
-                  }
+              {/* Each rule is an on/off setting, so it takes the settings
+                  toggle: a switch at the row's right edge. */}
+              {CHARACTER_RULES.map((rule) => (
+                <SettingsToggleRow
+                  key={rule}
+                  className="py-5"
+                  label={t(`passwordPolicy.${rule}`)}
+                  checked={watch(rule) ?? false}
+                  onCheckedChange={(v) => persistToggle(rule, v)}
                   disabled={!canEdit || editor.isSaving}
                 />
-              </SettingsFieldRow>
+              ))}
 
-              <SettingsFieldRow label={t('passwordPolicy.requireLower')}>
-                <Checkbox
-                  aria-label={t('passwordPolicy.requireLower')}
-                  checked={watch('requireLower') ?? false}
-                  onCheckedChange={(v) =>
-                    persistToggle('requireLower', Boolean(v))
-                  }
-                  disabled={!canEdit || editor.isSaving}
-                />
-              </SettingsFieldRow>
-
-              <SettingsFieldRow label={t('passwordPolicy.requireDigit')}>
-                <Checkbox
-                  aria-label={t('passwordPolicy.requireDigit')}
-                  checked={watch('requireDigit') ?? false}
-                  onCheckedChange={(v) =>
-                    persistToggle('requireDigit', Boolean(v))
-                  }
-                  disabled={!canEdit || editor.isSaving}
-                />
-              </SettingsFieldRow>
-
-              <SettingsFieldRow label={t('passwordPolicy.requireSpecial')}>
-                <Checkbox
-                  aria-label={t('passwordPolicy.requireSpecial')}
-                  checked={watch('requireSpecial') ?? false}
-                  onCheckedChange={(v) =>
-                    persistToggle('requireSpecial', Boolean(v))
-                  }
-                  disabled={!canEdit || editor.isSaving}
-                />
-              </SettingsFieldRow>
-
-              <SettingsFieldRow label={t('passwordPolicy.rotationEnabled')}>
-                <Switch
-                  aria-label={t('passwordPolicy.rotationEnabled')}
-                  checked={rotationEnabled}
-                  onCheckedChange={(v) => persistToggle('rotationEnabled', v)}
-                  disabled={!canEdit || editor.isSaving}
-                />
-              </SettingsFieldRow>
+              <SettingsToggleRow
+                className="py-5"
+                label={t('passwordPolicy.rotationEnabled')}
+                checked={rotationEnabled}
+                onCheckedChange={(v) => persistToggle('rotationEnabled', v)}
+                disabled={!canEdit || editor.isSaving}
+              />
 
               {rotationEnabled && (
                 <SettingsFieldRow
