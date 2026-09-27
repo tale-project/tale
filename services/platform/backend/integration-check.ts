@@ -50680,6 +50680,93 @@ async function checkWatchdogs(
     `ttl=${JSON.stringify(ttlRows)}`,
   );
 
+  // Lane 3a: a live turn holds its session past the TTL. The expiry used to
+  // flip it whatever ran in it — revoking the turn's model key mid-turn and
+  // handing its slot to a parked run. A running op whose heartbeat is inside
+  // the recovery window spares its session and keeps its token; a running
+  // op silent past the window (a dead chain) and a finished op spare
+  // nothing; and once the live turn ends, the next tick lets its session go.
+  const { RECOVERY_STALE_MS } = await import('./domains/sandbox/recovery.ts');
+  const turnLanes = [
+    ['wd-ttl-turn-live', 'running', Date.now()],
+    ['wd-ttl-turn-stale', 'running', now - RECOVERY_STALE_MS - 60_000],
+    ['wd-ttl-turn-done', 'completed', Date.now()],
+  ] as const;
+  for (const [sessionId, opStatus, heartbeatAt] of turnLanes) {
+    const finishedAt = opStatus === 'running' ? null : heartbeatAt;
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        created_at_ms, expires_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'active', 'project_agent',
+        ${`itest-${sessionId}`}, 'itest:wd', ${now - 25 * 3_600_000},
+        ${now - 3_600_000}
+      )
+    `;
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
+        started_at_ms, finalized_at_ms, finished_at_ms, spend_settled_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'exec-wd-ttl-turn', 'task-agent', ${opStatus},
+        ${heartbeatAt}, ${now - 2 * 3_600_000}, ${finishedAt}, ${finishedAt},
+        ${finishedAt}
+      )
+    `;
+    await sql`
+      INSERT INTO app.sandbox_session_tokens (
+        org_id, session_id, token_hash, scope, created_at_ms, expires_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, ${`itest-${sessionId}-${randomUUID()}`},
+        ${sql.json({ agentKind: 'claude-code', allowedModels: [], connectorGrants: [], budgetCents: 100 })},
+        ${now - 2 * 3_600_000}, ${now + 3_600_000}
+      )
+    `;
+  }
+  const readTurnSessions = () => sql<
+    { sessionId: string; status: string; tokenRevoked: boolean }[]
+  >`
+    SELECT s.session_id AS "sessionId", s.status,
+           EXISTS (
+             SELECT 1 FROM app.sandbox_session_tokens t
+             WHERE t.org_id = s.org_id AND t.session_id = s.session_id
+               AND t.revoked_at_ms IS NOT NULL
+           ) AS "tokenRevoked"
+    FROM app.sandbox_sessions s
+    WHERE s.org_id = ${orgId} AND s.session_id LIKE 'wd-ttl-turn-%'
+    ORDER BY s.session_id
+  `;
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
+  const turnTick = await readTurnSessions();
+  // The live turn ends: its op settles, and the next tick expires the row.
+  await sql`
+    UPDATE app.sandbox_session_ops SET
+      status = 'completed', finalized_at_ms = ${Date.now()},
+      finished_at_ms = ${Date.now()}, spend_settled_at_ms = ${Date.now()}
+    WHERE org_id = ${orgId} AND session_id = 'wd-ttl-turn-live'
+      AND exec_id = 'exec-wd-ttl-turn'
+  `;
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
+  const turnEnded = await readTurnSessions();
+  const turnSession = (
+    rows: { sessionId: string; status: string; tokenRevoked: boolean }[],
+    sessionId: string,
+  ): string => {
+    const row = rows.find((r) => r.sessionId === sessionId);
+    return row === undefined
+      ? 'missing'
+      : `${row.status}/${row.tokenRevoked ? 'revoked' : 'kept'}`;
+  };
+  record(
+    'sandbox watchdog spares a session with a live turn past its TTL, expires one whose op is stale or finished, and lets it go once the turn ends',
+    turnSession(turnTick, 'wd-ttl-turn-live') === 'active/kept' &&
+      turnSession(turnTick, 'wd-ttl-turn-stale') === 'expired/revoked' &&
+      turnSession(turnTick, 'wd-ttl-turn-done') === 'expired/revoked' &&
+      turnSession(turnEnded, 'wd-ttl-turn-live') === 'expired/revoked',
+    `live=${turnSession(turnTick, 'wd-ttl-turn-live')} (want active/kept) stale=${turnSession(turnTick, 'wd-ttl-turn-stale')} done=${turnSession(turnTick, 'wd-ttl-turn-done')} (want expired/revoked) liveAfterTurn=${turnSession(turnEnded, 'wd-ttl-turn-live')} (want expired/revoked)`,
+  );
+
   // Lane 3b: the spawner-facing passes with a SCRIPTED spawner — the fair
   // reconcile rotation and the ended-run reclaim, on the real schema.
   //

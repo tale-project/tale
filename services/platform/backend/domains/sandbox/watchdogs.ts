@@ -7,6 +7,7 @@ import {
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
+import { RECOVERY_STALE_MS } from './recovery.ts';
 import { reconcileSession } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
@@ -86,7 +87,12 @@ export interface SandboxWatchdogResult {
  *  - EXPIRE: unpinned sessions past their TTL among the compute-holding
  *    statuses flip to `expired` (freeing their slots), their gateway virtual
  *    keys are revoked, and the parked-run wake fires for their orgs. The spawner's own reaper collects the
- *    container on its TTL — the row must not wait for it.
+ *    container on its TTL — the row must not wait for it. A session with a
+ *    LIVE turn is spared until the turn ends: a `running` op whose last sign
+ *    of life falls inside the recovery staleness window. Expiring it would
+ *    revoke the turn's model key mid-turn and hand its slot to a parked run
+ *    while the container still works. An op silent past the window spares
+ *    nothing, so a dead one cannot pin its session.
  *  - RECONCILE: a bounded batch of compute-holding rows is checked against
  *    the spawner; a container gone spawner-side settles the row as destroyed
  *    (phantom heal). Requires a reachable spawner — when it is down the
@@ -117,11 +123,27 @@ export async function runSandboxWatchdog(
   options: SandboxWatchdogOptions = {},
 ): Promise<SandboxWatchdogResult> {
   const now = Date.now();
+  // The live-turn spare (see EXPIRE above) judges an op by the rule both
+  // re-attach sweeps use: its last sign of life (`sessionOpLastSignOfLifeMs`,
+  // the greatest of its start, heartbeat, finalize and finish stamps) inside
+  // `RECOVERY_STALE_MS`. Spelled in SQL, so the spare and the flip are one
+  // statement.
   const expired = await sql<{ orgId: string; sessionId: string }[]>`
-    UPDATE app.sandbox_sessions SET status = 'expired'
-    WHERE status IN ('creating', 'active', 'degraded')
-      AND pinned = false AND expires_at_ms < ${now}
-    RETURNING org_id AS "orgId", session_id AS "sessionId"
+    UPDATE app.sandbox_sessions s SET status = 'expired'
+    WHERE s.status IN ('creating', 'active', 'degraded')
+      AND s.pinned = false AND s.expires_at_ms < ${now}
+      AND NOT EXISTS (
+        SELECT 1 FROM app.sandbox_session_ops op
+        WHERE op.session_id = s.session_id AND op.org_id = s.org_id
+          AND op.status = 'running'
+          AND greatest(
+                op.started_at_ms,
+                coalesce(op.heartbeat_at_ms, 0),
+                coalesce(op.finalized_at_ms, 0),
+                coalesce(op.finished_at_ms, 0)
+              ) >= ${now - RECOVERY_STALE_MS}
+      )
+    RETURNING s.org_id AS "orgId", s.session_id AS "sessionId"
   `;
   // Reclaim the CREDENTIALS of every session this sweep just expired: the
   // gateway key has no TTL of its own, so an expired row that keeps its key
