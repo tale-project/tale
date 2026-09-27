@@ -673,24 +673,17 @@ export function ProjectFilesTab({
       // success toast a moment later (one toast at a time), so the skipped
       // files ride the ONE summary toast after the upload instead.
 
-      /** Why a kept file did not land: the house message for a refusal
-       * this tab names itself, else the server's own words, else the
-       * generic one. */
+      /** Why a kept file did not land: the house sentence for a refusal
+       * this tab's namespace names (a role, an archived project, a spent
+       * rate limit — `errors.<code>`), else the server's own words, else
+       * the generic one. */
       const failureReason = (error: unknown): string => {
         const code: unknown =
           error instanceof AppError ? error.data?.code : undefined;
-        if (code === 'DOCUMENT_SCOPE_CONFLICT' || code === 'FOLDER_NOT_FOUND') {
-          return t(
-            code === 'FOLDER_NOT_FOUND'
-              ? 'files.folderGone'
-              : 'errors.DOCUMENT_SCOPE_CONFLICT',
-            {
-              defaultValue:
-                code === 'FOLDER_NOT_FOUND'
-                  ? 'That folder no longer exists.'
-                  : undefined,
-            },
-          );
+        if (code === 'FOLDER_NOT_FOUND') {
+          return t('files.folderGone', {
+            defaultValue: 'That folder no longer exists.',
+          });
         }
         if (code === 'FOLDER_NAME_TAKEN') {
           // ensureFolderPath hit a name that exists server-side but not in
@@ -698,14 +691,10 @@ export function ProjectFilesTab({
           // finds the existing folder once the list refreshes.
           return tDocuments('folder.duplicateName');
         }
-        if (
-          code === 'RBAC_FORBIDDEN' ||
-          code === 'PROJECT_FORBIDDEN' ||
-          code === 'PROJECT_ARCHIVED'
-        ) {
-          return t('errors.' + code, { defaultValue: t('files.attachError') });
-        }
-        return backendRefusalDetail(error) ?? t('files.attachError');
+        const detail = backendRefusalDetail(error) ?? t('files.attachError');
+        return typeof code === 'string'
+          ? t('errors.' + code, { defaultValue: detail })
+          : detail;
       };
 
       setUploading(true);
