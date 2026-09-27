@@ -331,7 +331,16 @@ describe('project-scoped task intake', () => {
     expect(long.status).toBe(400);
     expect(await long.json()).toMatchObject({
       code: 'INVALID_BODY',
-      data: { issues: [expect.objectContaining({ path: 'title' })] },
+      // The cap names the unit it counts, as the domain and the reference
+      // do — not the formatter's default "characters".
+      data: {
+        issues: [
+          {
+            path: 'title',
+            message: 'must be at most 200 UTF-16 code units',
+          },
+        ],
+      },
     });
     const url = await request(collection, 'POST', {
       ...input,
@@ -817,6 +826,36 @@ describe('project-scoped task reads and operations', () => {
       expect(service.addTaskComment).not.toHaveBeenCalled();
     },
   );
+
+  /**
+   * Every task cap counts UTF-16 code units, as the domain's refusals and
+   * the reference say; the formatter's default sentence called them
+   * "characters", which a person or a model counts differently.
+   */
+  it('names the unit of an over-long comment and translation', async () => {
+    const { request } = mount();
+    const response = await request(`${item}/comments`, 'POST', {
+      body: 'c'.repeat(10_001),
+      bodyByLocale: { en: 'Checked.', de: 'x'.repeat(10_001), fr: 'Vérifié.' },
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: 'INVALID_BODY',
+      data: {
+        issues: [
+          {
+            path: 'body',
+            message: 'must be at most 10,000 UTF-16 code units',
+          },
+          {
+            path: 'bodyByLocale.de',
+            message: 'must be at most 10,000 UTF-16 code units',
+          },
+        ],
+      },
+    });
+    expect(service.addTaskComment).not.toHaveBeenCalled();
+  });
 
   it('preserves comment pagination and rejects malformed cursors', async () => {
     const { request, sql } = mount();

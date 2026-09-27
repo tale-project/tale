@@ -1,18 +1,26 @@
 import { z } from 'zod';
 
-import { TASK_COMMENT_MAX } from '../../../backend/core/tasks/helpers';
+import {
+  TASK_COMMENT_MAX,
+  taskLimitText,
+} from '../../../backend/core/tasks/helpers';
 
 /** Reader languages one comment may carry, en/de/fr included. */
 export const TASK_COMMENT_LOCALES_MAX = 16;
 
+/** One translation: nonblank, capped like the comment body, and the cap
+ * names its unit (UTF-16 code units) rather than the validator's default
+ * "characters". */
+const translation = z
+  .string()
+  .trim()
+  .min(1)
+  .max(TASK_COMMENT_MAX, `must be at most ${taskLimitText(TASK_COMMENT_MAX)}`);
+
 /** One write-time snapshot for all reader languages. */
 export const taskCommentBodiesSchema = z
-  .object({
-    en: z.string().trim().min(1).max(TASK_COMMENT_MAX),
-    de: z.string().trim().min(1).max(TASK_COMMENT_MAX),
-    fr: z.string().trim().min(1).max(TASK_COMMENT_MAX),
-  })
-  .catchall(z.string().trim().min(1).max(TASK_COMMENT_MAX))
+  .object({ en: translation, de: translation, fr: translation })
+  .catchall(translation)
   .refine(
     (bodies) => Object.keys(bodies).length <= TASK_COMMENT_LOCALES_MAX,
     `At most ${TASK_COMMENT_LOCALES_MAX} locale translations are allowed`,
