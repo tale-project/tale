@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 44 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 45 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -214,6 +214,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   shows the tool calls, the subagent's call and the report; the follow-up
   continues the same conversation; no step reads a provider 400 — env-gated:
   mark **ENVIRONMENT** without a credential that serves the models.
+- [ ] `TASK-F31` · **Drop into an empty lane lands there** — On the board,
+  with an empty lane (e.g. **Cancelled**) beside a lane holding cards, drag a
+  card and release it just inside the empty lane's body, level with a card
+  of the neighbouring lane (~150 px below the lane header) → The card takes
+  the lane under the pointer (the dnd live region names that lane's status
+  as the drop area, never a card id), the lane highlights while hovered,
+  and the status reads back after reload; releasing between two cards of a
+  populated lane still slots the card between them, and a drop below a
+  lane's last card appends it.
 
 ### The task page
 

@@ -2,6 +2,7 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCorners,
+  pointerWithin,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -11,6 +12,62 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+/**
+ * Pointer-first collision detection for a lane board.
+ *
+ * `closestCorners` alone judges every card on the board by distance to the
+ * dragged rect, so a drop inside an EMPTY lane (whose only drop target is the
+ * whole lane body, corners far away) lands on the nearest card of the
+ * neighbouring lane — and takes that lane's status. Here the lane under the
+ * pointer decides: a card under the pointer wins outright; otherwise the
+ * candidates are that lane's own cards (closest corners among them), the lane
+ * surface itself when it has no cards or the pointer sits below its last card.
+ * With no pointer at all (the keyboard sensor) or a pointer over no drop
+ * target, it falls back to `closestCorners` so keyboard drags keep working.
+ *
+ * `getColumns` reads the LIVE lane → card-id working copy (it moves mid-drag).
+ */
+export function createBoardCollisionDetection(
+  getColumns: () => Record<string, string[]>,
+): CollisionDetection {
+  return (args) => {
+    const under = pointerWithin(args);
+    if (under.length === 0) return closestCorners(args);
+
+    const cols = getColumns();
+    const isLane = (id: string | number): boolean =>
+      Object.hasOwn(cols, String(id));
+    const card = under.find((collision) => !isLane(collision.id));
+    if (card) return [card];
+
+    const lane = under[0];
+    if (!lane) return closestCorners(args);
+    const items = cols[String(lane.id)] ?? [];
+    const laneCards = args.droppableContainers.filter((container) =>
+      items.includes(String(container.id)),
+    );
+    if (laneCards.length === 0) return [lane];
+
+    let lastCardBottom = Number.NEGATIVE_INFINITY;
+    for (const container of laneCards) {
+      const rect = args.droppableRects.get(container.id);
+      if (rect) lastCardBottom = Math.max(lastCardBottom, rect.bottom);
+    }
+    if (
+      args.pointerCoordinates !== null &&
+      args.pointerCoordinates.y > lastCardBottom
+    ) {
+      return [lane];
+    }
+
+    const nearest = closestCorners({
+      ...args,
+      droppableContainers: laneCards,
+    });
+    return nearest.length > 0 ? nearest : [lane];
+  };
+}
 
 /** A settled drop: the dragged row, its target lane, and its new neighbours
  *  (each `undefined` at the corresponding end of the lane). */
@@ -309,13 +366,19 @@ export function useBoardDnd<Row>({
 
   const activeRow = activeId !== null ? (byId.get(activeId) ?? null) : null;
 
+  // Reads the ref so a mid-drag lane change (onDragOver) is judged live.
+  const collisionDetection = useMemo(
+    () => createBoardCollisionDetection(() => columnsRef.current),
+    [],
+  );
+
   return {
     columns,
     byId,
     activeId,
     activeRow,
     sensors,
-    collisionDetection: closestCorners,
+    collisionDetection,
     onDragStart,
     onDragOver,
     onDragEnd,
