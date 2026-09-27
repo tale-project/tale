@@ -108,8 +108,10 @@ literal back-translation. Resolve findings and track pages actually reviewed.
 ## Verify and hand off
 
 Run applicable locale/key/ICU and docs checks, then inspect the rendered result. Review report-mode
-findings as well as failures. Fix factual or grammatical defects; document a narrow exception only
-when a check is wrong for the context. Never weaken parity to make an unfinished translation pass.
+findings as well as failures: they pass the suite and print as an `i18n report-mode summary` when it
+ends, which vitest shows only with `--silent=false`. Fix factual or grammatical defects; document a
+narrow exception only when a check is wrong for the context. Never weaken parity to make an
+unfinished translation pass.
 
 The handoff states which locales and surfaces changed, the observed flows and checks, and remaining
 uncertainty. A fluent-looking page and a green suite do not establish native quality on their own.

@@ -5,12 +5,13 @@
  * markdown-scoped (or both-scoped) checks.
  */
 
-import { describe, it } from 'vitest';
+import { afterAll, describe, it } from 'vitest';
 
 import type { CheckContext } from './checks/types';
 import type { DocsTestsConfig } from './config';
 import { loadGlossary } from './glossary/loader';
 import { assertFindings } from './internals/findings';
+import { drainAndPrintReport } from './internals/report-sink';
 import { LOCALE_REGISTRY } from './locales';
 import { CHECKS } from './registry';
 import { createScanner } from './scanner';
@@ -41,6 +42,9 @@ export function defineDocsTests(config: DocsTestsConfig): void {
   };
 
   describe('docs', () => {
+    // Report-mode checks pass and park their findings in the sink; print
+    // them once the suite has run, or nobody ever sees them.
+    afterAll(() => drainAndPrintReport());
     for (const check of CHECKS) {
       if (check.scope === 'json') continue;
       const mode = config.modes?.[check.id] ?? check.defaultMode;

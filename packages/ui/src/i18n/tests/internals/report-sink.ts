@@ -2,12 +2,11 @@
  * Process-scoped sink for `report`-mode findings.
  *
  * Checks running in `report` mode push their findings here instead of
- * failing the test. The setup file (`report-sink-setup.ts`) drains the
- * sink in an `afterAll` hook and prints a grouped summary to stdout.
+ * failing the test. `defineI18nTests` and `defineDocsTests` drain the sink
+ * in an `afterAll` hook and print a grouped summary to stdout.
  *
  * The sink lives on `globalThis` so multiple vitest projects in the same
- * process share it; the setup file registers `afterAll` per project and
- * prints once at the end of each project's run.
+ * process share it; each suite drains what it pushed once it has run.
  */
 
 import fs from 'node:fs';
@@ -51,9 +50,9 @@ export function pushToReportSink(
 }
 
 /**
- * Drain the sink and print the grouped summary. Called once at end-of-suite
- * by `report-sink-setup.ts`'s `afterAll` hook. Idempotent — drains and
- * resets so subsequent runs in the same process start clean.
+ * Drain the sink and print the grouped summary. Called at the end of each
+ * suite by the `afterAll` hook the suite definers register. Idempotent —
+ * drains and resets so subsequent runs in the same process start clean.
  */
 export function drainAndPrintReport(cacheDir?: string): void {
   const sink = getSink();

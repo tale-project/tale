@@ -154,7 +154,6 @@
     "./i18n/resolve-locale": "./src/i18n/resolve-locale.ts",
     "./i18n/sync": "./src/i18n/sync.tsx",
     "./i18n/tests": "./src/i18n/tests/index.ts",
-    "./i18n/tests/internals/report-sink-setup": "./src/i18n/tests/internals/report-sink-setup.ts",
     "./i18n/tests/locales": "./src/i18n/tests/locales/index.ts",
     "./i18n/use-current-locale": "./src/i18n/use-current-locale.ts",
     "./icon-button": "./src/components/primitives/icon-button.tsx",

@@ -12,13 +12,14 @@
 
 import path from 'node:path';
 
-import { describe, it } from 'vitest';
+import { afterAll, describe, it } from 'vitest';
 
 import type { CheckContext } from './checks/types';
 import type { I18nTestsConfig, ModeMap } from './config';
 import { loadGlossary } from './glossary/loader';
 import { assertFindings } from './internals/findings';
 import { resolveRepoRoot } from './internals/paths';
+import { drainAndPrintReport } from './internals/report-sink';
 import { LOCALE_REGISTRY } from './locales';
 import { CHECKS } from './registry';
 import { createScanner } from './scanner';
@@ -71,6 +72,9 @@ function registerChecks(
   scopeFilter: 'json' | 'markdown' | 'both',
 ): void {
   describe('i18n', () => {
+    // Report-mode checks pass and park their findings in the sink; print
+    // them once the suite has run, or nobody ever sees them.
+    afterAll(() => drainAndPrintReport());
     for (const check of CHECKS) {
       const applicable =
         scopeFilter === 'both' ||
