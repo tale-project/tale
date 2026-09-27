@@ -254,19 +254,6 @@ describe('task write adapters', () => {
     });
   });
 
-  it('answers the claim result as data', async () => {
-    vi.spyOn(window, 'fetch').mockResolvedValue(
-      jsonResponse(200, { claimed: false, reason: 'ALREADY_CLAIMED' }),
-    );
-
-    await expect(
-      taskWriteAdapters['tasks/mutations:claimTask']?.run(
-        { taskId: 't1' },
-        { organizationId: 'org-1' },
-      ),
-    ).resolves.toEqual({ claimed: false, reason: 'ALREADY_CLAIMED' });
-  });
-
   it('deletes a label with the detach flag on the query string', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')

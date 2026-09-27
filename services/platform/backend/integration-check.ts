@@ -1121,21 +1121,6 @@ async function checkIdentityDomains(
     `/api/app/governance/policies/retention_policy?orgId=${orgId}`,
     { config: { enabled: false } },
   );
-  // The flags wire carries only what is enforced: the context cap. The
-  // retired webSearch / codeExecution / fileUpload toggles (and the
-  // never-read inputGuardrailsActive) must never reappear here — strict,
-  // not loose.
-  const myFlags = z
-    .object({
-      flags: z
-        .object({
-          maxContextTokens: z.number().optional(),
-        })
-        .strict(),
-    })
-    .safeParse(
-      await get(`/api/app/governance/my/feature-flags?orgId=${orgId}`),
-    );
   // An org-scoped budget rule's `warningThresholdPercent` is an APPROACH
   // signal the reader actually sees: seed the org 60% into a 10.00 monthly
   // cost cap with a 50% threshold, and the status carries an org-scoped
@@ -1325,25 +1310,15 @@ async function checkIdentityDomains(
     .safeParse(
       await get(`/api/app/governance/my/budget-status?orgId=${orgId}`),
     );
-  const models = z.object({ models: z.array(z.string()) }).safeParse(
-    await (
-      await post(`/api/app/governance/models/accessible?orgId=${orgId}`, {
-        modelIds: ['fake/model-a', 'fake/model-b'],
-      })
-    ).json(),
-  );
   record(
-    'governance core: policy write/read + guards + flags/budget/models',
+    'governance core: policy write/read + guards + budget',
     savePolicy.ok &&
       readPolicy.success &&
       readPolicy.data.policy?.config.idleTimeoutMinutes === 45 &&
       unknownPolicy.status === 400 &&
       specialPolicy.status === 400 &&
-      myFlags.success &&
-      budget.success &&
-      models.success &&
-      models.data.models.length === 2,
-    `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), flags=${myFlags.success ? JSON.stringify(myFlags.data.flags) : 'ERR'}, budget=${budget.success ? 'ok' : 'ERR'}, models=${models.success ? models.data.models.length : 'ERR'}`,
+      budget.success,
+    `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), budget=${budget.success ? 'ok' : 'ERR'}`,
   );
 
   // A credit request reaches the people who can grant it: each owner and
@@ -2132,7 +2107,6 @@ async function checkTasks(
         })
         .loose(),
       canEdit: z.boolean(),
-      canClaim: z.boolean(),
       canComment: z.boolean(),
     })
     .safeParse(await get(`/api/app/tasks/${parentId}?orgId=${orgId}`));
@@ -2148,7 +2122,7 @@ async function checkTasks(
       !taskRead.data.task.hasFiles &&
       taskRead.data.canEdit &&
       taskRead.data.canComment,
-    `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.task.labels.map((l) => l.name).join(',') : 'ERR'}, flags=${taskRead.success ? `${taskRead.data.canEdit}/${taskRead.data.canClaim}/${taskRead.data.canComment}` : 'ERR'}`,
+    `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.task.labels.map((l) => l.name).join(',') : 'ERR'}, flags=${taskRead.success ? `${taskRead.data.canEdit}/${taskRead.data.canComment}` : 'ERR'}`,
   );
 
   // ---- reviewer filter: Home's "waiting on my review" read -------------
@@ -2399,21 +2373,6 @@ async function checkTasks(
     `/api/app/tasks/dependencies?orgId=${orgId}`,
     { blockerTaskId: bId, blockedTaskId: aId },
   );
-  const claim = z
-    .object({ claimed: z.boolean(), reason: z.string().optional() })
-    .safeParse(
-      await (
-        await send('POST', `/api/app/tasks/${aId}/claim?orgId=${orgId}`)
-      ).json(),
-    );
-  // A contested claim is DATA, not an error (the loser sees the reason).
-  const claimAgain = z
-    .object({ claimed: z.boolean(), reason: z.string().optional() })
-    .safeParse(
-      await (
-        await send('POST', `/api/app/tasks/${aId}/claim?orgId=${orgId}`)
-      ).json(),
-    );
   // Task dependencies answer FULL linked rows both ways (the 0.4 wire).
   const depRows = z
     .object({
@@ -2439,21 +2398,15 @@ async function checkTasks(
     ? activity.data.activity.map((a) => a.action)
     : [];
   record(
-    'task dependencies (row wire) + claim-as-data + activity',
+    'task dependencies (row wire) + activity',
     dep.ok &&
       cycle.status === 400 &&
-      claim.success &&
-      claim.data.claimed &&
-      claimAgain.success &&
-      !claimAgain.data.claimed &&
-      claimAgain.data.reason === 'ALREADY_CLAIMED' &&
       depRows.success &&
       depRows.data.blockedBy[0]?.title === 'Dep A' &&
       projectEdges.success &&
       projectEdges.data.edges.length === 1 &&
-      actions.includes('created') &&
-      actions.includes('claimed'),
-    `dep → ${dep.status}, cycle → ${cycle.status} (want 400), claim=${claim.success ? claim.data.claimed : 'ERR'} then ${claimAgain.success ? `${claimAgain.data.claimed}/${claimAgain.data.reason}` : 'ERR'}, blockedBy=${depRows.success ? depRows.data.blockedBy[0]?.title : 'ERR'}, edges=${projectEdges.success ? projectEdges.data.edges.length : 'ERR'}, activity=${actions.join('/')}`,
+      actions.includes('created'),
+    `dep → ${dep.status}, cycle → ${cycle.status} (want 400), blockedBy=${depRows.success ? depRows.data.blockedBy[0]?.title : 'ERR'}, edges=${projectEdges.success ? projectEdges.data.edges.length : 'ERR'}, activity=${actions.join('/')}`,
   );
 
   // Board drag by NEIGHBOUR CARDS (the 0.4 wire sends task ids) + tree
@@ -2522,8 +2475,8 @@ async function checkTasks(
     `label=${bugLabelId || 'MISSING'}, in-use → ${inUse.status} (want 400), detach → ${detached.status}`,
   );
 
-  // Ops indicators (empty org: shape only), the subscription round-trip,
-  // the pending-review read (null), and cancel-live with no run.
+  // Ops indicators (empty org: no pending review), the subscription
+  // round-trip, and cancel-live with no run.
   const indicatorShape = z.object({
     runningTaskIds: z.array(z.string()),
     askingTaskIds: z.array(z.string()),
@@ -2547,9 +2500,6 @@ async function checkTasks(
     .safeParse(
       await get(`/api/app/collab/tasks/${aId}/subscription?orgId=${orgId}`),
     );
-  const reviewRead = z
-    .object({ review: z.null() })
-    .safeParse(await get(`/api/app/tasks/${aId}/review?orgId=${orgId}`));
   const cancelLive = z
     .object({ cancelled: z.boolean() })
     .safeParse(
@@ -2561,17 +2511,17 @@ async function checkTasks(
       ).json(),
     );
   record(
-    'task ops indicators + subscription + review read + cancel-live',
+    'task ops indicators + subscription + cancel-live',
     projectIndicators.success &&
       projectIndicators.data.runningTaskIds.length === 0 &&
+      projectIndicators.data.pendingReviews.length === 0 &&
       orgIndicators.success &&
       subscription.success &&
       subscription.data.subscribed &&
       subscription.data.muted &&
-      reviewRead.success &&
       cancelLive.success &&
       !cancelLive.data.cancelled,
-    `indicators=${projectIndicators.success ? 'ok' : 'BAD'}/${orgIndicators.success ? 'ok' : 'BAD'}, sub=${subscription.success ? `${subscription.data.subscribed}/${subscription.data.muted}` : 'ERR'} (want true/true), review=${reviewRead.success ? 'null' : 'BAD'}, cancel-live=${cancelLive.success ? cancelLive.data.cancelled : 'ERR'} (want false)`,
+    `indicators=${projectIndicators.success ? 'ok' : 'BAD'}/${orgIndicators.success ? 'ok' : 'BAD'}, sub=${subscription.success ? `${subscription.data.subscribed}/${subscription.data.muted}` : 'ERR'} (want true/true), reviews=${projectIndicators.success ? projectIndicators.data.pendingReviews.length : 'ERR'} (want 0), cancel-live=${cancelLive.success ? cancelLive.data.cancelled : 'ERR'} (want false)`,
   );
 
   // Comments on the message store: add ×2 → list → edit → delete → count.
@@ -21579,75 +21529,6 @@ async function checkTasksCollabIntegrity(
     `degraded → ${degradedError !== null ? `${degradedError.code}/${degradedError.status}/${degradedError.leg}` : String(degraded)} (want MENTION_DIRECTORY_UNAVAILABLE/503/agents); healthy mentions=${healthy.mentions.map((m) => `${m.type}:${m.id}`).join(',') || 'none'}`,
   );
 
-  // ---- "waiting on me" never misses my reviews ----------------------------
-  // 120 pending reviews for OTHER people land first; the caller's own review
-  // is minted last. The old org-wide unordered LIMIT 100 scan filtered the
-  // reviewer in JS and dropped it; the summary must name the task and count
-  // the caller's pending reviews exactly, org-wide and project-scoped.
-  const busyTask = await newTask('Everyone else is busy');
-  const mineTask = await newTask('Waiting on me');
-  for (let i = 0; i < 120; i += 1) {
-    await sql`
-      INSERT INTO app.approvals (
-        org_id, status, resource_type, resource_id, priority, metadata,
-        created_at_ms
-      ) VALUES (
-        ${orgId}, 'pending', 'task_review', ${busyTask}, 'medium',
-        ${sql.json({ requestedFor: `busy-reviewer-${i}`, taskId: busyTask })},
-        ${Date.now()}
-      )
-    `;
-  }
-  await sql`
-    INSERT INTO app.approvals (
-      org_id, status, resource_type, resource_id, priority, metadata,
-      created_at_ms
-    ) VALUES (
-      ${orgId}, 'pending', 'task_review', ${mineTask}, 'medium',
-      ${sql.json({ requestedFor: userId, taskId: mineTask, projectId })},
-      ${Date.now()}
-    )
-  `;
-  const minePending = await sql<{ count: string }[]>`
-    SELECT count(*)::text AS count FROM app.approvals
-    WHERE org_id = ${orgId} AND status = 'pending'
-      AND resource_type = 'task_review'
-      AND metadata ->> 'requestedFor' = ${userId}
-  `;
-  const attentionSchema = z
-    .object({
-      waitingOnMeTaskIds: z.array(z.string()),
-      pendingReviewCount: z.number(),
-    })
-    .loose();
-  const attention = attentionSchema.safeParse(
-    await (
-      await fetch(`${base}/api/app/collab/attention?orgId=${orgId}`, {
-        headers: { cookie },
-      })
-    ).json(),
-  );
-  const attentionScoped = attentionSchema.safeParse(
-    await (
-      await fetch(
-        `${base}/api/app/collab/attention?orgId=${orgId}&projectId=${projectId}`,
-        { headers: { cookie } },
-      )
-    ).json(),
-  );
-  record(
-    'tasks/collab: the attention summary finds my review behind 120 other pending ones',
-    attention.success &&
-      attention.data.waitingOnMeTaskIds.includes(mineTask) &&
-      attention.data.pendingReviewCount === Number(minePending[0]?.count) &&
-      attentionScoped.success &&
-      attentionScoped.data.waitingOnMeTaskIds.includes(mineTask),
-    `org-wide: mine listed=${attention.success ? attention.data.waitingOnMeTaskIds.includes(mineTask) : 'ERR'} count=${attention.success ? attention.data.pendingReviewCount : 'ERR'} (want ${minePending[0]?.count}); scoped: mine listed=${attentionScoped.success ? attentionScoped.data.waitingOnMeTaskIds.includes(mineTask) : 'ERR'}`,
-  );
-  await sql`
-    DELETE FROM app.approvals
-    WHERE org_id = ${orgId} AND resource_id IN (${busyTask}, ${mineTask})
-  `;
   await sql`DELETE FROM "member" WHERE "id" = ${`m-${reviewer}`}`;
   await agentProvider.cleanup();
 }
@@ -21837,50 +21718,6 @@ async function checkCollabMentions(
       storedMentionKeys.includes(`user:${outsider}`) &&
       editedMeta[0]?.editedAt !== null,
     `edit=${editStatus}, addedBell=${outsiderBellsAfterEdit[0]?.count} (want 1), alreadyMentionedBells=${teammateBellsAfterEdit[0]?.count} (unchanged from ${bell[0]?.count}), stored=${storedMentionKeys.join(',') || 'none'}, editedAt=${editedMeta[0]?.editedAt !== null}`,
-  );
-
-  // ---- attention summary ------------------------------------------------
-  await sql`
-    UPDATE app.tasks SET assignee_type = 'user', assignee_id = ${userId}
-    WHERE id = ${taskId}
-  `;
-  await sql`
-    INSERT INTO app.approvals (
-      org_id, status, resource_type, resource_id, priority, metadata,
-      created_at_ms
-    ) VALUES (
-      ${orgId}, 'pending', 'task_review', ${taskId}, 'medium',
-      ${sql.json({ requestedFor: userId, taskId })}, ${now}
-    )
-  `;
-  const summary = z
-    .object({
-      unreadActionableCount: z.number(),
-      unreadTotalCount: z.number(),
-      waitingOnMeTaskIds: z.array(z.string()),
-      pendingReviewCount: z.number(),
-    })
-    .safeParse(await (await api('/api/app/collab/attention')).json());
-  const scoped = z
-    .object({ waitingOnMeTaskIds: z.array(z.string()) })
-    .loose()
-    .safeParse(
-      await (
-        await api(`/api/app/collab/attention?projectId=${projectId}`)
-      ).json(),
-    );
-  record(
-    'attention: the return loop counts reviews and assignments once, scoped',
-    summary.success &&
-      summary.data.pendingReviewCount >= 1 &&
-      // The task is BOTH a pending review and an assignment — it must appear
-      // exactly once.
-      summary.data.waitingOnMeTaskIds.filter((id) => id === taskId).length ===
-        1 &&
-      summary.data.unreadTotalCount >= summary.data.unreadActionableCount &&
-      scoped.success &&
-      scoped.data.waitingOnMeTaskIds.includes(taskId),
-    `reviews=${summary.success ? summary.data.pendingReviewCount : 'ERR'}, waiting=${summary.success ? summary.data.waitingOnMeTaskIds.length : 'ERR'} onceOnly=${summary.success ? summary.data.waitingOnMeTaskIds.filter((id) => id === taskId).length === 1 : 'ERR'}, unread=${summary.success ? `${summary.data.unreadActionableCount}/${summary.data.unreadTotalCount}` : 'ERR'}, scoped=${scoped.success ? scoped.data.waitingOnMeTaskIds.includes(taskId) : 'ERR'}`,
   );
 
   await sql`DELETE FROM "member" WHERE "id" IN (${`m-${teammate}`},
@@ -37790,7 +37627,7 @@ async function checkSandboxSpawner(
       .loose()
       .safeParse(
         await (
-          await fetch(`${base}/api/app/sandbox/sessions?orgId=${orgId}`, {
+          await fetch(`${base}/api/app/sandbox/sessions/view?orgId=${orgId}`, {
             headers: { cookie },
           })
         ).json(),
@@ -41116,8 +40953,9 @@ async function checkBrandingAndTeams(
   // The caller is the team's ONLY member now: the admin door keeps a team
   // from dropping to zero members (409 `TEAM_LAST_MEMBER`), so the removal
   // waits for a second member.
+  const callerRowId = added.success ? added.data.id : 'missing';
   const lastMember = await fetch(
-    `${base}/api/app/teams/${teamId}/members/${userId}?orgId=${orgId}`,
+    `${base}/api/app/teams/members/by-id/${callerRowId}?orgId=${orgId}`,
     { method: 'DELETE', headers: { cookie, origin: base } },
   );
   const lastMemberCode = z
@@ -41138,7 +40976,7 @@ async function checkBrandingAndTeams(
     .safeParse(
       await (
         await fetch(
-          `${base}/api/app/teams/${teamId}/members/${userId}?orgId=${orgId}`,
+          `${base}/api/app/teams/members/by-id/${callerRowId}?orgId=${orgId}`,
           { method: 'DELETE', headers: { cookie, origin: base } },
         )
       ).json(),
@@ -41184,9 +41022,6 @@ async function checkBrandingAndTeams(
       ),
     })
     .safeParse(await get(`/api/app/teams?orgId=${orgId}`));
-  const countMine = z
-    .object({ count: z.number() })
-    .safeParse(await get(`/api/app/teams/count/mine?orgId=${orgId}`));
   const callerEmailRows = await sql<{ email: string }[]>`
     SELECT u."email" FROM "user" u
     JOIN "member" m ON m."userId" = u."id"
@@ -41208,15 +41043,14 @@ async function checkBrandingAndTeams(
       ),
     );
   record(
-    'org teams listing + count + user-id-by-email',
+    'org teams listing + user-id-by-email',
     orgTeams.success &&
       orgTeams.data.teams.some((team) => team.id === teamId) &&
-      countMine.success &&
       emailHit.success &&
       typeof emailHit.data.userId === 'string' &&
       emailMiss.success &&
       emailMiss.data.userId === null,
-    `teams=${orgTeams.success ? orgTeams.data.teams.length : 'ERR'}, countMine=${countMine.success ? countMine.data.count : 'ERR'}, hit=${emailHit.success ? typeof emailHit.data.userId : 'ERR'}, miss=${emailMiss.success ? String(emailMiss.data.userId) : 'ERR'}`,
+    `teams=${orgTeams.success ? orgTeams.data.teams.length : 'ERR'}, hit=${emailHit.success ? typeof emailHit.data.userId : 'ERR'}, miss=${emailMiss.success ? String(emailMiss.data.userId) : 'ERR'}`,
   );
 
   // The email lookup answers for ANY account on the deployment (the person
@@ -49482,22 +49316,28 @@ async function checkReviewArc(
   `;
   const pendingView = z
     .object({
-      review: z
-        .object({ approvalId: z.string(), runId: z.string().nullable() })
-        .loose()
-        .nullable(),
+      pendingReviews: z.array(
+        z.object({ taskId: z.string(), approvalId: z.string() }).loose(),
+      ),
     })
-    .safeParse(await get(`/api/app/tasks/${taskId}/review?orgId=${orgId}`));
+    .loose()
+    .safeParse(
+      await get(
+        `/api/app/tasks/ops-indicators/by-project/${projectId}?orgId=${orgId}`,
+      ),
+    );
+  const pendingEntry = pendingView.success
+    ? pendingView.data.pendingReviews.find((row) => row.taskId === taskId)
+    : undefined;
   record(
-    'settle park mints ONE review row (replay finds it) and the sheet reads it',
+    'settle park mints ONE review row (replay finds it) and the board reads it',
     minted.length === 1 &&
       minted[0]?.status === 'pending' &&
       minted[0].metadata?.runId === runA &&
       minted[0].metadata.requestedFor === userId &&
       minted[0].metadata.round === 0 &&
-      pendingView.success &&
-      pendingView.data.review?.approvalId === minted[0].id,
-    `rows=${minted.length} (want 1) run=${minted[0]?.metadata?.runId === runA} reviewer=${minted[0]?.metadata?.requestedFor === userId} view=${pendingView.success ? pendingView.data.review?.approvalId === minted[0]?.id : 'ERR'}`,
+      pendingEntry?.approvalId === minted[0].id,
+    `rows=${minted.length} (want 1) run=${minted[0]?.metadata?.runId === runA} reviewer=${minted[0]?.metadata?.requestedFor === userId} view=${pendingView.success ? pendingEntry?.approvalId === minted[0]?.id : 'ERR'}`,
   );
 
   // Request changes is the person's move back to In progress (the board's

@@ -10,7 +10,6 @@ import {
   checkProjectAccess,
   EDITOR_ROLES,
 } from '../../core/projects/access.ts';
-import { canClaimTask } from '../../core/tasks/access.ts';
 import {
   TASK_AUDIT_ACTIONS,
   TASK_RESOURCE_TYPE,
@@ -2044,44 +2043,6 @@ export async function assignTask(
   await settleTaskAssigneeChange(tx, { task, assignee, auth });
 }
 
-/** Self-serve claim of an unassigned task. */
-export async function claimTask(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  taskId: string,
-): Promise<{ claimed: boolean; reason?: string }> {
-  const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
-  const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
-  assertTaskNotArchived(task);
-  // A contested claim is a RESULT, not an error (the 0.4 wire): the loser's
-  // UI shows "already claimed", nothing throws. The serializable tx makes
-  // exactly one claimer win.
-  if (!canClaimTask(task)) {
-    return { claimed: false, reason: 'ALREADY_CLAIMED' };
-  }
-  await tx`
-    UPDATE app.tasks SET
-      assignee_type = 'user', assignee_id = ${auth.userId},
-      claimed_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
-    WHERE id = ${taskId}
-  `;
-  await recordActivity(tx, {
-    task,
-    actorType: 'user',
-    actorId: auth.userId,
-    action: 'claimed',
-    toValue: auth.userId,
-  });
-  await createAuditLog(
-    tx,
-    taskAudit(auth, task, TASK_AUDIT_ACTIONS.claimed, {
-      newState: { assigneeType: 'user', assigneeId: auth.userId },
-    }),
-  );
-  return { claimed: true };
-}
-
 /** Board drag: move to (status, position) — rank between the neighbour
  * CARDS (the 0.4 wire sends task ids; ranks resolve here). */
 export async function moveTask(
@@ -2762,7 +2723,6 @@ export async function getTask(
 ): Promise<{
   task: DecoratedTaskRow;
   canEdit: boolean;
-  canClaim: boolean;
   canComment: boolean;
 }> {
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
@@ -2783,7 +2743,6 @@ export async function getTask(
     canEdit,
     // Reaching here means the caller passed the project read gate — exactly
     // the requirement to comment (a READ-level action, the 0.4 posture).
-    canClaim: canEdit && canClaimTask(task),
     canComment: true,
   };
 }

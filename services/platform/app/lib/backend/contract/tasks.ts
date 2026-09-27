@@ -44,13 +44,6 @@ export interface TasksContract {
     args: { taskId: string };
     returns: null;
   };
-  'tasks/mutations:claimTask': {
-    kind: 'mutation';
-    args: { taskId: string };
-    returns:
-      | { claimed: boolean; reason: string }
-      | { claimed: boolean; reason?: undefined };
-  };
   'tasks/mutations:createTask': {
     kind: 'mutation';
     args: {
@@ -311,7 +304,6 @@ export interface TasksContract {
         hasFiles: boolean;
       };
       canEdit: boolean;
-      canClaim: boolean;
       canComment: boolean;
     };
   };

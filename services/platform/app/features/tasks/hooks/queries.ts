@@ -96,7 +96,6 @@ export function useTask(taskId: string | undefined) {
   return {
     task: data?.task ?? null,
     canEdit: data?.canEdit ?? false,
-    canClaim: data?.canClaim ?? false,
     // Commenting is read-level: default false until the read resolves so the
     // composer doesn't flash, then true for any member who can open the task.
     canComment: data?.canComment ?? false,

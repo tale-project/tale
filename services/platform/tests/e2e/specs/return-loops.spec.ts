@@ -6,10 +6,8 @@ import { t } from '../helpers/i18n';
 /**
  * Return-loop surfaces ("what needs me back in Tale?"): the notification bell's
  * expand-to-modal + Recent⇄Priority sort, and the personal notification-preferences
- * page (round-trips the `collab.preferences` query/mutation). Backend correctness
- * of the attention query is covered by the unit tests in
- * `convex/collab/attention.test.ts`; this spec proves the user-visible wiring
- * end-to-end in a real browser.
+ * page (round-trips the `collab.preferences` query/mutation). This spec proves
+ * the user-visible wiring end-to-end in a real browser.
  */
 
 const SORT_LABEL = t('notifications.sortLabel');

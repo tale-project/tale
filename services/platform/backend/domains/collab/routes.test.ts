@@ -28,7 +28,6 @@ vi.mock('./service.ts', () => ({
   myUnreadCount: vi.fn(),
   setNotificationPreferences: service.setNotificationPreferences,
   setTaskSubscription: vi.fn(),
-  getMyAttentionSummary: vi.fn(),
 }));
 vi.mock('../projects/service.ts', () => ({
   getProjectAuthContext: vi.fn(),

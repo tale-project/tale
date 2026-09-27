@@ -204,7 +204,7 @@ export async function getSessionBySessionId(
   return rows[0] ?? null;
 }
 
-export async function listSessionsForOrg(
+async function listSessionsForOrg(
   sql: Sql,
   organizationId: string,
 ): Promise<SessionRow[]> {

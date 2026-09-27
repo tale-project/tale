@@ -425,12 +425,11 @@ describe('the last-member rule', () => {
     return TEAM_ROW(statement);
   };
 
-  it.each([
-    ['/t1/members/u2', 'by team and user'],
-    ['/members/by-id/tm1', 'by membership row'],
-  ])('refuses to remove the last member (%s) with 409', async (route) => {
+  it('refuses to remove the last member with 409', async () => {
     const { sql, statements } = fakeSql(membership(1));
-    const res = await mount(sql).request(route, { method: 'DELETE' });
+    const res = await mount(sql).request('/members/by-id/tm1', {
+      method: 'DELETE',
+    });
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: 'TEAM_LAST_MEMBER' });
     expect(writes(statements)).toEqual([]);
@@ -443,47 +442,46 @@ describe('the last-member rule', () => {
     expect(lock?.text).toContain('FROM "team" WHERE "id" = ?');
   });
 
-  it.each(['/t1/members/u2', '/members/by-id/tm1'])(
-    'removes one of several members (%s), audits it and hints the team',
-    async (route) => {
-      const { sql, statements } = fakeSql(membership(2));
-      const res = await mount(sql).request(route, { method: 'DELETE' });
-      expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ removed: true });
-      expect(writes(statements).map((s) => s.text)).toEqual([
-        'DELETE FROM "teamMember" WHERE "id" = ?',
-      ]);
-      expect(createAuditLog).toHaveBeenCalledWith(
-        sql,
-        expect.objectContaining({
-          organizationId: 'o1',
-          actorId: 'u1',
-          actorRole: 'admin',
-          action: 'team.member_removed',
-          category: 'member',
-          resourceType: 'team',
-          resourceId: 't1',
-          resourceName: 'Finance',
-          metadata: {
-            userId: 'u2',
-            teamMemberId: 'tm1',
-            targetEmail: 'bob@example.test',
-          },
-          status: 'success',
-        }),
-      );
-      expect(emitHintInTx).toHaveBeenCalledWith(sql, {
-        orgId: 'o1',
-        entity: TEAM_HINT_ENTITY,
-        entityId: 't1',
-      });
-    },
-  );
+  it('removes one of several members, audits it and hints the team', async () => {
+    const { sql, statements } = fakeSql(membership(2));
+    const res = await mount(sql).request('/members/by-id/tm1', {
+      method: 'DELETE',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ removed: true });
+    expect(writes(statements).map((s) => s.text)).toEqual([
+      'DELETE FROM "teamMember" WHERE "id" = ?',
+    ]);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        organizationId: 'o1',
+        actorId: 'u1',
+        actorRole: 'admin',
+        action: 'team.member_removed',
+        category: 'member',
+        resourceType: 'team',
+        resourceId: 't1',
+        resourceName: 'Finance',
+        metadata: {
+          userId: 'u2',
+          teamMemberId: 'tm1',
+          targetEmail: 'bob@example.test',
+        },
+        status: 'success',
+      }),
+    );
+    expect(emitHintInTx).toHaveBeenCalledWith(sql, {
+      orgId: 'o1',
+      entity: TEAM_HINT_ENTITY,
+      entityId: 't1',
+    });
+  });
 
   it('is an admin door', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql(membership(2));
-    const res = await mount(sql).request('/t1/members/u2', {
+    const res = await mount(sql).request('/members/by-id/tm1', {
       method: 'DELETE',
     });
     expect(res.status).toBe(403);

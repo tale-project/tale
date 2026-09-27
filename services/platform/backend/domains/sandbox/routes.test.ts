@@ -11,7 +11,6 @@ const {
   deploymentLimits,
   policy,
   listViews,
-  listSessions,
   pin,
   reconcileOrg,
   teardown,
@@ -21,7 +20,6 @@ const {
   deploymentLimits: vi.fn(),
   policy: vi.fn(),
   listViews: vi.fn(),
-  listSessions: vi.fn(),
   pin: vi.fn(),
   reconcileOrg: vi.fn(),
   teardown: vi.fn(),
@@ -67,7 +65,6 @@ vi.mock('./watchdogs.ts', () => ({
 }));
 vi.mock('./sessions.ts', () => ({
   listSandboxViewsForOrg: listViews,
-  listSessionsForOrg: listSessions,
   listRunningOpsBySession: vi.fn(),
   getAgentNodeSandboxOp: vi.fn(),
 }));
@@ -96,7 +93,6 @@ beforeEach(() => {
     maxRenderSessionsPerOrg: 6,
   });
   listViews.mockResolvedValue([]);
-  listSessions.mockResolvedValue([]);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -122,14 +118,11 @@ describe('sandbox settings read and write authority', () => {
         maxSessions: 16,
       });
       expect((await app().request('/quota-usage')).status).toBe(200);
-      for (const path of ['/sessions', '/sessions/view']) {
-        expect((await app().request(path)).status).toBe(
-          role === 'developer' ? 403 : 200,
-        );
-      }
+      expect((await app().request('/sessions/view')).status).toBe(
+        role === 'developer' ? 403 : 200,
+      );
       if (role === 'developer') {
         expect(listViews).not.toHaveBeenCalled();
-        expect(listSessions).not.toHaveBeenCalled();
         expect(await response.json()).toEqual({
           status: 'available',
           observedAt: 1000,
@@ -153,7 +146,6 @@ describe('sandbox settings read and write authority', () => {
         '/capacity',
         '/limits',
         '/quota-usage',
-        '/sessions',
         '/sessions/view',
       ]) {
         expect((await app().request(path)).status).toBe(403);
@@ -199,7 +191,6 @@ describe('sandbox settings read and write authority', () => {
     expect(await response.json()).toEqual({ healed: 1 });
     expect(reconcileOrg).toHaveBeenCalledTimes(1);
     expect(reconcileOrg).toHaveBeenCalledWith(query, 'member-org');
-    expect(listSessions).not.toHaveBeenCalled();
   });
 
   it('returns authoritative policy limits alongside occupied quota slots', async () => {

@@ -24,7 +24,6 @@ import {
   myUnreadCount,
   setNotificationPreferences,
   setTaskSubscription,
-  getMyAttentionSummary,
 } from './service.ts';
 
 const listNotificationsQuerySchema = z.object({
@@ -93,19 +92,6 @@ export function createCollabRoutes(deps: {
         c.get('sessionBundle').user.id,
       ),
     });
-  });
-
-  /** The return loop: what needs this person back (the 0.4
-   * `getMyAttentionSummary`). Optional `projectId` scopes it to one board. */
-  app.get('/attention', async (c) => {
-    const projectId = c.req.query('projectId');
-    return c.json(
-      await getMyAttentionSummary(deps.sql, {
-        organizationId: c.get('orgId'),
-        userId: c.get('sessionBundle').user.id,
-        ...(projectId !== undefined && projectId !== '' ? { projectId } : {}),
-      }),
-    );
   });
 
   app.get('/preferences', async (c) => {

@@ -260,13 +260,11 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{
           task: TaskWire;
           canEdit: boolean;
-          canClaim: boolean;
           canComment: boolean;
         }>(`/tasks/${encodeURIComponent(taskId)}`, { orgId }).then(
           (body): GetTaskResult => ({
             task: taskView(body.task),
             canEdit: body.canEdit,
-            canClaim: body.canClaim,
             canComment: body.canComment,
           }),
           (error: unknown): GetTaskResult => {
@@ -363,37 +361,6 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
     return {
       queryKey: backendKey(orgId, 'task', 'ops-indicators-across'),
       queryFn: () => backendFetch('/tasks/ops-indicators', { orgId }),
-    };
-  },
-  'tasks/queries:getPendingTaskReview': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    const taskId = args.taskId;
-    if (orgId === undefined || typeof taskId !== 'string') return null;
-    return {
-      queryKey: backendKey(orgId, 'task', 'pending-review', taskId),
-      queryFn: () =>
-        backendFetch<{
-          review: {
-            approvalId: string;
-            requestedFor: string | null;
-            agentSlug: string | null;
-            createdAt: number;
-          } | null;
-        }>(`/tasks/${encodeURIComponent(taskId)}/review`, { orgId }).then(
-          (body) => {
-            if (body.review === null) return null;
-            return {
-              approvalId: body.review.approvalId,
-              ...(body.review.agentSlug !== null
-                ? { agentSlug: body.review.agentSlug }
-                : {}),
-              ...(body.review.requestedFor !== null
-                ? { requestedFor: body.review.requestedFor }
-                : {}),
-              requestedAt: body.review.createdAt,
-            };
-          },
-        ),
     };
   },
   'tasks/queries:listTaskAgentRuns': (args, ctx) => {
@@ -777,17 +744,6 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
   },
   'tasks/mutations:assignTask': {
     run: taskVerb('assign'),
-    invalidate: taskWriteInvalidate,
-  },
-  'tasks/mutations:claimTask': {
-    run: async (args, ctx) => {
-      const orgId = requireOrg(args, ctx);
-      const taskId = requireString(args, 'taskId');
-      return backendFetch<{ claimed: boolean; reason?: string }>(
-        `/tasks/${encodeURIComponent(taskId)}/claim`,
-        { method: 'POST', body: {}, orgId },
-      );
-    },
     invalidate: taskWriteInvalidate,
   },
   'tasks/mutations:moveTask': {

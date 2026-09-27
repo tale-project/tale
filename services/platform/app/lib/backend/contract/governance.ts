@@ -608,11 +608,6 @@ export interface GovernanceContract {
       hint?: string;
     };
   };
-  'governance/queries:getAccessibleModelsForUser': {
-    kind: 'query';
-    args: { organizationId: string; modelIds: string[] };
-    returns: string[];
-  };
   'governance/queries:getMyBudgetStatus': {
     kind: 'query';
     args: { organizationId: string };
@@ -671,13 +666,6 @@ export interface GovernanceContract {
       costCents: null | { used: number; limit: number };
       requests: null | { used: number; limit: number };
     }>;
-  };
-  'governance/queries:getMyFeatureFlags': {
-    kind: 'query';
-    args: { organizationId: string };
-    returns: {
-      maxContextTokens?: number;
-    };
   };
   'governance/queries:getOrgUsageMetrics': {
     kind: 'query';

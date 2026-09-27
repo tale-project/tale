@@ -73,7 +73,6 @@ describe('useTask', () => {
       data: {
         task: { _id: 'task-1', title: 'Ship it' },
         canEdit: true,
-        canClaim: false,
         canComment: true,
       },
       isLoading: false,

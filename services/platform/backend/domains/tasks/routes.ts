@@ -47,12 +47,11 @@ import {
   startWorkflowForTask,
   upsertTaskByExternalRef,
 } from './external-ref.ts';
-import { getPendingReviewForTask, TaskReviewError } from './reviews.ts';
+import { TaskReviewError } from './reviews.ts';
 import {
   addTaskDependency,
   archiveTask,
   assignTask,
-  claimTask,
   createTask,
   createTaskLabel,
   deleteTask,
@@ -1102,22 +1101,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  // The task's open review gate (null when nothing waits on a reviewer).
-  app.get('/:taskId/review', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      return c.json({
-        review: await getPendingReviewForTask(
-          deps.sql,
-          auth.organizationId,
-          c.req.param('taskId'),
-        ),
-      });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
   app.post('/:taskId/status', async (c) => {
     const body = z
       .object({ status: statusSchema })
@@ -1163,18 +1146,6 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         assignTask(tx, auth, { taskId: c.req.param('taskId'), ...body.data }),
       );
       return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:taskId/claim', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      const result = await transactSerializable(deps.sql, (tx) =>
-        claimTask(tx, auth, c.req.param('taskId')),
-      );
-      return c.json(result);
     } catch (error) {
       return handleError(c, error);
     }

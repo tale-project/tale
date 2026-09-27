@@ -47,10 +47,6 @@ import {
 } from './competence.ts';
 import { testModerationProvider } from './moderation.ts';
 import {
-  getAccessibleModelsForUser,
-  resolveFeatureFlagsForUser,
-} from './service.ts';
-import {
   cancelPendingDsarPolicyChange,
   getDsarPolicyForUi,
   GovernanceTailError,
@@ -415,14 +411,6 @@ export function createGovernanceRoutes(deps: {
     );
   });
 
-  app.get('/my/feature-flags', async (c) => {
-    const flags = await resolveFeatureFlagsForUser(deps.sql, {
-      organizationId: c.get('orgId'),
-      userId: c.get('sessionBundle').user.id,
-    });
-    return c.json({ flags });
-  });
-
   /**
    * The composer banner's read. `exceeded` is what the admission gate would
    * refuse RIGHT NOW — booked usage plus in-flight holds, over every bucket
@@ -548,20 +536,6 @@ export function createGovernanceRoutes(deps: {
         costCents: meter(s.maxCostCents, s.usage.costEstimate),
         requests: meter(s.maxRequests, s.usage.requestCount),
       })),
-    });
-  });
-
-  app.post('/models/accessible', async (c) => {
-    const body = z
-      .object({ modelIds: z.array(z.string().max(200)).max(500) })
-      .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    return c.json({
-      models: await getAccessibleModelsForUser(deps.sql, {
-        organizationId: c.get('orgId'),
-        userId: c.get('sessionBundle').user.id,
-        modelIds: body.data.modelIds,
-      }),
     });
   });
 

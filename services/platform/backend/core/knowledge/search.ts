@@ -5,16 +5,18 @@
  *
  * Everything that retrieves calls {@link searchKnowledge}, through the 0.5
  * service's `searchKnowledgeForOrg` (`domains/knowledge/service.ts`): the
- * chat tools (`get_knowledge` / `rag_search`), the app's Knowledge page
- * (`POST /api/app/knowledge/search`) and the REST endpoint
- * (`POST /api/v1/knowledge/search`). Nothing else does, because there is
- * nothing else: knowledge is never injected into a prompt on its own. That
- * was removed deliberately. Automatic injection spent context on every turn
- * whether the question needed knowledge or not, it made an answer depend on
- * a retrieval nobody had asked for, and it left no trace of what had
- * actually been read. As a tool, retrieval is a visible act with a visible
- * result. (An automation node once planned for this seam never landed in
- * 0.5 and was removed rather than left as an uninstallable backend.)
+ * chat tools (`get_knowledge` / `rag_search`), the REST endpoint
+ * (`POST /api/v1/knowledge/search`) and the session route
+ * `POST /api/app/knowledge/search`, which no page calls and which keeps the
+ * retrieval proof in `backend:integration` on a signed-in caller's scope.
+ * Nothing else does, because there is nothing else: knowledge is never
+ * injected into a prompt on its own. That was removed deliberately.
+ * Automatic injection spent context on every turn whether the question
+ * needed knowledge or not, it made an answer depend on a retrieval nobody
+ * had asked for, and it left no trace of what had actually been read. As a
+ * tool, retrieval is a visible act with a visible result. (An automation
+ * node once planned for this seam never landed in 0.5 and was removed
+ * rather than left as an uninstallable backend.)
  *
  * ## Calling it from the chat capability surface
  *

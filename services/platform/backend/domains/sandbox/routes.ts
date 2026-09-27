@@ -26,7 +26,6 @@ import {
   getAgentNodeSandboxOp,
   listRunningOpsBySession,
   listSandboxViewsForOrg,
-  listSessionsForOrg,
 } from './sessions.ts';
 import { reconcileOrgSessions } from './watchdogs.ts';
 /**
@@ -303,26 +302,6 @@ export function createSandboxRoutes(deps: {
     return c.json({
       sessions: await listSandboxViewsForOrg(deps.sql, c.get('orgId')),
     });
-  });
-
-  app.get('/sessions', async (c) => {
-    const denied = requireAdmin(c);
-    if (denied) return denied;
-    const sessions = await listSessionsForOrg(deps.sql, c.get('orgId'));
-    const withOps = await Promise.all(
-      sessions.map(async (session) =>
-        Object.assign(
-          {
-            runningOps: await listRunningOpsBySession(
-              deps.sql,
-              session.sessionId,
-            ),
-          },
-          session,
-        ),
-      ),
-    );
-    return c.json({ sessions: withOps });
   });
 
   /** Cancel every running op on one session (the 0.4 `stopSandboxTask`). */

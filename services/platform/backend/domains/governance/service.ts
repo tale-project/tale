@@ -157,7 +157,7 @@ export async function checkModelAccessForUser(
   );
 }
 
-export async function resolveFeatureFlagsForUser(
+async function resolveFeatureFlagsForUser(
   sql: Sql,
   args: { organizationId: string; userId: string },
 ): Promise<ResolvedFeatureFlags> {

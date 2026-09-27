@@ -9,7 +9,7 @@ type PlatformTable =
   | 'documents'
   | 'products'
   | 'projects'
-  // A task has no ACL of its own — `tasks/access.ts` delegates every check to
+  // A task has no ACL of its own — the tasks domain delegates every check to
   // its parent project. Its grants therefore MIRROR `projects` on every row
   // below; a task must never be reachable at a role that could not open the
   // project holding it. The entry exists because `authorizeRls` denies by

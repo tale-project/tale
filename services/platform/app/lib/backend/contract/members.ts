@@ -31,11 +31,6 @@ export interface MembersContract {
     };
     returns: null;
   };
-  'members/queries:approxCountMyTeams': {
-    kind: 'query';
-    args: { organizationId: string };
-    returns: number;
-  };
   'members/queries:getCurrentMemberContext': {
     kind: 'query';
     args: { organizationId: string };

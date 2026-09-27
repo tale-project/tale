@@ -182,18 +182,6 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     });
   });
 
-  /** The caller's team count (0.4 `approxCountMyTeams` — a cheap gate). */
-  app.get('/count/mine', async (c) => {
-    const rows = await deps.sql<{ count: string }[]>`
-      SELECT count(*)::text AS count
-      FROM "teamMember" tm
-      JOIN "team" t ON t."id" = tm."teamId"
-      WHERE t."organizationId" = ${c.get('orgId')}
-        AND tm."userId" = ${c.get('sessionBundle').user.id}
-    `;
-    return c.json({ count: Number(rows[0]?.count ?? '0') });
-  });
-
   /** What deleting the team would touch — the confirm dialog's numbers. */
   app.get('/:teamId/impact', async (c) => {
     if (!callerIsAdmin(c)) {
@@ -429,26 +417,6 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         FROM "teamMember" tm
         JOIN "team" t ON t."id" = tm."teamId"
         WHERE tm."id" = ${teamMemberId} AND t."organizationId" = ${orgId}
-        LIMIT 1
-      `;
-      return rows[0] ?? null;
-    });
-    if (outcome.lastMember) return lastMemberRefusal(c);
-    return c.json({ removed: outcome.removed });
-  });
-
-  app.delete('/:teamId/members/:userId', async (c) => {
-    if (!callerIsAdmin(c)) {
-      return c.json({ error: 'Only admins can remove team members' }, 403);
-    }
-    const orgId = c.get('orgId');
-    const team = await teamInOrg(c.req.param('teamId'), orgId);
-    if (team === null) return c.json({ error: 'TEAM_NOT_FOUND' }, 404);
-    const userId = c.req.param('userId');
-    const outcome = await removeMembership(orgId, actorOf(c), async (tx) => {
-      const rows = await tx<{ id: string; teamId: string; userId: string }[]>`
-        SELECT "id", "teamId", "userId" FROM "teamMember"
-        WHERE "teamId" = ${team.id} AND "userId" = ${userId}
         LIMIT 1
       `;
       return rows[0] ?? null;

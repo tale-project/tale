@@ -11,7 +11,6 @@ export const TASK_AUDIT_ACTIONS = {
   updated: 'task.updated',
   statusChanged: 'task.status_changed',
   assigned: 'task.assigned',
-  claimed: 'task.claimed',
   unassigned: 'task.unassigned',
   reviewerChanged: 'task.reviewer_changed',
   commentCreated: 'task.comment.created',

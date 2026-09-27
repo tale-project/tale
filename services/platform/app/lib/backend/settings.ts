@@ -71,7 +71,6 @@ type CreateProviderCredentialResult =
 type CreateConnectorCredentialResult =
   ReturnsOf<'connector_credentials/actions:createCredential'>;
 type GovernancePolicyResult = ReturnsOf<'governance/queries:getPolicy'>;
-type MyFeatureFlagsResult = ReturnsOf<'governance/queries:getMyFeatureFlags'>;
 type MyBudgetStatusResult = ReturnsOf<'governance/queries:getMyBudgetStatus'>;
 type MyBudgetUsageResult = ReturnsOf<'governance/queries:getMyBudgetUsage'>;
 type TrashListResult = ReturnsOf<'governance/queries:listTrashedRows'>;
@@ -225,17 +224,6 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
-  'members/queries:approxCountMyTeams': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, TEAM_HINT_ENTITY, 'count-mine'),
-      queryFn: () =>
-        backendFetch<{ count: number }>('/teams/count/mine', { orgId }).then(
-          (body) => body.count,
-        ),
-    };
-  },
   'members/queries:getUserIdByEmail': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const email = args.email;
@@ -328,18 +316,6 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.policy),
     };
   },
-  'governance/queries:getMyFeatureFlags': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, 'governance_policy', 'my-flags'),
-      queryFn: () =>
-        backendFetch<{ flags: MyFeatureFlagsResult }>(
-          '/governance/my/feature-flags',
-          { orgId },
-        ).then((body) => body.flags),
-    };
-  },
   'governance/queries:getMyBudgetStatus': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -368,26 +344,6 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       // and a return visit reads afresh (past the loader's warm-up).
       staleTime: 10_000,
       refetchInterval: 60_000,
-    };
-  },
-  'governance/queries:getAccessibleModelsForUser': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined || !Array.isArray(args.modelIds)) return null;
-    const modelIds = args.modelIds.filter(
-      (id): id is string => typeof id === 'string',
-    );
-    return {
-      queryKey: backendKey(
-        orgId,
-        'governance_policy',
-        'accessible-models',
-        modelIds.join('|'),
-      ),
-      queryFn: () =>
-        backendFetch<{ models: string[] }>('/governance/models/accessible', {
-          orgId,
-          body: { modelIds },
-        }).then((body) => body.models),
     };
   },
   'governance/queries:listTrashedRows': (args, ctx) => {

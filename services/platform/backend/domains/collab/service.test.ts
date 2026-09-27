@@ -7,7 +7,6 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { CollabNotificationInput } from './service.ts';
 import {
   dismissReviewRequestNotifications,
-  getMyAttentionSummary,
   markAllNotificationsRead,
   notifyTaskReviewerAssigned,
   writeCoalescedNotification,
@@ -356,54 +355,5 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
     });
     expect(calls).toEqual([]);
     expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
-  });
-});
-
-describe('the attention summary — "waiting on me" never misses my reviews', () => {
-  it('filters MY pending reviews in SQL, newest first, and counts them exactly', async () => {
-    // The old shape fetched 100 pending reviews org-wide in no order and
-    // filtered `requestedFor` in JS: past 100 pending reviews in the org, a
-    // person's own reviews fell outside the window nondeterministically.
-    const { db, statements } = fakeDb((text) => {
-      if (text.startsWith('SELECT coalesce(a.metadata')) {
-        return [
-          { taskId: 'task-9', total: 3 },
-          { taskId: 'task-4', total: 3 },
-          { taskId: 'task-4', total: 3 },
-        ];
-      }
-      return [];
-    });
-    const summary = await getMyAttentionSummary(db, {
-      organizationId: 'org-1',
-      userId: 'u-recipient',
-    });
-    const reviews = statements.find((text) =>
-      text.startsWith('SELECT coalesce(a.metadata'),
-    );
-    expect(reviews).toBeDefined();
-    expect(reviews).toContain("a.metadata ->> 'requestedFor' = ?");
-    expect(reviews).toContain('ORDER BY a.seq DESC');
-    // Two rows name the same task (two rounds): the task counts once in the
-    // return loop; the review count is the exact total, not the row count.
-    expect(summary.waitingOnMeTaskIds).toEqual(['task-9', 'task-4']);
-    expect(summary.pendingReviewCount).toBe(3);
-  });
-
-  it('counts unread bells exactly instead of scanning a capped page', async () => {
-    const { db } = fakeDb((text) =>
-      text.startsWith('SELECT type, count(*)')
-        ? [
-            { type: 'mention', count: 150 },
-            { type: 'task_status_changed', count: 3 },
-          ]
-        : [],
-    );
-    const summary = await getMyAttentionSummary(db, {
-      organizationId: 'org-1',
-      userId: 'u-recipient',
-    });
-    expect(summary.unreadTotalCount).toBe(153);
-    expect(summary.unreadActionableCount).toBe(150);
   });
 });
