@@ -27,6 +27,7 @@ import {
 import { useAuth } from '@/app/hooks/use-session-user';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
+import { USER_NAME_MAX_LENGTH } from '@/lib/shared/constants/user-name';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
@@ -97,6 +98,7 @@ function AccountFormView({ hasCredential }: { hasCredential: boolean }) {
 
 function ProfileSection() {
   const { t: tSettings } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { user } = useAuth();
   const { mutateAsync: updateUserName } = useUpdateUserName();
@@ -107,9 +109,18 @@ function ProfileSection() {
         name: z
           .string()
           .trim()
-          .min(1, tSettings('account.profile.nameRequired')),
+          .min(1, tSettings('account.profile.nameRequired'))
+          // The server's own cap: past it the save would fail on a generic
+          // toast, so the field names the limit instead.
+          .max(
+            USER_NAME_MAX_LENGTH,
+            tCommon('validation.maxLength', {
+              field: tSettings('account.profile.name'),
+              max: USER_NAME_MAX_LENGTH,
+            }),
+          ),
       }),
-    [tSettings],
+    [tSettings, tCommon],
   );
 
   const data = useMemo<ProfileFormData | undefined>(() => {
