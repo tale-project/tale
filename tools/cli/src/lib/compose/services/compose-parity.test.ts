@@ -475,6 +475,51 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     expect(caddyfile).not.toContain('convex');
   });
 
+  test('the WebDAV door refuses dot-segments at the edge like the API lanes', () => {
+    // The platform's URL parser folds `..` / `%2e%2e` before the WebDAV
+    // path parser sees them, so a PUT through `<folder>/%2E%2E/x` landed
+    // one level up. The API rule lives in the entrypoint's injected block;
+    // the WebDAV handle never moved there, so its twin sits in the static
+    // Caddyfile — ahead of `handle /dav/*`, and matching the same raw-URI
+    // grammar, so the two never drift apart.
+    const caddyfile = readFileSync(
+      resolve(repoRoot, 'services/proxy/Caddyfile'),
+      'utf8',
+    );
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+      'utf8',
+    );
+    const dotGrammar = (source: string, matcher: string): string => {
+      const line = source
+        .split('\n')
+        .find((candidate) => candidate.includes(`@${matcher} expression`));
+      expect(line).toBeDefined();
+      return (line ?? '')
+        .slice((line ?? '').indexOf('&&'))
+        .replace(/[\\`]+$/, '');
+    };
+    const davRule = caddyfile.indexOf('@davDotSegments expression');
+    const davRefusal = caddyfile.indexOf('handle @davDotSegments {');
+    const davHandle = caddyfile.indexOf('handle /dav/* {');
+    expect(davRule).toBeGreaterThan(-1);
+    expect(davRefusal).toBeGreaterThan(davRule);
+    expect(davHandle).toBeGreaterThan(davRefusal);
+    expect(
+      caddyfile
+        .slice(davRefusal, davHandle)
+        .includes('respond "Not found" 404'),
+    ).toBe(true);
+    expect(caddyfile).toContain(
+      '(path("/dav/*") || {http.request.uri}.matches("(?i)^(/[^/?]+)?/dav/"))',
+    );
+    // The entrypoint escapes its backticks for the heredoc; past the
+    // closing backtick the grammar after `&&` compares byte for byte.
+    expect(dotGrammar(caddyfile, 'davDotSegments')).toBe(
+      dotGrammar(entrypoint, 'apiDotSegments'),
+    );
+  });
+
   test('the CLI refuses to boot the store on a default credential', () => {
     // `tale deploy` auto-generates OBJECT_STORE_SECRET_KEY into .env; the
     // `:?` form makes a missing one fail the compose up instead of silently

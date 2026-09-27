@@ -27,7 +27,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import type { ServerResponse } from 'node:http';
+import { request as httpRequest, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -27975,6 +27975,41 @@ async function checkWebdav(
   // MKCOL + double-MKCOL (405 per RFC 4918 §9.3.1).
   const mkcol = await dav('/documents/DavReports', { method: 'MKCOL' });
   const mkcolAgain = await dav('/documents/DavReports', { method: 'MKCOL' });
+
+  // A dot-segment in the request line is refused before routing — 404, and
+  // no file lands one level up. `fetch` folds `%2E%2E` client-side, so the
+  // probe writes the request line itself through node:http.
+  const dotSegmentPut = await new Promise<number>((resolve, reject) => {
+    const origin = new URL(base);
+    const req = httpRequest(
+      {
+        host: origin.hostname,
+        port: origin.port,
+        method: 'PUT',
+        path: `/dav/${orgSlug}/documents/DavReports/%2E%2E/dot-escape.txt`,
+        headers: {
+          authorization: `Basic ${basic}`,
+          'content-type': 'text/plain',
+          'content-length': '3',
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode ?? 0));
+      },
+    );
+    req.on('error', reject);
+    req.end('dot');
+  });
+  const dotSegmentRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.documents
+    WHERE org_id = ${orgId} AND title = 'dot-escape.txt' LIMIT 1
+  `;
+  record(
+    'webdav: a raw dot-segment in the request-target is refused with 404 before routing',
+    dotSegmentPut === 404 && dotSegmentRows.length === 0,
+    `PUT …/DavReports/%2E%2E/dot-escape.txt=${dotSegmentPut} (want 404) rows=${dotSegmentRows.length} (want 0)`,
+  );
 
   // Sized PUT → blob in MinIO + document row + RAG queued.
   const putBody = 'hello webdav';

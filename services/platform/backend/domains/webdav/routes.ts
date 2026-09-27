@@ -14,6 +14,7 @@ import {
   hmacHash,
   requireHmacSecret,
 } from '../../core/webdav/helpers.ts';
+import { requestTarget } from '../../lib/http-hygiene.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
@@ -63,11 +64,16 @@ function buildWebdavCtx(sql: Sql): WebDAVCtx {
 }
 
 /** `/dav/*` — the protocol surface. Auth is HTTP Basic inside the reused
- * dispatch (app passwords), NOT the session middleware. */
+ * dispatch (app passwords), NOT the session middleware. The adapter also
+ * gets the request line as the wire carried it: `c.req.raw.url` has its
+ * dot-segments folded already, and a `..` the client sent must be refused,
+ * not resolved one level up. */
 export function createWebdavProtocolRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
   const ctx = buildWebdavCtx(deps.sql);
-  app.all('*', (c) => fetchAdapter(c.req.raw, ctx));
+  app.all('*', (c) =>
+    fetchAdapter(c.req.raw, ctx, { rawTarget: requestTarget(c) }),
+  );
   return app;
 }
 

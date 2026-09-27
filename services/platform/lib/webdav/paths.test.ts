@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDavPath, lockKeyFromParsed, parseDavPath } from './paths';
+import {
+  buildDavPath,
+  hasDotSegment,
+  lockKeyFromParsed,
+  parseDavPath,
+} from './paths';
 
 describe('parseDavPath', () => {
   it('parses the root pseudo-collection, flagged as the root', () => {
@@ -231,5 +236,37 @@ describe('lockKeyFromParsed', () => {
     expect(lockKeyFromParsed({ namespace: 'documents', segments: [] })).toBe(
       '/documents',
     );
+  });
+});
+
+describe('hasDotSegment', () => {
+  // The parsed URL the adapter sees has its dots folded already, so the
+  // judgment runs on the raw request-target — every spelling the WHATWG
+  // parser would have collapsed, in either case.
+  it.each([
+    '/dav/myorg/documents/folder/../x',
+    '/dav/myorg/documents/folder/%2e%2e/x',
+    '/dav/myorg/documents/folder/%2E%2E/x',
+    '/dav/myorg/documents/folder/.%2e/x',
+    '/dav/myorg/documents/folder/%2E./x',
+    '/dav/myorg/documents/folder/./x',
+    '/dav/myorg/documents/folder/%2e/x',
+    '/dav/myorg/documents/folder/..',
+    '/dav/myorg/documents/folder/..?depth=1',
+    '/x/../dav/myorg/documents/plain',
+  ])('refuses %s', (target) => {
+    expect(hasDotSegment(target)).toBe(true);
+  });
+
+  it.each([
+    '/dav/myorg/documents/plain',
+    '/dav/myorg/.trash/',
+    '/dav/myorg/documents/..foo/x',
+    '/dav/myorg/documents/foo./x',
+    '/dav/myorg/documents/a.b/c..d',
+    '/dav/myorg/documents/%252e%252e/x',
+    '/dav/myorg/documents/plain?next=../up',
+  ])('keeps %s', (target) => {
+    expect(hasDotSegment(target)).toBe(false);
   });
 });

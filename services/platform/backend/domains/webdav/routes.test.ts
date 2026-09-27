@@ -56,7 +56,11 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
   };
 });
 
-import { createWebdavAdminRoutes } from './routes.ts';
+import { fetchAdapter } from '../../../lib/webdav/adapters/fetch.ts';
+import {
+  createWebdavAdminRoutes,
+  createWebdavProtocolRoutes,
+} from './routes.ts';
 
 interface Statement {
   text: string;
@@ -98,6 +102,29 @@ function mount(sql: Sql) {
 beforeEach(() => {
   vi.clearAllMocks();
   caller.role = 'admin';
+});
+
+describe('the protocol door', () => {
+  it('hands the adapter the request line as the wire carried it', async () => {
+    // The Node adapter's `IncomingMessage.url` is the raw request-target;
+    // `c.req.raw.url` has its dot-segments folded, so the adapter needs the
+    // raw bytes to refuse a `%2E%2E` the client sent instead of resolving it.
+    vi.mocked(fetchAdapter).mockResolvedValue(
+      new Response(null, { status: 207 }),
+    );
+    const { sql } = fakeSql(() => undefined);
+    const res = await createWebdavProtocolRoutes({ sql }).request(
+      '/o1/documents/x',
+      { method: 'PROPFIND' },
+      { incoming: { url: '/dav/o1/documents/folder/%2E%2E/x' } },
+    );
+    expect(res.status).toBe(207);
+    expect(fetchAdapter).toHaveBeenCalledWith(
+      expect.any(Request),
+      expect.objectContaining({ backend: expect.anything() }),
+      { rawTarget: '/dav/o1/documents/folder/%2E%2E/x' },
+    );
+  });
 });
 
 describe('POST /app-passwords', () => {

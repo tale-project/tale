@@ -255,6 +255,21 @@
 	# accepts a plain integer as bytes) so the two ceilings stay in sync.
 	# Operators raising the platform limit above 5 GB must also set this env
 	# on the proxy container, or the proxy stays the binding cap (default 5 GB).
+	#
+	# Dot-segments are refused here first, the way `@apiDotSegments` (injected
+	# by docker-entrypoint.sh) refuses them for `/api`: the platform's URL
+	# parser folds `..` / `%2e%2e` / `.%2e` before the WebDAV path parser
+	# sees them, so a PUT through `<folder>/%2E%2E/x` landed one level up
+	# (2026-09-26 evaluation, F-03). Same shape as the API rule — raw
+	# request-URI, either way the dots fold, the optional leading segment
+	# for a subpath deployment, character classes rather than backslashes —
+	# so the two stay one rule; change one, change the other. Plain text,
+	# as the door's own 404 is.
+	@davDotSegments expression `(path("/dav/*") || {http.request.uri}.matches("(?i)^(/[^/?]+)?/dav/")) && {http.request.uri}.matches("(?i)(^|/)(%2e|[.]){1,2}(/|$|[?])")`
+	handle @davDotSegments {
+		header Cache-Control no-store
+		respond "Not found" 404
+	}
 	handle /dav/* {
 		request_body {
 			max_size {$WEBDAV_MAX_PUT_BYTES:5GB}

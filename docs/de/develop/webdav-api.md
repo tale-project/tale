@@ -15,7 +15,7 @@ Diese Referenz richtet sich an Entwickler von Clients. Prüfe zuerst einen authe
 | `/dav/<orgSlug>/.trash/<path>` | Nur Lesen | Dokumente im Papierkorb |
 | `/dav/<orgSlug>/` | Nur Lesen | Die beiden Bereiche oben |
 
-Kodiere jedes Pfadsegment einzeln. Der Parser normalisiert Unicode auf NFC und entfernt Leerraum am Anfang und Ende. Leere Namen, `.` und `..`, `/`, `\`, Steuerzeichen und Namen mit mehr als 255 UTF-16-Codeeinheiten sind unzulässig. Das ist eine Zeichenlängenprüfung, keine Grenze von 255 Bytes. Für Organisations-Slugs gilt `[a-zA-Z0-9_-]{1,64}`.
+Kodiere jedes Pfadsegment einzeln. Der Parser normalisiert Unicode auf NFC und entfernt Leerraum am Anfang und Ende. Leere Namen, `.` und `..`, `/`, `\`, Steuerzeichen und Namen mit mehr als 255 UTF-16-Codeeinheiten sind unzulässig. Das ist eine Zeichenlängenprüfung, keine Grenze von 255 Bytes. Für Organisations-Slugs gilt `[a-zA-Z0-9_-]{1,64}`. Ein Segment `.` oder `..` in der Anfragezeile, roh oder prozentkodiert (`%2e%2e`, `.%2e`), wird vor dem Routing mit `404` abgewiesen und nie gegen den übergeordneten Ordner aufgelöst.
 
 Verwende für Ordner einen abschließenden Schrägstrich, für Dateien keinen. Verzeichnisantworten enthalten kanonische URLs. Übernimm bei vorhandenen Einträgen den zurückgegebenen `href`, statt ihn aus dem Anzeigenamen abzuleiten. Das ist besonders bei gleichnamigen Dokumenten im selben Ordner wichtig.
 

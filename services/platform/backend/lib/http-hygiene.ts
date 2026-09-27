@@ -192,8 +192,9 @@ export const apiNotFound: NotFoundHandler = (c: Context) =>
 /** The request target as the wire carried it: the Node adapter hands the
  * raw `IncomingMessage` in as the environment, whose `url` is the exact
  * bytes of the request line; any other host falls back to the parsed
- * path and query. */
-function requestTarget(c: Context): string {
+ * path and query. Exported for the doors that must judge the raw bytes
+ * (the WebDAV dot-segment refusal), not the folded URL. */
+export function requestTarget(c: Context): string {
   const incoming: unknown = Reflect.get(c.env ?? {}, 'incoming');
   const raw =
     incoming !== null && typeof incoming === 'object'

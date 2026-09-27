@@ -412,6 +412,13 @@ any toggled setting after the run.
   (`webdav.list.title`) after reload; the connection details show username +
   URL (`webdav.connectionDetails.usernameLabel`); revoking confirms
   (`webdav.revokeDialog.title`) and marks the row revoked after reload.
+- [ ] `SET-F52` · **WebDAV refuses dot-segments** — with a SET-F34
+  app-password, `MKCOL /dav/{org}/documents/dotprobe/`, then
+  `curl --path-as-is --user <email>:<password> --upload-file note.txt
+  <site>/dav/{org}/documents/dotprobe/%2E%2E/escape.txt` and the same with a
+  raw `../` → both answer `404`; `PROPFIND Depth: 1` on `/dav/{org}/documents/`
+  lists no `escape.txt`, and the Document Hub shows no stray file either;
+  `dotprobe/` deletes cleanly afterwards.
 - [ ] `SET-F35` · **Enterprise SSO configure** —
   `/dashboard/{org}/settings/enterprise-sso` → pick a **Protocol**
   (`settings.enterpriseSso.protocolLabel`; options

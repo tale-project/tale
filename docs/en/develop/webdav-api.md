@@ -15,7 +15,7 @@ This reference is for client implementers. First verify one authenticated listin
 | `/dav/<orgSlug>/.trash/<path>` | Read only | Trashed documents |
 | `/dav/<orgSlug>/` | Read only | The two collections above |
 
-Encode each path segment separately. The parser normalizes Unicode to NFC and trims leading and trailing whitespace. It rejects empty names, `.` and `..`, `/`, `\`, control characters, and names longer than 255 UTF-16 code units. This is a character-length check, not a 255-byte limit. Organization slugs match `[a-zA-Z0-9_-]{1,64}`.
+Encode each path segment separately. The parser normalizes Unicode to NFC and trims leading and trailing whitespace. It rejects empty names, `.` and `..`, `/`, `\`, control characters, and names longer than 255 UTF-16 code units. This is a character-length check, not a 255-byte limit. Organization slugs match `[a-zA-Z0-9_-]{1,64}`. A `.` or `..` segment in the request line, raw or percent-encoded (`%2e%2e`, `.%2e`), is refused with `404` before routing and is never resolved against the parent folder.
 
 Use a trailing slash for folders and none for files. Listings return canonical URLs. Follow the returned `href` when addressing an existing item; do not reconstruct it from its display name, particularly when sibling documents share a title.
 
