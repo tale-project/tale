@@ -6,6 +6,7 @@ import {
   backendFetch,
   backendUrl,
   eventsUrl,
+  readBackendApiError,
 } from './api-client';
 import {
   isBackendReachable,
@@ -248,6 +249,43 @@ describe('backendFetch', () => {
     await expect(
       backendFetch<undefined>('/tasks/t1', { orgId: 'org1', method: 'DELETE' }),
     ).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The raw-fetch lanes — the chat turn, the upload POSTs — read a refusal the
+ * way `backendFetch` does. They used to throw `upload failed: <status>` and
+ * keep nothing the door said.
+ */
+describe('readBackendApiError', () => {
+  it("reads the door's code, message and data off a raw answer", async () => {
+    const error = await readBackendApiError(
+      jsonResponse(413, {
+        error: 'FILE_SIZE_INVALID',
+        message: 'The file exceeds the 512 MiB limit',
+        data: { limitBytes: 536_870_912 },
+      }),
+    );
+    expect(error).toBeInstanceOf(BackendApiError);
+    expect(error).toMatchObject({
+      status: 413,
+      code: 'FILE_SIZE_INVALID',
+      message: 'The file exceeds the 512 MiB limit',
+      data: { limitBytes: 536_870_912 },
+    });
+  });
+
+  it('keeps the status text, and says so, for a body that is not JSON', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = await readBackendApiError(
+      new Response('<html>Bad Gateway</html>', { status: 502 }),
+    );
+    expect(error).toMatchObject({
+      status: 502,
+      message: 'Request failed with status 502',
+    });
+    expect(error.code).toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });
 

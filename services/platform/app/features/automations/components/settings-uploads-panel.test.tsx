@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import type { SettingsUploadsForm } from '@tale/shared/schemas/automation-settings';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fireEvent, render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 const toastMock = vi.hoisted(() => vi.fn());
 vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
@@ -101,6 +101,121 @@ describe('SettingsUploadsPanel', () => {
         description: 'notes.json',
       }),
     );
+  });
+
+  // A refused upload used to throw `upload failed: 400`, and the toast said
+  // "try again" with nothing the door had said.
+  it("says why the door refused an upload, beside the file's name", async () => {
+    convexMutation.mockResolvedValue('/api/app/files/upload?orgId=org_1');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'The file exceeds the 512 MiB limit',
+        },
+        { status: 413 },
+      ),
+    );
+    try {
+      const { user } = mount();
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]');
+      if (!input) throw new Error('drop-zone input missing');
+      await user.upload(
+        input,
+        new File(['{}'], 'history-2026-q1.json', { type: 'application/json' }),
+      );
+
+      await waitFor(() => {
+        expect(toastMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Couldn't upload the file — try again.",
+            description:
+              'history-2026-q1.json: The file exceeds the 512 MiB limit',
+            variant: 'destructive',
+          }),
+        );
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  // One toast shows at a time: a refused file's toast used to be replaced by
+  // the success toast of another file in the same drop, and its reason with
+  // it. The batch now answers once, naming each file that did not land.
+  it('keeps each refused file and its reason on the one toast a mixed drop raises', async () => {
+    convexMutation.mockImplementation((args: unknown) =>
+      Promise.resolve(
+        args !== null && typeof args === 'object' && 'fileId' in args
+          ? 'doc_new'
+          : '/api/app/files/upload?orgId=org_1',
+      ),
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: 'FILE_SIZE_INVALID',
+            message: 'The file exceeds the 512 MiB limit',
+          },
+          { status: 413 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json({ storageId: 'blob_b' }));
+    try {
+      const { user } = mount();
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]');
+      if (!input) throw new Error('drop-zone input missing');
+      await user.upload(input, [
+        new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }),
+        new File(['%PDF'], 'b.pdf', { type: 'application/pdf' }),
+        new File(['{}'], 'notes.json', { type: 'application/json' }),
+      ]);
+
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      expect(toastMock).toHaveBeenLastCalledWith({
+        title: '1 of 3 file(s) uploaded.',
+        description:
+          "a.pdf: The file exceeds the 512 MiB limit · notes.json: The file name doesn't match the expected pattern for this form.",
+        variant: 'destructive',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('keeps the plain success toast when every file lands', async () => {
+    convexMutation.mockImplementation((args: unknown) =>
+      Promise.resolve(
+        args !== null && typeof args === 'object' && 'fileId' in args
+          ? 'doc_new'
+          : '/api/app/files/upload?orgId=org_1',
+      ),
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => Response.json({ storageId: 'blob' }));
+    try {
+      const { user } = mount();
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]');
+      if (!input) throw new Error('drop-zone input missing');
+      await user.upload(input, [
+        new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }),
+        new File(['%PDF'], 'b.pdf', { type: 'application/pdf' }),
+      ]);
+
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      expect(toastMock).toHaveBeenLastCalledWith({
+        title: '2 file(s) uploaded.',
+        variant: 'success',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('renders no drop zone until a folder is picked when requireFolder is set', () => {

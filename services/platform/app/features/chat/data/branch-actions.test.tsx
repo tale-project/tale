@@ -106,6 +106,29 @@ describe('useBranchActions forks', () => {
     expect(error).toHaveBeenCalled();
     error.mockRestore();
   });
+
+  // A fork the door refused for any reason but a cap used to collapse into
+  // a bare `failed`, and the surface toasted "Couldn't send message" with
+  // nothing the door had said.
+  it("carries the door's own words on a fork it refused", async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    branchChatThreadForRegenerate.mockRejectedValueOnce(
+      new BackendApiError(
+        404,
+        'thread or message not found',
+        'thread or message not found',
+      ),
+    );
+    const { result } = renderHook(() => useBranchActions('org_1'));
+    await expect(
+      result.current.branchForRegenerate('t1', 'm2'),
+    ).resolves.toEqual({
+      status: 'failed',
+      reason: 'thread or message not found',
+    });
+    expect(invalidateBudgetStanding).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
 });
 
 describe('useBranchActions regenerate + discard', () => {
@@ -147,6 +170,38 @@ describe('useBranchActions regenerate + discard', () => {
       persisted: true,
     });
     expect(invalidateBudgetStanding).not.toHaveBeenCalled();
+  });
+
+  // A regenerate whose REQUEST the door refused used to resolve a bare
+  // `{ refused: true }`, dropping what the door said on the way.
+  it("carries the door's own words for a request it refused", async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    regenerateChatTurn.mockRejectedValueOnce(
+      new BackendApiError(
+        403,
+        'Your role cannot perform this action in this organization.',
+        'RBAC_FORBIDDEN',
+      ),
+    );
+    const { result } = renderHook(() => useBranchActions('org_1'));
+    // Whether the turn landed is unknown, so `persisted` stays absent.
+    await expect(
+      result.current.regenerate('b1', { modelSelection: 'auto' }),
+    ).resolves.toEqual({
+      refused: true,
+      reason: 'Your role cannot perform this action in this organization.',
+    });
+    error.mockRestore();
+  });
+
+  it('says nothing more for a request that got no answer', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    regenerateChatTurn.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { result } = renderHook(() => useBranchActions('org_1'));
+    await expect(
+      result.current.regenerate('b1', { modelSelection: 'auto' }),
+    ).resolves.toEqual({ refused: true });
+    error.mockRestore();
   });
 
   it('discards a sibling through Trash and refreshes the thread reads', async () => {

@@ -16,6 +16,7 @@ import {
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { USER_NAME_MAX_LENGTH } from '../../../lib/shared/constants/user-name.ts';
 import { isPasswordValid } from '../../../lib/shared/schemas/password.ts';
 import type { AuthEnv } from '../../auth/session.ts';
 
@@ -136,6 +137,24 @@ describe('POST /update-password', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error: 'password_policy_violation',
+    });
+  });
+});
+
+describe('POST /update-name', () => {
+  // The door used to answer the bare code, so the account form could only
+  // say "Couldn't update profile"; the sentence now rides beside it.
+  it('answers a refused name with its code and its sentence', async () => {
+    const response = await routes().request('/update-name', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'x'.repeat(USER_NAME_MAX_LENGTH + 1) }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'too_long',
+      message: `Name must be ${USER_NAME_MAX_LENGTH} characters or less`,
     });
   });
 });
