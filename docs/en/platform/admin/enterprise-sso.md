@@ -9,7 +9,7 @@ Enterprise SSO lets members sign in through your identity provider (IdP). SCIM l
 
 You need permission to register an application with your IdP, its client credentials or SAML metadata, and the public Tale address members will use. Keep a working administrator session open while testing so you can correct the connection if a test sign-in fails.
 
-Choose a **Display name** members will recognize. It appears in the organization picker on the public sign-in page, so avoid internal or confidential information.
+Choose a **Display name** members will recognize. When more than one organization on the deployment has SSO enabled, it appears in the organization picker on the public sign-in page, so avoid internal or confidential information.
 
 <Frame caption="Choose the protocol first. Tale shows the relevant fields and the callback address to register with your identity provider.">
 
@@ -90,7 +90,7 @@ The key decides the organization: a member signs in, an address Tale has never s
 
 ## Verify and troubleshoot
 
-Open a separate browser session, choose **Continue with SSO**, and select the organization by its display name. Complete sign-in, then check the expected role and team memberships. **Test connection** checks connection details; it does not prove that a real user receives the right access.
+Open a separate browser session and choose **Continue with SSO**. The organization picker appears only when more than one organization on the deployment has SSO enabled; select the organization by its display name there. Otherwise the button opens the one enabled organization's identity provider directly, and an address typed into the e-mail field is passed along only as a login hint — Tale does not route by e-mail domain. Complete sign-in, then check the expected role and team memberships. **Test connection** checks connection details; it does not prove that a real user receives the right access.
 
 | Symptom | What to check |
 | --- | --- |

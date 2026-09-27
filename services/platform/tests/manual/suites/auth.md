@@ -117,7 +117,12 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-F12` · **SSO** — With an IdP configured, click **Continue with
   SSO** (`auth.login.continueWithSso`) on `/log-in` → OAuth round-trip →
   `/dashboard/{org}`. Manual-only — button is hidden unless
-  `useIsSsoConfigured()` returns true.
+  `useIsSsoConfigured()` returns true. The organization picker
+  (`auth.login.ssoTitle` / `auth.login.ssoDescription`) appears only when
+  more than one organization has SSO enabled; with a single enabled
+  organization the button opens that organization's IdP directly and a typed
+  e-mail rides along only as `login_hint` — an unknown domain ends on the
+  IdP's own error, never on a Tale-side picker.
 - [ ] `AUTH-F13` · **Idle sign-out** — Open `/log-in?reason=idle` (the idle
   watchdog appends `?reason=idle`) → A `role="status"` notice reads **You were
   signed out because your session was inactive for too long.**
