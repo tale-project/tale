@@ -41,6 +41,8 @@ Les fichiers suivent l’accès au projet. Ils n’apparaissent pas comme des do
 
 Un chat dans un projet commence comme ta propre conversation. Les autres membres ne le voient pas simplement parce qu’ils peuvent ouvrir le projet. **Chats** sépare **Tes chats** de **Partagés avec le projet**. Utilise **Partager avec le projet** lorsque l’échange est prêt à être lu par tes collègues.
 
+Tes collègues ouvrent un chat partagé en lecture seule : ils ne peuvent ni répondre, ni modifier un message, ni évaluer une réponse. Là où tu as modifié un message ou relancé une réponse, ils lisent la version que tu as sélectionnée, pas celle qu’elle a remplacée.
+
 Relis les messages avant de partager, y compris les informations sensibles citées par une réponse. Déplacer un chat partagé vers un autre projet, ou hors du projet, met fin à son partage avec le projet. Partage-le à nouveau volontairement si le nouveau public doit le lire.
 
 Utilise **Déplacer vers un projet…** dans les actions du chat, ou fais glisser le chat sur le projet dans **Accueil**, pour y rattacher une conversation existante. Les liens d’instantané pour l’organisation constituent une fonction distincte ; consulte [Partager un chat](/fr/platform/chat/shared-threads).

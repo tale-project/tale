@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 46 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 47 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -284,6 +284,22 @@ projects-list row ⋯ menu.
   switch changes the sharing without opening the chat; **New chat**
   (`projects.overview.newChatCta`) carries the pencil Home's **New chat**
   wears.
+- [ ] `PROJ-F31` · **A project member reads a chat shared with the project**
+  — Two sessions. As the OWNER, in a project chat with a reply, open the
+  first message's **Edit message** (`chat.editMessage`), change its text and
+  send (the row now reads ‹2/2›), then flip the chat's **Share with project**
+  switch (`projects.threads.shareToggle`) on the project's **Chats** tab. As
+  ANOTHER member of the project, open that row under **Shared with project**
+  (`projects.threads.sharedWithProject`) → `/dashboard/{org}/chat/{threadId}`
+  shows **Shared with the project — read-only** (`chat.readOnlyShared`)
+  above the messages — the EDITED message and its reply, never the original
+  and never the empty **What are we working on?** (`chat.welcomeEmpty`); a
+  reply offers Copy and message info only (no rating, no **Edit message**,
+  no **Fork chat** (`chat.forkChat`), no **Try again** (`chat.tryAgain`), no
+  version arrows); the message box is disabled; the conversation menu
+  offers **Export** (`chat.export.button`) but no **Share**
+  (`chat.share.button`). Owner flips the switch off → the reader's reload
+  reads **This chat is not available.** (`chat.notFound`).
 
 - [ ] `PROJ-F25` · **A failed list read is an error, not an empty list** — In
   DevTools, block `GET /api/app/projects/overview` (or answer it 500) and

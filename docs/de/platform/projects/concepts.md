@@ -41,6 +41,8 @@ Projektdateien folgen dem Projektzugriff. Sie erscheinen nicht als gewöhnliche 
 
 Ein Chat im Projekt beginnt als dein eigenes Gespräch. Andere Projektmitglieder sehen ihn nicht allein dadurch, dass sie das Projekt öffnen können. **Chats** trennt **Deine Chats** von **Mit Projekt geteilt**. Nutze **Mit Projekt teilen**, wenn das Gespräch für Kollegen bereit ist.
 
+Kollegen öffnen einen geteilten Chat nur lesend: Sie können weder antworten noch eine Nachricht bearbeiten oder eine Antwort bewerten. Wo du eine Nachricht bearbeitet oder eine Antwort neu erzeugt hast, lesen sie die von dir ausgewählte Version, nicht die ersetzte.
+
 Lies die Nachrichten vor der Freigabe durch, auch vertrauliche Angaben, die eine Antwort zitiert. Verschiebst du einen geteilten Chat in ein anderes Projekt oder aus dem Projekt heraus, endet seine Projektfreigabe. Teile ihn bewusst erneut, wenn die neue Zielgruppe ihn lesen soll.
 
 Gehört ein bestehendes Gespräch zu dieser Arbeit, nutze **In Projekt verschieben…** in den Chat-Aktionen oder zieh den Chat im Bereich **Start** auf das Projekt. Organisationsweite Links auf eine Momentaufnahme sind eine eigene Funktion; siehe [Einen Chat teilen](/de/platform/chat/shared-threads).
