@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 27 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -207,6 +207,17 @@ if you want to keep a write.
   `/dashboard/{org}/settings/notifications` → Every toggle's label and
   description read in full (no ellipsis, no two-line clamp), the switch
   still beside them.
+- [ ] `RESP-B6` · **Collection screens on a short viewport** — At **844×390**
+  (a phone held sideways), then at 1280×720 zoomed to 200 %, open
+  `/dashboard/{org}/knowledge-entries`, `/dashboard/{org}/automations` and
+  `/dashboard/{org}/settings/governance/logs` (more than 30 entries) → The
+  rows are in view under the toolbar — never a table a few pixels tall; the
+  page scrolls as a whole, its header and tab strip scrolling away, and the
+  table does not scroll inside a frame of its own. Scrolling the logs page to
+  its end loads the next entries (the count footer grows), and nothing loads
+  before you scroll. With the embedding banner up it reads one line, its
+  title and **Choose an embedding model**
+  (`settings.dataResidency.orgEmbedding.banner.link`).
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -93,7 +93,12 @@ function SettingsLayout() {
                 key={page?.key ?? location.pathname}
                 className={cn(
                   'animate-in fade-in-0 min-w-0 overflow-y-auto duration-200 motion-reduce:animate-none',
-                  usesBoundedLayout ? 'min-h-0 flex-1' : 'flex-1',
+                  // A bounded page lets its table scroll its own rows; on a
+                  // short viewport it grows instead and the page scrolls, as
+                  // a collection screen does (`ContentArea` `list`).
+                  usesBoundedLayout
+                    ? 'short-viewport:flex-none min-h-0 flex-1'
+                    : 'flex-1',
                 )}
                 variant="page"
                 gap={6}

@@ -115,7 +115,9 @@ what is there, and the page shows the one thing you opened.
   takes `stickyLayout`, so search, the create button, the column header row and the count footer
   hold their place while only the rows move. Both parts, every time; a short list hugs its rows
   instead of stretching. Tables embedded in a scrolling settings page are the exception and take
-  neither.
+  neither. A short viewport (`short-viewport:`, under 30rem — a phone held sideways, a laptop at
+  200 %) lifts the bound: the frame grows with its rows, the page scrolls, page headers stop
+  sticking, and the embedding banner keeps to its title and link.
 - **Layout answers to its column, not the window** — viewport breakpoints (`sm`, `md`, `lg`)
   decide the shell only: rail or tab bar, a panel or not. Beside the rail and a section panel a
   page column is ~400px on a 768px window and ~660px on a 1024px one, so whatever a page lays out
