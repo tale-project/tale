@@ -827,6 +827,12 @@ export async function detachDocumentFromProject(
   if (!access.canEdit) {
     throw new DocumentError('RBAC_FORBIDDEN', 'Editor role required', 403);
   }
+  // Archived = read-only for the whole project, its documents included: a
+  // detach is a write on the project's file set, so it refuses the way
+  // every other project-file write does.
+  if (project.archivedAt !== null) {
+    throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
+  }
   await tx`
     UPDATE app.documents SET
       project_id = NULL, folder_id = NULL, updated_at_ms = ${Date.now()}
@@ -2161,6 +2167,10 @@ export async function deleteDocumentHard(
     const access = checkProjectAccess(project, auth.teamIds, auth.role);
     if (!access.canEdit) {
       throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
+    }
+    // Archived = read-only for the whole project, its documents included.
+    if (project.archivedAt !== null) {
+      throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
     }
   }
   assertRecordTrashableJson(doc.record);

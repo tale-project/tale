@@ -762,8 +762,8 @@ export async function setAutomationProjects(
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
-    const owned = await tx<{ id: string }[]>`
-      SELECT id FROM app.projects
+    const owned = await tx<{ id: string; archivedAt: number | null }[]>`
+      SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
       WHERE org_id = ${args.organizationId}
         AND id = ANY(${args.projectIds})
     `;
@@ -772,6 +772,15 @@ export async function setAutomationProjects(
         'AUTOMATION_PROJECT_UNKNOWN',
         'One of the projects does not exist in this organization.',
         404,
+      );
+    }
+    // Binding is a write on the project: an archived one is read-only and
+    // answers the code every other write on it does.
+    if (owned.some((project) => (project.archivedAt ?? null) !== null)) {
+      throw new AutomationError(
+        'PROJECT_ARCHIVED',
+        'One of the projects is archived — restore it before binding an automation to it.',
+        403,
       );
     }
     await tx`
@@ -1594,16 +1603,27 @@ export async function resolveRunProject(
     );
   }
   if (args.projectId !== undefined) {
-    const owned = await sql<{ id: string }[]>`
-      SELECT id FROM app.projects
+    const owned = await sql<{ id: string; archivedAt: number | null }[]>`
+      SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
       WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
       LIMIT 1
     `;
-    if (owned.length === 0) {
+    const project = owned[0];
+    if (project === undefined) {
       throw new AutomationError(
         'AUTOMATION_PROJECT_UNKNOWN',
         'The project does not exist in this organization.',
         404,
+      );
+    }
+    // A run scoped to an archived project is a write on it — the MCP and
+    // REST doors refuse it before reaching here; the app's start (and any
+    // other caller naming a project) answers the same code.
+    if ((project.archivedAt ?? null) !== null) {
+      throw new AutomationError(
+        'PROJECT_ARCHIVED',
+        'The project is archived — restore it before starting a run in it.',
+        403,
       );
     }
     if (

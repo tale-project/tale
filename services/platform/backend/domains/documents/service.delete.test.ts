@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { purgeDocument } from '../retention/service.ts';
-import { deleteDocumentHard } from './service.ts';
+import { deleteDocumentHard, detachDocumentFromProject } from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
@@ -59,15 +59,20 @@ const HUB_DOC = {
  * caller passes the edit gate without team membership. */
 const PROJECT = {
   id: 'proj-1',
+  name: 'Project',
   organizationId: 'org_1',
   teamId: null,
   sharedWithTeamIds: [] as string[],
+  archivedAt: null as number | null,
 };
 
 /** A recorder answering the point reads the lane makes (the document, and
  * its project for a project-scoped fixture); `begin` runs the callback
  * inline so the transaction's statements are recorded too. */
-function fakeSql(doc: Record<string, unknown> = HUB_DOC): {
+function fakeSql(
+  doc: Record<string, unknown> = HUB_DOC,
+  project: Record<string, unknown> = PROJECT,
+): {
   sql: Sql;
   statements: Statement[];
   begun: number[];
@@ -81,7 +86,7 @@ function fakeSql(doc: Record<string, unknown> = HUB_DOC): {
       return Promise.resolve([doc]);
     }
     if (text.includes('FROM app.projects WHERE id = ?')) {
-      return Promise.resolve([PROJECT]);
+      return Promise.resolve([project]);
     }
     return Promise.resolve([]);
   };
@@ -172,5 +177,44 @@ describe('deleteDocumentHard', () => {
       { orgId: 'org_1', entity: 'document', entityId: 'doc-1' },
       { orgId: 'org_1', entity: 'task', entityId: null },
     ]);
+  });
+});
+
+// An archived project is read-only, its documents included: the rename,
+// move and trash doors refused already, while the hard delete and the
+// detach checked `canEdit` alone — so an archived project's files could
+// still be purged or pulled out of it.
+describe('archived project', () => {
+  const archived = { ...PROJECT, archivedAt: 1_700_000_000_000 };
+  const projectDoc = { ...HUB_DOC, projectId: 'proj-1' };
+
+  it('refuses the hard delete with PROJECT_ARCHIVED before the purge', async () => {
+    const fake = fakeSql(projectDoc, archived);
+    await expect(
+      deleteDocumentHard(fake.sql, auth, 'doc-1'),
+    ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
+    expect(purgeDocument).not.toHaveBeenCalled();
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses the detach with PROJECT_ARCHIVED, writing nothing', async () => {
+    const fake = fakeSql(projectDoc, archived);
+    await expect(
+      detachDocumentFromProject(fake.sql as never, auth, 'doc-1'),
+    ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
+    expect(fake.statements.some((s) => s.text.startsWith('UPDATE'))).toBe(
+      false,
+    );
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('still detaches from an active project', async () => {
+    const fake = fakeSql(projectDoc);
+    await expect(
+      detachDocumentFromProject(fake.sql as never, auth, 'doc-1'),
+    ).resolves.toEqual({ fileRef: 's3:acme/blob-1' });
+    expect(
+      fake.statements.some((s) => s.text.startsWith('UPDATE app.documents')),
+    ).toBe(true);
   });
 });

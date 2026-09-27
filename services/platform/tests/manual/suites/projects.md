@@ -356,8 +356,15 @@ projects-list row ⋯ menu.
   Restore it to make changes.** (`projects.errors.PROJECT_ARCHIVED`; the
   task one reads `tasks.errors.PROJECT_ARCHIVED`), never the generic
   "Couldn't save the agent"; **Restore** brings every control back.
-
-## Accessibility (WCAG 2.1 AA)
+- [ ] `PROJ-B7` · **Archived project refuses the leftover writes too** —
+  Same setup as `PROJ-B6` with a file, a task and an automation bound to
+  the project; in the STALE tabs: the file's row menu → **Delete** and
+  **Detach from project**, a comment on the task, and — under
+  `/dashboard/{org}/automations/{name}` → **Projects** — adding the archived
+  project, plus **Run** with that project selected → each is refused with
+  the archived-project sentence (backend `PROJECT_ARCHIVED` 403), the file
+  stays in the project, no comment lands, the binding and run list are
+  unchanged; **Restore** → every one of them goes through.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)

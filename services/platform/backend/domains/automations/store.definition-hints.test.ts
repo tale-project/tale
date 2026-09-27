@@ -71,7 +71,7 @@ function fakeSql(script: {
         script.triggerDeleted === true ? [{ id: 'trg_1' }] : [],
       );
     }
-    if (text.includes('SELECT id FROM app.projects')) {
+    if (text.includes('FROM app.projects')) {
       return Promise.resolve([{ id: 'proj_1' }]);
     }
     if (text.includes('INSERT INTO app.automation_project_bindings')) {
