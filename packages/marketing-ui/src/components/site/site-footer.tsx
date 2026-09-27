@@ -170,7 +170,15 @@ export function SiteFooter({
                       {col.heading}
                     </h3>
                     {col.links.length > 0 ? (
-                      <ul role="list" className="flex flex-col gap-1.5">
+                      // A column is half a phone wide: a label longer than
+                      // that (a German compound such as
+                      // "Auftragsverarbeitungsvertrag") breaks where it must
+                      // — hyphenated where the browser can — instead of
+                      // running off the screen.
+                      <ul
+                        role="list"
+                        className="flex flex-col gap-1.5 break-words hyphens-auto"
+                      >
                         {col.links.map((link, i) => (
                           // oxlint-disable-next-line react/no-array-index-key -- link order is stable
                           <li key={i}>{link}</li>
