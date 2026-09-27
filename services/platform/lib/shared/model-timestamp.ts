@@ -14,16 +14,18 @@
  * of a formatter is how two lanes start disagreeing about what a date is.
  */
 
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
+
 /**
  * A stored timestamp as the model should see it: ISO 8601 UTC, matching the
  * `Current time:` line the system prompt already carries, so a comparison is
  * between like and like.
  *
- * Returns `undefined` for a value that is not a finite timestamp, so one bad
- * stored number degrades to an omitted field rather than a failed turn.
+ * Returns `undefined` for a value that is not a timestamp `epochMsSchema`
+ * takes, so one bad stored number degrades to an omitted field rather than a
+ * failed turn. Finite is not enough: `toISOString()` throws for a number past
+ * the range a `Date` holds, such as `9e15`.
  */
 export function modelTimestamp(ms: number | undefined): string | undefined {
-  if (ms === undefined || !Number.isFinite(ms)) return undefined;
-  const iso = new Date(ms).toISOString();
-  return iso === 'Invalid Date' ? undefined : iso;
+  return isEpochMs(ms) ? new Date(ms).toISOString() : undefined;
 }

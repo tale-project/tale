@@ -1802,6 +1802,41 @@ describe('rag_search conversations leg', () => {
       ),
     ).toBe(false);
   });
+
+  it('lists a conversation whose lastMessageAt no Date can hold, without it', async () => {
+    // `9e15` is a safe integer, so an earlier door let it in, and
+    // `toISOString()` throws on it: the search failed on that one row.
+    const { ctx } = createCtx({
+      reads: {
+        [CONVERSATIONS_SEARCH_FN]: () => ({
+          conversations: [
+            { _id: 'conv_1', subject: 'From the future', lastMessageAt: 9e15 },
+            {
+              _id: 'conv_2',
+              subject: 'On time',
+              lastMessageAt: 1_787_124_301_288,
+            },
+          ],
+          truncated: false,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'time' },
+    })) as Record<string, unknown>;
+    const rows = (result.results as Array<Record<string, unknown>>).filter(
+      (r) => r.kind === 'conversation',
+    );
+    const byTitle = new Map(rows.map((row) => [row.title, row.data]));
+    expect(byTitle.get('From the future')).toEqual({ unassigned: true });
+    expect(byTitle.get('On time')).toEqual({
+      unassigned: true,
+      lastMessageAt: '2026-08-19T07:25:01.288Z',
+    });
+  });
 });
 
 describe('rag_search archive context', () => {

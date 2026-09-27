@@ -4,6 +4,7 @@
 // different creation dates on two turns. The sort order was right both times —
 // only the arithmetic was wrong.
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { describe, expect, it } from 'vitest';
 
 import { modelTimestamp } from './model-timestamp';
@@ -26,6 +27,16 @@ describe('modelTimestamp — dates the model does not have to compute', () => {
     expect(modelTimestamp(undefined)).toBeUndefined();
     expect(modelTimestamp(Number.NaN)).toBeUndefined();
     expect(modelTimestamp(Number.POSITIVE_INFINITY)).toBeUndefined();
+  });
+
+  it('omits a finite number no Date can hold instead of throwing', () => {
+    // `9e15` is a safe integer, so a door's `.int()` let it in, and
+    // `toISOString()` throws on it: a conversation stored with it failed
+    // every turn whose tool result listed it.
+    expect(modelTimestamp(9e15)).toBeUndefined();
+    expect(modelTimestamp(EPOCH_MS_MAX + 1)).toBeUndefined();
+    expect(modelTimestamp(-1)).toBeUndefined();
+    expect(modelTimestamp(EPOCH_MS_MAX)).toBe('+275760-09-13T00:00:00.000Z');
   });
 
   it('keeps the epoch itself, which is a real value and not a missing one', () => {
