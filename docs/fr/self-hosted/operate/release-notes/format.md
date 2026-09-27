@@ -19,7 +19,7 @@ Examine la version dans cet ordre. Les titres et le niveau de détail varient se
 | --- | --- |
 | Ruptures de compatibilité et changements de comportement | Quels parcours, réglages par défaut ou paramètres changent ? |
 | Migrations et instructions de mise à jour | Quelles conditions, interruptions ou préparations de restauration sont nécessaires ? |
-| Changements du contrat API | Faut-il adapter les champs envoyés, le comportement attendu ou la gestion des erreurs ? |
+| Changements du contrat API | Faut-il adapter les champs envoyés, le comportement attendu ou la gestion des erreurs ? Cette section est générée à la publication à partir de l’empreinte du contrat : si `info.version` a changé depuis le tag précédent, elle indique l’ancienne et la nouvelle version, les opérations ajoutées ou retirées et l’entrée du journal du contrat ; sinon, elle précise que le contrat reste inchangé. |
 | Sécurité | Ton installation est-elle concernée, et quelle version corrigée ou mesure provisoire s’applique ? |
 | Problèmes connus | Peux-tu accepter les limites restantes et utiliser les solutions de contournement ? |
 | Nouveautés et liste complète des changements | Quelles fonctionnalités ou corrections présenter aux utilisateurs ? |
