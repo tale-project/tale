@@ -91,10 +91,19 @@ const PAIR_OF = (threadId: unknown) =>
 function settleSql(
   newestOf: (threadId: unknown) => unknown[],
   holds: { targetType: string; targetId: string }[] = [],
+  /** What the locked read inside the transaction answers for each column
+   * (`null` = the marker is gone already, i.e. the pair settled meanwhile). */
+  lockedArenaOf: (threadId: string) => unknown = PAIR_OF,
 ) {
   return fakeSql((statement) => {
     if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
     if (statement.text.includes('FROM app.legal_holds')) return holds;
+    if (statement.text.includes('FOR UPDATE')) {
+      return ['thread_a', 'thread_b'].map((threadId) => ({
+        threadId,
+        arena: lockedArenaOf(threadId),
+      }));
+    }
     if (statement.text.includes('SELECT arena FROM')) {
       return [{ arena: PAIR_OF(statement.values[0]) }];
     }
@@ -114,12 +123,12 @@ function settleSql(
  * unanswered prompt, or only the copied history — has nothing to rate, so
  * the verdict is refused and nothing is written. A plain exit needs no round.
  */
-describe('settleArenaPair verdict integrity', () => {
-  const writes = (statements: Statement[]) =>
-    statements.filter(
-      (s) => s.text.includes('UPDATE') || s.text.includes('INSERT'),
-    );
+/** The statements that change rows — by their leading verb, so a locked
+ * read (`… FOR UPDATE`) is not mistaken for one. */
+const writes = (statements: Statement[]) =>
+  statements.filter((s) => /^\s*(UPDATE|INSERT)\b/.test(s.text));
 
+describe('settleArenaPair verdict integrity', () => {
   it('refuses a verdict when one column holds only an error row, writing nothing', async () => {
     const { sql, statements } = settleSql((threadId) =>
       threadId === 'thread_a'
@@ -340,6 +349,70 @@ describe('settleArenaPair discards the loser into Trash', () => {
   });
 });
 
+/**
+ * Two settles of one pair — a double click, two tabs — used to read the
+ * pair outside the transaction and both run their UPDATEs, so the second
+ * trashed the first's survivor. The pair is now judged under a FOR UPDATE
+ * lock on both rows, inside the transaction, and a marker already cleared
+ * answers not_found with nothing written.
+ */
+describe('settleArenaPair under a concurrent settle', () => {
+  beforeEach(() => {
+    createAuditLog.mockClear();
+  });
+
+  it('locks both columns in thread-id order before judging the pair', async () => {
+    const { sql, statements } = settleSql(() => [FRESH_REPLY]);
+    await settleArenaPair(sql, { ...ARGS, verdict: 'b_better' });
+    const lock = statements.find((s) => s.text.includes('FOR UPDATE'));
+    expect(lock?.text).toContain('ORDER BY thread_id');
+    expect(lock?.values).toEqual(['org_1', 'thread_a', 'thread_b']);
+    // Every judgment and write comes after the lock.
+    const lockAt = statements.indexOf(lock as Statement);
+    for (const text of [
+      'FROM app.generations',
+      'SELECT role, model, error, status',
+      'FROM app.legal_holds',
+      "status = 'trashed'",
+    ]) {
+      const at = statements.findIndex((s) => s.text.includes(text));
+      expect(at, text).toBeGreaterThan(lockAt);
+    }
+  });
+
+  it('answers not_found and writes nothing when the marker is gone under the lock', async () => {
+    const { sql, statements } = settleSql(
+      () => [FRESH_REPLY],
+      [],
+      () => null,
+    );
+    await expect(
+      settleArenaPair(sql, { ...ARGS, verdict: 'b_better' }),
+    ).resolves.toEqual({ refused: 'not_found' });
+    expect(writes(statements)).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('answers busy, clearing nothing, when the column was re-paired meanwhile', async () => {
+    const { sql, statements } = settleSql(
+      () => [FRESH_REPLY],
+      [],
+      (id) =>
+        id === 'thread_a'
+          ? {
+              ...PAIR_OF('thread_a'),
+              pairId: 'pair-2',
+              partnerThreadId: 'thread_c',
+            }
+          : PAIR_OF(id),
+    );
+    await expect(settleArenaPair(sql, ARGS)).resolves.toEqual({
+      refused: 'busy',
+    });
+    expect(writes(statements)).toEqual([]);
+  });
+});
+
 describe('settleArenaPair', () => {
   it("files a winning B where A was, with A's pin and read watermark", async () => {
     const arenaOf = (threadId: unknown) =>
@@ -358,6 +431,12 @@ describe('settleArenaPair', () => {
           };
     const { sql, statements } = fakeSql((statement) => {
       if (statement.text.includes('FROM app.threads t')) return [THREAD_A];
+      if (statement.text.includes('FOR UPDATE')) {
+        return ['thread_a', 'thread_b'].map((threadId) => ({
+          threadId,
+          arena: arenaOf(threadId),
+        }));
+      }
       if (statement.text.includes('SELECT arena FROM')) {
         return [{ arena: arenaOf(statement.values[0]) }];
       }

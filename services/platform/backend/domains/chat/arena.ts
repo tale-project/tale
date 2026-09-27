@@ -402,59 +402,82 @@ export async function settleArenaPair(
     args.threadId,
   );
   if (thread === null) return { refused: 'not_found' };
-  const arena = await arenaStateOf(sql, args.organizationId, thread.id);
-  if (arena === null) return { refused: 'not_found' };
+  // An unlocked peek names the partner; the pair itself is judged under
+  // the lock below, never from this read.
+  const peek = await arenaStateOf(sql, args.organizationId, thread.id);
+  if (peek === null) return { refused: 'not_found' };
 
-  const partnerArena = await arenaStateOf(
-    sql,
-    args.organizationId,
-    arena.partnerThreadId,
-  );
-  if (partnerArena?.pairId !== arena.pairId) {
-    // Half-open pair: clear the marker so the surface recovers.
-    await sql`
-      UPDATE app.thread_metadata SET arena = NULL
-      WHERE thread_id = ${thread.id} AND org_id = ${args.organizationId}
+  return sql.begin(async (tx): Promise<SettleArenaResult> => {
+    // Both columns locked FOR UPDATE, in thread-id order so a settle from
+    // each side never deadlocks. Two settles of one pair used to read the
+    // pair outside the transaction and both run their UPDATEs: the second
+    // trashed the first's survivor. Under the lock the second one finds
+    // `arena` already NULL and answers not_found instead.
+    const locked = await tx<{ threadId: string; arena: unknown }[]>`
+      SELECT thread_id AS "threadId", arena FROM app.thread_metadata
+      WHERE org_id = ${args.organizationId}
+        AND thread_id IN (${thread.id}, ${peek.partnerThreadId})
+      ORDER BY thread_id
+      FOR UPDATE
     `;
-    return { refused: 'not_found' };
-  }
+    const arena = readArena(
+      locked.find((row) => row.threadId === thread.id)?.arena,
+    );
+    if (arena === null) return { refused: 'not_found' };
+    // Re-paired with someone else between the peek and the lock: the new
+    // partner's row is not locked here, so let the caller try again.
+    if (arena.partnerThreadId !== peek.partnerThreadId) {
+      return { refused: 'busy' };
+    }
+    const partnerArena = readArena(
+      locked.find((row) => row.threadId === arena.partnerThreadId)?.arena,
+    );
+    if (partnerArena?.pairId !== arena.pairId) {
+      // Half-open pair: clear the marker so the surface recovers.
+      await tx`
+        UPDATE app.thread_metadata SET arena = NULL
+        WHERE thread_id = ${thread.id} AND org_id = ${args.organizationId}
+      `;
+      return { refused: 'not_found' };
+    }
 
-  const idA = arena.role === 'a' ? thread.id : arena.partnerThreadId;
-  const idB = arena.role === 'a' ? arena.partnerThreadId : thread.id;
+    const idA = arena.role === 'a' ? thread.id : arena.partnerThreadId;
+    const idB = arena.role === 'a' ? arena.partnerThreadId : thread.id;
 
-  // A verdict about answers mid-flight would rate an unfinished reply.
-  if (
-    (await hasLiveGeneration(sql, args.organizationId, idA)) ||
-    (await hasLiveGeneration(sql, args.organizationId, idB))
-  ) {
-    return { refused: 'busy' };
-  }
+    // A verdict about answers mid-flight would rate an unfinished reply.
+    if (
+      (await hasLiveGeneration(tx, args.organizationId, idA)) ||
+      (await hasLiveGeneration(tx, args.organizationId, idB))
+    ) {
+      return { refused: 'busy' };
+    }
 
-  // A verdict compares THIS round's two replies. A column whose newest
-  // turn row is not a finished reply written since pairing — a side the
-  // fan-out could not start, an unanswered prompt, or only the copied
-  // history (which carries a model too) — has nothing to rate: the verdict
-  // is refused rather than attributed to a reply that never happened.
-  if (
-    args.verdict !== undefined &&
-    !(
-      (await hasJudgeableReply(sql, idA, arena.createdAt)) &&
-      (await hasJudgeableReply(sql, idB, arena.createdAt))
-    )
-  ) {
-    return { refused: 'one_sided' };
-  }
+    // A verdict compares THIS round's two replies. A column whose newest
+    // turn row is not a finished reply written since pairing — a side the
+    // fan-out could not start, an unanswered prompt, or only the copied
+    // history (which carries a model too) — has nothing to rate: the verdict
+    // is refused rather than attributed to a reply that never happened.
+    if (
+      args.verdict !== undefined &&
+      !(
+        (await hasJudgeableReply(tx, idA, arena.createdAt)) &&
+        (await hasJudgeableReply(tx, idB, arena.createdAt))
+      )
+    ) {
+      return { refused: 'one_sided' };
+    }
 
-  const winnerId = args.verdict === 'b_better' ? idB : idA;
-  const loserId = winnerId === idA ? idB : idA;
+    const winnerId = args.verdict === 'b_better' ? idB : idA;
+    const loserId = winnerId === idA ? idB : idA;
 
-  // The same custodian check `trashThread` makes: both columns belong to the
-  // pair's owner, so one read covers the loser.
-  const holds = await loadActiveHolds(sql, args.organizationId);
-  const loserHeld = holds.orgHeld || holds.userMembershipIds.has(thread.userId);
-  const now = Date.now();
+    // The same custodian check `trashThread` makes: both columns belong to
+    // the pair's owner, so one read covers the loser — inside the
+    // transaction, so a hold placed meanwhile is honoured.
+    const holds = await loadActiveHolds(tx, args.organizationId);
+    const loserHeld =
+      holds.orgHeld || holds.userMembershipIds.has(thread.userId);
+    const now = Date.now();
 
-  await sql.begin(async (tx) => {
     if (winnerId === idB) {
       // B graduates to a standalone visible conversation and takes over what
       // the conversation had on A — its pin, its read watermark, and (for a
@@ -542,7 +565,6 @@ export async function settleArenaPair(
         `;
       }
     }
+    return { continueThreadId: winnerId };
   });
-
-  return { continueThreadId: winnerId };
 }
