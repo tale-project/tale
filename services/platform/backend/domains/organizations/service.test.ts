@@ -92,8 +92,10 @@ function createRecordingTx(scenario: Scenario): {
             },
           ];
     }
-    if (text.startsWith('SELECT "slug" FROM "organization"')) {
-      return scenario.slug === null ? [] : [{ slug: scenario.slug }];
+    if (text.startsWith('SELECT "slug", "name" FROM "organization"')) {
+      return scenario.slug === null
+        ? []
+        : [{ slug: scenario.slug, name: 'Acme' }];
     }
     if (text.includes('FROM app.legal_holds')) {
       return scenario.holds;
@@ -273,6 +275,40 @@ describe('describeOrganizationHoldBlock', () => {
 });
 
 describe('deleteOrganization', () => {
+  // E-22: the most destructive action in the product asks for the
+  // organization's name typed back — the service is where the door's
+  // proof is checked, before the hold gate and before any write.
+  it('refuses a confirmation that is not the organization name, writing nothing', async () => {
+    const sends = installFakeBoss();
+    for (const typed of ['', 'Acme Corp', 'Other']) {
+      const { tx, statements } = createRecordingTx({
+        memberRole: 'owner',
+        slug: 'acme',
+        holds: [],
+      });
+      await expect(
+        deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, typed),
+      ).rejects.toMatchObject({
+        code: 'ORG_CONFIRM_NAME_MISMATCH',
+        status: 400,
+      });
+      expect(statements.filter(isWrite)).toEqual([]);
+    }
+    expect(sends).toEqual([]);
+  });
+
+  it('accepts the name trimmed and in any letter case', async () => {
+    installFakeBoss();
+    const { tx } = createRecordingTx({
+      memberRole: 'owner',
+      slug: 'acme',
+      holds: [],
+    });
+    await expect(
+      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, '  aCME '),
+    ).resolves.toEqual({ orgSlug: 'acme' });
+  });
+
   it('refuses under an org-wide hold without writing or enqueuing anything', async () => {
     const sends = installFakeBoss();
     const { tx, statements } = createRecordingTx({
@@ -282,7 +318,7 @@ describe('deleteOrganization', () => {
     });
 
     await expect(
-      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID),
+      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
     ).rejects.toMatchObject({ code: 'LEGAL_HOLD_ACTIVE', status: 409 });
 
     expect(statements.length).toBeGreaterThan(0);
@@ -299,7 +335,7 @@ describe('deleteOrganization', () => {
     });
 
     await expect(
-      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID),
+      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
     ).rejects.toBeInstanceOf(LegalHoldError);
     expect(statements.filter(isWrite)).toEqual([]);
     expect(sends).toEqual([]);
@@ -313,7 +349,7 @@ describe('deleteOrganization', () => {
       holds: [],
     });
     await expect(
-      deleteOrganization(admin.tx, { userId: OWNER_ID }, ORG_ID),
+      deleteOrganization(admin.tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
     expect(admin.statements.filter(isWrite)).toEqual([]);
 
@@ -323,7 +359,7 @@ describe('deleteOrganization', () => {
       holds: [],
     });
     await expect(
-      deleteOrganization(stranger.tx, { userId: OWNER_ID }, ORG_ID),
+      deleteOrganization(stranger.tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
     ).rejects.toBeInstanceOf(MembershipError);
     expect(stranger.statements.filter(isWrite)).toEqual([]);
 
@@ -333,7 +369,7 @@ describe('deleteOrganization', () => {
       holds: [],
     });
     await expect(
-      deleteOrganization(defaultOrg.tx, { userId: OWNER_ID }, ORG_ID),
+      deleteOrganization(defaultOrg.tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
     ).rejects.toMatchObject({ code: 'DEFAULT_ORG_PROTECTED', status: 400 });
     expect(defaultOrg.statements.filter(isWrite)).toEqual([]);
 
@@ -353,6 +389,7 @@ describe('deleteOrganization', () => {
         tx,
         { userId: OWNER_ID, email: 'o@acme.test' },
         ORG_ID,
+        'Acme',
       ),
     ).resolves.toEqual({ orgSlug: 'acme' });
 
@@ -432,7 +469,7 @@ describe('deleteOrganization', () => {
       orgDeleteReturns: [],
     });
     await expect(
-      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID),
+      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
     ).rejects.toMatchObject({ code: 'ORG_NOT_FOUND', status: 404 });
     // (An OrganizationError, not a silent success.)
     await expect(
@@ -445,6 +482,7 @@ describe('deleteOrganization', () => {
         }).tx,
         { userId: OWNER_ID },
         ORG_ID,
+        'Acme',
       ),
     ).rejects.toBeInstanceOf(OrganizationError);
   });

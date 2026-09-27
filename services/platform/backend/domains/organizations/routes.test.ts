@@ -21,6 +21,18 @@ const { notifyUser, requireOrganizationMember, caller } = vi.hoisted(() => ({
 
 vi.mock('../collab/service.ts', () => ({ notifyUser }));
 
+const { deleteOrganization } = vi.hoisted(() => ({
+  deleteOrganization: vi.fn(),
+}));
+vi.mock('./service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./service.ts')>()),
+  deleteOrganization,
+}));
+vi.mock('@tale/shared/db/serializable', () => ({
+  transactSerializable: (_sql: unknown, run: (tx: unknown) => unknown) =>
+    run(TX),
+}));
+
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
   requireOrganizationMember,
@@ -41,7 +53,7 @@ import {
 } from './routes.ts';
 
 const ORG_ID = 'org-1';
-const TX = { tx: true };
+const { TX } = vi.hoisted(() => ({ TX: { tx: true } }));
 
 /** The recipient read answers `recipients`; `begin` runs its callback on a
  * marker transaction so the writes can be seen to share it. */
@@ -186,5 +198,55 @@ describe('POST /:id/request-credits', () => {
     expect(response.status).toBe(403);
     expect(queries).toEqual([]);
     expect(notifyUser).not.toHaveBeenCalled();
+  });
+});
+
+// E-22: the ONE deletion door hands the typed organization name to the
+// service, which is where the proof is judged; a body without one is
+// judged (and refused) the same way.
+describe('POST /:id/delete', () => {
+  const remove = async (body: unknown): Promise<Response> =>
+    await createOrganizationRoutes({
+      sql: database([]).sql,
+      auth: {} as never,
+    }).request(`/${ORG_ID}/delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('hands the typed name to the service inside the transaction', async () => {
+    deleteOrganization.mockResolvedValue({ orgSlug: 'acme' });
+    const response = await remove({ confirmName: 'Acme' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ orgSlug: 'acme' });
+    expect(deleteOrganization).toHaveBeenCalledWith(
+      TX,
+      { userId: caller.id, email: caller.email },
+      ORG_ID,
+      'Acme',
+    );
+  });
+
+  it('answers the mismatch code the service raises, and sends an absent name as empty', async () => {
+    const { OrganizationError } = await import('./service.ts');
+    deleteOrganization.mockRejectedValue(
+      new OrganizationError(
+        'ORG_CONFIRM_NAME_MISMATCH',
+        'Confirmation does not match the organization name',
+        400,
+      ),
+    );
+    const response = await remove({});
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: 'ORG_CONFIRM_NAME_MISMATCH',
+    });
+    expect(deleteOrganization).toHaveBeenCalledWith(
+      TX,
+      expect.anything(),
+      ORG_ID,
+      '',
+    );
   });
 });

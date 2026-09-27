@@ -596,6 +596,13 @@ any toggled setting after the run.
   the accent is still the default; `logs` → **Audit logs** shows one
   **Branding updated** (`settings.logs.audit.actionLabels.branding.updated`)
   row beside the image removals.
+- [ ] `SET-F51` · **Delete organization asks for its name** — Same page as
+  SET-F13 → **Delete organization**
+  (`settings.organization.deleteConfirmAction`) — **cancel-only** → The
+  confirm shows a field labelled `settings.organization.deleteTypeNameLabel`
+  and its **Delete organization** button stays disabled; typing a different
+  name keeps it disabled, typing the organization's exact name enables it —
+  then cancel; reopening the dialog starts with an empty field again.
 
 ## Boundary & error tests
 

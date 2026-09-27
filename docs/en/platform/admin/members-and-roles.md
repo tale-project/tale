@@ -37,7 +37,7 @@ After adding a person, assign the teams they need. A role alone does not put the
 
 | Role | Typical work | Organization administration |
 | --- | --- | --- |
-| **Owner** | All product and administration work | Includes transferring ownership and deleting the organization. |
+| **Owner** | All product and administration work | Includes transferring ownership and deleting the organization; deleting asks you to type the organization's name before the button enables. |
 | **Admin** | Manage people, services, policies, and the team's work | Full organization settings; cannot transfer ownership. |
 | **Developer** | Build agents, automations, and integrations | Technical settings such as providers, connectors, and API access; no member administration. |
 | **Editor** | Maintain content and operate day-to-day work | Content editing; workflow and connector resources are read-only. |

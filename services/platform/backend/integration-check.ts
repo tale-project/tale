@@ -52369,7 +52369,7 @@ async function checkOrganizationLifecycle(
   const refusedCustodian = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const refusedCustodianBody = await readError(refusedCustodian);
   const afterCustodian = await snapshot();
@@ -52387,7 +52387,7 @@ async function checkOrganizationLifecycle(
   const refusedOrg = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const refusedOrgBody = await readError(refusedOrg);
   const afterOrgHold = await snapshot();
@@ -52452,7 +52452,7 @@ async function checkOrganizationLifecycle(
   const memberDelete = await post(
     plain.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const afterMember = await snapshot();
   record(
@@ -52461,13 +52461,35 @@ async function checkOrganizationLifecycle(
     `status=${memberDelete.status} ${describe(afterMember)}`,
   );
 
+  // The typed name is the proof: a body without the organization's name
+  // is refused before the hold gate, and the org is intact.
+  const wrongName = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    { confirmName: 'Life B' },
+  );
+  const wrongNameBody = await readError(wrongName);
+  const afterWrongName = await snapshot();
+  record(
+    'org deletion refuses a confirmation that is not the organization name',
+    wrongName.status === 400 &&
+      wrongNameBody.error === 'ORG_CONFIRM_NAME_MISMATCH' &&
+      intact(afterWrongName),
+    `status=${wrongName.status} code=${wrongNameBody.error ?? ''} ${describe(afterWrongName)}`,
+  );
+
   // The teardown is one transaction: abort it after the whole cascade ran
   // and nothing — rows, audit, cleanup job — survives.
   const orgService = await import('./domains/organizations/service.ts');
   let aborted = false;
   try {
     await sql.begin(async (tx) => {
-      await orgService.deleteOrganization(tx, { userId: owner.userId }, orgA);
+      await orgService.deleteOrganization(
+        tx,
+        { userId: owner.userId },
+        orgA,
+        'Life A',
+      );
       throw new Error('itest-abort');
     });
   } catch (error) {
@@ -52508,7 +52530,7 @@ async function checkOrganizationLifecycle(
   const deleted = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const deletedBody = z
     .object({ orgSlug: z.string() })

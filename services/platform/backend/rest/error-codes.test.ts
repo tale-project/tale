@@ -170,6 +170,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Interactive confirmations the REST door supplies itself, or that
   // only the app asks for.
   'DEFAULT_ORG_PROTECTED',
+  'ORG_CONFIRM_NAME_MISMATCH',
   'PROJECT_CONFIRM_PHRASE_MISMATCH',
   // Hub folder team sharing — no REST body carries teams.
   'FOLDER_TEAM_FORBIDDEN',

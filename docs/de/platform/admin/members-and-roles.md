@@ -37,7 +37,7 @@ Ordne die Person nach dem Hinzufügen den benötigten Teams zu. Eine Rolle allei
 
 | Rolle | Typische Aufgaben | Organisationsverwaltung |
 | --- | --- | --- |
-| **Inhaber** | Alle Produkt- und Verwaltungsaufgaben | Darf auch die Inhaberschaft übertragen und die Organisation löschen. |
+| **Inhaber** | Alle Produkt- und Verwaltungsaufgaben | Darf auch die Inhaberschaft übertragen und die Organisation löschen; beim Löschen musst du zuerst den Namen der Organisation eintippen, bevor die Schaltfläche aktiv wird. |
 | **Admin** | Personen, Dienste, Richtlinien und die Arbeit des Teams verwalten | Voller Zugriff auf Organisationseinstellungen; keine Übertragung der Inhaberschaft. |
 | **Entwickler** | Agenten, Automatisierungen und Integrationen erstellen | Technische Einstellungen wie Anbieter, Connectors und API-Zugriff; keine Mitgliederverwaltung. |
 | **Redakteur** | Inhalte pflegen und die tägliche Arbeit bearbeiten | Inhalte bearbeiten; Workflow- und Connector-Ressourcen nur lesen. |

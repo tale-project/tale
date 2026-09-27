@@ -457,6 +457,10 @@ export async function deleteOrganization(
   tx: TransactionSql,
   actor: { userId: string; email?: string },
   organizationId: string,
+  /** The organization's name as the caller typed it — the door's proof
+   * that the most destructive action in the product was meant
+   * (`ORG_CONFIRM_NAME_MISMATCH` otherwise; 2026-09-26 evaluation, E-22). */
+  confirmName: string,
 ): Promise<{ orgSlug: string }> {
   const member = await findOrganizationMember(tx, organizationId, actor.userId);
   if (!member || member.role === 'disabled') {
@@ -473,12 +477,28 @@ export async function deleteOrganization(
     );
   }
 
-  const orgs = await tx<{ slug: string | null }[]>`
-    SELECT "slug" FROM "organization" WHERE "id" = ${organizationId} LIMIT 1
+  const orgs = await tx<{ slug: string | null; name: string | null }[]>`
+    SELECT "slug", "name" FROM "organization"
+    WHERE "id" = ${organizationId} LIMIT 1
   `;
   const slug = orgs[0]?.slug;
   if (!slug) {
     throw new OrganizationError('ORG_NOT_FOUND', 'Organization not found', 404);
+  }
+  // Compared like the project door's phrase: trimmed, case-insensitive.
+  const expectedName = (orgs[0]?.name ?? '').trim();
+  const typedName = confirmName.trim();
+  if (
+    typedName.length === 0 ||
+    expectedName.localeCompare(typedName, undefined, {
+      sensitivity: 'base',
+    }) !== 0
+  ) {
+    throw new OrganizationError(
+      'ORG_CONFIRM_NAME_MISMATCH',
+      'Confirmation does not match the organization name',
+      400,
+    );
   }
   if (slug === 'default') {
     throw new OrganizationError(

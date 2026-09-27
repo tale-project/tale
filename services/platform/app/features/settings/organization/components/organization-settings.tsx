@@ -287,9 +287,18 @@ function DangerZoneSection({
         confirmText={tSettings('organization.deleteConfirmAction')}
         loadingText={tSettings('organization.deleteLoading')}
         isLoading={isDeleting}
+        // The most destructive action in the product asks for the
+        // organization's name typed back, as an erasure asks for `ERASE`
+        // and a project delete for the project name; the server verifies
+        // the same name (2026-09-26 evaluation, E-22).
+        requireConfirmPhrase={organizationName}
+        requireConfirmPhraseLabel={tSettings(
+          'organization.deleteTypeNameLabel',
+        )}
         onConfirm={() => {
           void deleteOrganization({
             organizationId,
+            confirmName: organizationName,
             isCurrent: isCurrentOrganization,
           }).then((ok) => {
             if (ok) setConfirmDeleteOpen(false);

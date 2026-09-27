@@ -5379,6 +5379,8 @@ settings:
     deleteSuccess: Organisation gelöscht
     deleteFailed: Organisation konnte nicht gelöscht werden
     deleteBlockedByLegalHold: Ein aktiver Legal Hold bewahrt die Daten dieser Organisation. Gib alle Holds unter Richtlinien > Legal Hold frei und versuch es dann erneut.
+    deleteTypeNameLabel: Tippe den Namen der Organisation zur Bestätigung
+    deleteConfirmNameMismatch: Die Bestätigung stimmt nicht mit dem Namen der Organisation überein. Lade die Seite neu und versuch es erneut.
     editMember: Mitglied bearbeiten
     removeMember: Mitglied entfernen
     memberUpdated: Mitglied aktualisiert

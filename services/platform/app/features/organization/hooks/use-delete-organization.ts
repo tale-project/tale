@@ -16,6 +16,9 @@ import {
 
 interface DeleteOrganizationArgs {
   organizationId: string;
+  /** The organization's name as typed into the confirm — the server's
+   * proof that the deletion was meant. */
+  confirmName: string;
   /**
    * Whether the org being deleted is the one the user is currently viewing.
    * When true, the user is routed to another org (or org creation) after the
@@ -48,10 +51,17 @@ export function useDeleteOrganization() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const deleteOrganization = useCallback(
-    async ({ organizationId, isCurrent }: DeleteOrganizationArgs) => {
+    async ({
+      organizationId,
+      confirmName,
+      isCurrent,
+    }: DeleteOrganizationArgs) => {
       setIsDeleting(true);
       try {
-        await deleteOrganizationMutation.mutateAsync({ organizationId });
+        await deleteOrganizationMutation.mutateAsync({
+          organizationId,
+          confirmName,
+        });
 
         toast({
           title: tSettings('organization.deleteSuccess'),
@@ -82,10 +92,16 @@ export function useDeleteOrganization() {
         // The server refused under an active legal hold: the org is intact
         // and the way forward is releasing the hold — say so, in the
         // reader's language, instead of echoing the wire text.
+        const code = backendErrorCode(err);
         const description =
-          backendErrorCode(err) === 'LEGAL_HOLD_ACTIVE'
+          code === 'LEGAL_HOLD_ACTIVE'
             ? tSettings('organization.deleteBlockedByLegalHold')
-            : backendErrorMessage(err, err instanceof Error ? err.message : '');
+            : code === 'ORG_CONFIRM_NAME_MISMATCH'
+              ? tSettings('organization.deleteConfirmNameMismatch')
+              : backendErrorMessage(
+                  err,
+                  err instanceof Error ? err.message : '',
+                );
         toast({
           title: tSettings('organization.deleteFailed'),
           ...(description !== '' ? { description } : {}),
