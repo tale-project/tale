@@ -75,7 +75,7 @@ interface UseSpeechToTextReturn {
 }
 
 /**
- * The microphone permission state before a session starts, or `undefined`
+ * The microphone permission state beside a starting session, or `undefined`
  * where the browser cannot say (no Permissions API, or one that does not know
  * the `microphone` descriptor — Safari throws). Web Speech only reports a
  * denied microphone through a later `not-allowed` error and some builds
@@ -181,25 +181,31 @@ export function useSpeechToText({
       recognitionRef.current = null;
     });
 
+    // Start INSIDE the click: iOS Safari starts recognition only from a
+    // user gesture, and an await before `start()` would leave it. The
+    // permission query runs beside the session — a denial found there is
+    // surfaced at once (Web Speech reports it late, or in some builds
+    // never) and the session it would have stalled is aborted.
+    try {
+      recognition.start();
+    } catch (startError) {
+      console.warn(
+        '[dictation] speech recognition failed to start',
+        startError,
+      );
+      recognitionRef.current = null;
+      setError('not-allowed');
+      setIsListening(false);
+      return;
+    }
     void queryMicrophonePermission().then((state) => {
       // A newer click replaced this session while the query was pending.
       if (recognitionRef.current !== recognition) return;
-      if (state === 'denied') {
-        recognitionRef.current = null;
-        setError('not-allowed');
-        setIsListening(false);
-        return;
-      }
-      try {
-        recognition.start();
-      } catch (startError) {
-        console.warn(
-          '[dictation] speech recognition failed to start',
-          startError,
-        );
-        setError('not-allowed');
-        setIsListening(false);
-      }
+      if (state !== 'denied') return;
+      recognitionRef.current = null;
+      recognition.abort();
+      setError('not-allowed');
+      setIsListening(false);
     });
   }, [lang, setError]);
 

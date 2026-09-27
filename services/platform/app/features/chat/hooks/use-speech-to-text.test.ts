@@ -49,19 +49,23 @@ afterEach(() => {
 describe('useSpeechToText — starting with the microphone denied', () => {
   // 2026-09-26 evaluation, A-07: with the permission denied, Start dictation
   // did nothing visible — Web Speech reported no error and the click left
-  // no trace. The denial is now found before a session starts.
-  it('reports not-allowed without starting a session', async () => {
+  // no trace. The denial is found by a permission query that runs BESIDE
+  // the session: the session still starts inside the click (iOS Safari
+  // refuses a start outside the user gesture) and is aborted on a denial.
+  it('reports not-allowed and aborts the session it started in the click', async () => {
     installSpeech('denied');
     const { result } = renderHook(() =>
       useSpeechToText({ onTranscript: vi.fn() }),
     );
 
     act(() => result.current.startListening());
+    // Synchronously, inside the gesture — before the query has answered.
+    expect(FakeRecognition.instances[0]?.start).toHaveBeenCalledOnce();
 
     await waitFor(() => expect(result.current.error).toBe('not-allowed'));
     expect(result.current.errorNonce).toBe(1);
     expect(result.current.isListening).toBe(false);
-    expect(FakeRecognition.instances[0]?.start).not.toHaveBeenCalled();
+    expect(FakeRecognition.instances[0]?.abort).toHaveBeenCalledOnce();
   });
 
   it('announces the same denial again on a second click', async () => {
@@ -77,7 +81,7 @@ describe('useSpeechToText — starting with the microphone denied', () => {
     expect(result.current.error).toBe('not-allowed');
   });
 
-  it('starts the session when the permission is granted or still a prompt', async () => {
+  it('starts the session inside the click when the permission is granted or still a prompt', async () => {
     installSpeech('prompt');
     const { result } = renderHook(() =>
       useSpeechToText({ onTranscript: vi.fn() }),
@@ -85,9 +89,11 @@ describe('useSpeechToText — starting with the microphone denied', () => {
 
     act(() => result.current.startListening());
 
-    await waitFor(() =>
-      expect(FakeRecognition.instances[0]?.start).toHaveBeenCalledOnce(),
-    );
+    expect(FakeRecognition.instances[0]?.start).toHaveBeenCalledOnce();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(FakeRecognition.instances[0]?.abort).not.toHaveBeenCalled();
     expect(result.current.error).toBeNull();
   });
 
