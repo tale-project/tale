@@ -82,10 +82,12 @@ export function useMyBudgetUsage(organizationId: string) {
 }
 
 /**
- * Resolved password policy for the given organization. Returns the
- * built-in defaults while the query is loading, when no organizationId
- * is available, or when the stored config is invalid. Reactive: Convex
- * subscriptions auto-update when admins save a new policy.
+ * Resolved password policy for the given organization — an admin read: the
+ * server refuses members, and this then returns the built-in defaults, as it
+ * does while the query is loading, when no organizationId is available, or
+ * when the stored config is invalid. The admin dialogs that set another
+ * member's password use it; a user's own password forms read
+ * `useMyPasswordPolicy` instead. Refreshes when an admin saves a new policy.
  */
 export function usePasswordPolicy(
   organizationId: string | undefined,

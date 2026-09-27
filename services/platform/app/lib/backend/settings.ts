@@ -13,6 +13,7 @@ import {
   TEAM_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
 
+import { invalidateMyPasswordPolicy } from './account';
 import type {
   ActionQueryAdapter,
   AdapterContext,
@@ -1436,6 +1437,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         void client.invalidateQueries({
           queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),
         });
+      }
+      if (args.policyType === 'password_policy') {
+        invalidateMyPasswordPolicy(client);
       }
       if (
         args.policyType === 'model_access' ||

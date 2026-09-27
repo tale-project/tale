@@ -17,15 +17,20 @@ import { z } from 'zod';
 
 import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
 import { LogoLink } from '@/app/components/logo/logo-link';
-import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';
-import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { usePasswordValidation } from '@/app/hooks/use-password-validation';
+import {
+  isPasswordPolicyViolation,
+  useUpdatePassword,
+} from '@/app/features/settings/account/hooks/mutations';
+import { useMyPasswordPolicy } from '@/app/features/settings/account/hooks/queries';
+import {
+  useNewPasswordSchema,
+  usePasswordValidation,
+} from '@/app/hooks/use-password-validation';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { passwordExpiryQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
-import { createPasswordSchema } from '@/lib/shared/schemas/password';
 
 export const Route = createFileRoute('/forced-change-password/$id')({
   beforeLoad: async () => {
@@ -42,14 +47,15 @@ type ForcedChangeFormData = {
   confirmPassword: string;
 };
 
-function ForcedChangePasswordPage() {
+export function ForcedChangePasswordPage() {
   const { id: organizationId } = Route.useParams();
   const navigate = useNavigate();
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
   const { toast } = useToast();
   const { mutateAsync: updatePassword } = useUpdatePassword();
-  const policy = usePasswordPolicy(organizationId);
+  const policy = useMyPasswordPolicy();
+  const newPasswordSchema = useNewPasswordSchema(policy);
   const { user, signOut } = useAuth();
 
   const handleSignOut = async () => {
@@ -86,18 +92,7 @@ function ForcedChangePasswordPage() {
     () =>
       z
         .object({
-          newPassword: createPasswordSchema(
-            {
-              minLength: tAuth('validation.passwordMinLength', {
-                n: policy.minLength,
-              }),
-              lowercase: tAuth('validation.passwordLowercase'),
-              uppercase: tAuth('validation.passwordUppercase'),
-              number: tAuth('validation.passwordNumber'),
-              specialChar: tAuth('validation.passwordSpecial'),
-            },
-            policy,
-          ),
+          newPassword: newPasswordSchema,
           confirmPassword: z
             .string()
             .min(1, tAuth('changePassword.validation.confirmRequired')),
@@ -106,7 +101,7 @@ function ForcedChangePasswordPage() {
           message: tAuth('changePassword.validation.mismatch'),
           path: ['confirmPassword'],
         }),
-    [tAuth, policy],
+    [tAuth, newPasswordSchema],
   );
 
   const form = useForm<ForcedChangeFormData>({
@@ -114,7 +109,7 @@ function ForcedChangePasswordPage() {
     defaultValues: { newPassword: '', confirmPassword: '' },
   });
 
-  const { register, handleSubmit, formState, watch } = form;
+  const { register, handleSubmit, formState, setError, watch } = form;
   const { errors, isSubmitting, isValid } = formState;
   const newPassword = watch('newPassword');
   const validationItems = usePasswordValidation(newPassword, policy);
@@ -137,6 +132,15 @@ function ForcedChangePasswordPage() {
       });
     } catch (e) {
       console.error(e);
+      // The server holds the new password to the effective policy; its
+      // refusal is the only check when the policy never loaded.
+      if (isPasswordPolicyViolation(e)) {
+        setError('newPassword', {
+          type: 'manual',
+          message: tAuth('changePassword.validation.policyViolation'),
+        });
+        return;
+      }
       toast({
         title: tToast('error.passwordChangeFailed.title'),
         description: tToast('error.passwordChangeFailed.description'),
@@ -190,7 +194,7 @@ function ForcedChangePasswordPage() {
                       errorMessage={errors.newPassword?.message}
                       {...register('newPassword')}
                     />
-                    {newPassword && (
+                    {newPassword && validationItems.length > 0 && (
                       <ValidationCheckList
                         items={validationItems}
                         className="text-xs"

@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { PasswordPolicyConfig } from '@tale/shared/schemas/governance';
+
 /** The password-expiry gate's shape. Two entries answer it: the status read,
  * and the password write (which recomputes it, so the caller never has to
  * re-read to leave the forced-change wall). */
@@ -75,5 +77,13 @@ export interface UsersContract {
     kind: 'query';
     args: Record<string, never>;
     returns: PasswordExpiry;
+  };
+  // The rules the caller's own password is held to: the strictest policy
+  // across every organization they belong to, which is what
+  // `updateUserPassword` enforces.
+  'users/queries:getMyPasswordPolicy': {
+    kind: 'query';
+    args: Record<string, never>;
+    returns: PasswordPolicyConfig;
   };
 }
