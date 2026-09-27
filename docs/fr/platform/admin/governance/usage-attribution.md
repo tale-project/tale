@@ -16,7 +16,7 @@ La règle est la même partout : une requête compte pour la personne qui a dema
 | Travail | Compte pour | Compte aussi pour | Apparaît dans l’analyse de l’usage comme |
 | --- | --- | --- | --- |
 | Une réponse de chat, ou le titre d’un nouveau chat | Le membre qui a envoyé le message | La clé API, quand le message est passé par l’API REST | L’assistant utilisé ; un titre sous `thread-title` |
-| Une exécution d’agent sur une tâche | Le membre qui a lancé l’exécution depuis la tâche ou avec un commentaire qui mentionne l’agent | — | Le nom de l’agent sous **Principaux assistants** |
+| Une exécution d’agent sur une tâche | Le membre qui a lancé l’exécution depuis la tâche, ou avec un commentaire ou une description de tâche qui mentionne l’agent | — | Le nom de l’agent sous **Principaux assistants** |
 | Une exécution d’automatisation lancée par quelqu’un | Le membre qui l’a lancée depuis la liste des exécutions, le builder, un chat, une tâche, l’API REST ou le point d’accès MCP | La clé API, quand l’exécution a été lancée avec une clé | Le nom de l’automatisation sous **Principaux assistants** |
 | Une exécution d’automatisation lancée par un déclencheur | Personne : une planification, un webhook ou un événement n’a personne derrière lui | — | La ligne **Automatisations (déclencheurs)** sous **Utilisation par utilisateur** |
 | Une sortie vocale ou une transcription | Le membre qui l’a demandée | — | **Sortie vocale** ou **Transcription** sous **Principaux assistants** ; la sortie vocale aussi sous **Principaux modèles vocaux** |
@@ -34,7 +34,7 @@ Quand une limite est atteinte, Tale refuse la requête suivante avant de l’ex�
 
 ## Trois situations à connaître
 
-**Un collègue mentionne ton agent dans un commentaire de tâche.** Le commentaire lance une exécution, et celle-ci compte pour le collègue qui a écrit le commentaire, pas pour toi en tant que créateur de l’agent.
+**Un collègue mentionne ton agent dans un commentaire ou dans la description d’une tâche.** Publier le commentaire ou enregistrer la description lance une exécution, et celle-ci compte pour le collègue qui en est l’auteur, pas pour toi en tant que créateur de l’agent.
 
 **Une automatisation planifiée dépense chaque nuit.** Ses exécutions apparaissent sur la ligne **Automatisations (déclencheurs)**. Elles n’augmentent jamais l’usage personnel de quelqu’un ni le nombre d’utilisateurs actifs, et seules les limites de l’organisation peuvent les arrêter. Définis une limite de coût ou de requêtes pour l’organisation si tu as besoin d’un plafond pour elles.
 
