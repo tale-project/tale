@@ -17,8 +17,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
+import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -171,38 +171,32 @@ function ProfileSection() {
         >
           {/* Email first, then Name — the email implies the suggested name
               (#1941), so it reads top-to-bottom as cause then effect. */}
-          <SettingsRow
-            className="py-5"
+          <SettingsFieldRow
             label={tSettings('account.profile.email')}
             description={tSettings('account.profile.emailDescription')}
           >
-            <div className="w-full sm:w-80">
-              <EmailField email={user?.email ?? ''} />
-            </div>
-          </SettingsRow>
+            <EmailField email={user?.email ?? ''} />
+          </SettingsFieldRow>
 
-          <SettingsRow
-            className="py-5"
+          <SettingsFieldRow
             label={tSettings('account.profile.name')}
             description={tSettings('account.profile.nameDescription')}
             required
           >
-            <div className="w-full sm:w-80">
-              <Input
-                id="name"
-                // The visible label lives on the enclosing SettingsRow, which
-                // names a wrapper div — give the input its own accessible name
-                // so assistive tech (and getByRole) can reach the control.
-                aria-label={tSettings('account.profile.name')}
-                placeholder={tSettings('account.profile.namePlaceholder')}
-                required
-                disabled={editor.isSaving}
-                errorMessage={errors.name?.message}
-                wrapperClassName="w-full"
-                {...register('name')}
-              />
-            </div>
-          </SettingsRow>
+            <Input
+              id="name"
+              // The visible label lives on the enclosing SettingsFieldRow, which
+              // names a wrapper div — give the input its own accessible name
+              // so assistive tech (and getByRole) can reach the control.
+              aria-label={tSettings('account.profile.name')}
+              placeholder={tSettings('account.profile.namePlaceholder')}
+              required
+              disabled={editor.isSaving}
+              errorMessage={errors.name?.message}
+              wrapperClassName="w-full"
+              {...register('name')}
+            />
+          </SettingsFieldRow>
         </fieldset>
       </Form>
     </SettingsSection>
@@ -213,7 +207,7 @@ function ProfileSection() {
  *  Organization ID elsewhere in settings — same bg, border, radius, padding —
  *  so any "you can read this but can't edit it here" surface looks consistent.
  *  Doesn't render a copy button because nobody copies their own email out of
- *  Account settings. The field label lives on the enclosing `SettingsRow`. */
+ *  Account settings. The field label lives on the enclosing `SettingsFieldRow`. */
 function EmailField({ email }: { email: string }) {
   const loading = useSkeleton();
 

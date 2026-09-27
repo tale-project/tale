@@ -81,8 +81,8 @@ describe('FieldShell', () => {
     // siblings; a control whose width its caller sets — a toolbar search box —
     // must fill the frame instead, or it leaves dead space beside itself.
     const column = container.firstElementChild?.querySelector('div');
-    expect(column).toHaveClass('in-data-[field-layout=row]:sm:w-full');
-    expect(column).not.toHaveClass('in-data-[field-layout=row]:sm:w-80');
+    expect(column).toHaveClass('@xl/field-layout:flex-1');
+    expect(column).not.toHaveClass('@xl/field-layout:w-80');
   });
 
   it('threads height through the frame and control column for fillHeight', () => {

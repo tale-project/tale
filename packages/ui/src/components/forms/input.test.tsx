@@ -64,7 +64,7 @@ describe('Input', () => {
       // of the settings 20rem column (the shell's own suite covers what the
       // classes then do).
       const column = container.firstElementChild?.querySelector('div');
-      expect(column).toHaveClass('in-data-[field-layout=row]:sm:w-full');
+      expect(column).toHaveClass('@xl/field-layout:flex-1');
     });
   });
 

@@ -382,6 +382,15 @@
     height: 100%;
   }
 
+  /* A surface that declares the settings field layout (`FIELD_LAYOUT_ROW` in
+     `forms/field-shell.tsx`) is the box its rows measure: they read
+     label-left/control-right only while THIS container has room for both
+     columns (`@xl/field-layout:` = 36rem), whatever the viewport. Inline-size
+     containment only — it does not capture fixed or absolute descendants. */
+  [data-field-layout='row'] {
+    container: field-layout / inline-size;
+  }
+
   body {
     font-family:
       'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;

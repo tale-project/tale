@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
+import { FIELD_ROW_CONTROL } from '@tale/ui/field-shell';
 import type { HTMLAttributes, ReactNode } from 'react';
 
 import { SettingsRow } from './settings-row';
@@ -12,10 +13,10 @@ import { SettingsRow } from './settings-row';
  * is label-left / control-right (the Organization details pattern); pass
  * `layout="stack"` for label-above-control in dialogs and narrow panes.
  *
- * In row layout, a row's control column is fixed-width on desktop and
- * full-width on mobile (where the row stacks), so the controls of a section
- * line up with each other regardless of how long their labels are. Stack
- * layout always uses the full width under the label.
+ * In row layout, a row's control column is fixed-width while the row is a row
+ * and full-width once it stacks (a narrow surface), so the controls of a
+ * section line up with each other regardless of how long their labels are.
+ * Stack layout always uses the full width under the label.
  */
 
 export function SettingsFieldList({
@@ -39,7 +40,8 @@ export interface SettingsFieldRowProps {
   /** Append a red required asterisk to the label. */
   required?: boolean;
   /**
-   * `'row'` (default) — label left / control right from `sm` up.
+   * `'row'` (default) — label left / control right once the settings surface
+   * has room for both (see `SettingsRow`).
    * `'stack'` — always label above control; control is full width.
    */
   layout?: 'row' | 'stack';
@@ -73,7 +75,7 @@ export function SettingsFieldRow({
       {...(description !== undefined ? { description } : {})}
       {...(required ? { required } : {})}
     >
-      <div className={cn('w-full', !fullWidthControl && 'sm:w-80')}>
+      <div className={cn('w-full', !fullWidthControl && FIELD_ROW_CONTROL)}>
         {children}
       </div>
     </SettingsRow>

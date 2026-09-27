@@ -2,6 +2,7 @@
 
 import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
+import { FIELD_ROW_FRAME } from '@tale/ui/field-shell';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
 interface SettingsRowProps extends Omit<
@@ -13,9 +14,11 @@ interface SettingsRowProps extends Omit<
   /** Append a red required asterisk to the label (mirrors `Label`'s required). */
   required?: boolean;
   /**
-   * `'row'` (default) — label left / control right from `sm` up, as settings
-   * pages use. `'stack'` — always label above control, for narrow columns and
-   * dialogs where a side-by-side label column would squeeze helper text.
+   * `'row'` (default) — label left / control right once the surface has room
+   * for both (a `data-field-layout="row"` container of 36rem — see
+   * `FieldShell`), as settings pages use. `'stack'` — always label above
+   * control, for narrow columns and dialogs where a side-by-side label column
+   * would squeeze helper text.
    */
   layout?: 'row' | 'stack';
   /** Right-side control (switch, button, copy field, link). */
@@ -24,8 +27,12 @@ interface SettingsRowProps extends Omit<
 
 /**
  * Label-control row used for inline settings: toggles, dialog triggers,
- * read-only values with copy buttons, etc. Default layout is horizontal from
- * `sm` up; pass `layout="stack"` for label-above-control (dialogs, narrow panes).
+ * read-only values with copy buttons, etc. Default layout is horizontal while
+ * the enclosing settings surface is wide enough for two columns — the same
+ * turn `FieldShell` takes, measured on the surface, never the viewport, so a
+ * settings column squeezed beside the rail and the settings panel stacks
+ * instead of wrapping its label a word per line. Pass `layout="stack"` for
+ * label-above-control everywhere (dialogs, narrow panes).
  */
 export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
   (
@@ -44,7 +51,7 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
         aria-describedby={descId}
         className={cn(
           'flex flex-col gap-1.5',
-          !stacked && 'sm:flex-row sm:items-start sm:justify-between sm:gap-6',
+          !stacked && FIELD_ROW_FRAME,
           className,
         )}
         {...props}

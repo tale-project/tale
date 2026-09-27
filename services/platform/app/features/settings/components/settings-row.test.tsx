@@ -1,3 +1,4 @@
+import { FIELD_ROW_FRAME } from '@tale/ui/field-shell';
 import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -81,14 +82,18 @@ describe('SettingsRow', () => {
       expect(row.getAttribute('aria-describedby')).toBeNull();
     });
 
-    it('uses horizontal row classes by default', () => {
+    it('turns into a row on the settings surface’s width, not the viewport’s', () => {
       const { container } = render(
         <SettingsRow label="Two-factor auth">
           <button type="button">Enable</button>
         </SettingsRow>,
       );
       const row = container.firstChild as HTMLElement;
-      expect(row.className).toContain('sm:flex-row');
+      // The same turn every field row takes (`FieldShell`): measured on the
+      // `data-field-layout="row"` container, so a settings column squeezed
+      // beside the rail and the settings panel stacks instead.
+      expect(row.className).toContain(FIELD_ROW_FRAME);
+      expect(row.className).not.toContain('sm:flex-row');
     });
 
     it('omits horizontal row classes when layout is stack', () => {
@@ -99,7 +104,7 @@ describe('SettingsRow', () => {
       );
       const row = container.firstChild as HTMLElement;
       expect(row.className).toContain('flex-col');
-      expect(row.className).not.toContain('sm:flex-row');
+      expect(row.className).not.toContain('flex-row');
     });
   });
 

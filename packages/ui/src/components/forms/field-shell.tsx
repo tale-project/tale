@@ -10,12 +10,20 @@ import type { ReactNode } from 'react';
  * Orientation is decided by the SURFACE, not the call site. A container marks
  * itself with `data-field-layout="row"` (see {@link FIELD_LAYOUT_ROW}) and
  * every field beneath it lays the label on the left and the control on the
- * right from `sm` up — the rhythm settings rows already had. Everywhere else
- * fields stack, which is what a narrow column or a dialog needs.
+ * right — the rhythm settings rows already had. Everywhere else fields stack,
+ * which is what a narrow column or a dialog needs.
  *
- * The switch is pure CSS (`in-data-*` = "has such an ancestor"), so it costs no
- * context and — because dialogs portal to `document.body` — a dialog rendered
- * from a row-layout page correctly stacks its fields again.
+ * "Room for a row" is a question about the SURFACE's width, not the
+ * viewport's: the marker also makes the element a named size container
+ * (`field-layout`, declared in `globals.css`), and a row forms only while that
+ * box holds the 20rem control, the gap and a readable label column (36rem).
+ * A viewport breakpoint could not tell them apart — a 1024px window whose
+ * settings column sits beside the rail and the settings panel is 400px wide,
+ * and its rows used to squeeze their labels to one word per line.
+ *
+ * The switch is pure CSS, so it costs no context and — because dialogs portal
+ * to `document.body`, out of every such container — a dialog rendered from a
+ * row-layout page correctly stacks its fields again.
  *
  * Reading order is label → description → control → error in BOTH orientations,
  * which is the order `design/docs/app.md` mandates.
@@ -24,21 +32,31 @@ import type { ReactNode } from 'react';
 /** Spread onto a container whose fields should read label-left/control-right. */
 export const FIELD_LAYOUT_ROW = { 'data-field-layout': 'row' } as const;
 
-// Applied to the outer frame: stacked by default, two columns under a
-// row-layout container.
-const FRAME_ROW =
-  'in-data-[field-layout=row]:sm:flex-row in-data-[field-layout=row]:sm:items-start in-data-[field-layout=row]:sm:justify-between in-data-[field-layout=row]:sm:gap-6';
+/**
+ * The frame of a label-left/control-right row: stacked by default, two
+ * columns once the nearest row-layout container is 36rem wide. Shared with
+ * the platform's settings rows so every row on a page turns at the same width.
+ */
+export const FIELD_ROW_FRAME =
+  '@xl/field-layout:flex-row @xl/field-layout:items-start @xl/field-layout:justify-between @xl/field-layout:gap-6';
+
+/**
+ * The control column of a row: the settings control width (20rem), fixed, so
+ * every control on a page lines up whatever its label — `SettingsFieldRow`
+ * pins its controls to the same column. Stacked, the control takes the width.
+ */
+export const FIELD_ROW_CONTROL =
+  '@xl/field-layout:w-80 @xl/field-layout:shrink-0';
 
 // The label column only exists in row mode; stacked, it is just the first
-// block of the frame.
+// block of the frame. It yields width before the control does (`min-w-0`):
+// a long label or description wraps instead of pushing the row past its box.
 const LABEL_COLUMN_ROW =
-  'in-data-[field-layout=row]:sm:max-w-xs in-data-[field-layout=row]:sm:shrink-0 in-data-[field-layout=row]:sm:pt-2';
+  '@xl/field-layout:max-w-xs @xl/field-layout:min-w-0 @xl/field-layout:pt-2';
 
-// The control column is the settings control width — the same 20rem column
-// `SettingsFieldRow` pins its controls to, so every field on a page lines up
-// regardless of which wrapper framed it.
-const CONTROL_COLUMN_ROW =
-  'in-data-[field-layout=row]:sm:w-80 in-data-[field-layout=row]:sm:shrink-0';
+// A wide control fills what the label leaves rather than claiming the full
+// row, so the label keeps its natural width (up to `max-w-xs`).
+const WIDE_CONTROL_ROW = '@xl/field-layout:min-w-0 @xl/field-layout:flex-1';
 
 export interface FieldShellProps {
   /** The rendered `<Label>`, when the field has one. */
@@ -83,7 +101,7 @@ export function FieldShell({
     <div
       className={cn(
         'flex flex-col gap-1.5',
-        FRAME_ROW,
+        FIELD_ROW_FRAME,
         fillHeight && 'min-h-0 flex-1',
         className,
       )}
@@ -97,8 +115,7 @@ export function FieldShell({
       <div
         className={cn(
           'flex min-w-0 flex-col gap-1.5',
-          !wideControl && CONTROL_COLUMN_ROW,
-          wideControl && 'in-data-[field-layout=row]:sm:w-full',
+          wideControl ? WIDE_CONTROL_ROW : FIELD_ROW_CONTROL,
           fillHeight && 'min-h-0 flex-1',
         )}
       >

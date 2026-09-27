@@ -104,8 +104,8 @@ describe('SearchInput', () => {
       const column = screen
         .getByPlaceholderText('Search...')
         .closest('div.flex.flex-col');
-      expect(column).toHaveClass('in-data-[field-layout=row]:sm:w-full');
-      expect(column).not.toHaveClass('in-data-[field-layout=row]:sm:w-80');
+      expect(column).toHaveClass('@xl/field-layout:flex-1');
+      expect(column).not.toHaveClass('@xl/field-layout:w-80');
       expect(container.querySelector('.w-\\[18rem\\]')).toBeInTheDocument();
     });
   });
