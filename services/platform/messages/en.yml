@@ -5341,7 +5341,6 @@ projects:
     PROJECT_SHARING_INVALID: Sharing settings are invalid.
     PROJECT_TEAM_INVALID: Team not found in your organization.
     TEAM_ACCESS_DENIED: You can only scope a project to teams you belong to.
-    PROJECT_RECOMMENDED_NOT_SUBSET: Recommended items must all appear in the allowed list.
     PROJECT_ORG_MISMATCH: That project belongs to a different organization.
     DOCUMENT_SCOPE_CONFLICT: This document is already in a team library. Detach it first.
     DOCUMENT_NOT_FOUND: Document not found.

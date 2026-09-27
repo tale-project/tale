@@ -8132,7 +8132,6 @@ projects:
       20 000 caractères. Raccourcis-les avant d'enregistrer.
     PROJECT_AGENT_LIMIT: Ce projet a atteint sa limite d'agents.
     PROJECT_AGENT_NOT_FOUND: Impossible de trouver cet agent. Il a peut-être été supprimé.
-    PROJECT_RECOMMENDED_NOT_SUBSET: Les éléments recommandés doivent tous figurer dans la liste autorisée.
     PROJECT_ORG_MISMATCH: Ce projet appartient à une autre organisation.
     RATE_LIMITED: Tu fais ça trop souvent. Réessaie dans un instant.
     PROJECT_LEGAL_HOLD: Ce projet est sous legal hold et ne peut pas être supprimé.

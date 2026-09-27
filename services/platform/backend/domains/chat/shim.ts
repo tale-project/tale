@@ -701,13 +701,9 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { projectId: string };
       const rows = await sql<
-        Pick<
-          ProjectRow,
-          'id' | 'name' | 'key' | 'instructions' | 'knowledgeMode'
-        >[]
+        Pick<ProjectRow, 'id' | 'name' | 'key' | 'instructions'>[]
       >`
-        SELECT id, name, key, instructions,
-               knowledge_mode AS "knowledgeMode"
+        SELECT id, name, key, instructions
         FROM app.projects WHERE id = ${args.projectId} LIMIT 1
       `;
       const row = rows[0];
@@ -717,7 +713,6 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         name: row.name,
         key: row.key ?? undefined,
         instructions: row.instructions ?? undefined,
-        knowledgeMode: row.knowledgeMode ?? undefined,
       };
     },
 

@@ -162,15 +162,6 @@ export interface ProjectRow {
   /** @deprecated Derived: `teamIds.slice(1)`; kept while the previous image reads it. */
   sharedWithTeamIds: string[];
   instructions: string | null;
-  knowledgeMode: string | null;
-  agentMode: string | null;
-  recommendedAgentSlugs: string[];
-  allowedAgentSlugs: string[];
-  modelMode: string | null;
-  recommendedModels: string[];
-  allowedModels: string[];
-  connectorsMode: string | null;
-  allowedConnectorSlugs: string[];
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -186,12 +177,6 @@ const PROJECT_COLUMNS = `
   ${PROJECT_TEAM_IDS_SQL} AS "teamIds",
   (${PROJECT_TEAM_IDS_SQL})[1] AS "teamId",
   (${PROJECT_TEAM_IDS_SQL})[2:] AS "sharedWithTeamIds", instructions,
-  knowledge_mode AS "knowledgeMode", agent_mode AS "agentMode",
-  recommended_agent_slugs AS "recommendedAgentSlugs",
-  allowed_agent_slugs AS "allowedAgentSlugs", model_mode AS "modelMode",
-  recommended_models AS "recommendedModels", allowed_models AS "allowedModels",
-  connectors_mode AS "connectorsMode",
-  allowed_connector_slugs AS "allowedConnectorSlugs",
   created_by AS "createdBy", created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt", archived_at_ms::float8 AS "archivedAt",
   pinned_at_ms::float8 AS "pinnedAt"
@@ -474,25 +459,6 @@ async function assignableTeams(
   }
 }
 
-function validateRecommendedSubsetOfAllowed(
-  mode: 'all' | 'recommended' | 'restricted',
-  recommended: string[] | undefined,
-  allowed: string[] | undefined,
-): void {
-  if (mode !== 'restricted' || !recommended || recommended.length === 0) {
-    return;
-  }
-  const allowedSet = new Set(allowed ?? []);
-  for (const item of recommended) {
-    if (!allowedSet.has(item)) {
-      throw new ProjectError(
-        'PROJECT_RECOMMENDED_NOT_SUBSET',
-        'Recommended items must be a subset of allowed items',
-      );
-    }
-  }
-}
-
 async function keyTaken(
   tx: TransactionSql | Sql,
   organizationId: string,
@@ -627,18 +593,6 @@ function diff(
     }
   }
   return changed;
-}
-
-function arrayDiff(
-  previous: string[] | undefined,
-  next: string[] | undefined,
-): { added: string[]; removed: string[] } {
-  const prev = new Set(previous ?? []);
-  const nxt = new Set(next ?? []);
-  return {
-    added: [...nxt].filter((item) => !prev.has(item)),
-    removed: [...prev].filter((item) => !nxt.has(item)),
-  };
 }
 
 function projectAudit(
@@ -787,21 +741,14 @@ export async function duplicateProject(
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.projects (
       org_id, name, key, description, icon, color, team_ids, team_id,
-      shared_with_team_ids, instructions, knowledge_mode, agent_mode,
-      recommended_agent_slugs, allowed_agent_slugs, model_mode,
-      recommended_models, allowed_models, connectors_mode,
-      allowed_connector_slugs, created_by, created_at_ms, updated_at_ms
+      shared_with_team_ids, instructions, created_by, created_at_ms,
+      updated_at_ms
     ) VALUES (
       ${auth.organizationId}, ${nextName}, ${key ?? null},
       ${source.description}, ${source.icon}, ${source.color},
       ${source.teamIds}, ${audienceMirror(source.teamIds).teamId},
       ${audienceMirror(source.teamIds).sharedWithTeamIds},
-      ${source.instructions},
-      ${source.knowledgeMode}, ${source.agentMode},
-      ${source.recommendedAgentSlugs}, ${source.allowedAgentSlugs},
-      ${source.modelMode}, ${source.recommendedModels},
-      ${source.allowedModels}, ${source.connectorsMode},
-      ${source.allowedConnectorSlugs}, ${auth.userId}, ${now}, ${now}
+      ${source.instructions}, ${auth.userId}, ${now}, ${now}
     )
     RETURNING id
   `;
@@ -1081,175 +1028,6 @@ export async function updateProjectSharing(
   await createAuditLog(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.sharingChanged, {
-      previousState,
-      newState,
-      changedFields: diff(previousState, newState),
-    }),
-  );
-  await hintProject(tx, auth.organizationId, args.projectId);
-}
-
-export async function updateProjectKnowledgeMode(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  projectId: string,
-  knowledgeMode: 'off' | 'tool' | 'context' | 'both',
-): Promise<void> {
-  const project = await loadProjectOrThrow(tx, projectId);
-  assertActiveWritable(project, auth);
-  await tx`
-    UPDATE app.projects SET
-      knowledge_mode = ${knowledgeMode}, updated_at_ms = ${Date.now()}
-    WHERE id = ${projectId}
-  `;
-  await createAuditLog(
-    tx,
-    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.knowledgeModeChanged, {
-      previousState: { knowledgeMode: project.knowledgeMode },
-      newState: { knowledgeMode },
-    }),
-  );
-  await hintProject(tx, auth.organizationId, projectId);
-}
-
-type RestrictionMode = 'all' | 'recommended' | 'restricted';
-
-export async function updateProjectAgentSettings(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: {
-    projectId: string;
-    agentMode: RestrictionMode;
-    recommendedAgentSlugs?: string[];
-    allowedAgentSlugs?: string[];
-  },
-): Promise<void> {
-  const project = await loadProjectOrThrow(tx, args.projectId);
-  assertActiveWritable(project, auth);
-
-  const previousState = {
-    agentMode: project.agentMode ?? 'all',
-    recommendedAgentSlugs: project.recommendedAgentSlugs,
-    allowedAgentSlugs: project.allowedAgentSlugs,
-  };
-  const newState = {
-    agentMode: args.agentMode,
-    recommendedAgentSlugs: args.recommendedAgentSlugs ?? [],
-    allowedAgentSlugs: args.allowedAgentSlugs ?? [],
-  };
-  validateRecommendedSubsetOfAllowed(
-    args.agentMode,
-    newState.recommendedAgentSlugs,
-    newState.allowedAgentSlugs,
-  );
-  await tx`
-    UPDATE app.projects SET
-      agent_mode = ${args.agentMode},
-      recommended_agent_slugs = ${newState.recommendedAgentSlugs},
-      allowed_agent_slugs = ${newState.allowedAgentSlugs},
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${args.projectId}
-  `;
-  const recommendedDiff = arrayDiff(
-    previousState.recommendedAgentSlugs,
-    newState.recommendedAgentSlugs,
-  );
-  const allowedDiff = arrayDiff(
-    previousState.allowedAgentSlugs,
-    newState.allowedAgentSlugs,
-  );
-  await createAuditLog(
-    tx,
-    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
-      previousState,
-      newState,
-      changedFields: diff(previousState, newState),
-      metadata: {
-        recommendedAdded: recommendedDiff.added,
-        recommendedRemoved: recommendedDiff.removed,
-        allowedAdded: allowedDiff.added,
-        allowedRemoved: allowedDiff.removed,
-      },
-    }),
-  );
-  await hintProject(tx, auth.organizationId, args.projectId);
-}
-
-export async function updateProjectModelSettings(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: {
-    projectId: string;
-    modelMode: RestrictionMode;
-    recommendedModels?: string[];
-    allowedModels?: string[];
-  },
-): Promise<void> {
-  const project = await loadProjectOrThrow(tx, args.projectId);
-  assertActiveWritable(project, auth);
-  const previousState = {
-    modelMode: project.modelMode ?? 'all',
-    recommendedModels: project.recommendedModels,
-    allowedModels: project.allowedModels,
-  };
-  const newState = {
-    modelMode: args.modelMode,
-    recommendedModels: args.recommendedModels ?? [],
-    allowedModels: args.allowedModels ?? [],
-  };
-  validateRecommendedSubsetOfAllowed(
-    args.modelMode,
-    newState.recommendedModels,
-    newState.allowedModels,
-  );
-  await tx`
-    UPDATE app.projects SET
-      model_mode = ${args.modelMode},
-      recommended_models = ${newState.recommendedModels},
-      allowed_models = ${newState.allowedModels},
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${args.projectId}
-  `;
-  await createAuditLog(
-    tx,
-    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.modelsChanged, {
-      previousState,
-      newState,
-      changedFields: diff(previousState, newState),
-    }),
-  );
-  await hintProject(tx, auth.organizationId, args.projectId);
-}
-
-export async function updateProjectConnectorSettings(
-  tx: TransactionSql,
-  auth: ProjectAuthContext,
-  args: {
-    projectId: string;
-    connectorsMode: 'all' | 'restricted';
-    allowedConnectorSlugs?: string[];
-  },
-): Promise<void> {
-  const project = await loadProjectOrThrow(tx, args.projectId);
-  assertActiveWritable(project, auth);
-  const previousState = {
-    connectorsMode: project.connectorsMode ?? 'all',
-    allowedConnectorSlugs: project.allowedConnectorSlugs,
-  };
-  const newState = {
-    connectorsMode: args.connectorsMode,
-    allowedConnectorSlugs: args.allowedConnectorSlugs ?? [],
-  };
-  await tx`
-    UPDATE app.projects SET
-      connectors_mode = ${args.connectorsMode},
-      allowed_connector_slugs = ${newState.allowedConnectorSlugs},
-      updated_at_ms = ${Date.now()}
-    WHERE id = ${args.projectId}
-  `;
-  await createAuditLog(
-    tx,
-    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.connectorsChanged, {
       previousState,
       newState,
       changedFields: diff(previousState, newState),

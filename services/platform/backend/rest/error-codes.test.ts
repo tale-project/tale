@@ -254,16 +254,15 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Projects: the door validates the name (`nonBlank`), description and
   // external key (`externalKeySchema`) at the domain's own caps before the
   // create or the PATCH reaches the cores, and the agent name and
-  // instructions the same way (`projectAgentInputSchema`); instructions,
-  // sharing and the recommended-agent subset are the app's settings
-  // dialogs — no REST body carries them.
+  // instructions the same way (`projectAgentInputSchema`); instructions
+  // and sharing are the app's settings dialogs — no REST body carries
+  // them.
   'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG',
   'PROJECT_AGENT_NAME_INVALID',
   'PROJECT_DESCRIPTION_INVALID',
   'PROJECT_EXTERNAL_ITEM_ID_INVALID',
   'PROJECT_INSTRUCTIONS_TOO_LONG',
   'PROJECT_NAME_INVALID',
-  'PROJECT_RECOMMENDED_NOT_SUBSET',
   'PROJECT_SHARING_INVALID',
   // Products: the door's `productCreateSchema` / `productPatchSchema` cap
   // every field at the domain's own constants (`field_limits.ts`), so the

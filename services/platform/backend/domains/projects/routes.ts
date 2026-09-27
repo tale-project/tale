@@ -3,11 +3,8 @@ import {
   createProjectInputSchema,
   deleteProjectInputSchema,
   projectAgentInputSchema,
-  projectKnowledgeModeSchema,
-  updateProjectAgentSettingsSchema,
   updateProjectIdentitySchema,
   updateProjectInstructionsSchema,
-  updateProjectModelSettingsSchema,
   updateProjectSharingSchema,
 } from '@tale/shared/schemas/projects';
 import { Hono, type Context } from 'hono';
@@ -50,12 +47,8 @@ import {
   searchProjects,
   setProjectPinned,
   updateProjectAgent,
-  updateProjectAgentSettings,
-  updateProjectConnectorSettings,
   updateProjectIdentity,
   updateProjectInstructions,
-  updateProjectKnowledgeMode,
-  updateProjectModelSettings,
   updateProjectSharing,
   type ProjectAuthContext,
 } from './service.ts';
@@ -71,11 +64,6 @@ const createProjectSchema = createProjectInputSchema
     key: z.string().max(10).optional(),
     externalItemId: z.string().max(512).optional(),
   });
-
-const connectorSettingsSchema = z.object({
-  connectorsMode: z.enum(['all', 'restricted']),
-  allowedConnectorSlugs: z.array(z.string()).max(200).optional(),
-});
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
@@ -303,86 +291,6 @@ export function createProjectRoutes(deps: {
       const auth = await authCtx(c);
       await transactSerializable(deps.sql, (tx) =>
         updateProjectSharing(tx, auth, {
-          projectId: c.req.param('id'),
-          ...body.data,
-        }),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:id/knowledge-mode', async (c) => {
-    const body = z
-      .object({ knowledgeMode: projectKnowledgeModeSchema })
-      .safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        updateProjectKnowledgeMode(
-          tx,
-          auth,
-          c.req.param('id'),
-          body.data.knowledgeMode,
-        ),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:id/agent-settings', async (c) => {
-    const body = updateProjectAgentSettingsSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        updateProjectAgentSettings(tx, auth, {
-          projectId: c.req.param('id'),
-          ...body.data,
-        }),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:id/model-settings', async (c) => {
-    const body = updateProjectModelSettingsSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        updateProjectModelSettings(tx, auth, {
-          projectId: c.req.param('id'),
-          ...body.data,
-        }),
-      );
-      return c.json({ ok: true });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/:id/connector-settings', async (c) => {
-    const body = connectorSettingsSchema.safeParse(await c.req.json());
-    if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
-    }
-    try {
-      const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        updateProjectConnectorSettings(tx, auth, {
           projectId: c.req.param('id'),
           ...body.data,
         }),

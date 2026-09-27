@@ -96,25 +96,6 @@ export interface ProjectsContract {
     };
     returns: null;
   };
-  'projects/mutations:updateProjectAgentSettings': {
-    kind: 'mutation';
-    args: {
-      recommendedAgentSlugs?: string[];
-      allowedAgentSlugs?: string[];
-      projectId: string;
-      agentMode: 'all' | 'recommended' | 'restricted';
-    };
-    returns: null;
-  };
-  'projects/mutations:updateProjectConnectorSettings': {
-    kind: 'mutation';
-    args: {
-      allowedConnectorSlugs?: string[];
-      projectId: string;
-      connectorsMode: 'all' | 'restricted';
-    };
-    returns: null;
-  };
   'projects/mutations:updateProjectIdentity': {
     kind: 'mutation';
     args: {
@@ -129,24 +110,6 @@ export interface ProjectsContract {
   'projects/mutations:updateProjectInstructions': {
     kind: 'mutation';
     args: { projectId: string; instructions: string };
-    returns: null;
-  };
-  'projects/mutations:updateProjectKnowledgeMode': {
-    kind: 'mutation';
-    args: {
-      projectId: string;
-      knowledgeMode: 'context' | 'tool' | 'off' | 'both';
-    };
-    returns: null;
-  };
-  'projects/mutations:updateProjectModelSettings': {
-    kind: 'mutation';
-    args: {
-      recommendedModels?: string[];
-      allowedModels?: string[];
-      projectId: string;
-      modelMode: 'all' | 'recommended' | 'restricted';
-    };
     returns: null;
   };
   'projects/mutations:updateProjectSharing': {
@@ -185,19 +148,10 @@ export interface ProjectsContract {
       sharedWithTeamIds?: string[];
       /** The audience — every team the project is scoped to; [] = org-wide. */
       teamIds?: string[];
-      knowledgeMode?: 'context' | 'tool' | 'off' | 'both';
-      agentMode?: 'all' | 'recommended' | 'restricted';
-      recommendedAgentSlugs?: string[];
-      allowedAgentSlugs?: string[];
       agentCapabilities?: Record<
         string,
         { connectors: string[]; skills: string[] }
       >;
-      modelMode?: 'all' | 'recommended' | 'restricted';
-      recommendedModels?: string[];
-      allowedModels?: string[];
-      connectorsMode?: 'all' | 'restricted';
-      allowedConnectorSlugs?: string[];
       archivedAt?: number;
       organizationId: string;
       name: string;
@@ -294,19 +248,10 @@ export interface ProjectsContract {
         sharedWithTeamIds?: string[];
         /** The audience — every team the project is scoped to; [] = org-wide. */
         teamIds?: string[];
-        knowledgeMode?: 'context' | 'tool' | 'off' | 'both';
-        agentMode?: 'all' | 'recommended' | 'restricted';
-        recommendedAgentSlugs?: string[];
-        allowedAgentSlugs?: string[];
         agentCapabilities?: Record<
           string,
           { connectors: string[]; skills: string[] }
         >;
-        modelMode?: 'all' | 'recommended' | 'restricted';
-        recommendedModels?: string[];
-        allowedModels?: string[];
-        connectorsMode?: 'all' | 'restricted';
-        allowedConnectorSlugs?: string[];
         archivedAt?: number;
         organizationId: string;
         name: string;
@@ -340,19 +285,10 @@ export interface ProjectsContract {
           sharedWithTeamIds?: string[];
           /** The audience — every team the project is scoped to; [] = org-wide. */
           teamIds?: string[];
-          knowledgeMode?: 'context' | 'tool' | 'off' | 'both';
-          agentMode?: 'all' | 'recommended' | 'restricted';
-          recommendedAgentSlugs?: string[];
-          allowedAgentSlugs?: string[];
           agentCapabilities?: Record<
             string,
             { connectors: string[]; skills: string[] }
           >;
-          modelMode?: 'all' | 'recommended' | 'restricted';
-          recommendedModels?: string[];
-          allowedModels?: string[];
-          connectorsMode?: 'all' | 'restricted';
-          allowedConnectorSlugs?: string[];
           archivedAt?: number;
           organizationId: string;
           name: string;

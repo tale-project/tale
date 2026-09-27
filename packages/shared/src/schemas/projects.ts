@@ -1,8 +1,5 @@
 import { z } from 'zod/v4';
 
-import { isValidModelRef } from '../utils/model-ref';
-import { AGENT_SLUG_REGEX, MAX_AGENT_SLUG_LENGTH } from './agents';
-
 /**
  * Allowlist for project icons (lucide-react icon names).
  *
@@ -75,17 +72,6 @@ export const PROJECT_COLORS = [
 export type ProjectColor = (typeof PROJECT_COLORS)[number];
 export const projectColorSchema = z.enum(PROJECT_COLORS);
 
-/** Tristate mode for agents/models restriction. */
-export const projectModeSchema = z.enum(['all', 'recommended', 'restricted']);
-
-/** Knowledge mode mirrors the agent knowledge mode set. */
-export const projectKnowledgeModeSchema = z.enum([
-  'off',
-  'tool',
-  'context',
-  'both',
-]);
-
 /**
  * Hard caps — the ONE copy. The backend routes parse with the schemas below
  * and the projects service validates with these constants, so the editor's
@@ -97,14 +83,10 @@ export const PROJECT_NAME_MAX = 80;
 export const PROJECT_DESCRIPTION_MAX = 500;
 export const PROJECT_INSTRUCTIONS_MAX_CHARS = 20_000;
 export const PROJECT_SHARED_TEAMS_MAX = 20;
-export const PROJECT_RECOMMENDED_AGENTS_MAX = 20;
 export const PROJECT_AGENT_NAME_MAX = 120;
 export const PROJECT_AGENT_MODEL_MAX = 200;
 export const PROJECT_AGENT_BINDINGS_MAX = 25;
 export const PROJECT_AGENT_INSTRUCTIONS_MAX = 20_000;
-const PROJECT_ALLOWED_AGENTS_MAX = 50;
-const PROJECT_RECOMMENDED_MODELS_MAX = 10;
-const PROJECT_ALLOWED_MODELS_MAX = 50;
 
 const projectNameSchema = z.string().trim().min(1).max(PROJECT_NAME_MAX);
 
@@ -123,16 +105,6 @@ const sharedWithTeamIdsSchema = z
 const projectTeamIdsSchema = z
   .array(teamIdSchema)
   .max(PROJECT_SHARED_TEAMS_MAX + 1);
-
-const agentSlugSchema = z
-  .string()
-  .min(1)
-  .max(MAX_AGENT_SLUG_LENGTH)
-  .regex(AGENT_SLUG_REGEX);
-
-const modelRefSchema = z.string().min(1).refine(isValidModelRef, {
-  message: 'Invalid model ref (expected "[provider:]model-id")',
-});
 
 /** Project-agent saves share one input shape across the session and REST
  * doors. The domain owns harness eligibility, normalization and secret grants. */
@@ -181,30 +153,6 @@ export const updateProjectSharingSchema = z.object({
   teamId: teamIdSchema.nullable().optional(),
   /** @deprecated Legacy shared teams. */
   sharedWithTeamIds: sharedWithTeamIdsSchema.optional(),
-});
-
-export const updateProjectAgentSettingsSchema = z.object({
-  agentMode: projectModeSchema,
-  recommendedAgentSlugs: z
-    .array(agentSlugSchema)
-    .max(PROJECT_RECOMMENDED_AGENTS_MAX)
-    .optional(),
-  allowedAgentSlugs: z
-    .array(agentSlugSchema)
-    .max(PROJECT_ALLOWED_AGENTS_MAX)
-    .optional(),
-});
-
-export const updateProjectModelSettingsSchema = z.object({
-  modelMode: projectModeSchema,
-  recommendedModels: z
-    .array(modelRefSchema)
-    .max(PROJECT_RECOMMENDED_MODELS_MAX)
-    .optional(),
-  allowedModels: z
-    .array(modelRefSchema)
-    .max(PROJECT_ALLOWED_MODELS_MAX)
-    .optional(),
 });
 
 export const deleteProjectInputSchema = z

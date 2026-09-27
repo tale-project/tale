@@ -350,6 +350,12 @@ default means deleting the override and fixing what surfaces:
   per-turn row (no reader ever folded it; `0110`, 2026-09); erasure and retention still sweep its
   legacy rows. Paying it down means a `DROP TABLE` migration one release after every image has
   stopped writing it, and removing the two sweeps with it.
+- **Nine `app.projects` settings columns are retired, not dropped** — `knowledge_mode`,
+  `agent_mode`, `recommended_agent_slugs`, `allowed_agent_slugs`, `model_mode`,
+  `recommended_models`, `allowed_models`, `connectors_mode` and `allowed_connector_slugs` lost
+  their only writers (four project-settings routes no screen called) and every reader, the
+  mention directory's legacy agent allow-list included (2026-09-27). Paying it down means a
+  `DROP COLUMN` migration one release after every image has stopped selecting them.
 - **Nothing in the schema forbids a door string in `usage_ledger.user_id`** — rule 2 of the
   governance contract is enforced by the resolver and its tests only, because rows booked before
   2026-09 carry `user:` / `api-key:` forms and the previous image writes them mid-roll. Paying it

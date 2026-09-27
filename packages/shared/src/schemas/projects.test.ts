@@ -5,17 +5,12 @@ import {
   PROJECT_INSTRUCTIONS_MAX_CHARS,
   PROJECT_DESCRIPTION_MAX,
   PROJECT_SHARED_TEAMS_MAX,
-  PROJECT_RECOMMENDED_AGENTS_MAX,
   createProjectInputSchema,
   deleteProjectInputSchema,
   projectColorSchema,
   projectIconSchema,
-  projectKnowledgeModeSchema,
-  projectModeSchema,
-  updateProjectAgentSettingsSchema,
   updateProjectIdentitySchema,
   updateProjectInstructionsSchema,
-  updateProjectModelSettingsSchema,
   updateProjectSharingSchema,
 } from './projects';
 
@@ -40,23 +35,6 @@ describe('projectIconSchema', () => {
 
   it('rejects arbitrary icon names', () => {
     expect(() => projectIconSchema.parse('SkullAndCrossbones')).toThrow();
-  });
-});
-
-describe('projectModeSchema', () => {
-  it('accepts all three modes', () => {
-    expect(projectModeSchema.parse('all')).toBe('all');
-    expect(projectModeSchema.parse('recommended')).toBe('recommended');
-    expect(projectModeSchema.parse('restricted')).toBe('restricted');
-  });
-});
-
-describe('projectKnowledgeModeSchema', () => {
-  it('accepts the four agent-style modes', () => {
-    expect(projectKnowledgeModeSchema.parse('off')).toBe('off');
-    expect(projectKnowledgeModeSchema.parse('tool')).toBe('tool');
-    expect(projectKnowledgeModeSchema.parse('context')).toBe('context');
-    expect(projectKnowledgeModeSchema.parse('both')).toBe('both');
   });
 });
 
@@ -217,63 +195,6 @@ describe('updateProjectSharingSchema', () => {
     expect(updateProjectSharingSchema.parse({ sharedWithTeamIds: [] })).toEqual(
       { sharedWithTeamIds: [] },
     );
-  });
-});
-
-describe('updateProjectAgentSettingsSchema', () => {
-  it('accepts mode-only update', () => {
-    expect(
-      updateProjectAgentSettingsSchema.parse({ agentMode: 'all' }),
-    ).toEqual({ agentMode: 'all' });
-  });
-
-  it('accepts recommended list under cap', () => {
-    expect(
-      updateProjectAgentSettingsSchema.parse({
-        agentMode: 'recommended',
-        recommendedAgentSlugs: ['recruiter-agent', 'email-outreach-helper'],
-      }),
-    ).toBeTruthy();
-  });
-
-  it('rejects recommended list over cap', () => {
-    expect(() =>
-      updateProjectAgentSettingsSchema.parse({
-        agentMode: 'recommended',
-        recommendedAgentSlugs: Array(PROJECT_RECOMMENDED_AGENTS_MAX + 1).fill(
-          'slug',
-        ),
-      }),
-    ).toThrow();
-  });
-
-  it('rejects invalid agent slug format', () => {
-    expect(() =>
-      updateProjectAgentSettingsSchema.parse({
-        agentMode: 'restricted',
-        allowedAgentSlugs: ['Bad Slug With Spaces'],
-      }),
-    ).toThrow();
-  });
-});
-
-describe('updateProjectModelSettingsSchema', () => {
-  it('accepts a fully-qualified model ref', () => {
-    expect(
-      updateProjectModelSettingsSchema.parse({
-        modelMode: 'restricted',
-        allowedModels: ['anthropic:claude-opus-4-7'],
-      }),
-    ).toBeTruthy();
-  });
-
-  it('rejects empty model ref', () => {
-    expect(() =>
-      updateProjectModelSettingsSchema.parse({
-        modelMode: 'restricted',
-        allowedModels: [''],
-      }),
-    ).toThrow();
   });
 });
 

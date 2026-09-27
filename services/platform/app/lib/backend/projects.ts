@@ -56,15 +56,6 @@ interface ProjectWire {
   /** The audience — every team the project is scoped to; [] = org-wide. */
   teamIds: string[];
   instructions: string | null;
-  knowledgeMode: string | null;
-  agentMode: string | null;
-  recommendedAgentSlugs: string[];
-  allowedAgentSlugs: string[];
-  modelMode: string | null;
-  recommendedModels: string[];
-  allowedModels: string[];
-  connectorsMode: string | null;
-  allowedConnectorSlugs: string[];
   createdBy: string;
   createdAt: number;
   updatedAt: number;
@@ -96,17 +87,6 @@ function projectView(row: ProjectWire): ProjectListItem {
     sharedWithTeamIds: row.sharedWithTeamIds,
     teamIds: row.teamIds,
     ...(row.instructions !== null ? { instructions: row.instructions } : {}),
-    ...(row.knowledgeMode !== null ? { knowledgeMode: row.knowledgeMode } : {}),
-    ...(row.agentMode !== null ? { agentMode: row.agentMode } : {}),
-    recommendedAgentSlugs: row.recommendedAgentSlugs,
-    allowedAgentSlugs: row.allowedAgentSlugs,
-    ...(row.modelMode !== null ? { modelMode: row.modelMode } : {}),
-    recommendedModels: row.recommendedModels,
-    allowedModels: row.allowedModels,
-    ...(row.connectorsMode !== null
-      ? { connectorsMode: row.connectorsMode }
-      : {}),
-    allowedConnectorSlugs: row.allowedConnectorSlugs,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -604,22 +584,6 @@ export const projectWriteAdapters: Record<string, WriteAdapter> = {
   },
   'projects/mutations:updateProjectSharing': {
     run: projectVerb('sharing'),
-    invalidate: projectWriteInvalidate,
-  },
-  'projects/mutations:updateProjectKnowledgeMode': {
-    run: projectVerb('knowledge-mode'),
-    invalidate: projectWriteInvalidate,
-  },
-  'projects/mutations:updateProjectAgentSettings': {
-    run: projectVerb('agent-settings'),
-    invalidate: projectWriteInvalidate,
-  },
-  'projects/mutations:updateProjectModelSettings': {
-    run: projectVerb('model-settings'),
-    invalidate: projectWriteInvalidate,
-  },
-  'projects/mutations:updateProjectConnectorSettings': {
-    run: projectVerb('connector-settings'),
     invalidate: projectWriteInvalidate,
   },
   'projects/mutations:archiveProject': {

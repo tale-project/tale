@@ -8043,7 +8043,6 @@ projects:
     PROJECT_SHARING_INVALID: Freigabeeinstellungen sind ungültig.
     PROJECT_TEAM_INVALID: Team in deiner Organisation nicht gefunden.
     TEAM_ACCESS_DENIED: Du kannst ein Projekt nur auf Teams beschränken, in denen du selbst bist.
-    PROJECT_RECOMMENDED_NOT_SUBSET: Empfohlene Einträge müssen alle in der erlaubten Liste enthalten sein.
     PROJECT_ORG_MISMATCH: Dieses Projekt gehört zu einer anderen Organisation.
     RATE_LIMITED: Das passiert gerade zu oft. Bitte versuche es in einem Moment erneut.
     DOCUMENT_SCOPE_CONFLICT:
