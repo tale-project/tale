@@ -102,3 +102,14 @@ Do not assume a route strip always becomes a dropdown on mobile: horizontal scro
 Name local tab lists with `listAriaLabel` and route landmarks with `ariaLabel`. Name icon-only local tabs with the item's `ariaLabel`. The active route uses `aria-current`, while a local selected tab uses `aria-selected`. Route tabs can use the host accent context; local `Tabs` uses its own theme classes.
 
 Use a [settings-page editor](/docs/patterns/settings-page) to protect drafts when leaving a route. A dirty dot communicates state but does not block navigation by itself.
+
+
+## Place primary navigation on a phone
+
+`BottomTabBar` from `@tale/ui/bottom-tab-bar` places icons and labels inside a floating capsule. Supply `items` with stable `key`, `label`, `icon`, `active`, and `onSelect` values, and name the navigation landmark with `ariaLabel`. Use `badgeLabel` to describe a badge in the reader’s language. The component has no router or permission logic.
+
+Place the bar in a positioned, viewport-height `.mobile-nav-shell`. It is absolutely positioned at the bottom and hidden from `md` upward. Its 64px height and external safe-area gap are shared with `BottomTabBarPlaceholder`; pass the placeholder the expected `tabs` count while loading.
+
+The platform keeps clearance on scrolling content rather than shrinking the whole page. `ContentArea` consumes `--mobile-nav-content-pad`; `.mobile-nav-clearance` resets that contribution for descendants so nested frames do not count it twice. Custom bounded panes use `.mobile-nav-clearance.mobile-nav-inset`, and scroll containers can use `.mobile-nav-scroll` for focus clearance. Keep page actions above the capsule through `MobileFloatingActions`.
+
+The platform uses `useMobileKeyboard` to hide navigation and release its clearance when editable focus accompanies a software-keyboard viewport contraction. The shared bar does not detect keyboards itself. Keyboard focus alone does not hide navigation. Reduced-transparency and increased-contrast preferences use an opaque surface.

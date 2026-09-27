@@ -25,7 +25,7 @@ import { MobileBottomNavPlaceholder } from './mobile-bottom-nav-placeholder';
  */
 export function DashboardShellFrame() {
   return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden md:flex-row">
+    <div className="mobile-nav-shell flex h-dvh w-full flex-col overflow-hidden md:flex-row">
       {/* Mobile top bar — mirrors the resolved chat header (the default
           landing): a leading cluster of action icons + the trailing account
           avatar, so the real header slots in without reflow. Matches the
@@ -84,8 +84,7 @@ export function DashboardShellFrame() {
         </div>
       </Stack>
 
-      {/* Mobile bottom-nav placeholder — the live tab bar's exact height, so
-          the composer stand-in above it sits where the live composer lands. */}
+      {/* The capsule and composer share the live shell's overlay geometry. */}
       <MobileBottomNavPlaceholder />
     </div>
   );

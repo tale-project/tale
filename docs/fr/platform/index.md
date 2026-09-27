@@ -10,6 +10,8 @@ Ces guides expliquent comment travailler dans Tale, dans le Cloud ou sur ton pro
 
 Sur ordinateur, la barre de navigation à gauche présente les sections sous forme d’icônes : **Accueil**, **Connaissances** et **Automatisations**. En bas de cette barre se trouvent **Paramètres**, tes notifications et ton menu de profil. Survole une icône pour lire son nom. Sur téléphone, la barre d’onglets en bas de l’écran propose **Accueil**, **Connaissances**, **Automatisations** et **Paramètres**.
 
+Sur téléphone, la navigation flotte au-dessus de la page dans une barre arrondie. Le contenu défile derrière elle, tandis que les champs de message et les actions de la page restent accessibles au-dessus. La barre disparaît quand le clavier à l’écran s’ouvre et réapparaît quand tu le fermes.
+
 Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Accueil**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Sur ordinateur, seul **Accueil** reprend où tu en étais : il rouvre le chat que tu as lu en dernier, ou un nouveau chat si tu n’en as aucun. Choisir **Accueil** alors que tu y es déjà démarre un nouveau chat, tout comme le raccourci **⌥⌘N** sur Mac ou **Alt+Ctrl+N** sous Windows et Linux.
 
 **Paramètres** liste ses pages dans un panneau latéral, à côté de la page, et l’en-tête indique la page ouverte ; sur téléphone, Paramètres commence par la liste de ses pages. **Connaissances** présente ses pages sous forme d’onglets sous son en-tête.

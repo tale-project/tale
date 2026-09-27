@@ -13,7 +13,7 @@ import { t } from '../helpers/i18n';
  *
  * The app's responsive split is the Tailwind `md` breakpoint (768px): desktop
  * chrome is `hidden md:flex` (side rail, settings desktop Save slot); mobile
- * chrome is `md:hidden` (the in-flow `BottomTabBar`, the content-width floating
+ * chrome is `md:hidden` (the floating `BottomTabBar`, the content-width floating
  * Save dock above it). There is NO hamburger drawer — primary nav is the bottom
  * tab bar, the same four sections as the desktop rail (Home, Knowledge,
  * Automations, Settings), and Home opens the Home list: on a phone the list of
@@ -44,12 +44,21 @@ test.describe('responsive / mobile layout', () => {
     const { organizationId } = org;
     await page.goto(`/dashboard/${organizationId}/chat`);
 
-    // The mobile primary-nav landmark (the in-flow bottom tab bar) is the stable
+    // The mobile primary-nav landmark (the floating bottom tab bar) is the stable
     // anchor that the shell finished mounting at mobile width.
     const mobileNav = page.getByRole('navigation', {
       name: t('navigation.aria.primaryNavigation'),
     });
     await expect(mobileNav).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+    const dock = await mobileNav.boundingBox();
+    expect(dock).not.toBeNull();
+    expect(dock?.height).toBe(64);
+    expect(dock?.x).toBeGreaterThan(0);
+    const main = await page.locator('#main-content').boundingBox();
+    expect((main?.y ?? 0) + (main?.height ?? 0)).toBeGreaterThan(
+      (dock?.y ?? 0) + 64,
+    );
 
     // The desktop side rail lives in a `hidden md:flex` column — display:none.
     await expect(
@@ -79,6 +88,16 @@ test.describe('responsive / mobile layout', () => {
     await expect(
       page.getByRole('radiogroup', { name: t('home.views.label') }),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    const archive = page.getByRole('button', {
+      name: t('chat.archived.title'),
+      exact: true,
+    });
+    await expect(archive).toBeVisible();
+    const archiveBox = await archive.boundingBox();
+    const pillBox = await mobileNav.boundingBox();
+    expect((archiveBox?.y ?? 0) + (archiveBox?.height ?? 0)).toBeLessThan(
+      pillBox?.y ?? 0,
+    );
   });
 
   test('settings: the floating Save dock is the visible Save cluster', async ({
@@ -117,6 +136,16 @@ test.describe('responsive / mobile layout', () => {
     const originalName = await nameField.inputValue();
     await nameField.fill(`${originalName} (responsive-probe)`);
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
+
+    const saveBox = await save.boundingBox();
+    const dockBox = await page
+      .getByRole('navigation', {
+        name: t('navigation.aria.primaryNavigation'),
+      })
+      .boundingBox();
+    expect((saveBox?.y ?? 0) + (saveBox?.height ?? 0)).toBeLessThan(
+      dockBox?.y ?? 0,
+    );
 
     // Still exactly one Save button at `< md` (header slot is unmounted).
     await expect(

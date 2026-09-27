@@ -10,6 +10,8 @@ Use these guides to work in Tale, whether your organization uses Cloud or runs i
 
 On a computer, the rail along the left edge shows the sections as icons: **Home**, **Knowledge**, and **Automations**, with **Settings**, your notifications, and your profile menu at its foot. Point to an icon to see its name. On a phone, the tab bar at the bottom offers **Home**, **Knowledge**, **Automations**, and **Settings**.
 
+On a phone, navigation sits in a rounded capsule floating above the page. Content scrolls behind it, while message fields and page actions stay above it. The capsule hides when the on-screen keyboard opens and returns when you close the keyboard.
+
 A section always opens on its own first page, whatever you did there last, so the same choice leads to the same place every time. For example, open an automation's **Runs** tab, switch to **Home**, then choose **Automations**: the automation list opens, not the tab you left. On a computer, Home is the one section that picks up where you were: it reopens the chat you last read, or a new chat if you have none, and choosing **Home** again while you are there starts a new chat. The shortcut **⌥⌘N** on a Mac, or **Alt+Ctrl+N** on Windows or Linux, also starts a new chat.
 
 **Settings** lists its pages in a panel beside the page, and the page header names the page you opened; on a phone, Settings starts from a list of its pages. **Knowledge** shows its pages as tabs under its header.

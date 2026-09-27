@@ -1,10 +1,10 @@
 'use client';
 
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
-import { cn } from '@tale/ui/cn';
+import { useMobileKeyboard } from '@tale/ui/use-mobile-keyboard';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { House } from 'lucide-react';
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -50,11 +50,27 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const { t: tNav } = useT('navigation');
   const { primary, pinned } = useNavigationItems(organizationId);
   const { isStandalone, isMobileSafari } = useDisplayMode();
-  // Mobile Safari doesn't expose its bottom toolbar via safe-area-inset, so
-  // `pb-(--safe-bottom)` resolves to 0 and the tab bar collides with the
-  // toolbar. Reserve extra clearance only in that case — installed PWAs and
-  // other browsers already get correct insets.
-  const needsSafariBottomClearance = isMobileSafari && !isStandalone;
+  const keyboard = useMobileKeyboard();
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle(
+      'boot-safari-toolbar',
+      isMobileSafari && !isStandalone,
+    );
+  }, [isMobileSafari, isStandalone]);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.toggleAttribute('data-mobile-keyboard', keyboard.open);
+    if (keyboard.height !== undefined) {
+      root.style.setProperty('--mobile-visual-height', `${keyboard.height}px`);
+    } else {
+      root.style.removeProperty('--mobile-visual-height');
+    }
+    return () => {
+      root.removeAttribute('data-mobile-keyboard');
+      root.style.removeProperty('--mobile-visual-height');
+    };
+  }, [keyboard.open, keyboard.height]);
 
   const items = useMemo<BottomTabBarItem[]>(
     () =>
@@ -89,10 +105,6 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   );
 
   return (
-    <BottomTabBar
-      items={items}
-      ariaLabel={tNav('aria.primaryNavigation')}
-      className={cn(needsSafariBottomClearance && 'pb-12')}
-    />
+    <BottomTabBar items={items} ariaLabel={tNav('aria.primaryNavigation')} />
   );
 }

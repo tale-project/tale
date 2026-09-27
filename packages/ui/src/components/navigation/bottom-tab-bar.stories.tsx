@@ -20,7 +20,7 @@ const meta: Meta<typeof BottomTabBar> = {
     docs: {
       description: {
         component:
-          'In-flow bottom navigation for mobile, sized as the last child of a flex-column app shell. Tap a tab to make it active — the pill background and label color update accordingly. Honors `env(safe-area-inset-bottom)`. Hidden on `md+` viewports.',
+          'Floating capsule navigation for a positioned mobile app shell. Reserve end clearance in scroll content. Tap a tab to make it active — the selection glides between labelled destinations. Honors `env(safe-area-inset-bottom)`. Hidden on `md+` viewports.',
       },
     },
   },
@@ -62,8 +62,8 @@ function InteractiveShell({
     onSelect: () => setActiveKey(tab.key),
   }));
   return (
-    <div className="bg-background flex min-h-105 w-full flex-col">
-      <div className="text-muted-foreground flex-1 px-4 py-6 text-sm">
+    <div className="mobile-nav-shell bg-background relative flex h-105 w-full flex-col overflow-hidden">
+      <div className="text-muted-foreground min-h-0 flex-1 overflow-y-auto px-4 py-6 text-sm">
         Active tab:{' '}
         <span className="text-foreground font-semibold">{activeKey}</span>. Tap
         any tab below to switch.
@@ -79,7 +79,7 @@ export const FiveTabs: Story = {
     docs: {
       description: {
         story:
-          'Five primary destinations. Click any tab to make it active — the pill background animates on the selected icon.',
+          'Five primary destinations. Click any tab to make it active — the pill background glides under the selected icon and label.',
       },
     },
   },
@@ -91,7 +91,7 @@ export const FourTabs: Story = {
     docs: {
       description: {
         story:
-          'Four tabs — the tabs stretch evenly across the available width.',
+          'Four tabs — longer labels receive more room before the remaining width is shared.',
       },
     },
   },
@@ -129,9 +129,10 @@ export const WithAccentColor: Story = {
 /** The masked stand-in a loading shell renders — the live bar's exact height. */
 export const Placeholder: Story = {
   render: () => (
-    <div className="bg-background flex min-h-105 w-full flex-col">
-      <div className="text-muted-foreground flex-1 px-4 py-6 text-sm">
-        The shell is still loading; the bar's band is already reserved.
+    <div className="mobile-nav-shell bg-background relative flex h-105 w-full flex-col overflow-hidden">
+      <div className="text-muted-foreground min-h-0 flex-1 overflow-y-auto px-4 py-6 text-sm">
+        The shell is still loading; the capsule keeps its final size and
+        position.
       </div>
       <BottomTabBarPlaceholder tabs={3} />
     </div>
