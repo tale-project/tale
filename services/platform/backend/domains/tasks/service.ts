@@ -1184,13 +1184,7 @@ export async function createTask(
       assigneeId: assignee?.assigneeId ?? null,
     });
   }
-  if (status === 'in_review') {
-    await requestTaskReview(tx, {
-      task: await loadTaskOrThrow(tx, taskId, auth.organizationId),
-      trigger: { kind: 'human', actorId: auth.userId },
-    });
-  }
-  // After the choreography, so an agent the card was born working for
+  // After the In progress kick, so an agent the card was born working for
   // keeps its run: one engine per task, and the dispatcher yields to it.
   if (description !== undefined) {
     await fanOutDescriptionMentions(tx, auth, {
@@ -1198,6 +1192,20 @@ export async function createTask(
       project,
       description,
     });
+  }
+  // Before the review gate: a named agent put to work moves the card to In
+  // progress, whatever column it was born in (a comment naming it on a
+  // closed card does the same). A review opened first would ring the
+  // reviewer and be withdrawn in this same write. The gate opens for a card
+  // still at In review — no agent named, or its start refused.
+  if (status === 'in_review') {
+    const born = await loadTaskOrThrow(tx, taskId, auth.organizationId);
+    if (born.status === 'in_review') {
+      await requestTaskReview(tx, {
+        task: born,
+        trigger: { kind: 'human', actorId: auth.userId },
+      });
+    }
   }
   return taskId;
 }

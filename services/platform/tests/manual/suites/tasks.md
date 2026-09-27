@@ -118,7 +118,10 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   **ENVIRONMENT** without a runnable harness); after the first edit B's bell
   shows **You were mentioned** (`inbox.mention`) and the row opens the task;
   the rewording shows no chip while editing, and brings B no second row and the
-  agent no second run
+  agent no second run. Then **Create task** straight into **In review**
+  (`tasks.status.in_review`) with a description that mentions the agent → the
+  card lands in **In progress** with a run, and the reviewer gets no review
+  request that is withdrawn again
 - [ ] `TASK-F9` · **Attachments** — Sheet → **Attachments**
   (`tasks.attachments.label`) → add via **Add attachments**
   (`tasks.attachments.add`) or the drop hint (`tasks.attachments.dropHint`);

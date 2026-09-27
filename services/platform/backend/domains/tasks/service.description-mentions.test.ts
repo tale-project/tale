@@ -7,6 +7,7 @@ import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import { notifyTaskMentions } from '../collab/service.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
+import { requestTaskReview } from './reviews.ts';
 import {
   createTask,
   mentionTriggerPreview,
@@ -385,6 +386,82 @@ describe('createTask — description @mentions fan out', () => {
       expect.anything(),
     );
     expect(assigned(statements)).toEqual([]);
+  });
+
+  it('starts one mention run for an agent named on a card born In progress for a person', async () => {
+    resolvesTo([WRITER_MENTION]);
+    const { tx, statements } = fakeTx(
+      taskRow({
+        id: 't-new',
+        status: 'in_progress',
+        assigneeType: 'user',
+        assigneeId: 'u-owner',
+      }),
+    );
+
+    await createTask(tx, auth, {
+      projectId: 'p-1',
+      title: 'Draft the overview',
+      description: '@writer draft it',
+      status: 'in_progress',
+      assigneeType: 'user',
+      assigneeId: 'u-owner',
+    });
+
+    // A person's card gets no run from the choreography; the mention is
+    // the only start, and the card is already where the kick would move it.
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ trigger: 'mention', agentId: WRITER.id }),
+    );
+    expect(assigned(statements)[0]?.values.slice(0, 2)).toEqual([
+      'agent',
+      WRITER.id,
+    ]);
+    expect(movedToInProgress(statements)).toEqual([]);
+  });
+
+  it('opens no review for a card born In review whose description puts an agent to work', async () => {
+    resolvesTo([WRITER_MENTION]);
+    const { tx, statements } = fakeTx(
+      taskRow({ id: 't-new', status: 'in_review' }),
+    );
+
+    await createTask(tx, auth, {
+      projectId: 'p-1',
+      title: 'Draft the overview',
+      description: '@writer draft it',
+      status: 'in_review',
+    });
+
+    // The agent is put to work, which moves the card to In progress; a
+    // review opened first would ring the reviewer and be withdrawn at once.
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(movedToInProgress(statements)).toHaveLength(1);
+    expect(requestTaskReview).not.toHaveBeenCalled();
+  });
+
+  it('still opens the review for a card born In review that names only people', async () => {
+    resolvesTo([ADA]);
+    const { tx } = fakeTx(taskRow({ id: 't-new', status: 'in_review' }));
+
+    await createTask(tx, auth, {
+      projectId: 'p-1',
+      title: 'Draft the overview',
+      description: '@ada please review',
+      status: 'in_review',
+    });
+
+    expect(notifyTaskMentions).toHaveBeenCalledTimes(1);
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(requestTaskReview).toHaveBeenCalledTimes(1);
+    expect(requestTaskReview).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        task: expect.objectContaining({ id: 't-new', status: 'in_review' }),
+      }),
+    );
   });
 });
 
