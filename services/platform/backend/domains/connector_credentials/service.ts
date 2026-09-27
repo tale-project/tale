@@ -1263,6 +1263,26 @@ export async function resolveConnectorCredential(
   };
 }
 
+/**
+ * Whether the connector's default (or the named) credential is in service —
+ * the row's existence and status, nothing more. The pre-approval probe asks
+ * this before parking a run on a person: no decrypt, and no OAuth refresh —
+ * a grant expiring while the run waits is renewed by the dispatch that uses
+ * it, and a probe re-run on every re-entry of the gate must not spend a
+ * refresh (or flip a grant to needs-reauth) on its own. Refuses with the
+ * resolver's own coded errors; anything else is the database.
+ */
+export async function assertConnectorCredentialInService(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
+): Promise<void> {
+  assertRowUsable(await loadRowForResolve(sql, args));
+}
+
 /** Active credentials for one connector — the mailbox-sync fan-out list. */
 export async function listActiveCredentials(
   sql: Sql,

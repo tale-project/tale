@@ -16,9 +16,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { NodeFailure } from '../../core/automations/failure.ts';
 
-const { runConnectorAction, resolveConnectorCredential } = vi.hoisted(() => ({
+const {
+  runConnectorAction,
+  resolveConnectorCredential,
+  assertConnectorCredentialInService,
+} = vi.hoisted(() => ({
   runConnectorAction: vi.fn(),
   resolveConnectorCredential: vi.fn(),
+  assertConnectorCredentialInService: vi.fn(),
 }));
 
 vi.mock('../connectors/service.ts', () => ({ runConnectorAction }));
@@ -27,7 +32,11 @@ vi.mock('../connector_credentials/service.ts', async (importOriginal) => {
     await importOriginal<
       typeof import('../connector_credentials/service.ts')
     >();
-  return { ...actual, resolveConnectorCredential };
+  return {
+    ...actual,
+    resolveConnectorCredential,
+    assertConnectorCredentialInService,
+  };
 });
 vi.mock('../../../lib/connectors/catalog.ts', () => ({
   loadConnectorDefinitions: () => [
@@ -95,8 +104,8 @@ describe('the credential probe', () => {
     expect(resolveConnectorCredential).not.toHaveBeenCalled();
   });
 
-  it('answers the dispatcher prose when no credential resolves', async () => {
-    resolveConnectorCredential.mockRejectedValueOnce(
+  it('answers the dispatcher prose when no credential is in service', async () => {
+    assertConnectorCredentialInService.mockRejectedValueOnce(
       new ConnectorCredentialError(
         'CREDENTIAL_NONE_CONFIGURED',
         'No default credential is configured for "imap-smtp" — add one in Settings → Connectors, or name a credential explicitly.',
@@ -114,26 +123,40 @@ describe('the credential probe', () => {
         'no usable credential for imap-smtp: No default credential is configured for "imap-smtp" — add one in Settings → Connectors, or name a credential explicitly.',
       hint: 'connect the connector, or mark one of its credentials as the default',
     });
-    expect(resolveConnectorCredential).toHaveBeenCalledWith(sql, {
+    expect(assertConnectorCredentialInService).toHaveBeenCalledWith(sql, {
       organizationId: 'org_1',
       connectorSlug: 'imap-smtp',
     });
   });
 
-  it('answers usable once a credential resolves, and propagates a real failure', async () => {
-    resolveConnectorCredential.mockResolvedValueOnce({ credentialId: 'c_1' });
+  // The probe re-runs on every wake while a run waits at the gate: it reads
+  // the row's status only and never resolves (decrypts, refreshes) the
+  // credential — a grant expiring meanwhile is the dispatch's to renew.
+  it('answers usable from the row alone, never resolving the credential', async () => {
+    assertConnectorCredentialInService.mockResolvedValueOnce(undefined);
     await expect(
       probeCredentialUsable(sql, {
         organizationId: 'org_1',
         connectorSlug: 'imap-smtp',
       }),
     ).resolves.toEqual({ usable: true });
-    resolveConnectorCredential.mockRejectedValueOnce(new Error('db down'));
+    expect(resolveConnectorCredential).not.toHaveBeenCalled();
+  });
+
+  it('cannot tell on a failure that is not about the credential, so the approval proceeds', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    assertConnectorCredentialInService.mockRejectedValueOnce(
+      new Error('db down'),
+    );
     await expect(
       probeCredentialUsable(sql, {
         organizationId: 'org_1',
         connectorSlug: 'imap-smtp',
       }),
-    ).rejects.toThrow('db down');
+    ).resolves.toEqual({ usable: 'unknown', reason: 'db down' });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('could not tell (db down)'),
+    );
+    warn.mockRestore();
   });
 });

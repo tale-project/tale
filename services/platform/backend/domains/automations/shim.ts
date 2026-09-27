@@ -12,8 +12,8 @@ import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 import {
+  assertConnectorCredentialInService,
   ConnectorCredentialError,
-  resolveConnectorCredential,
 } from '../connector_credentials/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { listFilesByFolder } from '../documents/agent-list.ts';
@@ -97,17 +97,24 @@ function askRowOf(row: AskRowRecord): Record<string, unknown> {
  * ones with a named reason — outbound effects only exist on connector
  * nodes, which fail earlier anyway.
  */
-/** What {@link automationShimHandlers}' credential probe answers. */
+/** What {@link automationShimHandlers}' credential probe answers: usable,
+ * refused (with the dispatcher's prose), or `unknown` — the probe could not
+ * tell, and the approval proceeds so the connector body gives the verdict. */
 export type CredentialProbe =
   | { usable: true }
-  | { usable: false; message: string; hint: string };
+  | { usable: false; message: string; hint: string }
+  | { usable: 'unknown'; reason: string };
 
 /**
  * A connector that authenticates as the platform needs no credential; any
- * other resolves the organization's default the way the dispatcher will.
- * A connector the catalog does not know is left to the dispatcher, which
- * names it. Only a credential refusal is an answer — anything else (the
- * database) is a real failure and propagates.
+ * other checks that the organization's default credential is in service —
+ * the ROW only (exists, not disabled, not needs-reauth), never a decrypt
+ * or an OAuth refresh: the gate re-enters on every wake while a run waits
+ * for approval, and each pass used to refresh the grant. A connector the
+ * catalog does not know is left to the dispatcher, which names it. Only a
+ * credential refusal is a refusal — anything else (the database) is not a
+ * fact about the credential, so the probe says it cannot tell rather than
+ * failing the node on an unrelated error.
  */
 export async function probeCredentialUsable(
   sql: Sql,
@@ -123,15 +130,21 @@ export async function probeCredentialUsable(
     return { usable: true };
   }
   try {
-    await resolveConnectorCredential(sql, args);
+    await assertConnectorCredentialInService(sql, args);
     return { usable: true };
   } catch (error) {
-    if (!(error instanceof ConnectorCredentialError)) throw error;
-    return {
-      usable: false,
-      message: `no usable credential for ${args.connectorSlug}: ${error.message}`,
-      hint: 'connect the connector, or mark one of its credentials as the default',
-    };
+    if (error instanceof ConnectorCredentialError) {
+      return {
+        usable: false,
+        message: `no usable credential for ${args.connectorSlug}: ${error.message}`,
+        hint: 'connect the connector, or mark one of its credentials as the default',
+      };
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[automations] credential probe for ${args.connectorSlug} could not tell (${reason}); leaving the verdict to the connector`,
+    );
+    return { usable: 'unknown', reason };
   }
 }
 
