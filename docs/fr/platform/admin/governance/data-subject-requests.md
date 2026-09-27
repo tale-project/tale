@@ -38,11 +38,11 @@ Seul le propriétaire peut modifier cette règle. Les protections renforcées s�
 | En cours | Attends les résultats par catégorie ; ne dépose pas de doublon. |
 | Terminée | Vérifie les nombres enregistrés et conserve le reçu dans ton dossier. |
 | Partielle | Examine les catégories ignorées et les erreurs. Résous la cause avant de réessayer. |
-| Bloquée | Examine la [conservation juridique](/fr/platform/admin/governance/legal-hold). Les données couvertes restent protégées. |
+| Bloquée | Examine la [conservation juridique](/fr/platform/admin/governance/legal-hold). Les données couvertes restent protégées. Le reçu nomme la rétention encore en vigueur ; une fois levée, il l’indique, et l’effacement ne reprend que si tu choisis **Réessayer**. |
 | Échouée | Lis les détails. Utilise **Réessayer** si disponible ; un dépassement du délai de surveillance peut exiger une nouvelle demande. |
 | Annulée | Ce reçu ne prévoit plus d’exécution. Dépose une nouvelle demande si le dossier doit reprendre. |
 
-Un reçu ouvert peut empêcher un second dépôt pour la même personne. Reprends ce reçu au lieu de multiplier les demandes. Une demande bloquée dès le dépôt doit à nouveau respecter la règle actuelle d’approbation et d’attente lors d’un nouvel essai.
+Un reçu ouvert peut empêcher un second dépôt pour la même personne. Reprends ce reçu au lieu de multiplier les demandes. Une demande bloquée dès le dépôt doit à nouveau respecter la règle actuelle d’approbation et d’attente lors d’un nouvel essai. Un reçu en attente d’approbation conserve l’exigence d’approbation fixée à son dépôt : désactiver la double approbation ensuite ne le libère pas.
 
 ## Gérer l’échéance
 

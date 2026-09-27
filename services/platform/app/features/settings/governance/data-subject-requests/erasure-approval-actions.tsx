@@ -59,6 +59,13 @@ export function ErasureApprovalActions({
       <Alert variant="info">
         <Stack gap={3}>
           <Text>{t('dataSubjectRequests.approval.description')}</Text>
+          {/* The approval requirement is captured when the request is filed
+              (and re-read only by Retry), so a receipt parked under a policy
+              the org has since relaxed still waits — say so, or the page
+              contradicts the current policy editor. */}
+          <Text variant="muted" className="text-sm">
+            {t('dataSubjectRequests.approval.capturedPolicy')}
+          </Text>
           {!canApprove && (
             <Text variant="muted" className="text-sm">
               {t('dataSubjectRequests.errors.dualApprovalRequired')}

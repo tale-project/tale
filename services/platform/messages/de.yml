@@ -3992,6 +3992,7 @@ governance:
       cancel: Anfrage abbrechen
     approval:
       description: Ein anderer Admin muss diesen Antrag genehmigen, bevor die Wartezeit beginnt.
+      capturedPolicy: Die Freigabepflicht wurde bei der Einreichung festgehalten; eine spätere Änderung der Richtlinie gilt nicht für diesen Antrag.
       approve: Antrag genehmigen
       reject: Antrag ablehnen
       approveDescription: Genehmige diesen Löschantrag und starte die festgelegte Wartezeit. Ohne Wartezeit kann die Löschung sofort beginnen.
@@ -4075,6 +4076,7 @@ governance:
         Die Person steht unter einem Custodian-Legal-Hold. Hebe ihn
         auf, bevor du es erneut versuchst.
       generic: Ein aktiver Legal Hold bewahrt die Daten der Person.
+      released: Der Legal Hold wurde aufgehoben — wähle Erneut versuchen, um die Löschung fortzusetzen.
       threadsCount:
         '{count, plural, one {# bewahrte Konversation} other {# bewahrte
         Konversationen}}.'

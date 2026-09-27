@@ -4068,6 +4068,7 @@ governance:
       cancel: Annuler la demande
     approval:
       description: Un autre admin doit approuver cette demande avant le début du délai d'attente.
+      capturedPolicy: L'exigence d'approbation a été fixée au dépôt de la demande ; un changement ultérieur de la règle ne s'y applique pas.
       approve: Approuver la demande
       reject: Rejeter la demande
       approveDescription: Approuve cette demande d'effacement et lance le délai d'attente configuré. Sans délai, l'effacement peut commencer immédiatement.
@@ -4146,6 +4147,7 @@ governance:
         tenant. Lève-la avant de réessayer.
       userCustodianHeld: La personne est sous rétention de garde. Lève-la avant de réessayer.
       generic: Une rétention légale active préserve les données de la personne.
+      released: La rétention a été levée — choisis Réessayer pour poursuivre l'effacement.
       threadsCount: '{count, plural, =1 {# conversation préservée} other {#
         conversations préservées}}.'
       documentsCount:

@@ -38,11 +38,11 @@ Nur der Inhaber kann diese Richtlinie ändern. Strengere Schutzmaßnahmen gelten
 | Läuft | Warte auf die Kategorieergebnisse und reiche keine doppelte Anfrage ein. |
 | Abgeschlossen | Prüfe die Anzahlen und bewahre den Beleg bei deinem Fall auf. |
 | Teilweise | Untersuche übersprungene Kategorien und Fehler. Behebe die Ursache vor einem neuen Versuch. |
-| Blockiert | Prüfe den [Legal Hold](/de/platform/admin/governance/legal-hold). Betroffene Daten bleiben geschützt. |
+| Blockiert | Prüfe den [Legal Hold](/de/platform/admin/governance/legal-hold). Betroffene Daten bleiben geschützt. Der Beleg nennt den noch geltenden Legal Hold; nach dessen Aufhebung sagt er das, und die Löschung geht erst weiter, wenn du **Erneut versuchen** wählst. |
 | Fehlgeschlagen | Lies die Fehlerdetails. Nutze **Erneut versuchen**, wenn verfügbar. Bei einem Watchdog-Timeout kann eine neue Anfrage nötig sein. |
 | Abgebrochen | Dieser Beleg plant keine weitere Ausführung. Reiche bei Bedarf eine neue Anfrage ein. |
 
-Ein offener Beleg kann eine zweite Anfrage für dieselbe Person verhindern. Arbeite mit diesem Beleg weiter. War die Anfrage schon bei der Einreichung blockiert, muss ein neuer Versuch erneut die aktuelle Freigabe- und Wartezeitregel erfüllen.
+Ein offener Beleg kann eine zweite Anfrage für dieselbe Person verhindern. Arbeite mit diesem Beleg weiter. War die Anfrage schon bei der Einreichung blockiert, muss ein neuer Versuch erneut die aktuelle Freigabe- und Wartezeitregel erfüllen. Ein Beleg, der auf Freigabe wartet, behält die bei der Einreichung festgehaltene Freigabepflicht: Schaltest du das Vier-Augen-Prinzip später aus, gibt ihn das nicht frei.
 
 ## Die Frist verwalten
 

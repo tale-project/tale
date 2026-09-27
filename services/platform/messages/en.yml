@@ -3849,6 +3849,7 @@ governance:
       cancel: Cancel request
     approval:
       description: A different admin must approve this request before its waiting period begins.
+      capturedPolicy: The approval requirement was captured when the request was filed; a later policy change does not apply to it.
       approve: Approve request
       reject: Reject request
       approveDescription: Approve this erasure request and start its configured waiting period. With no waiting period, erasure can begin immediately.
@@ -3927,6 +3928,7 @@ governance:
         Release it before retrying erasure.
       userCustodianHeld: The subject is on a custodian hold. Release it before retrying erasure.
       generic: An active legal hold is preserving the subject's data.
+      released: The hold was released — choose Retry to continue the erasure.
       threadsCount: '{count, plural, =1 {# held thread} other {# held threads}} preserved.'
       documentsCount:
         '{count, plural, =1 {# held document} other {# held documents}}

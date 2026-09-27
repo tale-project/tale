@@ -38,11 +38,11 @@ Only the Owner can change this policy. Stronger safeguards apply immediately; we
 | Running | Wait for the category results; do not file a duplicate request. |
 | Completed | Review the recorded counts and retain the receipt with your case. |
 | Partial | Inspect the skipped categories and errors. Resolve the cause before retrying. |
-| Blocked | Inspect the [legal hold](/platform/admin/governance/legal-hold). Covered data remains protected. |
+| Blocked | Inspect the [legal hold](/platform/admin/governance/legal-hold). Covered data remains protected. The receipt names the hold that still applies; once the hold is released it says so, and the erasure continues only when you choose **Retry**. |
 | Failed | Read the failure details. Use **Retry** when available; a watchdog timeout may require a new request. |
 | Cancelled | No further execution is scheduled by this receipt. File a new request if the case must resume. |
 
-An open receipt for a subject can prevent a duplicate filing. Work from that receipt rather than creating repeated requests. A retry blocked at initial filing must satisfy the current approval and waiting-period policy again.
+An open receipt for a subject can prevent a duplicate filing. Work from that receipt rather than creating repeated requests. A retry blocked at initial filing must satisfy the current approval and waiting-period policy again. A receipt awaiting approval keeps the approval requirement captured when it was filed: turning dual approval off later does not release it.
 
 ## Manage the deadline
 

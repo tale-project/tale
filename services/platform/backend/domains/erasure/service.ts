@@ -22,7 +22,7 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
-import { loadActiveHolds } from '../legal_holds/service.ts';
+import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import { hintVideoJobs } from '../video_links/hints.ts';
 
@@ -269,7 +269,8 @@ export async function requestErasure(
       const blockedByHold = holds.orgHeld || userCustodianHeld;
       if (blockedByHold) {
         await tx`
-        UPDATE app.gdpr_erasure_requests SET status = 'blocked'
+        UPDATE app.gdpr_erasure_requests SET status = 'blocked',
+          error = ${erasureHoldError(holds.orgHeld)}
         WHERE id = ${id}
       `;
         await createAuditLog(tx, {
@@ -599,9 +600,12 @@ export async function retryErasure(
       ? now
       : now + policy.coolingOffHours * HOUR_MS;
   await sql.begin(async (tx) => {
+    // `error` carries the recorded reason of the LAST stop (a hold token or
+    // the failed passes); a re-armed receipt starts clean, or the drawer
+    // would show the old reason against a pending row.
     const rearmed = await tx<{ id: string }[]>`
       UPDATE app.gdpr_erasure_requests SET status = 'pending',
-        effective_at_ms = ${effectiveAt}
+        effective_at_ms = ${effectiveAt}, error = NULL
       WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
         AND status IN ('blocked', 'partial', 'failed')
       RETURNING id
@@ -699,6 +703,31 @@ export function erasureReceiptStatus(
     : 'partial';
 }
 
+/** The `error` token a `blocked` receipt records — WHICH hold stopped it
+ * (the panel's wording; an org-wide hold outranks a custodian hold). */
+export function erasureHoldError(
+  orgHeld: boolean,
+): 'org_hold' | 'user_custodian_hold' {
+  return orgHeld ? 'org_hold' : 'user_custodian_hold';
+}
+
+/** What a `blocked` receipt says about the hold NOW: the receipt keeps its
+ * status after the hold is released (nothing re-arms it — the admin
+ * retries), so the read re-checks the live holds and the panel tells the
+ * truth: still held (and by which hold), or released and waiting for
+ * Retry. */
+export function erasureHoldBlock(
+  holds: ActiveHolds,
+  targetUserId: string,
+): { orgHeld: boolean; userCustodianHeld: boolean; active: boolean } {
+  const userCustodianHeld = holds.userMembershipIds.has(targetUserId);
+  return {
+    orgHeld: holds.orgHeld,
+    userCustodianHeld,
+    active: holds.orgHeld || userCustodianHeld,
+  };
+}
+
 /** One line naming what stopped a `partial` receipt from being `done`, or
  *  `null` when nothing did. */
 export function erasureReceiptError(
@@ -778,7 +807,8 @@ export async function processErasure(
       // scheduled erasure stopped; the hint refreshes the open drawer.
       await tx`
         UPDATE app.gdpr_erasure_requests SET
-          status = 'blocked', started_at_ms = NULL
+          status = 'blocked', started_at_ms = NULL,
+          error = ${erasureHoldError(holds.orgHeld)}
         WHERE id = ${requestId}
       `;
       await createAuditLog(tx, {
@@ -1584,6 +1614,14 @@ export async function getErasureRequest(
       : {}),
     ...(row.extensionDeadlineAt !== null
       ? { extensionDeadlineAt: row.extensionDeadlineAt }
+      : {}),
+    ...(row.status === 'blocked'
+      ? {
+          holdBlock: erasureHoldBlock(
+            await loadActiveHolds(sql, organizationId),
+            row.targetUserId,
+          ),
+        }
       : {}),
   };
   const audit = await sql<

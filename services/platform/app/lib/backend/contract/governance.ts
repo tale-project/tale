@@ -164,6 +164,14 @@ export interface GovernanceContract {
         documentsSkippedByHold: undefined | number;
         wfExecutionsErased: undefined | number;
         errorMessage: undefined | string;
+        /** A `blocked` receipt's live hold check: whether a hold still
+         * covers the subject (and which), or the hold was released and
+         * the receipt waits for Retry. */
+        holdBlock?: {
+          orgHeld: boolean;
+          userCustodianHeld: boolean;
+          active: boolean;
+        };
         startedAt: undefined | number;
         completedAt: undefined | number;
         lateFinalizeAt: undefined | number;

@@ -384,6 +384,20 @@ select lists only the current admin's keys (`useApiKeys`).
   **Period** (`settings.logs.activity.period.label`) → **Last 30 days**
   (`settings.logs.activity.period.last30Days`) → the caption and the totals
   change together.
+- [ ] `GOV-F33` · **A blocked erasure receipt tells the truth about the
+  hold** — Place a custodian hold on a member (GOV-F7), then file an erasure
+  request for them (GOV-F8) → the receipt is **Blocked** and its panel reads
+  **The subject is on a custodian hold**
+  (`governance.dataSubjectRequests.legalHoldBlock.userCustodianHeld`), not the
+  generic line. Release the hold (request + second admin + cooldown) and reopen
+  the receipt → the status stays **Blocked** but the panel now reads **The
+  hold was released — choose Retry to continue the erasure**
+  (`governance.dataSubjectRequests.legalHoldBlock.released`); **Retry**
+  (`governance.dataSubjectRequests.actions.retry`) re-arms it. With **Require
+  dual approval** on, file another request, then turn dual approval off → the
+  pending receipt still shows the approval actions with the hint **The
+  approval requirement was captured when the request was filed**
+  (`governance.dataSubjectRequests.approval.capturedPolicy`).
 
 ## Boundary & error tests
 
