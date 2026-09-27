@@ -4,7 +4,7 @@ import { Badge } from '@tale/ui/badge';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useMemo } from 'react';
+import { Fragment, useMemo, type ReactNode } from 'react';
 
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
@@ -29,6 +29,26 @@ interface UseAuditLogTableConfigOptions {
   variant?: AuditLogTableVariant;
 }
 
+/**
+ * A label with a line-break opportunity after each dot. An action without a
+ * translation shows its raw key ("connector.github.create pull request
+ * review"), and a narrow column should wrap it between its segments rather
+ * than inside a word. `<wbr>` adds nothing to the copied text.
+ */
+function withBreaksAfterDots(label: string): ReactNode {
+  const parts = label.split('.');
+  return parts.map((part, index) => (
+    <Fragment key={index}>
+      {part}
+      {index < parts.length - 1 && (
+        <>
+          .<wbr />
+        </>
+      )}
+    </Fragment>
+  ));
+}
+
 export function useAuditLogTableConfig(
   options?: UseAuditLogTableConfigOptions,
 ): AuditLogTableConfig {
@@ -36,10 +56,11 @@ export function useAuditLogTableConfig(
   const variant = options?.variant ?? 'audit';
   const { t } = useT('settings');
 
-  // Column sizes double as the table's min-width floor (DataTable sums them).
-  // Each variant's total must stay ≤ 940px so the table fits the settings
-  // content column on common laptop widths instead of clipping behind a
-  // horizontal scroll.
+  // Column sizes double as the table's min-width floor (DataTable sums them):
+  // each variant stays under the settings content column of a 1366px laptop,
+  // ~1000px. Timestamp, resource, category and status hold their widest value
+  // in every locale at their declared px; the text columns — action, actor,
+  // and target or error — split what is left.
   const columns = useMemo<ColumnDef<AuditLog>[]>(() => {
     const timestampActionActor: ColumnDef<AuditLog>[] = [
       {
@@ -49,7 +70,8 @@ export function useAuditLogTableConfig(
             {t('logs.audit.columns.timestamp')}
           </Text>
         ),
-        size: 140,
+        // The widest value, German "Sept. 28, 2026 22:58".
+        size: 168,
         meta: {
           headerLabel: t('logs.audit.columns.timestamp'),
           align: 'right' as const,
@@ -65,19 +87,24 @@ export function useAuditLogTableConfig(
       {
         accessorKey: 'action',
         header: t('logs.audit.columns.action'),
+        meta: { flex: true },
         cell: ({ row }) => (
-          <Text as="span" variant="label">
-            {t('logs.audit.actionLabels.' + row.original.action, {
-              defaultValue: row.original.action.replace(/_/g, ' '),
-            })}
+          // `break-words` is the last resort for a segment longer than the
+          // whole column.
+          <Text as="span" variant="label" className="break-words">
+            {withBreaksAfterDots(
+              t('logs.audit.actionLabels.' + row.original.action, {
+                defaultValue: row.original.action.replace(/_/g, ' '),
+              }),
+            )}
           </Text>
         ),
-        size: 185,
+        size: 128,
       },
       {
         accessorKey: 'actorEmail',
         header: t('logs.audit.columns.actor'),
-        meta: { skeleton: { type: 'two-line', lineGap: 0.5 } },
+        meta: { flex: true, skeleton: { type: 'two-line', lineGap: 0.5 } },
         cell: ({ row }) => {
           const email = resolveEmail?.(row.original) ?? row.original.actorEmail;
           return (
@@ -93,7 +120,7 @@ export function useAuditLogTableConfig(
             </div>
           );
         },
-        size: 175,
+        size: 128,
       },
     ];
 
@@ -102,28 +129,30 @@ export function useAuditLogTableConfig(
         accessorKey: 'resourceType',
         header: t('logs.audit.columns.resource'),
         cell: ({ row }) => (
-          <Text as="span" variant="body" className="capitalize">
+          // Long labels wrap; a compound such as "Automatisierungslauf" breaks
+          // inside the word rather than spilling into Target.
+          <Text
+            as="span"
+            variant="body"
+            className="break-words hyphens-auto capitalize"
+          >
             {t('logs.audit.resourceTypeLabels.' + row.original.resourceType, {
               defaultValue: row.original.resourceType.replace(/_/g, ' '),
             })}
           </Text>
         ),
-        size: 100,
+        size: 144,
       },
       {
         accessorKey: 'resourceName',
         header: t('logs.audit.columns.target'),
+        meta: { flex: true },
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="muted"
-            truncate
-            className="block max-w-[200px]"
-          >
+          <Text as="span" variant="muted" truncate className="block">
             {row.original.resourceName ?? row.original.resourceId ?? '-'}
           </Text>
         ),
-        size: 140,
+        size: 112,
       },
       {
         accessorKey: 'category',
@@ -138,7 +167,8 @@ export function useAuditLogTableConfig(
             })}
           </Badge>
         ),
-        size: 100,
+        // The widest label, German "Authentifizierung".
+        size: 148,
       },
     ];
 
@@ -146,17 +176,18 @@ export function useAuditLogTableConfig(
       {
         accessorKey: 'errorMessage',
         header: t('logs.audit.columns.error'),
+        meta: { flex: true },
         cell: ({ row }) => (
           <Text
             as="span"
             variant="body"
             truncate
-            className="text-destructive block max-w-[340px]"
+            className="text-destructive block"
           >
             {row.original.errorMessage ?? '-'}
           </Text>
         ),
-        size: 340,
+        size: 280,
       },
     ];
 
@@ -184,7 +215,8 @@ export function useAuditLogTableConfig(
             </Badge>
           );
         },
-        size: 100,
+        // The widest label, German "Fehlgeschlagen".
+        size: 136,
       },
     ];
 

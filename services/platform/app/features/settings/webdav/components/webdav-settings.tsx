@@ -132,6 +132,8 @@ function WebdavAppPasswordsTable({
       {
         accessorKey: 'label',
         header: t('list.label'),
+        // The first column takes the slack; this is its floor.
+        size: 200,
         cell: ({ row }) => (
           <span className="flex flex-wrap items-center gap-2">
             <Text as="span" variant="label">
@@ -146,12 +148,13 @@ function WebdavAppPasswordsTable({
         ),
       },
       // Column sizes double as the table's min-width floor (DataTable sums
-      // them) — keep the total within the full-width settings page budget
-      // (≤ 940px) so the table never forces horizontal scroll.
+      // them) — keep the total within the settings page's width so the table
+      // never forces horizontal scroll.
       {
         accessorKey: 'prefix',
         header: t('list.prefix'),
-        size: 100,
+        // Four characters and an ellipsis, under the French "Préfixe".
+        size: 80,
         cell: ({ row }) => (
           <Text as="span" variant="muted" className="font-mono text-xs">
             {row.original.prefix}…
@@ -161,6 +164,7 @@ function WebdavAppPasswordsTable({
       {
         id: 'lastUsed',
         header: t('list.lastUsed'),
+        // The French header "Dernière utilisation".
         size: 152,
         meta: { align: 'right' },
         cell: ({ row }) => (
@@ -175,7 +179,8 @@ function WebdavAppPasswordsTable({
       {
         id: 'created',
         header: t('list.created'),
-        size: 123,
+        // A short date such as "09/27/2026".
+        size: 104,
         meta: { align: 'right' },
         cell: ({ row }) => (
           <TableDateCell

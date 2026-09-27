@@ -86,6 +86,9 @@ export function RequestsListSection({
     },
   ];
 
+  // Every column but the subject holds its widest value in every shipped
+  // locale, and the subject takes the rest. The sizes sum to ~930px, so under
+  // the `max-w-3xl` settings measure the table scrolls sideways.
   const columns = useMemo<ColumnDef<ErasureRow>[]>(
     () => [
       {
@@ -97,7 +100,9 @@ export function RequestsListSection({
             effectiveAt={row.original.effectiveAt}
           />
         ),
-        size: 110,
+        // The widest status, German "Fehlgeschlagen", with its icon; the
+        // longer cooling-off label wraps inside its badge.
+        size: 148,
       },
       {
         id: 'sla',
@@ -109,12 +114,16 @@ export function RequestsListSection({
             status={row.original.status}
           />
         ),
-        size: 130,
+        // The widest countdown, French "En retard de 12j", with its icon.
+        size: 148,
       },
       {
         accessorKey: 'targetUserName',
         header: t('dataSubjectRequests.columns.target'),
-        meta: { skeleton: { type: 'two-line' } },
+        // The subject takes the slack; this floor fits the French header
+        // "Personne concernée".
+        size: 164,
+        meta: { flex: true, skeleton: { type: 'two-line' } },
         cell: ({ row }) => (
           <Stack gap={0} className="min-w-0">
             <Text as="span" truncate title={row.original.targetUserName}>
@@ -133,14 +142,13 @@ export function RequestsListSection({
             )}
           </Stack>
         ),
-        size: 220,
       },
       {
         id: 'reasonCode',
         header: t('dataSubjectRequests.columns.reasonCode'),
         cell: ({ row }) =>
           row.original.reasonCode ? (
-            <Text as="span" variant="muted" className="text-xs" truncate>
+            <Text as="span" variant="muted" className="block text-xs" truncate>
               {t(
                 `dataSubjectRequests.reasonCodes.${row.original.reasonCode}.label`,
               )}
@@ -150,26 +158,33 @@ export function RequestsListSection({
               —
             </Text>
           ),
-        size: 180,
+        // The widest reason, Swiss German "Unrechtmässige Verarbeitung".
+        size: 196,
       },
       {
         accessorKey: 'requestedByName',
         header: t('dataSubjectRequests.columns.requestedBy'),
+        // `block`, so a name that is one unbreakable token (the requester's
+        // id, once they have left) truncates instead of spilling over.
         cell: ({ row }) => (
-          <Text as="span" truncate>
+          <Text
+            as="span"
+            truncate
+            className="block"
+            title={row.original.requestedByName}
+          >
             {row.original.requestedByName}
           </Text>
         ),
-        size: 160,
+        // A name such as "Alexandra Schneider"; a longer one truncates.
+        size: 168,
       },
       {
         accessorKey: 'requestedAt',
         header: t('dataSubjectRequests.columns.requestedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.requestedAt} />,
-        // Sized so the column total stays ≤ 940px (the DataTable min-width
-        // floor). The page uses the shared `max-w-3xl` settings measure, so
-        // the table scrolls horizontally inside that cap on narrower panes.
-        size: 140,
+        // A short date such as "09/27/2026", under the German "Eingereicht".
+        size: 108,
       },
     ],
     [t],

@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 49 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -388,6 +388,16 @@ records and delete them after.
   of the organization, synced ones included, as the documents guide says. As
   a plain Member of one team → the same pickers list that team only. Assign a
   document to a team you are not in → its preview sidebar names that team.
+- [ ] `KNOW-F29` · **Columns fit their content** — Documents, Knowledge
+  entries and Contacts in German (`de`), then French (`fr`), widening the
+  window from 1280 to 1920 px → only the text columns grow (Documents'
+  **Document**, Knowledge entries' **Topic** and **Content**, Contacts'
+  **Name** and **Email**); every other column keeps one width at every window
+  width, just wide enough for its header and its longest value: a failed
+  document's badge (`documents.rag.status.failed`) beside its retry button,
+  the organization-wide audience (`documents.teamTags.orgWide`) in **Teams**,
+  a full date and time in **Modified**. Nothing is clipped or runs into the
+  next column, and no column stands mostly empty.
 
 ## Boundary & error tests
 

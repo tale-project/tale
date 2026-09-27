@@ -185,7 +185,8 @@ export function AutomationsList({
       cols.push({
         id: 'projects',
         header: t('list.columnProjects'),
-        size: 180,
+        // One project chip, or a dash; more chips wrap onto a second line.
+        size: 168,
         meta: { skeleton: { type: 'badge', badge: { variant: 'blue' } } },
         cell: ({ row }) =>
           row.original.projectIds.length === 0 ? (
@@ -205,7 +206,7 @@ export function AutomationsList({
       {
         accessorKey: 'latest',
         header: t('list.columnVersions'),
-        size: 120,
+        size: 112,
         meta: { skeleton: { type: 'badge', badge: { variant: 'slate' } } },
         cell: ({ row }) => (
           <Badge variant="slate">
@@ -216,7 +217,8 @@ export function AutomationsList({
       {
         id: 'status',
         header: t('list.columnStatus'),
-        size: 140,
+        // The widest badge is French "Pas en service".
+        size: 156,
         meta: { skeleton: { type: 'badge', badge: { variant: 'green' } } },
         cell: ({ row }) =>
           row.original.deployedVersion === undefined ? (

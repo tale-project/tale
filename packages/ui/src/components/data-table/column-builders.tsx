@@ -171,7 +171,8 @@ export function createCreationTimeColumn<
           {tTables('headers.created')}
         </span>
       )),
-    size: options?.size ?? 140,
+    // A short date ("09/27/2026") under the German "Hinzugefügt".
+    size: options?.size ?? 112,
     // Right-aligned short date → skeleton renders a narrow right-aligned bar
     // that matches the cell instead of a full-width text bar.
     meta: { headerLabel: tTables('headers.created'), align: 'right' },
@@ -208,7 +209,9 @@ export function createDateColumn<TData, K extends keyof TData>(
           <span className="block w-full text-right">{tTables(headerKey)}</span>
         )
       : tTables(headerKey),
-    size: options?.size ?? 140,
+    // A short date ("09/27/2026") under a header up to the German
+    // "Aktualisiert"; a longer preset or header passes its own size.
+    size: options?.size ?? 112,
     meta: {
       headerLabel: tTables(headerKey),
       align: alignRight ? 'right' : undefined,
@@ -273,7 +276,8 @@ export function createLocaleColumn<TData extends { locale?: string | null }>(
         <LocaleIcon className="text-muted-foreground size-4" />
       </span>
     ),
-    size: options?.size ?? 72,
+    // A flag emoji under the globe icon.
+    size: options?.size ?? 56,
     meta: { skeleton: { type: 'icon' } },
     cell: ({ row }) => {
       const locale = row.original.locale;

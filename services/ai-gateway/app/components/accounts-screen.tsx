@@ -154,10 +154,10 @@ export function AccountsScreen({
         id: 'account',
         accessorFn: (account) => account.label,
         header: t('columns.account'),
-        // The widest share: a name, and a caption carrying the provider plus
-        // an e-mail address. No column here is the flex one, so every `size`
-        // is a proportion of the width the table gets — and together they
-        // are the min-width it is summed from.
+        // A name, and a caption carrying the provider plus an e-mail address.
+        // As the first column it takes the slack while every other column
+        // keeps its declared px; 300 is its floor, and the sizes together are
+        // the min-width the table is summed from.
         size: 300,
         meta: { skeleton: tableIconCellSkeleton({ lines: 2 }) },
         cell: ({ row }) => {

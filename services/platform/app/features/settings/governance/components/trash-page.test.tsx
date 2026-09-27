@@ -191,7 +191,7 @@ describe('TrashPage', () => {
     // The trash table scrolls its own rows, the way the Logs table does: the
     // section header, the column headers and the count footer stay put while
     // the rows move. Without the scrollport the settings pane scrolls instead
-    // and the 940px column set — Restore included — hides behind a horizontal
+    // and the ~960px column set — Restore included — hides behind a horizontal
     // scrollbar.
     mockListTrashedRows.mockReturnValue({
       data: {

@@ -20,6 +20,14 @@ Pass a descriptive `caption`, such as **Agents in this workspace**. It becomes a
 
 The builders exported from `@tale/ui/data-table/column-builders` include text, date, creation-time, selection, and action columns. Reuse them for those common shapes; use custom cells when the content requires them.
 
+## Size columns to their content
+
+Every content column is exactly its `size` in pixels, except the flex columns, which share the width left over in equal parts. Mark a flex column with `meta: { flex: true }`; when no column is marked, the first content column flexes. The selection and row-action columns keep their own widths. In the example above, **Model** and **Status** hold their sizes and **Agent** takes the rest of the row.
+
+Size a fixed column to its widest real value in every shipped locale, header included, plus the cell's 24px of padding: a status column fits its longest badge, a date column its longest date. Give the flex role to the column that carries the row's text, such as the name or the description; its `size` is then the narrowest it gets. Declare a `size` on every column; one without it counts as 150px.
+
+The sizes add up to the table's minimum width. Below that width the table scrolls sideways instead of squeezing a column under its content, so keep the sum within the width the page gives the table.
+
 ## Lead the row with a name and a glyph
 
 <Demo name="data-table/icon-cell" />

@@ -83,8 +83,8 @@ export function MemberTable({
   );
 
   // Column sizes double as the table's min-width floor (DataTable sums them).
-  // Keep the total within the full-width settings page budget (≤ 940px) so the
-  // table never forces horizontal scroll on the Organization page.
+  // Keep the total within the settings column's `max-w-3xl` measure (~766px)
+  // so the table never forces horizontal scroll.
   const columns = useMemo<ColumnDef<Member>[]>(
     () => [
       // Multi-row select — canonical 40px column. Enables bulk-remove via
@@ -113,7 +113,8 @@ export function MemberTable({
             </Stack>
           );
         },
-        size: 212,
+        // The first column takes the slack; this is its floor.
+        size: 200,
       },
       {
         id: 'role',
@@ -125,7 +126,8 @@ export function MemberTable({
           },
         },
         cell: ({ row }) => <RoleBadge role={row.original.role} />,
-        size: 112,
+        // The widest role, French "Développeur".
+        size: 120,
       },
       {
         id: 'joined',
@@ -139,7 +141,8 @@ export function MemberTable({
             preset="relative"
           />
         ),
-        size: 120,
+        // A relative time up to "vor einem Monat".
+        size: 136,
       },
       {
         id: 'actions',

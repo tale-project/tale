@@ -35,6 +35,8 @@ export function useApiKeysTableConfig(
       {
         accessorKey: 'name',
         header: tSettings('apiKeys.columns.name'),
+        // The first column takes the slack; this is its floor.
+        size: 160,
         cell: ({ row }) => (
           <Text as="span" variant="label">
             {row.original.name || '-'}
@@ -46,6 +48,8 @@ export function useApiKeysTableConfig(
         header: tSettings('apiKeys.columns.key'),
         // Progressive disclosure on narrow screens: name + actions always show;
         // the key and dates reveal as the viewport widens.
+        // A masked key such as "tale_ab12 … 9f3c".
+        size: 144,
         meta: { className: 'hidden sm:table-cell' },
         cell: ({ row }) => {
           const head = row.original.start || row.original.prefix;
@@ -67,7 +71,8 @@ export function useApiKeysTableConfig(
       {
         id: 'created',
         header: tSettings('apiKeys.columns.created'),
-        size: 140,
+        // A short date under the German "Hinzugefügt".
+        size: 112,
         meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
           <TableDateCell date={row.original.createdAt} preset="short" />
@@ -76,7 +81,8 @@ export function useApiKeysTableConfig(
       {
         id: 'lastUsed',
         header: tSettings('apiKeys.columns.lastUsed'),
-        size: 140,
+        // The French header "Dernière utilisation".
+        size: 152,
         meta: { className: 'hidden md:table-cell' },
         cell: ({ row }) => (
           <TableDateCell

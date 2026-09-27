@@ -221,15 +221,15 @@ export function TrashPage({ organizationId }: Props) {
             </Text>
           );
         },
-        // Wide enough for the longest category label across locales
-        // ("Externe Konversationen"); anything longer truncates with a title.
-        size: 140,
+        // Fits French "Événements de filtre de chat"; the longer trigger-log
+        // label (German, French) truncates, its full text on the title.
+        size: 188,
       },
       {
         id: 'name',
         header: t('trash.column.name', 'Name'),
         // The one prose-ish column: it alone absorbs the container slack
-        // while the siblings keep their declared px.
+        // while the siblings keep their declared px. Its size is its floor.
         meta: { flex: true },
         cell: ({ row }) => {
           const name = row.original.displayName ?? row.original.id;
@@ -244,7 +244,7 @@ export function TrashPage({ organizationId }: Props) {
             </Text>
           );
         },
-        size: 150,
+        size: 160,
       },
       {
         id: 'owner',
@@ -270,7 +270,9 @@ export function TrashPage({ organizationId }: Props) {
             </Text>
           );
         },
-        size: 180,
+        // The French header "Propriétaire", and a name such as "Alexandra
+        // Schneider"; a longer one truncates.
+        size: 144,
       },
       {
         id: 'status',
@@ -286,24 +288,25 @@ export function TrashPage({ organizationId }: Props) {
             {t(`trash.status.${row.original.status}`, row.original.status)}
           </span>
         ),
-        // Fits the widest status badge across locales ("Mis à la corbeille",
-        // ~112px) on one line.
-        size: 128,
+        // The widest status, French "Mis à la corbeille", on one line.
+        size: 136,
       },
       {
         id: 'statusChangedAt',
         header: t('trash.column.statusChangedAt', 'Trashed'),
+        // `block truncate`: the relative time never wraps, so without a box
+        // to clip against, a long one would slide under the Restore button.
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.statusChangedAt ?? row.original.createdAt}
             preset="relative"
-            className="text-xs"
+            className="block truncate text-xs"
           />
         ),
-        // Relative dates run long ("il y a quelques secondes", ~141px) and
-        // the cell doesn't wrap — keep enough room that the text never
-        // slides under the Restore column.
-        size: 156,
+        // The French header "Mis à la corbeille" over a relative time up to
+        // "vor einem Monat"; only the first minute's "vor ein paar Sekunden"
+        // and "il y a quelques secondes" truncate.
+        size: 140,
       },
       {
         id: 'actions',
@@ -315,8 +318,8 @@ export function TrashPage({ organizationId }: Props) {
         // Wider than the canonical 3-dot actions column: restore is the
         // page's whole purpose, so it stays a labelled inline button
         // instead of collapsing into a dropdown. Sized for the widest
-        // label across locales ("Wiederherstellen", ~171px rendered).
-        size: 188,
+        // button, German "Wiederherstellen", with its icon.
+        size: 196,
         meta: { isAction: true },
         cell: ({ row }) => (
           <Button
@@ -350,7 +353,7 @@ export function TrashPage({ organizationId }: Props) {
 
   return (
     <>
-      {/* `fullWidth`: the trash columns declare a ~940px size floor
+      {/* `fullWidth`: the trash columns declare a ~960px size floor
           (type/name/owner/status/trashed + the labelled Restore button) —
           wider than the `max-w-3xl` other settings pages standardized on
           (#2567), and clipping it hides the one control the page exists for.

@@ -42,7 +42,8 @@ export function BlockCountersTable({
       {
         accessorKey: 'windowStart',
         header: t('logs.blockCounters.columns.timestamp'),
-        size: 180,
+        // The widest value, German "Sept. 28, 2026 22:58".
+        size: 168,
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.windowStart}
@@ -53,8 +54,11 @@ export function BlockCountersTable({
       {
         accessorKey: 'email',
         header: t('logs.blockCounters.columns.user'),
+        // The one text column takes the slack.
+        size: 200,
+        meta: { flex: true },
         cell: ({ row }) => (
-          <Text as="span" variant="muted" truncate>
+          <Text as="span" variant="muted" truncate className="block">
             {row.original.email}
           </Text>
         ),
@@ -62,6 +66,7 @@ export function BlockCountersTable({
       {
         accessorKey: 'lastIp',
         header: t('logs.blockCounters.columns.ipAddress'),
+        // An IPv4 address, or a compressed IPv6 one.
         size: 160,
         cell: ({ row }) => (
           <Text as="span" variant="muted">
@@ -72,7 +77,8 @@ export function BlockCountersTable({
       {
         accessorKey: 'lockoutCount',
         header: t('logs.blockCounters.columns.lockOut'),
-        size: 140,
+        // The French header "Verrouillage".
+        size: 112,
         cell: ({ row }) => {
           const isLockedOut = row.original.lockoutCount > 0;
           return (
@@ -92,7 +98,8 @@ export function BlockCountersTable({
       {
         accessorKey: 'ipLimitCount',
         header: t('logs.blockCounters.columns.ipLimit'),
-        size: 100,
+        // The French header "Limite IP".
+        size: 88,
         cell: ({ row }) => (
           <Text as="span" variant="muted" className="tabular-nums">
             {row.original.ipLimitCount}

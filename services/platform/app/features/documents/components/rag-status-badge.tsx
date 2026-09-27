@@ -118,7 +118,7 @@ export function RagStatusBadge({
     <Button
       size="icon"
       variant="ghost"
-      className="hover:bg-muted size-6 rounded-full p-1"
+      className="hover:bg-muted size-6 shrink-0 rounded-full p-1"
       onClick={handleRetry}
       disabled={isRetrying || !documentId}
       title={t('rag.retryIndexing')}
@@ -258,10 +258,11 @@ export function RagStatusBadge({
     );
   }
 
-  // Show stale status with reindex button
+  // Show stale status with reindex button. Capped at the cell so a label
+  // too long for a narrow column truncates while the button stays whole.
   if (effectiveStatus === 'stale') {
     return (
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex max-w-full items-center gap-1.5">
         <Badge variant={config.variant} dot>
           {getStatusLabel(effectiveStatus)}
         </Badge>
@@ -273,7 +274,7 @@ export function RagStatusBadge({
   // Show not_indexed status (or undefined) with Index button
   if (effectiveStatus === 'not_indexed') {
     return (
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex max-w-full items-center gap-1.5">
         <Badge variant={config.variant} dot>
           {getStatusLabel(effectiveStatus)}
         </Badge>

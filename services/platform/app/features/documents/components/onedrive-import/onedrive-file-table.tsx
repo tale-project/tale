@@ -1,6 +1,7 @@
 'use client';
 
 import { Checkbox } from '@tale/ui/checkbox';
+import { SELECT_COLUMN_SIZE } from '@tale/ui/data-table/column-builders';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import {
   TableIconCell,
@@ -76,11 +77,15 @@ export function OneDriveFileTable({
             />
           );
         },
-        size: 48,
+        // The shared select width, so the checkbox lands where it does on
+        // every other table.
+        size: SELECT_COLUMN_SIZE,
       },
       {
         id: 'name',
         header: tTables('headers.name'),
+        // The first content column takes the slack; this is its floor.
+        size: 240,
         meta: {
           skeleton: tableIconCellSkeleton(),
         },
@@ -140,6 +145,9 @@ export function OneDriveFileTable({
               : ''}
           </Text>
         ),
+        // The widest "ll LT" value with its zone, English
+        // "May 28, 2026 10:58 PM GMT+2".
+        size: 236,
       },
       {
         id: 'size',
@@ -155,6 +163,8 @@ export function OneDriveFileTable({
             {row.original.size ? formatBytes(row.original.size, locale) : ''}
           </Text>
         ),
+        // A size such as "999,9 MB", under the German "Größe".
+        size: 92,
       },
     ],
     [

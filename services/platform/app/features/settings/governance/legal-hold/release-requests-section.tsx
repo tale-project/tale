@@ -39,6 +39,8 @@ export function ReleaseRequestsSection({
   const [approveTarget, setApproveTarget] = useState<ReleaseRow | null>(null);
   const [rejectId, setRejectId] = useState<string | undefined>(undefined);
 
+  // Target and reason, the free-text columns, split what the fixed columns
+  // leave; each fixed column holds its widest value in every shipped locale.
   const pendingColumns = useMemo<ColumnDef<ReleaseRow>[]>(
     () => [
       {
@@ -62,33 +64,50 @@ export function ReleaseRequestsSection({
             </Text>
           </Stack>
         ),
-        meta: { skeleton: { type: 'badge-text' } },
-        size: 200,
+        meta: { flex: true, skeleton: { type: 'badge-text' } },
+        // A flex column; this is its floor.
+        size: 160,
       },
       {
         accessorKey: 'reason',
         header: t('legalHold.columns.reason'),
+        meta: { flex: true },
+        // `block`: `truncate` clips nothing on a bare inline span.
         cell: ({ row }) => (
-          <Text as="span" truncate title={row.original.reason}>
+          <Text
+            as="span"
+            truncate
+            className="block"
+            title={row.original.reason}
+          >
             {row.original.reason}
           </Text>
         ),
+        // A flex column; this is its floor.
+        size: 160,
       },
       {
         accessorKey: 'requestedByName',
         header: t('legalHold.columns.requestedBy'),
         cell: ({ row }) => (
-          <Text as="span" truncate>
+          <Text
+            as="span"
+            truncate
+            className="block"
+            title={row.original.requestedByName}
+          >
             {row.original.requestedByName}
           </Text>
         ),
-        size: 160,
+        // A name such as "Alexandra Schneider"; a longer one truncates.
+        size: 168,
       },
       {
         accessorKey: 'requestedAt',
         header: t('legalHold.columns.requestedAt'),
         cell: ({ row }) => <TableDateCell date={row.original.requestedAt} />,
-        size: 160,
+        // A short date such as "09/27/2026".
+        size: 108,
       },
       {
         id: 'actions',
@@ -132,12 +151,15 @@ export function ReleaseRequestsSection({
             </Row>
           );
         },
-        size: 200,
+        // Two icon buttons, under the German header "Aktionen".
+        size: 92,
       },
     ],
     [t, currentUser?.userId],
   );
 
+  // The target takes the slack; each other column holds its widest value in
+  // every shipped locale.
   const approvedColumns = useMemo<ColumnDef<ReleaseRow>[]>(
     () => [
       {
@@ -162,19 +184,45 @@ export function ReleaseRequestsSection({
           </Stack>
         ),
         meta: { skeleton: { type: 'badge-text' } },
-        size: 200,
+        // The first column takes the slack; this is its floor.
+        size: 160,
       },
       {
         accessorKey: 'requestedByName',
         header: t('legalHold.columns.requestedBy'),
-        cell: ({ row }) => row.original.requestedByName,
-        size: 160,
+        // `block truncate`: a requester who has left shows as their id, one
+        // unbreakable token that would otherwise run into the next column.
+        cell: ({ row }) => (
+          <Text
+            as="span"
+            truncate
+            className="block"
+            title={row.original.requestedByName}
+          >
+            {row.original.requestedByName}
+          </Text>
+        ),
+        // A name such as "Alexandra Schneider"; a longer one truncates.
+        size: 168,
       },
       {
         accessorKey: 'approvedByName',
         header: t('legalHold.columns.approvedBy'),
-        cell: ({ row }) => row.original.approvedByName ?? '—',
-        size: 160,
+        cell: ({ row }) =>
+          row.original.approvedByName ? (
+            <Text
+              as="span"
+              truncate
+              className="block"
+              title={row.original.approvedByName}
+            >
+              {row.original.approvedByName}
+            </Text>
+          ) : (
+            '—'
+          ),
+        // A name such as "Alexandra Schneider"; a longer one truncates.
+        size: 168,
       },
       {
         accessorKey: 'effectiveAt',
@@ -185,7 +233,10 @@ export function ReleaseRequestsSection({
           ) : (
             '—'
           ),
-        size: 200,
+        // The widest state, German "Wirksam beim nächsten Cleanup", which a
+        // request shows from the end of its cooldown until the nightly
+        // cleanup effects it.
+        size: 236,
       },
     ],
     [t],

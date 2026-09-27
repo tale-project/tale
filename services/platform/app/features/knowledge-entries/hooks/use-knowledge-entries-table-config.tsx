@@ -41,6 +41,8 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
       {
         accessorKey: 'topic',
         header: tEntity('headers.topic'),
+        // Topic and content are the two text columns: they split the slack
+        // while every other column keeps its declared px.
         size: 240,
         meta: { flex: true, skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => (
@@ -54,8 +56,8 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
       {
         accessorKey: 'content',
         header: tEntity('headers.content'),
-        size: 280,
-        meta: { className: 'overflow-hidden' },
+        size: 240,
+        meta: { flex: true, className: 'overflow-hidden' },
         cell: ({ row }) => {
           // The column is a one-line preview: the Markdown decoration the
           // details dialog renders would read as literal asterisks here.
@@ -78,6 +80,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
       {
         accessorKey: 'source',
         header: tEntity('headers.source'),
+        // The German "Manuell" chip.
         size: 96,
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => (
@@ -89,7 +92,10 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
       {
         id: 'ragStatus',
         header: tTables('headers.status'),
-        size: 128,
+        // Fits every status with its retry button, up to the German
+        // "Fehlgeschlagen"; only the rarer "needs reindex" runs longer in German
+        // and French, and its badge truncates beside the retry button.
+        size: 188,
         meta: {
           headerLabel: tTables('headers.status'),
           skeleton: { type: 'badge', badge: { variant: 'blue' } },
@@ -114,6 +120,8 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
             {tEntity('headers.updated')}
           </span>
         ),
+        // The widest "ll LT" value, English "May 28, 2026 10:58 PM", plus the
+        // copy button beside it.
         size: 208,
         meta: {
           headerLabel: tEntity('headers.updated'),

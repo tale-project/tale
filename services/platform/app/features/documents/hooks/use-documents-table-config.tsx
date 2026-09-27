@@ -65,16 +65,14 @@ export function useDocumentsTableConfig({
       {
         accessorKey: 'name',
         header: tTables('headers.document'),
-        // The icon and controlled-record badge must leave room for a readable
-        // filename even at the table's minimum width (including long locales);
-        // as the flex column it takes every px the card has beyond the floor.
+        // The document name is the primary, longest column: the table's flex
+        // column, which takes all the slack while every metadata column keeps
+        // its declared px. 240 is its floor — room for the file-type mark, the
+        // record badge and a readable name before `truncate` clips it (see the
+        // `min-w-0` on the button below). With it the sizes sum to a 1160px
+        // floor, actions column included; they used to sum to 1434px, and the
+        // card scrolled inside, clipping Modified.
         size: 240,
-        // The document name is the primary, longest column — opt it in as the
-        // table's flex column so it absorbs all the container slack while the
-        // fixed-width metadata columns keep their declared px. Without this the
-        // name shares width equally with every sibling under `table-fixed`,
-        // squeezing it so long filenames overflow their cell (and the inner
-        // `truncate` can't engage — see the `min-w-0` on the button below).
         meta: { flex: true, skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => {
           const fullPath = row.original.name ?? '';
@@ -130,7 +128,7 @@ export function useDocumentsTableConfig({
       {
         accessorKey: 'size',
         header: tTables('headers.size'),
-        // "999.9 KB" plus the cell padding, measured in Chromium.
+        // A size such as "999,9 KB", under the German "Größe".
         size: 88,
         meta: { headerLabel: tTables('headers.size') },
         cell: ({ row }) => (
@@ -144,9 +142,9 @@ export function useDocumentsTableConfig({
       {
         id: 'source',
         header: tTables('headers.source'),
-        // The provider mark, in the failure colour when a sync stopped — its
-        // "Reconnect needed" wording is the mark's tooltip, not cell text.
-        size: 104,
+        // The vendor mark and its sync glyph, 38px even when a broken sync makes
+        // them a button; the words ride on the tooltip. The header is wider.
+        size: 76,
         meta: {
           headerLabel: tTables('headers.source'),
           skeleton: { type: 'icon', icon: <span className="block size-5" /> },
@@ -163,8 +161,10 @@ export function useDocumentsTableConfig({
       {
         id: 'ragStatus',
         header: tTables('headers.ragStatus'),
-        // The widest badge ("Not indexed") beside the OCR mark.
-        size: 144,
+        // Fits every status with its retry button, up to the German
+        // "Fehlgeschlagen"; only the rarer "needs reindex" runs longer in German
+        // and French, and its badge truncates beside the retry button.
+        size: 188,
         meta: { skeleton: { type: 'badge', badge: { variant: 'blue' } } },
         cell: ({ row }) =>
           row.original.type === 'folder' ? (
@@ -196,11 +196,9 @@ export function useDocumentsTableConfig({
       {
         id: 'teams',
         header: tTables('headers.teams'),
-        // Wider than the projects list's 160 declares, because THIS table's
-        // flex column takes all the slack and hands every other column its
-        // declared px exactly: at 160 a team chip has ~68px of text and even
-        // `documents.teamTags.unknownTeam` came out clipped.
-        size: 192,
+        // Fits the widest audience label, French "Toute l'organisation", beside
+        // its globe; a long team name truncates inside its chip.
+        size: 164,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
           // Classified by the same predicate the access rules use, never by
@@ -244,11 +242,8 @@ export function useDocumentsTableConfig({
         id: 'uploadedBy',
         header: tTables('headers.uploadedBy'),
         // A name; an e-mail truncates at the cell (its full value is the
-        // title). Every size here is tuned so the floor (1160 px with the
-        // actions column) fits a 1440 px window beside the 14 rem sidebar —
-        // the columns used to sum to 1434 px and the card scrolled inside,
-        // clipping "Modified" (2026-09-26 evaluation, B-10).
-        size: 128,
+        // title). Fits the German header "Hochgeladen von".
+        size: 144,
         meta: { className: 'overflow-hidden' },
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
@@ -285,7 +280,9 @@ export function useDocumentsTableConfig({
             {tTables('headers.modified')}
           </span>
         ),
-        size: 208,
+        // The widest "ll LT" value, English "May 28, 2026 10:58 PM", plus the
+        // copy button beside it.
+        size: 204,
         meta: {
           headerLabel: tTables('headers.modified'),
           align: 'right' as const,

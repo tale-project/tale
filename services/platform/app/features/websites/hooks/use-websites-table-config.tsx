@@ -36,7 +36,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
     {
       accessorKey: 'domain',
       header: tTables('headers.website'),
-      size: 256,
+      size: 240,
       meta: { flex: true, skeleton: tableIconCellSkeleton() },
       cell: ({ row }) => (
         <TableIconCell
@@ -56,7 +56,8 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
     {
       accessorKey: 'status',
       header: tTables('headers.status'),
-      size: 108,
+      // The widest status, French "Suppression en cours", with its dot.
+      size: 188,
       meta: { skeleton: { type: 'badge' } },
       cell: ({ row }) => {
         // Paused (repeated failures to reach the knowledge database) wins
@@ -94,6 +95,7 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
       header: () => (
         <span className="block w-full text-right">{tEntity('indexed')}</span>
       ),
+      // The German header "Indexiert" over a page count.
       size: 88,
       meta: { headerLabel: tEntity('indexed'), align: 'right' },
       cell: ({ row }) => (
@@ -109,6 +111,8 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
           {tTables('headers.scanned')}
         </span>
       ),
+      // The widest "ll LT" value, English "May 28, 2026 10:58 PM", plus the
+      // copy button beside it.
       size: 208,
       meta: {
         headerLabel: tTables('headers.scanned'),
@@ -164,7 +168,8 @@ export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
           {tTables('headers.interval')}
         </span>
       ),
-      size: 96,
+      // The widest interval, French "Toutes les 12 heures".
+      size: 144,
       meta: { headerLabel: tTables('headers.interval'), align: 'right' },
       cell: ({ row }) => {
         const intervalLabels: Record<string, string> = {

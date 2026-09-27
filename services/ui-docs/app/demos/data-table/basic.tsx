@@ -21,10 +21,12 @@ const columns: ColumnDef<Agent>[] = [
     header: 'Agent',
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
   },
-  { accessorKey: 'model', header: 'Model' },
+  // Sized to the longest model id; the name takes the rest of the row.
+  { accessorKey: 'model', header: 'Model', size: 128 },
   {
     accessorKey: 'status',
     header: 'Status',
+    size: 104,
     cell: ({ row }) => (
       <Badge dot variant={row.original.status === 'ready' ? 'green' : 'slate'}>
         {row.original.status === 'ready' ? 'Ready' : 'Draft'}

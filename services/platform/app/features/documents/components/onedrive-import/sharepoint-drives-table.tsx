@@ -31,6 +31,8 @@ export function SharePointDrivesTable({
       {
         id: 'name',
         header: tTables('headers.name'),
+        // The first column takes the slack; this is its floor.
+        size: 240,
         meta: { skeleton: { type: 'avatar-text', lines: 2 } },
         cell: ({ row }) => {
           const drive = row.original;
@@ -48,12 +50,7 @@ export function SharePointDrivesTable({
                   {drive.name}
                 </div>
                 {drive.description && (
-                  <Text
-                    as="div"
-                    variant="caption"
-                    truncate
-                    className="max-w-md"
-                  >
+                  <Text as="div" variant="caption" truncate>
                     {drive.description}
                   </Text>
                 )}
@@ -72,6 +69,8 @@ export function SharePointDrivesTable({
             {row.original.driveType}
           </Text>
         ),
+        // The widest drive type Microsoft Graph reports, "DocumentLibrary".
+        size: 140,
       },
     ],
     [tTables, t],

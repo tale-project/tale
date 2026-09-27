@@ -65,10 +65,13 @@ export function HomeShowcase() {
           <span className="font-medium">{row.original.name}</span>
         ),
       },
-      { accessorKey: 'role', header: t('showcaseColumnRole') },
+      // The widest role, French "Administration"; the name takes the rest.
+      { accessorKey: 'role', header: t('showcaseColumnRole'), size: 120 },
       {
         accessorKey: 'status',
         header: t('showcaseColumnStatus'),
+        // The widest badge, German "Eingeladen", with its dot.
+        size: 128,
         cell: ({ row }) => (
           <Badge
             dot

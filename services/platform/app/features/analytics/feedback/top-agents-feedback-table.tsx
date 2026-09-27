@@ -67,21 +67,18 @@ export function TopAgentsFeedbackTable({
           // The unattributed bucket is not an agent to drill into; it stays a
           // plain label, as its row stays a plain row.
           row.original.agentSlug === UNATTRIBUTED_AGENT_SLUG ? (
-            <Text
-              as="span"
-              variant="label"
-              className="block max-w-[260px] truncate text-sm"
-            >
+            <Text as="span" variant="label" className="block truncate text-sm">
               {resolveName(row.original.agentSlug)}
             </Text>
           ) : (
             <DrilldownButton
               name={resolveName(row.original.agentSlug)}
               onSelect={() => onSelectAgent(row.original.agentSlug)}
-              className="max-w-[260px]"
+              className="max-w-full"
             />
           ),
-        size: 260,
+        // The first column takes the slack; this is its floor.
+        size: 200,
       },
       {
         id: 'helpful',
@@ -95,6 +92,8 @@ export function TopAgentsFeedbackTable({
             {formatNumber(row.original.positive)}
           </div>
         ),
+        // The German header "Hilfreich", wider than a count up to "100,000".
+        size: 84,
         meta: { align: 'right' as const },
       },
       {
@@ -109,6 +108,8 @@ export function TopAgentsFeedbackTable({
             {formatNumber(row.original.negative)}
           </div>
         ),
+        // The German header "Nicht hilfreich" over a count.
+        size: 120,
         meta: { align: 'right' as const },
       },
       {
@@ -123,6 +124,8 @@ export function TopAgentsFeedbackTable({
             {formatPercentShare(row.original.positive, row.original.total)}
           </div>
         ),
+        // The header "Sentiment" over a share such as "33,3 %".
+        size: 92,
         meta: { align: 'right' as const },
       },
     ],

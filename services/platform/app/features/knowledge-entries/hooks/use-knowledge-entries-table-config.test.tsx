@@ -43,14 +43,16 @@ function renderColumnCell(
 }
 
 describe('useKnowledgeEntriesTableConfig', () => {
-  it('lets the topic column soak leftover width so Updated stays under its header', () => {
+  it('lets topic and content split the leftover width so Updated stays under its header', () => {
     const { result } = renderHook(() => useKnowledgeEntriesTableConfig(), {
       wrapper: Providers,
     });
-    const topic = result.current.columns.find(
-      (c) => 'accessorKey' in c && c.accessorKey === 'topic',
-    );
-    expect((topic?.meta as { flex?: boolean } | undefined)?.flex).toBe(true);
+    for (const key of ['topic', 'content']) {
+      const column = result.current.columns.find(
+        (c) => 'accessorKey' in c && c.accessorKey === key,
+      );
+      expect((column?.meta as { flex?: boolean } | undefined)?.flex).toBe(true);
+    }
     const updated = result.current.columns.find(
       (c) => 'accessorKey' in c && c.accessorKey === 'createdAt',
     );

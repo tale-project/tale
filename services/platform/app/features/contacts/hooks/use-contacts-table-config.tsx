@@ -83,9 +83,8 @@ export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
         accessorKey: 'name',
         header: sortableHeader<Contact>(tTables('headers.name'), sortLabels),
         size: 200,
-        // Name soaks leftover width so icon/date columns stay at their
-        // declared px — otherwise they grow with the table and an empty
-        // dash floats away from its header.
+        // Name and email are the two text columns: they split the leftover
+        // width while every other column keeps its declared px.
         meta: { flex: true },
         // `block truncate`: a long value (contacts frequently carry an email as
         // their name) is an unbreakable token that, as a bare inline span in a
@@ -102,7 +101,8 @@ export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
       {
         accessorKey: 'email',
         header: sortableHeader<Contact>(tTables('headers.email'), sortLabels),
-        size: 240,
+        size: 200,
+        meta: { flex: true },
         cell: ({ row }) => (
           <Text as="span" variant="body" truncate className="block">
             {row.original.email || tTables('cells.noEmail')}
@@ -113,7 +113,8 @@ export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
         // `tables` has no phone header; the contacts namespace owns the label.
         accessorKey: 'phone',
         header: tEntity('phone'),
-        size: 160,
+        // An international number such as "+41 79 123 45 67".
+        size: 144,
         enableSorting: false,
         cell: ({ row }) => (
           <Text as="span" variant="body" truncate className="block">
@@ -125,6 +126,8 @@ export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
         ...builders.createSourceColumn(tTables, {
           formatSource: (source) =>
             getContactSourceLabel(source, tEntity, tTables('cells.unknown')),
+          // The German "Benutzerdefiniert".
+          size: 128,
         }),
         enableSorting: false,
       },
@@ -135,6 +138,8 @@ export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
           sortLabels,
           'end',
         ),
+        // The German "Hinzugefügt" beside its sort arrow.
+        size: 136,
       }),
       builders.createActionsColumn(ContactRowActions, 'contact', {
         size: 56,

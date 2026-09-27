@@ -55,17 +55,36 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
       {
         accessorKey: 'name',
         header: t('legalHold.columns.name'),
+        // `block`: `truncate` clips nothing on a bare inline span.
         cell: ({ row }) => (
-          <Text as="span" truncate title={row.original.name}>
+          <Text as="span" truncate className="block" title={row.original.name}>
             {row.original.name}
           </Text>
         ),
+        // The first column takes the slack; this is its floor.
+        size: 200,
       },
       {
         accessorKey: 'caseNumber',
         header: t('legalHold.columns.caseNumber'),
-        cell: ({ row }) => row.original.caseNumber ?? '—',
-        size: 160,
+        // A case number is one unbreakable token, so it truncates in its own
+        // box rather than running into Status.
+        cell: ({ row }) =>
+          row.original.caseNumber ? (
+            <Text
+              as="span"
+              truncate
+              className="block"
+              title={row.original.caseNumber}
+            >
+              {row.original.caseNumber}
+            </Text>
+          ) : (
+            '—'
+          ),
+        // The German header "Aktenzeichen", and a case number such as
+        // "CASE-2026-0042"; a longer one truncates.
+        size: 144,
       },
       {
         accessorKey: 'status',
@@ -76,19 +95,22 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           </Badge>
         ),
         meta: { skeleton: { type: 'badge' as const } },
-        size: 110,
+        // The widest status, German "Geschlossen", in its outlined badge.
+        size: 124,
       },
       {
         accessorKey: 'linkedActiveHolds',
         header: t('legalHold.columns.linkedHolds'),
         cell: ({ row }) => row.original.linkedActiveHolds,
+        // The French header "Conservations liées" over a count.
         size: 156,
       },
       {
         accessorKey: 'createdAt',
         header: t('legalHold.columns.createdAt'),
         cell: ({ row }) => <TableDateCell date={row.original.createdAt} />,
-        size: 160,
+        // A short date such as "09/27/2026".
+        size: 108,
       },
       {
         id: 'actions',
@@ -126,7 +148,8 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
             )}
           </Row>
         ),
-        size: 200,
+        // Two icon buttons, under the German header "Aktionen".
+        size: 92,
       },
     ],
     [t],

@@ -58,10 +58,11 @@ export function TopAutomationsTable({
           <DrilldownButton
             name={row.original.name}
             onSelect={() => onSelectAutomation(row.original.name)}
-            className="max-w-[320px]"
+            className="max-w-full"
           />
         ),
-        size: 320,
+        // The first column takes the slack; this is its floor.
+        size: 200,
       },
       {
         id: 'runs',
@@ -73,6 +74,9 @@ export function TopAutomationsTable({
             {formatNumber(row.original.total)}
           </div>
         ),
+        // The French header "Exécutions" over a count the metrics scan caps
+        // at 5,000 runs.
+        size: 100,
         meta: { align: 'right' as const },
       },
       {
@@ -89,6 +93,8 @@ export function TopAutomationsTable({
             )}
           </div>
         ),
+        // The French header "Taux de réussite" over "100,0 %".
+        size: 136,
         meta: { align: 'right' as const },
       },
       {
@@ -101,6 +107,8 @@ export function TopAutomationsTable({
             {formatDurationSeconds(row.original.avgDurationSeconds)}
           </div>
         ),
+        // The French header "Durée moyenne" over a duration like "59m 59s".
+        size: 132,
         meta: { align: 'right' as const },
       },
       {
@@ -113,6 +121,8 @@ export function TopAutomationsTable({
             {formatNumber(row.original.failed)}
           </div>
         ),
+        // The German header "Fehlgeschlagen" over a count.
+        size: 132,
         meta: { align: 'right' as const },
       },
       {
@@ -121,7 +131,9 @@ export function TopAutomationsTable({
         cell: ({ row }) => (
           <TableDateCell date={row.original.lastRun} preset="relative" />
         ),
-        size: 160,
+        // Every relative time up to French "il y a quelques secondes", which
+        // an automation that runs every minute shows most of the time.
+        size: 188,
       },
     ],
     [t, locale, formatNumber, onSelectAutomation],

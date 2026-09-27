@@ -54,7 +54,9 @@ export function TopModelsFeedbackTable({
             </Badge>
           </div>
         ),
-        size: 260,
+        // The first column takes the slack; this is its floor, room for a
+        // model slug beside its provider badge.
+        size: 240,
       },
       {
         id: 'helpful',
@@ -68,6 +70,8 @@ export function TopModelsFeedbackTable({
             {formatNumber(row.original.positive)}
           </div>
         ),
+        // The German header "Hilfreich", wider than a count up to "100,000".
+        size: 84,
         meta: { align: 'right' as const },
       },
       {
@@ -82,6 +86,8 @@ export function TopModelsFeedbackTable({
             {formatNumber(row.original.negative)}
           </div>
         ),
+        // The German header "Nicht hilfreich" over a count.
+        size: 120,
         meta: { align: 'right' as const },
       },
       {
@@ -96,6 +102,8 @@ export function TopModelsFeedbackTable({
             {formatPercentShare(row.original.positive, row.original.total)}
           </div>
         ),
+        // The header "Sentiment" over a share such as "33,3 %".
+        size: 92,
         meta: { align: 'right' as const },
       },
     ],

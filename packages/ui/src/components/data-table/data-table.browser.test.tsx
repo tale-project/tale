@@ -39,7 +39,7 @@ interface Row {
 
 const rows: Row[] = [{ _id: '1', name: 'Alice', status: 'active', note: '' }];
 
-// Declared 100 : 300 plus the 44px pinned row-action column → a 444px floor.
+// Declared 100 + 300 plus the 44px pinned row-action column → a 444px floor.
 const columns: ColumnDef<Row>[] = [
   { accessorKey: 'name', header: 'Name', size: 100 },
   { accessorKey: 'status', header: 'Status', size: 300 },
@@ -62,7 +62,7 @@ function widths(): number[] {
 // — what the browser actually gives each column — only a real engine can
 // assert. The inline styles are unit-tested; this is the rendered truth.
 describe('DataTable column widths (real layout)', () => {
-  it('gives each column its declared share of the floor, the flex column the rest, and pins the action column', () => {
+  it('keeps every column at its declared px and hands the slack to the first content column', () => {
     render(
       <div style={{ width: 844 }}>
         <DataTable columns={columns} data={rows} approxRowCount={1} />
@@ -71,12 +71,34 @@ describe('DataTable column widths (real layout)', () => {
     const tableWidth = screen.getByRole('table').getBoundingClientRect().width;
     const [name, status, actions] = widths();
     expect(actions).toBeCloseTo(44, 0);
-    // 300 of the 444 floor, scaled to the wider table.
-    expect(status).toBeCloseTo((300 / 444) * tableWidth, 0);
-    // The auto flex column absorbs what the pinned px leaves over — and is
-    // never squeezed below its own declared share.
-    expect(name).toBeCloseTo(tableWidth - 44 - (status ?? 0), 0);
-    expect(name).toBeGreaterThan((100 / 444) * tableWidth);
+    // Sized to its content, not to the screen: the same 300px at any width.
+    expect(status).toBeCloseTo(300, 0);
+    // The lead column takes everything the others leave over.
+    expect(name).toBeCloseTo(tableWidth - 44 - 300, 0);
+  });
+
+  it('hands the slack to the flex columns instead, in equal parts', () => {
+    const flexing: ColumnDef<Row>[] = [
+      { accessorKey: 'name', header: 'Name', size: 120 },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        size: 100,
+        meta: { flex: true },
+      },
+      { accessorKey: 'note', header: 'Note', size: 200, meta: { flex: true } },
+    ];
+    render(
+      <div style={{ width: 900 }}>
+        <DataTable columns={flexing} data={rows} approxRowCount={1} />
+      </div>,
+    );
+    const tableWidth = screen.getByRole('table').getBoundingClientRect().width;
+    const [name, status, note] = widths();
+    // Not the first column this time: a named flex column opts out the lead.
+    expect(name).toBeCloseTo(120, 0);
+    expect(status).toBeCloseTo((tableWidth - 120) / 2, 0);
+    expect(note).toBeCloseTo((tableWidth - 120) / 2, 0);
   });
 
   it('floors every column at its declared px and scrolls instead of squashing', () => {
