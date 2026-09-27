@@ -13,7 +13,7 @@ Dein Name ist für Kollegen sichtbar. Er ist keine persönliche Anweisung an den
 
 ## Die Anmeldung absichern
 
-Unter **Sicherheit** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst.
+Unter **Passwort** findest du **Passwort ändern** oder **Passwort festlegen**, falls dein Konto noch keines hat. Beachte die Anforderungen im Dialog. Eine Passwortänderung beendet deine Sitzungen. Halte das neue Passwort deshalb bereit, bevor du bestätigst.
 
 Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder ergänze unter **Passkeys** einen Passkey. Bewahre Wiederherstellungscodes an einem Ort auf, den du ohne Tale-Anmeldung erreichst. [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) erklärt Einrichtung, Wiederherstellung und Organisationsvorgaben.
 

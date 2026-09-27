@@ -5378,8 +5378,8 @@ settings:
       none: "Tu n'es encore dans aucune équipe. Tu vois tout ce qui est partagé avec toute l'organisation."
       manageLink: Gérer les équipes
     security:
-      title: Sécurité
-      description: Mot de passe et authentification à deux facteurs.
+      title: Mot de passe
+      description: Connecte-toi avec ton adresse e-mail et un mot de passe.
     chats:
       title: Tes chats
       description: Archive tes chats ou déplace-les dans la corbeille de cette organisation.
@@ -5918,9 +5918,7 @@ settings:
     testOk: La connexion semble correcte
     testFailed: Échec du test de connexion
     testMissingFields: Renseignez les champs requis avant de tester.
-    formHint:
-      Configurez la manière dont les membres se connectent, puis enregistrez
-      vos modifications depuis l'en-tête.
+    formHint: Configure la façon dont les membres se connectent à cette organisation.
     validation:
       required: Ce champ est requis.
       url: Saisissez une URL valide (avec https://).
@@ -7842,9 +7840,7 @@ projects:
       chiffres uniquement (par ex. TAL devient TAL-1). Fixe — impossible à
       modifier après la création du projet.
     descriptionLabel: Description
-    descriptionPlaceholder:
-      Optionnel — pour un bureau contact, utilise le nom de
-      l'entreprise comme nom de projet.
+    descriptionPlaceholder: Ce qui a sa place dans ce projet
     submit: Créer le projet
     submitting: Création…
     successToast: Projet créé

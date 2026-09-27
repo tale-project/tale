@@ -13,7 +13,7 @@ The name is visible to teammates. It is not a private instruction to the assista
 
 ## Protect your sign-in
 
-The **Security** section offers **Change password**, or **Set password** for an account that does not yet have one. Follow the password requirements shown in the dialog. Changing the password signs out your sessions, so keep the new password available before confirming.
+The **Password** section offers **Change password**, or **Set password** for an account that does not yet have one. Follow the password requirements shown in the dialog. Changing the password signs out your sessions, so keep the new password available before confirming.
 
 Set up an authenticator under **Two-factor authentication** or add a passkey under **Passkeys**. Store backup codes somewhere you can reach without signing in to Tale. [Two-factor authentication](/platform/admin/two-factor-authentication) covers setup, recovery, and organization requirements.
 

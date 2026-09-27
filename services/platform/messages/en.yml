@@ -5066,7 +5066,7 @@ projects:
       Short prefix for task IDs — letters and digits only (e.g. TAL
       becomes TAL-1). Fixed — it can't be changed after the project is created.
     descriptionLabel: Description
-    descriptionPlaceholder: Optional — for a contact desk, use the company name as the project name.
+    descriptionPlaceholder: What belongs in this project
     audienceLabel: Who can see it
     audienceHelp: Leave empty for everyone in the organization, or pick the
       teams this project is for. Admins always see it.
@@ -5507,8 +5507,8 @@ settings:
         whole organization.
       manageLink: Manage teams
     security:
-      title: Security
-      description: Password and two-factor authentication.
+      title: Password
+      description: Sign in with your email and a password.
     chats:
       title: Your chats
       description: Archive your chats or move them to Trash in this organization.
@@ -6004,7 +6004,7 @@ settings:
     testOk: Connection looks good
     testFailed: Connection test failed
     testMissingFields: Fill in the required fields before testing.
-    formHint: Configure how members sign in, then save your changes from the header.
+    formHint: Configure how members sign in to this organization.
     validation:
       required: This field is required.
       url: Enter a valid URL (including https://).

@@ -111,7 +111,7 @@ any toggled setting after the run.
   (`common.actions.saved`) and disables again — no page toast; the new value
   is still in the Name field after a reload; the **Email** field
   (`settings.account.profile.email`) is read-only.
-- [ ] `SET-F4` · **Account security** — Same page → **Security** section
+- [ ] `SET-F4` · **Account security** — Same page → **Password** section
   (`settings.account.security.title`) → open the change-password dialog
   (`auth.changePassword.title`) → The dialog opens with current/new/confirm
   fields and enforces the password policy (`auth.validation.passwordMinLength`
@@ -441,8 +441,8 @@ any toggled setting after the run.
   `…clientSecretLabel`) → **Test connection** (`settings.enterpriseSso.test`)
   → header **Save**; in **SCIM provisioning**
   (`settings.enterpriseSso.scim.section`) click **Generate token**
-  (`settings.enterpriseSso.scim.generate`) → The form hint says saving happens
-  from the header (`settings.enterpriseSso.formHint`) — Saved flash, no toast;
+  (`settings.enterpriseSso.scim.generate`) → The header **Save** flashes
+  Saved, no toast;
   Test keeps its own result (`settings.enterpriseSso.testOk` / `…testFailed`);
   after reload the status shows **Sign-in is enabled.**
   (`settings.enterpriseSso.connected`); the read-only **Redirect URL**

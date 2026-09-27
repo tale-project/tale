@@ -5304,8 +5304,8 @@ settings:
         Organisation geteilt ist.
       manageLink: Teams verwalten
     security:
-      title: Sicherheit
-      description: Passwort und Zwei-Faktor-Authentifizierung.
+      title: Passwort
+      description: Melde dich mit deiner E-Mail-Adresse und einem Passwort an.
     chats:
       title: Deine Chats
       description: Archiviere deine Chats in dieser Organisation oder verschiebe sie in den Papierkorb.
@@ -5831,8 +5831,7 @@ settings:
     testOk: Verbindung sieht gut aus
     testFailed: Verbindungstest fehlgeschlagen
     testMissingFields: Bitte fülle die erforderlichen Felder aus, bevor du testest.
-    formHint: Lege fest, wie sich Mitglieder anmelden, und speichere deine
-      Änderungen oben in der Kopfzeile.
+    formHint: Lege fest, wie sich Mitglieder bei dieser Organisation anmelden.
     validation:
       required: Dieses Feld ist erforderlich.
       url: Gib eine gültige URL ein (inklusive https://).
@@ -7741,8 +7740,7 @@ projects:
       B. wird aus TAL dann TAL-1). Fix — kann nach dem Erstellen des Projekts
       nicht mehr geändert werden.
     descriptionLabel: Beschreibung
-    descriptionPlaceholder: Optional — bei einem Kontaktdesk den Firmennamen als
-      Projektnamen verwenden.
+    descriptionPlaceholder: Was in dieses Projekt gehört
     submit: Projekt erstellen
     submitting: Erstellen…
     successToast: Projekt erstellt
