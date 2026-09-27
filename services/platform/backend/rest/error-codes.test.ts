@@ -181,6 +181,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Product-image intake and bare-file deletion are app-only. The REST
   // binding adapter translates its metadata refusal to FILE_NOT_FOUND.
   'FILE_BOUND_TO_PRODUCT',
+  'PRODUCT_IMAGE_ACTIVE_CONTENT',
   'PRODUCT_IMAGE_INVALID',
   'PRODUCT_IMAGE_NOT_FOUND',
   // Transcription settings/dictation are app doors; queued audio/video
