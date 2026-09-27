@@ -34,7 +34,9 @@ apiFormat: openai
 baseUrl: https://api.z.ai/api/coding/paas/v4
 catalog:
   source: static
-embedding: unknown
+# A curated embedding width ships in models/zai/models.yml (embedding-3,
+# taken from the vendor's API reference), so this provider can embed.
+embedding: supported
 auth:
   - method: api-key
   - method: env

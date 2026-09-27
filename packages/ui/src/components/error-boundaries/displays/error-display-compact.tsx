@@ -8,6 +8,7 @@ import { Text } from '@tale/ui/text';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
 
+import { supportUrlFor, useSupportUrl } from '../core/support-url';
 import { useErrorLogger } from '../hooks/use-error-logger';
 
 interface ErrorDisplayCompactProps {
@@ -17,6 +18,12 @@ interface ErrorDisplayCompactProps {
   organizationId?: string;
   /** Function to reset the error boundary */
   reset: () => void;
+  /**
+   * Support page the "contact support" link opens; the organization is
+   * appended as `organizationId`. Defaults to the nearest
+   * `SupportUrlProvider`, else `https://tale.dev/contact`.
+   */
+  supportUrl?: string;
 }
 
 /**
@@ -45,9 +52,11 @@ export function ErrorDisplayCompact({
   error,
   organizationId,
   reset,
+  supportUrl,
 }: ErrorDisplayCompactProps) {
   const { t } = useT('common');
   const logError = useErrorLogger();
+  const supportHref = supportUrlFor(useSupportUrl(supportUrl), organizationId);
 
   // Log error on mount
   useEffect(() => {
@@ -95,11 +104,7 @@ export function ErrorDisplayCompact({
         <Text variant="muted" role="status" aria-live="polite">
           {t('errors.persistsProblem')}{' '}
           <a
-            href={
-              organizationId
-                ? `https://tale.dev/contact?organizationId=${organizationId}`
-                : 'https://tale.dev/contact'
-            }
+            href={supportHref}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"

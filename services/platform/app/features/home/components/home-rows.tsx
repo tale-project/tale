@@ -130,7 +130,7 @@ function RowText({
             <span className="sr-only">{t('row.unread')}</span>
             <span
               aria-hidden
-              className="animate-in zoom-in-50 ml-auto size-1.5 shrink-0 rounded-full bg-blue-500 duration-300"
+              className="animate-in zoom-in-50 bg-primary ml-auto size-1.5 shrink-0 rounded-full duration-300"
             />
           </>
         )}

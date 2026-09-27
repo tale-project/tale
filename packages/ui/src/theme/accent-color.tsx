@@ -8,7 +8,9 @@ AccentColorContext.displayName = 'AccentColorContext';
 /**
  * A host-supplied accent (an organization's brand colour) that tinted
  * components — the active tab indicator, the active sub-panel row — pick up
- * instead of the neutral default. Leave it unmounted for the plain design
+ * instead of the neutral default. They set it as the open item's text colour
+ * over a `…26` (≈15 %) tint of itself, so hand in a shade that reads as text
+ * there (4.5:1), not the raw pick. Leave it unmounted for the plain design
  * system; the platform mounts it from its branding provider.
  */
 export function AccentColorProvider({

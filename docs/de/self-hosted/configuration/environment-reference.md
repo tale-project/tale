@@ -227,6 +227,14 @@ Bei einem Workspace-Deployment laufen vorübergehend beide Farben. Plane Kapazit
 
 Ohne Wert gilt die normale Sitzungsdauer. Mit gesetztem Limit läuft eine inaktive Sitzung serverseitig ab; Aktivität verschiebt das Fenster. Organisationsadmins können es über die [Richtlinie zur Sitzungsinaktivität](/de/platform/admin/governance/policies-and-limits) weiter verkürzen. Die zugehörige Bereinigung läuft ungefähr alle fünf Minuten.
 
+## Support-Link
+
+| Name                       | Default                    | Beschreibung |
+| -------------------------- | -------------------------- | ------------ |
+| `TALE_CONTACT_SUPPORT_URL` | `https://tale.dev/contact` | **Optional, gelesen vom Dienst `platform`.** Ziel des Links **kontaktiere den Support** auf den Fehlerseiten der App. Eine absolute `http://`- oder `https://`-URL. |
+
+Trag hier deinen eigenen Helpdesk ein, damit Personen nach einem Fehler das Team erreichen, das dein Deployment betreibt. Kennt die Fehlerseite die Organisation, hängt der Link `organizationId=<id>` an den Query-String an, hinter eine bereits vorhandene Query. Jeder andere Wert, etwa `mailto:` oder eine URL ohne Schema, wird mit einer Warnung im Log des Dienstes `platform` ignoriert, und der Link behält den Standardwert.
+
 ## Sandbox-Infrastruktur {#sandbox-infrastructure}
 
 Der Sandbox-Spawner liest die folgenden Einstellungen. Übergib sie seiner Umgebung und erstelle den Dienst nach einer Änderung neu. `SANDBOX_MAX_SESSIONS` legt die gemeinsame Kapazität aller Organisationen fest. Die drei Arbeitslimits einer Organisation ergeben automatisch ihre Gesamtsumme; liegt sie über dieser Kapazität, kannst du die Limits nicht speichern. Unter [Sandboxes](/de/platform/admin/sandboxes) verwaltest du die Limits und siehst tatsächliche Laufzeitzahlen und Host-Messwerte getrennt von der Kontingentbelegung.

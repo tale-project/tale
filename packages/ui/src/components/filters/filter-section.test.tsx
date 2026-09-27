@@ -75,24 +75,24 @@ describe('FilterSection', () => {
       expect(screen.getByText('3 selected')).toBeInTheDocument();
     });
 
-    it('renders blue dot when hasSelection is true and selectedCount is 0', () => {
+    it('renders the accent dot when hasSelection is true and selectedCount is 0', () => {
       const { container } = render(
         <FilterSection {...defaultProps} hasSelection>
           <span>Content</span>
         </FilterSection>,
       );
-      const dot = container.querySelector('.bg-blue-600.rounded-full');
+      const dot = container.querySelector('.bg-primary.rounded-full');
       expect(dot).toBeInTheDocument();
       expect(screen.queryByText(/selected/)).not.toBeInTheDocument();
     });
 
-    it('does not render blue dot when selectedCount is provided', () => {
+    it('does not render the accent dot when selectedCount is provided', () => {
       const { container } = render(
         <FilterSection {...defaultProps} hasSelection selectedCount={2}>
           <span>Content</span>
         </FilterSection>,
       );
-      const dot = container.querySelector('.bg-blue-600.rounded-full');
+      const dot = container.querySelector('.bg-primary.rounded-full');
       expect(dot).not.toBeInTheDocument();
       expect(screen.getByText('2 selected')).toBeInTheDocument();
     });

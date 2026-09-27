@@ -50,11 +50,18 @@ import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
-import { TASK_TITLE_MAX } from './core/tasks/helpers.ts';
+import {
+  TASK_COMMENT_MAX,
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_TITLE_MAX,
+  taskLimitText,
+} from './core/tasks/helpers.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
+import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
@@ -64,6 +71,7 @@ import { checkInboundEmailBodies } from './domains/knowledge/message-index.integ
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
+import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
@@ -3580,6 +3588,65 @@ async function checkFiles(
       optOutJobs === 0,
     `heal=${String(restarted)} (want queued), second=${String(restartedAgain)} (want null), optOut=${String(optOutRestart)} (want null), jobs=${restartedJobs} (want 2: the register one plus this) optOutJobs=${optOutJobs} (want 0)`,
   );
+
+  // A file this door never queues and no extractor reads — a hand-uploaded
+  // Loop page — used to keep an empty status, which reads as indexing never
+  // started. It now lands on the terminal state a sync import and the
+  // indexer give it, with no job. A `.log`, which a Reindex can index, keeps
+  // its empty status, and so does a chat-bound `.loop`: the chat reads its
+  // own attachments.
+  const loopUpload = await registerStaged(
+    'standup.loop',
+    'application/octet-stream',
+    'loop v1',
+  );
+  const logUpload = await registerStaged(
+    'server.log',
+    'text/plain',
+    'GET /health 200',
+  );
+  const chatLoopUpload = await registerStaged(
+    'chat.loop',
+    'application/octet-stream',
+    'loop v1',
+    { threadId: 'itest-attachment-thread' },
+  );
+  const ragStateOf = async (id: string) =>
+    (
+      await sql<
+        {
+          ragStatus: string | null;
+          ragErrorCode: string | null;
+          ragError: string | null;
+        }[]
+      >`
+        SELECT rag_status AS "ragStatus", rag_error_code AS "ragErrorCode",
+               rag_error AS "ragError"
+        FROM app.file_metadata WHERE id = ${id} LIMIT 1
+      `
+    )[0];
+  const loopRow = await ragStateOf(loopUpload.fileId);
+  const logRow = await ragStateOf(logUpload.fileId);
+  const chatLoopRow = await ragStateOf(chatLoopUpload.fileId);
+  const unqueuedJobs =
+    (await indexJobsFor(loopUpload.fileId)) +
+    (await indexJobsFor(logUpload.fileId)) +
+    (await indexJobsFor(chatLoopUpload.fileId));
+  const loopSentence = 'No text extractor exists for "standup.loop".';
+  record(
+    'register lands a file no extractor reads on unsupported_type; a .log and a chat-bound file keep an empty status',
+    loopUpload.fileId !== '' &&
+      loopRow?.ragStatus === 'unsupported' &&
+      loopRow.ragErrorCode === 'unsupported_type' &&
+      loopRow.ragError === loopSentence &&
+      logUpload.fileId !== '' &&
+      logRow?.ragStatus === null &&
+      logRow.ragErrorCode === null &&
+      chatLoopUpload.fileId !== '' &&
+      chatLoopRow?.ragStatus === null &&
+      unqueuedJobs === 0,
+    `loop=${loopRow?.ragStatus ?? 'null'}/${loopRow?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${loopRow?.ragError === loopSentence}, log=${logRow?.ragStatus ?? 'null'} (want null), chat-bound loop=${chatLoopRow?.ragStatus ?? 'null'} (want null), jobs=${unqueuedJobs} (want 0)`,
+  );
 }
 
 /**
@@ -5445,6 +5512,136 @@ async function checkDocuments(
       (afterRace[0]?.historyFiles ?? []).includes(fileIdAfter) &&
       chainIntact,
     `parked=${bothParked}, responses=${raceCodes.join('/')} (want ok + DOCUMENT_RECORD_VERSION_MISMATCH), bound=${raceWinners.length} (want 1), loser=${raceLoser?.state ?? 'none'} (want failed), currentIsWinner=${afterRace[0]?.fileRef === raceWinners[0]?.finalRef}, previousRetained=${(afterRace[0]?.historyFiles ?? []).includes(fileIdAfter)}, chainIntact=${chainIntact}`,
+  );
+
+  // A replacement no extractor reads — the upload allowlist's `.ac2`, whose
+  // opaque bytes the attester admits — used to insert its file row as a bare
+  // `unsupported`, with no code and no sentence: the view carried no
+  // `ragErrorCode` for the badge to explain, and the retry door refused with
+  // a generic sentence. It now carries the state an upload or a sync gives
+  // such a file, and no index job is queued for it.
+  const ledgerUpload = z.object({ storageId: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/files/upload?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/octet-stream',
+          cookie,
+          origin: base,
+        },
+        body: 'ledger v1',
+      })
+    ).json(),
+  );
+  const ledgerDoc = z.object({ documentId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/documents/from-blob-upload?orgId=${orgId}`, {
+        storageRef: ledgerUpload.success ? ledgerUpload.data.storageId : '',
+        fileName: 'ledger.ac2',
+        contentType: 'application/octet-stream',
+      })
+    ).json(),
+  );
+  const ledgerId = ledgerDoc.success ? ledgerDoc.data.documentId : '';
+  const ledgerMark = await send(
+    'POST',
+    `/api/app/documents/${ledgerId}/record/mark-controlled?orgId=${orgId}`,
+    {},
+  );
+  const ledgerBefore = z
+    .object({ document: z.object({ fileId: z.string() }) })
+    .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
+  const ledgerBegin = z
+    .object({ intentId: z.string(), url: z.string().url() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${ledgerId}/replacement-upload/begin?orgId=${orgId}`,
+          {
+            expectedRecordState: 'draft',
+            expectedVersion: 1,
+            expectedFileId: ledgerBefore.success
+              ? ledgerBefore.data.document.fileId
+              : '',
+            fileName: 'ledger.ac2',
+            contentType: 'application/octet-stream',
+          },
+        )
+      ).json(),
+    );
+  if (ledgerBegin.success) {
+    await fetch(ledgerBegin.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: 'ledger v2',
+    });
+  }
+  const ledgerFinalize = await send(
+    'POST',
+    `/api/app/documents/replacement-uploads/${ledgerBegin.success ? ledgerBegin.data.intentId : ''}/finalize?orgId=${orgId}`,
+    {},
+  );
+  const ledgerAfter = z
+    .object({
+      document: z.object({
+        fileId: z.string(),
+        ragStatus: z.string().optional(),
+        ragErrorCode: z.string().optional(),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
+  const ledgerFile = (
+    await sql<
+      {
+        id: string;
+        ragStatus: string | null;
+        ragErrorCode: string | null;
+        ragError: string | null;
+      }[]
+    >`
+      SELECT id, rag_status AS "ragStatus", rag_error_code AS "ragErrorCode",
+             rag_error AS "ragError"
+      FROM app.file_metadata
+      WHERE org_id = ${orgId}
+        AND storage_ref = ${ledgerAfter.success ? ledgerAfter.data.document.fileId : ''}
+      LIMIT 1
+    `
+  )[0];
+  const ledgerJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'rag.index_file' AND data->>'fileId' = ${ledgerFile?.id ?? ''}
+  `;
+  // Reindex asked for anyway — hiding the action is no gate, the door is.
+  const ledgerRetry = z
+    .object({ success: z.boolean(), error: z.string().optional() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${ledgerId}/retry-rag?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const ledgerSentence = 'No text extractor exists for "ledger.ac2".';
+  record(
+    'replacement no extractor reads (.ac2): terminal unsupported_type with the sentence, never queued, retry refused',
+    ledgerMark.ok &&
+      ledgerFinalize.ok &&
+      ledgerAfter.success &&
+      ledgerBefore.success &&
+      ledgerAfter.data.document.fileId !== ledgerBefore.data.document.fileId &&
+      ledgerFile?.ragStatus === 'unsupported' &&
+      ledgerFile.ragErrorCode === 'unsupported_type' &&
+      ledgerFile.ragError === ledgerSentence &&
+      Number(ledgerJobs[0]?.count ?? '0') === 0 &&
+      ledgerAfter.data.document.ragStatus === 'unsupported' &&
+      ledgerAfter.data.document.ragErrorCode === 'unsupported_type' &&
+      ledgerRetry.success &&
+      !ledgerRetry.data.success &&
+      ledgerRetry.data.error === ledgerSentence,
+    `mark → ${ledgerMark.status}, finalize → ${ledgerFinalize.status}, file=${ledgerFile?.ragStatus ?? 'null'}/${ledgerFile?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${ledgerFile?.ragError === ledgerSentence}, jobs=${ledgerJobs[0]?.count ?? '?'} (want 0), view=${ledgerAfter.success ? `${ledgerAfter.data.document.ragStatus}/${ledgerAfter.data.document.ragErrorCode}` : 'ERR'}, retry=${ledgerRetry.success ? `${ledgerRetry.data.success}: ${ledgerRetry.data.error}` : 'ERR'} (want refused with the sentence)`,
   );
 
   // Hard delete removes the row and the hub listing entry.
@@ -36731,6 +36928,7 @@ async function checkAutomationRunToolLane(
     'ask_human',
     'task_find',
     'task_create',
+    'task_comment',
     'task_update_status',
     'task_upsert_by_external_ref',
     'document_create',
@@ -36826,6 +37024,36 @@ async function checkAutomationRunToolLane(
   const overLongRows = await sql<{ id: string }[]>`
     SELECT id FROM app.tasks
     WHERE org_id = ${orgId} AND title = ${overLongTitle}
+  `;
+  // The domain's own refusals reach the model with the sentence that names
+  // the limit, beside their code: a description and a label over the cap on
+  // create, and a comment over the cap. Nothing lands for any of them.
+  const overLongDescription = await dispatch(pinnedToken, 'task_create', {
+    title: 'Overlong description',
+    description: 'd'.repeat(TASK_DESCRIPTION_MAX + 1),
+  });
+  const overLongLabelName = `itest-${'l'.repeat(TASK_LABEL_CHARS_MAX)}`;
+  const overLongLabel = await dispatch(pinnedToken, 'task_create', {
+    title: 'Overlong label',
+    labels: ['itest-fits', overLongLabelName],
+  });
+  const overLongComment = await dispatch(pinnedToken, 'task_comment', {
+    taskId,
+    body: 'c'.repeat(TASK_COMMENT_MAX + 1),
+  });
+  const limitRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${orgId}
+      AND title IN ('Overlong description', 'Overlong label')
+  `;
+  const limitLabels = await sql<{ id: string }[]>`
+    SELECT id FROM app.task_labels
+    WHERE project_id = ${boundProjectId}
+      AND name IN ('itest-fits', ${overLongLabelName})
+  `;
+  const limitComments = await sql<{ messageId: string }[]>`
+    SELECT message_id AS "messageId" FROM app.task_discussion_message_meta
+    WHERE task_id = ${taskId}
   `;
   const found = await dispatch(pinnedToken, 'task_find', {});
   const moved = await dispatch(pinnedToken, 'task_update_status', {
@@ -37131,7 +37359,7 @@ async function checkAutomationRunToolLane(
     `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status}${syncedFirst.status === 'ok' ? '' : ` (first: ${syncedFirst.raw})`}${syncedAgain.status === 'ok' ? '' : ` (again: ${syncedAgain.raw})`} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
   );
   const namesTitleLimit = overLong.raw.includes(
-    `capped at ${TASK_TITLE_MAX} characters`,
+    `capped at ${taskLimitText(TASK_TITLE_MAX)}`,
   );
   record(
     'task_create refuses an over-long title at the tool door, naming the limit',
@@ -37140,6 +37368,31 @@ async function checkAutomationRunToolLane(
       !overLong.raw.includes('TASK_TITLE_INVALID') &&
       overLongRows.length === 0,
     `status=${overLong.status} (want invalid_args), namesLimit=${namesTitleLimit}, rows=${overLongRows.length} (want 0), raw=${overLong.raw.slice(0, 200)}`,
+  );
+  const namesDescriptionLimit = overLongDescription.raw.includes(
+    'TASK_DESCRIPTION_INVALID: The task description is capped at ' +
+      taskLimitText(TASK_DESCRIPTION_MAX),
+  );
+  const namesLabelLimit = overLongLabel.raw.includes(
+    'TASK_LABELS_INVALID: A label name is capped at ' +
+      taskLimitText(TASK_LABEL_CHARS_MAX),
+  );
+  const namesCommentLimit = overLongComment.raw.includes(
+    'TASK_COMMENT_INVALID: The comment is capped at ' +
+      taskLimitText(TASK_COMMENT_MAX),
+  );
+  record(
+    'task tools relay the domain’s limit sentence for a description, a label and a comment over the cap',
+    overLongDescription.status === 'invalid_args' &&
+      namesDescriptionLimit &&
+      overLongLabel.status === 'invalid_args' &&
+      namesLabelLimit &&
+      overLongComment.status === 'invalid_args' &&
+      namesCommentLimit &&
+      limitRows.length === 0 &&
+      limitLabels.length === 0 &&
+      limitComments.length === 0,
+    `description=${overLongDescription.status}/${namesDescriptionLimit}, label=${overLongLabel.status}/${namesLabelLimit}, comment=${overLongComment.status}/${namesCommentLimit} (want invalid_args/true each), rows=${limitRows.length} labels=${limitLabels.length} comments=${limitComments.length} (want 0 each), raw=${[overLongDescription, overLongLabel, overLongComment].map((answer) => answer.raw.slice(0, 160)).join(' | ')}`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
@@ -46477,7 +46730,12 @@ async function checkDataResidencyConfig(
       await (await get(`/api/app/knowledge/embedding?orgId=${orgId}`)).json(),
     );
   const recs = z
-    .object({ recommendations: z.array(z.object({}).loose()) })
+    .object({
+      recommendations: z.array(z.object({}).loose()),
+      providers: z.array(
+        z.object({ providerSlug: z.string(), support: z.string() }),
+      ),
+    })
     .safeParse(
       await (
         await get(`/api/app/knowledge/embedding/recommendations?orgId=${orgId}`)
@@ -46522,11 +46780,17 @@ async function checkDataResidencyConfig(
       embView.data.providerSlug === 'openai' &&
       embView.data.dimensions === 1536 &&
       recs.success &&
+      // Anthropic's connector declares it cannot embed (its docs are cited in
+      // provider.yml), so the form refuses it instead of failing at index time.
+      recs.data.providers.some(
+        (entry) =>
+          entry.providerSlug === 'anthropic' && entry.support === 'unsupported',
+      ) &&
       embGone.success &&
       !embGone.data.configured &&
       knGone.success &&
       !knGone.data.configured,
-    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? recs.data.recommendations.length : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
+    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? `${recs.data.recommendations.length}/${recs.data.providers.map((entry) => `${entry.providerSlug}:${entry.support}`).join(',')}` : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
   );
 }
 
@@ -54552,6 +54816,10 @@ async function main(): Promise<void> {
         'checkAutomationTriggerDelivery',
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
+      [
+        'checkDeletedOrgSchedules',
+        () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
         'checkRetiredBuilderRoute',
@@ -54905,6 +55173,10 @@ async function main(): Promise<void> {
       [
         'checkTeamScopeRetirement',
         () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkOrphanedOrgRowsBackfill',
+        () => checkOrphanedOrgRowsBackfill(sql, authCtx, record),
       ],
       [
         'checkOrganizationLifecycle',
