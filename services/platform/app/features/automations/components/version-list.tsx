@@ -101,10 +101,13 @@ export function VersionList({
               {entry.testsPassed === true && (
                 <Badge variant="green">{t('versions.testsPassed')}</Badge>
               )}
-              <span className="min-w-0 flex-1 truncate text-sm">
+              {/* A 10rem basis, not zero: when the message would get less,
+                  the date wraps to its own line (right-aligned) instead of
+                  squeezing the message to a few letters on a phone. */}
+              <span className="min-w-0 flex-1 basis-40 truncate text-sm">
                 {entry.message ?? t('versions.noMessage')}
               </span>
-              <Text as="span" variant="muted" className="text-xs">
+              <Text as="span" variant="muted" className="ml-auto text-xs">
                 {formatDate(new Date(entry.createdAt), 'long')}
               </Text>
             </Link>

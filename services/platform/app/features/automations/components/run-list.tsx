@@ -113,10 +113,12 @@ export function RunList({
             <span className="text-sm">
               {t('versions.versionLabel', { version: run.version })}
             </span>
-            <span className="min-w-0 flex-1 truncate text-sm">
+            {/* A 10rem basis, as in the version list: on a phone the date
+                wraps to its own line instead of squeezing the detail out. */}
+            <span className="min-w-0 flex-1 basis-40 truncate text-sm">
               {rowText(run)}
             </span>
-            <Text as="span" variant="muted" className="text-xs">
+            <Text as="span" variant="muted" className="ml-auto text-xs">
               {formatDate(new Date(run.startedAt), 'long')}
             </Text>
           </Link>
