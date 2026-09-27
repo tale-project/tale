@@ -66,6 +66,7 @@ import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integr
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
@@ -54297,6 +54298,10 @@ async function main(): Promise<void> {
         () => checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`),
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
+      [
+        'checkTaskDescriptionMentions',
+        () => checkTaskDescriptionMentions(sql, authCtx, record),
+      ],
       [
         'checkCompetences',
         () => checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`),

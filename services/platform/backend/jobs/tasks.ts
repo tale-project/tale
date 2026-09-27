@@ -67,6 +67,8 @@ export interface TaskPayloads {
     tools: string[];
     secrets: string[];
     feedback: string;
+    /** Which text `feedback` is; absent reads as a comment. */
+    mentionSource?: 'comment' | 'description';
     author: string;
     authorId: string;
     attempt: number;
