@@ -113,6 +113,35 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
       ),
     ).toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
+    // A readable code, never the raw object, which Sentry's console
+    // promotion would render as `[object Object]`.
+    expect(consoleError).toHaveBeenCalledWith(
+      'Error creating organization:',
+      'INTERNAL_ERROR',
+    );
+    consoleError.mockRestore();
+  });
+
+  it('logs a failure without a code by its HTTP status', async () => {
+    create.mockResolvedValue({
+      data: null,
+      error: { status: 502, statusText: 'Bad Gateway' },
+    });
+    list.mockResolvedValue({ data: [] });
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const { user } = renderStep();
+    await fillNameAndSubmit(user);
+
+    await screen.findByText(
+      "We couldn't create your workspace. Check your connection and click Next to try again.",
+    );
+    expect(consoleError).toHaveBeenCalledWith(
+      'Error creating organization:',
+      'HTTP 502',
+    );
     consoleError.mockRestore();
   });
 
@@ -125,7 +154,8 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
       },
     });
     list.mockResolvedValue({ data: [] });
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errored = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { user, onCreated } = renderStep();
     await fillNameAndSubmit(user);
     expect(
@@ -134,7 +164,14 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
       ),
     ).toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
-    logged.mockRestore();
+    // An expected refusal, explained inline: a warning, not a reported error.
+    expect(warned).toHaveBeenCalledWith(
+      'Organization creation is forbidden:',
+      'HTTP 403',
+    );
+    expect(errored).not.toHaveBeenCalled();
+    warned.mockRestore();
+    errored.mockRestore();
   });
 
   it('shows the name-taken error when the slug is owned by an org the user is NOT in', async () => {
@@ -147,9 +184,8 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
     });
     // Membership list has no org under this slug — nothing to resume into.
     list.mockResolvedValue({ data: [{ id: 'other', slug: 'other' }] });
-    const consoleError = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errored = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { user, onCreated } = renderStep();
     await fillNameAndSubmit(user);
@@ -160,7 +196,41 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
       ),
     ).toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
-    consoleError.mockRestore();
+    expect(warned).toHaveBeenCalledWith(
+      'Organization slug is taken:',
+      'ORGANIZATION_SLUG_ALREADY_TAKEN',
+    );
+    expect(errored).not.toHaveBeenCalled();
+    warned.mockRestore();
+    errored.mockRestore();
+  });
+
+  it("treats the platform guard's code-less slug refusal as taken too, logging its status", async () => {
+    create.mockResolvedValue({
+      data: null,
+      error: {
+        status: 400,
+        message: 'Organization slug "acme" is already taken.',
+      },
+    });
+    list.mockResolvedValue({ data: [] });
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errored = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { user } = renderStep();
+    await fillNameAndSubmit(user);
+
+    await screen.findByText(
+      'That name is already taken. Pick a different one.',
+    );
+    // The message quotes the typed slug; the log line carries the status.
+    expect(warned).toHaveBeenCalledWith(
+      'Organization slug is taken:',
+      'HTTP 400',
+    );
+    expect(errored).not.toHaveBeenCalled();
+    warned.mockRestore();
+    errored.mockRestore();
   });
 
   it('clears the submit error as soon as the name is edited', async () => {

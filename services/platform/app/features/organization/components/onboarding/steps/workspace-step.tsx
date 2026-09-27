@@ -52,6 +52,20 @@ export function isSlugTakenError(
   );
 }
 
+/**
+ * A readable code for a better-auth failure — the plugin's code, the HTTP
+ * status, or both — for the log line. Logging the raw error object reaches
+ * Sentry as `[object Object]`, and its message can quote the slug the user
+ * typed, which would also split one failure into many issues.
+ */
+function authFailureCode(
+  error: { code?: string; status?: number } | null | undefined,
+): string {
+  const status = error?.status ? `HTTP ${error.status}` : undefined;
+  if (error?.code) return status ? `${error.code} (${status})` : error.code;
+  return status ?? 'NO_ERROR_DETAIL';
+}
+
 /** Base language subtag of a locale (e.g. `en-US` → `en`). */
 function baseLanguage(locale: string): string {
   try {
@@ -140,14 +154,21 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
       if (!organizationId) {
         organizationId = await findOwnOrgBySlug();
         if (!organizationId) {
-          console.error('Error creating organization:', result?.error);
-          setSubmitError(
-            isSlugTakenError(result?.error)
-              ? t('workspace.nameTakenError')
-              : result?.error?.status === 403
-                ? t('workspace.creationForbidden')
-                : t('workspace.createError'),
-          );
+          // A taken slug and a deployment that forbids creating an
+          // organization are answers the step explains inline, so they are
+          // warnings; any other failure is an error worth reporting.
+          const error = result?.error;
+          const code = authFailureCode(error);
+          if (isSlugTakenError(error)) {
+            console.warn('Organization slug is taken:', code);
+            setSubmitError(t('workspace.nameTakenError'));
+          } else if (error?.status === 403) {
+            console.warn('Organization creation is forbidden:', code);
+            setSubmitError(t('workspace.creationForbidden'));
+          } else {
+            console.error('Error creating organization:', code);
+            setSubmitError(t('workspace.createError'));
+          }
           return false;
         }
       }

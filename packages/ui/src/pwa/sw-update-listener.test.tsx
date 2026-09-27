@@ -11,14 +11,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const registration = vi.hoisted(() => ({
   needRefresh: false,
   offlineReady: false,
+  onRegisterError: undefined as ((error: unknown) => void) | undefined,
 }));
 
 vi.mock('virtual:pwa-register/react', () => ({
-  useRegisterSW: () => ({
-    needRefresh: [registration.needRefresh, vi.fn()],
-    offlineReady: [registration.offlineReady, vi.fn()],
-    updateServiceWorker: vi.fn(),
-  }),
+  useRegisterSW: (options?: { onRegisterError?: (error: unknown) => void }) => {
+    registration.onRegisterError = options?.onRegisterError;
+    return {
+      needRefresh: [registration.needRefresh, vi.fn()],
+      offlineReady: [registration.offlineReady, vi.fn()],
+      updateServiceWorker: vi.fn(),
+    };
+  },
 }));
 
 import { SwUpdateListener } from './sw-update-listener';
@@ -46,6 +50,7 @@ describe('SwUpdateListener', () => {
   afterEach(() => {
     cleanup();
     setController(null);
+    vi.restoreAllMocks();
   });
 
   it('prompts for the update when a worker already controls the page', () => {
@@ -87,5 +92,25 @@ describe('SwUpdateListener', () => {
       />,
     );
     expect(renderOfflineReadyToast).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a refused registration as a warning, never as an error', () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errored = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <SwUpdateListener
+        labels={labels}
+        renderUpdateToast={vi.fn()}
+        renderOfflineReadyToast={vi.fn()}
+      />,
+    );
+    const refusal = new DOMException('The operation is insecure.');
+    expect(registration.onRegisterError).toBeDefined();
+    registration.onRegisterError?.(refusal);
+    expect(warned).toHaveBeenCalledWith(
+      'Service worker registration failed',
+      refusal,
+    );
+    expect(errored).not.toHaveBeenCalled();
   });
 });

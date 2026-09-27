@@ -12,8 +12,12 @@ interface ErrorLogContext {
 /**
  * Hook for logging errors to the console with rich context.
  *
- * Provides consistent error logging across all error boundaries.
- * Currently logs to console only, but can be extended for monitoring services.
+ * Provides consistent error logging across all error boundaries. The Error
+ * itself is passed, not a copy of its fields: a console-promoting monitor
+ * (the platform's Sentry `captureConsoleIntegration`) reports an Error
+ * argument as an exception with its type and stack, and the context rides
+ * along as the call's extra arguments. A plain object would reach it as the
+ * text `[object Object]`.
  *
  * @example
  * const logError = useErrorLogger();
@@ -21,12 +25,6 @@ interface ErrorLogContext {
  */
 export function useErrorLogger() {
   return useCallback((error: Error, context?: ErrorLogContext) => {
-    console.error('Error caught by boundary:', {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-      ...context,
-      timestamp: new Date().toISOString(),
-    });
+    console.error('Error caught by boundary:', error, context);
   }, []);
 }

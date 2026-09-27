@@ -75,8 +75,10 @@ export function SwUpdateListener({
     offlineReady: [offlineReady, setOfflineReady],
     updateServiceWorker,
   } = useRegisterSW({
+    // The browser decides this (private mode, workers disabled, no storage),
+    // and the page works without a worker, so it is a warning, not an error.
     onRegisterError(error) {
-      console.error('Service worker registration failed', error);
+      console.warn('Service worker registration failed', error);
     },
   });
 

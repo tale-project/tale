@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
+  isBackendRefusal,
   projectAdaptedRead,
   retryAdaptedRead,
   runAdapted,
@@ -49,6 +50,21 @@ describe('runAdapted', () => {
         ),
       ),
     ).rejects.toBeInstanceOf(AppError);
+  });
+});
+
+describe('isBackendRefusal', () => {
+  it('is a 4xx answer or the AppError one becomes, never a fault', () => {
+    expect(isBackendRefusal(new BackendApiError(409, 'taken'))).toBe(true);
+    expect(
+      isBackendRefusal(toBackendError(new BackendApiError(403, 'no', 'X'))),
+    ).toBe(true);
+    // A 5xx stays a fault even when its body carried structured data.
+    expect(
+      isBackendRefusal(new BackendApiError(503, 'later', 'X', { a: 1 })),
+    ).toBe(false);
+    expect(isBackendRefusal(new TypeError('Failed to fetch'))).toBe(false);
+    expect(isBackendRefusal(undefined)).toBe(false);
   });
 });
 
