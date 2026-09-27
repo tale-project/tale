@@ -65,6 +65,10 @@ export async function ensureAgentSession(
     organizationId: string;
     sessionId: string;
     owner: AgentSessionOwner;
+    /** The harness the session runs (`claude-code`, `codex`, …) — the
+     * row's `agent_kind`, which names the session in the harness-turn
+     * metrics; absent for a session no harness turn opens. */
+    agentKind?: string;
   },
 ): Promise<{ liveCreatedAt: number | undefined }> {
   const { organizationId, sessionId } = args;
@@ -110,6 +114,7 @@ export async function ensureAgentSession(
       ownerType: policy.ownerType,
       ownerId: policy.ownerId,
       createdBy: policy.createdBy,
+      ...(args.agentKind !== undefined ? { agentKind: args.agentKind } : {}),
     },
   );
   try {

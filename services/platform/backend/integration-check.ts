@@ -46658,7 +46658,15 @@ async function checkMetricsSurface(
       (${orgId}, 'mx-sess', 'mx-e3', 'task-agent', 'cancelled', 'cancelled',
        0, NULL, ${now - 30_000}, ${now - 29_000}),
       (${orgId}, 'mx-sess', 'mx-e4', 'task-agent', 'failed', 'timeout',
-       0, 1, ${now - 20_000}, ${now - 5_000})
+       0, 1, ${now - 20_000}, ${now - 5_000}),
+      -- the harness's own endings: an error and a turn limit are failures,
+      -- and a turn parked on a question is not an outcome at all
+      (${orgId}, 'mx-sess', 'mx-e5', 'task-agent', 'completed', 'error',
+       0, 1, ${now - 19_000}, ${now - 18_000}),
+      (${orgId}, 'mx-sess', 'mx-e6', 'task-agent', 'completed', 'max-turns',
+       0, 1, ${now - 17_000}, ${now - 16_000}),
+      (${orgId}, 'mx-sess', 'mx-e7', 'task-agent', 'completed',
+       'awaiting_human', 0, 1, ${now - 15_000}, ${now - 14_000})
   `;
 
   // ---- probes ------------------------------------------------------------
@@ -46868,18 +46876,18 @@ async function checkMetricsSurface(
     );
   const turnsOk =
     turns.success &&
-    turns.data.total === 4 &&
+    turns.data.total === 6 &&
     turns.data.completed === 1 &&
-    turns.data.failed === 1 &&
+    turns.data.failed === 3 &&
     turns.data.cancelled === 1 &&
     turns.data.timeout === 1 &&
     turns.data.recovered === 1 &&
     turns.data.successRate !== null &&
-    Math.abs(turns.data.successRate - 1 / 3) < 1e-9 &&
+    Math.abs(turns.data.successRate - 1 / 5) < 1e-9 &&
     turns.data.durationP95Ms === 15_000 &&
-    turns.data.spentCents === 8 &&
+    turns.data.spentCents === 10 &&
     turns.data.byHarness[0]?.harness === 'claude-code' &&
-    turns.data.byHarness[0].total === 4;
+    turns.data.byHarness[0].total === 6;
   record(
     'metrics: external-turn outcomes + percentiles',
     turnsOk,

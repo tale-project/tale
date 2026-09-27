@@ -115,11 +115,13 @@ async function ensureProjectAgentSession(
   organizationId: string,
   agentId: string,
   sessionId: string,
+  harness: string,
 ): Promise<{ liveCreatedAt: number | undefined }> {
   return ensureAgentSession(ctx, {
     organizationId,
     sessionId,
     owner: { type: 'project_agent', agentId },
+    agentKind: harness,
   });
 }
 
@@ -730,6 +732,7 @@ export async function startTaskAgentTurnImpl(
         args.organizationId,
         args.agentId,
         args.sessionId,
+        args.harness,
       );
       // This turn's keys, carrying the incarnation it actually runs on — the
       // settle stamps it (with the conversation handle) for the NEXT kick's

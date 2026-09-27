@@ -168,6 +168,17 @@ rollups**, so figures may legitimately lag same-day activity.
   gains a **Same model** cell (`analytics.feedback.arena.cells.sameModel`)
   counting it, and **Decisive + Tie + Both bad** equals the row sum of **Top
   Model Matchups**.
+- [ ] `MET-F13` · **Harness turns add up and are named** — After one
+  sandboxed agent run per harness you can start (a task agent on
+  `claude-code`, an automation agent on `codex`), open `external-turns` → the
+  rail entry (`metrics.groups.external-turns`), the header
+  (`analytics.externalTurns.title`) and the table heading
+  (`analytics.externalTurns.byHarness.title`) all say **Harness**; the **By
+  harness** table names each harness slug — never `unknown` for a run that
+  started on this version; **Total turns** equals the sum of the rows'
+  **Turns**, the summary **Success rate** / **Timeout rate** equal what the
+  rows imply, and a turn that ended on the harness's own error or its turn
+  limit counts as failed in both.
 
 ## Boundary & error tests
 

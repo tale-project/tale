@@ -271,3 +271,77 @@ describe('sandbox settings read and write authority', () => {
     });
   });
 });
+
+describe('external-turn metrics', () => {
+  it('reads every outcome the same way in the summary and the per-harness rows', async () => {
+    const op = (
+      outcome: string | null,
+      status: string,
+      harness: string | null,
+    ) => ({
+      outcome,
+      status,
+      harness,
+      durationMs: 1000,
+      spentCents: 1,
+      recovered: false,
+    });
+    query.mockResolvedValueOnce([
+      op('completed', 'completed', 'claude-code'),
+      op('error', 'failed', 'claude-code'),
+      op('max-turns', 'completed', 'claude-code'),
+      op('timeout', 'failed', 'claude-code'),
+      op('cancelled', 'cancelled', 'claude-code'),
+      op('awaiting_human', 'completed', 'claude-code'),
+      op(null, 'failed', null),
+    ] as never);
+
+    const response = await app().request('/external-turn-metrics?periodDays=7');
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      total: number;
+      completed: number;
+      failed: number;
+      cancelled: number;
+      timeout: number;
+      successRate: number | null;
+      timeoutRate: number | null;
+      byHarness: Array<{
+        harness: string;
+        total: number;
+        completed: number;
+        failed: number;
+        timeout: number;
+        successRate: number | null;
+      }>;
+    };
+    // The parked turn is in neither fold; error and max-turns are failures
+    // in both; the harness-less op is named 'unknown', not dropped.
+    expect(body).toMatchObject({
+      total: 6,
+      completed: 1,
+      failed: 3,
+      cancelled: 1,
+      timeout: 1,
+    });
+    expect(body.successRate).toBeCloseTo(1 / 5);
+    expect(body.timeoutRate).toBeCloseTo(1 / 5);
+    const claude = body.byHarness.find((row) => row.harness === 'claude-code');
+    const unknown = body.byHarness.find((row) => row.harness === 'unknown');
+    expect(claude).toMatchObject({
+      total: 5,
+      completed: 1,
+      failed: 2,
+      timeout: 1,
+    });
+    expect(claude?.successRate).toBeCloseTo(1 / 4);
+    expect(unknown).toMatchObject({ total: 1, completed: 0, failed: 1 });
+    const rows = body.byHarness;
+    expect(rows.reduce((sum, row) => sum + row.total, 0)).toBe(body.total);
+    expect(rows.reduce((sum, row) => sum + row.completed, 0)).toBe(
+      body.completed,
+    );
+    expect(rows.reduce((sum, row) => sum + row.failed, 0)).toBe(body.failed);
+    expect(rows.reduce((sum, row) => sum + row.timeout, 0)).toBe(body.timeout);
+  });
+});

@@ -59,8 +59,8 @@ analytics:
       title: Keine Läufe
       description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
   externalTurns:
-    title: Agent-Laufzeit-Runden
-    description: Zuverlässigkeit der Agent-Laufzeit-Runden in der Sandbox.
+    title: Harness-Runden
+    description: Zuverlässigkeit der Harness-Runden in der Sandbox.
     cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
       angezeigt. Ältere Runden fließen nicht in diese Summen ein.
     cards:
@@ -71,8 +71,8 @@ analytics:
       cancelled: Von Nutzer gestoppt
       recovered: Wiederhergestellt
     byHarness:
-      title: Nach Agent-Laufzeit
-      harness: Agent-Laufzeit
+      title: Nach Harness
+      harness: Harness
       turns: Runden
       successRate: Erfolgsquote
       timeouts: Timeouts

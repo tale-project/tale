@@ -50,8 +50,8 @@ analytics:
       title: No automation runs
       description: No automations have run in the selected period.
   externalTurns:
-    title: Agent turns
-    description: Reliability of agent turns running in the sandbox.
+    title: Harness turns
+    description: Reliability of harness turns running in the sandbox.
     cappedNotice: Showing the most recent 5,000 turns in this window. Older
       turns in this period are not included in these totals.
     cards:
@@ -62,12 +62,12 @@ analytics:
       cancelled: Stopped by user
       recovered: Recovered
     byHarness:
-      title: By agent
-      harness: Agent
+      title: By harness
+      harness: Harness
       turns: Turns
       successRate: Success rate
       timeouts: Timeouts
-      empty: No agent turns have run in the selected period.
+      empty: No harness turns have run in the selected period.
   usage:
     title: Usage metrics
     description: Token consumption, requests, and active users over time.

@@ -19,6 +19,7 @@ import {
 } from '../../core/sandbox/quota_policy.ts';
 import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { classifyOutcome } from './external-turn-outcome.ts';
 import { getSandboxDeploymentLimits } from './limits.ts';
 import { pinSession, teardownSession } from './service.ts';
 import {
@@ -187,11 +188,15 @@ export function createSandboxRoutes(deps: {
       { total: number; completed: number; failed: number; timeout: number }
     >();
     for (const row of rows) {
+      // ONE classification for the summary and the per-harness row, so the
+      // cards equal the table (a harness `error` or `max-turns` is a failed
+      // turn in both; a turn parked on a question is in neither).
+      const outcome = classifyOutcome(row.outcome, row.status);
+      if (outcome === 'parked') continue;
       total += 1;
       durations.push(row.durationMs);
       if (row.spentCents !== null) spentCents += row.spentCents;
       if (row.recovered) recovered += 1;
-      const outcome = row.outcome ?? row.status;
       if (outcome === 'completed') completed += 1;
       else if (outcome === 'failed') failed += 1;
       else if (outcome === 'cancelled') cancelled += 1;
