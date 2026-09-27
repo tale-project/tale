@@ -296,3 +296,40 @@ describe('isOnDemandReadableName', () => {
     expect(isOnDemandReadableName('trailing.')).toBe(false);
   });
 });
+
+describe('readDocumentText — an email body', () => {
+  const MSG_REF = 'msg:6f3c2a1e-8b7d-4e5f-9a0b-1c2d3e4f5a6b';
+
+  it('serves the indexed body, marked as mail', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce({
+      ...corpusDoc,
+      fileId: MSG_REF,
+      filename: 'Application: field sales agent',
+      text: 'Applying for the field sales agent role.',
+      conversationId: 'conv_1',
+    });
+    const { result, calls } = await read({}, MSG_REF);
+    expect(result).toEqual({
+      status: 'ok',
+      text: 'Applying for the field sales agent role.',
+      filename: 'Application: field sales agent',
+      conversationId: 'conv_1',
+      source: 'corpus',
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('answers one miss for an email the corpus cannot serve, and reads nothing else', async () => {
+    // Denied, deleted, or refused by the secret scan: no document row and
+    // no stored bytes to fall back to — and reading the message row would
+    // serve the very text the indexer refused.
+    const { result, calls } = await read({}, MSG_REF);
+    expect(result).toEqual({
+      status: 'not_found',
+      message:
+        'No readable email with that ref in this organization. Re-run ' +
+        'rag_search and use a ref from its results.',
+    });
+    expect(calls).toEqual([]);
+  });
+});
