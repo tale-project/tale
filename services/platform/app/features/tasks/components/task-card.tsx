@@ -150,12 +150,15 @@ export function TaskCard({
         {/* The ONE interactive element of the card: its sortable activator
             (dnd-kit's role/tabIndex/keyboard listeners land here) and its
             open target. The stretched ::after makes the whole card its hit
-            area; the pickers below sit above it (`relative z-10`). */}
+            area; the pickers below sit above it (`relative z-10`). A
+            read-only card is a plain button: dnd-kit's attributes would
+            announce it disabled ("sortable", aria-disabled) although it
+            still opens the task. */}
         <button
           type="button"
           ref={sortable.setActivatorNodeRef}
-          {...sortable.attributes}
-          {...sortable.listeners}
+          {...(editable ? sortable.attributes : {})}
+          {...(editable ? sortable.listeners : {})}
           onClick={() => onOpen?.(task)}
           onKeyDown={(e) => {
             // Enter always opens the task. Space starts a keyboard drag via
@@ -168,6 +171,12 @@ export function TaskCard({
               return;
             }
             sortable.listeners?.onKeyDown?.(e);
+          }}
+          onKeyUp={(e) => {
+            // A native button clicks on Space KEYUP, so a keyboard drag
+            // (or drop) on Space would also open the task; keydown already
+            // did whatever Space means for this card.
+            if (e.key === ' ') e.preventDefault();
           }}
           className={cn(
             'text-foreground line-clamp-2 w-full text-left text-sm leading-snug font-medium',

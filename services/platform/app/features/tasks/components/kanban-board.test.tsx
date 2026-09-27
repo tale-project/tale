@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import type { TaskDoc } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
@@ -171,5 +171,71 @@ describe('KanbanBoard card semantics', () => {
     expect(onOpenTask).toHaveBeenCalledWith(
       expect.objectContaining({ _id: task._id }),
     );
+  });
+
+  // dnd-kit's attributes on a disabled sortable announce the title button
+  // as `aria-disabled` "sortable" — although it still opens the task. A
+  // read-only card is a plain button.
+  it('leaves a read-only card as a plain button, not a disabled sortable', () => {
+    render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit={false}
+        tasks={[makeTask('Ship it', 'todo', 'a0')]}
+      />,
+    );
+    const title = screen.getByRole('button', { name: 'Ship it' });
+    expect(title).not.toHaveAttribute('aria-disabled');
+    expect(title).not.toHaveAttribute('aria-roledescription');
+    expect(title).not.toHaveAttribute('aria-describedby');
+    expect(title).not.toHaveAttribute('aria-pressed');
+  });
+
+  it('opens a read-only card on Space once, from the keyboard', async () => {
+    const onOpenTask = vi.fn();
+    const task = makeTask('Ship it', 'todo', 'a0');
+    const { user } = render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit={false}
+        tasks={[task]}
+        onOpenTask={onOpenTask}
+      />,
+    );
+    screen.getByRole('button', { name: 'Ship it' }).focus();
+    await user.keyboard(' ');
+    expect(onOpenTask).toHaveBeenCalledTimes(1);
+  });
+
+  // Space on an editable card starts a keyboard drag (dnd-kit prevents the
+  // keydown). A native button still clicks on Space KEYUP in Firefox, which
+  // would ALSO open the task — so the keyup is prevented too. (user-event
+  // models Chrome, where the prevented keydown already swallows the click,
+  // so the keyup is asserted directly.)
+  it('prevents the Space keyup click that would open an editable card', async () => {
+    const onOpenTask = vi.fn();
+    const task = makeTask('Ship it', 'todo', 'a0');
+    const { user } = render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit
+        tasks={[task]}
+        onOpenTask={onOpenTask}
+      />,
+    );
+    screen.getByRole('button', { name: 'Ship it' }).focus();
+    await user.keyboard(' ');
+    expect(onOpenTask).not.toHaveBeenCalled();
+    // The drag re-renders the card (the overlay clone included), so the
+    // title is read again. `fireEvent` answers false when a handler
+    // prevented the default.
+    const titles = screen.getAllByRole('button', { name: 'Ship it' });
+    expect(titles.length).toBeGreaterThan(0);
+    for (const title of titles) {
+      expect(document.contains(title)).toBe(true);
+      expect(fireEvent.keyUp(title, { key: ' ' })).toBe(false);
+      expect(fireEvent.keyUp(title, { key: 'Enter' })).toBe(true);
+    }
+    expect(onOpenTask).not.toHaveBeenCalled();
   });
 });
