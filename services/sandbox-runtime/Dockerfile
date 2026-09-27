@@ -27,8 +27,9 @@ FROM python:3.12-slim-bookworm
 
 # Pinned agent + tool versions (sessions plan — upgrade = bump ARG + rebuild).
 # 2.x required: the claude_code adapter passes --include-partial-messages,
-# which 1.0.x rejects (exit 1 before the agent even starts).
-ARG CLAUDE_CODE_VERSION=2.1.173
+# which 1.0.x rejects (exit 1 before the agent even starts). 2.1.280 is the
+# first release that knows Claude Opus 5.5 (2.1.257: Claude Fable 5.1).
+ARG CLAUDE_CODE_VERSION=2.1.283
 ARG OPENCODE_VERSION=1.17.3
 ARG CURSOR_AGENT_VERSION=2026.03.20-44cb435
 ARG HERMES_AGENT_VERSION=0.18.0
@@ -166,12 +167,15 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 # Maximum reasoning effort by DEFAULT for the in-sandbox coding agent (drives
 # adaptive thinking at full depth on Opus-class models; a model without effort
-# support just ignores it). This lives in the daemon's process env, which the
-# exec manager uses as the LOWEST-precedence floor (`{ ...process.env,
-# ...envStore.resolve(req.env) }`), so a user-supplied CLAUDE_CODE_EFFORT_LEVEL
-# in the session env or per-exec overlay still wins. Deliberately NOT placed in
-# managed-settings.json — that layer is highest-precedence and would make the
-# default impossible to override.
+# support just ignores it). Observed on 2.1.283: the request carries
+# `output_config.effort: max` for claude-opus-5-5 (whose own default is
+# medium), claude-fable-5-1, claude-fable-5 and claude-opus-4-8, and so do
+# subagent and background title calls. This lives in the daemon's process
+# env, which the exec manager uses as the LOWEST-precedence floor
+# (`{ ...process.env, ...envStore.resolve(req.env) }`), so a user-supplied
+# CLAUDE_CODE_EFFORT_LEVEL in the session env or per-exec overlay still wins.
+# Deliberately NOT placed in managed-settings.json — that layer is
+# highest-precedence and would make the default impossible to override.
 ENV CLAUDE_CODE_EFFORT_LEVEL=max
 # Apply max effort even when the gateway hands Claude Code a model id it does NOT
 # recognise as effort-capable. CC's built-in capability check matches exact names
@@ -183,15 +187,18 @@ ENV CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1
 # does not resolve in the headless sandbox, so the agent would report "Ultracode
 # needs dynamic workflows enabled". Adaptive "ultrathinking" needs NO flag — it is
 # on by default on Opus-class models and driven to full depth by max effort; we
-# simply never set CLAUDE_CODE_DISABLE_THINKING / CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING.
+# never set CLAUDE_CODE_DISABLE_THINKING / CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING
+# for a Claude model (the exec builder sets them only for a foreign one) — Opus
+# 5.5 and the Fable models refuse a disabled `thinking` outright.
 ENV CLAUDE_CODE_WORKFLOWS=1
 # Output-token ceiling per request. Claude Code gives ids it RECOGNISES
 # (claude-fable-5, claude-opus-4-8, …) 64K output under a `[1m]` 1M-context
 # window, but an id it does not recognise falls back to a conservative 32K —
 # and the shipped default model is exactly such an id (the rolling
 # `~anthropic/claude-fable-latest` alias). Pin the floor to the same 64K the
-# recognised flagships already get (smoke-verified on 2.1.173: the value lands
-# verbatim as the request's max_tokens). Deliberately NOT higher — >64K at 1M
+# recognised flagships already get (smoke-verified on 2.1.173, and again on
+# 2.1.283 for claude-opus-5-5 and claude-fable-5-1: the value lands verbatim
+# as the request's max_tokens). Deliberately NOT higher — >64K at 1M
 # context is unverified against live upstreams. Same overridable-floor
 # semantics as CLAUDE_CODE_EFFORT_LEVEL above.
 ENV CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
@@ -415,8 +422,13 @@ COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 # janitor would silently break `--resume` on a standing session's older
 # tasks; the store lives on the org's own /agent volume), and register the
 # steer hook (mid-turn message injection — hooks merge across settings
-# sources, so /agent configs can't shadow it). NOT permission rules — those
-# are per-run flags.
+# sources, so /agent configs can't shadow it). Two opt-outs keep what newer
+# CLIs added out of the sandbox: crossSessionInbound:"refuse" (2.1.224+
+# offers every session SendMessage/ListAgents, a channel between concurrent
+# execs of separate tasks in one container) and syncClaudeAiSkills/Plugins
+# false (2.1.275+ syncs a claude.ai account's own skills and plugins into
+# sessions signed in with it — the subscription lane). NOT permission rules —
+# those are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
 
 # Steer hook: injects platform-queued user messages into a RUNNING Claude

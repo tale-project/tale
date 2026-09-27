@@ -46,11 +46,13 @@ policy. The closed shipped-harness registry must include each choice.
 `claude-code-compact` inherits `claude-code` and sets `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` for
 that exec only. Select it through the existing workflow `harness` field when the workflow supplies
 its own complete domain instructions. Ordinary `claude-code` remains unchanged. The pinned Claude
-Code 2.1.173 keeps its tools, hooks, MCP, discovered instructions and the platform's appended domain
-and safety guidance; its built-in prompt and some tool descriptions are shorter. This flag does not
-enable `CLAUDE_CODE_SIMPLE` or `--bare`. Measure correctness and processing time against the selected
-model before adopting the variant in a deployed workflow; smaller prompt bytes alone do not prove
-lower latency. Restoring `harness: claude-code` removes the opt-in on the next fresh run.
+Code 2.1.283 keeps its tools, hooks, MCP, discovered instructions and the platform's appended domain
+and safety guidance; its built-in prompt and some tool descriptions are shorter. A model the CLI
+already gives its short prompt, such as Claude Opus 4.8 or Claude Opus 5.5, sees no change. This
+flag does not enable `CLAUDE_CODE_SIMPLE` or `--bare`. Measure correctness and processing time
+against the selected model before adopting the variant in a deployed workflow; smaller prompt
+bytes alone do not prove lower latency. Restoring `harness: claude-code` removes the opt-in on the
+next fresh run.
 
 ## Validate a catalog change
 
