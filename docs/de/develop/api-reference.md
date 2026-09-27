@@ -1147,7 +1147,7 @@ Ein erneuter Aufruf mit derselben externen Referenz einer aktiven Aufgabe aktual
 
 ### Einrichtungsordner und Automatisierungszuordnung festlegen
 
-Optional sind `description`, `labels`, `externalUrl` und `setupFolderName`. `title` erlaubt höchstens 200 Zeichen. Eine direkt angegebene `externalUrl` muss eine absolute `http(s)`-URL sein. Ungültige Werte ergeben **400**; Tale kürzt oder ersetzt sie nicht automatisch.
+Optional sind `description`, `labels`, `externalUrl` und `setupFolderName`. `title` erlaubt höchstens 200 UTF-16-Codeeinheiten; die meisten Emojis zählen doppelt. Eine direkt angegebene `externalUrl` muss eine absolute `http(s)`-URL sein. Ungültige Werte ergeben **400**; Tale kürzt oder ersetzt sie nicht automatisch.
 
 Mit `setupFolderName` wählst du einen Wurzelordner des Projekts anhand seines Namens, unabhängig von Groß- und Kleinschreibung. Tale speichert dessen ID als `externalUrl` der Aufgabe. Eine Automatisierung kann so den Einrichtungsordner aus ihrer Aufgaben-Eingabe lesen. Bei wiederholten Anfragen wird der Name erneut aufgelöst.
 
@@ -1217,7 +1217,7 @@ curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>
 
 ### Kommentare und Arbeitsergebnisse lesen
 
-Beim Schreiben eines Kommentars kannst du neben dem ursprünglichen `body` optional `bodyByLocale` mitsenden. Beim Lesen wird es zurückgegeben, sofern vorhanden. Liefere inhaltlich gleichwertige, nicht leere Übersetzungen für `en`, `de` und `fr`; weitere Sprach- oder Sprachregionsschlüssel wie `nl`, `it` und `de-CH` sind erlaubt. Jeder Wert wird außen von Leerraum bereinigt und darf höchstens 10.000 Zeichen enthalten; pro Kommentar sind bis zu 16 Sprachvarianten erlaubt. Zeige zuerst die genaue Spracheinstellung des Lesers, danach die Grundsprache, dann `en` und zuletzt `body` an. Als Autor bleibt der Schlüsselinhaber eingetragen. Eine reine Textbearbeitung in Tale entfernt die alten Übersetzungen, damit sie die Änderung nicht verdecken.
+Beim Schreiben eines Kommentars kannst du neben dem ursprünglichen `body` optional `bodyByLocale` mitsenden. Beim Lesen wird es zurückgegeben, sofern vorhanden. Liefere inhaltlich gleichwertige, nicht leere Übersetzungen für `en`, `de` und `fr`; weitere Sprach- oder Sprachregionsschlüssel wie `nl`, `it` und `de-CH` sind erlaubt. Jeder Wert wird außen von Leerraum bereinigt und darf höchstens 10.000 UTF-16-Codeeinheiten enthalten, wobei die meisten Emojis doppelt zählen; pro Kommentar sind bis zu 16 Sprachvarianten erlaubt. Zeige zuerst die genaue Spracheinstellung des Lesers, danach die Grundsprache, dann `en` und zuletzt `body` an. Als Autor bleibt der Schlüsselinhaber eingetragen. Eine reine Textbearbeitung in Tale entfernt die alten Übersetzungen, damit sie die Änderung nicht verdecken.
 
 Aufgaben- und Workflow-Agenten erhalten die Anweisung, die Sprache aus Titel und Beschreibung der Aufgabe beizubehalten. Ist keine erkennbar, gilt die Standardsprache der Organisation für Agenten. Vorgegebene Wörter einer Titelvorlage, Quartalskennungen, die Sprache der Quelldokumente und die Oberflächensprache der startenden Person legen die Aufgabensprache nicht fest. Das gilt auch für Rückfragen, fortgesetzte Läufe und neue zugehörige Aufgaben. Dies sind Anweisungen an das Modell; gespeicherte Übersetzungen von Fortschrittsmeldungen erlauben Clients, die angezeigte Sprache unabhängig davon zu wählen.
 

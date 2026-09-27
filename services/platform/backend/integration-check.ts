@@ -50,7 +50,13 @@ import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
-import { TASK_TITLE_MAX } from './core/tasks/helpers.ts';
+import {
+  TASK_COMMENT_MAX,
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_TITLE_MAX,
+  taskLimitText,
+} from './core/tasks/helpers.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
@@ -36850,6 +36856,7 @@ async function checkAutomationRunToolLane(
     'ask_human',
     'task_find',
     'task_create',
+    'task_comment',
     'task_update_status',
     'task_upsert_by_external_ref',
     'document_create',
@@ -36945,6 +36952,36 @@ async function checkAutomationRunToolLane(
   const overLongRows = await sql<{ id: string }[]>`
     SELECT id FROM app.tasks
     WHERE org_id = ${orgId} AND title = ${overLongTitle}
+  `;
+  // The domain's own refusals reach the model with the sentence that names
+  // the limit, beside their code: a description and a label over the cap on
+  // create, and a comment over the cap. Nothing lands for any of them.
+  const overLongDescription = await dispatch(pinnedToken, 'task_create', {
+    title: 'Overlong description',
+    description: 'd'.repeat(TASK_DESCRIPTION_MAX + 1),
+  });
+  const overLongLabelName = `itest-${'l'.repeat(TASK_LABEL_CHARS_MAX)}`;
+  const overLongLabel = await dispatch(pinnedToken, 'task_create', {
+    title: 'Overlong label',
+    labels: ['itest-fits', overLongLabelName],
+  });
+  const overLongComment = await dispatch(pinnedToken, 'task_comment', {
+    taskId,
+    body: 'c'.repeat(TASK_COMMENT_MAX + 1),
+  });
+  const limitRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${orgId}
+      AND title IN ('Overlong description', 'Overlong label')
+  `;
+  const limitLabels = await sql<{ id: string }[]>`
+    SELECT id FROM app.task_labels
+    WHERE project_id = ${boundProjectId}
+      AND name IN ('itest-fits', ${overLongLabelName})
+  `;
+  const limitComments = await sql<{ messageId: string }[]>`
+    SELECT message_id AS "messageId" FROM app.task_discussion_message_meta
+    WHERE task_id = ${taskId}
   `;
   const found = await dispatch(pinnedToken, 'task_find', {});
   const moved = await dispatch(pinnedToken, 'task_update_status', {
@@ -37250,7 +37287,7 @@ async function checkAutomationRunToolLane(
     `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status}${syncedFirst.status === 'ok' ? '' : ` (first: ${syncedFirst.raw})`}${syncedAgain.status === 'ok' ? '' : ` (again: ${syncedAgain.raw})`} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
   );
   const namesTitleLimit = overLong.raw.includes(
-    `capped at ${TASK_TITLE_MAX} characters`,
+    `capped at ${taskLimitText(TASK_TITLE_MAX)}`,
   );
   record(
     'task_create refuses an over-long title at the tool door, naming the limit',
@@ -37259,6 +37296,31 @@ async function checkAutomationRunToolLane(
       !overLong.raw.includes('TASK_TITLE_INVALID') &&
       overLongRows.length === 0,
     `status=${overLong.status} (want invalid_args), namesLimit=${namesTitleLimit}, rows=${overLongRows.length} (want 0), raw=${overLong.raw.slice(0, 200)}`,
+  );
+  const namesDescriptionLimit = overLongDescription.raw.includes(
+    'TASK_DESCRIPTION_INVALID: The task description is capped at ' +
+      taskLimitText(TASK_DESCRIPTION_MAX),
+  );
+  const namesLabelLimit = overLongLabel.raw.includes(
+    'TASK_LABELS_INVALID: A label name is capped at ' +
+      taskLimitText(TASK_LABEL_CHARS_MAX),
+  );
+  const namesCommentLimit = overLongComment.raw.includes(
+    'TASK_COMMENT_INVALID: The comment is capped at ' +
+      taskLimitText(TASK_COMMENT_MAX),
+  );
+  record(
+    'task tools relay the domain’s limit sentence for a description, a label and a comment over the cap',
+    overLongDescription.status === 'invalid_args' &&
+      namesDescriptionLimit &&
+      overLongLabel.status === 'invalid_args' &&
+      namesLabelLimit &&
+      overLongComment.status === 'invalid_args' &&
+      namesCommentLimit &&
+      limitRows.length === 0 &&
+      limitLabels.length === 0 &&
+      limitComments.length === 0,
+    `description=${overLongDescription.status}/${namesDescriptionLimit}, label=${overLongLabel.status}/${namesLabelLimit}, comment=${overLongComment.status}/${namesCommentLimit} (want invalid_args/true each), rows=${limitRows.length} labels=${limitLabels.length} comments=${limitComments.length} (want 0 each), raw=${[overLongDescription, overLongLabel, overLongComment].map((answer) => answer.raw.slice(0, 160)).join(' | ')}`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';

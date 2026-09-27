@@ -19,11 +19,18 @@
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { extractExtension } from '../../../../lib/shared/file-types';
 import { modelTimestamp } from '../../../../lib/shared/model-timestamp';
-import { taskCommentBodiesSchema } from '../../../../lib/shared/schemas/task-comment';
+import {
+  TASK_COMMENT_LOCALES_MAX,
+  taskCommentBodiesSchema,
+} from '../../../../lib/shared/schemas/task-comment';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import type { Doc, Id } from '../../lib/rows';
-import { TASK_TITLE_MAX } from '../../tasks/helpers';
+import {
+  TASK_COMMENT_MAX,
+  taskLimitText,
+  taskTitleRefusal,
+} from '../../tasks/helpers';
 import {
   isRecord,
   readBoolean,
@@ -60,7 +67,9 @@ const TASK_STATUSES = [
 const TASK_CREATE_STATUSES = ['backlog', 'todo'] as const;
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'] as const;
 
-const TASK_LABELS_CAP = 20;
+/** Labels one task tool call may name: the first ones are kept and the rest
+ * dropped, before the domain's own per-name limit applies. */
+export const TASK_LABELS_CAP = 20;
 /** Inline document content cap — the bridge relays JSON over HTTP; anything
  * bigger belongs in the run's output harvest, not a tool arg. */
 const DOCUMENT_CONTENT_MAX_CHARS = 600_000;
@@ -101,12 +110,22 @@ function readLabels(raw: unknown): string[] | undefined {
   return labels.length > 0 ? labels : undefined;
 }
 
+/** The longest message a failed call relays to the model — a guard, far
+ * above any sentence the domain writes. */
+const RELAYED_MESSAGE_MAX_CHARS = 400;
+
 /**
  * Map a failed domain call to a structured result the model can act on. The
  * internal mutations refuse with coded `AppError`s (TASK_NOT_FOUND,
- * TASK_TITLE_INVALID, …); anything else (a Convex arg-validator rejection of
- * a malformed id, a transient failure) reads as its message, truncated —
- * these carry validator prose, never secrets.
+ * TASK_TITLE_INVALID, …) carrying the domain's own sentence beside the code.
+ * An `invalid_args` relays both: the code is the refusal's identity, and the
+ * sentence is what names the limit a value broke ("capped at 20,000 UTF-16
+ * code units … this one has 20,431") — the code alone told the model that an
+ * argument was wrong, never which rule it broke. Only the sentence travels:
+ * the domain writes it for the caller, naming its limits and the lengths it
+ * measured rather than the value it refused, and a structured payload beside
+ * it is left behind. Anything else (a transient failure) reads as its
+ * message, truncated — these carry validator prose, never secrets.
  */
 function toolResultFromError(error: unknown): ToolResult {
   if (error instanceof AppError) {
@@ -119,13 +138,20 @@ function toolResultFromError(error: unknown): ToolResult {
         message: `${code}: no such record in this organization.`,
       };
     }
-    return {
-      status: 'invalid_args',
-      message: `${code}: the domain refused these arguments.`,
-    };
+    const reason =
+      isRecord(data) &&
+      typeof data.message === 'string' &&
+      data.message !== '' &&
+      data.message !== code
+        ? data.message.slice(0, RELAYED_MESSAGE_MAX_CHARS)
+        : 'the domain refused these arguments.';
+    return { status: 'invalid_args', message: `${code}: ${reason}` };
   }
   const message = error instanceof Error ? error.message : String(error);
-  return { status: 'error', message: message.slice(0, 400) };
+  return {
+    status: 'error',
+    message: message.slice(0, RELAYED_MESSAGE_MAX_CHARS),
+  };
 }
 
 /** Name (+ optional key) for the task's project — kept beside `projectId` so
@@ -413,26 +439,29 @@ export async function runTaskTool(
     }
 
     if (args.tool === 'task_create') {
-      const title = readString(callArgs.title);
-      if (title === undefined) {
+      if (typeof callArgs.title !== 'string') {
         return {
           status: 'invalid_args',
           message: 'task_create needs a non-empty "title" string.',
         };
       }
-      // The domain's validateTitle refuses the same trimmed length, but as a
-      // bare TASK_TITLE_INVALID. Refused here, the model learns the limit it
-      // has to meet, and nothing is read or written for a call that cannot
-      // land.
-      if (title.length > TASK_TITLE_MAX) {
+      // An empty (or whitespace-only) title and an over-long one are told
+      // apart in the very sentence the domain's validateTitle refuses them
+      // with, the range and its unit named. Refused at the boundary, nothing
+      // is read or written for a call that cannot land, and the model is
+      // told what to do about it.
+      const titleRefusal = taskTitleRefusal(callArgs.title);
+      if (titleRefusal !== null) {
         return {
           status: 'invalid_args',
           message:
-            `The task title is capped at ${TASK_TITLE_MAX} characters (this ` +
-            `one has ${title.length}) — shorten it and put the detail in ` +
-            '"description".',
+            callArgs.title.trim() === ''
+              ? `${titleRefusal} Name the task in a short title.`
+              : `${titleRefusal} Shorten it and put the detail in ` +
+                '"description".',
         };
       }
+      const title = callArgs.title.trim();
       const target = resolveTargetProject(authority, callArgs);
       if ('refusal' in target) return target.refusal;
       if (target.projectId === undefined) {
@@ -523,7 +552,10 @@ export async function runTaskTool(
         return {
           status: 'invalid_args',
           message:
-            'task_comment bodyByLocale needs nonblank en/de/fr translations (at most 10,000 characters each), with optional additional language or language-region keys.',
+            'task_comment bodyByLocale needs nonblank en/de/fr translations ' +
+            `(at most ${taskLimitText(TASK_COMMENT_MAX)} each), with optional ` +
+            'additional language or language-region keys (at most ' +
+            `${TASK_COMMENT_LOCALES_MAX} locales in all).`,
         };
       }
       const scoped = await loadTaskInScope(

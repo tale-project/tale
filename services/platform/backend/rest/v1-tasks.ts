@@ -10,6 +10,7 @@ import {
   TASK_LABEL_CHARS_MAX,
   TASK_LABELS_MAX,
   TASK_TITLE_MAX,
+  taskLimitText,
 } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
 import {
@@ -67,6 +68,16 @@ import {
   RestRefusal,
 } from './shared.ts';
 
+/**
+ * A task text cap in the house voice, its unit named: every task limit
+ * counts UTF-16 code units (`String.length`, most emoji counting 2), as the
+ * domain's refusals and the reference state it — not the "characters" the
+ * formatter's default sentence claims (the chat `content` cap's J2-1 fix).
+ */
+function atMostTaskLimit(max: number): string {
+  return `must be at most ${taskLimitText(max)}`;
+}
+
 /** The caller-owned external ref, canonical (NFC, trimmed) and never
  * blank — the one rule the project family's `externalItemId` follows. */
 const externalSystemSchema = externalKeySchema(100);
@@ -80,10 +91,23 @@ const taskIntakeBody = z
     // ellipsis truncation stays for the lanes that import titles nobody
     // chose — a GitHub issue, a sandbox native). Whitespace-only is a
     // missing title, named as such.
-    title: z.string().trim().min(1).max(TASK_TITLE_MAX),
-    description: z.string().max(TASK_DESCRIPTION_MAX).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TASK_TITLE_MAX, atMostTaskLimit(TASK_TITLE_MAX)),
+    description: z
+      .string()
+      .max(TASK_DESCRIPTION_MAX, atMostTaskLimit(TASK_DESCRIPTION_MAX))
+      .optional(),
     labels: z
-      .array(z.string().trim().min(1).max(TASK_LABEL_CHARS_MAX))
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1)
+          .max(TASK_LABEL_CHARS_MAX, atMostTaskLimit(TASK_LABEL_CHARS_MAX)),
+      )
       .max(TASK_LABELS_MAX)
       .optional(),
     // Rendered as a link to the source item — http(s) only, so a
@@ -121,7 +145,11 @@ const taskIntakeBody = z
   );
 const taskCommentBody = z
   .object({
-    body: z.string().trim().min(1).max(TASK_COMMENT_MAX),
+    body: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TASK_COMMENT_MAX, atMostTaskLimit(TASK_COMMENT_MAX)),
     bodyByLocale: taskCommentBodiesSchema.optional(),
   })
   .strict();
@@ -142,7 +170,12 @@ const taskStartBody = z
 const taskReviewBody = z
   .object({
     decision: z.enum(['approve', 'request_changes']),
-    comment: z.string().trim().min(1).max(TASK_COMMENT_MAX).optional(),
+    comment: z
+      .string()
+      .trim()
+      .min(1)
+      .max(TASK_COMMENT_MAX, atMostTaskLimit(TASK_COMMENT_MAX))
+      .optional(),
     workflowSlug: z.string().min(1).max(200).optional(),
     actor: actorBodySchema,
   })
