@@ -51,6 +51,8 @@ The backend worker runs scheduled cleanup per organization. Threads, documents, 
 
 Audit retention is also organization-scoped. It removes the oldest eligible prefix of that organization’s audit chain, stopping when a held row must remain. One tenant’s shorter window does not shorten another tenant’s history.
 
+Each run is recorded in the organization’s [audit log](/platform/admin/governance/audit-logs) as system events in the data category. It begins with **Retention run started**, adds one event for each category that deleted records, carrying the number removed rather than one event per record, and ends with **Retention run completed**. A run that stops on an error, or keeps due records because their deletion failed, ends with **Retention run failed** instead; the next scheduled run retries those records. All events of one run name the same retention run as their target, and a run that finds nothing to delete still records its start and end.
+
 `TALE_RETENTION_DISABLED=true` pauses scheduled retention cleanup for an operator-controlled maintenance window. It does not restore deleted data or disable other deletion paths. Record when you enable it and remove it when the maintenance is complete.
 
 ## Preserve held data

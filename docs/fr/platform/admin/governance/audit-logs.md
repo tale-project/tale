@@ -47,3 +47,5 @@ Choisis **Vérifier maintenant** dans la section d’intégrité de la chaîne p
 Une vérification réussie couvre les enregistrements conservés qu’elle a examinés. Elle n’établit pas une origine de l’historique signée de façon indépendante. Le [guide d’intégrité pour l’exploitation](/fr/self-hosted/operate/security/audit-log-integrity) décrit les contrôles et leurs limites.
 
 Le chaînage par empreintes aide à détecter les changements des enregistrements stockés. Il ne prouve pas que toute action possible a été enregistrée. La rétention de l’audit se configure dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Vérifie la règle active et les bornes du déploiement sans supposer une durée fixe. Des entrées d’audit récupérables peuvent apparaître dans la [Corbeille](/fr/platform/admin/governance/trash). Le nettoyage définitif limite l’historique disponible ici.
+
+Le nettoyage de rétention planifié consigne ici chacun de ses cycles sous forme d’événements système de la catégorie **Données** : son démarrage, le nombre d’éléments supprimés dans chaque catégorie, et s’il s’est terminé ou a échoué.

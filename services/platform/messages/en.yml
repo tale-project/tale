@@ -6541,6 +6541,12 @@ settings:
         workflow_execution.retention_deleted: Automation run retention deleted
         workflow_trigger_log.retention_deleted: Automation trigger log retention deleted
         audit_log.retention_deleted: Audit log retention deleted
+        automation_run.retention_deleted: Automation run retention deleted
+        agent_run.retention_deleted: Agent run retention deleted
+        message_feedback.retention_deleted: Message feedback retention deleted
+        notification.retention_deleted: Notification retention deleted
+        file_metadata.retention_deleted: File retention deleted
+        sandbox_ledger.retention_deleted: Sandbox ledger retention deleted
         policy_acknowledged: Policy acknowledged
         login_attempt: Login attempt
         login_lockout: Login lockout

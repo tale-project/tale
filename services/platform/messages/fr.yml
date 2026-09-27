@@ -6496,6 +6496,12 @@ settings:
         workflow_execution.retention_deleted: Exécution d'automatisation supprimée (rétention)
         workflow_trigger_log.retention_deleted: Journal de trigger d'automatisation supprimé (rétention)
         audit_log.retention_deleted: Journal d'audit supprimé (rétention)
+        automation_run.retention_deleted: Exécution d'automatisation supprimée (rétention)
+        agent_run.retention_deleted: Exécution d'agent supprimée (rétention)
+        message_feedback.retention_deleted: Retour sur message supprimé (rétention)
+        notification.retention_deleted: Notification supprimée (rétention)
+        file_metadata.retention_deleted: Fichier supprimé (rétention)
+        sandbox_ledger.retention_deleted: Journal du sandbox supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
         login_lockout: Verrouillage de connexion

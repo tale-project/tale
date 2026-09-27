@@ -51,6 +51,8 @@ Der Backend-Worker bereinigt Daten nach Zeitplan und getrennt je Organisation. T
 
 Auch Audit-Einträge werden je Organisation aufbewahrt. Die Bereinigung entfernt den ältesten zulässigen zusammenhängenden Anfang ihrer Audit-Kette und stoppt an einem Eintrag, den eine Aufbewahrungssperre schützt. Eine kürzere Frist eines Mandanten verkürzt nicht die Historie eines anderen.
 
+Jeder Bereinigungslauf wird im [Audit-Log](/de/platform/admin/governance/audit-logs) der Organisation als Systemereignisse der Kategorie Daten festgehalten. Er beginnt mit **Aufbewahrungs-Run gestartet**, erfasst für jede Kategorie, in der er Datensätze gelöscht hat, ein einziges Ereignis mit deren Anzahl statt eines Ereignisses pro Datensatz, und endet mit **Aufbewahrungs-Run abgeschlossen**. Stoppt ein Lauf an einem Fehler oder behält er fällige Datensätze, weil ihre Löschung fehlgeschlagen ist, endet er stattdessen mit **Aufbewahrungs-Run fehlgeschlagen**; der nächste geplante Lauf versucht diese Datensätze erneut. Alle Ereignisse eines Laufs nennen denselben Aufbewahrungs-Run als Ziel, und auch ein Lauf, der nichts zu löschen findet, hält Beginn und Ende fest.
+
 `TALE_RETENTION_DISABLED=true` pausiert die geplante Aufbewahrungsbereinigung für ein Wartungsfenster. Die Variable stellt keine Daten wieder her und verhindert keine anderen Löschwege. Halte ihre Aktivierung fest und entferne sie nach der Wartung.
 
 ## Gesperrte Daten bewahren

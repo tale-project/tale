@@ -61,6 +61,7 @@ import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
+import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
@@ -53753,6 +53754,10 @@ async function main(): Promise<void> {
       [
         'checkRetention',
         () => checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkRetentionAuditTrail',
+        () => checkRetentionAuditTrail(sql, authCtx, record),
       ],
       [
         'checkErasure',
