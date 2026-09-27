@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 17 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 18 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -180,6 +180,13 @@ single warm sample.
   warnings and `/events: database back after …` rather than error stacks;
   with `SENTRY_DSN` set no error-level event arrives (a restart longer than
   about a minute sends one warning-level event).
+- [ ] `PERF-B6` · **Job queue log through a database restart** — Follow
+  `docker compose logs -f backend-worker backend-api`, run `docker compose
+  restart db`, and once `db` reports healthy again, restart it a second
+  time. → Each restart adds exactly one `pg-boss: database unavailable, polls
+  fail quietly until one succeeds: …` warning per container, and no
+  `pg-boss error:` dump at all; the second restart adds its own line.
+  Afterwards jobs run again: a new chat gets its generated title.
 
 ## Accessibility (WCAG 2.1 AA)
 
