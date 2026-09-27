@@ -42,6 +42,7 @@ import {
   wrapUntrusted,
 } from '../../../lib/chat/untrusted-content';
 import { htmlTitle, htmlToText } from '../../../lib/knowledge/html-to-text';
+import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
 import {
   SafeFetchError,
@@ -116,10 +117,11 @@ const CORPUS_SNIPPET_TOTAL_CHARS =
  * Namespace prefixes that make a work row's `ref` self-describing, so
  * `rag_fetch` can route one without a lookup.
  *
- * Safe against the two ref shapes that already exist: a document ref is a
- * storage id or an `s3:` blob ref, and a page ref is an `http(s)://` URL —
- * neither can begin with `task:` or `project:`. Keep them distinct from the
- * `s3:` scheme for the same reason.
+ * Safe against the ref shapes that already exist: a document ref is a
+ * storage id or an `s3:` blob ref, an email ref is `msg:` (`lib/knowledge/
+ * message-ref.ts`), and a page ref is an `http(s)://` URL — none can begin
+ * with `task:` or `project:`. Keep them distinct from the `s3:` and `msg:`
+ * schemes for the same reason.
  */
 const WORK_REF_PREFIX = { task: 'task:', project: 'project:' } as const;
 
@@ -175,8 +177,9 @@ function archiveFlags(args: {
 interface SearchResultEntry {
   readonly kind: RagSearchKind;
   readonly title: string;
-  /** What `rag_fetch` accepts: a document file id, a page URL, or a work
-   * ref. Entity rows carry their content inline instead. */
+  /** What `rag_fetch` accepts: a document file id, a page URL, an email ref
+   * (a conversation row an email body matched), or a work ref. Entity rows
+   * carry their content inline instead. */
   readonly ref?: string;
   readonly url?: string;
   readonly snippet?: string;
@@ -981,18 +984,28 @@ export function createChatToolExecutor(
       readAllowed('conversations'),
     ]);
 
-    // Leg 1 — the RAG corpora (documents, emailed attachments, crawled
-    // pages), vector+keyword. Scoped to the turn user's own visibility: team
-    // libraries they belong to, projects they can read, and the org hub —
+    // Leg 1 — the RAG corpora (documents, emailed attachments, the bodies of
+    // inbound email, crawled pages), vector+keyword. Scoped to the turn
+    // user's own visibility: team libraries they belong to, projects they
+    // can read, the org hub, and the mail of conversations they may read —
     // never the whole org. The similarity floor drops weak dense neighbours
     // BEFORE they reach the model; keyword (BM25) hits are never floored.
-    if (runLeg('document', 'mail-attachment', 'web-page')) {
-      // One corpus leg serves three kinds; a narrow selects within it. An
-      // emailed attachment lives in the documents corpus (its conversation
-      // is what marks it), so both document kinds read that corpus and the
-      // narrow splits them by provenance below.
+    /** Email-body hits leg 1 returned — conversation rows, which leg 8's
+     * source label has to count as matches. */
+    let emailBodyHits = 0;
+    // Bodies are conversation content: the role that gates the inbox gates
+    // them. A `conversation` narrow for a role that cannot read the inbox
+    // has nothing leg 1 could return, so it runs no embedding and no query.
+    const wantEmailBodies = conversationsAllowed && runLeg('conversation');
+    if (runLeg('document', 'mail-attachment', 'web-page') || wantEmailBodies) {
+      // One corpus leg serves four kinds; a narrow selects within it. An
+      // emailed attachment and an email body live in the documents corpus
+      // (their conversation is what marks them), so every kind but a web
+      // page reads that corpus and the narrow splits them by provenance.
       const corpus =
-        kindFilter === 'document' || kindFilter === 'mail-attachment'
+        kindFilter === 'document' ||
+        kindFilter === 'mail-attachment' ||
+        kindFilter === 'conversation'
           ? ('documents' as const)
           : kindFilter === 'web-page'
             ? ('web' as const)
@@ -1011,7 +1024,21 @@ export function createChatToolExecutor(
             // `minSimilarity`), else the built-in default — resolved next
             // to the model, not hard-wired here.
             floorByDefault: true,
-            access: docAccess,
+            // Email bodies are conversation content: the role that gates the
+            // inbox gates them, on top of each conversation's own assignment
+            // (which the admission re-check decides). This door labels and
+            // wraps them as mail, so it is the one door that asks for them —
+            // and only when conversation rows are wanted, or a narrow to
+            // another kind would spend its page on hits it then drops. They
+            // are searched with a candidate pool of their own, so bodies the
+            // caller may not read never push a document out of the page.
+            access: {
+              ...docAccess,
+              includeConversationMessages: wantEmailBodies,
+            },
+            // A `conversation` narrow reads bodies alone: a document or an
+            // attachment could only take a slot and then be dropped below.
+            ...(kindFilter === 'conversation' && { onlyEmailBodies: true }),
           });
           const found = { document: 0, mailAttachment: 0, webPage: 0 };
           let corpusSnippetLeft = CORPUS_SNIPPET_TOTAL_CHARS;
@@ -1021,19 +1048,27 @@ export function createChatToolExecutor(
             // mail's subject and correspondent INSIDE the chunk, so the whole
             // passage is wrapped rather than any one field stripped. The title
             // is short attacker text and is sanitized wherever it came from.
-            const fromMail = hit.source.conversationId != null;
+            const emailBody =
+              hit.corpus === 'documents' && isMessageRef(hit.source.ref);
+            const fromMail = emailBody || hit.source.conversationId != null;
             // The kind vocabulary the list action already speaks: a mail
             // attachment is its own kind, never a "document" — so a narrow
-            // to either kind returns exactly that kind.
+            // to either kind returns exactly that kind. An email body cites
+            // the conversation it arrived on: it is a `conversation` row,
+            // with the passage that matched and a ref rag_fetch reads the
+            // whole email by.
             const kind: RagSearchKind =
               hit.corpus !== 'documents'
                 ? 'web-page'
-                : fromMail
-                  ? 'mail-attachment'
-                  : 'document';
+                : emailBody
+                  ? 'conversation'
+                  : fromMail
+                    ? 'mail-attachment'
+                    : 'document';
             if (kindFilter !== undefined && kind !== kindFilter) continue;
             if (kind === 'document') found.document += 1;
             else if (kind === 'mail-attachment') found.mailAttachment += 1;
+            else if (kind === 'conversation') emailBodyHits += 1;
             else found.webPage += 1;
             const score = hit.fusedScore;
             // A document has no archive state of its own — only its project
@@ -1336,9 +1371,11 @@ export function createChatToolExecutor(
           results.push(conversationResultEntry(conversation));
         }
         // A bounded scan that filled up must say so — otherwise "no matches"
-        // reads as "the inbox holds nothing", which is a different claim.
+        // reads as "the inbox holds nothing", which is a different claim. An
+        // email body leg 1 matched is a conversation match too.
+        const matched = found.conversations.length + emailBodyHits;
         sources.conversations =
-          found.conversations.length > 0
+          matched > 0
             ? found.truncated
               ? 'searched (recent conversations only)'
               : 'searched'
@@ -2159,6 +2196,64 @@ export function createChatToolExecutor(
         // A capped list must say it is capped, or "that is all of them" is a
         // claim the tool never made.
         truncated: !tasks.isDone,
+      };
+    }
+
+    // An email ref from a conversation row — the whole body of an inbound
+    // email. The inbox's role gates it, not the documents one, and this read
+    // asks for message bodies explicitly: every other reader of the corpus is
+    // refused them. A denied, deleted or unindexed email reads as ONE miss,
+    // so a fetch cannot probe for mail it may not see.
+    if (isMessageRef(ref)) {
+      if (!(await readAllowed('conversations'))) {
+        const result: ToolFailure = {
+          status: 'unavailable',
+          message:
+            'Your role does not permit reading conversations in this organization.',
+        };
+        await recordDispatch('rag_fetch', result.status, result.message);
+        return result;
+      }
+      const access = await knowledgeAccess();
+      const read = await readDocumentText(ctx, {
+        organizationId: who.organizationId,
+        orgSlug: slug,
+        fileId: ref,
+        access: { ...access, includeConversationMessages: true },
+      });
+      if (read.status === 'not_found') {
+        const result: ToolFailure = {
+          status: 'not_found',
+          message: read.message,
+        };
+        await recordDispatch('rag_fetch', result.status, result.message);
+        return result;
+      }
+      const paged = windowText(read.text, offset, limit);
+      await recordDispatch('rag_fetch', 'ok');
+      return {
+        status: 'ok',
+        // The kind its search row carried: the email cites its conversation.
+        // Not `document`, so the answer's source cards never offer a file
+        // preview for a ref that names no file.
+        kind: 'conversation',
+        ref,
+        // The name its search row showed (the subject, or who wrote) — under
+        // the key the timeline reads a fetched item's name from, as the
+        // document branch below answers it.
+        ...(read.filename !== null
+          ? { filename: sanitizeUntrustedField(read.filename) }
+          : {}),
+        totalChars: paged.totalChars,
+        offset,
+        ...(paged.nextOffset !== undefined
+          ? { nextOffset: paged.nextOffset }
+          : {}),
+        // Every word of it was chosen by whoever sent the mail.
+        content: wrapUntrusted(paged.content, {
+          tool: 'rag_fetch',
+          operation: 'email',
+        }),
       };
     }
 

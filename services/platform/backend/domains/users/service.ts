@@ -4,6 +4,7 @@ import { APIError } from 'better-auth/api';
 import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { USER_NAME_MAX_LENGTH } from '../../../lib/shared/constants/user-name.ts';
 import {
   isPasswordValid,
   passwordPolicyViolations,
@@ -84,10 +85,10 @@ export async function updateUserName(
   if (trimmed.length === 0) {
     throw new UserServiceError('validation', 'Name is required', 400);
   }
-  if (trimmed.length > 100) {
+  if (trimmed.length > USER_NAME_MAX_LENGTH) {
     throw new UserServiceError(
       'too_long',
-      'Name must be 100 characters or less',
+      `Name must be ${USER_NAME_MAX_LENGTH} characters or less`,
       400,
     );
   }

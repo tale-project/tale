@@ -18,6 +18,7 @@ Start with [`sync_mailbox.ts`](sync_mailbox.ts) and the helpers in [`ingest/`](i
 | Find or create the sender’s contact | `ingest/find_or_create_contact_from_email.ts` |
 | Create an inbound or sent-email conversation | `ingest/create_conversation_from_email.ts`, `ingest/create_conversation_from_sent_email.ts` |
 | Reuse, materialize and bind attachments | `ingest/reuse_stored_attachments.ts`, `ingest/materialize_email_attachments.ts`, `ingest/bind_email_attachments.ts` |
+| Index an inbound email's body for retrieval | `addMessageToConversation` in the [domain service](../../domains/conversations/service.ts) queues `rag.index_message`; [`domains/knowledge/message-index.ts`](../../domains/knowledge/message-index.ts) indexes it |
 
 Pass the organization through every lookup. Normalize external message IDs with
 the existing helper: it trims surrounding whitespace and removes surrounding

@@ -65,7 +65,7 @@ export function isUploadErrorRetryable(err: unknown): boolean {
     'UPLOAD_BLOB_ALREADY_BOUND',
     'UPLOAD_BLOB_INVALID',
     'UPLOAD_MIME_MISMATCH',
-    'UNAUTHENTICATED',
+    'UNAUTHORIZED',
     'ORG_FORBIDDEN',
     'DOCUMENT_NOT_FOUND',
     'PROJECT_FORBIDDEN',

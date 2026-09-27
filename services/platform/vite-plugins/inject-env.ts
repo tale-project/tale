@@ -5,6 +5,8 @@ import { parseSessionIdleTimeoutMinutes } from '@tale/shared/utils/session-idle'
 import { resolveSiteOrigins } from '@tale/shared/utils/site-urls';
 import { type Plugin } from 'vite';
 
+import { parseContactSupportUrl } from '../lib/contact-support-url';
+
 interface EnvConfig {
   SITE_URL: string;
   /** Every origin the deployment answers on — mirrors `server.ts`, so the
@@ -16,6 +18,7 @@ interface EnvConfig {
   SENTRY_TRACES_SAMPLE_RATE: number;
   TALE_VERSION?: string;
   SESSION_IDLE_TIMEOUT_MINUTES?: number;
+  TALE_CONTACT_SUPPORT_URL?: string;
 }
 
 function getEnvConfig(): EnvConfig {
@@ -36,6 +39,7 @@ function getEnvConfig(): EnvConfig {
     ),
     TALE_VERSION: process.env.TALE_VERSION,
     SESSION_IDLE_TIMEOUT_MINUTES: parseSessionIdleTimeoutMinutes() ?? undefined,
+    TALE_CONTACT_SUPPORT_URL: parseContactSupportUrl(),
   };
 }
 

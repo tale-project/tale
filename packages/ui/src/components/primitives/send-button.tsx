@@ -42,10 +42,7 @@ export function SendButton({
       disabledReason={disabled ? disabledReason : undefined}
       aria-label={label}
       aria-busy={sending || undefined}
-      className={cn(
-        'focus-visible:ring-ring shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-inset',
-        className,
-      )}
+      className={cn('shrink-0 rounded-full', className)}
     >
       {sending ? (
         <Loader2

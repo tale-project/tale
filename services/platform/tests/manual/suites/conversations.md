@@ -193,10 +193,10 @@ subject.
   status** (`conversations.filter.readStatus`); choose **All** / **Read** /
   **Unread** (`conversations.filter.all` / `.read` / `.unread`) → Rows scope to
   that read state (Unread keeps only rows with the unread dot); the section
-  header carries a blue dot and the button a blue corner dot while a non-All
-  value is set; the choice survives a reload — the desktop panel remembers it
-  on this device (the URL carries no facet), the phone list carries it in the
-  URL as `?read=` (**All** drops the param).
+  header carries an accent dot and the button an accent corner dot while a
+  non-All value is set; the choice survives a reload — the desktop panel
+  remembers it on this device (the URL carries no facet), the phone list
+  carries it in the URL as `?read=` (**All** drops the param).
 - [ ] `CONV-F5` · **Source facet** — **Precondition:** the org has at least one
   inbox source to offer (an installed email connector or an API-synced
   thread). Open **Filter**, expand **Channel**
@@ -420,7 +420,7 @@ subject.
   and bottom edges in line; below them that status's
   conversations in Home's time bands (`home.groups.*`), each row the
   contact's initials, the subject, contact · last-message preview and its age,
-  bold with a blue **Unread** dot (`home.row.unread`) while unread. Scrolling
+  bold with an accent **Unread** dot (`home.row.unread`) while unread. Scrolling
   to the end loads the next page on its own, with a small spinner and no
   "load more" button. **New email** opens the composer in the reading pane
   (`…/{status}?compose=new`); an empty status reads **No conversations**

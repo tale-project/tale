@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -729,5 +730,35 @@ describe('free-form object bounds', () => {
       address: keyed(500),
     });
     expect(res.status).toBe(201);
+  });
+});
+
+/**
+ * `expectedUpdatedAt` is the `updatedAt` a caller last read — an epoch-ms
+ * stamp — and the patch doors held it to the safe-integer range only, so a
+ * value no `Date` can hold was taken and answered as a stale revision. Both
+ * doors now hold it to `epochMsSchema` and publish its maximum.
+ */
+describe('the CRM precondition holds to the epoch bound', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ['/contacts/c-1', updateContact],
+    ['/products/p-1', updateProduct],
+  ] as const)('%s refuses one no Date can hold', async (route, update) => {
+    for (const expectedUpdatedAt of [9e15, EPOCH_MS_MAX + 1]) {
+      expect(await refused(route, 'PATCH', { expectedUpdatedAt })).toEqual([
+        expect.objectContaining({ path: 'expectedUpdatedAt' }),
+      ]);
+    }
+    expect(vi.mocked(update)).not.toHaveBeenCalled();
+
+    const res = await send(route, 'PATCH', {
+      expectedUpdatedAt: EPOCH_MS_MAX,
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(update)).toHaveBeenCalledTimes(1);
   });
 });

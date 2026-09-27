@@ -994,7 +994,9 @@ automations:
       newFolderFailed: Der Ordner konnte nicht erstellt werden — versuch es nochmal.
       uploading: Lädt hoch…
       uploaded: '{count} Datei(en) hochgeladen.'
+      uploadedPartial: '{ok} von {total} Datei(en) hochgeladen.'
       uploadFailed: Datei konnte nicht hochgeladen werden — versuch es nochmal.
+      uploadFailedDetail: '{name}: {reason}'
       wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'
       wrongName: Der Dateiname passt nicht zum erwarteten Muster dieses Formulars.
       tooLarge: Die Datei überschreitet das Limit von {max} MB.
@@ -1191,6 +1193,7 @@ chat:
   uploadedSuccessfully: '{filename} hochgeladen'
   uploadFailed: Datei konnte nicht hochgeladen werden
   failedToUpload: '{filename} konnte nicht hochgeladen werden'
+  failedToUploadReason: '{filename} konnte nicht hochgeladen werden: {reason}'
   tooManyFiles: Zu viele Dateien
   tooManyFilesDescription:
     Du kannst bis zu {max} Dateien pro Nachricht anhängen.
@@ -1675,6 +1678,7 @@ common:
   errors:
     generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
     failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
+    sessionEnded: Deine Sitzung ist beendet. Melde dich erneut an.
   notFound:
     title: Seite nicht gefunden
     description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
@@ -6405,6 +6409,7 @@ settings:
         notification.retention_deleted: Benachrichtigung per Aufbewahrung gelöscht
         file_metadata.retention_deleted: Datei per Aufbewahrung gelöscht
         sandbox_ledger.retention_deleted: Sandbox-Protokoll per Aufbewahrung gelöscht
+        chat_filter_event.retention_deleted: Chat-Filter-Ereignis per Aufbewahrung gelöscht
         policy_acknowledged: Richtlinie bestätigt
         login_attempt: Anmeldeversuch
         login_lockout: Anmeldesperre
@@ -6703,13 +6708,14 @@ settings:
       modelCatalogCustomHint:
         Embedding-Modelle aus der Modellliste dieses Anbieters; wähle „Anderes
         Modell“, um ein Tag einzugeben, das dort nicht steht.
-      modelUnlistedHint:
-        Keine Modellliste kann sagen, ob dieser Anbieter Embeddings bedient —
-        gib das Modell-Tag exakt so ein, wie der Anbieter es schreibt.
-      modelNoneHint:
-        Der Katalog von {provider} führt kein Embedding-Modell. Wähle einen
-        Anbieter, der eines bedient.
-      modelNone: Kein Embedding-Modell
+      modelUncuratedHint:
+        Tale kennt keine Vektorbreite für die Embedding-Modelle von
+        {provider}. Gib das Modell-Tag und seine Vektorbreite exakt so ein,
+        wie der Anbieter sie dokumentiert.
+      modelUnsupportedHint:
+        '{provider} bietet kein Embedding-Modell an. Wähle einen Anbieter, der
+        eines bedient.'
+      modelUnsupported: Bietet keine Embeddings
       modelCatalogUnavailableHint:
         Der Katalog von {provider} konnte nicht geladen werden. Aktualisiere
         die Kataloge unter Einstellungen → KI-Anbieter und versuche es erneut.
@@ -7021,6 +7027,7 @@ tasks:
     uploading: Wird hochgeladen…
     dropHint: Dateien hier ablegen oder klicken zum Auswählen
     uploadFailed: Der Upload ist fehlgeschlagen — versuche es erneut.
+    uploadFailedDetail: '{name}: {reason}'
     remove: '{name} löschen'
     removeTitle: Diese Datei löschen?
     removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
@@ -7386,6 +7393,7 @@ toast:
   error:
     profileUpdateFailed:
       title: Profil konnte nicht aktualisiert werden
+      withReason: 'Profil konnte nicht aktualisiert werden: {reason}'
     passwordChangeFailed:
       title: Passwort konnte nicht geändert werden
       description: Prüf dein aktuelles Passwort und versuch es nochmal.
@@ -7828,6 +7836,7 @@ projects:
     moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
     attachPartial: '{ok} von {total} Dateien hinzugefügt'
     skippedList: 'Übersprungen: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+    failedList: 'Nicht hinzugefügt: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: Dieser Ordner existiert nicht mehr.
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden

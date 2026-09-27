@@ -1,3 +1,4 @@
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { z } from 'zod';
 
 import { crawlHostRefusal } from '../../../lib/net/crawl-host-policy.ts';
@@ -115,12 +116,7 @@ export const productCreateSchema = productFieldsSchema.extend({
 /** An update may carry the revision it was based on: a stale one answers
  * 409 `PRODUCT_STALE` without changing a field (the contacts precondition,
  * which a client carrying the pattern across used to find silently inert
- * here). */
+ * here). It is the `updatedAt` last read, so an epoch-ms stamp. */
 export const productPatchSchema = productFieldsSchema.extend({
-  expectedUpdatedAt: z
-    .number()
-    .int()
-    .min(0)
-    .max(Number.MAX_SAFE_INTEGER)
-    .optional(),
+  expectedUpdatedAt: epochMsSchema.optional(),
 });

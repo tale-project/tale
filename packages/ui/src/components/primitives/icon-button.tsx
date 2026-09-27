@@ -95,8 +95,10 @@ export const IconButton = forwardRef<
     // saturated accent blue that, on a small ghost icon button, read as a
     // heavy halo around an otherwise quiet glyph — visually loud, especially
     // for icon-only toolbar clusters. Override to `border-strong` so focus
-    // stays visible for keyboard users (a11y) without the loud ring.
-    const focusOverride = 'focus-visible:ring-border-strong';
+    // stays visible for keyboard users (a11y) without the loud ring. A
+    // primary fill keeps its own ring, drawn in its ink.
+    const focusOverride =
+      variant === 'primary' ? undefined : 'focus-visible:ring-border-strong';
 
     if (asChild && isValidElement(slotChild)) {
       // Wrap the consumer's slotChild (typically `<a>` or router `<Link>`)

@@ -16,7 +16,7 @@ The rule is the same everywhere: a request counts against the person who asked f
 | Work | Counts against | Also counts toward | Appears in Usage analytics as |
 | --- | --- | --- | --- |
 | A chat reply, or the title of a new chat | The member who sent the message | The API key, when the message was sent through the REST API | The assistant used; a title under `thread-title` |
-| An agent run on a task | The member who started the run from the task or with a comment that mentions the agent | — | The agent's name under **Top assistants** |
+| An agent run on a task | The member who started the run from the task, or with a comment or a task description that mentions the agent | — | The agent's name under **Top assistants** |
 | An automation run someone started | The member who started it from the run list, the builder, a chat, a task, the REST API, or the MCP endpoint | The API key, when the run was started with one | The automation's name under **Top assistants** |
 | An automation run a trigger started | Nobody: a schedule, a webhook, or an event has no person behind it | — | The **Automations (triggers)** row under **Per-user usage** |
 | Voice output or a transcription | The member who requested it | — | **Voice output** or **Transcription** under **Top assistants**; voice output also under **Top voice models** |
@@ -34,7 +34,7 @@ When a limit is reached, Tale refuses the next request before it runs and names 
 
 ## Three situations worth knowing
 
-**A teammate mentions your agent in a task comment.** The comment starts a run, and that run counts against the teammate who wrote the comment, not against you as the agent's creator.
+**A teammate mentions your agent in a task comment or a task description.** Posting the comment or saving the description starts a run, and that run counts against the teammate who wrote it, not against you as the agent's creator.
 
 **A scheduled automation spends every night.** Its runs appear on the **Automations (triggers)** row. They never raise anyone's personal usage or the active-user count, and only the organization's limits can stop them. Set an organization cost or request limit when you need a ceiling for them.
 

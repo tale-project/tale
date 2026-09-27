@@ -121,6 +121,7 @@ auth:
 | `baseUrl` | Fester Endpunkt für alle zugehörigen Zugangsdaten. |
 | `endpointMode: per-credential` | Verwendet statt `baseUrl` einen Endpunkt je Zugangsdaten-Eintrag, etwa bei Azure OpenAI. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint` oder `none`. Statische Einträge stammen aus dem oben beschriebenen Modellkatalog. |
+| `embedding` | Ob der Anbieter Embeddings bedient: `supported`, wenn sein Katalog eine kuratierte Vektorbreite mitliefert; `unsupported`, wenn der Anbieter kein Embedding-Modell anbietet, sodass **Einstellungen > Datenresidenz > Embedding-Modell** ihn ablehnt; oder `unknown`, der Standard, wenn Admins Modell und Vektorbreite selbst eingeben. Deklariere `unsupported` nur, wenn die Dokumentation des Anbieters selbst das sagt. |
 | `auth` und `constraints` | Erlaubte Zugangsmethoden und Ausführungsbedingungen, etwa ein bestimmter Sandbox-Harness. |
 
 ## Umgebungsvariable als Schlüsselquelle {#umgebungsvariable-als-schlusselquelle}
