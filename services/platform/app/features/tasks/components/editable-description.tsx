@@ -176,6 +176,7 @@ export function EditableDescription({
       />
       <MentionTriggerChips
         organizationId={organizationId}
+        projectId={projectId}
         target={{ taskId }}
         draft={draft}
         baseline={value}

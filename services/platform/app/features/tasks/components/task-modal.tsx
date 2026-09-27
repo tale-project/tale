@@ -912,6 +912,7 @@ function CreateTaskBody({
             />
             <MentionTriggerChips
               organizationId={organizationId}
+              projectId={projectId}
               target={{ projectId }}
               draft={description}
             />

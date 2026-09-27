@@ -317,6 +317,7 @@ export function TaskCommentComposer({
         {field}
         <MentionTriggerChips
           organizationId={organizationId}
+          projectId={projectId}
           target={{ taskId }}
           draft={draft}
         />
@@ -355,6 +356,7 @@ export function TaskCommentComposer({
       )}
       <MentionTriggerChips
         organizationId={organizationId}
+        projectId={projectId}
         target={{ taskId }}
         draft={draft}
       />
