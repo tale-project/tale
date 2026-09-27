@@ -109,6 +109,15 @@ what is there, and the page shows the one thing you opened.
   hold their place while only the rows move. Both parts, every time; a short list hugs its rows
   instead of stretching. Tables embedded in a scrolling settings page are the exception and take
   neither.
+- **Layout answers to its column, not the window** — viewport breakpoints (`sm`, `md`, `lg`)
+  decide the shell only: rail or tab bar, a panel or not. Beside the rail and a section panel a
+  page column is ~400px on a 768px window and ~660px on a 1024px one, so whatever a page lays out
+  switches on its own width: a size container (`@container`; a `FIELD_LAYOUT_ROW` surface is the
+  `field-layout` container its field rows turn on at 36rem; `StatCardGrid`, `CardGrid`) or a row
+  that wraps (`DataTableToolbar` moves its action to a line of its own). Nothing is pushed past
+  the edge: a row out of room wraps or stacks, its flexible part yields first, and a positioned
+  descendant of a scrollport stays inside it (a scrollport is `relative`). Pages outside the
+  shell scroll themselves (`STANDALONE_PAGE`) — the platform clips the document.
 
 ## Dark mode
 

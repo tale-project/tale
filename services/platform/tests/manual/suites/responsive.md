@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 22 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 25 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -26,6 +26,14 @@ Test at three widths — **390×844** (mobile, matches `responsive.spec.ts`),
 **767×1024** (just below the breakpoint — still mobile), **1280×800**
 (desktop). Drive the width with the Playwright MCP `browser_resize` (or a
 context `viewport`).
+
+From 768 px the desktop chrome is on, but the rail and a section panel leave
+the page column far narrower than the window — ~400 px at 768, ~660 px at
+1024. What lives in that column (settings field rows, list toolbars, stat
+strips, card and chart grids) answers to the column's own width, not the
+window's; `RESP-F15` walks that band. Pages outside the app shell (sign-in,
+onboarding, 2FA, the root 404) scroll themselves, because the platform clips
+the document (`RESP-B4`).
 
 | Surface (re-walked at mobile width)   | Route                               |
 | ------------------------------------- | ----------------------------------- |
@@ -151,6 +159,18 @@ if you want to keep a write.
   scroll the **Document** column out of view. Size, Source, RAG status and
   Modified cells show their full content; Uploaded by truncates the e-mail
   with the full value on hover.
+- [ ] `RESP-F15` · **The column, not the window** — At **768×1024** (desktop
+  chrome, a ~400 px page column) open `/dashboard/{org}/settings/organization`,
+  `/dashboard/{org}/projects`, `/dashboard/{org}/settings/metrics/chat-health`
+  and an automation's editor → The settings fields stack, each label above a
+  full-width control (at 1024 px they read label-left/control-right, labels on
+  one or two lines — never a word per line); the list toolbar keeps search and
+  **Filter** on one line and moves **Create project**
+  (`projects.list.createButton`) to a line of its own on the right, fully
+  visible; the four stat cards sit two by two and the breakdown names are
+  readable beside their bars; the editor's tab strip shows **Editor**,
+  **Versions** and **Runs**, its verbs wrapping onto a second row.
+  `scrollWidth === clientWidth` on each.
 
 ## Boundary & error tests
 
@@ -166,6 +186,16 @@ if you want to keep a write.
 - [ ] `RESP-B3` · **Long content** — A very long display name / agent name →
   The text **wraps or truncates** (`truncate` / `line-clamp`) within its
   container; `scrollWidth === clientWidth` still holds (no overflow).
+- [ ] `RESP-B4` · **A short viewport** — Signed out, at **844×390** (a phone
+  held sideways) open `/log-in`, then `/sign-up` → The page scrolls (swipe or
+  wheel) until **Log in** (`auth.login.loginButton`) and **Sign in with a
+  passkey** (`auth.login.continueWithPasskey`) — and the sign-up submit — are
+  fully in view and work; nothing is cut off below the fold. The same holds at
+  1280×720 with the browser zoomed to 200 %.
+- [ ] `RESP-B5` · **Whole settings text on a phone** — At **320** px open
+  `/dashboard/{org}/settings/notifications` → Every toggle's label and
+  description read in full (no ellipsis, no two-line clamp), the switch
+  still beside them.
 
 ## Accessibility (WCAG 2.1 AA)
 
