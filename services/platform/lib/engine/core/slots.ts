@@ -289,6 +289,17 @@ export interface StoreAdapter {
     version?: number,
   ): Promise<{ meta: { version: number }; automation: unknown } | null>;
   deployedVersion(name: string): Promise<number | null>;
+  /**
+   * Whether the organization serves a model — for the validator's
+   * `LLM_MODEL_UNAVAILABLE` warning on `llm`/`agent` nodes. `false` is the
+   * only answer that warns; `undefined` means the host cannot tell (a
+   * catalog was unreachable, a lane the walk does not cover) and a host
+   * without the seam never warns. A run-time refusal stays the run's own.
+   */
+  modelAvailable?(
+    modelId: string,
+    nodeType: 'llm' | 'agent',
+  ): Promise<boolean | undefined>;
 }
 
 // ---------------------------------------------------------------------- llm

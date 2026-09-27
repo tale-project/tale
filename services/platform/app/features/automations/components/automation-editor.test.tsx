@@ -83,6 +83,9 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // this hook; each test sets the roster it needs on `projectsData`.
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({ projects: projectsData.list, isLoading: false }),
+  // The llm node's Model picker reads the served-model roster; the editor
+  // tests select llm nodes but never pick a model.
+  useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
 }));
 
 vi.mock('../hooks/queries', () => ({

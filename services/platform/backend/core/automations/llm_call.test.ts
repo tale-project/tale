@@ -39,6 +39,7 @@ import {
   extractJsonValue,
   resolveServingTarget,
   schemaViolations,
+  walkLlmServing,
 } from './llm_call';
 
 const ORG = 'org_llm';
@@ -358,5 +359,28 @@ describe('resolveServingTarget', () => {
     await expect(
       resolveServingTarget(ctx, ORG, 'vendor/shared'),
     ).resolves.toEqual({ providerSlug: 'first', modelId: 'vendor/shared' });
+  });
+});
+
+// The validator's model check rides this walk, so what it warns about is
+// exactly what a live run refuses (2026-09-26 evaluation, D-16).
+describe('walkLlmServing', () => {
+  it('answers the serving connector, or no target with the catalogs it could not read', async () => {
+    credentials = { first: DIRECT, second: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/shared', tags: ['chat'] },
+    ]);
+    await expect(
+      walkLlmServing(ctx, ORG, 'vendor/shared'),
+    ).resolves.toMatchObject({
+      target: { providerSlug: 'first', modelId: 'vendor/shared' },
+      unreachable: [],
+    });
+    await expect(
+      walkLlmServing(ctx, ORG, 'nobody/serves'),
+    ).resolves.toMatchObject({
+      target: null,
+      unreachable: [],
+    });
   });
 });

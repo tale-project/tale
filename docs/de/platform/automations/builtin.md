@@ -13,7 +13,7 @@ Tale enthält zehn Automatisierungspakete: drei für die Postfach-Synchronisieru
 
 ## Mit einem Paket beginnen
 
-Öffne **Automatisierungen**, wähle ein Paket und prüfe seine Nodes im [Workflow-Editor](/de/platform/automations/editor). Der benötigte Connector muss verbunden und das Modell jeder `llm`-Node verfügbar sein. Ein Testlauf verwendet simulierte Antworten. Er prüft den Ablauf, belegt aber keinen Zugriff auf dein echtes Postfach oder Repository.
+Öffne **Automatisierungen**, wähle ein Paket und prüfe seine Nodes im [Workflow-Editor](/de/platform/automations/editor). Der benötigte Connector muss verbunden sein, und das Modell jeder `llm`-Node muss eines sein, das deine Organisation bedient — die Pakete nennen ein Modell, das deine Anbieter womöglich nicht anbieten; die Validierung warnt beim Speichern davor. Wähle vor einem Live-Lauf im Feld **Modell** der Node ein bedientes Modell. Ein Testlauf verwendet simulierte Antworten. Er prüft den Ablauf, belegt aber keinen Zugriff auf dein echtes Postfach oder Repository.
 
 Die Pakete werden beim Anlegen der Organisation hinzugefügt. Ändert sich ein mitgeliefertes Paket, bleiben deine bestehenden Versionen erhalten; nur der mitgelieferte Name und die Beschreibung werden aktualisiert. Ein gelöschtes Paket bleibt gelöscht. Eigene Änderungen ergeben neue Versionen, die du getrennt live schaltest.
 

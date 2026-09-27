@@ -676,3 +676,99 @@ describe('degrading without optional backends', () => {
     expect(codesOf(errors)).not.toContain('SUBAUTOMATION_NOT_FOUND');
   });
 });
+
+/**
+ * A model nobody serves used to pass validation silently — the mock run
+ * answers for any model, so the problem surfaced only on the first live run
+ * (2026-09-26 evaluation, D-16). The host's answer is a snapshot of its
+ * providers, so it is a WARNING, never an error, and a host without the
+ * seam (or whose lookup fails) says nothing.
+ */
+describe('model availability', () => {
+  function llmFlow(model: string, type: 'llm' | 'agent' = 'llm'): Automation {
+    return {
+      version: 1,
+      name: 'digest',
+      nodes: [{ id: 'gen', type, model, prompt: 'Say hi' }],
+      output: '{{ nodes.gen.output.text }}',
+    };
+  }
+
+  it('warns for an llm and an agent node whose model the organization does not serve', async () => {
+    const withModels = memoryStore({ unavailableModels: ['nobody/serves'] });
+    for (const type of ['llm', 'agent'] as const) {
+      const { errors, warnings } = await validate(
+        llmFlow('nobody/serves', type),
+        {
+          store: withModels,
+        },
+      );
+      expect(errors).toEqual([]);
+      expect(warnings).toContainEqual(
+        expect.objectContaining({
+          code: 'LLM_MODEL_UNAVAILABLE',
+          nodeId: 'gen',
+          path: 'model',
+          message: expect.stringContaining('"nobody/serves"'),
+        }),
+      );
+    }
+    const served = await validate(llmFlow('vendor/served'), {
+      store: withModels,
+    });
+    expect(served.warnings.map((w) => w.code)).not.toContain(
+      'LLM_MODEL_UNAVAILABLE',
+    );
+  });
+
+  it('asks the host once per model and says nothing without the seam or on a failed lookup', async () => {
+    const calls: string[] = [];
+    const counting = {
+      ...memoryStore(),
+      modelAvailable: async (modelId: string) => {
+        calls.push(modelId);
+        return false;
+      },
+    };
+    const twice: Automation = {
+      version: 1,
+      name: 'digest',
+      nodes: [
+        { id: 'a', type: 'llm', model: 'nobody/serves', prompt: 'x' },
+        {
+          id: 'b',
+          type: 'llm',
+          model: 'nobody/serves',
+          prompt: '{{ nodes.a.output.text }}',
+        },
+      ],
+      output: '{{ nodes.b.output.text }}',
+    };
+    const { warnings } = await validate(twice, { store: counting });
+    expect(calls).toEqual(['nobody/serves']);
+    expect(
+      warnings.filter((w) => w.code === 'LLM_MODEL_UNAVAILABLE'),
+    ).toHaveLength(2);
+
+    const silent = await validate(llmFlow('nobody/serves'), {
+      store: memoryStore(),
+    });
+    expect(silent.warnings.map((w) => w.code)).not.toContain(
+      'LLM_MODEL_UNAVAILABLE',
+    );
+
+    const failing = {
+      ...memoryStore(),
+      modelAvailable: async () => {
+        throw new Error('catalog down');
+      },
+    };
+    const skipped = await validate(llmFlow('nobody/serves'), {
+      store: failing,
+    });
+    expect(skipped.errors).toEqual([]);
+    expect(skipped.warnings.map((w) => w.code)).not.toContain(
+      'LLM_MODEL_UNAVAILABLE',
+    );
+  });
+});

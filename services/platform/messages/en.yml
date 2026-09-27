@@ -740,6 +740,16 @@ automations:
       harnessDefault: Default (Claude Code)
       modelUnlisted: 'No connected provider offers the saved model "{model}"
         for this harness — pick one from the list.'
+    # The llm node's model picker: what the organization's providers serve,
+    # with a typed escape for a model whose provider is not connected yet.
+    llm:
+      modelPlaceholder: Choose the model to call
+      modelUnlisted: 'No connected provider serves "{model}" — a live run
+        would fail at this node. Pick a listed model, or keep the id if you
+        will connect its provider.'
+      typeUnlisted: Type a model that is not listed
+      modelIdLabel: Model id
+      modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
     runTitle: In this run
     resolvedInput: Resolved input
     output: Output

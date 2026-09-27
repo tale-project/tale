@@ -31,7 +31,7 @@ Les badges indiquent les conditions et boucles : `when`, `else of`, `for each`,
 
 ## Modifier un nœud
 
-Sélectionne un bloc pour ouvrir ses champs. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
+Sélectionne un bloc pour ouvrir ses champs. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais la validation avertit qu’une exécution en direct échouerait à ce nœud tant que son fournisseur n’est pas connecté. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
 
 Ouvre **Contrôle du flux** pour les conditions et répétitions. Clique sur le fond du canvas, sur **Fermer** ou appuie sur Échap hors d’un champ de texte pour revenir aux réglages du déclencheur et des projets. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
 

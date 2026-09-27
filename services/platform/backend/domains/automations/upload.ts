@@ -16,6 +16,7 @@ import {
 } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
+import { pgAutomationStore } from './dispatch-store.ts';
 import { bindProject, saveVersion } from './store.ts';
 
 /**
@@ -58,6 +59,13 @@ export async function uploadAutomationPg(
       orgSlug: auth.orgSlug,
       userId: auth.userId,
       isOrgAdmin: defineAbilityFor(auth.role).can('write', 'orgSettings'),
+      // The same org-scoped store every other validating door hands the
+      // engine, so an upload learns about an unserved model (and an
+      // unknown subautomation) the way a save does.
+      validationStore: pgAutomationStore(sql, {
+        organizationId: auth.organizationId,
+        actor: auth.userId,
+      }),
       storeSave: async (saveArgs) =>
         await saveVersion(sql, {
           organizationId: auth.organizationId,

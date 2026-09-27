@@ -19,6 +19,7 @@ import { parse as parseYaml } from 'yaml';
 
 import { registerConnector } from '../../../lib/connectors/registry';
 import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
+import type { StoreAdapter } from '../../../lib/engine/core/slots';
 import { validate } from '../../../lib/engine/core/validate';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -100,6 +101,10 @@ export interface UploadHost {
     teamIds: string[];
     isOrgAdmin: boolean;
   } | null>;
+  /** The organization's store, for validation: subautomation references
+   * resolve against it and `llm`/`agent` models are checked against what
+   * the organization serves. Absent on a bare harness. */
+  validationStore?: StoreAdapter;
 }
 
 function refuse(code: string, message: string): never {
@@ -191,12 +196,18 @@ function assertScopeTarget(
  * The engine's own validation, against the real registered catalog — the same
  * assembly the node-type listing performs. Errors refuse; warnings return.
  */
-async function validateDocument(document: unknown): Promise<string[]> {
+async function validateDocument(
+  document: unknown,
+  store: StoreAdapter | undefined,
+): Promise<string[]> {
   if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
   for (const connector of loadConnectorDefinitions()) {
     registerConnector(connector);
   }
-  const { errors, warnings } = await validate(document);
+  const { errors, warnings } = await validate(
+    document,
+    store === undefined ? {} : { store },
+  );
   if (errors.length > 0) {
     refuse(
       'AUTOMATION_UPLOAD_REJECTED',
@@ -361,7 +372,7 @@ export async function uploadAutomationImpl(
         'the manifest declares skills, but the text lane cannot carry them — upload the pack as a zip',
       );
     }
-    const warnings = await validateDocument(document);
+    const warnings = await validateDocument(document, host.validationStore);
     const taskContract = manifest?.subjects?.task;
     const settings = manifest?.settings;
     const presentation = presentationOf(manifest);
@@ -428,7 +439,7 @@ export async function uploadAutomationImpl(
       );
     }
 
-    const warnings = await validateDocument(document);
+    const warnings = await validateDocument(document, host.validationStore);
 
     const carriedSet = new Set(carriedSlugs);
     const orgSkillSlugs = new Set(await listSkillSlugs(host.orgSlug));

@@ -14,8 +14,12 @@ import {
   boundRunTrace,
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
+import { walkLlmServing } from '../../core/automations/llm_call.ts';
+import type { ActionCtx } from '../../core/lib/ctx.ts';
 import { toJson } from '../../db/sql.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { chatShimHandlers } from '../chat/shim.ts';
 import {
   assertReadable,
   assertWritable,
@@ -26,6 +30,10 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
+import {
+  credentialShimHandlers,
+  listServingCredentialFacts,
+} from '../provider_credentials/service.ts';
 import {
   assertAutomationName,
   beginRun,
@@ -204,6 +212,56 @@ export function pgAutomationStore(
         : { requireOrgScope: true }),
     });
   };
+  // The validator's model check: the llm node's own serving walk (the
+  // direct connectors, their catalogs), so a warning names exactly what a
+  // live run would refuse. Answered once per model per store instance — a
+  // store lives for one dispatch call, so this is the per-validation cache.
+  // An agent node may also be served by a subscription lane the direct walk
+  // does not cover: when one is connected the answer is "cannot tell", never
+  // a false warning. Any failure (an unreachable catalog, the database) is
+  // "cannot tell" too — availability is a warning, never a refusal.
+  const modelAnswers = new Map<string, Promise<boolean | undefined>>();
+  const modelAvailability = (
+    modelId: string,
+    nodeType: 'llm' | 'agent',
+  ): Promise<boolean | undefined> => {
+    const key = `${nodeType}:${modelId}`;
+    let pending = modelAnswers.get(key);
+    if (pending === undefined) {
+      pending = (async () => {
+        const shim = createCtxShim({
+          ...chatShimHandlers(sql),
+          ...credentialShimHandlers(sql),
+        });
+        const walk = await walkLlmServing(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 walk; its ctx reads (the org slug, the default credential rows) are covered by these handlers
+          shim as unknown as ActionCtx,
+          organizationId,
+          modelId,
+        );
+        if (walk.target !== null) return true;
+        if (walk.unreachable.length > 0) return undefined;
+        if (nodeType === 'agent') {
+          const facts = await listServingCredentialFacts(sql, organizationId);
+          const subscription = facts.some(
+            (fact) =>
+              fact.authMethod === 'subscription-key' ||
+              fact.authMethod === 'subscription-broker',
+          );
+          if (subscription) return undefined;
+        }
+        return false;
+      })().catch((error: unknown) => {
+        console.warn(
+          '[automations] model availability could not be answered:',
+          error instanceof Error ? error.message : error,
+        );
+        return undefined;
+      });
+      modelAnswers.set(key, pending);
+    }
+    return pending;
+  };
   return {
     // The deployed version and the installations ride along: `latest` alone
     // hid whether an automation was live at all, and the bindings are the
@@ -223,6 +281,7 @@ export function pgAutomationStore(
     },
     deployedVersion: async (name) =>
       (await deployedVersion(sql, organizationId, name)) ?? null,
+    modelAvailable: (modelId, nodeType) => modelAvailability(modelId, nodeType),
     save: async (automation, message, options) => {
       const name = assertAutomationName(automation.name ?? '');
       // Ownership travels with the scope: a project-scoped authoring caller

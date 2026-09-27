@@ -31,7 +31,7 @@ Kennzeichnungen zeigen Bedingungen und Schleifen wie `when`, `else of`, `for eac
 
 ## Einen Knoten bearbeiten
 
-Wähle einen Kasten, um seine Felder zu öffnen. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Harness und Ausstattung. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
+Wähle einen Kasten, um seine Felder zu öffnen. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Harness und Ausstattung. Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch die Validierung warnt, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
 
 Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Klicke auf den leeren Canvas, auf **Schließen** oder drücke Escape außerhalb eines Textfelds, um zu Trigger und Projekteinstellungen zurückzukehren. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
 

@@ -137,6 +137,14 @@ llm-missing-model:
       message: 'node "gen" (llm): missing required field "model"'
       hint: the model is always explicit — name the exact model to call; the engine never picks one for you
   warnings: []
+llm-model-unavailable:
+  errors: []
+  warnings:
+    - code: LLM_MODEL_UNAVAILABLE
+      nodeId: gen
+      path: model
+      message: 'node "gen": no connected provider of this organization serves model "nonexistent/model-xyz" — a live run would fail at this node'
+      hint: pick a model a connected provider serves (Settings → Providers lists them), or connect a provider that serves this one
 transform-missing-code:
   errors:
     - code: NODE_MISSING_FIELD

@@ -784,6 +784,17 @@ automations:
       harnessDefault: Par défaut (Claude Code)
       modelUnlisted: 'Aucun fournisseur connecté ne propose le modèle
         enregistré "{model}" pour ce harness — choisis-en un dans la liste.'
+    # Le sélecteur de modèle du nœud llm : ce que servent les fournisseurs
+    # de l’organisation, avec une saisie libre pour un modèle dont le
+    # fournisseur n’est pas encore connecté.
+    llm:
+      modelPlaceholder: Choisis le modèle à appeler
+      modelUnlisted: 'Aucun fournisseur connecté ne sert "{model}" — une
+        exécution en direct échouerait à ce nœud. Choisis un modèle de la
+        liste, ou garde l’identifiant si tu vas connecter son fournisseur.'
+      typeUnlisted: Saisir un modèle qui n’est pas listé
+      modelIdLabel: Identifiant du modèle
+      modelIdHint: Exactement tel que le fournisseur l’écrit, p. ex. fournisseur/nom-du-modele.
     runTitle: Dans cette exécution
     resolvedInput: Entrée résolue
     output: Sortie

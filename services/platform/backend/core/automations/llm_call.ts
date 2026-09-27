@@ -28,7 +28,10 @@ import {
   type BuilderModelTarget,
 } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
-import { walkDirectServing } from '../lib/providers/agent_serving';
+import {
+  walkDirectServing,
+  type DirectServingWalk,
+} from '../lib/providers/agent_serving';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { NodeFailure } from './failure';
 
@@ -79,13 +82,7 @@ export async function resolveServingTarget(
   organizationId: string,
   modelId: string,
 ): Promise<BuilderModelTarget> {
-  const connectors = await resolveProvidersForOrgId(ctx, organizationId);
-  const walk = await walkDirectServing(
-    ctx,
-    organizationId,
-    modelId,
-    connectors,
-  );
+  const walk = await walkLlmServing(ctx, organizationId, modelId);
   if (walk.target !== null) return walk.target;
   const detail =
     walk.unreachable.length > 0
@@ -94,6 +91,21 @@ export async function resolveServingTarget(
   throw new Error(
     `no configured provider serves model "${modelId}" — an llm node's model must be listed in a connected provider's catalog and permitted by its credential${detail}`,
   );
+}
+
+/**
+ * The llm node's serving walk, without the verdict: which direct connector
+ * serves the model, or none — and which catalogs could not be read. Shared
+ * with the validator's model check (`StoreAdapter.modelAvailable`), so what
+ * validation warns about is exactly what a live run would refuse.
+ */
+export async function walkLlmServing(
+  ctx: ActionCtx,
+  organizationId: string,
+  modelId: string,
+): Promise<DirectServingWalk> {
+  const connectors = await resolveProvidersForOrgId(ctx, organizationId);
+  return walkDirectServing(ctx, organizationId, modelId, connectors);
 }
 
 const MISS = Symbol('not json');

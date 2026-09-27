@@ -515,6 +515,19 @@ output:
       `automations.detail.deleted.title` with **Open the run history**
       (`automations.detail.deleted.openRuns`). A slug nobody ever saved still
       reads `automations.notFound.title`.
+- [ ] `AUTO-F50` · **Unserved model warns, never blocks** — Open a built-in
+      package whose `llm` node pins a model no connected provider serves and
+      select that node → the **Model** field is a picker listing only served
+      models, its description reads `automations.editor.llm.modelUnlisted`,
+      and a **Model id** box (`automations.editor.llm.modelIdLabel`) holds
+      the saved id; **Save version** succeeds and the save's warnings name
+      `LLM_MODEL_UNAVAILABLE` for that node; MCP `validate_automation` with
+      `model: nonexistent/model-xyz` answers `valid: true` with the same
+      warning (`errors: []`); a **Test run** still answers mock output. Pick a
+      listed model → the description disappears, the document stores only
+      `model` (no `modelProvider`), and a live run of that node succeeds.
+      **Type a model that is not listed** (`automations.editor.llm.typeUnlisted`)
+      shows the id box for free text.
 
 ## Boundary & error tests
 

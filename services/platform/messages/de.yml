@@ -778,6 +778,16 @@ automations:
       harnessDefault: Standard (Claude Code)
       modelUnlisted: 'Kein verbundener Anbieter bietet das gespeicherte Modell
         "{model}" für diese Agent-Laufzeit an — wähle eines aus der Liste.'
+    # Die Modellauswahl der llm-Node: was die Anbieter der Organisation
+    # bedienen, mit Freitext für ein Modell, dessen Anbieter noch fehlt.
+    llm:
+      modelPlaceholder: Modell wählen, das aufgerufen wird
+      modelUnlisted: 'Kein verbundener Anbieter bedient "{model}" — ein
+        Live-Lauf würde an dieser Node fehlschlagen. Wähle ein Modell aus der
+        Liste oder behalte die ID, wenn du den Anbieter noch verbindest.'
+      typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
+      modelIdLabel: Modell-ID
+      modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
     runTitle: In diesem Lauf
     resolvedInput: Aufgelöste Eingabe
     output: Ausgabe
