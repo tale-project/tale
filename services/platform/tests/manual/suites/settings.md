@@ -417,19 +417,19 @@ any toggled setting after the run.
   URL (`webdav.connectionDetails.usernameLabel`); revoking confirms
   (`webdav.revokeDialog.title`) and marks the row revoked after reload.
 - [ ] `SET-F52` · **WebDAV refuses dot-segments** — with a SET-F34
-  app-password, `MKCOL /dav/{org}/documents/dotprobe/`, then
+  app-password, `MKCOL /dav/<org>/documents/dotprobe/`, then
   `curl --path-as-is --user <email>:<password> --upload-file note.txt
-  <site>/dav/{org}/documents/dotprobe/%2E%2E/escape.txt` and the same with a
-  raw `../` → both answer `404`; `PROPFIND Depth: 1` on `/dav/{org}/documents/`
+  <site>/dav/<org>/documents/dotprobe/%2E%2E/escape.txt` and the same with a
+  raw `../` → both answer `404`; `PROPFIND Depth: 1` on `/dav/<org>/documents/`
   lists no `escape.txt`, and the Document Hub shows no stray file either;
   `dotprobe/` deletes cleanly afterwards.
 - [ ] `SET-F53` · **WebDAV organization root** — with a SET-F34
   app-password, `curl --user <email>:<password> -X PROPFIND -H 'Depth: 1'
-  <site>/dav/{org}/` → `207` whose first `href` is `/dav/{org}/` (a
+  <site>/dav/<org>/` → `207` whose first `href` is `/dav/<org>/` (a
   collection named after the org slug) followed by exactly
-  `/dav/{org}/documents/` and `/dav/{org}/.trash/`; `Depth: 0` answers the
-  root alone; mounting `/dav/{org}/` in Finder or Explorer shows the two
-  folders and nothing else; a `PROPPATCH` on `/dav/{org}/` answers `405`
+  `/dav/<org>/documents/` and `/dav/<org>/.trash/`; `Depth: 0` answers the
+  root alone; mounting `/dav/<org>/` in Finder or Explorer shows the two
+  folders and nothing else; a `PROPPATCH` on `/dav/<org>/` answers `405`
   with `Allow: OPTIONS, PROPFIND`.
 - [ ] `SET-F35` · **Enterprise SSO configure** —
   `/dashboard/{org}/settings/enterprise-sso` → pick a **Protocol**
