@@ -2,9 +2,10 @@
  * `@tale/shared/classify` — the node-free line-classification layer that turns
  * raw subprocess spew into clean output. A pure text→verdict layer: it has
  * nothing to do with terminal capability or rendering, so it lives apart from
- * `@tale/shared/terminal`. `@tale/shared/process` depends on this (for the
- * {@link Classifier} type); the Convex V8 bundler can reach it, so NOTHING here
- * value-imports a `node:*` module or `Bun`. A boundary test enforces this.
+ * `@tale/shared/terminal`. `tale dev`, `tale logs` and the platform's dev
+ * orchestrator classify their subprocess output through it; the Convex V8
+ * bundler can reach it, so NOTHING here value-imports a `node:*` module or
+ * `Bun`. A boundary test enforces this.
  */
 
 export {

@@ -1,7 +1,8 @@
+import { pipeLines } from '@tale/shared/process';
+
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { formatHeartbeat } from '../../utils/progress';
-import { pipeLines } from './docker-compose';
 import { getContainerHealth } from './get-container-health';
 import { isContainerRunning } from './is-container-running';
 
@@ -33,13 +34,21 @@ function startLogTail(containerName: string): {
   );
 
   const service = extractServiceName(containerName);
+  // A blank line carries nothing, so the tail never prints one.
   const onLine = (line: string) => {
-    logger.containerLog(service, line);
+    if (line) logger.containerLog(service, line);
+  };
+  // The tail is best-effort: a read that fails ends it without failing the
+  // health wait, and the reason stays visible under --verbose.
+  const onReadError = (err: unknown) => {
+    logger.debug(
+      `Log tail of ${containerName} stopped: ${err instanceof Error ? err.message : String(err)}`,
+    );
   };
 
   const done = Promise.all([
-    pipeLines(proc.stdout, onLine).catch(() => {}),
-    pipeLines(proc.stderr, onLine).catch(() => {}),
+    pipeLines(proc.stdout, onLine).catch(onReadError),
+    pipeLines(proc.stderr, onLine).catch(onReadError),
   ]).then(() => undefined);
 
   // Use 'exit' event for cleanup — it's sync-only but proc.kill() is sync.
@@ -47,8 +56,11 @@ function startLogTail(containerName: string): {
   const onExit = () => {
     try {
       proc.kill();
-    } catch {
-      // already dead
+    } catch (err) {
+      // Usually the tail has already exited, which leaves nothing to stop.
+      logger.debug(
+        `Could not stop the log tail of ${containerName}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   };
   process.on('exit', onExit);

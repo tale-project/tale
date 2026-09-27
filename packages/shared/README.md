@@ -48,15 +48,15 @@ same accepted values, defaults and refusal cases as the platform contracts.
 
 ### Server and CLI helpers
 
-| Import | Responsibility |
-| --- | --- |
-| `@tale/shared/http/entity-tag` | HTTP entity tags and conditional request helpers |
-| `@tale/shared/http/range` | Byte-range parsing for file responses |
-| `@tale/shared/process` | Shared process execution helpers |
-| `@tale/shared/terminal` and `/terminal/live` | Terminal rendering and live output |
-| `@tale/shared/classify` | Classify command output |
-| `@tale/shared/tux` | Terminal user experience helpers |
-| `@tale/shared/utils/site-urls` | Resolve public site URLs |
+| Import                                       | Responsibility                                                                                     |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `@tale/shared/http/entity-tag`               | HTTP entity tags and conditional request helpers                                                   |
+| `@tale/shared/http/range`                    | Byte-range parsing for file responses                                                              |
+| `@tale/shared/process`                       | Split subprocess output into lines, keep recent lines in a `RingBuffer`, open a URL with `openUrl` |
+| `@tale/shared/terminal` and `/terminal/live` | Terminal rendering and live output                                                                 |
+| `@tale/shared/classify`                      | Classify command output                                                                            |
+| `@tale/shared/tux`                           | Terminal user experience helpers                                                                   |
+| `@tale/shared/utils/site-urls`               | Resolve public site URLs                                                                           |
 
 Check a module's imports before using it in browser code. Explicit subpaths keep Node/Bun-only
 process and terminal dependencies out of frontend bundles.

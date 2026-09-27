@@ -48,6 +48,10 @@ describe('pipeLines (web ReadableStream)', () => {
     expect(await collect(['a\n\nb\n'])).toEqual(['a', '', 'b']);
   });
 
+  it('delivers a CRLF blank line as an empty line, like an LF one', async () => {
+    expect(await collect(['a\r\n\r\nb'])).toEqual(['a', '', 'b']);
+  });
+
   it('does not emit a spurious trailing blank after the last newline', async () => {
     expect(await collect(['x\n'])).toEqual(['x']);
   });
@@ -67,6 +71,15 @@ describe('pipeLines (web ReadableStream)', () => {
 
   it('caps plain text and marks it truncated', async () => {
     expect(await collect(['abcdef\n'], 3)).toEqual(['abc …[truncated]']);
+  });
+
+  it('passes a line past the default cap whole when uncapped', async () => {
+    const long = 'x'.repeat(10_000);
+    // Longer than the default cap, which would truncate it.
+    expect((await collect([`${long}\n`]))[0]).toMatch(/ …\[truncated\]$/);
+    expect(await collect([`${long}\n`], Number.POSITIVE_INFINITY)).toEqual([
+      long,
+    ]);
   });
 });
 

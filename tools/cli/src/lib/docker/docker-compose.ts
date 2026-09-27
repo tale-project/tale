@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
+import { pipeLines } from '@tale/shared/process';
+
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { type ExecResult, exec } from './exec';
@@ -10,27 +12,6 @@ interface DockerComposeOptions {
   cwd?: string;
   onLine?: (line: string) => void;
   overrideFile?: string;
-}
-
-export async function pipeLines(
-  stream: ReadableStream<Uint8Array>,
-  onLine: (line: string) => void,
-) {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (line) onLine(line.replace(/\r$/, ''));
-    }
-  }
-  if (buffer) onLine(buffer.replace(/\r$/, ''));
 }
 
 export async function dockerCompose(
@@ -61,9 +42,14 @@ export async function dockerCompose(
         stdout: 'pipe',
         stderr: 'pipe',
       });
+      // A blank compose line carries nothing, so it never reaches the caller;
+      // a long one arrives whole, never capped.
+      const forward = (line: string) => {
+        if (line) onLine(line);
+      };
       await Promise.all([
-        pipeLines(proc.stdout, onLine),
-        pipeLines(proc.stderr, onLine),
+        pipeLines(proc.stdout, forward, Number.POSITIVE_INFINITY),
+        pipeLines(proc.stderr, forward, Number.POSITIVE_INFINITY),
         proc.exited,
       ]);
       const exitCode = await proc.exited;

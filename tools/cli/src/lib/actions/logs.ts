@@ -7,6 +7,7 @@ import {
   classifyVite,
   createStreamClassifier,
 } from '@tale/shared/classify';
+import { pipeLines } from '@tale/shared/process';
 import { detectCapabilities, makePalette } from '@tale/shared/terminal';
 
 import { isUserInterrupt } from '../../utils/exit-codes';
@@ -21,7 +22,6 @@ import {
   isValidService,
 } from '../compose/types';
 import { containerExists } from '../docker/container-exists';
-import { pipeLines } from '../docker/docker-compose';
 import { listComposeContainers } from '../docker/list-service-containers';
 import { getCurrentColor } from '../state/get-current-color';
 
@@ -170,9 +170,10 @@ export async function logs(options: LogsOptions): Promise<void> {
     stdout: 'pipe',
     stderr: 'pipe',
   });
+  // Uncapped: a log viewer shows a long line whole.
   await Promise.all([
-    pipeLines(proc.stdout, render),
-    pipeLines(proc.stderr, render),
+    pipeLines(proc.stdout, render, Number.POSITIVE_INFINITY),
+    pipeLines(proc.stderr, render, Number.POSITIVE_INFINITY),
     proc.exited,
   ]);
   const exitCode = await proc.exited;

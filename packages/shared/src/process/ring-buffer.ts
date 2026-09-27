@@ -1,7 +1,7 @@
 /**
  * A fixed-capacity ring buffer — O(1) push, bounded memory. Used to retain the
- * tail of a captured subprocess stream for `--verbose` replay and failure dumps
- * without growing unbounded over a multi-hour dev session.
+ * tail of a subprocess stream for a failure dump without growing unbounded
+ * over a multi-hour dev session.
  */
 export class RingBuffer<T> {
   private readonly buf: T[];

@@ -133,10 +133,8 @@ describe('Convex V8 import boundary', () => {
   });
 
   it('the guard actually detects a node dependency (positive control)', () => {
-    const proc = readFileSync(
-      resolve(SRC, 'process/spawn-captured.ts'),
-      'utf8',
-    );
-    expect(valueImportsNodeRuntime(proc)).not.toBeNull();
+    // A server-only helper that value-imports `node:fs`.
+    const hashing = readFileSync(resolve(SRC, 'utils/hashing.ts'), 'utf8');
+    expect(valueImportsNodeRuntime(hashing)).not.toBeNull();
   });
 });

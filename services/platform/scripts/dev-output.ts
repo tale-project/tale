@@ -27,7 +27,7 @@ import {
   classifyVite,
   createStreamClassifier,
 } from '@tale/shared/classify';
-import { pipeNodeStream } from '@tale/shared/process';
+import { pipeNodeStream, RingBuffer } from '@tale/shared/process';
 import { stripAnsi } from '@tale/shared/terminal';
 import { sourceLine } from '@tale/shared/tux';
 
@@ -112,13 +112,12 @@ export function pipeChild(
   const classify = createStreamClassifier(opts.classifier ?? devStepClassifier);
   const mode = opts.mode ?? 'silent';
   const cap = opts.ringSize ?? 200;
-  const ring: string[] = [];
-  const signalLines: string[] = [];
+  const ring = new RingBuffer<string>(cap);
+  const signalLines = new RingBuffer<string>(cap);
 
   const handle = (raw: string, stream: 'stdout' | 'stderr'): void => {
     let line = classify(raw);
     ring.push(line.raw);
-    if (ring.length > cap) ring.shift();
 
     // The classifier reads prose; the stream carries severity the prose does
     // not. A line the classifier could not name, on a stderr the caller has
@@ -134,7 +133,6 @@ export function pipeChild(
 
     if ((line.kind === 'error' || line.kind === 'warn') && line.text) {
       signalLines.push(line.text);
-      if (signalLines.length > cap) signalLines.shift();
     }
 
     if (mode === 'silent' || !line.text) return;
@@ -151,7 +149,7 @@ export function pipeChild(
   }
 
   return {
-    tail: (n = cap) => ring.slice(-n),
-    signal: () => signalLines.slice(),
+    tail: (n = cap) => ring.tail(n),
+    signal: () => signalLines.toArray(),
   };
 }

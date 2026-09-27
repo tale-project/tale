@@ -9,7 +9,7 @@ import {
   classifyVite,
   createStreamClassifier,
 } from '@tale/shared/classify';
-import { openUrl } from '@tale/shared/process';
+import { openUrl, RingBuffer } from '@tale/shared/process';
 import {
   detailLines,
   doneLine,
@@ -244,7 +244,7 @@ export async function runDev(options: DevOptions): Promise<void> {
   // ── Detached: clean step-by-step bring-up, then leave the stack running. ──
   // Build/pull noise is captured to a ring and dumped only if the step fails.
   if (options.detach) {
-    const ring: string[] = [];
+    const ring = new RingBuffer<string>(200);
     await runStep(
       { active: 'Starting Tale', done: 'Tale started' },
       async () => {
@@ -252,11 +252,10 @@ export async function runDev(options: DevOptions): Promise<void> {
           ...composeOpts,
           onLine(line) {
             ring.push(line);
-            if (ring.length > 200) ring.shift();
           },
         });
         if (!result.success) {
-          if (!isUserInterrupt(result.exitCode)) detailLines(ring.slice(-15));
+          if (!isUserInterrupt(result.exitCode)) detailLines(ring.tail(15));
           throw new Error('docker compose up failed');
         }
       },
