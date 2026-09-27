@@ -6,8 +6,8 @@
       the LLM gateway, the sandbox tier) with the dev overlays — plus the
       sandbox RUNTIME image the spawner `docker run`s per session, built once
       when missing (it is neither a compose service nor a registry image).
-   2) The video toolchain (yt-dlp + deno + ffmpeg), resolved into the env the
-      backend inherits.
+   2) The external toolchains (yt-dlp + deno + ffmpeg, which the video ingest
+      lane spawns), resolved into the env the backend inherits.
    3) The BACKEND — the same `backend/main.ts` entry the container runs, in
       role `all` (api + worker in one process) — supervised by a health probe
       that restarts it up to a cap.
@@ -62,6 +62,11 @@ import {
   sandboxRuntimeUnavailable,
 } from './dev-sandbox-runtime';
 import { deriveDevSecrets } from './dev-secrets';
+import {
+  EXTERNAL_TOOLCHAINS_E2E_SKIP,
+  EXTERNAL_TOOLCHAINS_STEP,
+  externalToolchainsUnavailable,
+} from './dev-toolchains';
 
 const platformRoot = join(import.meta.dir, '..');
 const repoRoot = join(import.meta.dir, '..', '..', '..');
@@ -217,7 +222,8 @@ function envNormalizeCommon() {
 // encryption) lives in `./dev-secrets` — pure, tested, and reusing the SAME
 // `ensureWebdavHmacKey` the platform verifies with (no second formula).
 
-// The video toolchain the ingest lane spawns.
+// The external toolchains the backend spawns — today the video ingest lane's.
+// The step's lines live in `./dev-toolchains`.
 //
 // Production BAKES those binaries into the platform image on
 // pinned paths; a host `bun dev` backend has neither, so ingestion used to fail
@@ -236,7 +242,7 @@ async function provisionVideoToolchain(): Promise<void> {
   // whole 300s webServer boot budget (shards died mid-`apt-get`). Skip it
   // there, like the docker bring-up (TALE_DEV_SKIP_DOCKER).
   if (process.env.TALE_E2E === '1') {
-    infoLine('Skipping video toolchain (TALE_E2E set — no video specs)');
+    infoLine(EXTERNAL_TOOLCHAINS_E2E_SKIP);
     return;
   }
   if (
@@ -253,11 +259,7 @@ async function provisionVideoToolchain(): Promise<void> {
     process.env.VIDEO_INGEST_FFMPEG_LOCATION ||= tc.ffmpegLocation;
     process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS ||= tc.pluginDir;
   } catch (err) {
-    warnLine(
-      'Video toolchain provisioning failed — pasting a video link in chat ' +
-        "won't produce a transcript until it's installed. Underlying: " +
-        (err instanceof Error ? err.message : String(err)),
-    );
+    warnLine(externalToolchainsUnavailable(err));
   }
 }
 
@@ -1000,10 +1002,7 @@ export async function runDevFleet() {
     // yt-dlp + deno + ffmpeg, resolved before the backend starts so their
     // paths are in the environment it inherits (the ingest lane spawns them).
     // Own step because a cold cache downloads two binaries.
-    await runStep(
-      { active: 'Provisioning video toolchain', done: 'Video toolchain ready' },
-      provisionVideoToolchain,
-    );
+    await runStep(EXTERNAL_TOOLCHAINS_STEP, provisionVideoToolchain);
 
     const backendPort = Number(process.env.BACKEND_PORT || '3005');
     process.env.TALE_BACKEND_URL ??= `http://127.0.0.1:${backendPort}`;
