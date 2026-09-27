@@ -240,12 +240,21 @@ export async function runAdapted<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * A deterministic server answer: the `AppError` a 4xx becomes (or that a
+ * client-side refusal throws), or a raw `BackendApiError` under 500. A 5xx
+ * and a network failure are faults, not answers.
+ */
+export function isBackendRefusal(error: unknown): boolean {
+  if (error instanceof AppError) return true;
+  return error instanceof BackendApiError && error.status < 500;
+}
+
 /** Deterministic server answers never retry; transport errors retry 3×. */
 export function retryAdaptedRead(
   failureCount: number,
   error: unknown,
 ): boolean {
-  if (error instanceof AppError) return false;
-  if (error instanceof BackendApiError && error.status < 500) return false;
+  if (isBackendRefusal(error)) return false;
   return failureCount < 3;
 }

@@ -66,6 +66,15 @@ Die Abtastrate gilt für Leistungstraces im Browser. Das Backend sendet Fehlerbe
 
 Ein Neustart der Datenbank gilt nicht als Fehler; ein verwaltetes Upgrade erstellt die Datenbank bei jedem Release neu. Solange sie nicht erreichbar ist, antworten Anfragen mit `503 DATABASE_UNAVAILABLE` und `Retry-After`, Hintergrundjobs schlagen fehl und werden nach der Richtlinie ihrer Warteschlange wiederholt, und offene Live-Update-Streams warten ab und laufen danach weiter. Stattdessen landet jeweils eine Warnung im Protokoll. Bleibt die Datenbank länger als etwa eine Minute unerreichbar, sendet ein API-Prozess mit offenen Live-Update-Streams für diesen Ausfall ein einziges Ereignis der Stufe „warning“.
 
+Fehler, die auf keinen Defekt in Tale hinweisen, meldet der Browser nicht:
+
+- Fehler aus einer Browsererweiterung
+- Anfragen, die die Seite selbst abgebrochen hat, etwa weil du sie vor dem vollständigen Laden verlassen hast
+- Anfragen, die das Backend mit einem Status unter 500 ablehnt, etwa bei fehlender Berechtigung oder einem bereits vergebenen Namen
+- Anfragen, die gar keine Antwort erhalten, zum Beispiel weil das Gerät offline ist
+
+Serverfehler ab Status 500 meldet er weiterhin.
+
 ## Aggregierte Nutzungsstatistik mit Umami
 
 Die Erfassung ist standardmäßig ausgeschaltet. Du aktivierst sie für jedes Deployment getrennt mit `UMAMI_URL`, `UMAMI_WEBSITE_ID` und `UMAMI_PROXY_TOKEN`; die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) beschreibt die Werte. Verwende je Deployment eine eigene Website-ID. Erstelle den betroffenen Produktionsdienst mit den neuen Umgebungswerten neu; ein neues Image ist nicht nötig. Leere zum Abschalten die Website-ID und wende die Änderung genauso an. Der Vite-Entwicklungsserver stellt diese Konfiguration nicht bereit.

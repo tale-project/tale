@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+import { toBackendError } from '@/app/lib/backend/adapters';
+import { BackendApiError } from '@/app/lib/backend/api-client';
+import { AppError } from '@/lib/shared/errors/app-error';
+
 import {
   isAbortErrorEvent,
   normalizeConvexSentryEvent,
+  prepareSentryEvent,
   stripConvexRequestId,
 } from './sentry-normalize';
 
@@ -165,8 +170,8 @@ describe('isAbortErrorEvent', () => {
   });
 
   it('drops a console-promoted message that logged a cancellation', () => {
-    // The error boundary's logger passes the error's fields as an object,
-    // so the SDK records a message event with the fields as an argument.
+    // A logged value that is no Error (here an object naming itself
+    // `AbortError`) reaches the SDK only as an argument of a message event.
     expect(
       isAbortErrorEvent({
         message: 'Error caught by boundary: [object Object]',
@@ -221,5 +226,196 @@ describe('isAbortErrorEvent', () => {
         extra: { arguments: ['Failed to load releases:', new Error('boom')] },
       }),
     ).toBe(false);
+  });
+});
+
+const APP_SCRIPT = 'https://tale.example.test/assets/index-4f2c1a.js';
+// The extension behind #3094: it wraps `window.fetch`, so its frame is the
+// innermost one of every failure it relays.
+const EXTENSION_SCRIPT =
+  'chrome-extension://hoklmmgfnpapgjgcpechhaamimifchmp/frame_ant/frame_ant.js';
+
+/** One thrown error the way the browser SDK parses it: frames run from the
+ *  outermost call to the innermost. */
+function thrown(type: string, value: string, ...filenames: string[]) {
+  return {
+    exception: {
+      values: [
+        {
+          type,
+          value,
+          stacktrace: { frames: filenames.map((filename) => ({ filename })) },
+        },
+      ],
+    },
+  };
+}
+
+const APP_BUG = "Cannot read properties of undefined (reading 'id')";
+
+describe('prepareSentryEvent', () => {
+  it('drops a cancelled request', () => {
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      prepareSentryEvent(
+        thrown('AbortError', 'signal is aborted without reason', APP_SCRIPT),
+        { originalException: controller.signal.reason },
+      ),
+    ).toBeNull();
+  });
+
+  describe('browser extensions', () => {
+    it.each([
+      EXTENSION_SCRIPT,
+      'moz-extension://2b6f0c1e-4d7a-4f8e-9c11-0a2b3c4d5e6f/content.js',
+      'safari-web-extension://3284871F-A480-4FFC-8BC4-3F362C752446/content.js',
+      'safari-extension://com.example.blocker-0000000000/script.js',
+      'webkit-masked-url://hidden/',
+    ])('drops an error whose innermost frame is %s', (url) => {
+      expect(
+        prepareSentryEvent(thrown('TypeError', APP_BUG, APP_SCRIPT, url)),
+      ).toBeNull();
+    });
+
+    it('keeps our error when an extension only sits further out, e.g. around a timer callback', () => {
+      expect(
+        prepareSentryEvent(
+          thrown('TypeError', APP_BUG, EXTENSION_SCRIPT, APP_SCRIPT),
+        ),
+      ).not.toBeNull();
+    });
+
+    it('looks past anonymous and native frames for the innermost script', () => {
+      expect(
+        prepareSentryEvent(
+          thrown(
+            'TypeError',
+            APP_BUG,
+            APP_SCRIPT,
+            EXTENSION_SCRIPT,
+            '[native code]',
+            '<anonymous>',
+          ),
+        ),
+      ).toBeNull();
+    });
+
+    it('judges the thrown error, not a linked cause', () => {
+      // The SDK lists causes first, each marked by `parent_id`.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: 'TypeError',
+              value: APP_BUG,
+              mechanism: { type: 'chained', exception_id: 1, parent_id: 0 },
+              stacktrace: { frames: [{ filename: EXTENSION_SCRIPT }] },
+            },
+            {
+              type: 'Error',
+              value: 'Saving the draft failed',
+              mechanism: { type: 'generic', exception_id: 0 },
+              stacktrace: { frames: [{ filename: APP_SCRIPT }] },
+            },
+          ],
+        },
+      };
+      expect(prepareSentryEvent(event)).not.toBeNull();
+    });
+  });
+
+  describe('expected refusals', () => {
+    it('drops the AppError a 4xx becomes, which the mutation hooks log', () => {
+      const refusal = toBackendError(
+        new BackendApiError(403, 'Only owners can do this.', 'ROLE_FORBIDDEN'),
+      );
+      expect(refusal).toBeInstanceOf(AppError);
+      expect(
+        prepareSentryEvent(
+          thrown('AppError', '{"code":"ROLE_FORBIDDEN"}', APP_SCRIPT),
+          { originalException: refusal },
+        ),
+      ).toBeNull();
+    });
+
+    it('drops a BackendApiError under 500', () => {
+      expect(
+        prepareSentryEvent(thrown('BackendApiError', 'Not found', APP_SCRIPT), {
+          originalException: new BackendApiError(404, 'Not found'),
+        }),
+      ).toBeNull();
+    });
+
+    it('keeps a 5xx, even one carrying structured data', () => {
+      const fault = new BackendApiError(
+        503,
+        'Database unavailable',
+        'DATABASE_UNAVAILABLE',
+        { retryAfterMs: 5000 },
+      );
+      // The adapter lane passes a 5xx through untouched.
+      expect(toBackendError(fault)).toBe(fault);
+      expect(
+        prepareSentryEvent(
+          thrown('BackendApiError', 'Database unavailable', APP_SCRIPT),
+          { originalException: fault },
+        ),
+      ).not.toBeNull();
+    });
+
+    it('keeps an app TypeError', () => {
+      expect(
+        prepareSentryEvent(thrown('TypeError', APP_BUG, APP_SCRIPT), {
+          originalException: new TypeError(APP_BUG),
+        }),
+      ).not.toBeNull();
+    });
+  });
+
+  describe('transport failures', () => {
+    it.each([
+      'Failed to fetch',
+      'Failed to fetch (tale.example.test)',
+      'Load failed',
+      'Load failed (tale.example.test)',
+      'NetworkError when attempting to fetch resource.',
+      'NetworkError when attempting to fetch resource. (tale.example.test)',
+    ])('drops TypeError: %s', (message) => {
+      expect(
+        prepareSentryEvent(thrown('TypeError', message, APP_SCRIPT), {
+          originalException: new TypeError(message),
+        }),
+      ).toBeNull();
+    });
+
+    it('keeps a stale-bundle import failure and errors that only read like one', () => {
+      expect(
+        prepareSentryEvent(
+          thrown(
+            'TypeError',
+            'Failed to fetch dynamically imported module: https://tale.example.test/assets/chat-9a1b.js',
+            APP_SCRIPT,
+          ),
+        ),
+      ).not.toBeNull();
+      expect(
+        prepareSentryEvent(
+          thrown('TypeError', 'Avatar preview: Failed to fetch', APP_SCRIPT),
+        ),
+      ).not.toBeNull();
+      expect(
+        prepareSentryEvent(thrown('Error', 'Failed to fetch', APP_SCRIPT)),
+      ).not.toBeNull();
+    });
+  });
+
+  it('normalizes the events it keeps', () => {
+    const event = prepareSentryEvent({ message: RAW_ACTION_FAILURE });
+    expect(event?.message).toBe(
+      '[CONVEX A(agents/actions:listAgents)] Server Error\n' +
+        'Uncaught AppError: {"code":"ORG_NOT_FOUND","message":"Organization \\"jh7csd7\\" not found."}\n' +
+        '  Called by client',
+    );
   });
 });

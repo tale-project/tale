@@ -9,8 +9,8 @@ import { warmSession } from '@/app/lib/auth/session-query';
 import { installOrgErrorRecovery } from '@/app/lib/org-error-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import {
-  isAbortErrorEvent,
-  normalizeConvexSentryEvent,
+  BROWSER_EXTENSION_URLS,
+  prepareSentryEvent,
 } from '@/app/lib/sentry-normalize';
 import { getEnv } from '@/lib/env';
 
@@ -97,12 +97,16 @@ if (sentryDsn) {
       // Kept to `error` only (not `warn`) to bound event volume.
       Sentry.captureConsoleIntegration({ levels: ['error'] }),
     ],
-    // A cancelled request is no failure: drop it, whichever handler caught
-    // it. Convex failure text embeds a per-call `[Request ID: …]`, which
-    // defeats message-based grouping — every action failure opened its own
-    // issue. Strip it so events group by function + root cause.
-    beforeSend: (event, hint) =>
-      isAbortErrorEvent(event, hint) ? null : normalizeConvexSentryEvent(event),
+    // A browser extension's error is not ours to fix: the SDK's own filter
+    // drops an event whose innermost frame is an extension script, and
+    // `prepareSentryEvent` applies the same list where it is tested.
+    denyUrls: BROWSER_EXTENSION_URLS,
+    // Drop what is no defect of ours: a cancelled request, whichever handler
+    // caught it, an extension's error, an expected 4xx refusal and a
+    // transport failure. From the rest, strip the per-call `[Request ID: …]`
+    // Convex failure text embeds, which defeats message-based grouping, so
+    // events group by function + root cause.
+    beforeSend: prepareSentryEvent,
     tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
   });
 }

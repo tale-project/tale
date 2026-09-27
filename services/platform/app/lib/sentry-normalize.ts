@@ -1,7 +1,19 @@
 /**
- * Normalize Convex failure text before events leave for Sentry/GlitchTip.
+ * Prepare browser events before they leave for Sentry/GlitchTip: drop what is
+ * not ours to fix, and normalize what is.
  *
- * Convex composes every client-visible failure as
+ * `prepareSentryEvent`, the app's `beforeSend`, drops four kinds of event:
+ * - a cancelled request (`isAbortErrorEvent`), which reports no failure at
+ *   all;
+ * - an error a browser extension threw, told by its innermost frame. One
+ *   visitor's `fetch`-wrapping extension kept opening new issue groups,
+ *   because its minified frames re-fingerprint every few days (#3094);
+ * - an expected refusal: a 4xx the surface already explains, which the
+ *   mutation and action hooks still log through `console.error`;
+ * - a transport failure: the TypeError the browser raises for a request that
+ *   got no answer at all, which the offline overlay already reports.
+ *
+ * What stays is normalized. Convex composes every client-visible failure as
  * `[CONVEX A(agents/actions:listAgents)] [Request ID: 018f2a…] Server Error
  *  Uncaught AppError: …` — and the convex client also `console.error`s the
  * same line, which `captureConsoleIntegration` promotes to a message event.
@@ -10,11 +22,9 @@
  * single-event issue groups on the demo project). Stripping the volatile
  * token restores one-issue-per-root-cause grouping; the function path and the
  * underlying error text stay, so issues remain actionable.
- *
- * It also recognizes the events that report no failure at all — a cancelled
- * request (`isAbortErrorEvent`) — so `beforeSend` can drop them.
  */
 
+import { isBackendRefusal } from '@/app/lib/backend/adapters';
 import { isAbortError } from '@/lib/utils/abort-error';
 
 /** `[Request ID: …]` plus the whitespace that follows it. */
@@ -24,15 +34,23 @@ export function stripConvexRequestId(text: string): string {
   return text.replace(REQUEST_ID_RE, '');
 }
 
+/** One exception value of an event, its frames outermost first. */
+interface SentryException {
+  type?: string;
+  value?: string;
+  stacktrace?: { frames?: { filename?: string }[] };
+}
+
 /**
- * The subset of a Sentry `ErrorEvent` this normalization touches — message
- * events (including console-promoted ones via `logentry`) and exception
- * values. Structural so the helper stays SDK-version-agnostic and testable.
+ * The subset of a Sentry `ErrorEvent` this module reads and touches — message
+ * events (including console-promoted ones via `logentry`, with the values
+ * they logged in `extra.arguments`) and exception values. Structural so the
+ * helpers stay SDK-version-agnostic and testable.
  */
 interface NormalizableSentryEvent {
   message?: string;
   logentry?: { message?: string; params?: unknown[] };
-  exception?: { values?: { type?: string; value?: string }[] };
+  exception?: { values?: SentryException[] };
   extra?: Record<string, unknown>;
   request?: {
     url?: string;
@@ -97,6 +115,16 @@ export function normalizeConvexSentryEvent<
   return event;
 }
 
+/**
+ * The error the event reports: the SDK lists an error's linked causes first
+ * and the thrown error itself last.
+ */
+function thrownException(
+  event: NormalizableSentryEvent,
+): SentryException | undefined {
+  return event.exception?.values?.at(-1);
+}
+
 /** `AbortError`, alone or as the head of `AbortError: <message>`. */
 const ABORT_ERROR_TEXT_RE = /^AbortError(?::|$)/;
 
@@ -106,8 +134,8 @@ const ABORT_ERROR_TEXT_RE = /^AbortError(?::|$)/;
  * caller's own doing. TanStack Query aborts every read still in flight when
  * a navigation unmounts its page; whichever handler then hands the rejection
  * to the SDK, the event is dropped here. Recognized by the thrown value
- * itself, by a value a console-promoted event logged (an error boundary's
- * logger passes the error's fields, not the error), else by the two shapes
+ * itself, by a value a console-promoted event logged (a logged value that is
+ * no Error reaches the SDK only as an argument), else by the two shapes
  * the SDK builds from Chromium's `DOMException`: `AbortError: signal is
  * aborted without reason`, and — the stackless one an abort mid-body raises,
  * which the SDK can only stringify — `Error: AbortError: The user aborted a
@@ -120,12 +148,83 @@ export function isAbortErrorEvent(
   if (isAbortError(hint?.originalException)) return true;
   const logged = event.extra?.arguments;
   if (Array.isArray(logged) && logged.some(isAbortError)) return true;
-  const values = event.exception?.values ?? [];
-  // The last value is the thrown error; any before it are its causes.
-  const thrown = values.at(-1);
+  const thrown = thrownException(event);
   if (thrown === undefined) return false;
   return (
     thrown.type === 'AbortError' ||
     (typeof thrown.value === 'string' && ABORT_ERROR_TEXT_RE.test(thrown.value))
   );
+}
+
+/**
+ * Where a browser extension's scripts live: the Chromium, Firefox and Safari
+ * extension schemes, and the URL Safari writes into a stack in place of a
+ * script an extension injected into the page. `Sentry.init` passes the same
+ * list as `denyUrls`, so the SDK's own filter and `prepareSentryEvent` agree.
+ */
+export const BROWSER_EXTENSION_URLS: RegExp[] = [
+  /^chrome-extension:\/\//,
+  /^moz-extension:\/\//,
+  /^safari(-web)?-extension:\/\//,
+  /^webkit-masked-url:\/\//,
+];
+
+/**
+ * Whether the innermost frame that names a script belongs to an extension —
+ * `<anonymous>` and native frames say nothing about who threw. The SDK
+ * applies `denyUrls` by the same rule. An extension that wraps a callback of
+ * ours (a timer, a listener) sits further out, so when our callback throws,
+ * the error keeps reporting.
+ */
+function isFromBrowserExtension(event: NormalizableSentryEvent): boolean {
+  const frames = thrownException(event)?.stacktrace?.frames ?? [];
+  const innermost = frames.findLast(
+    (frame) =>
+      frame.filename !== '<anonymous>' && frame.filename !== '[native code]',
+  );
+  const url = innermost?.filename;
+  return (
+    url !== undefined &&
+    BROWSER_EXTENSION_URLS.some((pattern) => pattern.test(url))
+  );
+}
+
+/**
+ * The TypeError `fetch` rejects with when a request gets no answer, in its
+ * Chromium, WebKit and Firefox wording. The SDK's fetch instrumentation
+ * appends the host (`Failed to fetch (tale.example.com)`). A longer message
+ * such as `Failed to fetch dynamically imported module: …` is a stale bundle,
+ * a different failure, and does not match.
+ */
+const TRANSPORT_FAILURE_RE =
+  /^(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.)(?: \([^)]*\))?$/;
+
+function isTransportFailure(event: NormalizableSentryEvent): boolean {
+  const thrown = thrownException(event);
+  return (
+    thrown?.type === 'TypeError' &&
+    TRANSPORT_FAILURE_RE.test(thrown.value ?? '')
+  );
+}
+
+/**
+ * The app's `beforeSend`: drop a cancelled request, an extension's error, an
+ * expected refusal and a transport failure (`null` tells the SDK not to
+ * send), and normalize every event that stays. A refusal is judged on the
+ * thrown value itself, which the SDK hands over as `hint.originalException`:
+ * a `BackendApiError` keeps its status there, so a 5xx still reports.
+ */
+export function prepareSentryEvent<Event extends NormalizableSentryEvent>(
+  event: Event,
+  hint?: { originalException?: unknown },
+): Event | null {
+  if (
+    isAbortErrorEvent(event, hint) ||
+    isFromBrowserExtension(event) ||
+    isBackendRefusal(hint?.originalException) ||
+    isTransportFailure(event)
+  ) {
+    return null;
+  }
+  return normalizeConvexSentryEvent(event);
 }

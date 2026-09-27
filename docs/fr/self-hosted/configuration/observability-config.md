@@ -66,6 +66,15 @@ Le taux d’échantillonnage concerne les traces de performance du navigateur. L
 
 Un redémarrage de la base de données n’est pas signalé comme une erreur : une mise à niveau gérée recrée la base à chaque version. Tant qu’elle est injoignable, les requêtes répondent `503 DATABASE_UNAVAILABLE` avec `Retry-After`, les tâches d’arrière-plan échouent puis sont relancées selon la politique de leur file, et les flux de mise à jour en direct ouverts patientent puis reprennent. Chacun écrit un avertissement dans le journal à la place. Si la base reste injoignable plus d’une minute environ, un processus API ayant des flux ouverts envoie un seul événement de niveau « warning » pour cette panne.
 
+Le navigateur ne signale pas les erreurs qui ne révèlent aucun défaut de Tale :
+
+- les erreurs provenant d’une extension du navigateur
+- les requêtes que la page annule elle-même, par exemple quand tu la quittes avant la fin de son chargement
+- les requêtes que le backend refuse avec un statut inférieur à 500, par exemple faute d’autorisation ou parce qu’un nom est déjà pris
+- les requêtes restées sans aucune réponse, par exemple quand l’appareil est hors ligne
+
+Les erreurs serveur, de statut 500 ou plus, restent signalées.
+
 ## Statistiques agrégées avec Umami
 
 La collecte est désactivée par défaut. Tu l’actives séparément pour chaque déploiement avec `UMAMI_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_PROXY_TOKEN`, décrits dans la [référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference). Utilise un identifiant de site distinct par déploiement. Recrée le service de production concerné avec les nouvelles variables ; il n’est pas nécessaire de reconstruire l’image. Pour arrêter la collecte, vide l’identifiant de site et applique la modification de la même façon. Le serveur de développement Vite n’injecte pas cette configuration.
