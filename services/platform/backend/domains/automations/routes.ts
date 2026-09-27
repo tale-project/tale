@@ -29,7 +29,6 @@ import {
   deleteTrigger,
   getPendingAskForRun,
   getRun,
-  listAutomations,
   listAutomationsForApp,
   listRuns,
   listTriggers,
@@ -223,12 +222,6 @@ export function createAutomationRoutes(deps: {
     isAdminOrDeveloperRole(c.get('orgMember').role)
       ? null
       : c.json({ error: 'admin or developer role required' }, 403);
-
-  app.get('/', async (c) => {
-    return c.json({
-      automations: await listAutomations(deps.sql, c.get('orgId')),
-    });
-  });
 
   // The APP listing (0.4 wire): deployed-version behaviour fields + scope.
   app.get('/listing', async (c) => {

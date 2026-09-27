@@ -374,36 +374,6 @@ describe('project write adapters', () => {
     expect(init?.method).toBe('DELETE');
   });
 
-  it('moves a thread through the chat verb and invalidates both families', async () => {
-    vi.spyOn(window, 'fetch').mockResolvedValue(
-      jsonResponse(200, { ok: true }),
-    );
-
-    const adapter =
-      projectWriteAdapters['projects/mutations:moveThreadToProject'];
-    await adapter?.run(
-      { threadId: 't1', projectId: 'p1' },
-      { organizationId: 'org-1' },
-    );
-    expect(window.fetch).toHaveBeenCalledWith(
-      '/api/app/chat/threads/t1/project?orgId=org-1',
-      expect.objectContaining({ method: 'POST' }),
-    );
-
-    const invalidateQueries = vi.fn();
-    adapter?.invalidate?.(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only invalidateQueries is exercised
-      { invalidateQueries } as never,
-      { threadId: 't1', projectId: 'p1' },
-      { organizationId: 'org-1' },
-    );
-    const keys = invalidateQueries.mock.calls.map(
-      (call) => (call[0] as { queryKey: unknown }).queryKey,
-    );
-    expect(keys).toContainEqual(['backend', 'org-1', 'chat_thread']);
-    expect(keys).toContainEqual(['backend', 'org-1', 'project']);
-  });
-
   it('writes project secrets on their routes (set, pair, delete)', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')

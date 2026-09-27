@@ -133,9 +133,4 @@ export interface CollabContract {
     args: { taskId: string };
     returns: null;
   };
-  'collab/subscriptions:unsubscribeFromTask': {
-    kind: 'mutation';
-    args: { taskId: string };
-    returns: null;
-  };
 }

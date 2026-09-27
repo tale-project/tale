@@ -19,12 +19,7 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
-import {
-  invalidateChatThreads,
-  moveChatThreadToProject,
-  setChatThreadSharedWithProject,
-  setProjectPinnedRequest,
-} from './chat';
+import { invalidateChatThreads, setChatThreadSharedWithProject } from './chat';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 // ---------------------------------------------------------------------------
@@ -627,18 +622,6 @@ export const projectWriteAdapters: Record<string, WriteAdapter> = {
     run: projectVerb('connector-settings'),
     invalidate: projectWriteInvalidate,
   },
-  'projects/mutations:setProjectPinned': {
-    run: async (args, ctx) => {
-      const orgId = requireOrg(args, ctx);
-      await setProjectPinnedRequest(
-        orgId,
-        requireString(args, 'projectId'),
-        args.pinned === true,
-      );
-      return null;
-    },
-    invalidate: projectWriteInvalidate,
-  },
   'projects/mutations:archiveProject': {
     run: projectVerb('archive'),
     invalidate: projectWriteInvalidate,
@@ -723,27 +706,6 @@ export const projectWriteAdapters: Record<string, WriteAdapter> = {
       return null;
     },
     invalidate: projectWriteInvalidate,
-  },
-  'projects/mutations:moveThreadToProject': {
-    run: async (args, ctx) => {
-      const orgId = requireOrg(args, ctx);
-      const projectId = args.projectId;
-      await moveChatThreadToProject(
-        orgId,
-        requireString(args, 'threadId'),
-        typeof projectId === 'string' ? projectId : null,
-      );
-      return null;
-    },
-    invalidate: (client, args, ctx) => {
-      const orgId = orgOf(args, ctx);
-      if (orgId === undefined) return;
-      invalidateChatThreads(client, orgId);
-      void client.invalidateQueries({
-        queryKey: backendEntityPrefix(orgId, 'chat_thread'),
-      });
-      invalidateProjects(client, orgId);
-    },
   },
   'chat/threads:setThreadSharedWithProject': {
     run: async (args, ctx) => {

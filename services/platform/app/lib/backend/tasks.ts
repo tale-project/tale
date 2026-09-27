@@ -1024,18 +1024,6 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     },
     invalidate: taskWriteInvalidate,
   },
-  'collab/subscriptions:unsubscribeFromTask': {
-    run: async (args, ctx) => {
-      const orgId = requireOrg(args, ctx);
-      const taskId = requireString(args, 'taskId');
-      await backendFetch(
-        `/collab/tasks/${encodeURIComponent(taskId)}/subscription`,
-        { method: 'POST', body: { subscribed: false }, orgId },
-      );
-      return null;
-    },
-    invalidate: taskWriteInvalidate,
-  },
   'collab/subscriptions:setTaskMuted': {
     run: async (args, ctx) => {
       const orgId = requireOrg(args, ctx);

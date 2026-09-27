@@ -60,8 +60,6 @@ function invalidateConversations(
   });
 }
 
-const LIST_LIMIT = 100;
-
 /** What `/conversations/counts` answers: the per-status map the Inbox tabs
  * read, and the unread total the rail's chip reads. Both come back in ONE
  * body, and both are already narrowed to the caller's inbox scope — an admin
@@ -106,18 +104,6 @@ export const conversationReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ sources: string[] }>('/conversations/api-sources', {
           orgId,
         }).then((body) => body.sources),
-    };
-  },
-  'conversations/queries:listConversations': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, 'conversation', 'list'),
-      queryFn: () =>
-        backendFetch<{ items: unknown[] }>(
-          `/conversations?limit=${LIST_LIMIT}`,
-          { orgId },
-        ).then((body) => body.items),
     };
   },
   'conversations/queries:approxCountConversationsByStatus': (args, ctx) => {

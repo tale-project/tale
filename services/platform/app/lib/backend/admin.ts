@@ -18,7 +18,6 @@ import type {
 import { BackendApiError, backendFetch } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
-type AuditListResult = ReturnsOf<'audit_logs/queries:listAuditLogs'>;
 type ActivitySummaryResult = ReturnsOf<'audit_logs/queries:getActivitySummary'>;
 type IntegrityStatusResult =
   ReturnsOf<'audit_logs/verify_integrity:getIntegrityStatus'>;
@@ -92,17 +91,6 @@ function stringArg(args: Record<string, unknown>, key: string): string {
   return value;
 }
 
-/** The 0.4 audit filter object → the pg listing's query params. */
-function auditFilterQs(filter: unknown): string {
-  if (filter === null || typeof filter !== 'object') return '';
-  let qs = '';
-  for (const [key, value] of Object.entries(filter)) {
-    if (value === undefined || value === null || value === '') continue;
-    qs += `&${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`;
-  }
-  return qs;
-}
-
 export const adminReadAdapters: Record<string, ReadAdapter> = {
   'login_attempts/queries:listBlockCounters': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -115,28 +103,6 @@ export const adminReadAdapters: Record<string, ReadAdapter> = {
           `/audit-logs/block-counters?limit=${limit}`,
           { orgId },
         ).then((body) => body.counters),
-    };
-  },
-  'audit_logs/queries:listAuditLogs': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    const limit = typeof args.limit === 'number' ? args.limit : 50;
-    const filterQs = auditFilterQs(args.filter);
-    return {
-      queryKey: backendKey(orgId, 'audit_log', 'list', String(limit), filterQs),
-      queryFn: () =>
-        backendFetch<AuditPage>(`/audit-logs?limit=${limit}${filterQs}`, {
-          orgId,
-        }).then(
-          (body): AuditListResult =>
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg rows are the 0.4 doc superset; ids bridged
-            ({
-              logs: body.items.map(withConvexId),
-              ...(body.nextCursor !== null
-                ? { nextCursor: `${body.nextCursor.ts}|${body.nextCursor.id}` }
-                : {}),
-            }) as AuditListResult,
-        ),
     };
   },
   'audit_logs/queries:getAuditLogById': (args, ctx) => {

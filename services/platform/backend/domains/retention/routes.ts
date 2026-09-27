@@ -87,12 +87,6 @@ export function createRetentionRoutes(deps: {
     return next();
   });
 
-  app.get('/bounds', async (c) => {
-    return c.json({
-      applied: await getAppliedBounds(deps.sql, c.get('orgId')),
-    });
-  });
-
   /** The operator bounds catalog the retention editor renders (the 0.4
    * `getRetentionBoundsAction`: file x env tightening; empty bounds are
    * the expected fresh-org state, not an error). */

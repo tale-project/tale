@@ -75,19 +75,9 @@ export interface ProjectsContract {
     args: { name?: string; projectId: string };
     returns: string;
   };
-  'projects/mutations:moveThreadToProject': {
-    kind: 'mutation';
-    args: { projectId: null | string; threadId: string };
-    returns: null;
-  };
   'projects/mutations:restoreProject': {
     kind: 'mutation';
     args: { projectId: string };
-    returns: null;
-  };
-  'projects/mutations:setProjectPinned': {
-    kind: 'mutation';
-    args: { projectId: string; pinned: boolean };
     returns: null;
   };
   'projects/mutations:updateProjectAgent': {

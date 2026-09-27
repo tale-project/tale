@@ -132,21 +132,6 @@ function orgOf(
   return ctx.organizationId;
 }
 
-/** Hub root listing — the bounded read with its truncation flag. */
-function hubDocumentsQuery(orgId: string): {
-  queryKey: readonly unknown[];
-  queryFn: () => Promise<{ documents: DocumentItem[]; truncated: boolean }>;
-} {
-  return {
-    queryKey: backendKey(orgId, 'document', 'list'),
-    queryFn: () =>
-      backendFetch<{ documents: DocumentItem[]; truncated: boolean }>(
-        '/documents',
-        { orgId },
-      ),
-  };
-}
-
 /** Approximate org document count. */
 export function approxDocumentCountQuery(orgId: string): {
   queryKey: readonly unknown[];
@@ -292,11 +277,6 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
           orgId,
         }).then((body) => body.statuses),
     };
-  },
-  'documents/queries:listDocuments': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return hubDocumentsQuery(orgId);
   },
   'documents/queries:approxCountDocuments': (args, ctx) => {
     const orgId = orgOf(args, ctx);

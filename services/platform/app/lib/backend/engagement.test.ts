@@ -95,22 +95,21 @@ afterEach(() => {
   delete window.__ENV__;
 });
 
-describe.each([
-  ['contacts', 'listContacts', 'listContactsPaginated'],
-  ['products', 'listProducts', 'listProductsPaginated'],
-])('%s table dates', (entity, listQuery, pageQuery) => {
-  const wireRow = {
-    id: 'record-1',
-    name: 'Review record',
-    createdAt: 1770000000000,
-    updatedAt: 1770003600000,
-  };
+const tableDatesRow = {
+  id: 'record-1',
+  name: 'Review record',
+  createdAt: 1770000000000,
+  updatedAt: 1770003600000,
+};
+
+describe('contacts table dates', () => {
+  const wireRow = tableDatesRow;
 
   it('supplies the Added and Updated columns in whole-list reads', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ items: [wireRow] })),
     );
-    const adapter = engagementReadAdapters[`${entity}/queries:${listQuery}`]?.(
+    const adapter = engagementReadAdapters['contacts/queries:listContacts']?.(
       {},
       ctx,
     );
@@ -123,6 +122,13 @@ describe.each([
       },
     ]);
   });
+});
+
+describe.each([
+  ['contacts', 'listContactsPaginated'],
+  ['products', 'listProductsPaginated'],
+])('%s table dates', (entity, pageQuery) => {
+  const wireRow = tableDatesRow;
 
   it('supplies table dates without changing the server pagination cursor', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
@@ -169,17 +175,6 @@ describe('website creation dates', () => {
     _id: wireRow.id,
     _creationTime: wireRow.createdAt,
   };
-
-  it('reads the app page envelope and supplies Created for whole-list consumers', async () => {
-    vi.spyOn(window, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify(wirePage)),
-    );
-    const adapter = engagementReadAdapters['websites/queries:listWebsites']?.(
-      {},
-      ctx,
-    );
-    expect(await adapter?.queryFn()).toEqual([expectedRow]);
-  });
 
   it('supplies Created without changing scan time or the opaque website cursor', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(

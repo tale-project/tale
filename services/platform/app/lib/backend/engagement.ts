@@ -195,17 +195,6 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
         }),
     };
   },
-  'websites/queries:listWebsites': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, 'website', 'list'),
-      queryFn: () =>
-        backendFetch<PageEnvelope>(`/websites?limit=${LIST_LIMIT}`, {
-          orgId,
-        }).then((body) => body.page.map(withRecordDates)),
-    };
-  },
   'websites/queries:approxCountWebsites': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -247,17 +236,6 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ count: number }>('/contacts/count', { orgId }).then(
           (body) => body.count,
         ),
-    };
-  },
-  'products/queries:listProducts': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, 'product', 'list'),
-      queryFn: () =>
-        backendFetch<{ items: unknown[] }>(`/products?limit=${LIST_LIMIT}`, {
-          orgId,
-        }).then((body) => body.items.map(withRecordDates)),
     };
   },
   'products/queries:approxCountProducts': (args, ctx) => {
