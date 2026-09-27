@@ -21,7 +21,7 @@ const columns: ColumnDef<Automation>[] = [
     header: 'Automation',
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
   },
-  { accessorKey: 'trigger', header: 'Trigger' },
+  { accessorKey: 'trigger', header: 'Trigger', size: 96 },
 ];
 
 export default function DataTableWithSearch() {

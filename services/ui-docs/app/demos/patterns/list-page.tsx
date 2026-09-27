@@ -35,10 +35,11 @@ const columns: ColumnDef<Automation>[] = [
     header: 'Automation',
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
   },
-  { accessorKey: 'trigger', header: 'Trigger' },
+  { accessorKey: 'trigger', header: 'Trigger', size: 96 },
   {
     accessorKey: 'state',
     header: 'State',
+    size: 112,
     cell: ({ row }) => (
       <Badge dot variant={row.original.state === 'on' ? 'green' : 'slate'}>
         {row.original.state === 'on' ? 'Enabled' : 'Paused'}
