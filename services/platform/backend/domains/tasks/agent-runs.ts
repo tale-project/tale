@@ -4,6 +4,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
+import type { MentionSource } from '../../core/tasks/mentions.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
   isAutoRetryableFailure,
@@ -87,6 +88,10 @@ export interface KickAgentRunArgs {
   startedBy: string;
   trigger?: 'manual' | 'mention' | 'auto_retry';
   feedback?: string;
+  /** Which text named the agent on a `mention` kick. A comment's body rides
+   * as `feedback`; a description kick carries none, because the turn reads
+   * the description as it stands when it starts (`buildKickPrompts`). */
+  mentionSource?: MentionSource;
   /** 1-based display stamp for `trigger: 'auto_retry'` kicks. */
   autoRetryAttempt?: number;
 }
@@ -145,14 +150,16 @@ export async function kickAgentRun(
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
-      harness, model, model_provider, trigger, feedback, auto_retry_attempt,
-      started_by, started_at_ms, deadline_at_ms, updated_at_ms
+      harness, model, model_provider, trigger, feedback, mention_source,
+      auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
+      updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionIdForProjectAgent(args.agentId)},
       'queued', ${args.harness}, ${args.model},
       ${args.modelProvider ?? null}, ${args.trigger ?? 'manual'},
-      ${args.feedback ?? null}, ${args.autoRetryAttempt ?? null},
+      ${args.feedback ?? null}, ${args.mentionSource ?? null},
+      ${args.autoRetryAttempt ?? null},
       ${args.startedBy}, ${now},
       ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now}
     )

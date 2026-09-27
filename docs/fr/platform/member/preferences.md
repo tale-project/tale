@@ -9,7 +9,7 @@ Les réglages du compte déterminent le nom visible par tes collègues et ta fa�
 
 Ouvre **Paramètres > Compte**. Sous **Profil**, modifie **Nom**, puis clique sur **Enregistrer** en haut de la page. La commande d’abandon restaure la valeur enregistrée. L’adresse e-mail reste en lecture seule, car elle identifie le compte utilisé pour la connexion et les notifications.
 
-Ton nom est visible par les collègues. Ce n’est pas une instruction privée destinée à l’assistant.
+Ton nom est visible par les collègues et ne doit pas dépasser 100 caractères. Ce n’est pas une instruction privée destinée à l’assistant.
 
 ## Protéger la connexion
 

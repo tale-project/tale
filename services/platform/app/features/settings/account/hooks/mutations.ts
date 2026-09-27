@@ -5,10 +5,21 @@ import {
   invalidateMyPasswordPolicy,
   passwordExpiryQuery,
 } from '@/app/lib/backend/account';
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
+import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
+/** The profile name save. A submit the header's Save cluster does not run
+ * (Enter in the field) has only this toast, so it names why the server
+ * refused the save; a fault keeps the generic "try again". */
 export function useUpdateUserName() {
-  return useBackendMutation('users/mutations:updateUserName');
+  const { t } = useT('toast');
+  return useBackendMutation('users/mutations:updateUserName', {
+    errorToast: {
+      title: t('error.profileUpdateFailed.title'),
+      description: backendRefusalDetail,
+    },
+  });
 }
 
 /** The password write refused the new password under the user's effective

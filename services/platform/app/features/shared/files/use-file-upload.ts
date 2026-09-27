@@ -10,6 +10,10 @@ import {
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
+} from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -485,7 +489,10 @@ export function useFileUpload(config: FileUploadConfig) {
             });
 
             if (!result.ok) {
-              throw new Error(t('uploadFailed'));
+              // The door's own refusal, so the toast below can say why (an
+              // object store's own error page carries no code, and adds
+              // nothing).
+              throw await backendErrorFromResponse(result);
             }
 
             let boundRef = handoff.s3Ref;
@@ -579,13 +586,21 @@ export function useFileUpload(config: FileUploadConfig) {
               return;
             }
             console.error('Upload error:', error);
+            // A door that refused the bytes or their bind says why; a
+            // fault names only the file.
+            const reason = backendRefusalDetail(error);
             toast({
               title: t('uploadFailed'),
               description:
                 error instanceof BackendApiError &&
                 isTranscriptionUnavailableReason(error.code)
                   ? t(transcriptionUnavailableKey(error.code))
-                  : t('failedToUpload', { filename: file.name }),
+                  : reason !== undefined
+                    ? t('failedToUploadReason', {
+                        filename: file.name,
+                        reason,
+                      })
+                    : t('failedToUpload', { filename: file.name }),
               variant: 'destructive',
             });
           } finally {

@@ -14,6 +14,10 @@ import { DocumentPreviewDialog } from '@/app/features/documents/components/docum
 import { useDeleteDocument } from '@/app/features/documents/hooks/mutations';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
+} from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -129,50 +133,78 @@ export function TaskInputFilesCard({
 
   const uploadFiles = async (picked: File[]) => {
     setUploading(true);
+    // Each file stands alone: one the door refused never keeps the rest of
+    // the pick from landing, and every file that did not land is named on
+    // ONE toast beside why (the door's words; a fault has none).
+    const failed: Array<{ name: string; reason?: string }> = [];
     try {
       for (const file of picked) {
-        const resolvedType = resolveFileType(file.name, file.type);
-        const uploadUrl = await generateUploadUrl({});
-        const response = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': resolvedType },
-          body: file,
-        });
-        if (!response.ok) {
-          throw new Error(`upload failed: ${response.status}`);
+        try {
+          await uploadOne(file);
+        } catch (error) {
+          console.error('[tasks] input-file upload failed', file.name, error);
+          const reason = backendRefusalDetail(error);
+          failed.push({
+            name: file.name,
+            ...(reason !== undefined ? { reason } : {}),
+          });
         }
-        const uploadJson: unknown = await response.json();
-        if (
-          typeof uploadJson !== 'object' ||
-          uploadJson === null ||
-          !('storageId' in uploadJson) ||
-          typeof uploadJson.storageId !== 'string'
-        ) {
-          throw new Error('upload response missing storageId');
-        }
-        await createDocumentFromUpload({
-          organizationId,
-          fileId: uploadJson.storageId,
-          fileName: file.name,
-          contentType: resolvedType,
-          metadata: {
-            size: file.size,
-            sourceProvider: 'upload',
-            sourceMode: 'manual',
-            lastModified: file.lastModified,
-          },
-          teamId: undefined,
-          folderId,
-          fileSize: file.size,
-          projectId,
-        });
       }
-    } catch (error) {
-      console.error('[tasks] input-file upload failed', error);
-      toast({ title: t('inputFiles.uploadFailed'), variant: 'destructive' });
     } finally {
       setUploading(false);
     }
+    if (failed.length > 0) {
+      toast({
+        title: t('inputFiles.uploadFailed'),
+        description: failed
+          .map(({ name, reason }) =>
+            reason === undefined
+              ? name
+              : t('inputFiles.uploadFailedDetail', { name, reason }),
+          )
+          .join(' · '),
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const uploadOne = async (file: File) => {
+    const resolvedType = resolveFileType(file.name, file.type);
+    const uploadUrl = await generateUploadUrl({});
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': resolvedType },
+      body: file,
+    });
+    if (!response.ok) {
+      // The door's own refusal, so the toast can say why.
+      throw await backendErrorFromResponse(response);
+    }
+    const uploadJson: unknown = await response.json();
+    if (
+      typeof uploadJson !== 'object' ||
+      uploadJson === null ||
+      !('storageId' in uploadJson) ||
+      typeof uploadJson.storageId !== 'string'
+    ) {
+      throw new Error('upload response missing storageId');
+    }
+    await createDocumentFromUpload({
+      organizationId,
+      fileId: uploadJson.storageId,
+      fileName: file.name,
+      contentType: resolvedType,
+      metadata: {
+        size: file.size,
+        sourceProvider: 'upload',
+        sourceMode: 'manual',
+        lastModified: file.lastModified,
+      },
+      teamId: undefined,
+      folderId,
+      fileSize: file.size,
+      projectId,
+    });
   };
 
   return (
