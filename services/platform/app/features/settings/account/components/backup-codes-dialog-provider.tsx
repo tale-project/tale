@@ -21,14 +21,13 @@ const BackupCodesContext = createContext<BackupCodesContextValue | null>(null);
  * Hosts the "just-enrolled / just-regenerated backup codes" dialog at the
  * root of the app.
  *
- * Why root-level: a successful TOTP verify rotates the better-auth session,
- * which briefly invalidates the Convex access token. Live queries under
- * DashboardLayout can throw Unauthenticated in that window; when
- * LayoutErrorBoundary auto-retries, it unmounts and remounts its whole
- * child tree — which includes the settings page that owns the enrolment
- * flow. If the dialog state lived inside that tree, the backup codes
- * would be wiped before the user sees them. Owning the state above the
- * dashboard keeps the dialog on screen throughout the transition.
+ * Why root-level: the codes arrive the moment enrolment succeeds, which is
+ * also the moment the two-factor status flips and `TwoFactorSection` swaps
+ * its not-enrolled state for the enrolled one — unmounting the component
+ * that asked to show them — and a layout error boundary's retry remounts
+ * the whole settings page. If the dialog state lived inside that tree, the
+ * backup codes would be wiped before the user sees them. Owning the state
+ * above the dashboard keeps the dialog on screen throughout the transition.
  */
 export function BackupCodesDialogProvider({
   children,
