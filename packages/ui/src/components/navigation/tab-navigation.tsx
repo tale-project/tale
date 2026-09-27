@@ -481,7 +481,10 @@ export function TabNavigation({
       >
         <div
           ref={scrollRef}
-          className="scrollbar-hide relative flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-4"
+          // `flex-auto`, not `flex-1`: the tabs' natural width is their
+          // claim on the row, so the trailing actions yield before them (a
+          // zero basis handed the tabs only what the actions left over).
+          className="scrollbar-hide relative flex min-w-0 flex-auto items-center gap-4 overflow-x-auto px-4"
         >
           {visibleItems.map((item, index) => {
             const isActive = isPathActive(item);
@@ -650,11 +653,17 @@ export function TabNavigation({
           left shadow + background fade make the scrolling tabs visibly slide
           beneath it — shown ONLY when the strip actually overflows, else it
           reads as a stray shadow floating beside the buttons on a wide
-          viewport. On mobile, the same children float above the bottom nav. */}
+          viewport. On mobile, the same children float above the bottom nav.
+          The tabs come first: when the row is short of room the group gives
+          way before them (`shrink-1000` against the tabs' 1) down to its
+          widest action, and clusters that wrap (the editor's version, deploy,
+          run and save verbs) take a second line — the strip grows by a row
+          (`py-2` keeps it off the rules) instead of sliding a tab under the
+          buttons, where nothing said it was there. */}
         {children && !isMobile && (
           <div
             className={cn(
-              'bg-background relative z-[1] flex shrink-0 items-center gap-2 self-stretch pr-4 pl-3',
+              'bg-background relative z-[1] flex shrink-1000 items-center gap-2 self-stretch py-2 pr-4 pl-3',
               isScrollable &&
                 'shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.18)] dark:shadow-[-12px_0_12px_-12px_rgba(0,0,0,0.6)]',
             )}
