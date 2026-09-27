@@ -62,7 +62,7 @@ SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-Die Abtastrate gilt für Leistungstraces im Browser. Das Backend sendet Fehlerberichte, keine Leistungstraces. In der Entwicklung beträgt die Standardrate für Browsertraces 1.0. Wähle für den Produktivbetrieb einen Wert passend zu deinem Überwachungsbudget. Stackframes werden ohne Schwärzung übertragen; berücksichtige bei der Zielwahl deine Vorgaben zur Datenverarbeitung.
+Die Abtastrate gilt für Leistungstraces im Browser. Das Backend sendet Fehlerberichte, keine Leistungstraces. In der Entwicklung beträgt die Standardrate für Browsertraces 1.0. Wähle für den Produktivbetrieb einen Wert passend zu deinem Überwachungsbudget. Backend-Ereignisse enthalten nie Cookies oder Inhalte der Anfrage. Autorisierungs-, Cookie-, API-Schlüssel-, Token-, Secret- und Sitzungs-Header, Webhook- und Freigabe-Tokens in URLs sowie Zugangswerte in Abfrageparametern wie OAuth-Codes werden vor dem Senden durch `[Filtered]` ersetzt. Stackframes und Fehlermeldungen werden unverändert übertragen; berücksichtige bei der Zielwahl deine Vorgaben zur Datenverarbeitung.
 
 ## Aggregierte Nutzungsstatistik mit Umami
 

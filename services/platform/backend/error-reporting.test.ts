@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { gunzipSync } from 'node:zlib';
 
+import { serve, type ServerType } from '@hono/node-server';
 import * as Sentry from '@sentry/node';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -13,6 +14,8 @@ import {
   flushErrorReporting,
   initErrorReporting,
   reportError,
+  scrubEvent,
+  scrubUrl,
 } from './error-reporting.ts';
 
 /**
@@ -61,6 +64,83 @@ function parseEnvelope(url: string, raw: Buffer, gzipped: boolean): void {
 function capturedEvents(): Record<string, unknown>[] {
   return captured.flatMap((envelope) => envelope.events);
 }
+
+describe('scrubUrl', () => {
+  it('masks webhook and share tokens in the path and credential query values', () => {
+    expect(
+      scrubUrl('https://t.example/api/automations/webhook/whk_secret123'),
+    ).toBe('https://t.example/api/automations/webhook/[Filtered]');
+    expect(
+      scrubUrl('/api/projects/p1/automations/webhook/whk_abc?x=1#frag'),
+    ).toBe('/api/projects/p1/automations/webhook/[Filtered]?x=1#frag');
+    expect(scrubUrl('/api/app/threads/shared/shr_tok/messages')).toBe(
+      '/api/app/threads/shared/[Filtered]/messages',
+    );
+    expect(
+      scrubUrl('/callback?code=abc&state=xyz&lang=de&Token=t&api_key=k'),
+    ).toBe(
+      '/callback?code=[Filtered]&state=[Filtered]&lang=de&Token=[Filtered]&api_key=[Filtered]',
+    );
+    expect(scrubUrl('/api/v1/threads?limit=5')).toBe('/api/v1/threads?limit=5');
+  });
+});
+
+describe('scrubEvent', () => {
+  it('drops cookies and bodies and masks credential headers, URLs and breadcrumbs', () => {
+    const event = scrubEvent({
+      request: {
+        url: 'https://t.example/api/automations/webhook/whk_1',
+        query_string: 'code=abc&page=2',
+        cookies: { 'better-auth.session_token': 'session-value' },
+        data: '{"password":"hunter2"}',
+        headers: {
+          Authorization: 'Bearer tale_live_key',
+          'x-api-key': 'tale_other_key',
+          'X-Session-Id': 'sid',
+          'user-agent': 'probe',
+        },
+      },
+      breadcrumbs: [
+        { category: 'http', data: { url: '/threads/shared/shr_x?token=t' } },
+        { category: 'console', message: 'kept' },
+      ],
+    });
+    expect(event.request).toEqual({
+      url: 'https://t.example/api/automations/webhook/[Filtered]',
+      query_string: 'code=[Filtered]&page=2',
+      headers: {
+        Authorization: '[Filtered]',
+        'x-api-key': '[Filtered]',
+        'X-Session-Id': '[Filtered]',
+        'user-agent': 'probe',
+      },
+    });
+    expect(event.breadcrumbs).toEqual([
+      {
+        category: 'http',
+        data: { url: '/threads/shared/[Filtered]?token=[Filtered]' },
+      },
+      { category: 'console', message: 'kept' },
+    ]);
+  });
+
+  it('drops a structured query string and leaves an event without a request alone', () => {
+    const structured = scrubEvent({
+      request: { query_string: { code: 'abc' } },
+    });
+    expect(structured.request).toEqual({});
+    expect(scrubEvent({ message: 'plain' })).toEqual({ message: 'plain' });
+    expect(
+      scrubEvent({
+        transaction: 'POST /api/automations/webhook/whk_1',
+        extra: { path: '/api/app/threads/shared/shr_1', other: 1 },
+      }),
+    ).toEqual({
+      transaction: 'POST /api/automations/webhook/[Filtered]',
+      extra: { path: '/api/app/threads/shared/[Filtered]', other: 1 },
+    });
+  });
+});
 
 describe('error reporting without a DSN', () => {
   it('stays disabled and every hook is a safe no-op', async () => {
@@ -284,5 +364,65 @@ describe('error reporting with a DSN', () => {
       JSON.stringify(e).includes('teapot-refusal'),
     );
     expect(leaked).toBeUndefined();
+  });
+
+  it('sends no credential of a real HTTP request: no cookie, no key, no body', async () => {
+    // Through a real Node server, as main.ts serves the app: that is where
+    // the SDK's server integration attaches the incoming request to the
+    // event. In 2026-09 every 500 on an authenticated route carried the
+    // caller's session cookie or Bearer key, and bodies, to the tracker.
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const app = new Hono();
+    app.onError(appErrorHandler);
+    app.post('/api/automations/webhook/:token', async (c) => {
+      await c.req.text();
+      throw new Error('boom-credentials');
+    });
+    let server: ServerType | undefined;
+    try {
+      const port = await new Promise<number>((resolve) => {
+        server = serve(
+          { fetch: app.fetch, port: 0, hostname: '127.0.0.1' },
+          (info) => resolve(info.port),
+        );
+      });
+      const res = await fetch(
+        `http://127.0.0.1:${port}/api/automations/webhook/whk_live_token?code=grant-code`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer tale_live_secret_key',
+            cookie: 'better-auth.session_token=live-session-cookie',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ password: 'body-secret-value' }),
+        },
+      );
+      expect(res.status).toBe(500);
+
+      await flushErrorReporting();
+      const event = capturedEvents().find((e) =>
+        JSON.stringify(e).includes('boom-credentials'),
+      );
+      expect(event).toBeDefined();
+      const serialized = JSON.stringify(event);
+      for (const secret of [
+        'tale_live_secret_key',
+        'live-session-cookie',
+        'body-secret-value',
+        'whk_live_token',
+        'grant-code',
+      ]) {
+        expect(serialized).not.toContain(secret);
+      }
+    } finally {
+      consoleError.mockRestore();
+      await new Promise<void>((resolve) => {
+        if (server === undefined) resolve();
+        else server.close(() => resolve());
+      });
+    }
   });
 });

@@ -62,7 +62,7 @@ SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-The trace sample rate applies to browser performance traces. The backend sends errors, not performance traces. Browser traces default to 1.0 in development; choose a production sample rate that fits your monitoring budget. Stack frames are sent without redaction, so choose the destination according to your data-handling requirements.
+The trace sample rate applies to browser performance traces. The backend sends errors, not performance traces. Browser traces default to 1.0 in development; choose a production sample rate that fits your monitoring budget. Backend events never include request cookies or bodies. Authorization, cookie, API-key, token, secret and session headers, webhook and share tokens in URLs, and credential query values such as OAuth codes are replaced with `[Filtered]` before sending. Stack frames and error messages are sent as they are, so choose the destination according to your data-handling requirements.
 
 ## Aggregate analytics with Umami
 
