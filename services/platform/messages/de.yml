@@ -712,6 +712,13 @@ automations:
     eventPlaceholder: Ereignis wählen
     enabledLabel: Aktiv
     lastFired: 'Zuletzt ausgelöst {at}'
+    failures:
+      pausedTitle: 'Nach wiederholten Fehlern pausiert'
+      pausedBody: '{count, plural, one {# Lauf ist} other {# Läufe sind}} nacheinander mit einem Fehler fehlgeschlagen, den ein erneuter Versuch nicht behebt, deshalb hat sich der Zeitplan ausgeschaltet. Behebe den Fehler in der Automatisierung, schalte den Trigger dann wieder ein und speichere.'
+      streak: '{count, plural, one {Der letzte Lauf ist} other {Die letzten # Läufe sind}} mit einem Fehler fehlgeschlagen, den ein erneuter Versuch nicht behebt.'
+      streakSchedule: 'Nach {limit} solchen Fehlern in Folge schaltet sich der Zeitplan aus.'
+      last: 'Letzter Fehler {at}:'
+      viewRun: 'Lauf ansehen'
     remove: Trigger entfernen
     removeTitle: Trigger entfernen?
     removeBody: Entfernt den Trigger. Die Automatisierung und ihre Versionshistorie bleiben unberührt.
@@ -4648,6 +4655,9 @@ notificationPreferences:
       label: Agenten-Eskalationen
       description: Wenn ein Agent dir eine Frage stellt oder eine Aufgabe an
         einen Menschen eskaliert.
+    automationAlerts:
+      label: Automatisierungs-Warnungen
+      description: Wenn der Zeitplan einer Automatisierung pausiert, weil ihre Läufe immer wieder fehlschlagen.
     conversationMessages:
       label: Konversationsnachrichten
       description: Wenn eine Kontaktnachricht in Konversationen ankommt.
@@ -6412,6 +6422,7 @@ settings:
         model_access.denied: Modellzugriff abgelehnt
         ai.completion: KI-Antwort
         ai.budget_blocked: KI-Budget gesperrt
+        automation.trigger.paused: Zeitplan einer Automatisierung pausiert
         create_connector: Connector erstellt
         delete_connector: Connector gelöscht
         update_credential: Zugangsdaten aktualisiert
@@ -6521,6 +6532,7 @@ settings:
         agent: Agent
         workflow: Automatisierung
         workflow_run: Automatisierungslauf
+        automation_trigger: Automatisierungs-Trigger
         workflow_creation: Erstellung der Automatisierung
         workflow_update: Automatisierungs-Update
         customer: Kontakt
@@ -6893,6 +6905,8 @@ inbox:
   cloudSyncNeedsReauthBody: 'Tale hat mit deinem Konto keinen Zugriff mehr auf {provider}, deshalb wird "{itemName}" nicht mehr synchronisiert. Verbinde {provider} unter Dokumente erneut, um fortzufahren.'
   usageCreditsRequested: Nutzungskontingent angefragt
   usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
+  automationTriggerPaused: Zeitplan pausiert
+  automationTriggerPausedBody: '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.'
   email:
     cta: In Tale öffnen
     footer:

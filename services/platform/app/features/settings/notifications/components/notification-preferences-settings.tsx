@@ -7,6 +7,7 @@ import { useCallback } from 'react';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorMessage } from '@/lib/utils/backend-error';
@@ -22,6 +23,7 @@ type InAppPrefKey =
   | 'taskDeadlines'
   | 'taskReview'
   | 'escalation'
+  | 'automationAlerts'
   | 'conversationMessages';
 
 const IN_APP_PREF_KEYS: InAppPrefKey[] = [
@@ -32,8 +34,15 @@ const IN_APP_PREF_KEYS: InAppPrefKey[] = [
   'taskDeadlines',
   'taskReview',
   'escalation',
+  'automationAlerts',
   'conversationMessages',
 ];
+
+/** Toggles for notices only owners and admins receive — a paused schedule
+ * is theirs to fix — so nobody else is offered a switch that does nothing. */
+const ADMIN_ONLY_PREF_KEYS: ReadonlySet<InAppPrefKey> = new Set([
+  'automationAlerts',
+]);
 
 export function NotificationPreferencesSettings() {
   const organizationId = useOrganizationId();
@@ -74,6 +83,7 @@ function NotificationPreferencesSettingsView({
         taskDeadlines?: boolean;
         taskReview?: boolean;
         escalation?: boolean;
+        automationAlerts?: boolean;
         digest?: boolean;
         conversationMessages?: boolean;
         actionableEmail?: boolean;
@@ -82,6 +92,11 @@ function NotificationPreferencesSettingsView({
 }) {
   const { t } = useT('notificationPreferences');
   const { toast } = useToast();
+  const ability = useAbility();
+  const isAdmin = ability.can('read', 'orgSettings');
+  const prefKeys = isAdmin
+    ? IN_APP_PREF_KEYS
+    : IN_APP_PREF_KEYS.filter((key) => !ADMIN_ONLY_PREF_KEYS.has(key));
   const { mutateAsync: save, isPending } = useSetNotificationPreferences();
 
   const handleToggle = useCallback(
@@ -120,7 +135,7 @@ function NotificationPreferencesSettingsView({
         />
       </SettingsSection>
       <SettingsSection title={t('title')} description={t('description')}>
-        {IN_APP_PREF_KEYS.map((key) => {
+        {prefKeys.map((key) => {
           // Review requests are a safety signal — the section description
           // above already promises they "always stay on"; back that promise
           // with a locked control instead of a toggle that quietly breaks it

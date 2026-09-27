@@ -16,8 +16,16 @@ let prefsFixture:
   | {
       taskReview?: boolean;
       mention?: boolean;
+      automationAlerts?: boolean;
     }
   | undefined = {};
+
+const viewer = vi.hoisted(() => ({ role: 'member' }));
+
+vi.mock('@/app/hooks/use-ability', async () => {
+  const { defineAbilityFor } = await import('@/lib/permissions/ability');
+  return { useAbility: () => defineAbilityFor(viewer.role) };
+});
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
@@ -38,6 +46,7 @@ describe('NotificationPreferencesSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prefsFixture = {};
+    viewer.role = 'member';
   });
 
   describe('Review requests lock (#2651)', () => {
@@ -81,5 +90,46 @@ describe('NotificationPreferencesSettings', () => {
         mention: false,
       });
     });
+  });
+
+  // Only owners and admins are told when a schedule pauses itself after
+  // repeated failures (`automation_failed`), so only they get its switch.
+  describe('Automation alerts', () => {
+    it.each(['owner', 'admin'])(
+      'offers the switch to an %s and saves it',
+      async (role) => {
+        viewer.role = role;
+        prefsFixture = {};
+
+        const { user } = render(<NotificationPreferencesSettings />);
+
+        const alerts = screen.getByRole('switch', {
+          name: 'Automation alerts',
+        });
+        expect(alerts).toBeChecked();
+        await user.click(alerts);
+
+        expect(mockSave).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          automationAlerts: false,
+        });
+      },
+    );
+
+    it.each(['member', 'editor', 'developer'])(
+      'does not offer it to a %s, who never receives those alerts',
+      (role) => {
+        viewer.role = role;
+
+        render(<NotificationPreferencesSettings />);
+
+        expect(
+          screen.queryByRole('switch', { name: 'Automation alerts' }),
+        ).toBeNull();
+        expect(
+          screen.getByRole('switch', { name: 'Mentions' }),
+        ).toBeInTheDocument();
+      },
+    );
   });
 });

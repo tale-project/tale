@@ -598,6 +598,14 @@ export function pgAutomationStore(
         if (row.lastSkipReason !== null) {
           view.lastSkipReason = row.lastSkipReason;
         }
+        view.consecutiveFailures = row.consecutiveFailures;
+        if (row.lastFailedAt !== null) view.lastFailedAt = row.lastFailedAt;
+        if (row.lastFailureCode !== null) {
+          view.lastFailureCode = row.lastFailureCode;
+        }
+        if (row.lastFailedRunId !== null) {
+          view.lastFailedRunId = row.lastFailedRunId;
+        }
         views.push(view);
       }
       return views;

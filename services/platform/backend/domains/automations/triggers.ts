@@ -30,6 +30,7 @@ import {
   beginRunInTx,
   getRun,
   resolveRunProject,
+  type TriggerSkipReason,
 } from './store.ts';
 
 /**
@@ -100,9 +101,11 @@ const TRIGGER_COLUMNS = `
   updated_at_ms::float8 AS "updatedAt"
 `;
 
-/** Why a binding came due and started nothing — the ledger's closed set
- * (the column's CHECK, migration 0096). */
-type SkipReason = 'not_deployed' | 'unusable_cron' | 'start_refused';
+/** Why a binding came due and started nothing — the delivery paths' part of
+ * the ledger's closed set (`TriggerSkipReason`; the column's CHECK). The
+ * rest, a schedule that paused itself, is stamped by `trigger-failures.ts`
+ * when a run lands. */
+type SkipReason = Exclude<TriggerSkipReason, 'paused_after_failures'>;
 
 /** A schedule whose expression cannot be read is left alone until its next
  * edit; should the stamp that keeps it out of the page ever fail to hold,
