@@ -311,7 +311,7 @@ function isRequestAbortError(err: unknown): boolean {
  * read), a failure of ours with the caller still waiting; and a defect
  * thrown after the caller left is still a defect.
  */
-export function isClientAbort(err: unknown, c: Context): boolean {
+function isClientAbort(err: unknown, c: Context): boolean {
   return isRequestAbortError(err) && c.req.raw.signal.aborted;
 }
 
