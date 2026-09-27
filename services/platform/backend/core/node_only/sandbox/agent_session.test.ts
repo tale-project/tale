@@ -4,11 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import { ensureAgentSession, type AgentSessionOwner } from './agent_session';
-import { SessionDuplicateError } from './helpers/session_client';
+import {
+  SessionDuplicateError,
+  SessionNotFoundError,
+} from './helpers/session_client';
 
 const runtime = vi.hoisted(() => ({
   sessionCreate: vi.fn(),
   sessionAcquire: vi.fn(),
+  sessionDestroy: vi.fn(),
 }));
 vi.mock('./helpers/session_client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./helpers/session_client')>()),
@@ -60,6 +64,10 @@ function fixture(
   };
   runtime.sessionCreate.mockImplementation(async () => {
     events.push('create');
+  });
+  runtime.sessionDestroy.mockImplementation(async () => {
+    events.push('destroy');
+    return true;
   });
   return {
     ctx,
@@ -189,6 +197,9 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
         expect.anything(),
         scenario.releaseArgs,
       );
+      // The standing workspace is the incarnation's state: a failed resume
+      // releases the slot and never destroys it.
+      expect(runtime.sessionDestroy).not.toHaveBeenCalled();
     },
   );
 
@@ -235,6 +246,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
         status: 'active',
       });
       expect(runtime.sessionAcquire).toHaveBeenCalledTimes(adopt ? 1 : 0);
+      expect(runtime.sessionDestroy).not.toHaveBeenCalled();
     },
   );
 
@@ -244,6 +256,7 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     await expect(f.ensure()).rejects.toBe(f.mutationError);
 
     expect(runtime.sessionCreate).not.toHaveBeenCalled();
+    expect(runtime.sessionDestroy).not.toHaveBeenCalled();
   });
 
   it('marks a failed fresh create as failed instead of leaving its quota occupied', async () => {
@@ -259,8 +272,75 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     });
     expect(f.events).toEqual([
       'reserveSessionSlotAndInsert',
+      'destroy',
       'setSessionStatus',
     ]);
+  });
+
+  // The regression (#3494): a create the spawner had started, then failed —
+  // its container stayed in Docker state `created` with no owner to remove it.
+  it('destroys what a created-then-failed session left spawner-side before its row reads failed', async () => {
+    const f = fixture(scenario, null);
+    const error = new Error('runnerd did not become ready');
+    runtime.sessionCreate.mockImplementation(async () => {
+      f.events.push('create');
+      throw error;
+    });
+
+    await expect(f.ensure()).rejects.toBe(error);
+
+    expect(runtime.sessionDestroy).toHaveBeenCalledTimes(1);
+    expect(runtime.sessionDestroy).toHaveBeenCalledWith('session_1');
+    // While the row is still `creating` it holds the owner's slot, so no
+    // fresh create of the same id can start under the destroy.
+    expect(f.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'destroy',
+      'setSessionStatus',
+    ]);
+    expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
+      rowId: 'row_1',
+      status: 'failed',
+    });
+  });
+
+  it('destroys an adopted orphan that turned out to be gone', async () => {
+    const f = fixture(scenario, null);
+    runtime.sessionCreate.mockImplementation(async () => {
+      f.events.push('create');
+      throw new SessionDuplicateError('session_1');
+    });
+    runtime.sessionAcquire.mockResolvedValue(false);
+
+    await expect(f.ensure()).rejects.toBeInstanceOf(SessionNotFoundError);
+
+    expect(runtime.sessionDestroy).toHaveBeenCalledWith('session_1');
+    expect(f.events).toEqual([
+      'reserveSessionSlotAndInsert',
+      'create',
+      'destroy',
+      'setSessionStatus',
+    ]);
+  });
+
+  it('a destroy that fails is logged, never thrown: the row still reads failed and the create error survives', async () => {
+    const f = fixture(scenario, null);
+    const error = new Error('container create failed');
+    runtime.sessionCreate.mockRejectedValue(error);
+    const destroyError = new Error('sandbox session destroy failed (502)');
+    runtime.sessionDestroy.mockRejectedValue(destroyError);
+
+    await expect(f.ensure()).rejects.toBe(error);
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('destroy after failed create of session_1'),
+      destroyError,
+    );
+    expect(f.ctx.runMutation).toHaveBeenLastCalledWith(expect.anything(), {
+      rowId: 'row_1',
+      status: 'failed',
+    });
   });
 });
 
