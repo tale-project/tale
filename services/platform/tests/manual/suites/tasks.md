@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 49 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -223,7 +223,7 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   and the status reads back after reload; releasing between two cards of a
   populated lane still slots the card between them, and a drop below a
   lane's last card appends it.
-- [ ] `TASK-F31` · **Back walks the task trail; a subtask names its parent**
+- [ ] `TASK-F32` · **Back walks the task trail; a subtask names its parent**
   — From the board (URL without `?task`) open a task A, then click one of
   its subtasks B (URL `?task=B`), then press browser **Back** twice → The
   first Back reopens A (`?task=A`), the second closes the dialog on the
