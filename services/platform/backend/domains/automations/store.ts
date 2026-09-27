@@ -1371,6 +1371,9 @@ export function decodeRunInput(input: unknown): unknown {
 export function runStartedVia(
   row: Pick<RunRow, 'startedBy' | 'input'>,
 ): RunSummary['startedVia'] {
+  // A row without a starter is a fixture, never a stored run (the column is
+  // NOT NULL) — answer nothing rather than throw on it.
+  if (typeof row.startedBy !== 'string') return undefined;
   if (parseRunStarter(row.startedBy).kind !== 'trigger') return undefined;
   const input = decodeRunInput(row.input);
   if (input === null || typeof input !== 'object') return undefined;
