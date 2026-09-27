@@ -2,13 +2,26 @@
  * `PERMANENT_FAILURES_BEFORE_PAUSE` occurrences — the scan fires it, the
  * harness worker steps each run to `failed` (`node_error`), and the run that
  * completes the streak turns the trigger off, audits the pause and notifies
- * the owner; a paused schedule fires nothing more. Saving it again resumes
- * it with a fresh streak and reads the notice, and a success resets the
- * streak (migration 0124, `trigger-failures.ts`). */
+ * the owner; the trigger read (`listTriggers`, behind the app, REST and MCP)
+ * answers the pause with its streak and last failure, a success that lands
+ * after the pause leaves that streak alone, and a paused schedule fires
+ * nothing more. Saving it again resumes it with a fresh streak and reads the
+ * notice, and a success resets the streak (migration 0124,
+ * `trigger-failures.ts`). */
 import type { Sql } from 'postgres';
 
 import { PERMANENT_FAILURES_BEFORE_PAUSE } from '../../core/automations/failure.ts';
-import { deleteTrigger, deploy, saveVersion, setTrigger } from './store.ts';
+import {
+  deleteTrigger,
+  deploy,
+  listTriggers,
+  saveVersion,
+  setTrigger,
+} from './store.ts';
+import {
+  lockTriggerForRunOutcome,
+  recordTriggerRunOutcome,
+} from './trigger-failures.ts';
 import { scanScheduledTriggers } from './triggers.ts';
 
 interface TriggerState {
@@ -155,6 +168,65 @@ export async function checkTriggerPauseAfterFailures(
         paused.lastFailureCode === 'node_error' &&
         paused.lastFailedRunId === lastRunId,
       `runs=${outcomes.join(',')} (want all failed, code ${codes[0]?.failureCode ?? 'none'}), streak=${streak.join(',')}, enabled=${enabled.join(',')}, after: enabled=${paused.enabled} reason=${paused.lastSkipReason} lastFailure=${paused.lastFailureCode}@${paused.lastFailedRunId === lastRunId ? 'last run' : paused.lastFailedRunId}`,
+    );
+
+    // ---- every reader sees the pause: the trigger read the app route, the
+    // REST door, the Trigger section and the MCP view all go through.
+    const [listed] = await listTriggers(sql, orgId, name);
+    record(
+      'the trigger read answers the pause, the streak and the last failure',
+      listed !== undefined &&
+        !listed.enabled &&
+        listed.lastSkipReason === 'paused_after_failures' &&
+        typeof listed.lastSkippedAt === 'number' &&
+        listed.consecutiveFailures === PERMANENT_FAILURES_BEFORE_PAUSE &&
+        listed.lastFailureCode === 'node_error' &&
+        listed.lastFailedRunId === lastRunId &&
+        typeof listed.lastFailedAt === 'number',
+      `listTriggers → ${JSON.stringify(
+        listed === undefined
+          ? null
+          : {
+              enabled: listed.enabled,
+              lastSkipReason: listed.lastSkipReason,
+              lastSkippedAt: typeof listed.lastSkippedAt,
+              consecutiveFailures: listed.consecutiveFailures,
+              lastFailureCode: listed.lastFailureCode,
+              lastFailedRun:
+                listed.lastFailedRunId === lastRunId
+                  ? 'last run'
+                  : listed.lastFailedRunId,
+              lastFailedAt: typeof listed.lastFailedAt,
+            },
+      )}`,
+    );
+
+    // ---- a run that overlapped the pause and succeeds after it leaves the
+    // streak that paused the schedule alone — and takes no trigger lock.
+    const overlapping = await sql.begin(async (tx) => {
+      const landing = {
+        organizationId: orgId,
+        runId: lastRunId,
+        startedBy: `trigger:${paused.id}`,
+        startedAt: Date.now(),
+        status: 'success' as const,
+        failureCode: null,
+        now: Date.now(),
+      };
+      return {
+        locked: await lockTriggerForRunOutcome(tx, landing),
+        change: await recordTriggerRunOutcome(tx, landing),
+      };
+    });
+    const afterOverlap = await trigger();
+    record(
+      'a success landing after the pause keeps the streak that paused it',
+      !overlapping.locked &&
+        overlapping.change === null &&
+        !afterOverlap.enabled &&
+        afterOverlap.lastSkipReason === 'paused_after_failures' &&
+        afterOverlap.consecutiveFailures === PERMANENT_FAILURES_BEFORE_PAUSE,
+      `locked=${overlapping.locked} (want false), change=${JSON.stringify(overlapping.change)} (want null), enabled=${afterOverlap.enabled} reason=${afterOverlap.lastSkipReason} streak=${afterOverlap.consecutiveFailures} (want ${PERMANENT_FAILURES_BEFORE_PAUSE})`,
     );
 
     // ---- the pause is audited and the owner is told, once.
