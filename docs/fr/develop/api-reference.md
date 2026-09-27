@@ -674,7 +674,7 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 - `lastFiredAt` et `lastRunId` correspondent à la dernière exécution lancée. Ils restent `null` tant qu’aucune exécution n’a démarré.
 - `lastSkippedAt` et `lastSkipReason` décrivent la dernière occurrence qui n’a rien lancé. Une livraison de webhook que le schéma `inputs` de la version déployée refuse est un autre cas : l’expéditeur reçoit **400** `AUTOMATION_INPUT_INVALID`, rien ne démarre et aucun de ces horodatages ne bouge — la liaison n’était pas due, un webhook dont chaque livraison est refusée se lit donc comme un webhook jamais appelé. Vérifie les livraisons côté expéditeur.
 
-Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, et `start_refused` si le schéma `inputs` déployé refuse l’entrée. Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
+Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, `start_refused` si le schéma `inputs` déployé refuse l’entrée, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
 
 Compare `lastFiredAt` à la cadence attendue. Si `lastSkippedAt` est plus récent, consulte la raison avant de relancer. Changer le type de déclencheur réinitialise ces horodatages.
 
