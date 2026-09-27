@@ -54,6 +54,9 @@ function MilkdownEditorInner({
   conversationId: _conversationId,
   onConversationResolved: _onConversationResolved,
   pendingMessage,
+  attachments,
+  onAttachmentsChange,
+  onPendingMessageApplied,
   hasMessageHistory = false,
   onMessageSent,
   organizationId,
@@ -75,13 +78,18 @@ function MilkdownEditorInner({
   const [improveInstruction, setImproveInstruction, clearImproveInstruction] =
     usePersistedState(draftKeys.improveInstruction, '');
 
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [localAttachedFiles, setLocalAttachedFiles] = useState<AttachedFile[]>(
+    [],
+  );
+  const attachedFiles = attachments ?? localAttachedFiles;
+  const setAttachedFiles = onAttachmentsChange ?? setLocalAttachedFiles;
   const [isImproveMode, setIsImproveMode] = useState(false);
   const [isImproving, startImprovingTransition] = useTransition();
   const [isSending, startSendingTransition] = useTransition();
   const [isFocused, setIsFocused] = useState(false);
 
-  const initialHasContent = (pendingMessage?.content?.trim().length ?? 0) > 0;
+  const initialHasContent =
+    (message || pendingMessage?.content || '').trim().length > 0;
   const [hasContent, setHasContent] = useState(initialHasContent);
 
   const [savedEditorContent, setSavedEditorContent] = useState('');
@@ -149,19 +157,45 @@ function MilkdownEditorInner({
 
   const pendingId = pendingMessage?.id;
   const pendingContent = pendingMessage?.content ?? '';
+  const pendingAttachments = pendingMessage?.attachments;
 
   useEffect(() => {
-    if (!pendingContent.trim()) {
+    const pendingFiles = pendingAttachments ?? [];
+    const hasPendingText = pendingContent.trim().length > 0;
+    if (!hasPendingText && pendingFiles.length === 0) {
       appliedPendingKeyRef.current = null;
       return;
     }
-    const applyKey = `${pendingId ?? ''}:${pendingContent}`;
+    const applyKey = `${pendingId ?? ''}:${pendingContent}:${pendingFiles
+      .map((file) => file.id)
+      .join(',')}`;
     if (appliedPendingKeyRef.current === applyKey) return;
     appliedPendingKeyRef.current = applyKey;
-    setMessage(pendingContent);
-    setProgrammaticContent(pendingContent);
-    setHasContent(true);
-  }, [pendingId, pendingContent, setMessage]);
+    if (hasPendingText) {
+      setMessage(pendingContent);
+      setProgrammaticContent(pendingContent);
+      setHasContent(true);
+    }
+    if (pendingFiles.length > 0) {
+      // An undone send's files come back beside anything attached since —
+      // never twice, and never dropping a file picked in the meantime.
+      setAttachedFiles((current) => [
+        ...pendingFiles,
+        ...current.filter(
+          (file) => !pendingFiles.some((pending) => pending.id === file.id),
+        ),
+      ]);
+    }
+    if (pendingMessage) onPendingMessageApplied?.(pendingMessage);
+  }, [
+    pendingId,
+    pendingContent,
+    pendingAttachments,
+    pendingMessage,
+    setMessage,
+    setAttachedFiles,
+    onPendingMessageApplied,
+  ]);
 
   const handleOpenInstructionTextarea = useCallback(() => {
     setSavedEditorContent(message);
@@ -276,16 +310,23 @@ function MilkdownEditorInner({
     clearMessage,
     clearImproveInstruction,
     onMessageSent,
+    setAttachedFiles,
     tConversations,
   ]);
 
-  const handleFileAttach = useCallback((file: AttachedFile) => {
-    setAttachedFiles((prev) => [...prev, file]);
-  }, []);
+  const handleFileAttach = useCallback(
+    (file: AttachedFile) => {
+      setAttachedFiles((prev) => [...prev, file]);
+    },
+    [setAttachedFiles],
+  );
 
-  const handleRemoveFile = useCallback((fileId: string) => {
-    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId));
-  }, []);
+  const handleRemoveFile = useCallback(
+    (fileId: string) => {
+      setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId));
+    },
+    [setAttachedFiles],
+  );
 
   const handleCloseImproveMode = useCallback(() => {
     setIsImproveMode(false);

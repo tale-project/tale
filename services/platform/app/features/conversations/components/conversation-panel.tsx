@@ -17,7 +17,13 @@ import {
   RefreshCwIcon,
   ShieldAlertIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from 'react';
 
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
@@ -48,6 +54,12 @@ import {
 import { InboxMobileBackButton } from './inbox-mobile-back-button';
 import { Message } from './message';
 import { MessageEditorPlaceholder } from './message-editor/message-editor-placeholder';
+import {
+  type AttachedFile,
+  type MessageEditorProps,
+  type StoredAttachment,
+  storedAttachedFile,
+} from './message-editor/types';
 
 const MessageEditor = lazyComponent(
   () =>
@@ -67,12 +79,6 @@ import { useSwapFade } from '@tale/ui/use-swap-fade';
 
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 import { documentTitle } from '@/lib/utils/seo';
-
-interface AttachedFile {
-  id: string;
-  file: File | null;
-  type: 'image' | 'video' | 'audio' | 'document';
-}
 
 // Placeholder message bubbles for the loading window — no real messages exist
 // yet, so these synthetic rows stand in (each masked at its leaves). Sized to
@@ -181,13 +187,22 @@ export function ConversationPanel({
   const { mutate: retrySendMessage } = useRetrySendMessage();
   const { mutate: discardOutboundMessage } = useDiscardOutboundMessage();
 
-  // Draft handed back by an undo-send: seeds the composer's pendingMessage so
-  // the message the user just cancelled reappears exactly as they wrote it.
-  // Cleared via MessageEditor.onPendingMessageConsumed on a successful resend
-  // (same turn as the editor remount) so the remount cannot re-seed from it.
-  const [restoredDraft, setRestoredDraft] = useState<
-    { id: string; content: string } | undefined
-  >(undefined);
+  // An undo is a one-time seed. Once applied, the editor persists its body
+  // and this panel keeps its live files per conversation, including removals.
+  // Remember which approval the undo replaced, so its cached seed cannot
+  // overwrite edits; a later approval with another ID is still available.
+  const [restoredDrafts, setRestoredDrafts] = useState<
+    Record<
+      string,
+      {
+        seed: MessageEditorProps['pendingMessage'];
+        replacedApprovalId: string | undefined;
+      }
+    >
+  >({});
+  const [draftAttachments, setDraftAttachments] = useState<
+    Record<string, AttachedFile[]>
+  >({});
 
   const { formatDate } = useFormatDate();
 
@@ -255,25 +270,19 @@ export function ConversationPanel({
       return;
     }
 
-    let uploadedAttachments:
-      | Array<{
-          storageId: string;
-          fileName: string;
-          contentType: string;
-          size: number;
-        }>
-      | undefined;
+    let uploadedAttachments: StoredAttachment[] | undefined;
 
     if (attachments && attachments.length > 0) {
       // A failed upload must reject onSave: the editor retains the draft
       // and owns the one failure toast for both upload and send.
-      const validAttachments = attachments.filter((a) => a.file);
+      const validAttachments = attachments.filter((a) => a.file || a.stored);
       if (validAttachments.length !== attachments.length) {
         throw new Error(tConversations('panel.invalidFileAttachment'));
       }
 
       uploadedAttachments = await Promise.all(
         validAttachments.map(async (attachment) => {
+          if (attachment.stored) return attachment.stored;
           const file = attachment.file;
           if (!file)
             throw new Error(tConversations('panel.invalidFileAttachment'));
@@ -335,12 +344,28 @@ export function ConversationPanel({
   };
 
   const handleUndoSend = (messageId: string) => {
+    const conversationId = conversation?.id;
+    if (conversationId === undefined) return;
+    const replacedApprovalId = conversation?.pendingApproval?._id;
     undoSendMessage(
       { messageId: messageId },
       {
-        onSuccess: ({ sourceMarkdown }) => {
-          if (sourceMarkdown) {
-            setRestoredDraft({ id: messageId, content: sourceMarkdown });
+        onSuccess: ({ sourceMarkdown, attachments }) => {
+          // An attachment-only reply has no markdown to hand back; its files
+          // alone are the draft.
+          const files = (attachments ?? []).map(storedAttachedFile);
+          if (sourceMarkdown || files.length > 0) {
+            setRestoredDrafts((drafts) => ({
+              ...drafts,
+              [conversationId]: {
+                replacedApprovalId,
+                seed: {
+                  id: messageId,
+                  content: sourceMarkdown ?? '',
+                  attachments: files,
+                },
+              },
+            }));
           }
         },
         onError: (error) => {
@@ -446,6 +471,14 @@ export function ConversationPanel({
               .emailBody,
         }
       : undefined;
+
+  const restoredDraft = conversation
+    ? restoredDrafts[conversation.id]
+    : undefined;
+  const approvalSeed =
+    pendingMessage?.id === restoredDraft?.replacedApprovalId
+      ? undefined
+      : pendingMessage;
 
   const messageGroups = groupMessagesByDate(displayMessages);
 
@@ -646,8 +679,30 @@ export function ConversationPanel({
                   onConversationResolved={() => {
                     onSelectedConversationChange(null);
                   }}
-                  pendingMessage={restoredDraft ?? pendingMessage}
-                  onPendingMessageConsumed={() => setRestoredDraft(undefined)}
+                  pendingMessage={restoredDraft?.seed ?? approvalSeed}
+                  attachments={draftAttachments[conversation.id] ?? []}
+                  onAttachmentsChange={(next: SetStateAction<AttachedFile[]>) =>
+                    setDraftAttachments((current) => ({
+                      ...current,
+                      [conversation.id]:
+                        typeof next === 'function'
+                          ? next(current[conversation.id] ?? [])
+                          : next,
+                    }))
+                  }
+                  onPendingMessageApplied={(
+                    applied: NonNullable<MessageEditorProps['pendingMessage']>,
+                  ) =>
+                    setRestoredDrafts((current) => {
+                      const draft = current[conversation.id];
+                      return draft?.seed === applied
+                        ? {
+                            ...current,
+                            [conversation.id]: { ...draft, seed: undefined },
+                          }
+                        : current;
+                    })
+                  }
                   hasMessageHistory={displayMessages.length > 0}
                   organizationId={conversation.organizationId}
                   {...(replyDestination !== undefined
