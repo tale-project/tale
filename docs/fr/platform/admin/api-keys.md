@@ -3,7 +3,7 @@ title: Clés API
 description: Crée, vérifie, renouvelle et révoque les identifiants des logiciels qui appellent Tale.
 ---
 
-Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de Tale. La clé agit au nom de la personne qui l’a créée et suit ses permissions actuelles dans l’organisation. Les propriétaires, admins et développeurs gèrent leurs clés dans **Paramètres > API > REST**.
+Crée une clé API lorsqu’un script ou un service doit appeler l’API REST de Tale. Une clé appartient à la personne qui l’a créée, pas à l’organisation depuis laquelle elle a été créée : elle agit au nom de cette personne, suit ses permissions actuelles et fonctionne dans chaque organisation dont elle est membre. Une requête REST nomme l’organisation visée dans l’en-tête `X-Organization-Slug` ; si le détenteur n’appartient qu’à une seule organisation, l’en-tête peut être omis. Les propriétaires, admins et développeurs gèrent leurs clés dans **Paramètres > API > REST**.
 
 <Frame caption="Paramètres > API > REST — là où les clés sont créées, renouvelées et révoquées.">
 

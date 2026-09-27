@@ -386,7 +386,11 @@ any toggled setting after the run.
   after Done); the row is in the table after reload (columns
   `settings.apiKeys.columns.name` / `…key` / `…created` / `…lastUsed`);
   revoking confirms (`settings.apiKeys.revokeKeyTitle`), toasts
-  `settings.apiKeys.keyRevoked`, and the row is gone after reload.
+  `settings.apiKeys.keyRevoked`, and the row is gone after reload. The create
+  dialog's hint (`settings.apiKeys.form.scopeHint`) says the key belongs to
+  the person, not the organization; as a member of two organizations, `GET
+  /api/v1/me` with the key and no `X-Organization-Slug` header answers `400
+  ORG_SLUG_REQUIRED`, and with the header it lists the role in each.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →

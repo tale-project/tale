@@ -5409,7 +5409,9 @@ settings:
       knowledge.
     copyEndpoint: Copy MCP endpoint URL
     authHelp:
-      'Authenticate with an organization API key as a bearer token: create
+      'Authenticate with a REST API key as a bearer token. A key belongs to
+      the person who created it and works in every organization they are a
+      member of; this one is named by the X-Organization-Slug header. Create
       and manage keys under'
     authLink: REST API keys.
     orgSlug:
@@ -6278,6 +6280,9 @@ settings:
       name: Key name
       namePlaceholder: Enter key name...
       nameRequired: Name is required
+      scopeHint: This key belongs to you, not to this organization. It acts as
+        you in every organization you are a member of; a REST call names the
+        organization with the X-Organization-Slug header.
       expiresIn: Expiration
       expiresOptions:
         7days: 7 days

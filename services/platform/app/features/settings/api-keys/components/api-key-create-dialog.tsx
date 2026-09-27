@@ -211,6 +211,9 @@ export function ApiKeyCreateDialog({
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormSection>
+        {/* A key is the person's, not the organization's — the page lives
+            under one organization, so the dialog says what the key spans. */}
+        <Text variant="muted">{tSettings('apiKeys.form.scopeHint')}</Text>
         <Input
           id="name"
           label={tSettings('apiKeys.form.name')}

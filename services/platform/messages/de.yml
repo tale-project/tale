@@ -5234,8 +5234,10 @@ settings:
       Automatisierungen zu erstellen, auszuführen und zu verwalten — und um an
       die Capabilities und das Wissen dieser Organisation zu kommen.
     copyEndpoint: MCP-Endpunkt-URL kopieren
-    authHelp: 'Authentifiziere dich mit einem API-Schlüssel der Organisation als
-      Bearer-Token: Schlüssel erstellst und verwaltest du unter'
+    authHelp: 'Authentifiziere dich mit einem REST-API-Schlüssel als
+      Bearer-Token. Ein Schlüssel gehört der Person, die ihn erstellt hat, und
+      gilt in jeder Organisation, der sie angehört; diese Organisation nennt der
+      Header X-Organization-Slug. Schlüssel erstellst und verwaltest du unter'
     authLink: REST-API-Schlüssel.
     orgSlug:
       title: Organisations-Slug
@@ -6155,6 +6157,9 @@ settings:
       name: Schlüsselname
       namePlaceholder: Schlüsselnamen eingeben...
       nameRequired: Name ist erforderlich
+      scopeHint: Dieser Schlüssel gehört dir, nicht dieser Organisation. Er
+        handelt in deinem Namen in jeder Organisation, der du angehörst; eine
+        REST-Anfrage nennt die Organisation im Header X-Organization-Slug.
       expiresIn: Ablaufzeit
       expiresOptions:
         7days: 7 Tage

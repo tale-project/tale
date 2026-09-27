@@ -5308,8 +5308,10 @@ settings:
       capacités et aux connaissances de cette organisation.
     copyEndpoint: Copier l'URL de l'endpoint MCP
     authHelp:
-      "Authentifie-toi avec une clé API de l'organisation en jeton Bearer :
-      tu crées et gères les clés sous"
+      "Authentifie-toi avec une clé API REST en jeton Bearer. Une clé
+      appartient à la personne qui l'a créée et fonctionne dans chaque
+      organisation dont elle est membre ; celle-ci est nommée par l'en-tête
+      X-Organization-Slug. Tu crées et gères les clés sous"
     authLink: Clés API REST.
     orgSlug:
       title: Slug de l'organisation
@@ -6259,6 +6261,9 @@ settings:
       name: Nom de la clé
       namePlaceholder: Saisis le nom de la clé...
       nameRequired: Le nom est requis
+      scopeHint: Cette clé t'appartient, pas à cette organisation. Elle agit en
+        ton nom dans chaque organisation dont tu es membre ; une requête REST
+        nomme l'organisation dans l'en-tête X-Organization-Slug.
       expiresIn: Expiration
       expiresOptions:
         7days: 7 jours

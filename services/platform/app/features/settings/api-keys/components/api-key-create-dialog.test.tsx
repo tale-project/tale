@@ -90,6 +90,19 @@ describe('ApiKeyCreateDialog', () => {
     });
   });
 
+  // The page lives under one organization, but a key belongs to the person
+  // and works in every organization they are a member of — the dialog says
+  // so before the name is typed (2026-09-26 evaluation, E-09).
+  it('says the key belongs to the person and spans their organizations', () => {
+    render(
+      <ApiKeyCreateDialog open onOpenChange={vi.fn()} organizationId="org-1" />,
+    );
+    expect(
+      screen.getByText(/belongs to you, not to this organization/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/X-Organization-Slug/)).toBeInTheDocument();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit when open', async () => {
       const { container } = render(

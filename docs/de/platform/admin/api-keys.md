@@ -3,7 +3,7 @@ title: API-Schlüssel
 description: Erstelle, prüfe, rotiere und widerrufe Zugangsdaten für Software, die Tale aufruft.
 ---
 
-Erstelle einen API-Schlüssel, wenn ein Skript oder Dienst die REST-API von Tale aufrufen soll. Der Schlüssel handelt im Namen der Person, die ihn erstellt hat, und verwendet ihre aktuellen Rechte in der Organisation. Inhaber, Admins und Entwickler verwalten ihre Schlüssel unter **Einstellungen > API > REST**.
+Erstelle einen API-Schlüssel, wenn ein Skript oder Dienst die REST-API von Tale aufrufen soll. Ein Schlüssel gehört der Person, die ihn erstellt hat, nicht der Organisation, auf deren Einstellungsseite er entstand: Er handelt im Namen dieser Person, verwendet ihre aktuellen Rechte und gilt in jeder Organisation, der sie angehört. Eine REST-Anfrage nennt die angesprochene Organisation im Header `X-Organization-Slug`; gehört der Inhaber nur einer Organisation an, darf er entfallen. Inhaber, Admins und Entwickler verwalten ihre Schlüssel unter **Einstellungen > API > REST**.
 
 <Frame caption="Einstellungen > API > REST — wo Schlüssel erstellt, rotiert und widerrufen werden.">
 
