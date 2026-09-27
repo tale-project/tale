@@ -40,7 +40,10 @@ import {
 import ReactDatePicker from 'react-datepicker';
 import type { DateRange } from 'react-day-picker';
 
-import { DatePickerPopperContainer } from './date-picker-popper';
+import {
+  DatePickerCalendarContainer,
+  DatePickerPopperContainer,
+} from './date-picker-popper';
 import { FieldShell } from './field-shell';
 import { Label } from './label';
 
@@ -417,6 +420,7 @@ function DatePickerWithRangeBase({
         popperClassName="date-range-picker-popper"
         popperPlacement="bottom-start"
         popperContainer={DatePickerPopperContainer}
+        calendarContainer={DatePickerCalendarContainer}
       >
         {(startDate || endDate) && (
           <div className="justify-end">

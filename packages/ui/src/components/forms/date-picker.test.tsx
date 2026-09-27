@@ -98,12 +98,18 @@ describe('DatePicker popper container', () => {
     expect(document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`)).toBeNull();
   });
 
-  it('names the open calendar as a dialog', async () => {
+  it('names the open calendar as ONE dialog', async () => {
     const { user } = render(<DatePicker onChange={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: /pick a date/i }));
     const popper = document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`);
     expect(popper).toHaveAttribute('role', 'dialog');
     expect(popper).toHaveAccessibleName('Calendar');
+    // react-datepicker's default container is a second, English-labelled
+    // aria-modal dialog nested inside this one; the calendar body is plain.
+    expect(popper?.querySelector('[role="dialog"]')).toBeNull();
+    expect(popper?.querySelector('[aria-modal]')).toBeNull();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(popper?.querySelector('.react-datepicker')).not.toBeNull();
   });
 
   it('stays perceivable inside a modal dialog', async () => {

@@ -39,6 +39,22 @@ export function isDatePickerPopperEvent(event: Event): boolean {
 }
 
 /**
+ * The calendar's own container, in place of react-datepicker's default,
+ * which is a second `role="dialog"` (aria-modal, English "Choose Date")
+ * nested inside the popper's — two dialogs for one calendar. The popper
+ * below carries the one, localized dialog role.
+ */
+export function DatePickerCalendarContainer({
+  className,
+  children,
+}: {
+  className?: string;
+  children?: ReactNode;
+}) {
+  return <div className={className}>{children}</div>;
+}
+
+/**
  * Renders the react-datepicker floating calendar on `document.body`.
  *
  * react-datepicker renders its `popperContainer` even while the calendar is
