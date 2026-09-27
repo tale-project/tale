@@ -121,9 +121,10 @@ vi.mock('@/app/features/documents/hooks/queries', () => ({
 
 // The record menu consults legal holds per row; the submit dialog lists org
 // members. Neither backend surface is under test here.
+let policyFixture: Record<string, unknown> = {};
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useLegalHoldByTarget: () => ({ data: null }),
-  useUploadPolicy: () => ({}),
+  useUploadPolicy: () => policyFixture,
 }));
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
@@ -845,6 +846,47 @@ describe('ProjectFilesTab — mixed upload summary', () => {
       }),
     );
     expect(calls[0]?.description).toContain('random.bin is not a supported');
+  });
+
+  // Every skipped name used to carry the FIRST skipped file's reason.
+  it('names each skipped file beside its own reason', async () => {
+    policyFixture = {
+      policyEnabled: true,
+      documentMaxFileSize: 8,
+      blockedExtensions: [],
+      allowedExtensions: [],
+    };
+    try {
+      renderTab();
+      const user = picker();
+      const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+      const junk = new File(['\u0000'], 'random.bin', {
+        type: 'application/octet-stream',
+      });
+      const huge = new File(['0123456789abcdef'], 'huge.txt', {
+        type: 'text/plain',
+      });
+
+      await user.upload(fileInput(), [brief, junk, huge]);
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ title: '1 file of 3 added' }),
+        );
+      });
+      const last = vi.mocked(toast).mock.calls.at(-1)?.[0];
+      const description =
+        typeof last?.description === 'string' ? last.description : '';
+      const [unsupported, tooLarge] = description.split(' · ');
+      expect(unsupported).toMatch(/^Skipped: random\.bin — /);
+      expect(unsupported).toContain('random.bin is not a supported');
+      expect(unsupported).not.toContain('huge.txt');
+      expect(tooLarge).toMatch(/^Skipped: huge\.txt — /);
+      expect(tooLarge).not.toContain('not a supported');
+      expect(tooLarge).not.toContain('random.bin');
+    } finally {
+      policyFixture = {};
+    }
   });
 
   it('keeps the plain success toast when nothing was skipped', async () => {

@@ -731,17 +731,26 @@ export function ProjectFilesTab({
         });
         return;
       }
-      const shown = skipped.slice(0, 3).map((entry) => entry.name);
+      // Each skipped file sits beside ITS reason: the names are grouped by
+      // reason, one `skippedList` sentence per group, never the first
+      // file's reason stamped on every name.
+      const byReason = new Map<string, string[]>();
+      for (const entry of skipped) {
+        const names = byReason.get(entry.message.description) ?? [];
+        names.push(entry.name);
+        byReason.set(entry.message.description, names);
+      }
+      const groups = Array.from(byReason, ([reason, names]) => {
+        const shown = names.slice(0, 3);
+        return t('files.skippedList', {
+          names: shown.join(', '),
+          more: names.length - shown.length,
+          reason,
+        });
+      });
       toast({
         title: t('files.attachPartial', { ok: okCount, total }),
-        description:
-          skipped[0] === undefined
-            ? undefined
-            : t('files.skippedList', {
-                names: shown.join(', '),
-                more: skipped.length - shown.length,
-                reason: skipped[0].message.description,
-              }),
+        description: groups.length === 0 ? undefined : groups.join(' · '),
         variant: okCount > 0 ? 'default' : 'destructive',
       });
     },
