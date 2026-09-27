@@ -8,8 +8,16 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+import { AppError } from '../../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
-import { TASK_TITLE_MAX } from '../../tasks/helpers';
+import {
+  TASK_COMMENT_MAX,
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_TITLE_MAX,
+  taskLimitText,
+  taskTitleRefusal,
+} from '../../tasks/helpers';
 
 const searchKnowledgeMock = vi.fn();
 vi.mock('../../knowledge/search', () => ({
@@ -915,20 +923,19 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
           : Promise.resolve(null),
       ),
     });
+    const title = 'x'.repeat(TASK_TITLE_MAX + 1);
     const result = await dispatch(ctx, {
       ...BASE,
       tool: 'task_create',
-      callArgs: {
-        title: 'x'.repeat(TASK_TITLE_MAX + 1),
-        parentTaskId: 'task_1',
-      },
+      callArgs: { title, parentTaskId: 'task_1' },
     });
     expect(result.status).toBe('invalid_args');
-    // The model is told the limit and how far over it is, not the domain's
-    // bare TASK_TITLE_INVALID.
+    // The model is told the limit, in the unit it counts, and how far over it
+    // is — in the very sentence the domain's validateTitle refuses it with.
     const message = (result as { message: string }).message;
-    expect(message).toContain(`capped at ${TASK_TITLE_MAX} characters`);
+    expect(message).toContain(`capped at ${taskLimitText(TASK_TITLE_MAX)}`);
     expect(message).toContain(`has ${TASK_TITLE_MAX + 1}`);
+    expect(message).toContain(taskTitleRefusal(title) ?? 'a refusal');
     expect(message).not.toContain('TASK_TITLE_INVALID');
     // Refused on the argument alone: neither the parent's scope read nor the
     // domain mutation ran.
@@ -960,6 +967,129 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     expect(result.status).toBe('ok');
     const mArgs = createMutation.mock.calls[0]?.[1] as Record<string, unknown>;
     expect(mArgs.title).toBe(title);
+  });
+
+  /** A dispatch ctx whose domain write rejects the way the write shim hands
+   * over a domain refusal (`asAppError`): the code and the domain's own
+   * sentence, nothing else. */
+  function refusingCtx(mutation: string, refusal: Record<string, unknown>) {
+    return createCtx({
+      actionContext: PROJECT_CTX,
+      readQuery: vi.fn((ref: unknown) =>
+        fnName(ref).includes('getTaskByIdInternal')
+          ? Promise.resolve({ _id: 'task_1', projectId: 'proj_1' })
+          : Promise.resolve(null),
+      ),
+      runMutation: vi.fn((ref: unknown) =>
+        fnName(ref).includes(mutation)
+          ? Promise.reject(new AppError(refusal))
+          : Promise.resolve(null),
+      ),
+    });
+  }
+
+  it('task_create relays the domain’s sentence for a description over the cap', async () => {
+    const { dispatch } = await getActions();
+    const sentence =
+      'The task description is capped at 20,000 UTF-16 code units (most ' +
+      'emoji count as 2); this one has 20,001.';
+    const { ctx } = refusingCtx('agentCreateTask', {
+      code: 'TASK_DESCRIPTION_INVALID',
+      message: sentence,
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: {
+        title: 'Fits',
+        description: 'd'.repeat(TASK_DESCRIPTION_MAX + 1),
+      },
+    });
+    // Code AND sentence: it used to read "TASK_DESCRIPTION_INVALID: the
+    // domain refused these arguments.", which named no limit.
+    expect(result).toEqual({
+      status: 'invalid_args',
+      message: `TASK_DESCRIPTION_INVALID: ${sentence}`,
+    });
+  });
+
+  it('task_create relays the domain’s sentence for a label over 50 code units', async () => {
+    const { dispatch } = await getActions();
+    const sentence =
+      'A label name is capped at 50 UTF-16 code units (most emoji count as ' +
+      '2); this one has 51.';
+    const { ctx } = refusingCtx('agentCreateTask', {
+      code: 'TASK_LABELS_INVALID',
+      message: sentence,
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      // readLabels caps how MANY labels travel, not how long one is: the
+      // length is the domain's to refuse.
+      callArgs: {
+        title: 'Fits',
+        labels: ['bug', 'l'.repeat(TASK_LABEL_CHARS_MAX + 1)],
+      },
+    });
+    expect(result).toEqual({
+      status: 'invalid_args',
+      message: `TASK_LABELS_INVALID: ${sentence}`,
+    });
+  });
+
+  it('task_comment answers an over-long body as invalid_args naming the limit', async () => {
+    const { dispatch } = await getActions();
+    const sentence =
+      'The comment is capped at 10,000 UTF-16 code units (most emoji count ' +
+      'as 2); this one has 10,001.';
+    const { ctx } = refusingCtx('agentAddComment', {
+      code: 'TASK_COMMENT_INVALID',
+      message: sentence,
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_comment',
+      callArgs: { taskId: 'task_1', body: 'c'.repeat(TASK_COMMENT_MAX + 1) },
+    });
+    expect(result).toEqual({
+      status: 'invalid_args',
+      message: `TASK_COMMENT_INVALID: ${sentence}`,
+    });
+  });
+
+  it('relays only the domain’s sentence, never a payload beside it', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = refusingCtx('agentCreateTask', {
+      code: 'TASK_LABEL_UNKNOWN',
+      message: 'Unknown label',
+      name: 'Q3 acquisition',
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: { title: 'Fits' },
+    });
+    expect(result).toEqual({
+      status: 'invalid_args',
+      message: 'TASK_LABEL_UNKNOWN: Unknown label',
+    });
+  });
+
+  it('keeps the generic sentence for a refusal that carries only its code', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = refusingCtx('agentCreateTask', {
+      code: 'TASK_DEPTH_EXCEEDED',
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: { title: 'Fits' },
+    });
+    expect(result).toEqual({
+      status: 'invalid_args',
+      message: 'TASK_DEPTH_EXCEEDED: the domain refused these arguments.',
+    });
   });
 
   it('task_get on a bound run refuses a foreign-project task as not_found', async () => {
@@ -1636,13 +1766,48 @@ describe('workspaceToolStatusImpl', () => {
     expect(byName.get('document_create')).toBe(false);
   });
 
-  it('states the title limit in the task_create signature', async () => {
+  it('states every task limit in the signatures, in the unit the limits count', async () => {
     const { status } = await getActions();
-    const result = status(['task_create']);
-    const [tool] = result.tools as { name: string; description: string }[];
-    expect(tool?.description).toContain(
-      `title: string (≤ ${TASK_TITLE_MAX} characters)`,
+    const result = status([
+      'task_create',
+      'task_comment',
+      'task_upsert_by_external_ref',
+    ]);
+    const tools = result.tools as { name: string; description: string }[];
+    const signature = (name: string): string =>
+      tools.find((tool) => tool.name === name)?.description ?? '';
+    const labels =
+      'labels?: string[] (the first 20 are kept, each ' +
+      `≤ ${taskLimitText(TASK_LABEL_CHARS_MAX)})`;
+
+    const create = signature('task_create');
+    expect(create).toContain(
+      `title: string (≤ ${taskLimitText(TASK_TITLE_MAX)})`,
     );
+    expect(create).toContain(
+      `description?: string (≤ ${taskLimitText(TASK_DESCRIPTION_MAX)})`,
+    );
+    expect(create).toContain(labels);
+
+    const comment = signature('task_comment');
+    expect(comment).toContain(
+      `body: string (≤ ${taskLimitText(TASK_COMMENT_MAX)})`,
+    );
+    expect(comment).toContain('at most 16 locales in all');
+
+    // The sync cuts an over-long title rather than refusing it, and says so.
+    const upsert = signature('task_upsert_by_external_ref');
+    expect(upsert).toContain(
+      `title: string (a longer one is cut to ${taskLimitText(TASK_TITLE_MAX)}, ending in "…")`,
+    );
+    expect(upsert).toContain(labels);
+
+    // Every cap counts a string's length — UTF-16 code units, where most
+    // emoji count as two — so none may be called "characters".
+    for (const text of [create, comment, upsert]) {
+      expect(text).toContain('Most emoji count as 2 code units.');
+      expect(text).not.toMatch(/\bcharacters\b/);
+    }
   });
 
   it('says plainly when nothing is granted', async () => {

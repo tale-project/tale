@@ -109,7 +109,9 @@ const attachmentsSchema = z
 
 const createTaskSchema = z.object({
   projectId: z.string().min(1),
-  title: z.string().min(1).max(500),
+  // No `.min(1)`: an empty title is the domain's to refuse, with the same
+  // named sentence a whitespace-only one gets, not a bare `invalid body`.
+  title: z.string().max(500),
   description: z.string().max(50_000).optional(),
   attachments: attachmentsSchema,
   status: statusSchema.optional(),
@@ -156,10 +158,15 @@ function handleError<E extends OrgEnv>(
   if (error instanceof TaskReviewError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
+  // The domain's own sentence rides beside the code, as every app door
+  // answers a coded refusal: it is what names the limit a value broke (an
+  // empty title against an over-long one) — the code alone told the client
+  // that the body was refused, never why.
   if (error instanceof TaskError || error instanceof ProjectError) {
     return c.json(
       {
         error: error.code,
+        message: error.message,
         ...(error.data !== undefined ? { data: error.data } : {}),
       },
       error.status,

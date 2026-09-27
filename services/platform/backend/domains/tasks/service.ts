@@ -16,10 +16,10 @@ import {
 } from '../../core/tasks/audit_actions.ts';
 import {
   TASK_ATTACHMENTS_MAX,
-  TASK_DESCRIPTION_MAX,
-  TASK_LABEL_CHARS_MAX,
-  TASK_LABELS_MAX,
-  TASK_TITLE_MAX,
+  taskDescriptionRefusal,
+  taskLabelCountRefusal,
+  taskLabelNameRefusal,
+  taskTitleRefusal,
 } from '../../core/tasks/helpers.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { toJson } from '../../db/sql.ts';
@@ -240,12 +240,14 @@ function assertTaskNotArchived(task: TaskRow): void {
   }
 }
 
+/** The trimmed title, or a refusal that tells an empty title from an
+ * over-long one and names the limit. */
 function validateTitle(title: string): string {
-  const trimmed = title.trim();
-  if (trimmed.length === 0 || trimmed.length > TASK_TITLE_MAX) {
-    throw new TaskError('TASK_TITLE_INVALID', 'Invalid title');
+  const refusal = taskTitleRefusal(title);
+  if (refusal !== null) {
+    throw new TaskError('TASK_TITLE_INVALID', refusal);
   }
-  return trimmed;
+  return title.trim();
 }
 
 function validateDescription(
@@ -254,8 +256,9 @@ function validateDescription(
   if (description == null) {
     return undefined;
   }
-  if (description.length > TASK_DESCRIPTION_MAX) {
-    throw new TaskError('TASK_DESCRIPTION_INVALID', 'Description too long');
+  const refusal = taskDescriptionRefusal(description);
+  if (refusal !== null) {
+    throw new TaskError('TASK_DESCRIPTION_INVALID', refusal);
   }
   return description;
 }
@@ -314,15 +317,17 @@ function normalizeLabelNames(
   if (labels == null) {
     return undefined;
   }
-  if (labels.length > TASK_LABELS_MAX) {
-    throw new TaskError('TASK_LABELS_INVALID', 'Too many labels');
+  const countRefusal = taskLabelCountRefusal(labels.length);
+  if (countRefusal !== null) {
+    throw new TaskError('TASK_LABELS_INVALID', countRefusal);
   }
   const normalized: string[] = [];
   const seen = new Set<string>();
   for (const raw of labels) {
     const label = raw.normalize('NFC').trim();
-    if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
-      throw new TaskError('TASK_LABELS_INVALID', 'Invalid label name');
+    const refusal = taskLabelNameRefusal(label);
+    if (refusal !== null) {
+      throw new TaskError('TASK_LABELS_INVALID', refusal);
     }
     const folded = label.toLowerCase();
     if (!seen.has(folded)) {

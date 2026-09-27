@@ -8,6 +8,7 @@ import {
   storeAgentTextBlob,
   upsertAgentDocument,
 } from '../documents/agent-write.ts';
+import { addTaskComment } from '../tasks/comments.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
 import {
   agentCreateTaskTrusted,
@@ -19,8 +20,8 @@ import {
 } from '../tasks/service.ts';
 
 /**
- * The WRITE half of the workspace-tool bridge: the task family, plus the
- * three calls `document_create` makes.
+ * The WRITE half of the workspace-tool bridge: the task family (the agent's
+ * comment included), plus the three calls `document_create` makes.
  *
  * These names were the last un-shimmed ones the reused bridge
  * (`core/node_only/sandbox/workspace_domain_tools.ts`) can reach, so every
@@ -33,8 +34,10 @@ import {
  *
  * Errors cross a vocabulary boundary here: 0.5 domains throw
  * `{code, status}` errors, while the reused bridge reads `AppError.data.code`
- * to answer `not_found` vs `invalid_args`. {@link asAppError} is that
- * translation, and the only place it happens.
+ * to answer `not_found` vs `invalid_args`, and relays `data.message` — the
+ * domain's own sentence, which names the limit a value broke — beside the
+ * code. {@link asAppError} is that translation, and the only place it
+ * happens.
  */
 
 /**
@@ -147,6 +150,44 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as Parameters<typeof upsertTaskByExternalRef>[1];
       return coded(() =>
         transactSerializable(sql, (tx) => upsertTaskByExternalRef(tx, args)),
+      );
+    },
+
+    'tasks/internal_mutations:agentAddComment': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        actorId: string;
+        taskId: string;
+        body: string;
+        bodyByLocale?: Record<string, string>;
+      };
+      // The bridge already resolved WRITE authority (a project-bound
+      // session); this writer is the trusted lower half, so it runs with an
+      // administrative auth attributed to the agent actor. Coded like its
+      // siblings: a comment over the limit is the agent's `invalid_args`,
+      // not an `error` that reads as a transient failure.
+      return coded(() =>
+        sql.begin(async (tx) => {
+          const { messageId, threadId } = await addTaskComment(
+            tx,
+            {
+              organizationId: args.organizationId,
+              userId: args.actorId,
+              role: 'admin',
+              teamIds: [],
+            },
+            {
+              taskId: args.taskId,
+              body: args.body,
+              ...(args.bodyByLocale !== undefined
+                ? { bodyByLocale: args.bodyByLocale }
+                : {}),
+              author: { actorType: 'agent', actorId: args.actorId },
+            },
+          );
+          return { messageId, threadId, mentionCount: 0 };
+        }),
       );
     },
 
