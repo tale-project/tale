@@ -115,6 +115,7 @@ ENV NODE_ENV=production
 WORKDIR /app/services/platform
 RUN bun --bun vite build \
     && bun scripts/check-sw-manifest.ts \
+    && bun scripts/check-entry-budget.ts \
     && bun scripts/prerender-boot-shell.tsx \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo
 WORKDIR /app

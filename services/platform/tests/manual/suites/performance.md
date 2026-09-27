@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 15 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 16 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -120,6 +120,16 @@ gives
   `Cache-Control: private, no-cache`; the repeat answers **304** with no
   body and the unsuffixed `ETag`; the same repeat without `--compressed`
   still answers 304.
+- [ ] `PERF-P10` · **Cold /log-in JS budget** — In a brand-new browser
+  context (empty cache) open `/log-in`, then read
+  `performance.getEntriesByType('resource')` filtered to `.js` → The page
+  fetches about **34** script files and **no** `vendor-codemirror-*` chunk
+  (the editor stack stays behind a dynamic import; `vendor-katex-*` is
+  still preloaded until the markdown renderer lazy-loads KaTeX); their
+  `transferSize` sums to at most **2.0 MB** (the measured baseline is
+  1.93 MB gzip, down from 2.60 MB / 41 files) and `favicon.ico` transfers
+  under 20 KB. The number to compare against is the `Cold-load JS:` line
+  `scripts/check-entry-budget.ts` prints in the build log.
 
 ## Response-time SLAs
 
