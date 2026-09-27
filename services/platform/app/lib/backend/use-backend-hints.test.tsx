@@ -176,6 +176,10 @@ describe('useBackendHints', () => {
   });
 
   it('keeps the backend reachable when EventSource errors but the health probe answers', async () => {
+    // The probe is throttled while nothing is in doubt: move the clock past
+    // any probe an earlier test started (fake Date only; timers stay real).
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2031-01-01T00:00:00Z'));
     expect(isBackendReachable()).toBe(true);
     const fetchMock = vi
       .spyOn(window, 'fetch')
@@ -193,6 +197,8 @@ describe('useBackendHints', () => {
   });
 
   it('flags the backend unreachable when the probe an EventSource error triggers gets no response', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2031-06-01T00:00:00Z'));
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const fetchMock = vi
       .spyOn(window, 'fetch')

@@ -9,6 +9,7 @@ import {
 } from './api-client';
 import {
   isBackendReachable,
+  PROBE_TIMEOUT_MS,
   probeBackend,
   reportBackendReachable,
   reportBackendUnreachable,
@@ -210,7 +211,7 @@ describe('probeBackend', () => {
         }),
     );
     const probe = probeBackend();
-    await vi.advanceTimersByTimeAsync(4_000);
+    await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS);
     await expect(probe).resolves.toBe(false);
     expect(isBackendReachable()).toBe(false);
     vi.useRealTimers();
