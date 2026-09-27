@@ -13,10 +13,10 @@ import { AppError } from '@/lib/shared/errors/app-error';
 // The registry is swapped for one controllable row: these tests cover the
 // loader helpers' wiring (lane, retry, ability gate), not a shipped row.
 const { row, queryFn } = vi.hoisted(() => {
-  const queryFn = vi.fn<() => Promise<unknown>>();
+  const fetchRow = vi.fn<() => Promise<unknown>>();
   return {
-    queryFn,
-    row: vi.fn(() => ({ queryKey: ['fake', 'adapted'], queryFn })),
+    queryFn: fetchRow,
+    row: vi.fn(() => ({ queryKey: ['fake', 'adapted'], queryFn: fetchRow })),
   };
 });
 vi.mock('@/app/lib/backend/adapters', async (importOriginal) => ({
