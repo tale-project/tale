@@ -70,5 +70,37 @@ describe('steerTaskAgentTurnImpl settled-run fallback', () => {
     expect(payload.organizationId).toBe(args.organizationId);
     expect(payload.taskId).toBe(args.taskId);
     expect(payload.feedback).toBe(args.feedback);
+    // A steer queued without a source is a comment's.
+    expect(payload.mentionSource).toBe('comment');
+  });
+
+  it('keeps a description edit a description edit when it falls back to a kick', async () => {
+    const args = { ...steerArgs(), mentionSource: 'description' as const };
+    const mutationCalls: Array<{ ref: unknown; payload: unknown }> = [];
+    const ctx = {
+      runQuery: async () => ({
+        status: 'settled',
+        execId: args.execId,
+        sessionId: args.sessionId,
+        organizationId: args.organizationId,
+      }),
+      runMutation: async (ref: unknown, payload: unknown) => {
+        mutationCalls.push({ ref, payload });
+        return { started: true };
+      },
+      runAction: async () => null,
+      scheduler: {
+        runAfter: async () => 'job',
+        runAt: async () => 'job',
+        cancel: async () => undefined,
+      },
+    } as unknown as ActionCtx;
+
+    await steerTaskAgentTurnImpl(ctx, args);
+
+    // The fallback run reads the description when it starts, so the kick
+    // must know the text was one.
+    const payload = mutationCalls[0]?.payload as Record<string, unknown>;
+    expect(payload.mentionSource).toBe('description');
   });
 });
