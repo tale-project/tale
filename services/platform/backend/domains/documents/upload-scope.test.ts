@@ -74,6 +74,7 @@ function database(options: {
           organizationId: 'org-1',
           teamId: null,
           sharedWithTeamIds: [],
+          archivedAt: null,
         },
       ];
     if (text.startsWith('INSERT INTO app.documents')) return [{ id: 'doc-2' }];

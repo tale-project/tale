@@ -812,11 +812,13 @@ function CreateTaskBody({
       onClose();
     } catch (error) {
       console.error('Create task error:', error);
-      if (
-        error instanceof AppError &&
-        error.data?.code === 'TASK_SCHEDULE_INVALID'
-      ) {
+      const code = error instanceof AppError ? error.data?.code : undefined;
+      if (code === 'TASK_SCHEDULE_INVALID') {
         toast({ title: t('startDate.afterDue'), variant: 'destructive' });
+      } else if (code === 'PROJECT_ARCHIVED') {
+        // The project was archived under the open dialog (or the board's
+        // CTA was stale): say so instead of "something went wrong".
+        toast({ title: t('errors.PROJECT_ARCHIVED'), variant: 'destructive' });
       } else {
         toast({ title: tCommon('errors.generic'), variant: 'destructive' });
       }

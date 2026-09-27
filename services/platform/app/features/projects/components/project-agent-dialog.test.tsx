@@ -1,6 +1,8 @@
+import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { AppError } from '@/lib/shared/errors/app-error';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ProjectAgentRow } from '../hooks/queries';
 import { ProjectAgentDialog } from './project-agent-dialog';
@@ -125,6 +127,30 @@ describe('ProjectAgentDialog model pin', () => {
     expect(
       screen.getByText(/runs currently resolve to OpenRouter/),
     ).toBeVisible();
+  });
+
+  it('names an archived project when the save is refused with PROJECT_ARCHIVED', async () => {
+    // The guard used to answer PROJECT_FORBIDDEN, which this dialog folded
+    // into the generic "Couldn't save the agent". The distinct code gets its
+    // own sentence — restore the project first.
+    updateAgent.mockRejectedValueOnce(
+      new AppError({
+        code: 'PROJECT_ARCHIVED',
+        message: 'Project is archived',
+      }),
+    );
+    const { user } = renderDialog(LEGACY_AGENT);
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'This project is archived. Restore it to make changes.',
+          variant: 'destructive',
+        }),
+      ),
+    );
   });
 
   it('keeps an untouched legacy row unpinned rather than adopting a guess', async () => {

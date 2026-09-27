@@ -154,6 +154,32 @@ describe('ProjectOverview', () => {
     expect(screen.getByText('A tour of the platform.')).toBeInTheDocument();
   });
 
+  // Archived = read-only for everyone (the backend drops `canEdit` with it,
+  // and this page drops it again from the row it holds): the identity form
+  // is gone, the banner says why, and Restore stays — that is how it stops
+  // being archived.
+  it('reads as archived: banner, no identity form, Restore still offered', () => {
+    projectFixture = {
+      name: 'Getting started',
+      description: 'A tour of the platform.',
+      archivedAt: 1_700_000_000_000,
+      canEdit: true,
+      canAdminister: true,
+    };
+
+    renderOverview();
+
+    expect(screen.getByText('This project is archived')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Name' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('A tour of the platform.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument();
+    expect(
+      screen.queryByText('You’re viewing this project'),
+    ).not.toBeInTheDocument();
+  });
+
   it('never shows the retired Get-started nudge, even on an empty project', () => {
     renderOverview();
 

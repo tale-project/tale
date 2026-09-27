@@ -5233,10 +5233,14 @@ projects:
   readOnlyBanner:
     title: You're viewing this project
     description: Contact a project editor to make changes.
+    archivedTitle: This project is archived
+    archivedDescription: It's read-only until someone restores it. Project
+      administrators can restore it from the Archive section below.
   archived:
     badge: Archived
   errors:
     PROJECT_FORBIDDEN: You don't have access to this project.
+    PROJECT_ARCHIVED: This project is archived. Restore it to make changes.
     PROJECT_NOT_FOUND: We couldn't find that project. It may have been deleted.
     PROJECT_MISMATCH: This chat is in a different project. Switch context to continue.
     PROJECT_AGENT_NOT_ALLOWED: "{agentName} isn't available in this project. Pick another agent."
@@ -7274,6 +7278,8 @@ tasks:
   watch:
     watch: Watch
     unwatch: Unwatch
+  errors:
+    PROJECT_ARCHIVED: This project is archived. Restore it to change its tasks.
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'

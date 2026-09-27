@@ -170,6 +170,10 @@ export async function assertProjectFolderWrite(
   if (!access.canEdit) {
     throw new FolderError('RBAC_FORBIDDEN', 'Editor role required', 403);
   }
+  // Archived = read-only for the whole project, its folders included.
+  if (project.archivedAt !== null) {
+    throw new FolderError('PROJECT_ARCHIVED', 'Project is archived', 403);
+  }
 }
 
 /**

@@ -390,6 +390,10 @@ export async function requireDocumentWriteAccess(
     if (!access.canEdit) {
       throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
     }
+    // Archived = read-only for the whole project, its documents included.
+    if (project.archivedAt !== null) {
+      throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
+    }
   }
   return doc;
 }
@@ -463,6 +467,9 @@ export async function createDocumentFromUpload(
     }
     if (!access.canEdit) {
       throw new DocumentError('RBAC_FORBIDDEN', 'Editor role required', 403);
+    }
+    if (project.archivedAt !== null) {
+      throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
     }
     if (args.folderId) {
       const folder = await loadFolderOrThrow(tx, args.folderId);

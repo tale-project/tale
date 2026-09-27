@@ -40,7 +40,7 @@ interface Statement {
   values: unknown[];
 }
 
-function fakeTx(options: { takenBy?: string } = {}): {
+function fakeTx(options: { takenBy?: string; archived?: boolean } = {}): {
   tx: TransactionSql;
   statements: Statement[];
 } {
@@ -49,7 +49,11 @@ function fakeTx(options: { takenBy?: string } = {}): {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
     if (text.includes('FROM app.projects WHERE id = ?')) {
-      return Promise.resolve([PROJECT]);
+      return Promise.resolve([
+        options.archived
+          ? { ...PROJECT, archivedAt: 1_700_000_000_000 }
+          : PROJECT,
+      ]);
     }
     // The uniqueness lookup (its `AND id <> ?` exclusion is a fragment —
     // a tagged-template call of its own, recorded as one statement).
@@ -152,5 +156,18 @@ describe('updateProjectExternalItemId', () => {
         { projectId: 'project-1', externalItemId: 'crm-3' },
       ),
     ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN', status: 403 });
+  });
+
+  it('refuses every settings write on an archived project with PROJECT_ARCHIVED, writing nothing', async () => {
+    // Archived = read-only: the same code the REST door answers, now from
+    // the service itself so the app door agrees (restore first).
+    const { tx, statements } = fakeTx({ archived: true });
+    await expect(
+      updateProjectExternalItemId(tx, auth, {
+        projectId: 'project-1',
+        externalItemId: 'crm-3',
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
+    expect(writes(statements)).toHaveLength(0);
   });
 });

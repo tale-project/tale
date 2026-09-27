@@ -697,7 +697,11 @@ export function ProjectFilesTab({
               });
               continue;
             }
-            if (code === 'RBAC_FORBIDDEN' || code === 'PROJECT_FORBIDDEN') {
+            if (
+              code === 'RBAC_FORBIDDEN' ||
+              code === 'PROJECT_FORBIDDEN' ||
+              code === 'PROJECT_ARCHIVED'
+            ) {
               toast({
                 title: t('errors.' + code, {
                   defaultValue: t('files.attachError'),

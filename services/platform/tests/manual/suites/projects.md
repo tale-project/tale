@@ -331,6 +331,19 @@ projects-list row ⋯ menu.
   until dismissed; the three files appear in the tree. Picking the `.bin`
   alone still shows the destructive **Unsupported file type** toast; a pick
   with no refusal reads **Document added to project · 4 / 4**.
+- [ ] `PROJ-B6` · **Archived project is read-only everywhere** — Open a
+  project's Agents, Tasks and Files tabs in a second tab, then on
+  **General** → **Archive** → confirm → In the fresh tabs every write
+  control is gone: no **New agent**, no **Create task**, no **Add file** /
+  folder actions, the task dialog's fields are read-only, and General shows
+  the **This project is archived** banner
+  (`projects.readOnlyBanner.archivedTitle`) above a read-only summary with
+  **Restore** (`projects.rowActions.restore`) still offered and the Sharing
+  section read-only; in the STALE tabs submit **New agent**, **Create task**
+  and a file drop → each is refused with **This project is archived.
+  Restore it to make changes.** (`projects.errors.PROJECT_ARCHIVED`; the
+  task one reads `tasks.errors.PROJECT_ARCHIVED`), never the generic
+  "Couldn't save the agent"; **Restore** brings every control back.
 
 ## Accessibility (WCAG 2.1 AA)
 

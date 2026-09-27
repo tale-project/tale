@@ -85,7 +85,11 @@ interface Statement {
 
 function fakeTx(
   storedSecrets: string[] = ['REVIEW_TOKEN'],
-  options: { nameTaken?: boolean; insertedId?: string } = {},
+  options: {
+    nameTaken?: boolean;
+    insertedId?: string;
+    archived?: boolean;
+  } = {},
 ): {
   tx: TransactionSql;
   statements: Statement[];
@@ -108,7 +112,11 @@ function fakeTx(
       return Promise.resolve(options.nameTaken ? [{ id: 'agent-2' }] : []);
     }
     if (text.includes('FROM app.projects WHERE id = ?')) {
-      return Promise.resolve([PROJECT]);
+      return Promise.resolve([
+        options.archived
+          ? { ...PROJECT, archivedAt: 1_700_000_000_000 }
+          : PROJECT,
+      ]);
     }
     if (text.includes('FROM app.agent_secrets')) {
       const requested = values[1];
@@ -168,6 +176,28 @@ describe('a duplicate agent name is the 409 every other duplicate answers', () =
     });
     const clash = statements.find((s) => s.text.includes('lower(name) = ?'));
     expect(clash?.values).toContain('reviewer');
+    expect(
+      statements.some((s) =>
+        s.text.startsWith('INSERT INTO app.project_agents'),
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses a create on an archived project with PROJECT_ARCHIVED, not a permission code', async () => {
+    // Archived = read-only: the guard used to answer PROJECT_FORBIDDEN, which
+    // the dialog rendered as "Couldn't save the agent" — nothing said the
+    // project was archived. The distinct code lets the UI say "restore it".
+    const { tx, statements } = fakeTx(['REVIEW_TOKEN'], { archived: true });
+    await expect(
+      createProjectAgent(tx, auth, {
+        projectId: 'project-1',
+        name: 'reviewer',
+        harness: 'claude-code',
+        model: 'test-model',
+        skills: [],
+        connectors: [],
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
     expect(
       statements.some((s) =>
         s.text.startsWith('INSERT INTO app.project_agents'),

@@ -7283,6 +7283,8 @@ tasks:
   watch:
     watch: Suivre
     unwatch: Ne plus suivre
+  errors:
+    PROJECT_ARCHIVED: Ce projet est archivé. Restaure-le pour modifier ses tâches.
   runFailure:
     title: L'agent n'a pas pu démarrer
     description: "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche
@@ -8006,10 +8008,15 @@ projects:
   readOnlyBanner:
     title: Tu consultes ce projet
     description: Contacte un éditeur du projet pour effectuer des modifications.
+    archivedTitle: Ce projet est archivé
+    archivedDescription: Il reste en lecture seule tant que personne ne le
+      restaure. Les administrateurs du projet peuvent le restaurer depuis la
+      section Archive ci-dessous.
   archived:
     badge: Archivé
   errors:
     PROJECT_FORBIDDEN: Tu n'as pas accès à ce projet.
+    PROJECT_ARCHIVED: Ce projet est archivé. Restaure-le pour effectuer des modifications.
     PROJECT_NOT_FOUND: Impossible de trouver ce projet. Il a peut-être été supprimé.
     PROJECT_MISMATCH: Ce chat se trouve dans un autre projet. Change de contexte pour continuer.
     PROJECT_AGENT_NOT_ALLOWED: "{agentName} n'est pas disponible dans ce projet. Choisis un autre agent."

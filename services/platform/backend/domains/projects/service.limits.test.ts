@@ -28,6 +28,7 @@ const PROJECT = {
   name: 'Q2 Sales',
   teamId: null,
   sharedWithTeamIds: [] as string[],
+  archivedAt: null,
   instructions: null,
   createdBy: 'user-1',
 };

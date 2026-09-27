@@ -7182,6 +7182,8 @@ tasks:
   watch:
     watch: Verfolgen
     unwatch: Nicht mehr verfolgen
+  errors:
+    PROJECT_ARCHIVED: Dieses Projekt ist archiviert. Stelle es wieder her, um seine Aufgaben zu ändern.
   runFailure:
     title: Agent konnte nicht starten
     description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe
@@ -7909,10 +7911,14 @@ projects:
   readOnlyBanner:
     title: Du siehst dieses Projekt nur an
     description: Kontaktiere einen Projekt-Editor, um Änderungen vorzunehmen.
+    archivedTitle: Dieses Projekt ist archiviert
+    archivedDescription: Es ist schreibgeschützt, bis es jemand wiederherstellt.
+      Projekt-Administratoren können es im Abschnitt Archiv unten wiederherstellen.
   archived:
     badge: Archiviert
   errors:
     PROJECT_FORBIDDEN: Du hast keinen Zugriff auf dieses Projekt.
+    PROJECT_ARCHIVED: Dieses Projekt ist archiviert. Stelle es wieder her, um Änderungen vorzunehmen.
     PROJECT_NOT_FOUND: Wir konnten dieses Projekt nicht finden. Es wurde möglicherweise gelöscht.
     PROJECT_MISMATCH: Dieser Chat liegt in einem anderen Projekt. Wechsle den
       Kontext, um fortzufahren.

@@ -243,6 +243,7 @@ export function ProjectAgentDialog({
         code === 'PROJECT_AGENT_MODEL_INVALID' ||
         code === 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' ||
         code === 'PROJECT_AGENT_LIMIT' ||
+        code === 'PROJECT_ARCHIVED' ||
         code === 'RBAC_FORBIDDEN'
       ) {
         toast({ title: t(`errors.${code}`), variant: 'destructive' });

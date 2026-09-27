@@ -3,7 +3,7 @@ title: Manage tasks on a project board
 description: Create a task, name its owner, track progress, and review the result in one place.
 ---
 
-A task keeps a piece of work together: its purpose, owner, status, files, and the conversation about the result. Use the project board for work a person will do as well as work you delegate to an agent. You need permission to edit the project to change its tasks.
+A task keeps a piece of work together: its purpose, owner, status, files, and the conversation about the result. Use the project board for work a person will do as well as work you delegate to an agent. You need permission to edit the project to change its tasks, and the project must be active: an archived project is read-only until an administrator restores it.
 
 <Frame caption="The board groups the same tasks by status. Switch to List when you prefer rows.">
 

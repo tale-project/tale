@@ -198,7 +198,11 @@ function ProjectOverviewContent({
 
   if (!project) return null;
 
-  const canEdit = project.canEdit;
+  // An archived project is read-only for everyone (the backend drops
+  // `canEdit` with it) — only Restore, in the Archive section below, and
+  // Delete stay, for administrators.
+  const isArchived = project.archivedAt !== undefined;
+  const canEdit = project.canEdit && !isArchived;
   const canAdminister = project.canAdminister;
   const isViewerOnly = !canEdit && !canAdminister;
 
@@ -209,7 +213,11 @@ function ProjectOverviewContent({
     // what draws exactly one hairline between each pair of neighbours —
     // Project, Instructions, Sharing — and nothing after the last one.
     <ContentArea variant="narrow" gap={6} className={SECTION_DIVIDER_CLASS}>
-      {isViewerOnly ? <ProjectReadOnlyBanner /> : null}
+      {isArchived ? (
+        <ProjectReadOnlyBanner reason="archived" />
+      ) : isViewerOnly ? (
+        <ProjectReadOnlyBanner />
+      ) : null}
 
       {/* The project's basics — inline edit when canEdit, read-only summary
           otherwise. The layout's header already names the project, so this
@@ -313,7 +321,7 @@ function ProjectOverviewContent({
               ...(project.sharedWithTeamIds ?? []),
             ]
           }
-          canAdminister={canAdminister}
+          canAdminister={canAdminister && !isArchived}
         />
       </SettingsSection>
 

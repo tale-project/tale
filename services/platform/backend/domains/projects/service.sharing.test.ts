@@ -36,6 +36,7 @@ const PROJECT = {
   teamId: null,
   sharedWithTeamIds: [] as string[],
   teamIds: [] as string[],
+  archivedAt: null,
   instructions: null,
   createdBy: 'user-1',
 };

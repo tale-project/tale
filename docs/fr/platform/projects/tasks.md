@@ -3,7 +3,7 @@ title: Gérer les tâches d’un projet
 description: Crée une tâche, désigne son responsable, suis sa progression et examine le résultat au même endroit.
 ---
 
-Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Tu dois pouvoir modifier le projet pour changer ses tâches.
+Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Tu dois pouvoir modifier le projet pour changer ses tâches, et le projet doit être actif : un projet archivé reste en lecture seule jusqu’à ce qu’un administrateur le restaure.
 
 <Frame caption="Le tableau classe les tâches par statut. Passe à Liste pour retrouver les mêmes tâches sous forme de lignes.">
 
