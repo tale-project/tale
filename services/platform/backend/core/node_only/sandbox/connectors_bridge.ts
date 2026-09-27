@@ -4,6 +4,7 @@ import {
   findConnector,
   loadConnectorDefinitions,
 } from '../../../../lib/connectors/catalog';
+import { ConnectorError } from '../../../../lib/connectors/errors';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 /** One reason a connector (or call) cannot run, with guidance the agent
  * relays to the user verbatim. */
@@ -130,6 +131,46 @@ export type BridgeCredentialProbe = (args: {
   connectorSlug: string;
 }) => Promise<boolean>;
 
+/** `text` ending in a full stop, whatever its source ended with. */
+function asSentence(text: string): string {
+  const trimmed = text.trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+/** A coded connector refusal in the bridge's dialect: arguments the model
+ * can correct read as `invalid_args`, a missing credential as the
+ * `no_credential` blocker the status listing names, and the rest as an
+ * error, each with the refusal's own sentence and hint. */
+function connectorRefusal(
+  displayName: string,
+  error: ConnectorError,
+): BridgeExecuteResult {
+  const message =
+    asSentence(error.message) +
+    (error.hint !== undefined && error.hint.trim() !== ''
+      ? ` ${asSentence(error.hint)}`
+      : '');
+  switch (error.code) {
+    case 'INPUT_INVALID':
+    case 'UNKNOWN_ACTION':
+      return { status: 'invalid_args', message };
+    case 'CREDENTIAL_UNRESOLVED':
+      return {
+        status: 'unavailable',
+        blockers: [
+          {
+            code: 'no_credential',
+            guidance:
+              `"${displayName}" cannot run: ${asSentence(error.message)} ` +
+              'The user can connect a credential, or mark one of its credentials as the default, under Settings → Connectors.',
+          },
+        ],
+      };
+    default:
+      return { status: 'error', message };
+  }
+}
+
 export async function runBridgeConnectorImpl(
   dispatch: BridgeDispatch,
   args: {
@@ -204,9 +245,15 @@ export async function runBridgeConnectorImpl(
       isRecord(result) && 'output' in result ? result.output : result;
     return { status: 'ok', output };
   } catch (error) {
-    // The dispatcher refuses with a coded AppError (no credential,
-    // schema mismatch, vendor failure) — surface its message and hint so
-    // the agent can relay something actionable.
+    // The connector door refuses with a coded ConnectorError (arguments
+    // that do not match the action's schema, no usable credential, a vendor
+    // or egress refusal). Its sentence and hint are what let the agent fix
+    // its arguments or tell the user what to reconnect, so they cross as
+    // they are; the automation lane surfaces the same two.
+    if (error instanceof ConnectorError) {
+      return connectorRefusal(connector.displayName, error);
+    }
+    // A dispatch seam that wraps its refusals in a coded AppError.
     if (error instanceof AppError) {
       const data: unknown = error.data;
       const message =

@@ -17,6 +17,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import { SANDBOX_DOOR_MAX_BODY_BYTES } from '../sandbox/door-body-limit.ts';
 
@@ -459,6 +460,29 @@ describe('POST /api/connectors/execute — whom a call acts for', () => {
 
     expect(body.blockers[0]?.code).toBe('not_granted');
     expect(queries).toEqual([]);
+  });
+
+  it('hands the connector door’s coded refusal to the agent with its hint', async () => {
+    tokenWith(TASK_TURN);
+    runConnectorAction.mockRejectedValue(
+      new ConnectorError(
+        'INPUT_INVALID',
+        "input does not match the glitchtip.list_import_issues schema: input must have required property 'organizationSlug'",
+        { hint: 'Pass organizationSlug.' },
+      ),
+    );
+
+    const res = await post('/execute', LIST_ISSUES);
+
+    expect(await res.json()).toEqual({
+      status: 'invalid_args',
+      message:
+        "input does not match the glitchtip.list_import_issues schema: input must have required property 'organizationSlug'. Pass organizationSlug.",
+    });
+    // The refusal is on the forensic trail, under the member it ran for.
+    expect(toolCalls).toHaveLength(1);
+    expect(toolCalls[0]).toContain('user_starter');
+    expect(toolCalls[0]).toContain('invalid_args');
   });
 });
 

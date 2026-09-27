@@ -9,6 +9,7 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+import { ConnectorError } from '../../../../lib/connectors/errors';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 
 type Dispatch = (
@@ -164,6 +165,88 @@ describe('dispatchBridgeConnectorImpl', () => {
     expect(result.status).toBe('error');
     expect(result.message).toContain('No credential is connected.');
     expect(result.message).toContain('Settings → Connectors');
+  });
+
+  // The connector door throws ConnectorError, not AppError. Before the
+  // bridge read it, every coded refusal came back as "The connector call
+  // failed unexpectedly.", so an agent could neither fix its arguments nor
+  // tell the user what to reconnect.
+  it('hands malformed arguments back as invalid_args with the refusal and its hint', async () => {
+    const runDispatch = vi
+      .fn()
+      .mockRejectedValue(
+        new ConnectorError(
+          'INPUT_INVALID',
+          "input does not match the tavily.search schema: input must have required property 'query'",
+          { hint: 'you passed: {}' },
+        ),
+      );
+    const { dispatch } = await getActions();
+
+    const result = await dispatch(runDispatch as unknown as Dispatch, {
+      ...BASE,
+      slug: 'tavily',
+      operation: 'search',
+      callArgs: {},
+    });
+
+    expect(result).toEqual({
+      status: 'invalid_args',
+      message:
+        "input does not match the tavily.search schema: input must have required property 'query'. you passed: {}.",
+    });
+  });
+
+  it('reports a credential the door cannot resolve as the no_credential blocker', async () => {
+    const runDispatch = vi
+      .fn()
+      .mockRejectedValue(
+        new ConnectorError(
+          'CREDENTIAL_UNRESOLVED',
+          'no usable credential for tavily: no active credential',
+          {
+            hint: 'connect the connector, or mark one of its credentials as the default',
+          },
+        ),
+      );
+    const { dispatch } = await getActions();
+
+    const result = await dispatch(runDispatch as unknown as Dispatch, {
+      ...BASE,
+      slug: 'tavily',
+      operation: 'search',
+      callArgs: { query: 'x' },
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'no_credential' }],
+    });
+    const guidance = (result.blockers as Array<{ guidance: string }>)[0]
+      ?.guidance;
+    expect(guidance).toContain('no usable credential for tavily');
+    expect(guidance).toContain('Settings → Connectors');
+  });
+
+  it('surfaces a vendor or egress refusal with its sentence and hint', async () => {
+    const runDispatch = vi.fn().mockRejectedValue(
+      new ConnectorError('HOST_NOT_ALLOWED', 'api.example.com is not allowed', {
+        hint: 'Check the credential endpoint.',
+      }),
+    );
+    const { dispatch } = await getActions();
+
+    const result = await dispatch(runDispatch as unknown as Dispatch, {
+      ...BASE,
+      slug: 'tavily',
+      operation: 'search',
+      callArgs: { query: 'x' },
+    });
+
+    expect(result).toEqual({
+      status: 'error',
+      message: 'api.example.com is not allowed. Check the credential endpoint.',
+    });
   });
 });
 
