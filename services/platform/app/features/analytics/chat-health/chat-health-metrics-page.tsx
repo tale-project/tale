@@ -164,50 +164,47 @@ function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
       {rows.length === 0 ? (
         <Text variant="caption">{t('chatHealth.errorBreakdown.noRecent')}</Text>
       ) : (
-        <Stack gap={1}>
-          <HStack
-            align="center"
-            gap={3}
-            className="text-fg-muted text-xs font-medium"
-          >
-            <span className="w-32 shrink-0">
-              {t('chatHealth.errorBreakdown.columns.time')}
-            </span>
-            <span className="w-40 shrink-0">
-              {t('chatHealth.errorBreakdown.columns.type')}
-            </span>
-            <span className="min-w-0 flex-1">
-              {t('chatHealth.errorBreakdown.columns.model')}
-            </span>
-            <span className="w-32 shrink-0 text-right">
-              {t('chatHealth.errorBreakdown.columns.agent')}
-            </span>
-          </HStack>
-          {rows.map((item) => (
-            <HStack key={item.key} align="center" gap={3}>
-              <Text className="text-fg-muted w-32 shrink-0 text-xs tabular-nums">
-                <SkeletonBox>{item.time}</SkeletonBox>
-              </Text>
-              <span className="w-40 shrink-0">
-                <Badge variant="outline" className="max-w-full">
-                  {item.typeLabel}
-                </Badge>
+        // Four fixed columns need ~30rem; measured on the list itself, not
+        // the viewport. Narrower (a phone, or the metrics column beside the
+        // rail and the settings panel), each error reads on two lines —
+        // time and type, then model and agent — and the column header, which
+        // no longer lines up with anything, steps aside.
+        <div className="@container">
+          <div className="flex flex-col gap-2 @xl:gap-1">
+            <div className="text-fg-muted hidden grid-cols-[8rem_10rem_minmax(0,1fr)_8rem] items-center gap-3 text-xs font-medium @xl:grid">
+              <span>{t('chatHealth.errorBreakdown.columns.time')}</span>
+              <span>{t('chatHealth.errorBreakdown.columns.type')}</span>
+              <span>{t('chatHealth.errorBreakdown.columns.model')}</span>
+              <span className="text-right">
+                {t('chatHealth.errorBreakdown.columns.agent')}
               </span>
-              <Text
-                className="min-w-0 flex-1 truncate text-sm"
-                title={item.model}
+            </div>
+            {rows.map((item) => (
+              <div
+                key={item.key}
+                className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-center gap-x-3 gap-y-1 @xl:grid-cols-[8rem_10rem_minmax(0,1fr)_8rem]"
               >
-                <SkeletonBox>{item.model}</SkeletonBox>
-              </Text>
-              <Text
-                className="text-fg-muted w-32 shrink-0 truncate text-right text-sm"
-                title={item.agentSlug}
-              >
-                <SkeletonBox>{item.agentSlug}</SkeletonBox>
-              </Text>
-            </HStack>
-          ))}
-        </Stack>
+                <Text className="text-fg-muted text-xs tabular-nums">
+                  <SkeletonBox>{item.time}</SkeletonBox>
+                </Text>
+                <span className="min-w-0 justify-self-end @xl:justify-self-start">
+                  <Badge variant="outline" className="max-w-full">
+                    {item.typeLabel}
+                  </Badge>
+                </span>
+                <Text className="min-w-0 truncate text-sm" title={item.model}>
+                  <SkeletonBox>{item.model}</SkeletonBox>
+                </Text>
+                <Text
+                  className="text-fg-muted min-w-0 truncate text-right text-sm"
+                  title={item.agentSlug}
+                >
+                  <SkeletonBox>{item.agentSlug}</SkeletonBox>
+                </Text>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </Stack>
   );
