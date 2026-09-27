@@ -112,6 +112,7 @@ import { Route as DashboardIdProjectsProjectIdFilesRouteImport } from './routes/
 import { Route as DashboardIdProjectsProjectIdAgentsRouteImport } from './routes/dashboard/$id/projects/$projectId/agents';
 import { Route as DashboardIdChatSharedShareTokenRouteImport } from './routes/dashboard/$id/chat/shared/$shareToken';
 import { Route as DashboardIdAutomationsAutomationSlugVersionsRouteImport } from './routes/dashboard/$id/automations/$automationSlug/versions';
+import { Route as DashboardIdAutomationsAutomationSlugGeneralRouteImport } from './routes/dashboard/$id/automations/$automationSlug/general';
 import { Route as DashboardIdAutomationsAutomationSlugEditorRouteImport } from './routes/dashboard/$id/automations/$automationSlug/editor';
 import { Route as DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteImport } from './routes/dashboard/$id/settings/governance/data-subject-requests/route';
 import { Route as DashboardIdProjectsProjectIdTasksIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/tasks/index';
@@ -125,6 +126,7 @@ import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteImpo
 import { Route as DashboardIdAutomationsAutomationSlugRunsRunIdRouteImport } from './routes/dashboard/$id/automations/$automationSlug/runs/$runId';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/index';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/versions';
+import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/general';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/editor';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsIndexRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/index';
 import { Route as DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRouteImport } from './routes/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId';
@@ -718,6 +720,12 @@ const DashboardIdAutomationsAutomationSlugVersionsRoute =
     path: '/versions',
     getParentRoute: () => DashboardIdAutomationsAutomationSlugRoute,
   } as any);
+const DashboardIdAutomationsAutomationSlugGeneralRoute =
+  DashboardIdAutomationsAutomationSlugGeneralRouteImport.update({
+    id: '/general',
+    path: '/general',
+    getParentRoute: () => DashboardIdAutomationsAutomationSlugRoute,
+  } as any);
 const DashboardIdAutomationsAutomationSlugEditorRoute =
   DashboardIdAutomationsAutomationSlugEditorRouteImport.update({
     id: '/editor',
@@ -797,6 +805,15 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute =
     {
       id: '/versions',
       path: '/versions',
+      getParentRoute: () =>
+        DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
+    } as any,
+  );
+const DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute =
+  DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRouteImport.update(
+    {
+      id: '/general',
+      path: '/general',
       getParentRoute: () =>
         DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute,
     } as any,
@@ -896,6 +913,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug/editor': typeof DashboardIdAutomationsAutomationSlugEditorRoute;
+  '/dashboard/$id/automations/$automationSlug/general': typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
   '/dashboard/$id/automations/$automationSlug/versions': typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
@@ -943,6 +961,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
@@ -1005,6 +1024,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings': typeof DashboardIdSettingsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug/editor': typeof DashboardIdAutomationsAutomationSlugEditorRoute;
+  '/dashboard/$id/automations/$automationSlug/general': typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
   '/dashboard/$id/automations/$automationSlug/versions': typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
@@ -1051,6 +1071,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/projects/$projectId/automations': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
@@ -1126,6 +1147,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute;
   '/dashboard/$id/settings/governance/data-subject-requests': typeof DashboardIdSettingsGovernanceDataSubjectRequestsRouteRouteWithChildren;
   '/dashboard/$id/automations/$automationSlug/editor': typeof DashboardIdAutomationsAutomationSlugEditorRoute;
+  '/dashboard/$id/automations/$automationSlug/general': typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
   '/dashboard/$id/automations/$automationSlug/versions': typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/chat/shared/$shareToken': typeof DashboardIdChatSharedShareTokenRoute;
   '/dashboard/$id/projects/$projectId/agents': typeof DashboardIdProjectsProjectIdAgentsRoute;
@@ -1173,6 +1195,7 @@ export interface FileRoutesById {
   '/dashboard/$id/projects/$projectId/automations/': typeof DashboardIdProjectsProjectIdAutomationsIndexRoute;
   '/dashboard/$id/projects/$projectId/tasks/': typeof DashboardIdProjectsProjectIdTasksIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
+  '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId': typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
@@ -1247,6 +1270,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/'
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/automations/$automationSlug/editor'
+    | '/dashboard/$id/automations/$automationSlug/general'
     | '/dashboard/$id/automations/$automationSlug/versions'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
@@ -1294,6 +1318,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor'
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/general'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId'
@@ -1356,6 +1381,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings'
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/automations/$automationSlug/editor'
+    | '/dashboard/$id/automations/$automationSlug/general'
     | '/dashboard/$id/automations/$automationSlug/versions'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
@@ -1402,6 +1428,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/automations'
     | '/dashboard/$id/projects/$projectId/tasks'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor'
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/general'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId'
@@ -1476,6 +1503,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/'
     | '/dashboard/$id/settings/governance/data-subject-requests'
     | '/dashboard/$id/automations/$automationSlug/editor'
+    | '/dashboard/$id/automations/$automationSlug/general'
     | '/dashboard/$id/automations/$automationSlug/versions'
     | '/dashboard/$id/chat/shared/$shareToken'
     | '/dashboard/$id/projects/$projectId/agents'
@@ -1523,6 +1551,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/projects/$projectId/automations/'
     | '/dashboard/$id/projects/$projectId/tasks/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor'
+    | '/dashboard/$id/projects/$projectId/automations/$automationSlug/general'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/'
     | '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId'
@@ -2264,6 +2293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdAutomationsAutomationSlugVersionsRouteImport;
       parentRoute: typeof DashboardIdAutomationsAutomationSlugRoute;
     };
+    '/dashboard/$id/automations/$automationSlug/general': {
+      id: '/dashboard/$id/automations/$automationSlug/general';
+      path: '/general';
+      fullPath: '/dashboard/$id/automations/$automationSlug/general';
+      preLoaderRoute: typeof DashboardIdAutomationsAutomationSlugGeneralRouteImport;
+      parentRoute: typeof DashboardIdAutomationsAutomationSlugRoute;
+    };
     '/dashboard/$id/automations/$automationSlug/editor': {
       id: '/dashboard/$id/automations/$automationSlug/editor';
       path: '/editor';
@@ -2353,6 +2389,13 @@ declare module '@tanstack/react-router' {
       path: '/versions';
       fullPath: '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions';
       preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRouteImport;
+      parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
+    };
+    '/dashboard/$id/projects/$projectId/automations/$automationSlug/general': {
+      id: '/dashboard/$id/projects/$projectId/automations/$automationSlug/general';
+      path: '/general';
+      fullPath: '/dashboard/$id/projects/$projectId/automations/$automationSlug/general';
+      preLoaderRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRouteImport;
       parentRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRoute;
     };
     '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor': {
@@ -2652,6 +2695,7 @@ const DashboardIdSettingsRouteWithChildren =
 
 interface DashboardIdAutomationsAutomationSlugRouteChildren {
   DashboardIdAutomationsAutomationSlugEditorRoute: typeof DashboardIdAutomationsAutomationSlugEditorRoute;
+  DashboardIdAutomationsAutomationSlugGeneralRoute: typeof DashboardIdAutomationsAutomationSlugGeneralRoute;
   DashboardIdAutomationsAutomationSlugVersionsRoute: typeof DashboardIdAutomationsAutomationSlugVersionsRoute;
   DashboardIdAutomationsAutomationSlugIndexRoute: typeof DashboardIdAutomationsAutomationSlugIndexRoute;
   DashboardIdAutomationsAutomationSlugRunsRunIdRoute: typeof DashboardIdAutomationsAutomationSlugRunsRunIdRoute;
@@ -2662,6 +2706,8 @@ const DashboardIdAutomationsAutomationSlugRouteChildren: DashboardIdAutomationsA
   {
     DashboardIdAutomationsAutomationSlugEditorRoute:
       DashboardIdAutomationsAutomationSlugEditorRoute,
+    DashboardIdAutomationsAutomationSlugGeneralRoute:
+      DashboardIdAutomationsAutomationSlugGeneralRoute,
     DashboardIdAutomationsAutomationSlugVersionsRoute:
       DashboardIdAutomationsAutomationSlugVersionsRoute,
     DashboardIdAutomationsAutomationSlugIndexRoute:
@@ -2679,6 +2725,7 @@ const DashboardIdAutomationsAutomationSlugRouteWithChildren =
 
 interface DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren {
   DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute;
+  DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute;
   DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute: typeof DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute;
@@ -2689,6 +2736,8 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugRouteChildren: Dashbo
   {
     DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute:
       DashboardIdProjectsProjectIdAutomationsAutomationSlugEditorRoute,
+    DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute:
+      DashboardIdProjectsProjectIdAutomationsAutomationSlugGeneralRoute,
     DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute:
       DashboardIdProjectsProjectIdAutomationsAutomationSlugVersionsRoute,
     DashboardIdProjectsProjectIdAutomationsAutomationSlugIndexRoute:

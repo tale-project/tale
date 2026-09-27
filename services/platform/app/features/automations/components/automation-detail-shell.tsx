@@ -25,11 +25,18 @@ import { useT } from '@/lib/i18n/client';
 
 import { useAutomation } from '../hooks/queries';
 import { automationDetailPathname } from '../lib/detail-paths';
+import {
+  DOCUMENT_DIRTY_KEY,
+  PROJECTS_DIRTY_KEY,
+  TRIGGER_DIRTY_KEY,
+} from '../lib/dirty-keys';
 import { automationDeletedAt, isMissingAutomationRead } from '../lib/errors';
 import { AutomationBreadcrumbs } from './automation-breadcrumbs';
 
 /** The editor's controller reports its draft under this key (see `AutomationEditor`). */
-const EDITOR_DIRTY_KEYS = ['document'] as const;
+const EDITOR_DIRTY_KEYS = [DOCUMENT_DIRTY_KEY] as const;
+/** The General tab's sections report their drafts under these. */
+const GENERAL_DIRTY_KEYS = [TRIGGER_DIRTY_KEY, PROJECTS_DIRTY_KEY] as const;
 
 interface AutomationDetailShellProps {
   organizationId: string;
@@ -45,10 +52,10 @@ interface AutomationDetailShellProps {
  * The chrome every automation detail page shares, on the org route AND the
  * project-scoped one: the `PageLayout` scroll shell, the
  * `Automations / <name>` breadcrumb (the name doubling as the sibling
- * switcher), and the tab strip — **Editor**, **Versions**, **Runs** — exactly
- * the composition a project detail carries. The strip's trailing slot is
- * where the editor puts its verbs and the Save/Discard cluster, so the header
- * row keeps only the name and the Live badge.
+ * switcher), and the tab strip — **Editor**, **General**, **Versions**,
+ * **Runs** — exactly the composition a project detail carries. The strip's
+ * trailing slot is where the open tab puts its verbs and the Save/Discard
+ * cluster, so the header row keeps only the name and the Live badge.
  *
  * `ActiveEditorProvider` is the registry the editor's Save/Discard cluster
  * reads; this shell renders no cluster of its own, so the page keeps exactly
@@ -83,7 +90,8 @@ function AutomationDetailFrame({
   const { pathname } = useLocation();
   const automationQuery = useAutomation(organizationId, automationSlug);
   // The strip's per-tab unsaved dot: the Editor tab lights up while the
-  // editor holds a draft, the same indicator a project's tabs render.
+  // editor holds a draft, and General while its settings do — the same
+  // indicator a project's tabs render.
   const activeEditor = useActiveEditor();
   const deletedAt = automationDeletedAt(automationQuery.error);
 
@@ -104,6 +112,14 @@ function AutomationDetailFrame({
         matchMode: 'exact',
         dirtyKeys: EDITOR_DIRTY_KEYS,
         disabled: deleted,
+      },
+      {
+        // The automation's own settings — its trigger and project bindings —
+        // on a page of their own, beside the workbench they used to share.
+        label: t('navigation.general'),
+        href: `${root}/general`,
+        matchMode: 'exact',
+        dirtyKeys: GENERAL_DIRTY_KEYS,
       },
       {
         label: t('navigation.versions'),

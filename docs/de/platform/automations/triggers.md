@@ -3,7 +3,7 @@ title: Automatisierungen automatisch starten
 description: Richte Zeitpläne, Webhooks und Plattform-Ereignisse ein, prüfe die Eingaben und finde die Ursache ausbleibender Starts.
 ---
 
-Im Bereich **Trigger** einer Automatisierung legst du fest, wann sie selbstständig startet. Jeder Trigger führt die Live-Version im Live-Modus aus. Teste den Workflow vorher mit der tatsächlich gelieferten Eingabestruktur und prüfe seine externen Aktionen.
+Im Abschnitt **Trigger** im Tab **Allgemein** einer Automatisierung legst du fest, wann sie selbstständig startet. Jeder Trigger führt die Live-Version im Live-Modus aus. Teste den Workflow vorher mit der tatsächlich gelieferten Eingabestruktur und prüfe seine externen Aktionen.
 
 ## Den Auslöser wählen
 
@@ -23,7 +23,7 @@ API- und MCP-Clients können auch ohne Trigger starten. API-Schlüssel und Proje
 
 <Step title="Trigger-Einstellungen öffnen">
 
-Öffne die Automatisierung und ihren Bereich **Trigger**. Ohne Bindung steht dort, dass die Automatisierung nur von Hand oder über die API läuft; wähle **Trigger hinzufügen** und dann unter **Trigger-Typ** den **Zeitplan**. Ein neuer Trigger ist zunächst nicht **Aktiv** — lass ihn ausgeschaltet, solange der Workflow noch nicht selbstständig starten soll.
+Öffne die Automatisierung und darin den Tab **Allgemein**. Ohne Bindung steht im Abschnitt **Trigger**, dass die Automatisierung nur von Hand oder über die API läuft; wähle **Trigger hinzufügen** und dann unter **Trigger-Typ** den **Zeitplan**. Ein neuer Trigger ist zunächst nicht **Aktiv** — lass ihn ausgeschaltet, solange der Workflow noch nicht selbstständig starten soll.
 
 </Step>
 
@@ -35,7 +35,7 @@ Fülle **Cron** aus und wähle die **Zeitzone**. Die fünf Cron-Felder bedeuten 
 
 <Step title="Prüfen und speichern">
 
-Prüfe den nächsten angezeigten Zeitpunkt und speichere die Einstellungen. Kontrolliere, ob die Live-Version die oben gezeigte Zeitplan-Eingabe akzeptiert. Schalte den fertigen Trigger aktiv und speichere erneut. Den nächsten gestarteten Lauf findest du unter **Läufe**.
+Prüfe den nächsten angezeigten Zeitpunkt und klick neben den Tabs auf **Speichern**. Kontrolliere, ob die Live-Version die oben gezeigte Zeitplan-Eingabe akzeptiert. Schalte den fertigen Trigger mit **Aktiv** ein und speichere erneut. Den nächsten gestarteten Lauf findest du unter **Läufe**.
 
 </Step>
 
@@ -54,7 +54,7 @@ Die Ortszeit folgt den Sommerzeitregeln der Zeitzone. Ein Zürcher Zeitplan für
 
 ## Einen Webhook empfangen
 
-Wähle **Webhook** und speichere, um die Zugangsdaten zu erzeugen. Kopiere die vollständige URL, sobald sie erscheint. Der Token wird einmal gezeigt und nur als Hash gespeichert. Der Bereich bietet eine Organisations-URL und ein Muster für Projekt-URLs. Nutze für ein aktives Projekt mit installierter Automatisierung die Projekt-URL. Eine Automatisierung mit Projektzuordnung kann nicht über die reine Organisations-URL starten.
+Wähle **Webhook** und speichere, um die Zugangsdaten zu erzeugen. Kopiere die vollständige URL, sobald sie erscheint. Der Token wird einmal gezeigt und nur als Hash gespeichert. Der Abschnitt bietet eine Organisations-URL und ein Muster für Projekt-URLs. Nutze für ein aktives Projekt mit installierter Automatisierung die Projekt-URL. Eine Automatisierung mit Projektzuordnung kann nicht über die reine Organisations-URL starten.
 
 Sende eine kleine Nutzlast an die URL. JSON landet als `payload` innerhalb der Eingabe, nicht unmittelbar auf deren oberster Ebene. Andere Anfrageinhalte werden als Text weitergereicht. Die Grenze liegt bei 256 KiB; große Dokumente lädst du separat hoch. Eine angenommene Anfrage liefert die Lauf-ID, ohne auf das Ende zu warten.
 
@@ -79,7 +79,7 @@ Die URL berechtigt zum Start. Bewahre sie wie Zugangsdaten auf und gib sie nur d
 
 Wähle **Plattform-Ereignis** und unter **Ereignisname** das Ereignis. Speichere und aktiviere den fertigen Trigger. Das Eingabeschema muss die Struktur mit `trigger`, `event` und `payload` aus der Tabelle akzeptieren. Von Automatisierungsläufen ausgelöste Ereignisse starten keine Trigger. So erzeugt ein Workflow durch seine eigenen Änderungen keine endlose Startschleife.
 
-Erwartet ein Workflow Pflichtfelder wie `owner` und `repo` auf oberster Ebene, passen Zeitplan-Metadaten oder eine eingepackte Webhook-Nutzlast nicht unverändert dazu. Passe Schema und Verweise an oder starte per API mit diesen Feldern. Im Trigger-Bereich gibt es keine frei definierbaren gespeicherten Eingabefelder.
+Erwartet ein Workflow Pflichtfelder wie `owner` und `repo` auf oberster Ebene, passen Zeitplan-Metadaten oder eine eingepackte Webhook-Nutzlast nicht unverändert dazu. Passe Schema und Verweise an oder starte per API mit diesen Feldern. Die Trigger-Einstellungen bieten keine frei definierbaren gespeicherten Eingabefelder.
 
 ## Einen ausgebliebenen Start untersuchen
 

@@ -12,7 +12,7 @@ Am Computer zeigt die Navigationsleiste am linken Rand die Bereiche als Symbole:
 
 Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Start** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Am Computer macht nur **Start** dort weiter, wo du aufgehört hast, und öffnet den Chat, den du zuletzt gelesen hast – oder einen neuen Chat, falls es noch keinen gibt. Wählst du **Start** erneut, während du schon dort bist, beginnt ein neuer Chat. Dasselbe erreichst du mit **⌥⌘N** auf dem Mac oder **Alt+Ctrl+N** unter Windows und Linux.
 
-**Wissen** und **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite auf, und die Kopfzeile nennt die geöffnete Seite. Auf dem Smartphone zeigt Wissen seine Seiten als Tabs unter der Kopfzeile, und die Einstellungen beginnen mit einer Liste ihrer Seiten.
+Die **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite auf, und die Kopfzeile nennt die geöffnete Seite; auf dem Smartphone beginnen sie mit einer Liste ihrer Seiten. **Wissen** zeigt seine Seiten als Tabs unter der Kopfzeile.
 
 | Du möchtest … | So gehst du vor |
 | --- | --- |
@@ -28,7 +28,7 @@ Lesezeichen und geteilte Links zu einem bestimmten Projekt, einer Aufgabe oder e
 
 **Start** bündelt deine Chats, Aufgaben, Projekte und Kundenkonversationen. Am Computer bleibt die Seitenleiste von **Start** neben jedem Chat, jeder Aufgabe, jedem Projekt und jeder Inbox-Seite stehen. Auf dem Smartphone öffnet **Start** dieselbe Liste als eigenen Bildschirm. Öffnest du von dort einen Chat, eine Aufgabe oder eine Konversation, hat die Seite nur eine Kopfzeile mit einem Zurück-Pfeil zur Liste, dem Titel und den Aktionen. Dein Profilmenü bleibt oben auf dem Bildschirm **Start** und in den **Einstellungen** erreichbar.
 
-Oben in der Seitenleiste startest du mit **Neuer Chat**, dem Stift neben dem Titel **Start**, einen Chat; der Tooltip der Schaltfläche zeigt das Tastenkürzel. Darunter legst du mit **Alle**, **Chats**, **Aufgaben** und **Inbox** fest, was die Liste zeigt. **Inbox** erscheint nur, wenn deine Organisation eine Inbox hat: eine live geschaltete Automatisierung, die E-Mails synchronisiert, oder eine API-App, die bereits eine Konversation synchronisiert hat.
+Oben in der Seitenleiste legst du mit **Alle**, **Chats**, **Aufgaben** und **Inbox** fest, was die Liste zeigt. Daneben startest du mit **Neuer Chat**, dem Stift, einen Chat; der Tooltip der Schaltfläche zeigt das Tastenkürzel. **Inbox** erscheint nur, wenn deine Organisation eine Inbox hat: eine live geschaltete Automatisierung, die E-Mails synchronisiert, oder eine API-App, die bereits eine Konversation synchronisiert hat.
 
 **Projekte** listet alle Projekte, die du öffnen kannst. Wähle ein Projekt, um seine Seite mit dem Aufgaben-Board, **Allgemein**, **Chats**, **Wissen** und **Agenten** zu öffnen. Die beiden Symbole neben der Überschrift **Projekte** sind **Alle Projekte**, das die vollständige Projektliste öffnet, und **Neues Projekt**. Ziehst du einen Chat auf ein Projekt, legst du ihn dort ab. Das Menü eines Projekts bietet **Neuer Chat** und **Projekt anheften**.
 

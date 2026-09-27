@@ -3,7 +3,7 @@ title: Démarrer les automatisations automatiquement
 description: Configure horaires, webhooks et événements, adapte les données d’entrée et identifie les démarrages manqués.
 ---
 
-Le panneau **Déclencheur** d’une automatisation définit quand elle démarre seule. Chaque déclencheur utilise la version en service en mode réel. Avant de l’activer, teste le workflow avec les données qu’il recevra et vérifie que ses actions externes sont prêtes.
+La section **Déclencheur** de l’onglet **Général** d’une automatisation définit quand elle démarre seule. Chaque déclencheur utilise la version en service en mode réel. Avant de l’activer, teste le workflow avec les données qu’il recevra et vérifie que ses actions externes sont prêtes.
 
 ## Choisir le mode de démarrage
 
@@ -23,7 +23,7 @@ Un client API ou MCP peut aussi démarrer sans déclencheur configuré. Sa clé 
 
 <Step title="Ouvrir les paramètres du déclencheur">
 
-Ouvre l’automatisation et son panneau **Déclencheur**. Sans liaison, il indique que l’automatisation ne s’exécute que lancée à la main ou via l’API ; choisis **Ajouter un déclencheur**, puis **Planification** sous **Type de déclencheur**. Un nouveau déclencheur n’est pas **Actif** au départ — laisse-le désactivé tant que le workflow ne doit pas démarrer seul.
+Ouvre l’automatisation, puis son onglet **Général**. Sans liaison, la section **Déclencheur** indique que l’automatisation ne s’exécute que lancée à la main ou via l’API ; choisis **Ajouter un déclencheur**, puis **Planification** sous **Type de déclencheur**. Un nouveau déclencheur n’est pas **Actif** au départ — laisse-le désactivé tant que le workflow ne doit pas démarrer seul.
 
 </Step>
 
@@ -35,7 +35,7 @@ Renseigne **Cron** et le **Fuseau horaire**. Les cinq champs représentent minut
 
 <Step title="Vérifier et enregistrer">
 
-Examine la prochaine occurrence affichée pour l’expression valide, puis enregistre les paramètres. Vérifie que la version en service accepte les données de planification du tableau. Active le déclencheur prêt à fonctionner et enregistre à nouveau. Retrouve le prochain démarrage sous **Exécutions**.
+Examine la prochaine occurrence affichée pour l’expression valide, puis clique sur **Enregistrer** à côté des onglets. Vérifie que la version en service accepte les données de planification du tableau. Active le déclencheur prêt à fonctionner avec **Actif** et enregistre à nouveau. Retrouve le prochain démarrage sous **Exécutions**.
 
 </Step>
 
@@ -54,7 +54,7 @@ L’heure locale suit les changements saisonniers du fuseau. Un horaire zurichoi
 
 ## Recevoir un webhook
 
-Choisis **Webhook**, puis enregistre pour générer les identifiants. Copie l’URL complète dès son apparition : le jeton n’est montré qu’une fois et seul son hash est conservé. Le panneau fournit une URL d’organisation et un modèle d’URL de projet. Utilise cette dernière pour un projet actif auquel l’automatisation est liée. Une automatisation liée à des projets ne peut pas utiliser l’URL réservée aux exécutions sans projet.
+Choisis **Webhook**, puis enregistre pour générer les identifiants. Copie l’URL complète dès son apparition : le jeton n’est montré qu’une fois et seul son hash est conservé. La section fournit une URL d’organisation et un modèle d’URL de projet. Utilise cette dernière pour un projet actif auquel l’automatisation est liée. Une automatisation liée à des projets ne peut pas utiliser l’URL réservée aux exécutions sans projet.
 
 Envoie une petite charge utile à l’URL. Le JSON devient `payload` à l’intérieur de l’entrée, et non directement ses champs de premier niveau. Les autres contenus passent comme texte. La limite est de 256 KiB ; téléverse les grands documents séparément. Une requête acceptée renvoie l’identifiant de l’exécution sans attendre sa fin.
 
@@ -79,7 +79,7 @@ L’URL autorise le démarrage. Protège-la comme un identifiant et ne la transm
 
 Choisis **Événement de la plateforme**, puis le **Nom de l’événement**. Enregistre et active le déclencheur quand il est prêt. Le schéma du workflow doit accepter l’enveloppe `trigger`, `event` et `payload` du tableau. Les événements produits par une exécution d’automatisation ne déclenchent pas d’autres départs : le workflow ne peut ainsi se relancer sans fin par ses propres changements.
 
-Un workflow qui exige des champs de premier niveau comme `owner` et `repo` n’accepte pas automatiquement les métadonnées d’un horaire ou le corps enveloppé d’un webhook. Adapte son schéma et ses références, ou utilise un démarrage API qui fournit ces champs. Le panneau ne permet pas de définir des données d’entrée arbitraires enregistrées.
+Un workflow qui exige des champs de premier niveau comme `owner` et `repo` n’accepte pas automatiquement les métadonnées d’un horaire ou le corps enveloppé d’un webhook. Adapte son schéma et ses références, ou utilise un démarrage API qui fournit ces champs. Les réglages du déclencheur ne permettent pas de définir des données d’entrée arbitraires enregistrées.
 
 ## Comprendre l’absence de démarrage
 

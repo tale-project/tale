@@ -97,8 +97,8 @@ export function ChatRowsSkeleton() {
 /**
  * Masked stand-in for the WHOLE Home panel — one geometry shared by the
  * boot-shell / access-resolving HomePanelPlaceholder, so the reveal is a
- * mask swap, not a layout change. Mirrors the loaded panel: the `h-13`
- * header, the view switcher, the PROJECTS header and rows, then a day
+ * mask swap, not a layout change. Mirrors the loaded panel: the view
+ * switcher with New chat beside it, the PROJECTS header and rows, then a day
  * header and the two-line rows. Once the real panel mounts, its fixed parts
  * render real text immediately and only the still-answering sections keep
  * their rows masked (the pieces above).
@@ -107,22 +107,16 @@ export function HomePanelSkeleton() {
   return (
     <Skeletonize loading>
       <Stack gap={0}>
-        <Row
-          gap={0}
-          className="border-border h-13 shrink-0 justify-between border-b pr-2.5 pl-4"
-        >
+        <Row gap={0} className="shrink-0 gap-1.5 px-2.5 pt-2.5 pb-2">
+          <div className="min-w-0 flex-1">
+            <SkeletonBox fullWidth>
+              <div className="h-8 rounded-lg" />
+            </SkeletonBox>
+          </div>
           <SkeletonBox>
-            <div className="h-4 w-14" />
-          </SkeletonBox>
-          <SkeletonBox>
-            <div className="size-5 rounded-md" />
+            <div className="size-8 rounded-md" />
           </SkeletonBox>
         </Row>
-        <div className="px-2.5 pt-2.5 pb-2">
-          <SkeletonBox fullWidth>
-            <div className="h-8 rounded-lg" />
-          </SkeletonBox>
-        </div>
         <Stack gap={0} className="gap-0.5 px-2.5">
           <Row gap={0} className="h-7 px-2">
             <SkeletonBox>

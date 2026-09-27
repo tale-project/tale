@@ -8,9 +8,12 @@
  * scroll inside the panel — and the `24rem` floor lets a short window scroll
  * the page rather than crush the graph. Below `lg` the columns stack at their
  * natural height and the page scrolls.
+ *
+ * No gap: the Editor tab is edge to edge, so the canvas meets the inspector
+ * panel at its border instead of at a gutter.
  */
 export const AUTOMATION_EDITOR_WORKBENCH_GRID =
-  'grid min-h-[24rem] gap-4 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
+  'grid min-h-[24rem] lg:flex-1 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
 
 /**
  * A run's canvas + inspector row sits above the run's effects, agent log and

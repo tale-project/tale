@@ -80,27 +80,8 @@ describe('NodeInspector', () => {
     expect(screen.getByText(/select a node on the canvas/i)).toBeVisible();
   });
 
-  it('shows the workflow slot when no node is selected', () => {
-    const { container } = render(
-      <NodeInspector
-        id="inspector"
-        node={null}
-        nodeType={undefined}
-        readOnly={false}
-        organizationId="org_test"
-        onChange={vi.fn()}
-        workflow={<p>workflow body</p>}
-      />,
-    );
-    expect(screen.getByText('workflow body')).toBeVisible();
-    expect(screen.queryByText(/select a node on the canvas/i)).toBeNull();
-    // Same height as the canvas column — Save is pinned to the bottom of the
-    // panel rather than leaving a short card beside a tall graph.
-    expect(container.querySelector('section#inspector')).toHaveClass('h-full');
-  });
-
-  it('hides the workflow slot while a node is selected', () => {
-    const { container } = render(
+  it('fills the workbench column in either frame', () => {
+    const { container, rerender } = render(
       <NodeInspector
         id="inspector"
         node={llmNode}
@@ -108,12 +89,26 @@ describe('NodeInspector', () => {
         readOnly={false}
         organizationId="org_test"
         onChange={vi.fn()}
-        workflow={<p>workflow body</p>}
       />,
     );
-    expect(screen.queryByText('workflow body')).not.toBeVisible();
-    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
-    expect(container.querySelector('section#inspector')).toHaveClass('h-full');
+    const section = container.querySelector('section#inspector');
+    // A run's page: a card in the page inset.
+    expect(section).toHaveClass('h-full', 'rounded-lg', 'border');
+    rerender(
+      <NodeInspector
+        id="inspector"
+        variant="panel"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    // The Editor tab's edge-to-edge workbench: flush against the canvas,
+    // bordered only where it meets it.
+    expect(section).toHaveClass('h-full', 'border-t', 'lg:border-l');
+    expect(section).not.toHaveClass('rounded-lg');
   });
 
   it('renders exactly the fields the registry declares for the type', () => {
@@ -468,7 +463,6 @@ describe('NodeInspector', () => {
         readOnly={false}
         organizationId="org_test"
         onChange={vi.fn()}
-        workflow={<p>workflow body</p>}
         onDeselect={vi.fn()}
       />,
     );
@@ -481,7 +475,6 @@ describe('NodeInspector', () => {
         readOnly={false}
         organizationId="org_test"
         onChange={vi.fn()}
-        workflow={<p>workflow body</p>}
         onDeselect={vi.fn()}
       />,
     );

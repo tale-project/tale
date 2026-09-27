@@ -15,7 +15,7 @@ Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitg
 
 ## Einen Ausgangspunkt wählen
 
-Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Versionen** findest du den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen. Im Bereich **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung.
+Jede Zeile zeigt Name, Projektzuordnungen, Versionsanzahl und Live-Version oder **Nicht live**. Öffne sie im Tab **Editor**, um den Ablauf zu prüfen. Unter **Allgemein** findest du Trigger und Projekte: Unter **Projekte** legst du fest, welche Boards die Automatisierung nutzen können. Ohne Projektzuordnung steht sie der Organisation zur Verfügung. Unter **Versionen** findest du den gespeicherten Verlauf, unter **Läufe** die letzten Ausführungen.
 
 Das Menü **Automatisierung erstellen** bietet zwei Wege:
 
@@ -51,7 +51,7 @@ Wähle **Automatisierung erstellen > Paket hochladen**. Lade Workflow und option
 
 <Step title="Ziel festlegen">
 
-Wähle unter **Installieren in** die **Organisation** oder ein bestehendes Projekt. Ein Manifest mit `scope: project` verlangt ein Projekt. Importierst du eine bestehende Automatisierung in ein weiteres Projekt, kommt diese Zuordnung hinzu; frühere bleiben erhalten. Unter **Projekte** kannst du später alle Zuordnungen bearbeiten.
+Wähle unter **Installieren in** die **Organisation** oder ein bestehendes Projekt. Ein Manifest mit `scope: project` verlangt ein Projekt. Importierst du eine bestehende Automatisierung in ein weiteres Projekt, kommt diese Zuordnung hinzu; frühere bleiben erhalten. Unter **Projekte** im Tab **Allgemein** der Automatisierung kannst du später alle Zuordnungen bearbeiten.
 
 <Frame caption="Paket hochladen — die Dateien oder eine Zip, und wo die Automatisierung installiert wird.">
 

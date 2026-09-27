@@ -1,16 +1,5 @@
 'use client';
 
-import { SectionNavPanel, SectionNavRow } from '@tale/ui/section-nav';
-import { useLocation } from '@tanstack/react-router';
-import {
-  Contact,
-  FileText,
-  Globe,
-  NotebookText,
-  Package,
-  type LucideIcon,
-} from 'lucide-react';
-
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -31,76 +20,21 @@ type KnowledgeLabelKey =
 interface KnowledgePage {
   readonly labelKey: KnowledgeLabelKey;
   readonly path: string;
-  readonly icon: LucideIcon;
 }
 
-/** Knowledge's pages, in reading order — one list for the desktop panel, the
- * phone's tab strip and the page header's title. */
+/** Knowledge's pages, in reading order. */
 const KNOWLEDGE_PAGES: readonly KnowledgePage[] = [
-  { labelKey: 'documents', path: 'documents', icon: FileText },
-  {
-    labelKey: 'knowledgeEntries',
-    path: 'knowledge-entries',
-    icon: NotebookText,
-  },
-  { labelKey: 'websites', path: 'websites', icon: Globe },
-  { labelKey: 'products', path: 'products', icon: Package },
-  { labelKey: 'contacts', path: 'contacts', icon: Contact },
+  { labelKey: 'documents', path: 'documents' },
+  { labelKey: 'knowledgeEntries', path: 'knowledge-entries' },
+  { labelKey: 'websites', path: 'websites' },
+  { labelKey: 'products', path: 'products' },
+  { labelKey: 'contacts', path: 'contacts' },
 ];
 
-function isWithin(href: string, pathname: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-/** The open Knowledge page's name, for the page header beside the panel. */
-export function useKnowledgePageTitle(organizationId: string) {
-  const { t } = useT('knowledge');
-  const { pathname } = useLocation();
-  const page = KNOWLEDGE_PAGES.find((entry) =>
-    isWithin(`/dashboard/${organizationId}/${entry.path}`, pathname),
-  );
-  return page !== undefined ? t(page.labelKey) : t('title');
-}
-
 /**
- * Knowledge's panel — the same frame as Home's and Settings': the section's
- * name, then one icon row per page with the gliding highlight. Desktop only;
- * a phone switches pages with {@link KnowledgeNavigation}'s tab strip.
+ * Knowledge's pages as the tab strip under the section's title row, on every
+ * width — the way a project's pages sit under its name.
  */
-export function KnowledgePanel({ organizationId }: KnowledgeNavigationProps) {
-  const { t } = useT('knowledge');
-  const { t: tCommon } = useT('common');
-  const { pathname } = useLocation();
-  const base = `/dashboard/${organizationId}`;
-  const active = KNOWLEDGE_PAGES.find((entry) =>
-    isWithin(`${base}/${entry.path}`, pathname),
-  );
-  return (
-    <SectionNavPanel
-      title={t('title')}
-      ariaLabel={tCommon('aria.knowledgeNavigation')}
-      activeKey={active !== undefined ? `${base}/${active.path}` : null}
-    >
-      <ul className="flex flex-col gap-0.5">
-        {KNOWLEDGE_PAGES.map((entry) => {
-          const href = `${base}/${entry.path}`;
-          return (
-            <SectionNavRow
-              key={entry.path}
-              href={href}
-              label={t(entry.labelKey)}
-              icon={entry.icon}
-              active={active === entry}
-            />
-          );
-        })}
-      </ul>
-    </SectionNavPanel>
-  );
-}
-
-/** The phone's way between Knowledge's pages: the same pages as a tab strip
- * under the header, where a desktop shows the panel. */
 export function KnowledgeNavigation({
   organizationId,
 }: KnowledgeNavigationProps) {

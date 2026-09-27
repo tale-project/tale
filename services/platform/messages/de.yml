@@ -569,6 +569,7 @@ automations:
   entityLabelOne: Automatisierung
   navigation:
     editor: Editor
+    general: Allgemein
     versions: Versionen
     runs: Läufe
   switcher:
@@ -684,6 +685,7 @@ automations:
       failed: Automatisierung konnte nicht gelöscht werden
   trigger:
     title: Trigger
+    description: Was diese Automatisierung startet. Ein Trigger führt immer die Live-Version aus.
     none: Kein Trigger — diese Automatisierung läuft nur, wenn du sie von Hand oder über die API startest.
     add: Trigger hinzufügen
     kindLabel: Trigger-Typ
@@ -707,10 +709,7 @@ automations:
     eventLabel: Ereignisname
     eventPlaceholder: Ereignis wählen
     enabledLabel: Aktiv
-    unsavedBadge: Ungespeichert
     lastFired: 'Zuletzt ausgelöst {at}'
-    nothingToSave: Die Bindung entspricht dem gespeicherten Stand.
-    save: Speichern
     remove: Trigger entfernen
     removeTitle: Trigger entfernen?
     removeBody: Entfernt den Trigger. Die Automatisierung und ihre Versionshistorie bleiben unberührt.
@@ -760,7 +759,6 @@ automations:
       onError: bei Fehler weiterlaufen
   editor:
     title: Node
-    workflowTitle: Workflow
     noSelection: Wähle eine Node auf dem Canvas, um zu sehen und zu ändern, was sie tut.
     noSelectionReadOnly: Wähle eine Node auf dem Canvas, um zu sehen, was sie tut.
     unknownType: 'Unbekannter Node-Typ: {type}'
@@ -820,9 +818,6 @@ automations:
       forEachDescription: Läuft einmal pro Element des Arrays, das der Ausdruck ergibt.
       repeatUntil: Wiederholen bis
       repeatUntilDescription: Diese Node wiederholen, bis der Ausdruck wahr ist.
-  workflow:
-    save: Einstellungen speichern
-    nothingToSave: Nichts zu speichern
   bindings:
     title: Projekte
     countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
@@ -831,9 +826,6 @@ automations:
     searchPlaceholder: Projekte durchsuchen
     empty: Keine passenden Projekte
     noProjects: Diese Organisation hat noch keine Projekte.
-    save: Speichern
-    unsavedBadge: Ungespeichert
-    nothingToSave: Keine Änderungen zu speichern
   versions:
     title: Versionen
     description: Alle gespeicherten Versionen, neueste zuerst — öffne eine, und der Canvas zeigt sie. Genau eine ist jeweils live.

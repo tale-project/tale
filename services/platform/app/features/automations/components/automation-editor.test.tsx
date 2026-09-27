@@ -79,8 +79,8 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbilityLoading: () => false,
 }));
 
-// The Projects panel and the run-scope picker resolve project names through
-// this hook; each test sets the roster it needs on `projectsData`.
+// The run-scope picker resolves project names through this hook; each test
+// sets the roster it needs on `projectsData`.
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({ projects: projectsData.list, isLoading: false }),
   // The llm node's Model picker reads the served-model roster; the editor
@@ -142,7 +142,6 @@ vi.mock('../hooks/queries', () => ({
     ],
   }),
   useAutomationRuns: () => ({ data: runsData }),
-  useAutomationTriggers: () => ({ data: [] }),
   useAutomationProjects: () => ({ data: projectsData.bound }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
 }));
@@ -151,9 +150,6 @@ vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => saveMutation,
   useStartAutomationRun: () => startRun,
   useDeployAutomation: () => deploy,
-  useSetAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
-  useSetAutomationProjects: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -337,29 +333,37 @@ describe('AutomationEditor', () => {
     renderPage();
     expect(screen.queryByText('Sends the dunning ladder.')).toBeNull();
     expect(screen.queryByText('Chases unpaid invoices.')).toBeNull();
-    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Projects' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
   });
 
-  it('swaps the inspector from the trigger to a node and back', async () => {
+  it("leaves the automation's own settings to the General tab", () => {
+    renderPage();
+    // With nothing selected the inspector asks for a node; the trigger and
+    // the project bindings are not on the workbench any more.
+    expect(screen.getByText(/select a node on the canvas/i)).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Trigger' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Projects' })).toBeNull();
+  });
+
+  it('swaps the inspector from the prompt to a node and back', async () => {
     const { user } = renderPage();
-    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'select summary' }));
     expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'Trigger' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Node' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'deselect' }));
-    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
   });
 
-  it('returns to the workflow from Close and Escape', async () => {
+  it('returns to the prompt from Close and Escape', async () => {
     const { user } = renderPage();
     await user.click(screen.getByRole('button', { name: 'select summary' }));
     expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Close' }));
-    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'select summary' }));
     await user.keyboard('{Escape}');
-    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
   });
 
   it('keeps the node inspector open on Escape while typing', async () => {
@@ -535,7 +539,7 @@ describe('AutomationEditor', () => {
     expect(
       screen.getByRole('button', { name: 'select destination' }),
     ).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Node' })).toBeVisible();
     expect(saveButton()).toBeDisabled();
     expect(discardButton()).toBeDisabled();
     expect(saveMutation.mutateAsync).not.toHaveBeenCalled();

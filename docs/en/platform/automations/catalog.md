@@ -15,7 +15,7 @@ Search by name or slug. For example, enter `Triage` to compare the shipped triag
 
 ## Choose a starting point
 
-Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it on the **Editor** tab to inspect the workflow. **Versions** holds its saved history; **Runs** shows recent executions. The **Projects** panel controls which boards can use it; without project bindings, it serves the organization.
+Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it on the **Editor** tab to inspect the workflow. **General** holds its trigger and its projects: **Projects** controls which boards can use it; without project bindings, it serves the organization. **Versions** holds its saved history; **Runs** shows recent executions.
 
 The **Create automation** menu offers two routes:
 
@@ -51,7 +51,7 @@ Choose **Create automation > Upload package**. Upload the workflow and optional 
 
 <Step title="Choose the destination">
 
-Under **Install into**, choose **Organization** or an existing project. A manifest declaring `scope: project` requires a project. Installing an existing automation into another project adds that binding; it does not remove previous ones. You can adjust the full set later in **Projects**.
+Under **Install into**, choose **Organization** or an existing project. A manifest declaring `scope: project` requires a project. Installing an existing automation into another project adds that binding; it does not remove previous ones. You can adjust the full set later under **Projects** on the automation's **General** tab.
 
 <Frame caption="Upload package — the files or one zip, and where the automation installs.">
 

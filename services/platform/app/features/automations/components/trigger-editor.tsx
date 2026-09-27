@@ -1,9 +1,14 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
-import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import {
+  EditorSaveCancelledError,
+  useRegisterDirtySource,
+  useRegisterGroupedEditor,
+  type EditorController,
+} from '@tale/ui/editor';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import {
@@ -11,13 +16,22 @@ import {
   type SearchableSelectOption,
 } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
-import { Switch } from '@tale/ui/switch';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useT } from '@/lib/i18n/client';
 import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
 
@@ -28,6 +42,7 @@ import {
 import { useAutomationTriggers } from '../hooks/queries';
 import { useCronPreview } from '../hooks/use-cron-preview';
 import { listTimezoneOptions } from '../lib/cron-preview';
+import { TRIGGER_DIRTY_KEY } from '../lib/dirty-keys';
 import { automationErrorMessage } from '../lib/errors';
 
 const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
@@ -37,19 +52,9 @@ function isTriggerKind(value: string): value is TriggerKind {
   return (TRIGGER_KINDS as readonly string[]).includes(value);
 }
 
-/** Imperative surface for {@link WorkflowSettings}' single Save footer. */
-export type TriggerEditorController = {
-  dirty: boolean;
-  pending: boolean;
-  /** True when the schedule cron cannot be saved as typed. */
-  blocked: boolean;
-  canRotate: boolean;
-  canRemove: boolean;
-  removePending: boolean;
-  save: () => void;
-  rotate: () => void;
-  requestRemove: () => void;
-};
+const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
+/** What the General tab's strip lights its unsaved dot for. */
+const TRIGGER_DIRTY_KEYS: ReadonlySet<string> = new Set([TRIGGER_DIRTY_KEY]);
 
 /**
  * The automation's trigger binding: what starts it, and whether it is armed.
@@ -57,40 +62,34 @@ export type TriggerEditorController = {
  * One binding per automation (the store replaces in place), so this is an
  * editor over a single row: pick a kind, fill the kind's own fields, save.
  * A webhook's token is the one stateful subtlety — the server returns the
- * plaintext exactly once, on mint or rotation, and this panel is the only
+ * plaintext exactly once, on mint or rotation, and this section is the only
  * chance to copy it; afterwards only "a token exists" survives.
  *
  * A trigger fires nothing until a version is deployed — `beginRun` resolves
  * through the deployment — so arming a draft is safe by construction; the
- * panel SAYS so under the schedule ("won't start until a version is
+ * section SAYS so under the schedule ("won't start until a version is
  * deployed"), and says "paused" while the binding is off, instead of
  * promising a next run that nothing will start.
  *
- * Lives in the inspector when no node is selected; fields stack in one
- * column so they fit the panel. Prefer {@link WorkflowSettings} for the
- * production surface (one Save for trigger + projects).
+ * A section of the automation's General tab: its edits join the page's one
+ * Save/Discard cluster in the tab strip (`useRegisterGroupedEditor`), and
+ * leaving the tab with an unsaved change asks first. A save that would revoke
+ * a live webhook URL asks first too. Rotating the token and removing the
+ * trigger are instant actions with their own confirmation.
  */
 export function TriggerEditor({
   organizationId,
   name,
   /** Authoring is developer-gated server-side; readers still see the binding. */
   canEdit,
-  /**
-   * When false, Save / Rotate / Remove are omitted — the parent owns them
-   * through `onControllerChange` (the workflow inspector footer).
-   */
-  showActions = true,
   deployedVersion,
-  onControllerChange,
 }: {
   organizationId: string;
   name: string;
   canEdit: boolean;
-  showActions?: boolean;
   /** The version triggers start — undefined while nothing is deployed, when
-   * the panel says a schedule will not start rather than when it will. */
+   * the section says a schedule will not start rather than when it will. */
   deployedVersion?: number | undefined;
-  onControllerChange?: (controller: TriggerEditorController | null) => void;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -102,7 +101,6 @@ export function TriggerEditor({
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const webhookUrl = (token: string): string =>
     `${origin}/api/automations/webhook/${token}`;
-  const headingId = useId();
   const cronId = useId();
   const eventId = useId();
 
@@ -130,21 +128,49 @@ export function TriggerEditor({
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
   // Whether the author opened the form for a binding that does not exist
-  // yet — without one the panel says "no trigger" instead of drawing an
+  // yet — without one the section says "no trigger" instead of drawing an
   // empty schedule that looks armed.
   const [adding, setAdding] = useState(false);
 
-  // Load the stored binding into the form whenever it changes under us —
-  // the row is the truth; local state only carries unsaved edits.
-  useEffect(() => {
-    if (stored === undefined) return;
-    if (isTriggerKind(stored.kind)) setKind(stored.kind);
-    setCron(stored.cron ?? '');
-    setTimezone(stored.timezone ?? 'UTC');
-    setEventName(stored.event ?? '');
-    setEnabled(stored.enabled);
+  /** Put a binding (none: the empty form) into the fields. */
+  const applyStored = useCallback((row: typeof stored) => {
     setAdding(false);
-  }, [stored]);
+    if (row === undefined) {
+      setKind('schedule');
+      setCron('');
+      setTimezone('UTC');
+      setEventName('');
+      setEnabled(false);
+      return;
+    }
+    if (isTriggerKind(row.kind)) setKind(row.kind);
+    setCron(row.cron ?? '');
+    setTimezone(row.timezone ?? 'UTC');
+    setEventName(row.event ?? '');
+    setEnabled(row.enabled);
+  }, []);
+
+  // Load the stored binding into the form whenever it changes under us —
+  // the row is the truth; local state only carries unsaved edits. Keyed on
+  // the fields the form edits, not on the row object: a refetch that only
+  // moves `lastFiredAt` (the trigger just fired) must not wipe an edit in
+  // progress.
+  const storedRef = useRef(stored);
+  storedRef.current = stored;
+  const storedFields =
+    stored === undefined
+      ? null
+      : JSON.stringify([
+          stored.kind,
+          stored.cron ?? '',
+          stored.timezone ?? 'UTC',
+          stored.event ?? '',
+          stored.enabled,
+        ]);
+  useEffect(() => {
+    if (storedFields === null) return;
+    applyStored(storedRef.current);
+  }, [storedFields, applyStored]);
 
   const dirty = useMemo(() => {
     if (stored === undefined) {
@@ -209,56 +235,34 @@ export function TriggerEditor({
     formatDate,
   ]);
 
-  const save = (rotateToken?: boolean) => {
+  /** Write the form as the binding; a webhook's fresh token is shown once. */
+  const persist = async (rotateToken?: boolean): Promise<void> => {
     setRefusal(null);
     setMintedToken(null);
-    setTrigger.mutate(
-      {
-        organizationId,
-        name,
-        trigger: {
-          kind,
-          ...(kind === 'schedule' && cron !== '' && { cron }),
-          ...(kind === 'schedule' && timezone !== '' && { timezone }),
-          ...(kind === 'event' && eventName !== '' && { event: eventName }),
-          enabled,
-        },
-        ...(rotateToken === true && { rotateToken: true }),
+    const result = await setTrigger.mutateAsync({
+      organizationId,
+      name,
+      trigger: {
+        kind,
+        ...(kind === 'schedule' && cron !== '' && { cron }),
+        ...(kind === 'schedule' && timezone !== '' && { timezone }),
+        ...(kind === 'event' && eventName !== '' && { event: eventName }),
+        enabled,
       },
-      {
-        onSuccess: (result) => {
-          if (result.token !== undefined) setMintedToken(result.token);
-          // The server names the live URL this bind stopped answering on —
-          // say so, since nothing on the page shows the old URL any more.
-          if (result.revoked === 'webhook') {
-            toast({ title: t('trigger.revokedToast') });
-          }
-        },
-        onError: (error) => {
-          setRefusal(automationErrorMessage(error));
-        },
-      },
-    );
-  };
-
-  // Whether saving as things stand would revoke a live webhook URL: a
-  // token-bearing webhook binding, being replaced by another kind.
-  const revokesWebhook =
-    stored?.kind === 'webhook' && stored.hasToken && kind !== 'webhook';
-
-  /** Save, asking first when the save would revoke a live webhook URL. */
-  const requestSave = () => {
-    if (revokesWebhook) {
-      setConfirmRevoke(true);
-      return;
+      ...(rotateToken === true && { rotateToken: true }),
+    });
+    if (result.token !== undefined) setMintedToken(result.token);
+    // The server names the live URL this bind stopped answering on — say so,
+    // since nothing on the page shows the old URL any more.
+    if (result.revoked === 'webhook') {
+      toast({ title: t('trigger.revokedToast') });
     }
-    save();
   };
 
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  const requestSaveRef = useRef(requestSave);
-  requestSaveRef.current = requestSave;
+  // The group keeps the controller it registered until one of its status
+  // flags changes, so save and discard read the latest form through refs.
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
 
   const blocked = kind === 'schedule' && cronPreview.kind === 'invalid';
   const canRotate = kind === 'webhook' && stored?.hasToken === true;
@@ -266,73 +270,108 @@ export function TriggerEditor({
   // The form draws for a stored binding, or once the author asked to add one.
   const showForm = stored !== undefined || (canEdit && adding);
 
-  useEffect(() => {
-    if (onControllerChange === undefined) return undefined;
-    onControllerChange({
+  // Whether saving as things stand would revoke a live webhook URL: a
+  // token-bearing webhook binding, being replaced by another kind.
+  const revokesWebhook =
+    stored?.kind === 'webhook' && stored.hasToken && kind !== 'webhook';
+  const revokesWebhookRef = useRef(revokesWebhook);
+  revokesWebhookRef.current = revokesWebhook;
+
+  // The revoke confirmation a save waits on: confirming lets the save go on,
+  // backing out cancels it silently and keeps the draft dirty for a retry.
+  const pendingRevokeRef = useRef<{
+    resolve: () => void;
+    reject: (error: Error) => void;
+  } | null>(null);
+  const askRevoke = useCallback(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        if (pendingRevokeRef.current !== null) {
+          // The dialog already owns a save; a second one is a no-op.
+          reject(new EditorSaveCancelledError());
+          return;
+        }
+        pendingRevokeRef.current = { resolve, reject };
+        setConfirmRevoke(true);
+      }),
+    [],
+  );
+  const settleRevoke = (confirmed: boolean) => {
+    const pending = pendingRevokeRef.current;
+    pendingRevokeRef.current = null;
+    setConfirmRevoke(false);
+    if (confirmed) pending?.resolve();
+    else pending?.reject(new EditorSaveCancelledError());
+  };
+
+  const controller = useMemo<EditorController>(
+    () => ({
+      isDirty: dirty,
+      isSaving: setTrigger.isPending,
+      // A cron that cannot be read is the one thing the browser can refuse
+      // before the store does; Save waits until it parses.
+      isValid: !blocked,
+      isLoading: triggersQuery.isPending,
+      dirtyKeys: dirty ? TRIGGER_DIRTY_KEYS : NO_DIRTY_KEYS,
+      save: async () => {
+        if (revokesWebhookRef.current) await askRevoke();
+        try {
+          await persistRef.current();
+        } catch (error) {
+          // The store's refusal names the problem and the fix; the cluster
+          // raises it as the save's one failure toast.
+          throw new Error(automationErrorMessage(error), { cause: error });
+        }
+      },
+      reset: () => {
+        setRefusal(null);
+        applyStored(storedRef.current);
+      },
+    }),
+    [
       dirty,
-      pending: setTrigger.isPending,
+      setTrigger.isPending,
       blocked,
-      canRotate,
-      canRemove,
-      removePending: deleteTrigger.isPending,
-      save: () => {
-        requestSaveRef.current();
-      },
-      rotate: () => {
-        setConfirmRotate(true);
-      },
-      requestRemove: () => {
-        setConfirmRemove(true);
-      },
-    });
-    return () => {
-      onControllerChange(null);
-    };
-  }, [
-    onControllerChange,
-    dirty,
-    setTrigger.isPending,
-    blocked,
-    canRotate,
-    canRemove,
-    deleteTrigger.isPending,
-  ]);
+      triggersQuery.isPending,
+      applyStored,
+      askRevoke,
+    ],
+  );
+  useRegisterGroupedEditor(controller, { enabled: canEdit });
+  // The draft lives in this section only, so leaving the tab would drop it.
+  useRegisterDirtySource(canEdit && dirty);
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-4"
-    >
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 id={headingId} className="text-sm font-semibold">
-              {t('trigger.title')}
-            </h3>
-            {dirty && canEdit && (
-              <Badge variant="orange">{t('trigger.unsavedBadge')}</Badge>
-            )}
-          </div>
-          {stored?.lastFiredAt != null && (
-            <Text as="p" variant="muted" className="text-xs">
-              {t('trigger.lastFired', {
-                at: formatDate(new Date(stored.lastFiredAt), 'long'),
-              })}
-            </Text>
-          )}
-        </div>
-        {showForm && (
-          <Switch
-            label={t('trigger.enabledLabel')}
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            disabled={!canEdit}
-          />
+    <Skeletonize loading={triggersQuery.isPending} label={t('trigger.title')}>
+      <SettingsSection
+        title={t('trigger.title')}
+        description={t('trigger.description')}
+        {...(canEdit &&
+          canRemove && {
+            action: (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={Trash2}
+                isLoading={deleteTrigger.isPending}
+                onClick={() => {
+                  setConfirmRemove(true);
+                }}
+              >
+                {t('trigger.remove')}
+              </Button>
+            ),
+          })}
+      >
+        {stored?.lastFiredAt != null && (
+          <Text as="p" variant="muted" className="text-xs">
+            {t('trigger.lastFired', {
+              at: formatDate(new Date(stored.lastFiredAt), 'long'),
+            })}
+          </Text>
         )}
-      </header>
 
-      <div className="flex min-h-0 flex-col gap-3">
-        {!showForm && (
+        {!showForm && !triggersQuery.isPending && (
           <div className="flex flex-col items-start gap-2">
             <Text as="p" variant="muted" className="text-sm">
               {t('trigger.none')}
@@ -374,7 +413,13 @@ export function TriggerEditor({
         )}
 
         {showForm && (
-          <div className="grid gap-3">
+          <div className="flex flex-col gap-4">
+            <SettingsToggleRow
+              label={t('trigger.enabledLabel')}
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              disabled={!canEdit}
+            />
             <Select
               label={t('trigger.kindLabel')}
               options={TRIGGER_KINDS.map((value) => ({
@@ -458,120 +503,86 @@ export function TriggerEditor({
                   curl -X POST{' '}
                   {`${origin}/api/projects/<projectId>/automations/webhook/${mintedToken ?? '<token>'}`}
                 </code>
+                {canEdit && canRotate && (
+                  <div className="pt-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon={KeyRound}
+                      isLoading={setTrigger.isPending}
+                      onClick={() => {
+                        setConfirmRotate(true);
+                      }}
+                    >
+                      {t('trigger.rotate')}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {canEdit && showActions && showForm && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            isLoading={setTrigger.isPending}
-            disabled={
-              (!dirty && stored !== undefined) ||
-              (kind === 'schedule' && cronPreview.kind === 'invalid')
-            }
-            disabledReason={
-              kind === 'schedule' && cronInvalidText !== undefined
-                ? cronInvalidText
-                : t('trigger.nothingToSave')
-            }
-            onClick={() => {
-              requestSave();
-            }}
-          >
-            {t('trigger.save')}
-          </Button>
-          {kind === 'webhook' && stored?.hasToken === true && (
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={KeyRound}
-              isLoading={setTrigger.isPending}
-              onClick={() => {
-                setConfirmRotate(true);
-              }}
-            >
-              {t('trigger.rotate')}
-            </Button>
-          )}
-          {stored !== undefined && (
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={Trash2}
-              isLoading={deleteTrigger.isPending}
-              onClick={() => {
-                setConfirmRemove(true);
-              }}
-            >
-              {t('trigger.remove')}
-            </Button>
-          )}
-        </div>
-      )}
+        <ConfirmDialog
+          open={confirmRevoke}
+          onOpenChange={(open) => {
+            if (!open) settleRevoke(false);
+          }}
+          title={t('trigger.revokeConfirm.title')}
+          description={t('trigger.revokeConfirm.body')}
+          confirmText={t('trigger.revokeConfirm.confirm')}
+          variant="destructive"
+          onConfirm={() => {
+            settleRevoke(true);
+          }}
+        />
 
-      <ConfirmDialog
-        open={confirmRevoke}
-        onOpenChange={setConfirmRevoke}
-        title={t('trigger.revokeConfirm.title')}
-        description={t('trigger.revokeConfirm.body')}
-        confirmText={t('trigger.revokeConfirm.confirm')}
-        variant="destructive"
-        isLoading={setTrigger.isPending}
-        onConfirm={() => {
-          setConfirmRevoke(false);
-          save();
-        }}
-      />
+        <ConfirmDialog
+          open={confirmRotate}
+          onOpenChange={setConfirmRotate}
+          title={t('trigger.rotateConfirm.title')}
+          description={t('trigger.rotateConfirm.body')}
+          confirmText={t('trigger.rotate')}
+          variant="destructive"
+          isLoading={setTrigger.isPending}
+          onConfirm={() => {
+            setConfirmRotate(false);
+            // Rotating writes the form as it stands, like a save, and shows
+            // the new URL once.
+            persistRef.current(true).catch((error: unknown) => {
+              setRefusal(automationErrorMessage(error));
+            });
+          }}
+        />
 
-      <ConfirmDialog
-        open={confirmRotate}
-        onOpenChange={setConfirmRotate}
-        title={t('trigger.rotateConfirm.title')}
-        description={t('trigger.rotateConfirm.body')}
-        confirmText={t('trigger.rotate')}
-        variant="destructive"
-        isLoading={setTrigger.isPending}
-        onConfirm={() => {
-          setConfirmRotate(false);
-          save(true);
-        }}
-      />
-
-      <ConfirmDialog
-        open={confirmRemove}
-        onOpenChange={setConfirmRemove}
-        title={t('trigger.removeTitle')}
-        description={t('trigger.removeBody')}
-        confirmText={t('trigger.remove')}
-        variant="destructive"
-        isLoading={deleteTrigger.isPending}
-        onConfirm={() => {
-          setRefusal(null);
-          setMintedToken(null);
-          deleteTrigger.mutate(
-            { organizationId, name },
-            {
-              onSuccess: () => {
-                setConfirmRemove(false);
-                // Back to "no trigger" — with a fresh, OFF form next time.
-                setAdding(false);
-                setKind('schedule');
-                setCron('');
-                setTimezone('UTC');
-                setEventName('');
-                setEnabled(false);
+        <ConfirmDialog
+          open={confirmRemove}
+          onOpenChange={setConfirmRemove}
+          title={t('trigger.removeTitle')}
+          description={t('trigger.removeBody')}
+          confirmText={t('trigger.remove')}
+          variant="destructive"
+          isLoading={deleteTrigger.isPending}
+          onConfirm={() => {
+            setRefusal(null);
+            setMintedToken(null);
+            deleteTrigger.mutate(
+              { organizationId, name },
+              {
+                onSuccess: () => {
+                  setConfirmRemove(false);
+                  // Nothing is bound any more: the form starts over instead
+                  // of holding the removed binding as an unsaved edit.
+                  applyStored(undefined);
+                },
+                onError: (error) => {
+                  setRefusal(automationErrorMessage(error));
+                },
               },
-              onError: (error) => {
-                setRefusal(automationErrorMessage(error));
-              },
-            },
-          );
-        }}
-      />
-    </section>
+            );
+          }}
+        />
+      </SettingsSection>
+    </Skeletonize>
   );
 }

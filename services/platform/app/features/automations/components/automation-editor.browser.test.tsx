@@ -98,7 +98,6 @@ vi.mock('../hooks/queries', async (importOriginal) => ({
     ],
   }),
   useAutomationRuns: () => ({ data: [] }),
-  useAutomationTriggers: () => ({ data: [] }),
   useAutomationProjects: () => ({ data: [] }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
 }));
@@ -108,9 +107,6 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useSaveAutomation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useStartAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
   useDeployAutomation: () => ({ mutate: vi.fn(), isPending: false }),
-  useSetAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
-  useSetAutomationProjects: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 afterEach(cleanup);
@@ -251,5 +247,41 @@ describe('automation editor workbench in Chromium', () => {
     expect(canvas.getBoundingClientRect().height).toBeGreaterThan(24 * 16);
     const pageScroll = scrollContainerOf(canvas);
     expect(pageScroll.scrollHeight).toBe(pageScroll.clientHeight);
+  });
+
+  it('runs the workbench edge to edge under the tab strip', async () => {
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    const canvas = await expectWholeCanvas();
+    const inspector = screen.getByRole('region', { name: 'Node' });
+    const strip = screen.getByRole('navigation', {
+      name: 'Automations navigation',
+    });
+    // The page's own box — `clientWidth`/`clientHeight` leave out a classic
+    // scrollbar's reserved gutter, which is the page layout's, not an inset.
+    const pageScroll = scrollContainerOf(canvas);
+    const frame = pageScroll.getBoundingClientRect();
+    const canvasBox = canvas.getBoundingClientRect();
+    const inspectorBox = inspector.getBoundingClientRect();
+
+    // No inset around the workbench: the canvas starts at the page's left
+    // edge right under the strip, the inspector ends at its right and bottom
+    // edges, and the two meet at the inspector's border with no gutter.
+    expect(canvasBox.left).toBeCloseTo(frame.left, 0);
+    expect(canvasBox.top).toBeCloseTo(strip.getBoundingClientRect().bottom, 0);
+    expect(inspectorBox.right).toBeCloseTo(
+      frame.left + pageScroll.clientWidth,
+      0,
+    );
+    expect(inspectorBox.bottom).toBeCloseTo(
+      frame.top + pageScroll.clientHeight,
+      0,
+    );
+    expect(canvasBox.right).toBeCloseTo(inspectorBox.left, 0);
+    // Unframed: the canvas draws no border of its own; the inspector's one
+    // border faces it.
+    expect(getComputedStyle(canvas).borderLeftWidth).toBe('0px');
+    expect(getComputedStyle(inspector).borderLeftWidth).toBe('1px');
+    expect(getComputedStyle(inspector).borderTopWidth).toBe('0px');
   });
 });

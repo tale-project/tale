@@ -10,10 +10,11 @@ Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die 
 | Tab | Wofür du ihn nutzt |
 | --- | --- |
 | **Editor** | Den Workflow ändern, eine gespeicherte Version testen und die Live-Version wählen. |
+| **Allgemein** | Festlegen, was die Automatisierung startet und welche Projekte sie nutzen können. |
 | **Versionen** | Versionsnachrichten und gespeicherte Testergebnisse lesen. Eine Zeile öffnet diese Version im Editor. |
 | **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
 
-Im **Editor** stehen Versionsauswahl und Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**. Ein Punkt am Tab **Editor** kennzeichnet ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+Im **Editor** stehen Versionsauswahl und Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
 
 <Frame caption="Wähle einen Knoten, um seine Felder zu prüfen. Neben den Tabs stehen die Aktionen für Test, Speichern und Bereitstellung.">
 
@@ -33,7 +34,7 @@ Kennzeichnungen zeigen Bedingungen und Schleifen wie `when`, `else of`, `for eac
 
 Wähle einen Kasten, um seine Felder zu öffnen. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Harness und Ausstattung. Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch die Validierung warnt, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
 
-Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Klicke auf den leeren Canvas, auf **Schließen** oder drücke Escape außerhalb eines Textfelds, um zu Trigger und Projekteinstellungen zurückzukehren. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
+Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Klicke auf den leeren Canvas, auf **Schließen** oder drücke Escape außerhalb eines Textfelds, um die Felder des Knotens zu schließen. Trigger und Projekteinstellungen der Automatisierung findest du im Tab **Allgemein**. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
 
 ## Eine Version speichern und testen
 

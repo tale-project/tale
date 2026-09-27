@@ -22,8 +22,8 @@ import { automationTargetProjectId } from '../lib/list-target';
  * Entering a project's detail must not remove the other siblings. A pick
  * keeps the current project when bound there; otherwise it routes like an
  * org list row to its own project or the org detail — and it keeps the tab
- * that is open (Editor, Versions, Runs), the way the project switcher keeps
- * a project's tab.
+ * that is open (Editor, General, Versions, Runs), the way the project
+ * switcher keeps a project's tab.
  */
 export function AutomationBreadcrumbSwitcher({
   organizationId,

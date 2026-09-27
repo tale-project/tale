@@ -21,6 +21,10 @@ describe('AUTOMATION_EDITOR_WORKBENCH_GRID', () => {
     );
     expect(AUTOMATION_EDITOR_WORKBENCH_GRID).toContain('lg:overflow-hidden');
   });
+
+  it('meets the inspector at its border, with no gutter between them', () => {
+    expect(AUTOMATION_EDITOR_WORKBENCH_GRID).not.toMatch(/(?:^|\s)gap-/);
+  });
 });
 
 describe('AUTOMATION_RUN_WORKBENCH_GRID', () => {
