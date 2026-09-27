@@ -819,5 +819,313 @@ print("TALE_VISION_FUNCTIONAL_OK")
 }
 
 console.log('');
+console.log('--- built-in skills reach every harness ---');
+// runnerd links each image-baked skill (/opt/agents/skills) into every
+// harness's native user-level skill dir. Only Claude Code's was linked before,
+// so Codex, Gemini CLI, Qwen Code, Pi, Hermes and OpenClaw never listed the
+// built-in visual-aspect-analyzer, and nothing withdrew the link when the
+// workspace repository shipped a skill of the same name (#2790). Against a
+// booted session: every registry harness has a dir in the table below, each dir
+// holds the link, and every managed harness — its golden managed exec run
+// through runnerd, as a platform turn is, against a stub model endpoint that
+// records each request — names the skill in its first model request and, when
+// the workspace repository ships a skill of the same name, lists the copy the
+// table (and the runtime README) states.
+{
+  const SKILL = 'visual-aspect-analyzer';
+  const HOME = '/agent/.runtime/home';
+  /** Each harness's native user-level skill dir under the session HOME, and
+   * the copy it lists when the workspace repository ships a same-named skill
+   * in `.claude/skills` and `.agents/skills`; `null` for Cursor, which has no
+   * managed lane to run. Verified against the pinned CLIs; keep in step with
+   * services/sandbox-runtime/README.md "Built-in skills". */
+  const SKILL_HOMES: Record<
+    string,
+    { dir: string; repoCopy: 'repo' | 'baked' | null }
+  > = {
+    'claude-code': { dir: '.claude/skills', repoCopy: 'repo' },
+    codex: { dir: '.agents/skills', repoCopy: 'repo' },
+    cursor: { dir: '.agents/skills', repoCopy: null },
+    gemini: { dir: '.agents/skills', repoCopy: 'repo' },
+    // Hermes reads no project-level skills, so it keeps the baked one.
+    hermes: { dir: '.hermes/skills', repoCopy: 'baked' },
+    openclaw: { dir: '.agents/skills', repoCopy: 'repo' },
+    opencode: { dir: '.agents/skills', repoCopy: 'repo' },
+    pi: { dir: '.agents/skills', repoCopy: 'repo' },
+    'qwen-code': { dir: '.agents/skills', repoCopy: 'repo' },
+  };
+  const SKILL_DIRS = [...new Set(Object.values(SKILL_HOMES).map((h) => h.dir))];
+  const REPO_MARKER = 'REPO-OWNED-SKILL-MARKER';
+  // A plain-ASCII lead of the baked description: every harness lists it
+  // verbatim (JSON escapes nothing in it), Hermes included, which truncates.
+  const bakedFrontmatter = parseYaml(
+    readFileSync(
+      join(PROJECT_ROOT, `configs/platform/custom/skills/${SKILL}/SKILL.md`),
+      'utf8',
+    ).split('---')[1] ?? '',
+  ) as { description?: string };
+  const BAKED_LEAD = (bakedFrontmatter.description ?? '').slice(0, 40);
+  // Records every request body in its own file, answers a non-retryable 400
+  // so the harness ends its turn after the first model call.
+  const STUB = `import json, os, sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+cap = sys.argv[2]
+os.makedirs(cap, exist_ok=True)
+count = [0]
+class Handler(BaseHTTPRequestHandler):
+    def answer(self):
+        count[0] += 1
+        size = int(self.headers.get("content-length") or 0)
+        with open(os.path.join(cap, "%03d" % count[0]), "wb") as out:
+            out.write(self.path.encode() + b"\\n" + (self.rfile.read(size) if size else b""))
+        body = json.dumps({"type": "error", "error": {"type": "invalid_request_error", "message": "stub", "code": "invalid_request_error"}}).encode()
+        self.send_response(400)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    do_GET = do_POST = answer
+    def log_message(self, *args):
+        pass
+ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
+`;
+  interface GoldenExec {
+    argv: string[];
+    env?: Record<string, string>;
+    cwd: string;
+    stdin?: string;
+  }
+
+  const harnessesDir = join(PROJECT_ROOT, 'configs/platform/system/harnesses');
+  const slugs = readdirSync(harnessesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+  for (const slug of slugs) {
+    if (!Object.hasOwn(SKILL_HOMES, slug)) {
+      fail(
+        `harness "${slug}" has no native skill dir in the built-in skills table`,
+      );
+    }
+  }
+
+  const cid = await stdoutOf([
+    'docker',
+    'run',
+    '-d',
+    '--user',
+    '10001',
+    '--tmpfs',
+    '/agent:uid=10001,gid=10001',
+    IMAGE,
+    'daemon',
+  ]);
+  const inSession = (cmd: string, stdin?: string) =>
+    capture(
+      [
+        'docker',
+        'exec',
+        ...(stdin === undefined ? [] : ['-i']),
+        cid,
+        'sh',
+        '-c',
+        cmd,
+      ],
+      stdin === undefined ? {} : { stdin },
+    );
+  /** One exec through runnerd's own door, the way a platform turn reaches a
+   * harness: runnerd reconciles the skill links before it spawns the child.
+   * Answers runnerd's last NDJSON event (the exit, or its refusal). */
+  const runnerdExec = async (body: {
+    execId: string;
+    command: string[];
+    cwd: string;
+    env?: Record<string, string>;
+    stdin?: string;
+  }): Promise<string> => {
+    const { stdout } = await inSession(
+      "curl -sS -N --max-time 180 -H 'content-type: application/json' --data-binary @- http://127.0.0.1:8200/execs",
+      JSON.stringify({
+        execId: body.execId,
+        command: body.command,
+        cwd: body.cwd,
+        env: body.env ?? {},
+        stdinBase64: Buffer.from(body.stdin ?? '').toString('base64'),
+        stdinMode: 'close',
+        timeoutMs: 120_000,
+        stdoutMaxBytes: 1_000_000,
+        stderrMaxBytes: 1_000_000,
+      }),
+    );
+    return stdout.trim().split('\n').at(-1) ?? '';
+  };
+  const linkState = async (dir: string): Promise<'linked' | 'absent'> =>
+    (
+      await inSession(
+        `test -L ${HOME}/${dir}/${SKILL} && test -f ${HOME}/${dir}/${SKILL}/SKILL.md`,
+      )
+    ).exitCode === 0
+      ? 'linked'
+      : 'absent';
+  try {
+    let ready = false;
+    for (let i = 0; i < 20; i++) {
+      if (
+        (await inSession('curl -fsS http://127.0.0.1:8200/readyz')).exitCode ===
+        0
+      ) {
+        ready = true;
+        break;
+      }
+      await sleep(500);
+    }
+    if (!ready) {
+      fail('runnerd did not become ready for the built-in skills check');
+    } else {
+      for (const dir of SKILL_DIRS) {
+        if ((await linkState(dir)) === 'linked') {
+          pass(`${dir}/${SKILL} links the baked skill`);
+        } else fail(`${dir}/${SKILL} does not link the baked skill`);
+      }
+      await inSession('cat > /agent/.runtime/tmp/skill-stub.py', STUB);
+      let port = 18100;
+      for (const phase of ['baked', 'repo'] as const) {
+        if (phase === 'repo') {
+          await inSession(
+            [
+              'set -e',
+              'cd /agent/workspace',
+              'for d in .agents/skills .claude/skills; do',
+              `  mkdir -p "$d/${SKILL}"`,
+              `  printf -- '---\\nname: ${SKILL}\\ndescription: ${REPO_MARKER} the repository copy\\n---\\n\\n# Repository copy\\n' > "$d/${SKILL}/SKILL.md"`,
+              'done',
+              'git init -q .',
+            ].join('\n'),
+          );
+          // The next exec withdraws the links whose harnesses read the
+          // repository's copy; Hermes reads none, so it keeps its link.
+          await runnerdExec({
+            execId: 'skills-withdraw',
+            command: ['true'],
+            cwd: '/agent/workspace',
+          });
+          for (const dir of SKILL_DIRS) {
+            const want = dir === '.hermes/skills' ? 'linked' : 'absent';
+            const got = await linkState(dir);
+            const verdict = `${dir}/${SKILL} is ${got} beside the repository's copy`;
+            if (got === want) pass(verdict);
+            else fail(`${verdict} (expected ${want})`);
+          }
+        }
+        for (const slug of slugs) {
+          const home = SKILL_HOMES[slug];
+          if (
+            home === undefined ||
+            (phase === 'repo' && home.repoCopy === null)
+          ) {
+            continue;
+          }
+          const cases = parseYaml(
+            readFileSync(
+              join(
+                PROJECT_ROOT,
+                'services/platform/lib/harnesses/fixtures/exec',
+                `${slug}.yml`,
+              ),
+              'utf8',
+            ),
+          ) as Record<string, GoldenExec | undefined>;
+          const exec = cases['managed-model-opus'];
+          if (exec === undefined) continue;
+          port += 1;
+          const stubUrl = `http://127.0.0.1:${port}`;
+          const sub = (value: string) =>
+            value.replaceAll('http://golden-gw:8080', stubUrl);
+          const recorded = `/agent/.runtime/tmp/skill-probe/${phase}-${slug}`;
+          await capture([
+            'docker',
+            'exec',
+            '-d',
+            cid,
+            'python3',
+            '/agent/.runtime/tmp/skill-stub.py',
+            String(port),
+            recorded,
+          ]);
+          await inSession(
+            `for i in $(seq 50); do curl -s -o /dev/null ${stubUrl}/ready && exit 0; sleep 0.1; done; exit 1`,
+          );
+          const ended = await runnerdExec({
+            execId: `skills-${phase}-${slug}`,
+            command: exec.argv.map(sub),
+            cwd: exec.cwd,
+            env: Object.fromEntries(
+              Object.entries(exec.env ?? {}).map(([key, value]) => [
+                key,
+                sub(value),
+              ]),
+            ),
+            stdin: sub(exec.stdin ?? ''),
+          });
+          const { stdout: seen } = await inSession(
+            `cat ${recorded}/* 2>/dev/null`,
+          );
+          const runnerdSaid = ` (runnerd: ${ended.slice(0, 200)})`;
+          if (phase === 'baked') {
+            if (seen.includes(SKILL) && seen.includes(BAKED_LEAD)) {
+              pass(`${slug} lists the baked ${SKILL} in its model request`);
+            } else {
+              fail(
+                `${slug} does not list the baked ${SKILL} in its model request${runnerdSaid}`,
+              );
+            }
+            continue;
+          }
+          const repo = seen.includes(REPO_MARKER);
+          const baked = seen.includes(BAKED_LEAD);
+          const listed =
+            repo && baked ? 'both' : repo ? 'repo' : baked ? 'baked' : 'none';
+          const copies = {
+            both: 'both copies',
+            repo: "the repository's copy",
+            baked: 'the baked copy',
+            none: 'no copy',
+          };
+          const verdict = `${slug} lists ${copies[listed]} when the repository ships its own ${SKILL}`;
+          if (listed === home.repoCopy) pass(verdict);
+          else {
+            fail(
+              `${verdict} (expected ${copies[home.repoCopy ?? 'none']})${runnerdSaid}`,
+            );
+          }
+        }
+      }
+      // The repository drops its copy: the next exec links the baked one again.
+      await inSession(
+        `rm -rf /agent/workspace/.agents/skills/${SKILL} /agent/workspace/.claude/skills/${SKILL}`,
+      );
+      await runnerdExec({
+        execId: 'skills-restore',
+        command: ['true'],
+        cwd: '/agent/workspace',
+      });
+      for (const dir of SKILL_DIRS) {
+        if ((await linkState(dir)) === 'linked') {
+          pass(
+            `${dir}/${SKILL} links the baked skill again without the repository's`,
+          );
+        } else {
+          fail(
+            `${dir}/${SKILL} stays unlinked after the repository dropped its copy`,
+          );
+        }
+      }
+    }
+  } finally {
+    if (cid) await ok(['docker', 'rm', '-f', cid]);
+  }
+}
+
+console.log('');
 console.log(`${BOLD}Passed: ${passed}  Failed: ${failed}${NC}`);
 process.exit(failed === 0 ? 0 : 1);

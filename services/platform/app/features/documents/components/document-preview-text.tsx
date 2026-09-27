@@ -19,6 +19,7 @@ import {
 import {
   PreviewContentSkeleton,
   PreviewPane,
+  previewCodeTextClasses,
   previewPaneReadableClasses,
 } from './preview-pane';
 
@@ -45,7 +46,7 @@ export function DocumentPreviewText({
     category === 'markup' ||
     category === 'config' ||
     category === 'data';
-  const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
+  const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
 
   useEffect(() => {
     setHighlightedHtml(null);
@@ -91,13 +92,20 @@ export function DocumentPreviewText({
         (isCodeFile && highlightedHtml ? (
           <div
             ref={highlightRef}
-            className="code-line-numbers w-full text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-0!"
+            className={cn(
+              'code-line-numbers w-full [&_pre]:m-0! [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-0!',
+              previewCodeTextClasses,
+            )}
           />
         ) : (
           <pre
-            className={cn('m-0! bg-transparent! p-0!', isCodeFile && 'pl-12!')}
+            className={cn(
+              'm-0! bg-transparent! p-0!',
+              previewCodeTextClasses,
+              isCodeFile && 'pl-12!',
+            )}
           >
-            <code className="text-foreground font-mono text-sm leading-relaxed wrap-break-word whitespace-pre-wrap">
+            <code className="text-foreground wrap-break-word whitespace-pre-wrap">
               {content}
             </code>
           </pre>

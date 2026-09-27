@@ -239,27 +239,32 @@ export type ProviderAuthMethodName = ProviderAuthMethod['method'];
  * conflates two different answers, and the embedding form could only show one
  * empty state for both:
  *
- *  - `unsupported` — the provider serves no embeddings at all, so choosing it
- *    is a mistake the form can catch at the point of choosing instead of at
- *    index time. NOTHING declares this yet: it is a claim about a vendor's
- *    API, and this repo holds no evidence either way. Whoever sets it should
- *    cite the vendor's own docs in the same change.
+ *  - `unsupported` — the provider serves no embeddings at all, so the
+ *    embedding form refuses it at the point of choosing instead of letting it
+ *    fail at index time. It is a claim about a vendor's API, so it is set
+ *    only with the vendor's own docs cited beside it in `provider.yml`
+ *    (Anthropic's, today); a guard holds every shipped declaration to that.
  *  - `unknown` — it may well embed, but no vector width is known here. Live
  *    catalogs publish none, and a guessed width poisons a corpus invisibly,
  *    so the operator has to supply the model and dimensions themselves.
  *  - `supported` — a curated width ships with it, so the form can recommend.
  *
- * Absent reads as `unknown`, and so does every connector today except the two
- * whose shipped catalog carries a curated width. That is the honest state:
- * `supported` is established by the catalog, and the absence of an entry
- * establishes nothing about the vendor — only that this deployment has no
- * width to offer. A connector must never be refused for want of evidence.
+ * Absent reads as `unknown`, and so does every connector whose shipped
+ * catalog carries no curated width and whose vendor docs say nothing either
+ * way. That is the honest state: `supported` is established by the catalog,
+ * and the absence of an entry establishes nothing about the vendor — only
+ * that this deployment has no width to offer. A connector must never be
+ * refused for want of evidence.
  */
 const providerEmbeddingSupportSchema = z.enum([
   'supported',
   'unsupported',
   'unknown',
 ]);
+/** See {@link providerEmbeddingSupportSchema}. */
+export type ProviderEmbeddingSupport = z.infer<
+  typeof providerEmbeddingSupportSchema
+>;
 
 /** The shape of one `configs/platform/system/providers/<name>/provider.yml`. */
 export const providerDefinitionSchema = z

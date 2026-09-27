@@ -24,8 +24,13 @@ export const buttonVariants = cva(
         'icon-sm': 'size-8 rounded-md',
       },
       variant: {
+        // The 1px edge is the fill's own colour (the accent, not a fixed
+        // near-black that ringed every branded button in ink). The focus
+        // ring stays inset like the highlight it replaces, so it is drawn on
+        // the fill — in the fill's ink, the one colour guaranteed to read
+        // there; the shared `ring-ring` matched the fill and vanished.
         primary:
-          'bg-accent-base text-accent-fg [background-image:linear-gradient(to_bottom,rgba(255,255,255,0.16),rgba(255,255,255,0))] shadow-[0_1px_1.75px_rgba(3,7,18,0.4),0_0_0_1px_rgba(3,7,18,1)] ring-1 ring-white/20 ring-inset hover:opacity-95',
+          'bg-accent-base text-accent-fg focus-visible:ring-accent-fg [background-image:linear-gradient(to_bottom,rgba(255,255,255,0.16),rgba(255,255,255,0))] shadow-[0_1px_1.75px_rgba(3,7,18,0.4),0_0_0_1px_var(--color-accent-base)] ring-1 ring-white/20 ring-inset hover:opacity-95 focus-visible:ring-2',
         destructive:
           'text-destructive-foreground bg-red-600 shadow-sm -outline-offset-1 outline-red-600 hover:bg-red-700',
         // Solid amber "caution" fill — the yellow counterpart to `destructive`'s

@@ -108,7 +108,7 @@ function backend(input: RequestInfo | URL, init?: RequestInit): Response {
     case '/api/app/providers/transcription-model':
       return json({ models: [], pick: null });
     case '/api/app/knowledge/embedding/recommendations':
-      return json({ recommendations: [] });
+      return json({ recommendations: [], providers: [] });
     case '/api/app/tasks/serving-preview':
       return json({ available: false });
     case CATALOGS:
