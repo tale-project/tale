@@ -150,6 +150,100 @@ describe('ContactCreateDialog', () => {
     });
   });
 
+  describe("held to the door's caps", () => {
+    // The door trims and caps every field (`contactFieldsShape`); each of
+    // these passed the form and came back as a bare `invalid body` 400.
+    it.each([
+      ['name', 'a'.repeat(301), 'Name must be 300 characters or fewer'],
+      ['phone', '1'.repeat(51), 'Phone must be 50 characters or fewer'],
+      [
+        'locale',
+        `en-${'a'.repeat(18)}`,
+        'Locale must be 20 characters or fewer',
+      ],
+      ['email', `${'a'.repeat(65)}@example.com`, 'Enter a valid email address'],
+    ])(
+      'names an over-long %s under its field and sends nothing',
+      async (field, value, message) => {
+        const { user } = render(
+          <ContactCreateDialog
+            isOpen={true}
+            onClose={vi.fn()}
+            organizationId="org-1"
+          />,
+        );
+
+        if (field !== 'email') {
+          await user.type(screen.getByLabelText(/email/i), 'jane@example.com');
+        }
+        const input = screen.getByLabelText(new RegExp(`^${field}`, 'i'));
+        await user.clear(input);
+        await user.click(input);
+        await user.paste(value);
+        await user.click(screen.getByRole('button', { name: /save/i }));
+
+        expect(await screen.findByText(message)).toBeInTheDocument();
+        expect(input).toHaveAttribute('aria-invalid', 'true');
+        expect(mockMutateAsync).not.toHaveBeenCalled();
+      },
+    );
+
+    it('sends values at the caps, trimmed', async () => {
+      const { user } = render(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.click(screen.getByLabelText(/name/i));
+      await user.paste(`  ${'a'.repeat(300)}  `);
+      await user.type(screen.getByLabelText(/email/i), 'jane@example.com');
+      await user.click(screen.getByLabelText(/phone/i));
+      await user.paste('1'.repeat(50));
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(mockMutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'a'.repeat(300),
+            phone: '1'.repeat(50),
+          }),
+        );
+      });
+    });
+
+    it("keeps a refusal's field-naming reason on the toast", async () => {
+      mockMutateAsync.mockRejectedValueOnce(
+        new AppError({
+          code: 'invalid body',
+          message: 'email: Invalid email address',
+        }),
+      );
+      const { user } = render(
+        <ContactCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.type(screen.getByLabelText(/email/i), 'jane@example.com');
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Couldn't create contact",
+            description: 'email: Invalid email address',
+            variant: 'destructive',
+          }),
+        );
+      });
+    });
+  });
+
   describe('seeded from a caller', () => {
     // `FormDialog` disables Save while `!isDirty`, so a seeded address that
     // became the form's new baseline would open with the email filled in and
