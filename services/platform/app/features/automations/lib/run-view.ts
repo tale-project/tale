@@ -48,7 +48,7 @@ export function isRunFinished(status: RunStatus): boolean {
 const WAITING_KINDS = new Set(['approval', 'ask', 'agent', 'repeat']);
 
 /** The `waitingFor` the read model answers on a parked run, or nothing. */
-export function readRunWaitingFor(
+function readRunWaitingFor(
   value: unknown,
 ): 'approval' | 'ask' | 'agent' | 'repeat' | undefined {
   return typeof value === 'string' && WAITING_KINDS.has(value)
@@ -62,7 +62,7 @@ export function readRunWaitingFor(
  * place the park's detail prefix is read, so the page can say "polling —
  * step {node}" instead of printing the raw `repeat:tick`.
  */
-export function readRunParkNode(
+function readRunParkNode(
   detail: string | null | undefined,
 ): string | undefined {
   if (typeof detail !== 'string') return undefined;

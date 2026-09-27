@@ -95,7 +95,7 @@ function isBlankCell(value: unknown): boolean {
 
 /** A row of nothing but blank cells (`,,,,`) — a spreadsheet's trailing
  * lines, never a record the mapper should refuse. */
-export function isBlankRecord(cells: Iterable<unknown>): boolean {
+function isBlankRecord(cells: Iterable<unknown>): boolean {
   for (const cell of cells) {
     if (!isBlankCell(cell)) return false;
   }
