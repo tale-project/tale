@@ -351,6 +351,10 @@ export function SettingsUploadsPanel({
       return;
     setUploading(true);
     let okCount = 0;
+    // Every file that did not land, and why. One toast shows at a time, so a
+    // toast per file would be replaced by the next file's, or by the batch's
+    // success, and its reason with it: they ride ONE toast after the loop.
+    const refused: Array<{ name: string; title: string; reason?: string }> = [];
     // Prefer the raw selection id over the dirs-derived row: right after
     // creating a folder the reactive folder list hasn't refreshed yet, and
     // falling back to the panel root would land the drop in the wrong place.
@@ -361,12 +365,11 @@ export function SettingsUploadsPanel({
         ? `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`
         : '';
       if (!acceptSet.has(ext)) {
-        toast({
+        refused.push({
+          name: file.name,
           title: t('settings.uploads.wrongType', {
             types: form.accept.join(', '),
           }),
-          description: file.name,
-          variant: 'destructive',
         });
         continue;
       }
@@ -375,20 +378,18 @@ export function SettingsUploadsPanel({
       // the listing, BEFORE the bytes move. A broken pattern fails open
       // (matcher null), mirroring the listing's posture.
       if (matcher !== null && !matcher.test(file.name)) {
-        toast({
+        refused.push({
+          name: file.name,
           title: t('settings.uploads.wrongName'),
-          description: file.name,
-          variant: 'destructive',
         });
         continue;
       }
       if (file.size > DOCUMENT_MAX_FILE_SIZE) {
-        toast({
+        refused.push({
+          name: file.name,
           title: t('settings.uploads.tooLarge', {
             max: String(DOCUMENT_MAX_FILE_SIZE / (1024 * 1024)),
           }),
-          description: file.name,
-          variant: 'destructive',
         });
         continue;
       }
@@ -437,22 +438,50 @@ export function SettingsUploadsPanel({
         okCount++;
       } catch (error) {
         console.error('[automations] settings upload failed', file.name, error);
+        // The door's own words when it refused the file; a fault has none.
         const reason = backendRefusalDetail(error);
-        toast({
+        refused.push({
+          name: file.name,
           title: t('settings.uploads.uploadFailed'),
-          description:
-            reason === undefined
-              ? file.name
-              : t('settings.uploads.uploadFailedDetail', {
-                  name: file.name,
-                  reason,
-                }),
-          variant: 'destructive',
+          ...(reason !== undefined ? { reason } : {}),
         });
       }
     }
     setUploading(false);
-    if (okCount > 0) {
+    const [only] = refused;
+    if (only !== undefined && refused.length === 1 && okCount === 0) {
+      // One file, refused: its rule is the title, the file (and the door's
+      // reason) the description.
+      toast({
+        title: only.title,
+        description:
+          only.reason === undefined
+            ? only.name
+            : t('settings.uploads.uploadFailedDetail', {
+                name: only.name,
+                reason: only.reason,
+              }),
+        variant: 'destructive',
+      });
+    } else if (refused.length > 0) {
+      // A batch: the count that landed, and each file that did not beside
+      // ITS reason.
+      toast({
+        title: t('settings.uploads.uploadedPartial', {
+          ok: String(okCount),
+          total: String(files_.length),
+        }),
+        description: refused
+          .map(({ name, title, reason }) =>
+            t('settings.uploads.uploadFailedDetail', {
+              name,
+              reason: reason ?? title,
+            }),
+          )
+          .join(' · '),
+        variant: 'destructive',
+      });
+    } else if (okCount > 0) {
       toast({
         title: t('settings.uploads.uploaded', { count: String(okCount) }),
         variant: 'success',

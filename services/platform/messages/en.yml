@@ -953,6 +953,7 @@ automations:
       newFolderFailed: Couldn't create the folder — try again.
       uploading: Uploading…
       uploaded: '{count} file(s) uploaded.'
+      uploadedPartial: '{ok} of {total} file(s) uploaded.'
       uploadFailed: Couldn't upload the file — try again.
       uploadFailedDetail: '{name}: {reason}'
       wrongType: 'Only these file types are accepted: {types}'

@@ -1003,6 +1003,7 @@ automations:
       newFolderFailed: Impossible de créer le dossier — réessaie.
       uploading: Téléversement…
       uploaded: '{count} fichier(s) téléversé(s).'
+      uploadedPartial: '{ok} fichier(s) sur {total} téléversé(s).'
       uploadFailed: Échec du téléversement — réessaie.
       uploadFailedDetail: '{name} : {reason}'
       wrongType: 'Seuls ces types de fichiers sont acceptés : {types}'

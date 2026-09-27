@@ -994,6 +994,7 @@ automations:
       newFolderFailed: Der Ordner konnte nicht erstellt werden — versuch es nochmal.
       uploading: Lädt hoch…
       uploaded: '{count} Datei(en) hochgeladen.'
+      uploadedPartial: '{ok} von {total} Datei(en) hochgeladen.'
       uploadFailed: Datei konnte nicht hochgeladen werden — versuch es nochmal.
       uploadFailedDetail: '{name}: {reason}'
       wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'

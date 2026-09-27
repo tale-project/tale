@@ -140,6 +140,83 @@ describe('SettingsUploadsPanel', () => {
     }
   });
 
+  // One toast shows at a time: a refused file's toast used to be replaced by
+  // the success toast of another file in the same drop, and its reason with
+  // it. The batch now answers once, naming each file that did not land.
+  it('keeps each refused file and its reason on the one toast a mixed drop raises', async () => {
+    convexMutation.mockImplementation((args: unknown) =>
+      Promise.resolve(
+        args !== null && typeof args === 'object' && 'fileId' in args
+          ? 'doc_new'
+          : '/api/app/files/upload?orgId=org_1',
+      ),
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: 'FILE_SIZE_INVALID',
+            message: 'Uploaded object is too large',
+          },
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json({ storageId: 'blob_b' }));
+    try {
+      const { user } = mount();
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]');
+      if (!input) throw new Error('drop-zone input missing');
+      await user.upload(input, [
+        new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }),
+        new File(['%PDF'], 'b.pdf', { type: 'application/pdf' }),
+        new File(['{}'], 'notes.json', { type: 'application/json' }),
+      ]);
+
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      expect(toastMock).toHaveBeenLastCalledWith({
+        title: '1 of 3 file(s) uploaded.',
+        description:
+          "a.pdf: Uploaded object is too large · notes.json: The file name doesn't match the expected pattern for this form.",
+        variant: 'destructive',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('keeps the plain success toast when every file lands', async () => {
+    convexMutation.mockImplementation((args: unknown) =>
+      Promise.resolve(
+        args !== null && typeof args === 'object' && 'fileId' in args
+          ? 'doc_new'
+          : '/api/app/files/upload?orgId=org_1',
+      ),
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => Response.json({ storageId: 'blob' }));
+    try {
+      const { user } = mount();
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]');
+      if (!input) throw new Error('drop-zone input missing');
+      await user.upload(input, [
+        new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }),
+        new File(['%PDF'], 'b.pdf', { type: 'application/pdf' }),
+      ]);
+
+      await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+      expect(toastMock).toHaveBeenLastCalledWith({
+        title: '2 file(s) uploaded.',
+        variant: 'success',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it('renders no drop zone until a folder is picked when requireFolder is set', () => {
     mount({ ...FORM, requireFolder: true });
 
