@@ -77,9 +77,9 @@ When the section's navigation is a fixed set of pages, `SectionNavPanel` assembl
 ```tsx
 import { SectionNavPanel, SectionNavRow } from '@tale/ui/section-nav';
 
-<SectionNavPanel title="Knowledge" ariaLabel="Knowledge navigation" activeKey={activeHref}>
+<SectionNavPanel title="Settings" ariaLabel="Settings" activeKey={activeHref}>
   <ul className="flex flex-col gap-1">
-    <SectionNavRow href={documentsHref} label="Documents" icon={FileText} active={activeHref === documentsHref} />
+    <SectionNavRow href={accountHref} label="Account" icon={UserRound} active={activeHref === accountHref} />
   </ul>
 </SectionNavPanel>
 ```

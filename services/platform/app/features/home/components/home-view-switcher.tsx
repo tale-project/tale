@@ -81,7 +81,10 @@ export function HomeViewSwitcher({
             data-indicator-key={option.view}
             onClick={() => onChange(option.view)}
             className={cn(
-              'focus-visible:ring-ring relative z-10 flex h-7 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none',
+              // Sized to its label, then the spare room shared out: a long
+              // label (Aufgaben, Réception) keeps its word beside New chat
+              // where equal quarters would cut it.
+              'focus-visible:ring-ring relative z-10 flex h-7 min-w-0 flex-auto items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none',
               selected
                 ? 'text-foreground'
                 : 'text-fg-muted hover:text-foreground',

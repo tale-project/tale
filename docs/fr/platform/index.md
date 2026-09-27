@@ -12,7 +12,7 @@ Sur ordinateur, la barre de navigation à gauche présente les sections sous for
 
 Une section s’ouvre toujours sur sa première page, quoi que tu y aies fait auparavant : le même choix te mène donc chaque fois au même endroit. Par exemple, ouvre l’onglet **Exécutions** d’une automatisation, passe dans **Accueil**, puis choisis **Automatisations** : la liste des automatisations s’ouvre, et non l’onglet que tu as quitté. Sur ordinateur, seul **Accueil** reprend où tu en étais : il rouvre le chat que tu as lu en dernier, ou un nouveau chat si tu n’en as aucun. Choisir **Accueil** alors que tu y es déjà démarre un nouveau chat, tout comme le raccourci **⌥⌘N** sur Mac ou **Alt+Ctrl+N** sous Windows et Linux.
 
-**Connaissances** et **Paramètres** listent leurs pages dans un panneau latéral, à côté de la page, et l’en-tête indique la page ouverte. Sur téléphone, Connaissances présente ses pages sous forme d’onglets sous l’en-tête, et Paramètres commence par la liste de ses pages.
+**Paramètres** liste ses pages dans un panneau latéral, à côté de la page, et l’en-tête indique la page ouverte ; sur téléphone, Paramètres commence par la liste de ses pages. **Connaissances** présente ses pages sous forme d’onglets sous son en-tête.
 
 | Tu souhaites… | Marche à suivre |
 | --- | --- |
@@ -28,7 +28,7 @@ Les favoris et les liens partagés vers un projet, une tâche ou un document pr�
 
 **Accueil** réunit tes chats, tes tâches, tes projets et les conversations clients. Sur ordinateur, le panneau latéral d’**Accueil** reste affiché à côté de chaque chat, tâche, projet et page de la boîte de réception. Sur téléphone, **Accueil** ouvre la même liste en plein écran. Un chat, une tâche ou une conversation que tu ouvres depuis cette liste n’a qu’un seul en-tête : une flèche de retour qui t’y ramène, son titre et ses actions. Ton menu de profil reste accessible en haut de l’écran **Accueil** et dans **Paramètres**.
 
-En haut du panneau, **Nouveau chat**, le crayon à côté du titre **Accueil**, démarre un chat ; son infobulle indique le raccourci clavier. Juste en dessous, **Tout**, **Chats**, **Tâches** et **Réception** déterminent ce que la liste affiche. **Réception** n’apparaît que si ton organisation dispose d’une boîte de réception : une automatisation de synchronisation du courrier mise en service, ou une app API qui a déjà synchronisé une conversation.
+En haut du panneau, **Tout**, **Chats**, **Tâches** et **Réception** déterminent ce que la liste affiche. Juste à côté, **Nouveau chat**, le crayon, démarre un chat ; son infobulle indique le raccourci clavier. **Réception** n’apparaît que si ton organisation dispose d’une boîte de réception : une automatisation de synchronisation du courrier mise en service, ou une app API qui a déjà synchronisé une conversation.
 
 **Projets** liste tous les projets que tu peux ouvrir. Choisis un projet pour ouvrir sa page avec le tableau des tâches, **Général**, **Chats**, **Connaissances** et **Agents**. Les deux icônes à côté du titre **Projets** sont **Tous les projets**, qui ouvre la liste complète, et **Nouveau projet**. Fais glisser un chat sur un projet pour l’y ranger. Le menu d’un projet propose **Nouveau chat** et **Épingler le projet**.
 

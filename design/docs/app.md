@@ -33,10 +33,13 @@ what is there, and the page shows the one thing you opened.
   one frame for all of them: `SubPanel width="list"` (280px, full height, right border), a
   `SubPanelHeader` naming the section in the same `h-13` row as a page header (border included, so
   the two rules meet as one line), then rows. Fixed pages are icon rows with a highlight that glides
-  to the open page (`SectionNavPanel` — Settings, Knowledge); Home lists your work. **Automations has
-  no panel**: its canvas is a workbench that needs the full width.
+  to the open page (`SectionNavPanel` — Settings). **Home** lists your work and needs no header
+  naming it: its panel opens straight on the view switcher, **New chat** beside it. **Knowledge and
+  Automations have no panel**: Knowledge's pages are a tab strip under its header, and an
+  automation's canvas is a workbench that needs the full width.
 - **Home** — chats, the tasks assigned to you or waiting on your review, and the inbox's customer
-  conversations in **one list**. A pill switcher narrows it (All · Chats · Tasks · Inbox); Projects
+  conversations in **one list**. A pill switcher narrows it (All · Chats · Tasks · Inbox; each option
+  sized to its label, so a long German or French label keeps its word), **New chat** beside it; Projects
   sit above the list as doors to their pages and as drop targets for filing chats; the list bands
   by time (Pinned, Today, Yesterday, Previous 7 days, Earlier). Every row has one anatomy: a 20px
   glyph that says what the item is (chat bubble, task status, contact initials), the title, a
@@ -47,8 +50,9 @@ what is there, and the page shows the one thing you opened.
   Home screen itself. From the keyboard, ⌘\ folds it, ⌥↑/⌥↓ open the previous or next item of the
   list on screen from anywhere but a text field, and ↑/↓ move between a list's rows.
 - **Header** — per-page title row (`h-13`, `text-base` semibold `h1`) that always ends in exactly
-  **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (project and
-  automation detail), otherwise the header's own bottom border (`AdaptiveHeaderRoot showBorder`).
+  **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (Knowledge,
+  project and automation detail), otherwise the header's own bottom border (`AdaptiveHeaderRoot showBorder`),
+  drawn inside the `h-13` box so it meets a section panel's header line without a step.
   Beside a section panel, the page header names the open page (the panel already names the
   section). Icon buttons are 32×32, 8px radius, hover fill.
 - **Conversation pages** — a chat, a task and a customer conversation open in one frame:
@@ -70,7 +74,10 @@ what is there, and the page shows the one thing you opened.
 - **Right/secondary panels** (the Home panel, a task's details) slide in and **resize the main
   column** rather than overlay it; main content re-flows to the remaining width.
 - **Main column is centred and width-capped** — e.g. chat is 558px (new) / 768px (conversation). Don't
-  let product content run full-bleed.
+  let product content run full-bleed. The one exception is a workbench: an automation's **Editor**
+  tab runs its canvas edge to edge, with the node inspector flush against it as a bordered side
+  panel — like a design tool, not a card in an inset. Its settings (trigger, projects) are a
+  separate **General** tab on the settings measure.
 
 ## The big surfaces (pointers)
 
@@ -81,8 +88,8 @@ what is there, and the page shows the one thing you opened.
 - **Conversations** (inbox) — listed in the Home panel's Inbox view (status switch, search, facets,
   bulk-action bar); the reading pane takes the page, with a Gmail-style reply composer and an
   "improve with AI" rewrite. Specs: `design-system.md` → _Conversations_.
-- **Knowledge** — the Knowledge panel (Documents/Knowledge entries/Websites/Products/Contacts) beside a
-  `DataTable`. Specs: `design-system.md` → _Knowledge_.
+- **Knowledge** — its pages (Documents/Knowledge entries/Websites/Products/Contacts) as a tab strip
+  under the header, each a `DataTable`. Specs: `design-system.md` → _Knowledge_.
 - **Auth, settings, automations, agents, onboarding** — each has a `.pen` under `design/sources/platform/`.
 
 ## Interaction conventions (hold these everywhere)

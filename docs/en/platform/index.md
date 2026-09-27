@@ -12,7 +12,7 @@ On a computer, the rail along the left edge shows the sections as icons: **Home*
 
 A section always opens on its own first page, whatever you did there last, so the same choice leads to the same place every time. For example, open an automation's **Runs** tab, switch to **Home**, then choose **Automations**: the automation list opens, not the tab you left. On a computer, Home is the one section that picks up where you were: it reopens the chat you last read, or a new chat if you have none, and choosing **Home** again while you are there starts a new chat. The shortcut **⌥⌘N** on a Mac, or **Alt+Ctrl+N** on Windows or Linux, also starts a new chat.
 
-**Knowledge** and **Settings** list their pages in a panel beside the page, and the page header names the page you opened. On a phone, Knowledge shows its pages as tabs under the header, and Settings starts from a list of its pages.
+**Settings** lists its pages in a panel beside the page, and the page header names the page you opened; on a phone, Settings starts from a list of its pages. **Knowledge** shows its pages as tabs under its header.
 
 | You want to… | Do this |
 | --- | --- |
@@ -28,7 +28,7 @@ Bookmarks and shared links to a particular project, task, or document still open
 
 Home keeps your chats, tasks, projects, and customer conversations together. On a computer, the Home panel stays beside every chat, task, project, and inbox page. On a phone, **Home** opens the same list as a screen of its own. A chat, task, or conversation you open from it has a single header: a back arrow that returns to the list, its title, and its actions. Your profile menu stays at the top of the Home screen and of Settings.
 
-At the top of the panel, **New chat**, the pencil beside the **Home** title, starts a chat; its tooltip shows the shortcut. Below it, **All**, **Chats**, **Tasks**, and **Inbox** switch what the list shows. **Inbox** appears only when your organization has an inbox: a deployed mail-sync automation, or an API app that has synced a conversation.
+At the top of the panel, **All**, **Chats**, **Tasks**, and **Inbox** switch what the list shows, and **New chat**, the pencil beside them, starts a chat; its tooltip shows the shortcut. **Inbox** appears only when your organization has an inbox: a deployed mail-sync automation, or an API app that has synced a conversation.
 
 **Projects** lists every project you can open. Choose a project to open its page with the task board, **General**, **Chats**, **Knowledge**, and **Agents**. The two icons beside the **Projects** heading are **All projects**, which opens the full project list, and **New project**. Drag a chat onto a project to file it there. A project's menu offers **New chat** and **Pin project**.
 

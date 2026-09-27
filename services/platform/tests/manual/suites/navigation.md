@@ -60,8 +60,9 @@ loaded, and reads **No teams** for an account in none.
   (`auth.userButton.manageAccount`) → Each click commits that section's
   DEFAULT entry: Home opens `/chat` (the chat you last read, else a blank
   composer) with the Home panel (`home.aria.panel`) beside it; Knowledge
-  `/documents` (its panel lists Documents, Knowledge entries, Websites,
-  Products and Contacts); Automations `/automations`; Settings the role's
+  `/documents` (its pages — Documents, Knowledge entries, Websites, Products
+  and Contacts — sit as tabs under its header, NAV-F32); Automations
+  `/automations`; Settings the role's
   default landing
   (`/settings/organization` for the seeded **owner** — see Scope & routes).
   The main nav holds exactly those three tiles in that order — no Chat,
@@ -266,13 +267,23 @@ loaded, and reads **No teams** for an account in none.
   `/dashboard/{org}/conversations/open` → A 280 px panel, the `navigation`
   landmark **Home** (`home.aria.panel`), stays beside every one of those
   pages without reloading — its scroll position and the Projects section's
-  open state survive each move; its header reads **Home** (`home.title`) with
-  a **New chat** icon link (`home.newChat`, tooltip shortcut ⌥⌘N) that opens
-  `/chat?new=true`. Knowledge, Automations, Settings, a shared chat
-  (`/dashboard/{org}/chat/shared/{shareToken}`) and a project's automation
-  workbench (`/dashboard/{org}/projects/{projectId}/automations/{slug}/…`,
-  full width like an automation outside a project, the rail still on
-  **Home**) show no Home panel.
+  open state survive each move; it has no header naming it — it opens on the
+  view switcher (NAV-F26) with a **New chat** icon link (`home.newChat`,
+  tooltip shortcut ⌥⌘N) beside it that opens `/chat?new=true`, and the
+  switcher keeps every option's full label beside it in German and French
+  (**Aufgaben**, **Réception**). Knowledge, Automations, Settings, a shared
+  chat (`/dashboard/{org}/chat/shared/{shareToken}`) and a project's
+  automation workbench
+  (`/dashboard/{org}/projects/{projectId}/automations/{slug}/…`, full width
+  like an automation outside a project, the rail still on **Home**) show no
+  Home panel.
+- [ ] `NAV-F42` · **The Settings panel's header and the page header end on one line** —
+  At ≥ 768 px open `/dashboard/{org}/settings/account` and two more settings
+  pages, then zoom the browser to 200 % over the place where the panel meets
+  the page → The line under the panel's header (**Settings**) and the line
+  under the page header (e.g. **Account**) are ONE continuous rule: no
+  one-pixel step where they meet, in light and dark. In the console, both headers'
+  `getBoundingClientRect().bottom` are equal.
 - [ ] `NAV-F26` · **View switcher** — In the panel's **Show** radiogroup
   (`home.views.label`) pick **All**, **Chats**, **Tasks** and **Inbox**
   (`home.views.all` / `.chats` / `.tasks` / `.inbox`), then move with ←/→;
@@ -343,17 +354,16 @@ loaded, and reads **No teams** for an account in none.
   project page and on the inbox with no conversation open
   (`/dashboard/{org}/conversations/open`) the panel shows even while folded,
   and no toggle is offered. Phones never show the toggle.
-- [ ] `NAV-F32` · **Knowledge panel** — At ≥ 768 px open
-  `/dashboard/{org}/documents`, then click each row of the Knowledge panel
-  (the `navigation` landmark **Knowledge navigation**,
-  `common.aria.knowledgeNavigation`) → The panel's header reads **Knowledge**
-  (`knowledge.title`); its rows **Documents**, **Knowledge entries**,
-  **Websites**, **Products** and **Contacts** (`knowledge.documents` …
-  `knowledge.contacts`) each carry an icon; one highlight glides to the open
-  page's row (`aria-current="page"`); the page header names the open page
-  (e.g. **Websites**), not "Knowledge", and the page fades in while the panel
-  stays put. Below 768 px there is no panel: the same five pages sit as a tab
-  strip under the header.
+- [ ] `NAV-F32` · **Knowledge tabs** — At a desktop width and at phone width
+  open `/dashboard/{org}/documents`, then click each tab of the Knowledge tab
+  strip (the `navigation` landmark **Knowledge navigation**,
+  `common.aria.knowledgeNavigation`) → The header reads **Knowledge**
+  (`knowledge.title`) and draws no divider of its own; under it the strip's
+  tabs **Documents**, **Knowledge entries**, **Websites**, **Products** and
+  **Contacts** (`knowledge.documents` … `knowledge.contacts`) carry the
+  header's one line; the open page's tab is underlined and
+  `aria-current="page"`, and each page fades in under the strip. No panel
+  stands beside the page at any width.
 - [ ] `NAV-F33` · **One highlight glides through Home's lists** — At ≥ 768 px
   open a chat from the Home panel, then another chat, a task and a
   conversation from the stream; open a project from **Projects**; go back to

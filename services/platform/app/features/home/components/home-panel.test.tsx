@@ -315,6 +315,23 @@ describe('HomeNavigator', () => {
 });
 
 describe('HomePanel', () => {
+  it('opens on the view switcher, with New chat beside it and no header', () => {
+    render(
+      <HomePanelProvider organizationId="org-1">
+        <HomePanel organizationId="org-1" />
+      </HomePanelProvider>,
+    );
+    const panel = screen.getByRole('navigation', { name: 'Home' });
+    // The rail already names the section; the panel carries no heading.
+    expect(within(panel).queryByRole('heading', { level: 2 })).toBeNull();
+    const switcher = within(panel).getByRole('radiogroup');
+    const newChat = within(panel).getAllByRole('link', { name: 'New chat' })[0];
+    expect(newChat).toHaveAttribute('href', '/dashboard/org-1/chat');
+    // Beside the switcher: the two share one row.
+    // oxlint-disable-next-line testing-library/no-node-access -- the row is structural, not a queryable role
+    expect(switcher.parentElement?.parentElement).toContainElement(newChat);
+  });
+
   function backslash() {
     // Whichever of the two the platform uses as its command key.
     fireEvent.keyDown(window, {

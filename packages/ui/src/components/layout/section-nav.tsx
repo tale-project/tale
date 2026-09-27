@@ -2,7 +2,7 @@
 
 /**
  * The section panel for sections whose navigation is a fixed set of pages —
- * in the platform, Settings and Knowledge. The same frame as the Home panel (full height beside
+ * in the platform, Settings. The same frame as the Home panel (full height beside
  * the page, the section's name in an `h-13` header), with icon rows and one
  * highlight that glides to the open page the way the rail's does. A section
  * brings its rows; the frame, the row anatomy and the motion are shared, so

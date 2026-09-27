@@ -112,8 +112,10 @@ const NO_HELD = new Set<string>();
 
 /**
  * The desktop Home panel: the navigator in the shared section-panel frame,
- * beside every Home route. It folds to nothing when hidden — the inner column
- * keeps its width, so the fold is a clip, not a reflow.
+ * beside every Home route. Home needs no header naming it — the panel opens
+ * straight on the view switcher, with **New chat** beside it. It folds to
+ * nothing when hidden — the inner column keeps its width, so the fold is a
+ * clip, not a reflow.
  */
 export function HomePanel({ organizationId }: { organizationId: string }) {
   const { t } = useT('home');
@@ -175,8 +177,10 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
         aria-hidden={!open}
         className="flex h-full w-70 shrink-0 flex-col overflow-hidden"
       >
-        <HomePanelHeader organizationId={organizationId} />
-        <HomeNavigator organizationId={organizationId} />
+        <HomeNavigator
+          organizationId={organizationId}
+          switcherAction={<HomeNewChatButton organizationId={organizationId} />}
+        />
       </div>
     </SubPanel>
   );
@@ -187,7 +191,15 @@ export function HomePanel({ organizationId }: { organizationId: string }) {
  * chats, tasks and conversations (or the Inbox view's tools). The desktop
  * panel frames it beside the page; on a phone it is the Home screen itself.
  */
-export function HomeNavigator({ organizationId }: { organizationId: string }) {
+export function HomeNavigator({
+  organizationId,
+  switcherAction,
+}: {
+  organizationId: string;
+  /** Beside the view switcher: the desktop panel's New chat. A phone keeps
+   * New chat in its Home screen's header instead. */
+  switcherAction?: ReactNode;
+}) {
   const { t } = useT('home');
   const { pathname, search } = useLocation();
   const location = readHomeLocation(pathname, search, organizationId);
@@ -418,12 +430,15 @@ export function HomeNavigator({ organizationId }: { organizationId: string }) {
     // `contents`: the navigator's parts stay children of the frame's flex
     // column; the wrapper only scopes the list shortcuts.
     <div ref={navigatorRef} className="contents">
-      <div className="flex shrink-0 flex-col gap-2 px-2.5 pt-2.5 pb-2">
-        <HomeViewSwitcher
-          value={view}
-          options={switcherOptions}
-          onChange={setView}
-        />
+      <div className="flex shrink-0 items-center gap-1.5 px-2.5 pt-2.5 pb-2">
+        <div className="min-w-0 flex-1">
+          <HomeViewSwitcher
+            value={view}
+            options={switcherOptions}
+            onChange={setView}
+          />
+        </div>
+        {switcherAction}
       </div>
 
       {view === 'inbox' ? (
@@ -551,41 +566,38 @@ function HomeStreamScroller({
   );
 }
 
-function HomePanelHeader({ organizationId }: { organizationId: string }) {
+/** New chat, beside the view switcher: the pencil the rail's Home tile and
+ * ⌥⌘N also stand for, its shortcut in the tooltip. */
+function HomeNewChatButton({ organizationId }: { organizationId: string }) {
   const { t } = useT('home');
   const isMac = useIsMac();
   const shortcut = isMac ? '⌥ ⌘ N' : 'ALT + CTRL + N';
   return (
-    <div className="border-border flex h-13 shrink-0 items-center justify-between gap-2 border-b pr-2.5 pl-4">
-      <h2 className="text-foreground truncate text-[15px] font-semibold tracking-tight">
-        {t('title')}
-      </h2>
-      <Tooltip
-        content={
-          <>
-            {t('newChat')}
-            <span className={TOOLTIP_SHORTCUT_CLASS}>{shortcut}</span>
-          </>
-        }
-        side="bottom"
+    <Tooltip
+      content={
+        <>
+          {t('newChat')}
+          <span className={TOOLTIP_SHORTCUT_CLASS}>{shortcut}</span>
+        </>
+      }
+      side="bottom"
+    >
+      <Button
+        asChild
+        size="icon"
+        variant="ghost"
+        aria-label={t('newChat')}
+        className="text-muted-foreground hover:text-foreground size-8 shrink-0 transition-transform active:scale-95"
       >
-        <Button
-          asChild
-          size="icon"
-          variant="ghost"
-          aria-label={t('newChat')}
-          className="text-muted-foreground hover:text-foreground size-8 transition-transform active:scale-95"
+        <Link
+          to="/dashboard/$id/chat"
+          params={{ id: organizationId }}
+          search={{ new: true }}
         >
-          <Link
-            to="/dashboard/$id/chat"
-            params={{ id: organizationId }}
-            search={{ new: true }}
-          >
-            <SquarePen className="size-4" />
-          </Link>
-        </Button>
-      </Tooltip>
-    </div>
+          <SquarePen className="size-4" />
+        </Link>
+      </Button>
+    </Tooltip>
   );
 }
 
