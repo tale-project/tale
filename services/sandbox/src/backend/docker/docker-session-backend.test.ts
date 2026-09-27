@@ -188,6 +188,9 @@ afterAll(async () => {
 function backendConfig(): SpawnerConfig {
   return {
     backend: 'docker',
+    instance: '',
+    hub: null,
+    deviceConfigPath: null,
     port: 8003,
     sandboxToken: 'test-token',
     runtimeImage: 'tale-sandbox-runtime:test',

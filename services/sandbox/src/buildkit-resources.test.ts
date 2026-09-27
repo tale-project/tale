@@ -185,6 +185,9 @@ interface FakeState {
 }
 
 const cfg: SpawnerConfig = {
+  instance: '',
+  hub: null,
+  deviceConfigPath: null,
   backend: 'docker',
   port: 8003,
   sandboxToken: 'test',

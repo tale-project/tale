@@ -10,6 +10,11 @@ import {
   makeK8sClient,
   type K8sClient,
 } from './backend/kubernetes/k8s-client.ts';
+import {
+  belongsToInstance,
+  SESSION_INSTANCE_LABEL,
+  sessionInstanceFilter,
+} from './session/session-naming.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
@@ -41,7 +46,14 @@ export interface SandboxCapacity {
     organizationLimit: number;
   };
   resources: HostResources;
-  runtimeSessions: Array<{ sessionId: string; state: RuntimeState }>;
+  runtimeSessions: Array<{
+    sessionId: string;
+    state: RuntimeState;
+    /** Set for a session running on one of the organization's devices. */
+    deviceId?: string;
+  }>;
+  /** Where the organization's device-placed sessions live (hub only). */
+  placements?: Array<{ sessionId: string; deviceId: string }>;
 }
 
 interface InfrastructureSnapshot {
@@ -92,13 +104,25 @@ function observation(
 
 /** Docker inventories all session containers, including warming and exited
  * ones. Paused containers still hold compute; restarting ones are starting. */
-function parseDockerSessions(stdout: string): RuntimeObservation[] {
+function parseDockerSessions(
+  stdout: string,
+  instance = '',
+): RuntimeObservation[] {
   const sessions: RuntimeObservation[] = [];
   for (const line of stdout.split('\n')) {
     if (line.trim() === '') continue;
     const row = record(JSON.parse(line));
     if (row === null || typeof row.state !== 'string') {
       throw new Error('Invalid Docker session inventory');
+    }
+    // Another spawner's sessions on the same daemon are its compute to count.
+    if (
+      !belongsToInstance(
+        typeof row.instance === 'string' ? row.instance : '',
+        instance,
+      )
+    ) {
+      continue;
     }
     // An unfamiliar state must not silently free capacity; only states that
     // confirm termination stop counting as occupied.
@@ -333,8 +357,9 @@ export class CapacityReader {
           '--all',
           '--filter',
           'label=tale.sandbox-session=1',
+          ...sessionInstanceFilter(this.cfg.instance),
           '--format',
-          '{"sessionId":{{json (.Label "tale.session")}},"organizationId":{{json (.Label "tale.org")}},"state":{{json .State}}}',
+          `{"sessionId":{{json (.Label "tale.session")}},"organizationId":{{json (.Label "tale.org")}},"state":{{json .State}},"instance":{{json (.Label "${SESSION_INSTANCE_LABEL}")}}}`,
         ],
         { timeoutMs: 5_000, stdoutMaxBytes: 1_048_576 },
       ).then(commandOutput),
@@ -343,7 +368,7 @@ export class CapacityReader {
     if (inventory.status === 'rejected') throw inventory.reason;
     return {
       observedAt: this.now(),
-      sessions: parseDockerSessions(inventory.value),
+      sessions: parseDockerSessions(inventory.value, this.cfg.instance),
       resources:
         resources.status === 'fulfilled'
           ? resources.value

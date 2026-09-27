@@ -21,6 +21,9 @@ import {
 } from './k8s-backend.ts';
 
 const cfg: SpawnerConfig = {
+  instance: '',
+  hub: null,
+  deviceConfigPath: null,
   backend: 'kubernetes',
   port: 8003,
   sandboxToken: 'test',

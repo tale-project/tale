@@ -38,6 +38,33 @@ export function isSessionWorkspaceDirName(name: string): boolean {
 }
 
 /**
+ * Label naming the spawner instance a session belongs to. The deployment's
+ * spawner has no instance (the label is absent); a connected device's
+ * spawner runs as `device`. Every inventory a spawner acts on (re-adoption,
+ * capacity) is scoped by it, so two spawners sharing one Docker daemon — a
+ * developer's machine connected as a device while it also runs Tale — never
+ * adopt, count or reap each other's sessions.
+ */
+export const SESSION_INSTANCE_LABEL = 'tale.sandbox-instance';
+
+/** `docker ps` filter selecting an instance's sessions. Docker cannot filter
+ * on a label's ABSENCE, so the default instance (empty) filters nothing here
+ * and drops labelled rows itself ({@link belongsToInstance}). */
+export function sessionInstanceFilter(instance: string): string[] {
+  return instance === ''
+    ? []
+    : ['--filter', `label=${SESSION_INSTANCE_LABEL}=${instance}`];
+}
+
+/** Does a container whose instance label reads `label` belong to `instance`? */
+export function belongsToInstance(
+  label: string | null | undefined,
+  instance: string,
+): boolean {
+  return (label ?? '') === instance;
+}
+
+/**
  * Per-session runnerd token. HMAC-SHA256(SANDBOX_TOKEN, "runnerd-v1:" +
  * sessionId): derivable by any replica, stored nowhere, and one-way — a
  * compromised session learns only its own token, not the platform secret or

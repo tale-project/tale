@@ -193,6 +193,13 @@ export interface SessionBackend {
    * (Kubernetes) or when the cache is disabled.
    */
   reconcileBuildCache(orgIds: readonly string[]): Promise<void>;
+  /**
+   * Does this backend hold a workspace for the session — a running container
+   * or a stopped one's preserved data? The device hub asks before placing a
+   * session on a device: a session that already lives here stays here.
+   * Absent on backends the hub never runs beside (Kubernetes).
+   */
+  hasWorkspace?(sessionId: string): Promise<boolean>;
 }
 
 export type { SpawnerConfig };

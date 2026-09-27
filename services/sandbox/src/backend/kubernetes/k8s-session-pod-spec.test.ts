@@ -15,6 +15,9 @@ import {
 } from './k8s-session-pod-spec.ts';
 
 const cfg: SpawnerConfig = {
+  instance: '',
+  hub: null,
+  deviceConfigPath: null,
   backend: 'kubernetes',
   port: 8003,
   sandboxToken: 'test',

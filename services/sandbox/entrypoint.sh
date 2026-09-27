@@ -12,6 +12,14 @@
 
 set -e
 
+# `device-apply <config.json> [--version <release>]` lays out a connected
+# device's containers (src/devices/apply-cli.ts) — run by `tale sandbox
+# connect` and by a device's own spawner when it follows a server update.
+if [ "${1:-}" = "device-apply" ]; then
+  shift
+  exec bun src/devices/apply-cli.ts "$@"
+fi
+
 if [ "$#" -gt 0 ]; then
   exec "$@"
 fi

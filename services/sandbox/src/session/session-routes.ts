@@ -122,6 +122,11 @@ export class SessionRoutes {
     return new Map(this.creating);
   }
 
+  /** Does this spawner hold the session right now (live, or mid-create)? */
+  holds(sessionId: string): boolean {
+    return this.registry.has(sessionId) || this.creating.has(sessionId);
+  }
+
   /** Live session ids — the deploy reads these from `/v1/drain-status` to decide
    * whether to LINGER this spawner (keep it serving its sessions) rather than
    * tear it down during an in-place roll. */

@@ -21,7 +21,10 @@ import {
 } from '../runtime-tier.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
-import { sessionContainerName } from './session-naming.ts';
+import {
+  SESSION_INSTANCE_LABEL,
+  sessionContainerName,
+} from './session-naming.ts';
 import { sessionDindEnabled } from './session-profile.ts';
 
 interface DockerSessionRunInput {
@@ -366,6 +369,9 @@ export function buildDockerSessionRunArgs(
     // metadata read on boot.
     '--label',
     'tale.sandbox-session=1',
+    ...(cfg.instance === ''
+      ? []
+      : ['--label', `${SESSION_INSTANCE_LABEL}=${cfg.instance}`]),
     '--label',
     `tale.session=${inp.sessionId}`,
     '--label',
