@@ -161,4 +161,52 @@ describe('useSessionLapseRedirect', () => {
     expect(h.getSession).toHaveBeenCalledTimes(1);
     expect(page.href).not.toContain('/log-in');
   });
+
+  // A reload, a typed address or a sign-out's own hard navigation (the idle
+  // watchdog's `?reason=idle`) is already taking the tab somewhere; a redirect
+  // now would cancel it.
+  it('leaves a navigation already under way alone', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    h.getSession.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    renderHook(() => useSessionLapseRedirect(true));
+
+    await requestAfterTheSessionEnded();
+    window.dispatchEvent(new Event('beforeunload'));
+    answer({ data: null, error: null });
+    await settle();
+
+    expect(h.getSession).toHaveBeenCalledTimes(1);
+    expect(page.href).not.toContain('/log-in');
+  });
+
+  it('starts no re-check while the document unloads', async () => {
+    renderHook(() => useSessionLapseRedirect(true));
+
+    window.dispatchEvent(new Event('beforeunload'));
+    await requestAfterTheSessionEnded();
+    await settle();
+
+    expect(h.getSession).not.toHaveBeenCalled();
+  });
+
+  // The unsaved-changes prompt can call a leave off; the tab then stays, and
+  // a later lapsed-session answer still leads to sign-in.
+  it('redirects again once a leave that was called off is past', async () => {
+    const realNow = Date.now.bind(Date);
+    let later = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() => realNow() + later);
+    h.getSession.mockResolvedValue({ data: null, error: null });
+    renderHook(() => useSessionLapseRedirect(true));
+
+    window.dispatchEvent(new Event('beforeunload'));
+    later = 10_001;
+    await requestAfterTheSessionEnded();
+
+    await waitFor(() => expect(page.href).toBe(SIGN_IN));
+  });
 });

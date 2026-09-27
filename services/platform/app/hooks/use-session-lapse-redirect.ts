@@ -4,6 +4,9 @@ import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
 import { onSessionLapsed } from '@/app/lib/auth/session-lapse';
 import { authClient } from '@/lib/auth-client';
 
+/** How long after the document began to unload redirects stay off. */
+const LEAVING_MS = 10_000;
+
 /**
  * Take a signed-in tab to sign-in once a backend answer says its session has
  * ended (signed out in another tab, expired, revoked), the way the dashboard
@@ -19,6 +22,12 @@ import { authClient } from '@/lib/auth-client';
  * lapsed-session answer checks again; answers that land while a check runs
  * share it.
  *
+ * A document that has begun to unload is left alone: the navigation under
+ * way (a reload, a typed address, a sign-out's own hard navigation to its
+ * notice) is someone's deliberate step, and a redirect now would cancel it.
+ * A leave that the unsaved-changes prompt called off lets redirects back in
+ * after {@link LEAVING_MS}.
+ *
  * `enabled` is the dashboard's own verdict that the tab is signed in: while
  * its probe says otherwise, that lane is the one re-checking and redirecting.
  */
@@ -27,17 +36,27 @@ export function useSessionLapseRedirect(enabled: boolean): void {
     if (!enabled) return undefined;
     let active = true;
     let checking = false;
+    let leftAt: number | undefined;
+    const onLeave = (): void => {
+      leftAt = Date.now();
+    };
+    const leaving = (): boolean =>
+      leftAt !== undefined && Date.now() - leftAt < LEAVING_MS;
+    // TanStack's browser history already listens for `beforeunload` for the
+    // app's lifetime, so this adds no back/forward-cache cost.
+    window.addEventListener('beforeunload', onLeave);
     const unsubscribe = onSessionLapsed(() => {
-      if (checking) return;
+      if (checking || leaving()) return;
       checking = true;
       void sessionIsGone().then((gone) => {
         checking = false;
-        if (gone && active) redirectToLogIn('session-ended');
+        if (gone && active && !leaving()) redirectToLogIn('session-ended');
       });
     });
     return () => {
       active = false;
       unsubscribe();
+      window.removeEventListener('beforeunload', onLeave);
     };
   }, [enabled]);
 }
