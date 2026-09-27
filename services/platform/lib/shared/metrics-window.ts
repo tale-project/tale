@@ -20,7 +20,7 @@ export function utcDateKey(ts: number): string {
 }
 
 /** Start of the UTC day containing `ts`. */
-function utcDayStart(ts: number): number {
+export function utcDayStart(ts: number): number {
   const d = new Date(ts);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }

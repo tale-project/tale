@@ -64,6 +64,7 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
@@ -54010,6 +54011,10 @@ async function main(): Promise<void> {
       [
         'checkTaskExternalIssueSync',
         () => checkTaskExternalIssueSync(sql, authCtx, record),
+      ],
+      [
+        'checkProjectTaskMetrics',
+        () => checkProjectTaskMetrics(sql, authCtx, record),
       ],
       [
         'checkSteerFallbackRecovery',

@@ -7302,10 +7302,14 @@ tasks:
     title: Projekt-Metriken
     description: Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.
     cappedNotice:
-      Einige Tage haben das Scan-Limit des Rollups erreicht — die Summen
-      in diesem Zeitraum können zu niedrig ausfallen.
+      Es werden die letzten 5.000 Zeilen jeder Quelle in diesem Zeitraum
+      gezeigt — ältere Aktivität im Zeitraum wird nicht gezählt.
     noData: Keine Daten
-    noDataDescription: Metriken erscheinen nach dem ersten täglichen Rollup.
+    noFlowDescription: An keinem Tagesende dieses Zeitraums war eine Aufgabe offen.
+    noThroughputDescription: In diesem Zeitraum wurde keine Aufgabe erstellt oder abgeschlossen.
+    noCycleTimeDescription: In diesem Zeitraum ging keine Aufgabe von In Bearbeitung zu Erledigt.
+    noCompletionsDescription: In diesem Zeitraum wurde keine Aufgabe abgeschlossen.
+    noCostDescription: In diesem Zeitraum ist kein Agentenlauf gestartet.
     completed: Abgeschlossen ({days} T.)
     completedDetail: '{agent} durch Agenten · {human} durch Menschen'
     cycleTime: Ø Durchlaufzeit

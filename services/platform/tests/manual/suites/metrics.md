@@ -135,8 +135,13 @@ rollups**, so figures may legitimately lag same-day activity.
   **Completed / Avg cycle time / Intervention rate / Spend**
   (`tasks.metrics.completed` / `…cycleTime` / `…intervention` / `…cost`)
   render with the charts (cumulative flow, throughput, cycle-time trend, agent
-  vs. human, daily spend); pre-rollup data shows `tasks.metrics.noData` — the
-  pick lands in `?project=` and survives reload.
+  vs. human, daily spend) from the project's own rows — after a task round
+  ([projects.md](projects.md): file a task, move it to In progress, then to
+  Done) **Completed** reads `1`, the throughput bars carry the day, and the
+  cumulative flow shows the open tasks per status at each day's end; a
+  project with no task activity in the period shows `tasks.metrics.noData`
+  on every chart, and every KPI card reads zero — never a dash for a count.
+  The pick lands in `?project=` and survives reload.
 - [ ] `MET-F10` · **Shared period filter** — On any tab open **Filter** →
   **Period** (`metrics.period.label`) → switch between e.g. **Last 7 days**
   and **Last 30 days** (`metrics.period.last7Days` / `…last30Days`) → The pick
