@@ -389,7 +389,9 @@ async function checkSendFailure(
   expect(sent).toHaveBeenLastCalledWith(
     expect.objectContaining({
       ...(body
-        ? { sourceMarkdown: JSON.parse(bodyBefore ?? '""') }
+        ? // These fixtures are plain paragraphs. The live serializer closes a
+          // paragraph with a newline even when its persisted Undo seed did not.
+          { content: `<p>${body}</p>`, sourceMarkdown: `${body}\n` }
         : { content: '' }),
       attachments: [
         ...restoredAttachments,

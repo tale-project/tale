@@ -20,20 +20,26 @@ let persistedSeed = 'some content';
 // re-render of the markdown state.
 const MOCK_EDITOR_HTML =
   '<p>hello</p><p></p><p><a href="https://example.com">link</a></p>';
+let liveMarkdown = 'current editor content';
+let liveHtml = MOCK_EDITOR_HTML;
 
 vi.mock('@milkdown/crepe', () => {
   class MockCrepe {
     static Feature = { Placeholder: 'placeholder' };
     on() {}
     get editor() {
-      return { action: () => MOCK_EDITOR_HTML, config: vi.fn() };
+      return {
+        action: (action: (ctx: undefined) => unknown) => action(undefined),
+        config: vi.fn(),
+      };
     }
   }
   return { Crepe: MockCrepe };
 });
 
 vi.mock('@milkdown/kit/utils', () => ({
-  getHTML: () => () => '',
+  getHTML: () => () => liveHtml,
+  getMarkdown: () => () => liveMarkdown,
 }));
 
 vi.mock('@milkdown/react', () => ({
@@ -134,6 +140,8 @@ describe('MessageEditor', () => {
     capturedOnFileAttach = null;
     listedFiles = [];
     persistedSeed = 'some content';
+    liveMarkdown = 'current editor content';
+    liveHtml = MOCK_EDITOR_HTML;
     window.localStorage.clear();
   });
 
@@ -177,7 +185,7 @@ describe('MessageEditor', () => {
     expect(onSave).toHaveBeenCalledWith(
       '<p>hello</p><p></p><p><a href="https://example.com" target="_blank" rel="noopener noreferrer">link</a></p>',
       [],
-      'some content',
+      'current editor content',
     );
   });
 
@@ -185,6 +193,8 @@ describe('MessageEditor', () => {
   // hands over is the file with an empty body and no draft to restore.
   it('hands a file with no text over as an attachment-only send', async () => {
     persistedSeed = '';
+    liveMarkdown = '';
+    liveHtml = '<p></p>';
     vi.mocked(toast).mockClear();
     const onSave = vi.fn().mockResolvedValue(undefined);
     const attached: AttachedFile = {
@@ -208,6 +218,8 @@ describe('MessageEditor', () => {
 
   it('sends nothing with neither text nor a file', async () => {
     persistedSeed = '';
+    liveMarkdown = '';
+    liveHtml = '<p></p>';
     const onSave = vi.fn().mockResolvedValue(undefined);
 
     render(<MessageEditor onSave={onSave} organizationId="org_test" />);
@@ -301,6 +313,8 @@ describe('MessageEditor', () => {
     });
 
     it('comes back with its text and its files, and re-sends both', async () => {
+      liveMarkdown = 'The invoice is attached.';
+      liveHtml = '<p>The invoice is attached.</p>';
       const onSave = vi.fn().mockResolvedValue(undefined);
 
       render(
@@ -322,7 +336,7 @@ describe('MessageEditor', () => {
       });
 
       expect(onSave).toHaveBeenCalledWith(
-        expect.any(String),
+        '<p>The invoice is attached.</p>',
         [invoice],
         'The invoice is attached.',
       );
@@ -330,6 +344,8 @@ describe('MessageEditor', () => {
 
     it('comes back with its files alone when the send carried no text', async () => {
       persistedSeed = '';
+      liveMarkdown = '';
+      liveHtml = '<p></p>';
       const onSave = vi.fn().mockResolvedValue(undefined);
 
       render(
