@@ -1,6 +1,6 @@
 # Approvals
 
-> **Prefix** `APV-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `APV-` · **Reset** none · **Cost** 21 boxes
 
 Exercise the cross-cutting human-in-the-loop surface — every place a run or
 agent parks for a human decision and what that decision does downstream. After

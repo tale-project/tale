@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 82 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 84 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -417,7 +417,7 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   project and status and quotes the key `DOCS-12` back; it never answers that
   no task carries that ID, and never presents the internal reference as the
   task's ID.
-- [ ] `CHAT-F47` · **The losing Arena column goes to Trash** — Copy the
+- [ ] `CHAT-F48` · **The losing Arena column goes to Trash** — Copy the
   chat's URL, run an arena round (CHAT-F24) and pick **B is better**
   (`chat.arena.bBetter`) → The chat continues under a new URL; opening the
   copied URL shows **This chat is not available** (`chat.notFound`) with

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 70 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -439,7 +439,7 @@ output:
       `61 * * * *`, then `0 0 31 2 *`, then `*/1 * * *` → each shows the
       refusal under the field (`automations.trigger.cronInvalidReason`) and
       **Create automation** is disabled with that reason — no automation is
-      created (the list is unchanged, no `blank.triggerFailed` toast).
+      created (the list is unchanged, no `automations.blank.triggerFailed` toast).
 - [ ] `AUTO-F42` · **Blank wizard keeps the typed name** — **Blank** wizard,
       Name `Eval-D agent 测试 🚀` → the field reads `Saved as: eval-d-agent`
       (`automations.blank.slugHint`); after **Create automation** the editor

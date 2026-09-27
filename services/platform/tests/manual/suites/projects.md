@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 41 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 46 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -294,7 +294,7 @@ projects-list row ⋯ menu.
   request and click **Try again** → the rows appear without navigating away;
   alternatively switch tabs and back → the list refetches on its own.
 
-- [ ] `PROJ-F27` · **Icon and color on create and on General** — **Create
+- [ ] `PROJ-F29` · **Icon and color on create and on General** — **Create
   project** → **Icon and color** (`projects.identity.label`) → **Change icon
   and color** (`projects.identity.trigger`) → pick a color and an icon →
   create; then on the project's **General** page the same row → pick another
@@ -307,7 +307,7 @@ projects-list row ⋯ menu.
   pair, **Save** flashes **Saved** and the list/sidebar follow; a project
   never touched keeps the gray folder.
 
-- [ ] `PROJ-F28` · **Deleting an agent unassigns its tasks** — Agents tab →
+- [ ] `PROJ-F30` · **Deleting an agent unassigns its tasks** — Agents tab →
   create an agent, assign it two tasks and start one so a run exists (it
   may fail); then row menu → **Delete agent** → confirm → Both tasks read
   **Unassigned** in the Assignee field and on their cards (never the raw

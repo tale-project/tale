@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 74 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 83 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -592,7 +592,7 @@ any toggled setting after the run.
   Sandboxes → The row's **Workspace** column reads **Deleted agent**
   (`sandboxes.deletedAgent`), never the owner id; the row's menu still
   offers **Destroy**, and after destroying it the row is gone.
-- [ ] `SET-F48` · **One team name per organization** —
+- [ ] `SET-F55` · **One team name per organization** —
   `/dashboard/{org}/settings/teams` with a team named `Finance` →
   **Create team** (`settings.teams.createTeam`) → **Team name**
   (`settings.teams.teamName`) `finance ` (other case, trailing space) →

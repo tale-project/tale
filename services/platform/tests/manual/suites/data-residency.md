@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 21 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 22 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**

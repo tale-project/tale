@@ -1,6 +1,6 @@
 # Metrics
 
-> **Prefix** `MET-` · **Reset** none · **Cost** 17 boxes
+> **Prefix** `MET-` · **Reset** none · **Cost** 19 boxes
 
 Exercise the org metrics section under Settings — six tabs (Usage, Feedback,
 Chat health, Harness turns, Automations, Projects), each with the shared

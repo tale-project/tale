@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 45 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 46 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
