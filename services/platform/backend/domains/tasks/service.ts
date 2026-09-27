@@ -3100,9 +3100,17 @@ async function fanOutDescriptionMentions(
     previousDescription?: string;
   },
 ): Promise<void> {
-  // Most descriptions name nobody: the token pre-check keeps the directory
-  // build (an org-wide member scan) off the common path.
-  if (parseMentionTokens(args.description).length === 0) return;
+  // Most descriptions name nobody, and most edits add no `@token`: the token
+  // pre-check keeps the directory build (an org-wide member scan, and more
+  // reads for a SERIALIZABLE save to conflict on) off both. Resolution maps
+  // each token on its own, so a text whose tokens the replaced text already
+  // had resolves to nobody new — the answer a build would give.
+  const tokens = parseMentionTokens(args.description);
+  if (tokens.length === 0) return;
+  if (args.previousDescription !== undefined) {
+    const before = new Set(parseMentionTokens(args.previousDescription));
+    if (tokens.every((token) => before.has(token))) return;
+  }
   const { added } = await resolveSurfaceMentions(tx, {
     organizationId: auth.organizationId,
     projectId: args.project.id,

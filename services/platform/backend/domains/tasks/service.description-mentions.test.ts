@@ -489,7 +489,28 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
     expect(kickAgentRun).not.toHaveBeenCalled();
   });
 
-  it('fires nothing again for mentions the description already made', async () => {
+  it('builds no directory for an edit that adds no @token', async () => {
+    const { tx, statements } = fakeTx(
+      taskRow({ description: '@ada and @writer: draft it' }),
+    );
+
+    await updateTask(tx, auth, {
+      taskId: 't-1',
+      // Reworded, reordered, one token dropped: nothing the old text lacked.
+      description: 'By Friday, @WRITER: draft it',
+    });
+
+    expect(resolveSurfaceMentions).not.toHaveBeenCalled();
+    expect(notifyTaskMentions).not.toHaveBeenCalled();
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(
+      statements.some((statement) =>
+        statement.text.includes('FROM app.project_agent_runs'),
+      ),
+    ).toBe(false);
+  });
+
+  it('fires nothing again for a new handle of someone already named', async () => {
     resolvesTo([ADA, WRITER_MENTION], []);
     const { tx, statements } = fakeTx(
       taskRow({ description: '@ada and @writer: draft it' }),
@@ -497,7 +518,7 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
 
     await updateTask(tx, auth, {
       taskId: 't-1',
-      description: '@ada and @writer: draft it by Friday',
+      description: '@ada.lovelace and @writer: draft it by Friday',
     });
 
     expect(resolveSurfaceMentions).toHaveBeenCalledTimes(1);
