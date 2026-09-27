@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 
 import { useBackendClient } from '@/app/hooks/use-backend-client';
-import { AppError } from '@/lib/shared/errors/app-error';
+import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 
 export {
   PRODUCT_IMAGE_MAX_BYTES,
@@ -32,17 +32,7 @@ export function useProductImageUpload() {
           // The door names its refusal (`PRODUCT_IMAGE_ACTIVE_CONTENT`,
           // `PRODUCT_IMAGE_INVALID`, `FILE_SIZE_INVALID`); carry the code so
           // the field can say why instead of "try again".
-          const body: unknown = await res.json().catch(() => null);
-          const field = (name: string): string | undefined => {
-            if (body === null || typeof body !== 'object') return undefined;
-            const value = Reflect.get(body, name);
-            return typeof value === 'string' ? value : undefined;
-          };
-          throw new AppError({
-            code: field('error') ?? `HTTP_${res.status}`,
-            message:
-              field('message') ?? `Upload failed with status ${res.status}`,
-          });
+          throw await backendErrorFromResponse(res);
         }
         const { imageUrl } = await res.json();
         if (typeof imageUrl !== 'string' || !imageUrl.startsWith('/')) {

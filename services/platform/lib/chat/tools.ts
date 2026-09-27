@@ -212,10 +212,10 @@ const RAG_FETCH_SCHEMA = object(
     ref: {
       type: 'string',
       description:
-        'What to load: a document file id, a crawled website page URL, or a ' +
-        'task ref (a "task:" value a rag_search hit carried), ' +
-        'exactly as a rag_search result or the attached-documents list ' +
-        'gave it.',
+        'What to load: a document file id, a crawled website page URL, an ' +
+        'email ref (a "msg:" value a conversation row carried), or a task ' +
+        'ref (a "task:" value a rag_search hit carried), exactly as a ' +
+        'rag_search result or the attached-documents list gave it.',
     },
     offset: {
       type: 'integer',
@@ -270,7 +270,8 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_search:
     "Search or list the organization's own knowledge AND its work: uploaded " +
     'documents, knowledge entries, crawled website pages, products, ' +
-    'contacts, websites, tasks and projects, and inbox conversations. The ' +
+    'contacts, websites, tasks and projects, and inbox conversations — the ' +
+    'text of the emails they received included. The ' +
     'scope is decided by where the chat lives: a project chat reaches its ' +
     "project's files and tasks plus the organization's shared knowledge " +
     '(other projects are out of scope); the organization chat reaches the ' +
@@ -297,7 +298,11 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'orders hits within one response only. ' +
     'Document, web-page and task rows carry a "ref" for rag_fetch; contact, ' +
     'product, knowledge-entry, website and project rows carry their content ' +
-    'inline and cannot be fetched. A "snippet" that ends in "…(+N chars)" ' +
+    'inline and cannot be fetched. A conversation row that an email matched ' +
+    'carries the matching passage as its "snippet" and a "ref" that ' +
+    'rag_fetch reads the whole email by; cite the conversation by its title. ' +
+    'Other conversation rows carry their details inline. ' +
+    'A "snippet" that ends in "…(+N chars)" ' +
     'is cut: when what you need is not in it, rag_fetch the ref at the ' +
     'hit\'s "offset" before answering that the source does not hold it. ' +
     'Never present one page of a list as the ' +
@@ -310,7 +315,9 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_fetch:
     'Load the full detail behind a "ref": a document file id (from a ' +
     'rag_search hit or the attached-documents list), a crawled website page ' +
-    "URL, a task ref, or a project ref. A task ref returns that task's full " +
+    'URL, an email ref (from a conversation row an email matched — it ' +
+    "returns that email's whole text), a task ref, or a project ref. A task " +
+    "ref returns that task's full " +
     'description plus its comments, subtasks and blockers — use it when a ' +
     'question needs more than the title and status a search hit already ' +
     "carried. A project ref returns that project's tasks, which is how you " +

@@ -15,6 +15,7 @@ import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
   registerLiveStream,
@@ -412,7 +413,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/threads', async (c) => {
     const body = createThreadSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const { organizationId, userId } = caller(c);
     try {
@@ -748,7 +749,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ editedMessageId: z.string().min(1).max(128) })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const { organizationId, userId } = caller(c);
     // The fork is the first half of a turn: a cap already reached refuses it
     // HERE, so a send that cannot start leaves no sibling behind and no
@@ -780,7 +781,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ assistantMessageId: z.string().min(1).max(128) })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const { organizationId, userId } = caller(c);
     // The same early answer as the edit fork: refused before anything forks.
     const refused = await refuseWhenOverBudget(c, deps.sql, {
@@ -975,7 +976,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         locale: z.string().max(20).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const { organizationId, userId } = caller(c);
     // A parked send fires later, but a cap already reached refuses it now —
     // the sender learns at once, not after the attachments finish. The
@@ -1318,7 +1319,8 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/threads/:threadId/messages', async (c) => {
     const body = sendSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      // The composer toasts the sentence: which field, and why.
+      return invalidBodyResponse(c, body.error);
     }
     const { organizationId, userId } = caller(c);
     const thread = await ownedThread(

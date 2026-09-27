@@ -33,7 +33,7 @@ The project’s **Knowledge** tab holds files that its chats can retrieve. Uploa
 
 An integration can upload a file without indexing it. Such a file is still visible in the tree; a supported plain-text file can be read directly when named, but it will not appear in text search until indexed.
 
-Per-file and storage limits may be restricted further by organization policy. When an upload fails, first try a small supported file. An admin can check [Policies and limits](/platform/admin/governance/policies-and-limits), storage, and the embedding model.
+When not every file arrives, the upload report lists the rest with a reason: **Skipped** files failed the type or size check before uploading, and **Not added** files were refused by Tale, which says why. Per-file and storage limits may be restricted further by organization policy. When an upload fails, first try a small supported file. An admin can check [Policies and limits](/platform/admin/governance/policies-and-limits), storage, and the embedding model.
 
 ## Ask about the files from a project chat
 

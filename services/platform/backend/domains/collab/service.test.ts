@@ -8,6 +8,8 @@ import type { CollabNotificationInput } from './service.ts';
 import {
   dismissReviewRequestNotifications,
   markAllNotificationsRead,
+  notifyTaskComment,
+  notifyTaskMentions,
   notifyTaskReviewerAssigned,
   writeCoalescedNotification,
 } from './service.ts';
@@ -355,5 +357,101 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned)', () => {
     });
     expect(calls).toEqual([]);
     expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+  });
+});
+
+describe('the mention bell, per surface', () => {
+  const task = {
+    id: 'task-1',
+    organizationId: 'org-1',
+    projectId: 'proj-1',
+    title: 'Ship the brief',
+  };
+  const answer = (text: string): Row[] => {
+    if (text.startsWith('SELECT "name", "email" FROM "user"')) {
+      return [{ name: 'Ada', email: 'ada@example.com' }];
+    }
+    if (text.startsWith('INSERT INTO app.user_notifications')) {
+      return [{ id: 'n-mention' }];
+    }
+    return [];
+  };
+  const inserts = (
+    calls: { text: string; values: unknown[] }[],
+    table: string,
+  ) => calls.filter((call) => call.text.startsWith(`INSERT INTO ${table}`));
+
+  it('a description names the humans on the task itself — never the actor, never an agent', async () => {
+    const { db, calls } = fakeDb(answer);
+    await notifyTaskMentions(db, {
+      task,
+      mentions: [
+        { type: 'user', id: 'u-recipient' },
+        { type: 'agent', id: 'agent-1' },
+        { type: 'user', id: 'u-actor' },
+        { type: 'automation', id: 'triage' },
+      ],
+      actorType: 'user',
+      actorId: 'u-actor',
+    });
+
+    // The named teammate starts following the task, as a comment mention
+    // would make them.
+    expect(
+      inserts(calls, 'app.task_subscriptions').map((call) =>
+        call.values.slice(0, 5),
+      ),
+    ).toEqual([['org-1', 'task-1', 'user', 'u-recipient', 'mention']]);
+    const bells = inserts(calls, 'app.user_notifications');
+    expect(bells).toHaveLength(1);
+    // No comment carries the mention, so the row points at the task.
+    expect(bells[0]?.values).toEqual(
+      expect.arrayContaining([
+        'u-recipient',
+        'mention',
+        'mentionByBody',
+        'task',
+        'task-1',
+        'u-actor',
+      ]),
+    );
+    expect(bells[0]?.values).toContainEqual({
+      title: 'Ship the brief',
+      projectId: 'proj-1',
+      actor: 'Ada',
+    });
+    // A description edit is not a new comment: the watchers are not told.
+    expect(
+      calls.some((call) => call.text.startsWith('SELECT subscriber_id')),
+    ).toBe(false);
+  });
+
+  it('a description naming no human writes nothing', async () => {
+    const { db, calls } = fakeDb(answer);
+    await notifyTaskMentions(db, {
+      task,
+      mentions: [{ type: 'agent', id: 'agent-1' }],
+      actorType: 'user',
+      actorId: 'u-actor',
+    });
+    expect(calls).toEqual([]);
+    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+  });
+
+  it('a comment still points its mention row at the comment', async () => {
+    const { db, calls } = fakeDb(answer);
+    await notifyTaskComment(db, {
+      task,
+      commentId: 'msg-1',
+      mentions: [{ type: 'user', id: 'u-recipient' }],
+      actorType: 'user',
+      actorId: 'u-actor',
+      notifySubscribers: false,
+    });
+    const bells = inserts(calls, 'app.user_notifications');
+    expect(bells).toHaveLength(1);
+    expect(bells[0]?.values).toEqual(
+      expect.arrayContaining(['u-recipient', 'mention', 'comment', 'msg-1']),
+    );
   });
 });

@@ -9,6 +9,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
+import { TASK_TITLE_MAX } from '../../tasks/helpers';
 
 const searchKnowledgeMock = vi.fn();
 vi.mock('../../knowledge/search', () => ({
@@ -901,6 +902,66 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     expect(mArgs.priority).toBe('p1');
   });
 
+  it('task_create refuses an over-long title before any read or write, naming the limit', async () => {
+    const createMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ taskId: 'task_99' }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx, readQuery } = createCtx({
+      actionContext: PROJECT_CTX,
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentCreateTask')
+          ? createMutation(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: {
+        title: 'x'.repeat(TASK_TITLE_MAX + 1),
+        parentTaskId: 'task_1',
+      },
+    });
+    expect(result.status).toBe('invalid_args');
+    // The model is told the limit and how far over it is, not the domain's
+    // bare TASK_TITLE_INVALID.
+    const message = (result as { message: string }).message;
+    expect(message).toContain(`capped at ${TASK_TITLE_MAX} characters`);
+    expect(message).toContain(`has ${TASK_TITLE_MAX + 1}`);
+    expect(message).not.toContain('TASK_TITLE_INVALID');
+    // Refused on the argument alone: neither the parent's scope read nor the
+    // domain mutation ran.
+    expect(readQuery).not.toHaveBeenCalled();
+    expect(createMutation).not.toHaveBeenCalled();
+  });
+
+  it('task_create passes a title of exactly the limit, measured trimmed, to the domain', async () => {
+    const createMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ taskId: 'task_99' }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: PROJECT_CTX,
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentCreateTask')
+          ? createMutation(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    const title = 'x'.repeat(TASK_TITLE_MAX);
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      // Surrounding whitespace does not count: the domain's validateTitle
+      // measures the trimmed title too, so the tool refuses nothing it takes.
+      callArgs: { title: `  ${title}\n` },
+    });
+    expect(result.status).toBe('ok');
+    const mArgs = createMutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mArgs.title).toBe(title);
+  });
+
   it('task_get on a bound run refuses a foreign-project task as not_found', async () => {
     const { dispatch } = await getActions();
     // getTaskByIdInternal (the scope check) resolves a task in another project.
@@ -1573,6 +1634,15 @@ describe('workspaceToolStatusImpl', () => {
     expect(byName.get('task_find')).toBe(true);
     expect(byName.get('task_create')).toBe(false);
     expect(byName.get('document_create')).toBe(false);
+  });
+
+  it('states the title limit in the task_create signature', async () => {
+    const { status } = await getActions();
+    const result = status(['task_create']);
+    const [tool] = result.tools as { name: string; description: string }[];
+    expect(tool?.description).toContain(
+      `title: string (≤ ${TASK_TITLE_MAX} characters)`,
+    );
   });
 
   it('says plainly when nothing is granted', async () => {

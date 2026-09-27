@@ -34,6 +34,13 @@
  *     Trashed file rows (a WebDAV overwrite's strands) and refs with no row
  *     at all are never retrievable.
  *
+ * An email MESSAGE ref (`msg:`, `lib/knowledge/message-ref.ts`) has no
+ * document and no file row; `decideMessageRetrievable` decides it by the
+ * message's conversation, on the same assignment privacy as an emailed
+ * attachment — and only for a door that asked for message bodies, because a
+ * body is text an outsider wrote and only a door that labels and wraps it as
+ * untrusted may serve it.
+ *
  * A folder filter narrows further, from the CURRENT folder of each document
  * (the corpus row's stamp is a copy that can lag a move): only a document
  * filed in that folder or beneath it admits, and an unbound file — filed
@@ -48,6 +55,13 @@ export interface AccessScopeArg {
   projectIds?: string[];
   includeHub?: boolean;
   includeConversationScoped?: boolean;
+  /**
+   * Whether indexed email bodies (`msg:` refs) may be admitted. Only a door
+   * that labels a body as mail and wraps it as untrusted sets it — the chat
+   * assistant's tools; absent, no message ref is ever admitted, whatever the
+   * caller may read in the Inbox.
+   */
+  includeConversationMessages?: boolean;
   threadIds?: string[];
   /**
    * Conversations this caller may read, already decided by
@@ -159,4 +173,45 @@ export function decideRetrievable(
     continue;
   }
   return false;
+}
+
+/** The inbound email a `msg:` ref names, read with the conversation it
+ * arrived on — the only scope a message has. */
+export interface MessageCandidate {
+  conversationId: string;
+  /** The conversation's lifecycle: a message of a trashed or expired
+   * conversation is dark the moment the row flips, like a trashed document,
+   * whatever the purge is still doing. */
+  conversationLifecycleStatus: string | null;
+  /** The conversation's status. `spam` is the organization's own verdict
+   * that the mail is junk — and junk an outsider wrote is not an answer. */
+  conversationStatus: string | null;
+}
+
+/**
+ * Whether an email message's indexed body may be served. `message` is
+ * undefined when no inbound email in this organization holds the id — a
+ * deleted message, a malformed ref, another tenant's id — and that denies.
+ *
+ * Stricter than the attachment branch in one respect: a scopeless caller
+ * (`access === undefined`) is refused, not admitted. Nothing that runs
+ * without a person — ingest, purge, the reconcile — reads bodies through
+ * this filter (they ask `liveness.ts`), so the only effect of admitting there
+ * would be a door that never opted in serving mail it does not wrap.
+ */
+export function decideMessageRetrievable(
+  message: MessageCandidate | undefined,
+  access: AccessScopeArg | undefined,
+  /** Canonical folder path; a message is filed nowhere, so any folder
+   * filter excludes it. */
+  folder?: string,
+): boolean {
+  if (message === undefined || folder !== undefined) return false;
+  if (access?.includeConversationMessages !== true) return false;
+  if (access.includeConversationScoped === false) return false;
+  if (!isActiveLifecycle(message.conversationLifecycleStatus)) return false;
+  if (message.conversationStatus === 'spam') return false;
+  // Assignment privacy, decided by `conversationAssignmentAllows` for the
+  // caller before this runs — the set is theirs, never derived here.
+  return (access.conversationIds ?? []).includes(message.conversationId);
 }

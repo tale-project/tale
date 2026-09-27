@@ -8,6 +8,7 @@ import {
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
+import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
@@ -219,6 +220,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         taskId: string;
         authorId: string;
         feedback: string;
+        mentionSource?: MentionSource;
       };
       // The steer arrived after the turn settled: the comment becomes a
       // FRESH mention run instead of vanishing. An unavailable task is a
@@ -268,7 +270,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             ? { modelProvider: agent.modelProvider }
             : {}),
           trigger: 'mention',
-          feedback: args.feedback,
+          // A description kick carries no copy: the run reads the
+          // description as it stands when it starts.
+          ...(args.mentionSource === 'description'
+            ? { mentionSource: 'description' as const }
+            : { feedback: args.feedback, mentionSource: 'comment' as const }),
           startedBy: args.authorId,
         });
         if (result.reused) return result;

@@ -33,7 +33,7 @@ Unter **Wissen** im Projekt liegen Dateien, die dessen Chats abrufen können. La
 
 Eine Integration kann Dateien ohne Indexierung hochladen. Sie bleiben im Dateibaum sichtbar. Eine unterstützte Textdatei lässt sich auf ausdrückliche Nachfrage direkt lesen; in der Textsuche erscheint sie erst nach der Indexierung.
 
-Organisationsregeln können Datei- und Speichergrenzen weiter einschränken. Versuche bei einem fehlgeschlagenen Upload zuerst eine kleine unterstützte Datei. Ein Admin kann [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), Speicher und Embedding-Modell prüfen.
+Kommen nicht alle Dateien an, nennt der Bericht des Uploads die übrigen mit Grund: **Übersprungen** sind Dateien, die schon vor dem Hochladen an der Typ- oder Größenprüfung gescheitert sind. **Nicht hinzugefügt** sind Dateien, die Tale abgelehnt hat. Organisationsregeln können Datei- und Speichergrenzen weiter einschränken. Versuche bei einem fehlgeschlagenen Upload zuerst eine kleine unterstützte Datei. Ein Admin kann [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), Speicher und Embedding-Modell prüfen.
 
 ## Im Projektchat nach Dateien fragen
 

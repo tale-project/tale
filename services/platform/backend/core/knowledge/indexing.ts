@@ -18,7 +18,9 @@
  *  - **Content-hash dedup.** Re-uploading, re-syncing, and retrying are all
  *    normal, and indexing is the expensive part of the system. Unchanged
  *    content is skipped; content already embedded elsewhere in the SAME
- *    organization is copied rather than re-embedded.
+ *    organization is copied rather than re-embedded — except an email body,
+ *    whose chunks carry its mail's subject and sender and so are never
+ *    copied to or from another row.
  *  - **Slices resume.** A large document is committed in slices, and the
  *    committed prefix is the checkpoint: a crash resumes after it instead of
  *    starting over. Preparing the text — the secret scan, the PII policy,
@@ -53,6 +55,10 @@ import {
 } from '../../../lib/knowledge/chunking';
 import { planIngest, sliceToStore } from '../../../lib/knowledge/ingest-plan';
 import { logger } from '../../../lib/knowledge/logger';
+import {
+  isMessageRef,
+  MESSAGE_REF_LIKE_PATTERN,
+} from '../../../lib/knowledge/message-ref';
 import { sanitizeExtractedText } from '../../../lib/knowledge/sanitize-text';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types';
@@ -212,6 +218,9 @@ export type PreparedDocument =
       readonly kind: 'ready';
       /** Hash of the text the chunks were built from — the content's identity. */
       readonly contentHash: string;
+      /** The name the corpus row stores — `filename` under the PII policy,
+       * like the text. */
+      readonly filename: string;
       readonly chunks: readonly ContextualChunk[];
       /** Indexes of the chunks whose text repeats an earlier chunk's: stored
        * without a vector, embedded and searched once through their first
@@ -259,28 +268,37 @@ function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
   // A NUL cannot be stored by the corpus (Postgres `22021`); it is stripped
   // BEFORE the policy and the chunker see the text, so a stray one never
   // fails the chunk INSERT after the embedding was paid for.
+  const policy = args.piiConfig ?? null;
   const decision = applyPiiPolicyForIndexing(
     sanitizeExtractedText(args.text),
-    args.piiConfig ?? null,
+    policy,
   );
-  if (decision.kind === 'refuse') {
+  const names = prepareNames(args, policy);
+  const refusedCategories = [
+    ...(decision.kind === 'refuse' ? decision.categoryIds : []),
+    ...(names.kind === 'refuse' ? names.categoryIds : []),
+  ];
+  if (decision.kind === 'refuse' || names.kind === 'refuse') {
     return {
       kind: 'refused',
       skipped: 'pii-blocked',
-      reason: `Indexing refused by the organization's PII policy (${decision.categoryIds.join(', ')}).`,
+      reason: `Indexing refused by the organization's PII policy (${[...new Set(refusedCategories)].join(', ')}).`,
     };
   }
 
-  const chunks = chunkDocument(decision.text, {
-    title: args.title ?? args.filename,
-  });
+  const chunks = chunkDocument(decision.text, { title: names.header });
   if (chunks.length === 0) return { kind: 'empty' };
 
   // Hashed AFTER the policy, not before. The hash is the content's identity:
   // skip-if-unchanged and the duplicate-clone lookup both key on it. Hashing
   // the raw text would make a policy change invisible — the same file would
-  // read as unchanged and keep its old, less-masked chunks forever.
-  const contentHash = computeContentHash(decision.text);
+  // read as unchanged and keep its old, less-masked chunks forever. A header
+  // the policy rewrote is part of that identity too — or a policy switched
+  // on would leave the raw header in every chunk of a body it found nothing
+  // in; a header it left alone is not, so no stored hash moves for it.
+  const contentHash = computeContentHash(
+    names.headerMasked ? `${names.header}\n\n${decision.text}` : decision.text,
+  );
 
   // One vector per DISTINCT passage of the document: a chunk whose text
   // repeats an earlier chunk's (an export of one line repeated, a templated
@@ -297,7 +315,72 @@ function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
     else firstOfHash.set(hash, chunk.index);
   }
 
-  return { kind: 'ready', contentHash, chunks, repeats };
+  return {
+    kind: 'ready',
+    contentHash,
+    filename: names.filename,
+    chunks,
+    repeats,
+  };
+}
+
+/**
+ * The chunk header and the stored name, under the same PII policy as the
+ * text.
+ *
+ * The header is indexed text: it is prepended to every chunk, so it is
+ * embedded, stored in `chunk_content`, matched by the keyword leg and shown
+ * as the passage a search returns — and the name is what a hit is titled
+ * by. An email body's header names its subject and its sender (`Subject —
+ * from Name <address>`), so a policy that masks addresses in the body and
+ * not in the header would still send every correspondent's address to the
+ * embedding provider. `mask` masks both; `block` refuses the document when
+ * either matches, as it does for the text.
+ */
+function prepareNames(
+  args: PrepareDocumentArgs,
+  policy: PiiConfig | null,
+):
+  | {
+      readonly kind: 'index';
+      readonly header: string;
+      readonly filename: string;
+      /** Whether the policy rewrote the header. */
+      readonly headerMasked: boolean;
+    }
+  | { readonly kind: 'refuse'; readonly categoryIds: readonly string[] } {
+  const header = args.title ?? args.filename;
+  // No policy, nothing to scrub — and no scan paid for twice.
+  if (policy === null) {
+    return {
+      kind: 'index',
+      header,
+      filename: args.filename,
+      headerMasked: false,
+    };
+  }
+  const headerDecision = applyPiiPolicyForIndexing(header, policy);
+  const filenameDecision =
+    args.title === undefined
+      ? headerDecision
+      : applyPiiPolicyForIndexing(args.filename, policy);
+  if (headerDecision.kind === 'refuse' || filenameDecision.kind === 'refuse') {
+    return {
+      kind: 'refuse',
+      categoryIds: [
+        ...(headerDecision.kind === 'refuse' ? headerDecision.categoryIds : []),
+        ...(filenameDecision.kind === 'refuse'
+          ? filenameDecision.categoryIds
+          : []),
+      ],
+    };
+  }
+  return {
+    kind: 'index',
+    header: headerDecision.text,
+    filename: filenameDecision.text,
+    headerMasked: headerDecision.text !== header,
+  };
 }
 
 /**
@@ -353,12 +436,12 @@ export async function indexDocument(
     );
     return released(args.fileId, chunks.length);
   }
-  const duplicate = await findDuplicate(
-    args.sql,
-    args.orgSlug,
-    contentHash,
-    args.fileId,
-  );
+  // An email body never borrows another row's chunks (see `findDuplicate`):
+  // they would carry that row's header, not the mail's own subject and
+  // sender.
+  const duplicate = isMessageRef(args.fileId)
+    ? null
+    : await findDuplicate(args.sql, args.orgSlug, contentHash, args.fileId);
   const plan = planIngest({
     contentHash,
     totalChunks: chunks.length,
@@ -413,7 +496,8 @@ export async function indexDocument(
     sql: args.sql,
     orgSlug: args.orgSlug,
     fileId: args.fileId,
-    filename: args.filename,
+    // Under the PII policy, like the chunks (`prepareNames`).
+    filename: prepared.filename,
     contentHash,
     chunksTotal: chunks.length,
     folderPath: args.folderPath ?? null,
@@ -626,6 +710,12 @@ async function readStoredState(
  * Scoped by `org_slug` like every other statement: reusing another
  * organization's embeddings would both copy its content and reveal that it has
  * the same file.
+ *
+ * Never an email body (`msg:` ref). A clone copies the source's chunks
+ * verbatim, contextual header included, and a body's header names its
+ * subject and sender — a conversation the reader of the copy may have no
+ * right to see. Nor does a body clone from anything (the caller's check):
+ * two identical bodies in two conversations each carry their own mail.
  */
 async function findDuplicate(
   sql: Sql,
@@ -636,9 +726,9 @@ async function findDuplicate(
   const rows = await sql.unsafe<{ id: string }[]>(
     `SELECT id FROM ${SCHEMA}.documents
      WHERE org_slug = $1 AND content_hash = $2 AND status = 'completed'
-       AND file_id <> $3
+       AND file_id <> $3 AND file_id NOT LIKE $4
      LIMIT 1`,
-    [orgSlug, contentHash, exceptFileId],
+    [orgSlug, contentHash, exceptFileId, MESSAGE_REF_LIKE_PATTERN],
   );
   return rows[0]?.id ?? null;
 }
