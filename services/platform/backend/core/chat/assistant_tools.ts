@@ -61,7 +61,7 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
-import { isCredentialMissing } from '../provider_credentials/resolve_credential';
+import { isTerminalCredentialRefusal } from '../provider_credentials/resolve_credential';
 import type { AgentReadSubject } from '../sandbox/workspace_access';
 
 /** Who the tools run for. The user is re-checked per dispatch. */
@@ -546,21 +546,23 @@ const KNOWLEDGE_UNAVAILABLE_FOR_MODEL =
 
 /**
  * The same, when the cause is known to be the credential: the embedding
- * model IS set up, but the provider key it resolves was deleted (or the
- * provider has no default left). "Not set up yet" sent the administrator to
- * the wrong page while the settings said "Configured".
+ * model IS set up, but its provider credential is unusable — deleted, no
+ * default left for the provider, disabled, or a secret that cannot be read.
+ * "Not set up yet" sent the administrator to the wrong page while the
+ * settings said "Configured".
  */
-const KNOWLEDGE_CREDENTIAL_MISSING_FOR_MODEL =
+const KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL =
   'unavailable: document and web-page search is down because the provider ' +
-  'credential of the embedding model is missing. An administrator adds or ' +
-  'restores it under Settings → AI providers, or chooses another credential ' +
-  'under Settings → Data residency (the embedding model). Say this plainly ' +
-  'if it matters to the answer; do not guess at the cause.';
+  'credential of the embedding model is missing or unusable. An ' +
+  'administrator adds or repairs it under Settings → AI providers, or ' +
+  'chooses another credential under Settings → Data residency (the ' +
+  'embedding model). Say this plainly if it matters to the answer; do not ' +
+  'guess at the cause.';
 
 /** The sentence for the model, by cause — never the raw error. */
 function knowledgeUnavailableForModel(error: unknown): string {
-  return isCredentialMissing(error)
-    ? KNOWLEDGE_CREDENTIAL_MISSING_FOR_MODEL
+  return isTerminalCredentialRefusal(error)
+    ? KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL
     : KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
 }
 

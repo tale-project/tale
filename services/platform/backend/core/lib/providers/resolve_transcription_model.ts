@@ -16,7 +16,10 @@ import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isOpenRouterProvider } from '../../../../lib/shared/providers/attribution';
-import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
+import {
+  isTerminalCredentialRefusal,
+  resolveProviderCredential,
+} from '../../provider_credentials/resolve_credential';
 import { ConfigurationError } from '../config_store/precondition';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
@@ -177,7 +180,12 @@ async function candidatesFor(
           },
         });
       }
-    } catch {
+    } catch (error) {
+      // A credential the resolver refuses until an admin acts (disabled, a
+      // rotated key, an unset env var) serves nothing, like a provider with
+      // no default credential: skipped, never a failure — which reads as
+      // "temporarily unavailable" and is retried with the same refusal.
+      if (isTerminalCredentialRefusal(error)) continue;
       // A failed provider cannot hide healthy alternatives in Automatic.
       // Do not reflect catalog responses, endpoints or credential material.
       failures.add(provider.name);

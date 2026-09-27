@@ -70,7 +70,7 @@ import {
   s3GetObjectBytes,
   s3GetObjectBytesIfExists,
 } from '../../core/lib/storage/object_store.ts';
-import { isCredentialMissing } from '../../core/provider_credentials/resolve_credential.ts';
+import { credentialRefusalMessage } from '../../core/provider_credentials/resolve_credential.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
@@ -560,24 +560,36 @@ export async function readFileTextOnDemand(
 }
 
 /** The stable code and the sentence each class of provider failure becomes
- * at the retrieval boundary. `credit` and `credential` are refusals an
- * admin lifts (never a wait); `upstream` is weather worth a later retry. */
+ * at the retrieval boundary. `credit`, `credential` and `unresolved` are
+ * refusals an admin lifts (never a wait); `upstream` is weather worth a
+ * later retry. A credential that does not resolve answers the same
+ * documented code as one the provider rejects: the same admin fixes it, on
+ * the same settings page. */
 const EMBEDDING_FAILURE_CODE = {
   credit: 'EMBEDDING_CREDIT_EXHAUSTED',
   credential: 'EMBEDDING_CREDENTIAL_REJECTED',
+  unresolved: 'EMBEDDING_CREDENTIAL_REJECTED',
   upstream: 'EMBEDDING_UPSTREAM_ERROR',
 } as const;
-/** The embedding model's credential no longer resolves (deleted, or no
- * default left for the provider) — the remedy in the words the UI uses. */
-const EMBEDDING_CREDENTIAL_MISSING_PROSE =
-  "The embedding model's provider credential is missing — it was deleted, or the provider has no default credential. An admin adds or restores it under Settings → AI providers, or chooses another credential under Settings → Data residency → Embedding model, then retries indexing.";
 const EMBEDDING_FAILURE_PROSE = {
   credit:
     "The organization's embedding provider refused the request for account reasons (balance, plan or billing)",
   credential:
     "The organization's embedding provider rejected its credential or refused it the model — provider settings an admin must fix",
+  unresolved:
+    "The organization's embedding model has no usable provider credential — an admin must add or fix it",
   upstream: "The organization's embedding provider could not serve the request",
 } as const;
+
+/** What a failure says after its class sentence: the resolver's own remedy
+ * for a credential refusal (its `message` is the serialized payload), the
+ * provider's words otherwise. */
+function embeddingFailureDetail(error: unknown): string {
+  return (
+    credentialRefusalMessage(error) ??
+    (error instanceof Error ? error.message : String(error))
+  );
+}
 
 /** The reused 0.4 search over the org's corpus. */
 export async function searchKnowledgeForOrg(
@@ -616,13 +628,14 @@ export async function searchKnowledgeForOrg(
     // documented 429 carries Retry-After; the provider's does not), and an
     // account refusal (balance, plan) invites retries that re-bill the same
     // refusal. Both become stable platform codes here, on the one entry
-    // point every retrieval surface calls.
+    // point every retrieval surface calls — and so does a credential that
+    // does not resolve, which used to escape as a bare `AppError` the REST
+    // door had no status for (a 500 where the reference promises 409).
     const failure = classifyEmbeddingFailure(error);
     if (failure !== null) {
-      const detail = error instanceof Error ? error.message : String(error);
       throw new KnowledgeError(
         EMBEDDING_FAILURE_CODE[failure],
-        `${EMBEDDING_FAILURE_PROSE[failure]}: ${detail}`,
+        `${EMBEDDING_FAILURE_PROSE[failure]}: ${embeddingFailureDetail(error)}`,
         503,
       );
     }
@@ -1082,15 +1095,18 @@ export async function indexUploadedFile(
       });
       return;
     }
-    // The credential the embedding model resolves is gone — deleted, or the
-    // provider has no default left. No call reached the provider, so the
-    // classifier below does not see it and the job used to retry five times
-    // and report "the platform's side". It ends here, naming the page that
-    // fixes it.
-    if (isCredentialMissing(error)) {
+    // The credential the embedding model selects does not resolve — none
+    // configured, deleted, of another provider, disabled, a secret that
+    // cannot be read. No call reached the provider, and every retry answers
+    // the same refusal: the job used to retry five times and report each one
+    // as "the platform's side". It ends here with the resolver's own remedy
+    // on the file, under the code the re-queue picks up — adding or fixing
+    // the credential re-queues the document.
+    const refusal = classifyEmbeddingFailure(error);
+    if (refusal === 'unresolved') {
       await recordIndexingFailure(sql, {
         ...failure,
-        ragError: EMBEDDING_CREDENTIAL_MISSING_PROSE,
+        ragError: `${EMBEDDING_FAILURE_PROSE.unresolved}: ${embeddingFailureDetail(error)} Adding or fixing the credential under Settings → AI providers, or saving the embedding model under Settings → Data residency → Embedding model, re-queues this document; after a fix on the deployment itself, retry indexing.`,
         ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       });
       return;
@@ -1099,7 +1115,6 @@ export async function indexUploadedFile(
     // CREDENTIAL: the job's retries would re-run the same refusal, so it
     // ends here with the cause on the file; an admin fixes the provider
     // account or settings and retries indexing.
-    const refusal = classifyEmbeddingFailure(error);
     if (refusal === 'credit' || refusal === 'credential') {
       await recordIndexingFailure(sql, {
         ...failure,
@@ -1154,9 +1169,11 @@ export async function indexUploadedFile(
 
 /**
  * Re-queue every document that failed on the embedding model — for want of
- * one, on the provider refusing the account or the credential, on the model
- * answering the wrong width, or on a provider that could not serve the call
- * until the job's retries ran out.
+ * one, on a credential that does not resolve, on the provider refusing the
+ * account or the credential, on the model answering the wrong width, or on a
+ * provider that could not serve the call until the job's retries ran out.
+ * Run by the two saves that can lift those causes: the embedding settings,
+ * and a provider credential the embedding model resolves.
  *
  * Configuring a model did not previously fix anything: each document that
  * failed while unconfigured stayed `failed`, and the only remedy was knowing

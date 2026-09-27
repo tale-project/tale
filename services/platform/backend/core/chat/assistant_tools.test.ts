@@ -448,15 +448,19 @@ describe('rag_search', () => {
     });
   });
 
-  // The embedding model IS set up; its provider key was deleted. "Not set
-  // up yet" sent the administrator to the wrong page while the settings
+  // The embedding model IS set up; its provider key does not resolve —
+  // deleted, no default left, disabled, a secret that cannot be read. "Not
+  // set up yet" sent the administrator to the wrong page while the settings
   // said "Configured".
-  it('names the missing credential and Settings → AI providers when that is the cause', async () => {
+  it.each([
+    'CREDENTIAL_NOT_FOUND',
+    'CREDENTIAL_NONE_CONFIGURED',
+    'CREDENTIAL_DISABLED',
+    'CREDENTIAL_KEY_ROTATED',
+    'CREDENTIAL_ENV_UNSET',
+  ])('names the credential and Settings → AI providers on %s', async (code) => {
     searchKnowledgeMock.mockRejectedValueOnce(
-      new AppError({
-        code: 'CREDENTIAL_NOT_FOUND',
-        message: 'Credential not found.',
-      }),
+      new AppError({ code, message: 'The resolver refused the credential.' }),
     );
     const { ctx } = createCtx();
     const executor = await makeExecutor(ctx);

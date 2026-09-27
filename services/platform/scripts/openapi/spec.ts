@@ -555,7 +555,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `failed` and `unsupported`. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, or the model answers vectors of another width than the settings state), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings re-queues every document that failed on the embedding model.',
+        'The stable cause to branch on, present with `failed` and `unsupported`. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
     },
   },
 };
@@ -6124,7 +6124,10 @@ export function buildSpec(): Json {
               'balance spent or the plan excludes the model ' +
               '(`EMBEDDING_CREDIT_EXHAUSTED`), or it rejected the ' +
               'organization’s credential or refused it the model ' +
-              '(`EMBEDDING_CREDENTIAL_REJECTED`). Not retryable by waiting.',
+              '(`EMBEDDING_CREDENTIAL_REJECTED`) — the same code when no ' +
+              'usable credential resolves at all: none configured, or the ' +
+              'one the settings name deleted, disabled or unreadable. Not ' +
+              'retryable by waiting.',
           ),
           '503': errorResponse(
             'The embedding provider could not serve the request ' +

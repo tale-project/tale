@@ -3,6 +3,7 @@
 import type { KnowledgeEmbeddingConfig } from '@tale/shared/schemas/knowledge';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
@@ -17,9 +18,15 @@ const { constructed, resolveCredential, resolveProviders } = vi.hoisted(() => ({
   ]),
 }));
 
-vi.mock('../provider_credentials/resolve_credential', () => ({
-  resolveProviderCredential: resolveCredential,
-}));
+vi.mock(
+  '../provider_credentials/resolve_credential',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../provider_credentials/resolve_credential')
+    >()),
+    resolveProviderCredential: resolveCredential,
+  }),
+);
 vi.mock('../lib/providers/org_providers', () => ({
   resolveProvidersForOrgId: resolveProviders,
 }));
@@ -212,4 +219,22 @@ describe('direct embedding credentials', () => {
       expect(constructed).toEqual([]);
     },
   );
+
+  // A provider the settings name with no credential behind it: the
+  // resolver's refusal reaches the caller as it is, classified as a
+  // credential that does not resolve — no client, no provider call.
+  it("classifies the resolver's refusal as unresolved before any client exists", async () => {
+    runQuery.mockResolvedValue(null);
+    const refusal = new AppError({
+      code: 'CREDENTIAL_NONE_CONFIGURED',
+      message: 'No default credential is configured for provider "openai".',
+    });
+    resolveCredential.mockRejectedValue(refusal);
+
+    const caught = await resolve().catch((error: unknown) => error);
+
+    expect(caught).toBe(refusal);
+    expect(classifyEmbeddingFailure(caught)).toBe('unresolved');
+    expect(constructed).toEqual([]);
+  });
 });

@@ -439,7 +439,7 @@ Branche ton client sur `indexing.errorCode`, pas sur le texte d’`error`. Le sc
 | --- | --- |
 | `unsupported` : `unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed` | Remplace ou réexporte la source dans un format pris en charge. Pour `not_text`, fournis du véritable texte UTF-8. `malformed` désigne actuellement un PDF illisible ; un fichier Office corrompu peut plutôt donner `indexer_error`. La route de relance ignore ces codes définitifs, y compris sur une ancienne ligne encore marquée `failed`. |
 | `failed` : `embedding_upstream`, `indexer_error`, `index_rebuilding` | Le traitement de fond réessaie. Consulte le statut avant de demander un nouvel essai. |
-| `failed` : `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Fais corriger la configuration du fournisseur, les autorisations ou l’état de l’index par l’opérateur, puis réessaie. `embedding_provider_refused` couvre aussi un modèle qui renvoie des vecteurs d’une autre largeur que celle indiquée dans les réglages ; enregistrer des réglages d’embedding corrigés remet en file d’attente chaque document qui a échoué sur le modèle d’embedding. |
+| `failed` : `embedding_not_configured`, `embedding_provider_refused`, `index_repair_failed` | Fais corriger la configuration du fournisseur, les autorisations ou l’état de l’index par l’opérateur, puis réessaie. `embedding_provider_refused` couvre aussi un modèle qui renvoie des vecteurs d’une autre largeur que celle indiquée dans les réglages, ainsi que des identifiants d’embedding que la plateforme ne peut pas utiliser (aucun configuré, supprimés, désactivés ou illisibles) ; enregistrer des réglages d’embedding corrigés, ou ajouter ou réparer les identifiants qu’utilise le modèle d’embedding, remet en file d’attente chaque document qui a échoué sur le modèle d’embedding. |
 | `failed` : `secret_detected`, `pii_blocked` | Corrige la source ou la politique de contenu approuvée de l’organisation avant de réessayer. |
 
 ## Synchroniser les notifications d’un membre
@@ -1044,7 +1044,7 @@ Les erreurs d’embedding demandent des traitements distincts :
 
 - **409**, `EMBEDDING_NOT_CONFIGURED` : aucun modèle d’embedding n’est configuré.
 - **409**, `EMBEDDING_CREDIT_EXHAUSTED` : le fournisseur refuse pour une raison de compte, comme un solde épuisé, un plafond de dépenses ou un forfait sans accès au modèle.
-- **409**, `EMBEDDING_CREDENTIAL_REJECTED` : le fournisseur rejette la clé ou son accès au modèle.
+- **409**, `EMBEDDING_CREDENTIAL_REJECTED` : le fournisseur rejette la clé ou son accès au modèle. Le même code répond quand la plateforme n’a aucun identifiant utilisable à envoyer : le fournisseur n’a pas d’identifiants par défaut, ou ceux que nomment les réglages d’embedding ont été supprimés, désactivés ou sont illisibles ; `error` en donne la raison.
 - **503**, `EMBEDDING_UPSTREAM_ERROR` : autre panne du fournisseur, avec `Retry-After`. Réessaie en espaçant progressivement les tentatives.
 
 Les refus liés au compte ou aux identifiants ne sont pas des limites de débit. Ils nécessitent une correction par un administrateur, pas une simple attente.
