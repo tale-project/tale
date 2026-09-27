@@ -13,6 +13,7 @@
  */
 
 import type { SearchResult, SearchSource } from '@tale/ui/search';
+import { stripMarkdown } from '@tale/ui/search/strip-markdown';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -41,7 +42,10 @@ export function createChatSearchSource(options: {
       return hits.data.map((hit) => ({
         id: hit.threadId,
         title: hit.title ?? t('history.untitled'),
-        subtitle: hit.snippet,
+        // The matching message as the prose its reader saw, not its
+        // markdown source; as a `body` the row cuts the excerpt around the
+        // match and highlights it, the way a docs hit reads.
+        body: stripMarkdown(hit.snippet),
       }));
     }, [hits, t]);
 
