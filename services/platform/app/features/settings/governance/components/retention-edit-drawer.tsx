@@ -4,7 +4,7 @@ import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import { Button } from '@tale/ui/button';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Input } from '@tale/ui/input';
-import { Row, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Sheet } from '@tale/ui/sheet';
 import { structuralEqual } from '@tale/ui/structural-equal';
 import { Text } from '@tale/ui/text';
@@ -233,7 +233,10 @@ function RetentionEditFormBody({
         </Stack>
       </div>
 
-      <Row gap={2} justify="between" className="shrink-0 border-t pt-4">
+      {/* The dialog footer's shape (`Dialog`): on a phone the verbs stack
+          full-width with Save on top — three on one line ran Save off a
+          320px screen — and from `sm` they share one line, Reset apart. */}
+      <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-between">
         <Button
           variant="secondary"
           disabled={inputDisabled}
@@ -241,7 +244,7 @@ function RetentionEditFormBody({
         >
           {t('retentionPolicy.reset', 'Reset to defaults')}
         </Button>
-        <Row gap={2} align="stretch">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
           <Button variant="ghost" onClick={onClose}>
             {tCommon('actions.cancel')}
           </Button>
@@ -252,8 +255,8 @@ function RetentionEditFormBody({
           >
             {t('retentionPolicy.save', 'Save changes')}
           </Button>
-        </Row>
-      </Row>
+        </div>
+      </div>
 
       <ConfirmDialog
         open={confirmOpen}
