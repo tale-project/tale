@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 51 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 52 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -236,6 +236,17 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   board — never the projects list; B's dialog header shows **Part of
   {A's key}** (`tasks.detail.partOf`) above its identifier, and clicking it
   opens A; closing a dialog then pressing **Forward** does not reopen it.
+- [ ] `TASK-F35` · **Every harness has the built-in visual-aspect-analyzer** —
+  Set a project agent with no skills equipped to an **Agent type**
+  (`projects.agents.harnessLabel`) other than Claude Code (e.g. Codex or
+  Gemini CLI), then **Start agent** (`tasks.agentRun.start`) on a task that
+  asks it to list the skills it has and to quote the first sentence of the
+  visual-aspect-analyzer's instructions; repeat with Claude Code → Both runs
+  settle **Completed** (`tasks.agentRuns.status.completed`) and each report
+  names `visual-aspect-analyzer` and quotes "Run this as the FINAL review
+  step…"; **Details** (`tasks.run.details`) shows the skill read from its
+  `SKILL.md`, not a search of the workspace — env-gated: mark
+  **ENVIRONMENT** without a credential that serves both harnesses.
 
 ### The task page
 

@@ -763,6 +763,39 @@ setup_shared_buildx_builder() {
   fi
 }
 
+# Built-in skills baked into the image (/opt/agents/skills/<name>): symlink
+# each into every harness's native USER-level skill dir, so whichever harness
+# runs the turn discovers them as its own skills, runnable in place (their deps
+# live in the baked dir). Each dir is verified against its pinned CLI (README
+# "Built-in skills"); the image conformance test pins every harness to one:
+#   .claude/skills  Claude Code (CLAUDE_CONFIG_DIR); OpenCode reads it too
+#   .agents/skills  Codex, Gemini CLI, Qwen Code, Pi, OpenClaw, OpenCode, Cursor
+#   .hermes/skills  Hermes (HERMES_HOME)
+# User level, so a harness that ranks project skills first (Gemini CLI, Qwen
+# Code, Pi, OpenClaw) prefers a same-named skill the workspace repository
+# ships. A directory or live link already in a link's place is someone's own
+# skill and is kept. Idempotent; runs as the agent uid ($DROP). An unmatched
+# glob stays literal in sh, so the `-d` guard skips it when nothing is baked.
+link_baked_skills() {
+  [ -d /opt/agents/skills ] || return 0
+  for _skills_dir in .claude/skills .agents/skills .hermes/skills; do
+    _skills_dir="/agent/.runtime/home/${_skills_dir}"
+    $DROP mkdir -p "$_skills_dir"
+    for _skill in /opt/agents/skills/*/; do
+      [ -d "$_skill" ] || continue
+      _skill="${_skill%/}"
+      _link="${_skills_dir}/$(basename "$_skill")"
+      if [ -L "$_link" ]; then
+        [ "$(readlink "$_link")" = "$_skill" ] && continue
+        [ -e "$_link" ] && continue
+      elif [ -e "$_link" ]; then
+        continue
+      fi
+      $DROP ln -sfn "$_skill" "$_link"
+    done
+  done
+}
+
 # ---------------------------------------------------------------------------
 # K8s transparent-egress native sidecar. The session Pod runs a sidecar
 # container (an initContainer with restartPolicy: Always — K8s 1.28+) with this
@@ -868,21 +901,8 @@ if [ "$1" = "daemon" ]; then
   export NODE_PATH=/agent/.runtime/deps/node/lib/node_modules
   export PATH=/agent/.runtime/deps/python/bin:/agent/.runtime/deps/node/bin:$PATH
 
-  # Built-in skills baked into the image (/opt/agents/skills/<name>) — symlink
-  # each into the agent's user-level skill dir so Claude Code / Codex discover
-  # them as native skills, runnable in place (their deps live in the baked dir).
-  # Idempotent + best-effort; Tale's per-turn reconcile (backend
-  # connector_skills.ts) drops any the workspace repo also defines so the
-  # repo's project-level skill wins. An unmatched glob stays literal in sh, so
-  # the `-d` guard skips it when nothing is baked.
-  if [ -d /opt/agents/skills ]; then
-    $DROP mkdir -p /agent/.runtime/home/.claude/skills
-    for _skill in /opt/agents/skills/*/; do
-      [ -d "$_skill" ] || continue
-      $DROP ln -sfn "${_skill%/}" \
-        "/agent/.runtime/home/.claude/skills/$(basename "$_skill")"
-    done
-  fi
+  # Every harness finds the image's built-in skills among its own.
+  link_baked_skills
 
   # Transparent egress (non-DinD): install the OUTPUT REDIRECT as root BEFORE the
   # runnerd starts, so every client (including headless Chromium)

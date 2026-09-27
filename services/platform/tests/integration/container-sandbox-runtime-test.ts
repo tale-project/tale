@@ -819,5 +819,247 @@ print("TALE_VISION_FUNCTIONAL_OK")
 }
 
 console.log('');
+console.log('--- built-in skills reach every harness ---');
+// The daemon entrypoint links each image-baked skill (/opt/agents/skills) into
+// every harness's native user-level skill dir. Only Claude Code's was linked
+// before, so Codex, Gemini CLI, Qwen Code, Pi, Hermes and OpenClaw never listed
+// the built-in visual-aspect-analyzer (#2790). Against a booted session: every
+// registry harness has a dir in the table below, each dir holds the link, and
+// every managed harness — run with its golden managed exec against a stub model
+// endpoint that records each request — names the skill in its first model
+// request and, when the workspace repository ships a skill of the same name,
+// lists the copy the table (and the runtime README) states.
+{
+  const SKILL = 'visual-aspect-analyzer';
+  const HOME = '/agent/.runtime/home';
+  /** Each harness's native user-level skill dir under the session HOME, and
+   * the copy it lists when the workspace repository ships a same-named skill;
+   * `null` where nothing is asserted: no project-level skills (Hermes), no
+   * managed lane to run (Cursor), or a loader that keeps whichever copy
+   * finishes loading last (OpenCode). Verified against the pinned CLIs; keep
+   * in step with services/sandbox-runtime/README.md "Built-in skills". */
+  const SKILL_HOMES: Record<
+    string,
+    { dir: string; repoCopy: 'repo' | 'baked' | 'both' | null }
+  > = {
+    'claude-code': { dir: '.claude/skills', repoCopy: 'baked' },
+    codex: { dir: '.agents/skills', repoCopy: 'both' },
+    cursor: { dir: '.agents/skills', repoCopy: null },
+    gemini: { dir: '.agents/skills', repoCopy: 'repo' },
+    hermes: { dir: '.hermes/skills', repoCopy: null },
+    openclaw: { dir: '.agents/skills', repoCopy: 'repo' },
+    opencode: { dir: '.agents/skills', repoCopy: null },
+    pi: { dir: '.agents/skills', repoCopy: 'repo' },
+    'qwen-code': { dir: '.agents/skills', repoCopy: 'repo' },
+  };
+  const REPO_MARKER = 'REPO-OWNED-SKILL-MARKER';
+  // A plain-ASCII lead of the baked description: every harness lists it
+  // verbatim (JSON escapes nothing in it), Hermes included, which truncates.
+  const bakedFrontmatter = parseYaml(
+    readFileSync(
+      join(PROJECT_ROOT, `configs/platform/custom/skills/${SKILL}/SKILL.md`),
+      'utf8',
+    ).split('---')[1] ?? '',
+  ) as { description?: string };
+  const BAKED_LEAD = (bakedFrontmatter.description ?? '').slice(0, 40);
+  // Records every request body in its own file, answers a non-retryable 400
+  // so the harness ends its turn after the first model call.
+  const STUB = `import json, os, sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+cap = sys.argv[2]
+os.makedirs(cap, exist_ok=True)
+count = [0]
+class Handler(BaseHTTPRequestHandler):
+    def answer(self):
+        count[0] += 1
+        size = int(self.headers.get("content-length") or 0)
+        with open(os.path.join(cap, "%03d" % count[0]), "wb") as out:
+            out.write(self.path.encode() + b"\\n" + (self.rfile.read(size) if size else b""))
+        body = json.dumps({"type": "error", "error": {"type": "invalid_request_error", "message": "stub", "code": "invalid_request_error"}}).encode()
+        self.send_response(400)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    do_GET = do_POST = answer
+    def log_message(self, *args):
+        pass
+ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
+`;
+  interface GoldenExec {
+    argv: string[];
+    env?: Record<string, string>;
+    cwd: string;
+    stdin?: string;
+  }
+
+  const harnessesDir = join(PROJECT_ROOT, 'configs/platform/system/harnesses');
+  const slugs = readdirSync(harnessesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b));
+  for (const slug of slugs) {
+    if (!Object.hasOwn(SKILL_HOMES, slug)) {
+      fail(
+        `harness "${slug}" has no native skill dir in the built-in skills table`,
+      );
+    }
+  }
+
+  const cid = await stdoutOf([
+    'docker',
+    'run',
+    '-d',
+    '--user',
+    '10001',
+    '--tmpfs',
+    '/agent:uid=10001,gid=10001',
+    IMAGE,
+    'daemon',
+  ]);
+  const inSession = (cmd: string, stdin?: string) =>
+    capture(
+      [
+        'docker',
+        'exec',
+        ...(stdin === undefined ? [] : ['-i']),
+        cid,
+        'sh',
+        '-c',
+        cmd,
+      ],
+      stdin === undefined ? {} : { stdin },
+    );
+  try {
+    let ready = false;
+    for (let i = 0; i < 20; i++) {
+      if (
+        (await inSession('curl -fsS http://127.0.0.1:8200/readyz')).exitCode ===
+        0
+      ) {
+        ready = true;
+        break;
+      }
+      await sleep(500);
+    }
+    if (!ready) {
+      fail('runnerd did not become ready for the built-in skills check');
+    } else {
+      for (const dir of new Set(Object.values(SKILL_HOMES).map((h) => h.dir))) {
+        const link = `${HOME}/${dir}/${SKILL}`;
+        const { exitCode } = await inSession(
+          `test -L ${link} && test -f ${link}/SKILL.md`,
+        );
+        if (exitCode === 0) pass(`${dir}/${SKILL} links the baked skill`);
+        else fail(`${dir}/${SKILL} does not link the baked skill`);
+      }
+      await inSession('cat > /agent/.runtime/tmp/skill-stub.py', STUB);
+      let port = 18100;
+      for (const phase of ['baked', 'repo'] as const) {
+        if (phase === 'repo') {
+          await inSession(
+            [
+              'set -e',
+              'cd /agent/workspace',
+              'for d in .agents/skills .claude/skills; do',
+              `  mkdir -p "$d/${SKILL}"`,
+              `  printf -- '---\\nname: ${SKILL}\\ndescription: ${REPO_MARKER} the repository copy\\n---\\n\\n# Repository copy\\n' > "$d/${SKILL}/SKILL.md"`,
+              'done',
+              'git init -q .',
+            ].join('\n'),
+          );
+        }
+        for (const slug of slugs) {
+          const home = SKILL_HOMES[slug];
+          if (
+            home === undefined ||
+            (phase === 'repo' && home.repoCopy === null)
+          ) {
+            continue;
+          }
+          const cases = parseYaml(
+            readFileSync(
+              join(
+                PROJECT_ROOT,
+                'services/platform/lib/harnesses/fixtures/exec',
+                `${slug}.yml`,
+              ),
+              'utf8',
+            ),
+          ) as Record<string, GoldenExec | undefined>;
+          const exec = cases['managed-model-opus'];
+          if (exec === undefined) continue;
+          port += 1;
+          const stubUrl = `http://127.0.0.1:${port}`;
+          const sub = (value: string) =>
+            value.replaceAll('http://golden-gw:8080', stubUrl);
+          const recorded = `/agent/.runtime/tmp/skill-probe/${phase}-${slug}`;
+          await capture([
+            'docker',
+            'exec',
+            '-d',
+            cid,
+            'python3',
+            '/agent/.runtime/tmp/skill-stub.py',
+            String(port),
+            recorded,
+          ]);
+          await inSession(
+            `for i in $(seq 50); do curl -s -o /dev/null ${stubUrl}/ready && exit 0; sleep 0.1; done; exit 1`,
+          );
+          const env = { HOME, TMPDIR: '/agent/.runtime/tmp', ...exec.env };
+          await capture(
+            [
+              'docker',
+              'exec',
+              '-i',
+              '-w',
+              exec.cwd,
+              ...Object.entries(env).flatMap(([key, value]) => [
+                '-e',
+                `${key}=${sub(value)}`,
+              ]),
+              cid,
+              'timeout',
+              '120',
+              ...exec.argv.map(sub),
+            ],
+            { stdin: sub(exec.stdin ?? '') },
+          );
+          const { stdout: seen } = await inSession(
+            `cat ${recorded}/* 2>/dev/null`,
+          );
+          if (phase === 'baked') {
+            if (seen.includes(SKILL) && seen.includes(BAKED_LEAD)) {
+              pass(`${slug} lists the baked ${SKILL} in its model request`);
+            } else {
+              fail(
+                `${slug} does not list the baked ${SKILL} in its model request`,
+              );
+            }
+            continue;
+          }
+          const repo = seen.includes(REPO_MARKER);
+          const baked = seen.includes(BAKED_LEAD);
+          const listed =
+            repo && baked ? 'both' : repo ? 'repo' : baked ? 'baked' : 'none';
+          const copies = {
+            both: 'both copies',
+            repo: "the repository's copy",
+            baked: 'the baked copy',
+            none: 'no copy',
+          };
+          const verdict = `${slug} lists ${copies[listed]} when the repository ships its own ${SKILL}`;
+          if (listed === home.repoCopy) pass(verdict);
+          else fail(`${verdict} (expected ${copies[home.repoCopy ?? 'none']})`);
+        }
+      }
+    }
+  } finally {
+    if (cid) await ok(['docker', 'rm', '-f', cid]);
+  }
+}
+
+console.log('');
 console.log(`${BOLD}Passed: ${passed}  Failed: ${failed}${NC}`);
 process.exit(failed === 0 ? 0 : 1);

@@ -45,6 +45,8 @@ Ein Projektagent verwendet seinen dauerhaften Workspace über mehrere Aufgaben h
 
 Zugeordnete Skill-Bundles liegen als Dateien vor und werden in den Laufanweisungen genannt. Prüfe ihre Anweisungen und Skripte vor der Freigabe. [Skills für Agenten](/de/platform/agents/skills) erklärt Bereitstellung und Sichtbarkeit.
 
+Jede Laufzeit findet außerdem den integrierten Skill `visual-aspect-analyzer` unter ihren eigenen Skills, ohne dass du ihn zuordnen musst. Er steuert einen echten Browser über eine fertige UI-Änderung und meldet Layoutverschiebungen, Flackern und andere visuelle Regressionen.
+
 Der Connector-Broker hält gewöhnliche Connector-Zugangsdaten bei Tale und gibt Aktionsergebnisse zurück. Er bietet Agenten Leseaktionen an und lehnt Schreibaktionen über diesen Weg ab. Verwende für einen kontrollierten Connector-Schreibvorgang eine entsprechende Automatisierungs-Node. GitHub-Werkzeuge und ausdrücklich vergebene Secrets haben eigene Zugangswege. Die Lesebeschränkung des Brokers verbietet deshalb nicht allgemein Schreibzugriffe aus der Shell.
 
 Ausgehender Netzwerkzugriff erlaubt normalerweise Paketinstallationen und das Klonen von Repositorys, blockiert aber private Adressen und Cloud-Metadatenziele. Betreiber können die erlaubten Hosts weiter begrenzen. Prüfe bei einem unerreichbaren Dienst die Netzwerkregeln, statt unmittelbar falsche Zugangsdaten anzunehmen.

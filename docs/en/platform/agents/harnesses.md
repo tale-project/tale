@@ -45,6 +45,8 @@ A project agent reuses a persistent workspace across its tasks. Task attachments
 
 Equipped skill bundles are staged as files and named in the run’s instructions. Review their instructions and scripts before granting them; [Skills on agents](/platform/agents/skills) explains staging and visibility.
 
+Every runtime also finds Tale’s built-in `visual-aspect-analyzer` skill among its own skills, without equipping it. It drives a real browser over a finished UI change and reports layout shifts, flicker and other visual regressions.
+
 Tale’s connector broker keeps ordinary connector credentials at the platform and returns action results. It exposes read actions to agents, and refuses writes through that broker. Use an automation connector node for a governed connector write. GitHub tooling and explicitly granted secrets have their own access paths, so the broker’s read-only rule is not a general ban on all shell writes.
 
 Outbound access normally permits package installation and repository cloning while blocking private addresses and cloud metadata targets. Operators can restrict permitted hosts further. If a command cannot reach a site, check the network policy instead of assuming the credential is wrong.

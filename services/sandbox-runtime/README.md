@@ -84,6 +84,46 @@ browser bundles at build time. See the script headers for the split rationale.
 docker build -f services/sandbox-runtime/Dockerfile .
 ```
 
+### Built-in skills
+
+The image bakes Tale's built-in skills under `/opt/agents/skills/<name>` — today
+the `visual-aspect-analyzer`, with its dependencies and the Playwright MCP's
+Chromium. At every session start the `daemon` dispatch links each one into
+every harness's native user-level skill directory under the session HOME, so
+whichever harness runs a turn lists the skill among its own and runs it in
+place. No agent needs to equip it and no turn stages it. Each directory is
+verified against the CLI version the Dockerfile pins:
+
+| Directory under HOME | Harnesses |
+| -------------------- | --------- |
+| `.claude/skills` | Claude Code (`CLAUDE_CONFIG_DIR`); OpenCode reads it too |
+| `.agents/skills` | Codex, Gemini CLI, Qwen Code, Pi, OpenClaw, OpenCode, Cursor |
+| `.hermes/skills` | Hermes (`HERMES_HOME`) |
+
+A directory or a live link someone put where a link would go is kept, so a
+user-level skill of the same name is never overwritten. Skills equipped on an
+agent are separate: a run stages them under `/agent/workspace/.tale/skills/`
+and names them in its instructions.
+
+When the workspace repository ships a skill of the same name at its root
+(`.agents/skills/<name>` or `.claude/skills/<name>`), each harness's own
+loader decides which copy the model sees:
+
+| Harness | Lists |
+| ------- | ----- |
+| Gemini CLI, Qwen Code, Pi, OpenClaw | the repository's copy |
+| Claude Code | the baked copy: it ranks user skills above project skills |
+| Codex | both copies, each with its path |
+| OpenCode | either copy: it keeps whichever finishes loading last |
+| Hermes | the baked copy: it has no project-level skills |
+
+`tests/integration/container-sandbox-runtime-test.ts` holds both tables. It
+checks every link, then runs each managed harness's golden exec against a stub
+model endpoint and asserts the skill in the first model request and the copy
+listed beside a repository skill of the same name. A harness added to the
+registry without a row fails it. Cursor runs only on its own credentials, so
+its directory is checked against its source rather than run there.
+
 ### Vision lane environment
 
 Every managed gateway turn that resolved a vision model runs with
