@@ -676,7 +676,7 @@ any toggled setting after the run.
   **Save** succeeds and the value survives a reload; above capacity + N the
   total explains `sandboxes.limits.totalExceedsCapacity` and Save stays
   disabled.
-- [ ] `SET-F61` · **Settings lists page and create alike** — With more than
+- [ ] `SET-F63` · **Settings lists page and create alike** — With more than
   20 members (SET-F15 adds them), open `/dashboard/{org}/settings/members`,
   `/dashboard/{org}/settings/teams` and `/dashboard/{org}/settings/api/rest`
   (first with no API keys of your own, then with one), at 1280 px and at
