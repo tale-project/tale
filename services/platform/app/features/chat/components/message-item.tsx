@@ -31,7 +31,6 @@ import {
 } from 'react';
 
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
-import { isPausingChatTool } from '@/lib/chat/tools';
 import { useT } from '@/lib/i18n/client';
 import { isStoppedReason } from '@/lib/shared/chat-errors';
 
@@ -422,10 +421,7 @@ function AssistantBody({
     (message.reasoningText !== undefined && message.reasoningText.length > 0) ||
     message.parts.some(
       (part) =>
-        // The SAME predicate the timeline draws by: a pausing tool has its own
-        // row and is not a step, so counting it here would suppress the
-        // thinking shell for a turn whose timeline renders nothing.
-        (part.type === 'tool-call' && !isPausingChatTool(part.capabilityId)) ||
+        part.type === 'tool-call' ||
         (part.type === 'reasoning' && part.text.length > 0),
     );
   const watchingAnswer = isStreaming || message.isFinalReveal;

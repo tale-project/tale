@@ -21,8 +21,8 @@
  *  6. The person's own standing instructions (Settings > Preferences), when
  *     their toggle has them on — per person, so they can never join the
  *     prefix that is shared by every user of the agent
- *  7. Full message history: tool messages, approval and human-input cards, and
- *     attachments as content parts
+ *  7. Full message history: tool messages, approval cards, and attachments as
+ *     content parts
  *
  * On overflow the OLDEST messages are dropped and a visible notice takes their
  * place. There is deliberately NO LLM compaction: a summarizer is a second

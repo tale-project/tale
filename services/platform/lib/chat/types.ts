@@ -56,26 +56,6 @@ export type MessagePart =
       readonly approvalId: string;
       readonly question: string;
       readonly decision?: 'approved' | 'rejected';
-    }
-  | {
-      /**
-       * The transcript's record that the assistant asked something. The panel
-       * that collects the answer is ephemeral — it lives in the composer and
-       * disappears the moment the question resolves — so without this row
-       * nothing in the conversation would show the ask ever happened.
-       */
-      readonly type: 'human-input';
-      readonly requestId: string;
-      /** The FIRST question asked, not the set's intro — the intro is what the
-       *  panel is already showing, so repeating it here said nothing new. */
-      readonly question: string;
-      /** How many were asked, so the row can say "and 3 more" honestly. */
-      readonly questionCount?: number;
-      /**
-       * How it ended. Absent means still outstanding, in which case the row
-       * does not render at all — the composer is showing the question.
-       */
-      readonly outcome?: 'answered' | 'skipped';
     };
 
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'system';
@@ -184,9 +164,6 @@ export function messageText(message: ChatMessage): string {
         pieces.push(safeJson(part.output));
         break;
       case 'approval':
-        pieces.push(part.question);
-        break;
-      case 'human-input':
         pieces.push(part.question);
         break;
       default: {

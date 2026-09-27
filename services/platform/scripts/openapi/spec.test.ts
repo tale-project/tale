@@ -2198,7 +2198,7 @@ describe('MessagePart is a discriminator a strict client can resolve', () => {
     const mapped = Object.values(part.discriminator.mapping).sort();
     const listed = part.oneOf.map((branch) => branch.$ref).sort();
     expect(listed).toEqual(mapped);
-    expect(mapped).toHaveLength(7);
+    expect(mapped).toHaveLength(6);
   });
 
   it('maps each kind to a schema whose required `type` is that kind alone', () => {

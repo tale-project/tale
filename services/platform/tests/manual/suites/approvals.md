@@ -1,6 +1,6 @@
 # Approvals
 
-> **Prefix** `APV-` · **Reset** none · **Cost** 21 boxes
+> **Prefix** `APV-` · **Reset** none · **Cost** 20 boxes
 
 Exercise the cross-cutting human-in-the-loop surface — every place a run or
 agent parks for a human decision and what that decision does downstream. After
@@ -9,9 +9,8 @@ the AI-backend rewrite the **live** surfaces are: the automation-run
 **ask card** (`ask_human` from an agent node) — each mounted on the run-detail
 page _and_ the task sheet — plus the **task review** gate
 ([tasks.md](tasks.md) F15) and the governance **DSAR dual-approval**
-([governance.md](governance.md) F8). The chat rows (approval / human-input
-badges) are [chat.md](chat.md) F18/F35's cases — cross-referenced here, not
-duplicated. > The seven pre-rewrite approval namespaces (approvalCommon,
+([governance.md](governance.md) F8). The chat approval badges are
+[chat.md](chat.md) F35's case — cross-referenced here, not duplicated. > The seven pre-rewrite approval namespaces (approvalCommon,
 planApproval, documentWriteApproval, knowledgeWriteApproval,
 connectorApproval, humanInputRequest, locationRequest) were **deleted
 outright** from `en.yml` in #2919 — no reserve remains — so this guide carries
@@ -50,8 +49,8 @@ needs an
   `dsar_governance` config and a second admin account.
 
 Mark any row you cannot produce **ENVIRONMENT** with the missing precondition,
-per the guides' convention. Mode A drives only APV-F11 (the `e2e:humaninput`
-chat probe) and the rendering/regression checks.
+per the guides' convention. Mode A drives only the rendering/regression
+checks.
 
 > **Agent note**: a decision is the event — approving/rejecting pokes the
 > parked run immediately; watch the run's status badge leave **Waiting**
@@ -133,16 +132,6 @@ chat probe) and the rendering/regression checks.
   their own request (filer ≠ approver is enforced); admin B's confirmation
   schedules the erasure and the request's status transition survives reload —
   config-gated: mark **ENVIRONMENT** if the flag is off.
-- [ ] `APV-F11` · **Chat human-input probe (mode A)** — Mode A: send
-  `e2e:humaninput` in a chat → Judge against [chat.md](chat.md) CHAT-F18's
-  expectation (the question in the composer while it is outstanding, the
-  status region reading **Waiting for your answer**,
-  `chat.generation.waitingInput`; the timeline row only once resolved).
-  **Known gap**: the mock emits a
-  `request_human_input` tool call, but no such tool is registered in the live
-  chat registry — if the turn renders only a generic tool-call row (or
-  errors), record it in the session log as the `CHAT-F18` discrepancy rather than
-  silently passing.
 - [ ] `APV-F12` · **Chat approval row (mode B)** — Mode B: drive a chat write
   that requires approval per [chat.md](chat.md) CHAT-F35 → The chat-side
   rendering (badges `chat.parts.approvalPending` → `…approvalApproved` /

@@ -61,8 +61,6 @@ import {
   type GuardrailRefusal,
 } from './guardrails';
 import {
-  isAwaitingAnswerResult,
-  isPausingChatTool,
   type ChatToolExecutor,
   type ToolCallRequest,
   type WireTool,
@@ -477,13 +475,6 @@ export type TurnOutcome =
       readonly usage: TurnUsage;
       readonly context: AssembledContext;
       readonly execution: ExecutionResolution;
-      /**
-       * The turn ended on a question rather than on an answer. The reply is
-       * settled and the generation row is gone either way — what differs is
-       * that a pending question is now outstanding, and the next turn will be
-       * started by the person answering it rather than by them typing.
-       */
-      readonly paused?: boolean;
       /** The user stopped the turn; `text` holds what had streamed and the
        * row settled as `cancelled`. */
       readonly cancelled?: true;
@@ -1298,16 +1289,13 @@ export async function runTurn(
     // move is to answer.
     let streamed: Awaited<ReturnType<typeof streamWithOutputGuardrails>>;
     let toolRounds = 0;
-    /** A pausing tool registered a question: the turn settles where it is and
-     *  the person's answer starts the next one. */
-    let paused = false;
     /**
      * The CURRENT round's text and reasoning are already in `settledParts`.
      *
      * The loop settles a round before running its tools, then usually streams
      * again — so at finalize `streamed` holds the NEXT round's output and the
-     * two never overlap. A round that breaks out AFTER settling (a pause, a
-     * cancel mid-execution) leaves `streamed` pointing at what was just
+     * two never overlap. A round that breaks out AFTER settling (a cancel
+     * mid-execution) leaves `streamed` pointing at what was just
      * settled, and appending it again printed the model's whole pre-tool
      * paragraph twice.
      */
@@ -1502,22 +1490,6 @@ export async function runTurn(
           output,
           structured: true,
         });
-        // A pausing tool ends the turn. There is no answer to feed back yet,
-        // and looping would have the model carry on against its own guess at
-        // what the person was about to say — the exact regression v0.2.91
-        // records. The round's other calls still run (they are read-only and
-        // already have their record); the LOOP is what stops.
-        if (isPausingChatTool(call.name) && isAwaitingAnswerResult(output)) {
-          settledParts.push({
-            type: 'human-input',
-            requestId: output.requestId,
-            question: output.question,
-            ...(output.questionCount !== undefined
-              ? { questionCount: output.questionCount }
-              : {}),
-          });
-          paused = true;
-        }
       }
       await persistSettledParts();
       // One cancel read for the whole batch: a Stop that landed while the
@@ -1533,7 +1505,7 @@ export async function runTurn(
       if (verdict?.cancelRequested === true) {
         streamed = { ...streamed, cancelled: true };
       }
-      if (streamed.cancelled === true || paused) break;
+      if (streamed.cancelled === true) break;
       toolRounds += 1;
       // The caller's `maxOutputTokens` bounds the TURN, not each round: the
       // next round gets what this one and its predecessors left of the cap,
@@ -1682,7 +1654,6 @@ export async function runTurn(
       usage,
       context,
       execution,
-      ...(paused ? { paused: true } : {}),
       ...(cancelled ? { cancelled: true } : {}),
     };
   } catch (err) {

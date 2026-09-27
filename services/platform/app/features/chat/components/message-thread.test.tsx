@@ -52,15 +52,6 @@ const CONVERSATION: ChatMessageView[] = [
         approvalId: 'ap1',
         question: 'Send the summary by email?',
       },
-      {
-        // Resolved on purpose: the ask row is history, so it only renders
-        // once the question has ended. A pending one is shown by the
-        // composer, not the transcript.
-        type: 'human-input',
-        requestId: 'hi1',
-        question: 'Which address?',
-        outcome: 'answered',
-      },
     ],
   },
 ];
@@ -82,7 +73,6 @@ describe('MessageThread', () => {
       'Called get_knowledge',
       'Reading it now.',
       'Send the summary by email?',
-      'Which address?',
     ];
     const positions = order.map((text) =>
       rendered.findIndex((value) => value === text),

@@ -1451,7 +1451,6 @@ chat:
     queued: In der Warteschlange — startet gleich
     streaming: Schreibt die Antwort…
     waitingApproval: Wartet auf deine Freigabe
-    waitingInput: Wartet auf deine Antwort
     waitingOn: Wartet auf {detail}
   parts:
     toolCall: '{tool} aufgerufen'
@@ -1460,8 +1459,6 @@ chat:
     approvalPending: Freigabe angefragt
     approvalApproved: Freigegeben
     approvalRejected: Abgelehnt
-    humanInputSkipped: Übersprungen
-    humanInputAndMore: '{question} und {count} weitere'
   errorGeneratingDescription: Antwort konnte nicht generiert werden. Versuch es erneut.
   errorHintAuthError: Der API-Schlüssel ist ungültig oder hat keinen Zugriff auf
     dieses Modell. Kontaktiere deinen Administrator.
@@ -4971,12 +4968,8 @@ questions:
   next: Weiter
   submit: Antworten senden
   submitOne: Antwort senden
-  skip: Überspringen
   autoAdvanceHint: Wenn du eine Antwort wählst, geht es zur nächsten Frage.
   multiSelectHint: Wähle alles aus, was zutrifft.
-  collapsedOne: Frage beantworten
-  collapsedMany: '{count} Fragen beantworten'
-  errorSubmitFailed: Deine Antworten kamen nicht durch. Versuch es nochmal.
   recommended: Empfohlen
 skills:
   searchPlaceholder: Skills suchen
@@ -6521,7 +6514,6 @@ settings:
         product: Produkt
         organization: Organisation
         approval: Genehmigung
-        human_input_request: Human-Input-Anfrage
         mcp_tool_call: MCP-Tool-Aufruf
         audit_log_archive: Audit-Log-Archiv
         chat_message: Chat-Nachricht

@@ -1463,7 +1463,6 @@ chat:
     queued: En file d’attente — démarrage imminent
     streaming: Rédaction de la réponse…
     waitingApproval: En attente de ton approbation
-    waitingInput: En attente de ta réponse
     waitingOn: En attente de {detail}
   parts:
     toolCall: '{tool} appelé'
@@ -1472,8 +1471,6 @@ chat:
     approvalPending: Approbation demandée
     approvalApproved: Approuvé
     approvalRejected: Refusé
-    humanInputSkipped: Ignorée
-    humanInputAndMore: '{question} et {count} de plus'
   errorGeneratingDescription: Une erreur est survenue lors de la génération de la réponse. Réessaie.
   errorHintAuthError: La clé API est invalide ou n'a pas accès à ce modèle.
     Contacte ton administrateur.
@@ -5044,12 +5041,8 @@ questions:
   next: Suivant
   submit: Envoyer les réponses
   submitOne: Envoyer la réponse
-  skip: Passer
   autoAdvanceHint: Choisir une réponse passe à la question suivante.
   multiSelectHint: Choisis tout ce qui s'applique.
-  collapsedOne: Répondre à la question
-  collapsedMany: 'Répondre à {count} questions'
-  errorSubmitFailed: Tes réponses ne sont pas parties. Réessaie.
   recommended: Recommandé
 skills:
   searchPlaceholder: Rechercher des skills
@@ -6621,7 +6614,6 @@ settings:
         product: Produit
         organization: Organisation
         approval: Approbation
-        human_input_request: Demande d'entrée humaine
         mcp_tool_call: Appel d'outil MCP
         audit_log_archive: Archive de journal d'audit
         chat_message: Message de chat

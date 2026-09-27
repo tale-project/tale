@@ -84,7 +84,6 @@ export {
   RAG_SEARCH_KINDS,
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_STATUS_VALUES,
-  type AwaitingAnswerResult,
   type ChatToolExecutor,
   type ChatToolName,
   type RagSearchKind,

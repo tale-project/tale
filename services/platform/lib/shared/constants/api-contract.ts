@@ -211,5 +211,11 @@
  * Such a request used to answer a 500 `INTERNAL_ERROR`, and a key the
  * database could not look up a 401 `UNAUTHORIZED` — a key that works once
  * the database is back. Retry with backoff.
+ *
+ * 3.0.0 — 2026-09-27: `HumanInputPart` (`type: "human-input"`) leaves the
+ * `MessagePart` union, and with it the class a generated client made for
+ * it. Chat never pauses a turn to ask the person a question, so no stored
+ * or new message carries the part; a client drops a branch it could not
+ * reach. Major because a named schema was removed.
  */
-export const API_CONTRACT_VERSION = '2.2.0';
+export const API_CONTRACT_VERSION = '3.0.0';

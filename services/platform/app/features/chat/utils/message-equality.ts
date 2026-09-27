@@ -59,16 +59,6 @@ function samePart(a: MessagePart, b: MessagePart): boolean {
         a.question === b.question &&
         a.decision === b.decision
       );
-    case 'human-input':
-      return (
-        b.type === 'human-input' &&
-        a.requestId === b.requestId &&
-        a.question === b.question &&
-        a.questionCount === b.questionCount &&
-        // The outcome drives the badge and whether the row renders at all, so
-        // a change in it must not compare equal.
-        a.outcome === b.outcome
-      );
     default: {
       const exhaustive: never = a;
       throw new Error(`unhandled part kind: ${JSON.stringify(exhaustive)}`);

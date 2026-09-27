@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "2.2.0",
+    "version": "3.0.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -37396,7 +37396,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "2.2.0"
+          "example": "3.0.0"
         }
       },
       "Location": {
@@ -40937,31 +40937,8 @@
           }
         }
       },
-      "HumanInputPart": {
-        "type": "object",
-        "required": ["type", "requestId", "question"],
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": ["human-input"]
-          },
-          "requestId": {
-            "type": "string"
-          },
-          "question": {
-            "type": "string"
-          },
-          "questionCount": {
-            "type": "integer"
-          },
-          "outcome": {
-            "type": "string",
-            "enum": ["answered", "skipped"]
-          }
-        }
-      },
       "MessagePart": {
-        "description": "One ordered piece of a message, discriminated by `type`: the `mapping` names the schema each kind validates against (`TextPart` … `HumanInputPart`), so a discriminator-honouring validator resolves every part. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.",
+        "description": "One ordered piece of a message, discriminated by `type`: the `mapping` names the schema each kind validates against (`TextPart` … `ApprovalPart`), so a discriminator-honouring validator resolves every part. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.",
         "discriminator": {
           "propertyName": "type",
           "mapping": {
@@ -40970,8 +40947,7 @@
             "attachment": "#/components/schemas/AttachmentPart",
             "tool-call": "#/components/schemas/ToolCallPart",
             "tool-result": "#/components/schemas/ToolResultPart",
-            "approval": "#/components/schemas/ApprovalPart",
-            "human-input": "#/components/schemas/HumanInputPart"
+            "approval": "#/components/schemas/ApprovalPart"
           }
         },
         "oneOf": [
@@ -40992,9 +40968,6 @@
           },
           {
             "$ref": "#/components/schemas/ApprovalPart"
-          },
-          {
-            "$ref": "#/components/schemas/HumanInputPart"
           }
         ]
       },

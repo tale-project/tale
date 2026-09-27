@@ -12,8 +12,6 @@ import {
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_MIN_SIMILARITY,
   RAG_SEARCH_STATUS_VALUES,
-  isAwaitingAnswerResult,
-  isPausingChatTool,
 } from './tools';
 
 /**
@@ -227,13 +225,6 @@ describe('the chat loadout', () => {
     );
     expect(CHAT_TOOL_DOCS.some((doc) => doc.id === 'ask_question')).toBe(false);
   });
-
-  it('pauses the turn for asking and nothing else', () => {
-    expect(isPausingChatTool('ask_question')).toBe(true);
-    for (const name of ['rag_search', 'rag_fetch', 'web_fetch']) {
-      expect(isPausingChatTool(name)).toBe(false);
-    }
-  });
 });
 
 describe('CHAT_TOOL_DOCS — the system-prompt one-liners', () => {
@@ -263,28 +254,5 @@ describe('rag_search constants', () => {
       RAG_SEARCH_DEFAULT_LIMIT,
     );
     expect(RAG_SEARCH_DEFAULT_LIMIT).toBeLessThanOrEqual(RAG_SEARCH_MAX_LIMIT);
-  });
-});
-
-describe('isAwaitingAnswerResult', () => {
-  it('recognises a registered question', () => {
-    expect(
-      isAwaitingAnswerResult({
-        status: 'awaiting-answer',
-        requestId: 'approval_1',
-        question: 'Why?',
-      }),
-    ).toBe(true);
-  });
-
-  // A rejected call must NOT read as awaiting an answer, or the turn would
-  // settle with no question pending and no reply coming.
-  it('rejects an error result', () => {
-    expect(
-      isAwaitingAnswerResult({ status: 'invalid_args', message: 'nope' }),
-    ).toBe(false);
-    expect(isAwaitingAnswerResult(null)).toBe(false);
-    expect(isAwaitingAnswerResult('awaiting-answer')).toBe(false);
-    expect(isAwaitingAnswerResult({ status: 'awaiting-answer' })).toBe(false);
   });
 });

@@ -24,8 +24,8 @@ import { automationErrorMessage } from '../lib/errors';
 export interface RunPendingAsk {
   askId: string;
   question: string;
-  /** Present when the agent offered choices — the operator then gets the same
-   *  one-question-at-a-time flow the chat composer shows, instead of a box. */
+  /** Present when the agent offered choices — the operator then answers one
+   *  question at a time (`QuestionFlow`) instead of typing into a box. */
   questions?: QuestionSet;
 }
 
@@ -80,10 +80,9 @@ export function RunAskCard({
 
   const submit = () => submitText(answer);
 
-  /* Choices offered: the shared flow, minus the two affordances that only
-     make sense in chat. There is no composer on this lane to hand back to,
-     and nothing to collapse to — the card IS the surface, so the question
-     cannot be dismissed out of the way here. */
+  /* Choices offered: the question flow, inline. The card IS the surface, so
+     there is nothing to hand back to and the question stays in view until
+     it is answered. */
   const questionSet = ask.questions;
   if (questionSet !== undefined) {
     return (

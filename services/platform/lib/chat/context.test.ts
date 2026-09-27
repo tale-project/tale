@@ -157,12 +157,6 @@ describe('assembleContext', () => {
             approvalId: 'a1',
             question: 'Send the confirmation email?',
           },
-          {
-            type: 'human-input',
-            requestId: 'h1',
-            question: 'Which printer model?',
-            outcome: 'answered',
-          },
         ],
       },
       {

@@ -416,16 +416,6 @@ terms:
     de: Genehmigungen
     fr: Approbations
     _note: Plural — the workspace view.
-  - key: feature_humanInputRequest
-    category: feature
-    en: Human input request
-    de: Benutzeranfrage
-    fr: Demande utilisateur
-    _note: Retired chat-lane card that paused for a typed answer — the live
-      successor is the automations ask flow (`automations.runs.ask.*`).
-      Survives as the audit-log resource-type label
-      `settings.logs.audit.resourceTypeLabels.human_input_request` rendered
-      for historical rows.
   - key: feature_locationRequest
     category: feature
     en: Location request

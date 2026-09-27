@@ -42,7 +42,6 @@ export interface ApprovalsContract {
         | 'workflow_creation'
         | 'workflow_run'
         | 'workflow_update'
-        | 'human_input_request'
         | 'document_write'
         | 'knowledge_write'
         | 'location_request'

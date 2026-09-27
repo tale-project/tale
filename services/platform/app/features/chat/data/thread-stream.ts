@@ -34,11 +34,7 @@ import {
 import type { MessagePart } from '@/lib/chat/types';
 
 export interface ThreadStreamGeneration {
-  readonly status:
-    | 'queued'
-    | 'streaming'
-    | 'waiting-approval'
-    | 'waiting-input';
+  readonly status: 'queued' | 'streaming' | 'waiting-approval';
   readonly waitingOn?: string;
   readonly messageId?: string;
 }

@@ -773,9 +773,9 @@ export function createChatToolExecutor(
           return await ragFetch(args);
         case 'web_fetch':
           return await webFetch(args);
-        // `ask_question` deliberately has NO case: the tool is off the wire
-        // (lib/chat/tools.ts) and a hallucinated call must not activate the
-        // disabled flow — it falls through to the unknown-tool refusal.
+        // `ask_question` deliberately has NO case: the tool was declined
+        // (lib/chat/tools.ts), so a hallucinated call falls through to the
+        // unknown-tool refusal like any other name.
         default:
           return invalidArgs(
             `Unknown tool "${call.name}". Available: ${CHAT_TOOL_NAMES.join(', ')}.`,

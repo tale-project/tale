@@ -141,8 +141,8 @@ function explodeAssistantMessage(message: ChatMessage): ChatWireMessage[] {
         });
         break;
       default:
-        // Attachments, approvals, human-input — their text surface, exactly
-        // as sizing and guardrails read them.
+        // Attachments and approvals — their text surface, exactly as sizing
+        // and guardrails read them.
         appendText(messageText({ role: message.role, parts: [part] }));
     }
   }

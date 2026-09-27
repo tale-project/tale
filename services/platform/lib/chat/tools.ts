@@ -10,12 +10,10 @@
  * chat; execution, connectors, and skills live in the task and automation
  * lanes.
  *
- * A fourth tool, `ask_question`, landed with #2965 and was declined by the
- * owner (2026-08-14): putting a tool on this wire is a product decision. Its
- * wire definition is gone. {@link PAUSING_CHAT_TOOLS}, the pause gate and the
- * answer panel remain with the public `human-input` message part they
- * produce. Nothing on the 0.5 wire asks a question, so retiring them is a
- * REST contract change, not a cleanup.
+ * A fourth tool, `ask_question`, was proposed and declined (2026-08-14):
+ * putting a tool on this wire is a product decision. A chat turn never
+ * pauses to ask the person something; an automation run that needs an answer
+ * asks through its own `ask_human` tool instead.
  *
  * The schemas are hand-written JSON Schema literals in the same shape every
  * other tool surface uses (`lib/mcp/tools.ts`): `additionalProperties: false`
@@ -28,7 +26,6 @@
 
 import { KNOWLEDGE_DEFAULT_MIN_SIMILARITY } from '@tale/shared/schemas/knowledge';
 
-import { isRecord } from '../utils/type-utils';
 import type { ToolDoc } from './context';
 
 export const CHAT_TOOL_NAMES = [
@@ -38,52 +35,6 @@ export const CHAT_TOOL_NAMES = [
 ] as const;
 
 export type ChatToolName = (typeof CHAT_TOOL_NAMES)[number];
-
-/**
- * Tools that END the turn instead of feeding a result back to the model.
- *
- * A retrieval tool answers and the loop continues; a question has no answer
- * yet, so continuing would mean the model inventing what the person was about
- * to say. The turn therefore settles on a valid call, and a later answer
- * starts a NEW turn carrying it.
- *
- * This has to be enforced, not requested. The release notes for v0.2.91
- * record the previous version of this gate being auto-retried straight past
- * into execution — the model asked, nothing stopped it, and it carried on
- * against its own guess.
- */
-const PAUSING_CHAT_TOOLS: ReadonlySet<string> = new Set(['ask_question']);
-
-export function isPausingChatTool(name: string): boolean {
-  return PAUSING_CHAT_TOOLS.has(name);
-}
-
-/**
- * What a pausing tool returns once it has registered its question. The
- * pipeline reads this shape to settle the turn and to write the compact
- * transcript row, so it is declared HERE — pure data both the executor and
- * the pipeline import, rather than a shape the two agree on by accident.
- */
-export interface AwaitingAnswerResult {
-  readonly status: 'awaiting-answer';
-  /** The approval row the answer will land on. */
-  readonly requestId: string;
-  /** The FIRST question asked — the transcript row's label. */
-  readonly question: string;
-  /** How many questions the set carried. */
-  readonly questionCount?: number;
-}
-
-export function isAwaitingAnswerResult(
-  value: unknown,
-): value is AwaitingAnswerResult {
-  if (!isRecord(value)) return false;
-  return (
-    value.status === 'awaiting-answer' &&
-    typeof value.requestId === 'string' &&
-    typeof value.question === 'string'
-  );
-}
 
 /** One tool call the model requested, as the host decoded it off the wire. */
 export interface ToolCallRequest {

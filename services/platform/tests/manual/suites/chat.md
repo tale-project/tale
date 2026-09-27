@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 83 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 82 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -29,8 +29,8 @@ message / enabling sharing — there is no static URL for them.)
 
 Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock). In **mode A** any prompt returns the canned reply and the
-keyword triggers (`e2e:reasoning` / `e2e:humaninput` / `e2e:error`) drive
-CHAT-F16–CHAT-F19. Rows marked **mode B** need a live provider; CHAT-F25
+keyword triggers (`e2e:reasoning` / `e2e:error`) drive CHAT-F16, CHAT-F17
+and CHAT-F19. Rows marked **mode B** need a live provider; CHAT-F25
 additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
@@ -142,16 +142,6 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `chat.parts.toolCall`) are always visible; expanding the header
   (user-controlled, never automatic) reveals the reasoning prose; the answer
   text never renders inside the timeline.
-- [ ] `CHAT-F18` · **Human input request** — Mode A: send `e2e:humaninput` →
-  While the question is outstanding the composer carries it (the question
-  panel, or its collapsed bar) and the response-status region
-  (`chat.generation.regionLabel`) reads **Waiting for your answer**
-  (`chat.generation.waitingInput`); the transcript shows NO second copy of
-  the live question. Once resolved, a timeline row with the question appears
-  as the marker of the ask — the answer itself is your next message below
-  it, unlabelled; a skipped question carries the badge **Skipped**
-  (`chat.parts.humanInputSkipped`), and several questions read as
-  `chat.parts.humanInputAndMore`
 - [ ] `CHAT-F19` · **Provider error** — Mode A: send `e2e:error` → A friendly
   **Something went wrong** error (`chat.errorGenerating`) with a **Technical
   details** disclosure (`chat.errorDetailsSummary`) and **Try again**

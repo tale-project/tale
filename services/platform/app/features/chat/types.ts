@@ -162,11 +162,7 @@ export interface ChatMessageItem extends ChatMessageView {
  * it mirrors the `generations` row, which is deleted when the turn settles.
  */
 export interface ChatGenerationView {
-  readonly status:
-    | 'queued'
-    | 'streaming'
-    | 'waiting-approval'
-    | 'waiting-input';
+  readonly status: 'queued' | 'streaming' | 'waiting-approval';
   /** What the turn is blocked on, when waiting. */
   readonly waitingOn?: string;
   /** The assistant message being written, once it exists. */

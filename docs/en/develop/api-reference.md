@@ -805,7 +805,7 @@ Language is an instruction to the model, not a validated output guarantee. A mod
 
 The usage ledger books the same catalog estimate. Cached input is priced at the normal input rate, so the estimate is an upper bound for a cached turn. Estimated usage includes the whole prompt, including assistant tools. A turn that fails before any counts are available has no `usage`.
 
-`parts` is an ordered list discriminated by `type`: `text`, `reasoning`, `attachment`, `tool-call`, `tool-result`, `approval`, or `human-input`. The OpenAPI schema types each variant as its own named schema (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`, `HumanInputPart`) behind a `type` discriminator with an explicit mapping, so a generated client gets a class per kind. Treat future unknown variants as opaque rather than failing the whole message.
+`parts` is an ordered list discriminated by `type`: `text`, `reasoning`, `attachment`, `tool-call`, `tool-result`, or `approval`. The OpenAPI schema types each variant as its own named schema (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`) behind a `type` discriminator with an explicit mapping, so a generated client gets a class per kind. Treat future unknown variants as opaque rather than failing the whole message.
 
 A `reasoning` part is thinking, not the final answer. It may repeat instructions supplied to the model, including organization and project instructions and retrieval trust rules. Display it separately and only to an audience allowed to see those instructions.
 

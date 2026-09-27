@@ -36,7 +36,6 @@ import {
 import { useId, useState, type ComponentType } from 'react';
 
 import { TypewriterText } from '@/app/features/shared/markdown/typewriter-text';
-import { isPausingChatTool } from '@/lib/chat/tools';
 import { useT } from '@/lib/i18n/client';
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -166,17 +165,6 @@ export function buildTimelineEntries(
       continue;
     }
     if (part.type === 'tool-call') {
-      // A tool whose whole purpose is to put something in front of the person
-      // is drawn AS that thing, never as a step announcing it happened: the
-      // `human-input` row below carries the question, the count and the
-      // outcome, so "Asking question" was a placeholder sitting above a
-      // strictly better row. Steps are for INVISIBLE work — a search or a
-      // fetch, where the step is the only evidence any of it occurred.
-      //
-      // `isPausingChatTool` already means "addresses the person and ends the
-      // turn", which is exactly the property that decides this, so there is no
-      // second list to keep in sync.
-      if (isPausingChatTool(part.capabilityId)) continue;
       const queue = resultsByCall.get(part.callId);
       const settled = queue !== undefined && queue.length > 0;
       const output = settled ? queue.shift() : undefined;
@@ -225,8 +213,8 @@ function isCorrectableFailure(output: unknown): boolean {
  * Drop a failed step that a LATER successful call of the same tool replaced.
  *
  * A model that gets a correctable error and immediately fixes its call has
- * not failed at anything the reader needs to know about — the search ran, the
- * question got asked. Showing the discarded attempt puts a red warning and a
+ * not failed at anything the reader needs to know about — the search ran.
+ * Showing the discarded attempt puts a red warning and a
  * schema complaint in the transcript for a turn that worked, which reads as
  * breakage and is the noisiest thing on the row.
  *

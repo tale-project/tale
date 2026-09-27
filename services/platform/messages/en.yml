@@ -1406,7 +1406,6 @@ chat:
     queued: Queued — waiting to start
     streaming: Writing the reply…
     waitingApproval: Waiting for your approval
-    waitingInput: Waiting for your answer
     waitingOn: Waiting on {detail}
   parts:
     toolCall: Called {tool}
@@ -1415,8 +1414,6 @@ chat:
     approvalPending: Approval requested
     approvalApproved: Approved
     approvalRejected: Rejected
-    humanInputSkipped: Skipped
-    humanInputAndMore: '{question} and {count} more'
   errorGeneratingDescription: Couldn't generate a response. Try again.
   errorHintAuthError: The API key is invalid or does not have access to this
     model. Contact your administrator.
@@ -4794,8 +4791,8 @@ products:
       source: Source
       productId: Product ID
 questions:
-  # The progressive clarifying-question flow — one question at a time, shared
-  # by the chat composer and the automation-run card so the two never drift.
+  # The progressive clarifying-question flow — one question at a time, on the
+  # card of an automation run that stopped to ask a person something.
   regionLabel: Question progress
   progress: Question {current} of {total}
   # Injected by the client, never authored by the model, so it is always
@@ -4807,15 +4804,9 @@ questions:
   next: Next
   submit: Send answers
   submitOne: Send answer
-  skip: Skip
   # WCAG 3.2.2 — picking an option moves the flow on, so say so beforehand.
   autoAdvanceHint: Picking an answer moves to the next question.
   multiSelectHint: Pick as many as apply.
-  # The one-line bar the panel collapses to. Typing is never blocked while it
-  # shows — this is the way back in, not a gate.
-  collapsedOne: Answer the question
-  collapsedMany: Answer {count} questions
-  errorSubmitFailed: Couldn't send your answers. Try again.
   recommended: Recommended
 skills:
   searchPlaceholder: Search skills
@@ -6668,7 +6659,6 @@ settings:
         product: Product
         organization: Organization
         approval: Approval
-        human_input_request: Human input request
         mcp_tool_call: MCP tool call
         audit_log_archive: Audit log archive
         chat_message: Chat message

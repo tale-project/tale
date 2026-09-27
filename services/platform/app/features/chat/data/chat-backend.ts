@@ -62,16 +62,13 @@ import {
   setChatThreadReasoningEffort,
   threadBranchesQuery,
   unbindVideoJobsRequest,
-  pendingQuestionQuery,
   arenaPairQuery,
-  resolveQuestionRequest,
   threadShareStatusQuery,
 } from '@/app/lib/backend/chat';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
-import { backendEntityPrefix, backendKey } from '@/app/lib/backend/query-keys';
+import { backendKey } from '@/app/lib/backend/query-keys';
 import type { ReasoningEffort } from '@/lib/chat/effort';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
-import type { QuestionSet } from '@/lib/shared/schemas/questions';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import type {
@@ -158,8 +155,6 @@ const HTTP_READS: Record<
     chatSearchQuery(String(args.organizationId), String(args.query)),
   'chat/threads:getThreadShareStatus': (args) =>
     threadShareStatusQuery(String(args.organizationId), String(args.threadId)),
-  'chat/questions:getPendingQuestion': (args) =>
-    pendingQuestionQuery(String(args.organizationId), String(args.threadId)),
   'chat/arena:getArenaPair': (args) =>
     arenaPairQuery(String(args.organizationId), String(args.threadId)),
   'chat/messages:listMessages': (args) =>
@@ -1010,58 +1005,6 @@ export function useChatSend(organizationId: string): {
     unbindVideoJobs,
     stop,
   };
-}
-
-/**
- * The clarifying question a thread is waiting on, if any.
- *
- * The turn SETTLES when the assistant asks (a pausing tool ends it), so there
- * is no generation row to read this off — the pending set lives on an
- * `approvals` row and this is the watch that surfaces it. `null` once it is
- * answered or superseded, which is what clears the panel.
- */
-export function usePendingQuestion(
-  organizationId: string,
-  threadId: string | undefined,
-): ChatQuery<{ requestId: string; set: QuestionSet } | null> {
-  return useChatQuery(
-    'chat/questions:getPendingQuestion',
-    threadId ? { organizationId, threadId } : 'skip',
-  );
-}
-
-/**
- * Close a pending question — `answered` when the person filled it in,
- * `superseded` when they said something else instead. Superseding is what
- * keeps a typed message from deadlocking on an unanswered question: the
- * person always wins. A double-submit is a no-op server-side, so a slow
- * network costs nothing.
- */
-export function useResolveQuestion(organizationId: string): {
-  readonly available: boolean;
-  readonly resolve: (
-    requestId: string,
-    outcome: 'answered' | 'superseded',
-  ) => Promise<void>;
-} {
-  const queryClient = useChatQueryClient();
-
-  const resolve = useCallback(
-    async (
-      requestId: string,
-      outcome: 'answered' | 'superseded',
-    ): Promise<void> => {
-      await resolveQuestionRequest(organizationId, requestId, outcome);
-      // The panel clears from this read — nudge it without waiting for the
-      // hint round-trip.
-      void queryClient.invalidateQueries({
-        queryKey: backendEntityPrefix(organizationId, 'chat_thread'),
-      });
-    },
-    [organizationId, queryClient],
-  );
-
-  return { available: true, resolve };
 }
 
 /**

@@ -22,8 +22,7 @@ interface DataNoticeFooterProps {
 const ROW_CLASS = 'flex items-center justify-center gap-1.5 px-3 py-1.5';
 
 /**
- * Confidentiality footer under the chat composer — and under the question
- * panel while that stands in for the composer. Reads the org's
+ * Confidentiality footer under the chat composer. Reads the org's
  * `data_classification_notice` policy via `useDataClassificationNotice`:
  * it shows only when an admin turned it on, with their text for the reader's
  * language or the platform default.

@@ -46,7 +46,6 @@ import {
   listDeferredSends,
 } from './deferred-sends.ts';
 import { getOrgChatHealth } from './health.ts';
-import { getPendingQuestion, resolveQuestion } from './questions.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
 
@@ -1090,35 +1089,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       rowsThreadId ?? thread.id,
     );
     return c.json({ thread, messages });
-  });
-
-  /** The pending clarifying question for a thread (the 0.4
-   * `getPendingQuestion` — owner-only; null clears the panel). */
-  app.get('/threads/:threadId/question', async (c) => {
-    const { organizationId, userId } = caller(c);
-    const question = await getPendingQuestion(deps.sql, {
-      organizationId,
-      userId,
-      threadId: c.req.param('threadId'),
-    });
-    return c.json({ question });
-  });
-
-  /** Close a pending question — answered or superseded; double-submits are
-   * no-ops. */
-  app.post('/questions/:requestId/resolve', async (c) => {
-    const body = z
-      .object({ outcome: z.enum(['answered', 'superseded']) })
-      .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    const { organizationId, userId } = caller(c);
-    await resolveQuestion(deps.sql, {
-      organizationId,
-      userId,
-      requestId: c.req.param('requestId'),
-      outcome: body.data.outcome,
-    });
-    return c.json({ ok: true });
   });
 
   /** Create (or return) the arena pair for a conversation. */

@@ -852,13 +852,12 @@ async function runAskHuman(
         'your session.',
     };
   }
-  // Choices are OPTIONAL here, unlike chat's `ask_question`. A run's blocker
-  // is often genuinely open ("what is the staging URL?"), and forcing four
-  // invented options onto that is worse than one honest box. When the agent
-  // DOES know the answers, the operator gets the same one-at-a-time flow the
-  // chat composer shows. A malformed set is refused rather than silently
-  // dropped, so the agent learns the shape instead of wondering why its
-  // options vanished.
+  // Choices are OPTIONAL here. A run's blocker is often genuinely open
+  // ("what is the staging URL?"), and forcing four invented options onto
+  // that is worse than one honest box. When the agent DOES know the answers,
+  // the operator gets them one question at a time. A malformed set is
+  // refused rather than silently dropped, so the agent learns the shape
+  // instead of wondering why its options vanished.
   let questions: QuestionSet | undefined;
   if (args.callArgs.questions !== undefined) {
     const parsed = questionSetSchema.safeParse({

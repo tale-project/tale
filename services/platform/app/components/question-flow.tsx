@@ -3,10 +3,8 @@
 /**
  * The clarifying-question flow — one question at a time, options first.
  *
- * Both lanes that ask a person something mid-turn render THIS component: the
- * chat composer anchors it in the input frame, and an automation run mounts it
- * inline on its card. One copy, because a divergent second one is how the two
- * surfaces drift apart.
+ * An automation run that stops to ask a person something (`ask_human`)
+ * mounts it inline on the run's card.
  *
  * What it is deliberately not: a form. The shape it replaced stacked every
  * field at once, each a blank textarea, inside a card in the transcript — so
@@ -22,9 +20,8 @@
  *    Auto-advance is a change of context on input (WCAG 3.2.2), which is
  *    permitted when the reader was told beforehand — so they are, and Back is
  *    always there to undo it.
- *  - **Nothing here traps.** There is no focus trap and no `aria-modal`: Esc
- *    collapses, Tab leaves, and simply saying something else in the composer
- *    retires the question. A person who wants to move on always wins.
+ *  - **Nothing here traps.** There is no focus trap and no `aria-modal`: Tab
+ *    leaves, and the rest of the page stays usable while the question waits.
  *
  * `Other…` is injected here rather than by the model, so it is always offered,
  * always last, and always in the reader's language. That it is UNCONDITIONAL
@@ -65,16 +62,6 @@ export interface QuestionFlowProps {
   set: QuestionSet;
   /** Called once, with every answered question, when the last one settles. */
   onSubmit: (answers: QuestionAnswer[]) => void | Promise<void>;
-  /**
-   * Give up on the question. FINAL — it is retired and the composer comes
-   * back. Named for what it does: "Answer later" promised a later that
-   * almost never existed, because the only reason to leave the panel is to
-   * reach the composer, and typing retires the question anyway.
-   */
-  onSkip?: () => void;
-  /** Collapse out of the way WITHOUT deciding anything (Esc). Recoverable —
-   *  a habitual keypress must never discard an answer in progress. */
-  onCollapse?: () => void;
   busy?: boolean;
   error?: string | null;
   className?: string;
@@ -98,8 +85,6 @@ function toAnswer(question: Question, draft: DraftAnswer): QuestionAnswer {
 export function QuestionFlow({
   set,
   onSubmit,
-  onSkip,
-  onCollapse,
   busy = false,
   error = null,
   className,
@@ -164,16 +149,6 @@ export function QuestionFlow({
     );
     first?.focus();
   }, [cursor, busy]);
-
-  // Esc collapses rather than cancels: the question is still pending, the
-  // reader just wants the input back. Bound on the panel, not the document,
-  // so it never steals Esc from a dialog above it.
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape' && onCollapse) {
-      event.stopPropagation();
-      onCollapse();
-    }
-  };
 
   if (!question) return null;
 
@@ -325,12 +300,11 @@ export function QuestionFlow({
 
   return (
     // A group labelled by the question it is asking. NOT `aria-modal` and not
-    // focus-trapped on purpose: Esc collapses, Tab leaves, and the reader can
-    // always go somewhere else.
+    // focus-trapped on purpose: Tab leaves, and the reader can always go
+    // somewhere else.
     <div
       role="group"
       aria-labelledby={headingId}
-      onKeyDown={onKeyDown}
       className={cn(
         // The composer's own frame, to the pixel: same width cap, centring,
         // border, radius and lifted shadow. For as long as it is up, this IS
@@ -435,18 +409,10 @@ export function QuestionFlow({
         <Alert variant="destructive" description={error} className="mt-2" />
       )}
 
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        {/* No "Type instead" here. Answering in your own words is what
-            `Other…` is for, and it is on EVERY question — the client appends
-            it, so it can never be missing. That left the button meaning only
-            "abandon the set", which sending a message already says. */}
-        <div className="flex items-center gap-1">
-          {onSkip && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={onSkip}>
-              {t('skip')}
-            </Button>
-          )}
-        </div>
+      {/* No "Type instead" here. Answering in your own words is what
+          `Other…` is for, and it is on EVERY question — the client appends
+          it, so it can never be missing. */}
+      <div className="mt-1.5 flex items-center justify-end gap-2">
         <div className="flex items-center gap-1">
           {stepped && cursor > 0 && (
             <Button

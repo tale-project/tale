@@ -34373,8 +34373,6 @@ async function checkApprovalsSurface(
   });
   const rejectId = await seed('connector_operation', 'itest-appr-op-2');
   const reviewId = await seed('task_review', 'itest-appr-task-1');
-  // A chat question row: settled by the thread, never by this door.
-  const questionId = await seed('human_input_request', 'itest-appr-thread-1');
 
   const gotten = z
     .looseObject({ id: z.string(), resourceType: z.string() })
@@ -34396,10 +34394,7 @@ async function checkApprovalsSurface(
   const reviewRefused = await api(`/${reviewId}/decide`, {
     body: { status: 'executing' },
   });
-  const questionRefused = await api(`/${questionId}/decide`, {
-    body: { status: 'executing' },
-  });
-  const questionRow = await rowOf(questionId);
+  const reviewRow = await rowOf(reviewId);
   const badStatus = await api(`/${rejectId}/decide`, {
     body: { status: 'completed' },
   });
@@ -34425,11 +34420,10 @@ async function checkApprovalsSurface(
       rejectedRow?.status === 'rejected' &&
       rejectedRow?.metadata?.comments === 'not like this' &&
       reviewRefused.status === 409 &&
-      questionRefused.status === 409 &&
-      questionRow?.status === 'pending' &&
+      reviewRow?.status === 'pending' &&
       badStatus.status === 400 &&
       Number(auditRows[0]?.count ?? '0') === 2,
-    `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status} (want 409) question=${questionRefused.status}/${questionRow?.status} (want 409/pending) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
+    `get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status}/${reviewRow?.status} (want 409/pending) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
   );
 }
 
@@ -47365,7 +47359,7 @@ async function seedArenaRoundReplies(
   `;
 }
 
-async function checkArenaAndQuestions(
+async function checkArena(
   sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
@@ -47649,135 +47643,6 @@ async function checkArenaAndQuestions(
     'feedback: the vote lane still upserts after the arena split',
     voteRows.length === 1 && voteRows[0]?.rating === 'negative',
     `rows=${voteRows.length} rating=${voteRows[0]?.rating}`,
-  );
-
-  // ---- questions: pending → moved-on → newest wins → resolve stamps ------
-  const questionSet = {
-    intro: 'Before I draft this',
-    questions: [
-      {
-        id: 'tone',
-        question: 'Which tone should the draft take?',
-        options: [{ label: 'Formal', recommended: true }, { label: 'Casual' }],
-      },
-    ],
-  };
-  const insertQuestion = async (
-    id: string,
-    requestedAt: number,
-  ): Promise<void> => {
-    await sql`
-      INSERT INTO app.approvals (
-        id, org_id, status, resource_type, resource_id, thread_id, priority,
-        metadata, created_at_ms
-      ) VALUES (
-        ${id}, ${orgId}, 'pending', 'human_input_request', ${threadA},
-        ${threadA}, 'medium',
-        ${sql.json({ set: questionSet, requestedAt })}, ${requestedAt}
-      )
-    `;
-  };
-  await insertQuestion('probe-q1', now + 1000);
-  const q1 = z
-    .object({
-      question: z.object({ requestId: z.string(), set: z.object({}).loose() }),
-    })
-    .safeParse(
-      await (
-        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
-      ).json(),
-    );
-  await sql`
-    INSERT INTO app.messages (
-      id, thread_id, org_id, "order", step_order, role, parts, text, status,
-      created_at_ms
-    ) VALUES (
-      'probe-q-answer', ${threadA}, ${orgId},
-      (SELECT coalesce(max("order"), -1) + 1 FROM app.messages
-       WHERE thread_id = ${threadA}),
-      0, 'user', ${sql.json([{ type: 'text', text: 'formal please' }])},
-      'formal please', 'complete', ${now + 2000}
-    )
-  `;
-  const q1Moved = z
-    .object({ question: z.null() })
-    .safeParse(
-      await (
-        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
-      ).json(),
-    );
-  await insertQuestion('probe-q2', now + 3000);
-  await sql`
-    INSERT INTO app.messages (
-      id, thread_id, org_id, "order", step_order, role, parts, status,
-      created_at_ms
-    ) VALUES (
-      'probe-q2-part', ${threadA}, ${orgId},
-      (SELECT coalesce(max("order"), -1) + 1 FROM app.messages
-       WHERE thread_id = ${threadA}),
-      0, 'assistant',
-      ${sql.json([{ type: 'human-input', requestId: 'probe-q2', set: questionSet }])},
-      'complete', ${now + 3500}
-    )
-  `;
-  const q2 = z
-    .object({ question: z.object({ requestId: z.string() }).loose() })
-    .safeParse(
-      await (
-        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
-      ).json(),
-    );
-  const resolved = z.object({ ok: z.boolean() }).safeParse(
-    await (
-      await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
-        outcome: 'answered',
-      })
-    ).json(),
-  );
-  const q2Row = await sql<{ status: string; approvedBy: string | null }[]>`
-    SELECT status, approved_by AS "approvedBy" FROM app.approvals
-    WHERE id = 'probe-q2'
-  `;
-  const stamped = await sql<{ parts: unknown }[]>`
-    SELECT parts FROM app.messages WHERE id = 'probe-q2-part'
-  `;
-  const stampedFirst: unknown = Array.isArray(stamped[0]?.parts)
-    ? stamped[0].parts[0]
-    : undefined;
-  const stampedOutcome =
-    stampedFirst !== null &&
-    typeof stampedFirst === 'object' &&
-    'outcome' in stampedFirst
-      ? stampedFirst.outcome
-      : undefined;
-  const afterResolve = z
-    .object({ question: z.null() })
-    .safeParse(
-      await (
-        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
-      ).json(),
-    );
-  const doubleResolve = z.object({ ok: z.boolean() }).safeParse(
-    await (
-      await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
-        outcome: 'superseded',
-      })
-    ).json(),
-  );
-  record(
-    'questions: pending set, moved-on derivation, resolve stamps the part',
-    q1.success &&
-      q1.data.question.requestId === 'probe-q1' &&
-      q1Moved.success &&
-      q2.success &&
-      q2.data.question.requestId === 'probe-q2' &&
-      resolved.success &&
-      q2Row[0]?.status === 'completed' &&
-      q2Row[0]?.approvedBy === userId &&
-      stampedOutcome === 'answered' &&
-      afterResolve.success &&
-      doubleResolve.success,
-    `q1=${q1.success}, movedOn=${q1Moved.success}, q2=${q2.success}, resolved=${q2Row[0]?.status}/${q2Row[0]?.approvedBy === userId}, stamp=${String(stampedOutcome)}, cleared=${afterResolve.success}, doubleOk=${doubleResolve.success}`,
   );
 }
 
@@ -54170,10 +54035,7 @@ async function main(): Promise<void> {
         () => checkEngagementSurface(sql, baseUrl, authCtx),
       ],
       ['checkMetricsSurface', () => checkMetricsSurface(sql, baseUrl, authCtx)],
-      [
-        'checkArenaAndQuestions',
-        () => checkArenaAndQuestions(sql, baseUrl, authCtx),
-      ],
+      ['checkArena', () => checkArena(sql, baseUrl, authCtx)],
       [
         'checkGovernanceEnforcement',
         () =>

@@ -955,7 +955,7 @@ Le champ `usage` décrit les tokens et le coût estimé :
 
 `usage` est absent si le tour a échoué avant que le fournisseur ne transmette de compteurs.
 
-`parts` est une liste ordonnée dont les éléments sont distingués par `type` : `text`, `reasoning`, `attachment`, `tool-call`, `tool-result`, `approval` ou `human-input`. Le document OpenAPI décrit chaque forme comme un schéma nommé (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`, `HumanInputPart`) derrière un discriminant `type` à mapping explicite, un client généré obtient donc une classe par type. Traite un type inconnu comme un élément opaque : de nouveaux types peuvent être ajoutés.
+`parts` est une liste ordonnée dont les éléments sont distingués par `type` : `text`, `reasoning`, `attachment`, `tool-call`, `tool-result` ou `approval`. Le document OpenAPI décrit chaque forme comme un schéma nommé (`TextPart`, `ReasoningPart`, `AttachmentPart`, `ToolCallPart`, `ToolResultPart`, `ApprovalPart`) derrière un discriminant `type` à mapping explicite, un client généré obtient donc une classe par type. Traite un type inconnu comme un élément opaque : de nouveaux types peuvent être ajoutés.
 
 Affiche une partie `reasoning` séparément de la réponse. Elle peut reprendre des instructions reçues par le modèle : guide de l’assistant, règles sur les sources, instructions obligatoires de l’organisation ou instructions du projet. Ne la diffuse pas à un public qui ne doit pas connaître ces instructions.
 

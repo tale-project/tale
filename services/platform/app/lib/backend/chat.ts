@@ -1059,35 +1059,7 @@ export async function reportPerceivedWaitRequest(
   );
 }
 
-// ---------------------------------------------------------------- questions + arena
-
-/** The pending clarifying question a thread is waiting on (null clears the
- * panel). Keyed under `chat_thread` so thread hints refresh it. */
-export function pendingQuestionQuery(organizationId: string, threadId: string) {
-  return queryOptions({
-    queryKey: backendKey(organizationId, 'chat_thread', 'question', threadId),
-    queryFn: ({ signal }) =>
-      backendFetch<{
-        question: { requestId: string; set: unknown } | null;
-      }>(`/chat/threads/${encodeURIComponent(threadId)}/question`, {
-        signal,
-        orgId: organizationId,
-      }).then((body) => body.question),
-  });
-}
-
-/** Close a pending question — answered or superseded. Double-submits are
- * server-side no-ops. */
-export async function resolveQuestionRequest(
-  organizationId: string,
-  requestId: string,
-  outcome: 'answered' | 'superseded',
-): Promise<void> {
-  await backendFetch(
-    `/chat/questions/${encodeURIComponent(requestId)}/resolve`,
-    { method: 'POST', body: { outcome }, orgId: organizationId },
-  );
-}
+// ---------------------------------------------------------------- arena
 
 /** The live arena pair as seen from either column (null = not in a pair —
  * ABSENCE IS THE SIGNAL, so the read is never session-cached). */

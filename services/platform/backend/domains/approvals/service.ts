@@ -89,9 +89,9 @@ export interface DecideApprovalArgs {
 
 /**
  * The per-KIND authorization rule for the generic decide door. The door
- * itself is an org-member surface (the 0.4 posture — connector operations,
- * human-input asks, and conversation approvals are decided by the people
- * working the thread), but a GDPR erasure decision IS the second half of
+ * itself is an org-member surface (the 0.4 posture — connector operations
+ * and conversation approvals are decided by the people working the
+ * thread), but a GDPR erasure decision IS the second half of
  * the dual-control contract the docs promise ("a second Admin must
  * approve"), so both deciding directions — approve AND reject — demand an
  * org admin. Pure so the rule is unit-testable.
@@ -112,15 +112,13 @@ export function assertRoleMayDecideKind(
 /**
  * The approval kinds the generic door refuses, each naming the door that
  * settles it. A kind belongs here when something else owns its lifecycle —
- * a respond route, or the chat thread itself.
+ * a respond route, or the task it gates.
  */
 const DEDICATED_RESPOND_DOORS: Readonly<Record<string, string>> = {
   document_record_review:
     'Controlled-record reviews are answered via the document records respond door.',
   task_review:
     'Task reviews are decided on the task: moving the card from In review to Done approves, moving it back to In progress sends the work back (the review gate is withdrawn).',
-  human_input_request:
-    'Chat questions are answered in their thread (domains/chat/questions.ts), never through the generic decide door.',
 };
 
 /**
@@ -157,9 +155,7 @@ export async function decideApproval(
     }
     // Rows with a dedicated settle path are NOT generically completable:
     // that path carries the permission checks, the feedback-required rule,
-    // and the resource's own state transition — and, for a chat question,
-    // the only reader (`chat/questions.ts` matches `status = 'pending'`
-    // everywhere, so a row flipped here would never be settled or answered).
+    // and the resource's own state transition.
     const dedicatedDoor = DEDICATED_RESPOND_DOORS[approval.resourceType];
     if (dedicatedDoor !== undefined) {
       throw new ApprovalError(

@@ -1,7 +1,6 @@
 /**
- * The clarifying-question set — one shape, shared by every lane that asks a
- * person something mid-turn (chat's `ask_question`, the task/automation
- * lane's `ask_human`).
+ * The clarifying-question set — the choices an automation run's `ask_human`
+ * can offer the person it stops to ask.
  *
  * The one rule this schema exists to enforce: **a question always offers
  * options**. The format this replaced had ten field types — `text`,

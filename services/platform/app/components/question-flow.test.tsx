@@ -187,36 +187,6 @@ describe('QuestionFlow', () => {
     ]);
   });
 
-  // Nothing here may trap: Esc hands the input back, and so does the button.
-  it('collapses on Escape without deciding anything', async () => {
-    const onCollapse = vi.fn();
-    const onSkip = vi.fn();
-    const { user } = render(
-      <QuestionFlow
-        set={THREE}
-        onSubmit={vi.fn()}
-        onSkip={onSkip}
-        onCollapse={onCollapse}
-      />,
-    );
-    await user.keyboard('{Escape}');
-    expect(onCollapse).toHaveBeenCalledTimes(1);
-    // A habitual keypress must never discard the question.
-    expect(onSkip).not.toHaveBeenCalled();
-  });
-
-  // "Answer later" promised a later that almost never existed: the only
-  // reason to leave the panel is to reach the composer, and typing retires
-  // the question. The button now says what the system actually records.
-  it('gives up on the question outright via Skip', async () => {
-    const onSkip = vi.fn();
-    const { user } = render(
-      <QuestionFlow set={THREE} onSubmit={vi.fn()} onSkip={onSkip} />,
-    );
-    await user.click(screen.getByRole('button', { name: 'Skip' }));
-    expect(onSkip).toHaveBeenCalledTimes(1);
-  });
-
   // Removing "Type instead" is only safe BECAUSE `Other…` is unconditional:
   // the client appends it to every question, so there is always a way to
   // answer in your own words without leaving the flow. If that ever became
@@ -232,7 +202,7 @@ describe('QuestionFlow', () => {
     expect(screen.getByRole('radio', { name: /Other/ })).toBeInTheDocument();
   });
 
-  it('has no button for abandoning the set — sending a message says that', () => {
+  it('has no "Type instead" button — Other covers answering in your own words', () => {
     render(<QuestionFlow set={THREE} onSubmit={vi.fn()} />);
     expect(
       screen.queryByRole('button', { name: 'Type instead' }),
@@ -248,7 +218,7 @@ describe('QuestionFlow', () => {
 
   it('has no accessibility violations', async () => {
     const { container } = render(
-      <QuestionFlow set={THREE} onSubmit={vi.fn()} onSkip={vi.fn()} />,
+      <QuestionFlow set={THREE} onSubmit={vi.fn()} />,
     );
     await checkAccessibility(container);
   });

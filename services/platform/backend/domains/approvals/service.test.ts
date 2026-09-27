@@ -52,7 +52,6 @@ describe('assertRoleMayDecideKind', () => {
   it('leaves every non-erasure kind on the org-member posture', () => {
     for (const kind of [
       'connector_operation',
-      'human_input_request',
       'conversations',
       'document_record_review',
       'task_review',
@@ -85,21 +84,19 @@ function fakeSql(
 
 describe('decideApproval — kinds with a dedicated settle path are refused', () => {
   /**
-   * A chat question lives on `app.approvals` as a `human_input_request` row
-   * and is settled by the person's next message in the thread; every reader
-   * in `chat/questions.ts` matches `status = 'pending'`. The generic door
-   * refused review-gate rows but let this kind through, so an authenticated
-   * `POST /approvals/:id/decide` flipped the row to `executing` — a state no
-   * consumer reads — and stranded the thread's question.
+   * A task review is decided on the task — moving the card is the decision —
+   * so the generic door must refuse it without writing anything: a row
+   * flipped here would skip the review gate's permission checks and leave
+   * the task's own state behind.
    */
-  it('refuses a human_input_request row with 409 and leaves it untouched', async () => {
+  it('refuses a task_review row with 409 and leaves it untouched', async () => {
     const log: { text: string; values: unknown[] }[] = [];
     const sql = fakeSql((text) => {
       if (text.includes('FROM app.approvals')) {
         return [
           {
-            resourceType: 'human_input_request',
-            resourceId: 'thr-1',
+            resourceType: 'task_review',
+            resourceId: '42',
             status: 'pending',
             metadata: null,
           },

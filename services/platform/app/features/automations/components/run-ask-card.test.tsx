@@ -76,8 +76,8 @@ describe('RunAskCard', () => {
   });
 });
 
-// Choices are OPTIONAL on this lane, unlike chat's ask_question: a run's
-// blocker is often genuinely open, so the card has to serve both shapes.
+// Choices are OPTIONAL on this lane: a run's blocker is often genuinely
+// open, so the card has to serve both shapes.
 describe('RunAskCard with offered choices', () => {
   const withChoices = {
     askId: 'ask-2' as string,

@@ -146,59 +146,6 @@ describe('buildTimelineEntries', () => {
     ).toMatchObject({ state: 'failed' });
   });
 
-  // A tool that addresses the person is drawn as its own row, not as a step:
-  // "Asking question" was a placeholder above a row already carrying the
-  // question, the count and the outcome. Steps are for invisible work.
-  it('leaves a question out of the steps entirely', () => {
-    const paused: MessagePart[] = [
-      {
-        type: 'tool-call',
-        callId: 'c4',
-        capabilityId: 'ask_question',
-        input: { questions: [{ id: 'purpose', question: 'Why?' }] },
-      },
-      {
-        type: 'tool-result',
-        callId: 'c4',
-        capabilityId: 'ask_question',
-        output: {
-          status: 'awaiting-answer',
-          requestId: 'approval_1',
-          question: 'Who is Bergmann Logistics to you?',
-        },
-        structured: true,
-      },
-    ];
-    expect(buildTimelineEntries(paused, { isStreaming: false })).toEqual([]);
-  });
-
-  it('still draws the invisible work beside it', () => {
-    const mixed: MessagePart[] = [
-      {
-        type: 'tool-call',
-        callId: 'c5',
-        capabilityId: 'rag_search',
-        input: { query: 'Bergmann' },
-      },
-      {
-        type: 'tool-result',
-        callId: 'c5',
-        capabilityId: 'rag_search',
-        output: { status: 'ok' },
-        structured: true,
-      },
-      {
-        type: 'tool-call',
-        callId: 'c6',
-        capabilityId: 'ask_question',
-        input: {},
-      },
-    ];
-    const entries = buildTimelineEntries(mixed, { isStreaming: false });
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ tool: 'rag_search' });
-  });
-
   it('appends the live reasoning tail as the trailing entry', () => {
     const entries = buildTimelineEntries(toolExchange, {
       isStreaming: true,
@@ -452,8 +399,8 @@ describe('buildTimelineEntries — superseded failures', () => {
  * A turn that produced no visible text still took time.
  *
  * The header used to read `timeToFirstTokenMs` (first provider text SSE)
- * and vanish when a turn wrote nothing — a turn that paused on a
- * question, say. A 28-second turn that had run three tools lost its header
+ * and vanish when a turn wrote nothing — a turn stopped right after its
+ * tools ran, say. A 28-second turn that had run three tools lost its header
  * entirely: no TTFT, no reasoning parts, not streaming.
  */
 describe('ThoughtTimeline header on a turn with no answer', () => {

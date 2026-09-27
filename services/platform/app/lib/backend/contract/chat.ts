@@ -176,27 +176,6 @@ export interface ChatContract {
       }>;
     };
   };
-  'chat/questions:getPendingQuestion': {
-    kind: 'query';
-    args: { organizationId: string; threadId: string };
-    returns: null | {
-      requestId: string;
-      set: {
-        questions: Array<{
-          id: string;
-          question: string;
-          options: Array<{
-            label: string;
-            description?: string;
-            recommended?: boolean;
-          }>;
-          header?: string;
-          multiSelect?: boolean;
-        }>;
-        intro?: string;
-      };
-    };
-  };
   'chat/search:searchChats': {
     kind: 'query';
     args: { organizationId: string; query: string };

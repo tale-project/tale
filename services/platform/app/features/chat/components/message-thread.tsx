@@ -54,7 +54,6 @@ const GENERATION_STATUS_KEY: Record<ChatGenerationView['status'], string> = {
   queued: 'generation.queued',
   streaming: 'generation.streaming',
   'waiting-approval': 'generation.waitingApproval',
-  'waiting-input': 'generation.waitingInput',
 };
 
 /** The per-row action handlers a surface wires into the transcript. */

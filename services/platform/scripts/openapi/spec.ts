@@ -9015,20 +9015,9 @@ curl -H "Authorization: Bearer <api-key>" \\
             decision: { type: 'string', enum: ['approved', 'rejected'] },
           },
         },
-        HumanInputPart: {
-          type: 'object',
-          required: ['type', 'requestId', 'question'],
-          properties: {
-            type: { type: 'string', enum: ['human-input'] },
-            requestId: str,
-            question: str,
-            questionCount: int,
-            outcome: { type: 'string', enum: ['answered', 'skipped'] },
-          },
-        },
         MessagePart: {
           description:
-            'One ordered piece of a message, discriminated by `type`: the `mapping` names the schema each kind validates against (`TextPart` … `HumanInputPart`), so a discriminator-honouring validator resolves every part. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.',
+            'One ordered piece of a message, discriminated by `type`: the `mapping` names the schema each kind validates against (`TextPart` … `ApprovalPart`), so a discriminator-honouring validator resolves every part. The kinds listed are the vocabulary as of this version; the set is additive, so a client renders a kind it does not know as opaque.',
           discriminator: {
             propertyName: 'type',
             mapping: {
@@ -9038,7 +9027,6 @@ curl -H "Authorization: Bearer <api-key>" \\
               'tool-call': '#/components/schemas/ToolCallPart',
               'tool-result': '#/components/schemas/ToolResultPart',
               approval: '#/components/schemas/ApprovalPart',
-              'human-input': '#/components/schemas/HumanInputPart',
             },
           },
           oneOf: [
@@ -9048,7 +9036,6 @@ curl -H "Authorization: Bearer <api-key>" \\
             ref('ToolCallPart'),
             ref('ToolResultPart'),
             ref('ApprovalPart'),
-            ref('HumanInputPart'),
           ],
         },
         Message: {
