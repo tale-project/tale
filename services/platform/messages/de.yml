@@ -611,6 +611,8 @@ automations:
     timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
     webhookHint: Die Webhook-URL bekommst du nach dem Anlegen auf der
       Trigger-Karte der Automatisierung.
+    enableNow: Jetzt aktivieren
+    enableNowHint: Aus lässt den Trigger pausiert — es startet nichts, bis du ihn auf der Trigger-Karte einschaltest.
     triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
       sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
     cancel: Abbrechen
@@ -671,7 +673,8 @@ automations:
       failed: Automatisierung konnte nicht gelöscht werden
   trigger:
     title: Trigger
-    none: Noch nichts startet diese Automatisierung.
+    none: Kein Trigger — diese Automatisierung läuft nur, wenn du sie von Hand oder über die API startest.
+    add: Trigger hinzufügen
     kindLabel: Trigger-Typ
     kinds:
       schedule: Zeitplan

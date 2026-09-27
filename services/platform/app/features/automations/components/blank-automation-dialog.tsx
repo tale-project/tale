@@ -12,6 +12,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
@@ -126,6 +127,9 @@ export function BlankAutomationDialog({
   const [cron, setCron] = useState('0 */6 * * *');
   const [timezone, setTimezone] = useState('UTC');
   const [eventName, setEventName] = useState('');
+  // Off by default: the trigger is created paused, the way the panel does
+  // it, so nothing starts before the author has looked at the result.
+  const [enableNow, setEnableNow] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -142,6 +146,7 @@ export function BlankAutomationDialog({
     setCron('0 */6 * * *');
     setTimezone('UTC');
     setEventName('');
+    setEnableNow(false);
   }, [open]);
 
   // The grantable platform tools, labelled per name with a read/write badge
@@ -287,7 +292,7 @@ export function BlankAutomationDialog({
           name: saved.name,
           trigger: {
             kind: triggerKind,
-            enabled: true,
+            enabled: enableNow,
             ...(triggerKind === 'schedule'
               ? { cron: cron.trim(), timezone: timezone.trim() || 'UTC' }
               : {}),
@@ -541,6 +546,13 @@ export function BlankAutomationDialog({
           {triggerKind === 'webhook' ? (
             <Alert variant="info" description={t('blank.webhookHint')} />
           ) : null}
+          <Checkbox
+            id="blank-automation-enable-now"
+            label={t('blank.enableNow')}
+            description={t('blank.enableNowHint')}
+            checked={enableNow}
+            onCheckedChange={(checked) => setEnableNow(checked === true)}
+          />
         </Stack>
       )}
     </FormDialog>

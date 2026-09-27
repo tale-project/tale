@@ -323,7 +323,9 @@ output:
   working.
 - [ ] `AUTO-F29` · **Trigger — remove** — **Remove trigger**
       (`automations.trigger.remove`) → confirm (`automations.trigger.removeTitle`)
-      → The panel reads `automations.trigger.none` after reload; versions and run
+      → The panel reads `automations.trigger.none` with an **Add trigger**
+      button (`automations.trigger.add`) — no Trigger type, Cron or Enabled
+      switch is drawn — immediately and after reload; versions and run
       history untouched.
 - [ ] `AUTO-F30` · **Project bindings** — Inspector **Projects** (no node
   selected) → select project(s) → **Save settings**
@@ -463,6 +465,14 @@ output:
       fresh upload, or a built-in pack) → the line reads
       `automations.trigger.notDeployed` naming the would-be occurrence, never
       a bare "Next run"; deploy a version → the plain next run returns.
+- [ ] `AUTO-F45` · **A new trigger starts off** — On an automation with no
+      trigger, **Add trigger** (`automations.trigger.add`) → the form opens
+      with **Enabled** OFF; type a cron and **Save settings** → after reload
+      the switch is still off and the Cron line reads
+      `automations.trigger.paused`; nothing fires at the cron's minute. In the
+      **Blank** wizard step 2, **Enable now** (`automations.blank.enableNow`)
+      is unchecked by default → the created automation's trigger is off;
+      check it → the trigger is on.
 
 ## Boundary & error tests
 

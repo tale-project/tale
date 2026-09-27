@@ -215,6 +215,7 @@ describe('TriggerEditor', () => {
       <TriggerEditor organizationId="org-1" name="fresh-automation" canEdit />,
     );
 
+    await userEvent.click(screen.getByRole('button', { name: 'Add trigger' }));
     await userEvent.click(
       screen.getByRole('combobox', { name: 'Trigger type' }),
     );
@@ -237,6 +238,68 @@ describe('TriggerEditor', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/\?projectId=/)).not.toBeInTheDocument();
+  });
+
+  // No binding used to draw an ENABLED, empty schedule — indistinguishable
+  // from a half-filled armed one — and a cron typed into it saved armed
+  // (2026-09-26 evaluation, D-10).
+  describe('without a stored trigger', () => {
+    it('says so, with an Add trigger affordance and no armed-looking form', () => {
+      triggersData = [];
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="fresh-automation"
+          canEdit
+        />,
+      );
+      expect(
+        screen.getByText(/No trigger — this automation runs only when/),
+      ).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Add trigger' })).toBeVisible();
+      expect(screen.queryByRole('switch', { name: 'Enabled' })).toBeNull();
+      expect(screen.queryByLabelText('Cron')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    });
+
+    it('opens a new binding with Enabled OFF and saves it off', async () => {
+      triggersData = [];
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="fresh-automation"
+          canEdit
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Add trigger' }),
+      );
+      expect(screen.getByRole('switch', { name: 'Enabled' })).not.toBeChecked();
+      await userEvent.type(screen.getByLabelText('Cron'), '0 9 * * 1');
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(mockSetTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger: expect.objectContaining({
+            kind: 'schedule',
+            enabled: false,
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('keeps the plain sentence for members', () => {
+      triggersData = [];
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="fresh-automation"
+          canEdit={false}
+        />,
+      );
+      expect(screen.getByText(/No trigger/)).toBeVisible();
+      expect(screen.queryByRole('button', { name: 'Add trigger' })).toBeNull();
+    });
   });
 
   it('renders read-only for members: binding visible, no controls', () => {

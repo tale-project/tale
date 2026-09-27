@@ -23,7 +23,7 @@ Un client API ou MCP peut aussi démarrer sans déclencheur configuré. Sa clé 
 
 <Step title="Ouvrir les paramètres du déclencheur">
 
-Ouvre l’automatisation et son panneau **Déclencheur**. Sous **Type de déclencheur**, choisis **Planification**. Laisse **Actif** désactivé tant que le workflow ne doit pas démarrer seul.
+Ouvre l’automatisation et son panneau **Déclencheur**. Sans liaison, il indique que l’automatisation ne s’exécute que lancée à la main ou via l’API ; choisis **Ajouter un déclencheur**, puis **Planification** sous **Type de déclencheur**. Un nouveau déclencheur n’est pas **Actif** au départ — laisse-le désactivé tant que le workflow ne doit pas démarrer seul.
 
 </Step>
 

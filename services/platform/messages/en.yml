@@ -580,6 +580,8 @@ automations:
     timezoneInvalid: Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).
     webhookHint: You'll get the webhook URL on the automation's Trigger card
       after it's created.
+    enableNow: Enable now
+    enableNowHint: Off keeps the trigger paused — nothing starts until you switch it on from the Trigger card.
     triggerFailed: 'The automation was created, but its trigger could not be
       set: {error}. Set it from the Trigger card.'
     cancel: Cancel
@@ -639,7 +641,8 @@ automations:
       failed: Could not delete the automation
   trigger:
     title: Trigger
-    none: Nothing starts this automation yet.
+    none: No trigger — this automation runs only when started by hand or through the API.
+    add: Add trigger
     kindLabel: Trigger type
     kinds:
       schedule: Schedule

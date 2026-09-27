@@ -23,7 +23,7 @@ An API or MCP client can also start work without a configured trigger. Its API k
 
 <Step title="Open the trigger settings">
 
-Open the automation and its **Trigger** panel. Choose **Schedule** under **Trigger type**. Keep **Enabled** off while preparing a workflow that should not start yet.
+Open the automation and its **Trigger** panel. Without a binding it says that the automation runs only when started by hand or through the API; choose **Add trigger**, then **Schedule** under **Trigger type**. A new trigger starts with **Enabled** off — keep it off while preparing a workflow that should not start yet.
 
 </Step>
 

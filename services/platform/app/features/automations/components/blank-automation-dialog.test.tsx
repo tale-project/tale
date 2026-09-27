@@ -161,7 +161,25 @@ describe('BlankAutomationDialog schedule validation', () => {
           kind: 'schedule',
           cron: '43 7 * * *',
           timezone: 'UTC',
+          // Off by default — the trigger is created paused (D-10).
+          enabled: false,
         }),
+      }),
+    );
+  });
+
+  it('arms the trigger only when Enable now is checked', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    const enableNow = screen.getByRole('checkbox', { name: /Enable now/i });
+    expect(enableNow).not.toBeChecked();
+    await user.click(enableNow);
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(setTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: expect.objectContaining({ enabled: true }),
       }),
     );
   });

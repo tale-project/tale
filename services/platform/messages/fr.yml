@@ -618,6 +618,8 @@ automations:
     timezoneInvalid: Choisis un fuseau horaire IANA valide (par ex. Europe/Zurich ou UTC).
     webhookHint: Tu obtiendras l'URL du webhook sur la carte Trigger de
       l'automatisation une fois créée.
+    enableNow: Activer maintenant
+    enableNowHint: Décoché, le déclencheur reste en pause — rien ne démarre tant que tu ne l’actives pas depuis la carte Déclencheur.
     triggerFailed: "L'automatisation a été créée, mais son trigger n'a pas pu
       être défini : {error}. Définis-le depuis la carte Trigger."
     cancel: Annuler
@@ -677,7 +679,8 @@ automations:
       failed: Impossible de supprimer l’automatisation
   trigger:
     title: Déclencheur
-    none: Rien ne démarre encore cette automatisation.
+    none: Aucun déclencheur — cette automatisation ne s’exécute que lancée à la main ou via l’API.
+    add: Ajouter un déclencheur
     kindLabel: Type de déclencheur
     kinds:
       schedule: Planification

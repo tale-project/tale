@@ -14,7 +14,7 @@ import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { KeyRound, Trash2 } from 'lucide-react';
+import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -115,10 +115,17 @@ export function TriggerEditor({
   const [cron, setCron] = useState('');
   const [timezone, setTimezone] = useState('UTC');
   const [eventName, setEventName] = useState('');
-  const [enabled, setEnabled] = useState(true);
+  // A NEW binding starts OFF: the docs say to keep Enabled off while
+  // preparing, and a binding that armed itself the moment a cron was typed
+  // started runs nobody had asked for yet.
+  const [enabled, setEnabled] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [mintedToken, setMintedToken] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // Whether the author opened the form for a binding that does not exist
+  // yet — without one the panel says "no trigger" instead of drawing an
+  // empty schedule that looks armed.
+  const [adding, setAdding] = useState(false);
 
   // Load the stored binding into the form whenever it changes under us —
   // the row is the truth; local state only carries unsaved edits.
@@ -129,6 +136,7 @@ export function TriggerEditor({
     setTimezone(stored.timezone ?? 'UTC');
     setEventName(stored.event ?? '');
     setEnabled(stored.enabled);
+    setAdding(false);
   }, [stored]);
 
   const dirty = useMemo(() => {
@@ -138,7 +146,7 @@ export function TriggerEditor({
         (timezone !== '' && timezone !== 'UTC') ||
         eventName !== '' ||
         kind !== 'schedule' ||
-        !enabled
+        enabled
       );
     }
     return (
@@ -227,6 +235,8 @@ export function TriggerEditor({
   const blocked = kind === 'schedule' && cronPreview.kind === 'invalid';
   const canRotate = kind === 'webhook' && stored?.hasToken === true;
   const canRemove = stored !== undefined;
+  // The form draws for a stored binding, or once the author asked to add one.
+  const showForm = stored !== undefined || (canEdit && adding);
 
   useEffect(() => {
     if (onControllerChange === undefined) return undefined;
@@ -283,7 +293,7 @@ export function TriggerEditor({
             </Text>
           )}
         </div>
-        {(canEdit || stored !== undefined) && (
+        {showForm && (
           <Switch
             label={t('trigger.enabledLabel')}
             checked={enabled}
@@ -294,10 +304,24 @@ export function TriggerEditor({
       </header>
 
       <div className="flex min-h-0 flex-col gap-3">
-        {stored === undefined && !canEdit && (
-          <Text as="p" variant="muted" className="text-sm">
-            {t('trigger.none')}
-          </Text>
+        {!showForm && (
+          <div className="flex flex-col items-start gap-2">
+            <Text as="p" variant="muted" className="text-sm">
+              {t('trigger.none')}
+            </Text>
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={Plus}
+                onClick={() => {
+                  setAdding(true);
+                }}
+              >
+                {t('trigger.add')}
+              </Button>
+            )}
+          </div>
         )}
 
         {refusal !== null && (
@@ -321,7 +345,7 @@ export function TriggerEditor({
           />
         )}
 
-        {(canEdit || stored !== undefined) && (
+        {showForm && (
           <div className="grid gap-3">
             <Select
               label={t('trigger.kindLabel')}
@@ -412,7 +436,7 @@ export function TriggerEditor({
         )}
       </div>
 
-      {canEdit && showActions && (
+      {canEdit && showActions && showForm && (
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
@@ -477,6 +501,13 @@ export function TriggerEditor({
             {
               onSuccess: () => {
                 setConfirmRemove(false);
+                // Back to "no trigger" — with a fresh, OFF form next time.
+                setAdding(false);
+                setKind('schedule');
+                setCron('');
+                setTimezone('UTC');
+                setEventName('');
+                setEnabled(false);
               },
               onError: (error) => {
                 setRefusal(automationErrorMessage(error));
