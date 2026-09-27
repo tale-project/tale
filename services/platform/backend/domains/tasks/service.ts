@@ -47,6 +47,7 @@ import {
   closePendingTaskReviewOnStatusLeave,
   collectPendingReviewsForProjects,
   requestTaskReview,
+  retargetPendingTaskReview,
   type TaskReviewTrigger,
 } from './reviews.ts';
 
@@ -1476,6 +1477,17 @@ export async function updateTask(
       newState,
     }),
   );
+  // A review already open follows the designation in this transaction: the
+  // board chip, "Needs my review" and the request bell all read its
+  // `requestedFor`, which the mint stamped once — without this a change
+  // mid-review left the request with the reviewer it was taken from.
+  const openReviewer =
+    reviewerUserId !== task.reviewerUserId
+      ? await retargetPendingTaskReview(tx, {
+          task: { ...task, title, reviewerUserId },
+          actorUserId: auth.userId,
+        })
+      : undefined;
   if (designatedReviewer !== null) {
     // The designee owns the gate from now on: they follow the task (its
     // progress, not just the request moment) and get the heads-up bell —
@@ -1489,12 +1501,16 @@ export async function updateTask(
       subscriberId: designatedReviewer,
       reason: 'reviewer',
     });
-    await notifyTaskReviewerAssigned(tx, {
-      organizationId: auth.organizationId,
-      task: { id: task.id, projectId: task.projectId, title },
-      reviewerUserId: designatedReviewer,
-      actorUserId: auth.userId,
-    });
+    // Once the open request is theirs it IS their bell: the heads-up shares
+    // its collapse identity and would rewrite the actionable row in place.
+    if (openReviewer !== designatedReviewer) {
+      await notifyTaskReviewerAssigned(tx, {
+        organizationId: auth.organizationId,
+        task: { id: task.id, projectId: task.projectId, title },
+        reviewerUserId: designatedReviewer,
+        actorUserId: auth.userId,
+      });
+    }
   }
 }
 

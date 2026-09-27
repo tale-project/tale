@@ -234,6 +234,64 @@ export async function requestTaskReview(
   return { approvalId, minted: true };
 }
 
+/**
+ * Follow a changed designation while the gate is open. MUST run in the
+ * same transaction as the `reviewer_user_id` write, with `task` already
+ * carrying the new designation: the open review is resolved through the
+ * mint's own chain, so a new designee takes it and a clear hands it back to
+ * the default (human task creator → project creator). When that moves the
+ * request, it moves whole — the previous reviewer's request bell stops
+ * ringing, and the new one follows the task and is asked by the person who
+ * made the change (never belled for taking a review on themselves).
+ * Workflow-era rows are left alone, as on the status leave. Returns whom
+ * the open review now waits on; undefined when none is open or nobody
+ * resolves.
+ */
+export async function retargetPendingTaskReview(
+  tx: TransactionSql,
+  args: { task: TaskRow; actorUserId: string },
+): Promise<string | undefined> {
+  const { task, actorUserId } = args;
+  const pending = (await listTaskReviewApprovals(tx, task.id)).filter(
+    (approval) =>
+      approval.status === 'pending' && approval.wfExecutionId === null,
+  );
+  if (pending.length === 0) return undefined;
+
+  const reviewer = await resolveReviewer(tx, task);
+  for (const approval of pending) {
+    if ((approval.metadata?.requestedFor ?? null) === (reviewer ?? null)) {
+      continue;
+    }
+    await tx`
+      UPDATE app.approvals SET
+        metadata = coalesce(metadata, '{}'::jsonb)
+          || ${tx.json(toJson({ requestedFor: reviewer ?? null }))}
+      WHERE id = ${approval.id} AND status = 'pending'
+    `;
+    await dismissReviewRequestNotifications(tx, {
+      organizationId: task.organizationId,
+      approvalId: approval.id,
+    });
+    if (reviewer === undefined) continue;
+    await autoSubscribe(tx, {
+      organizationId: task.organizationId,
+      taskId: task.id,
+      subscriberType: 'user',
+      subscriberId: reviewer,
+      reason: 'reviewer',
+    });
+    await notifyTaskReviewRequested(tx, {
+      organizationId: task.organizationId,
+      task: { id: task.id, projectId: task.projectId, title: task.title },
+      reviewerUserId: reviewer,
+      approvalId: approval.id,
+      submitter: { kind: 'user', userId: actorUserId },
+    });
+  }
+  return reviewer;
+}
+
 export interface TaskReviewPolicyOutcome {
   independentReviewer?: boolean;
   /** The competence grants that justified this response — stamped on the

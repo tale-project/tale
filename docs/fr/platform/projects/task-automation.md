@@ -34,6 +34,8 @@ Lis le compte rendu, ouvre les livrables et compare-les aux critères de fin. Pa
 
 **Relecteur** détermine la notification et la file de revue. Ce rôle n’empêche pas les autres membres autorisés à modifier le projet d’accepter le résultat. Changer de relecteur ne retire pas l’assignation de l’agent.
 
+Si tu modifies le champ **Relecteur** alors que la tâche est **En revue**, la demande en cours passe au nouveau relecteur : elle quitte la file de revue de l’ancien, et le nouveau reçoit la notification et, si l’envoi d’e-mails est configuré, un e-mail. **Retirer le relecteur** renvoie la demande à la personne qui a créé la tâche ou le projet.
+
 ## Demander des modifications
 
 Explique les changements attendus dans un commentaire et **mentionne l’agent assigné avec @**. Cette mention est une instruction : un agent actif peut la recevoir pendant son exécution, tandis qu’un agent inactif démarre une reprise de la conversation précédente. Le résultat revient à **En revue**.
