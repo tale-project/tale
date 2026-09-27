@@ -309,6 +309,15 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-B4` · **Empty task title** — Create-task dialog → leave **Title**
   empty → submit → Required validation; task not created (dialog stays open or
   shows the field error)
+- [ ] `PROJ-B5` · **Mixed upload names the skipped file** — Files tab →
+  **Add file** → select three supported files plus one unsupported (e.g.
+  `.bin`) in ONE pick → No error toast flashes before the upload; once it
+  settles a single toast reads **3 of 4 files added**
+  (`projects.files.attachPartial`) with **Skipped: <name> — <reason>**
+  (`projects.files.skippedList`, the unsupported-format sentence) and stays
+  until dismissed; the three files appear in the tree. Picking the `.bin`
+  alone still shows the destructive **Unsupported file type** toast; a pick
+  with no refusal reads **Document added to project · 4 / 4**.
 
 ## Accessibility (WCAG 2.1 AA)
 

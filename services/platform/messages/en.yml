@@ -5040,6 +5040,8 @@ projects:
     addFolderButton: Upload folder
     batchTooLarge: A folder upload is capped at {maxFiles} files / {maxSize} MB — split the folder and retry.
     moreSkipped: +{count} more file(s) were skipped.
+    attachPartial: '{ok, plural, one {# file} other {# files}} of {total} added'
+    skippedList: 'Skipped: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: That folder no longer exists.
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder

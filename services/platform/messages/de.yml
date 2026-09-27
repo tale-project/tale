@@ -7702,6 +7702,8 @@ projects:
     addFolderButton: Ordner hochladen
     batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
     moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
+    attachPartial: '{ok} von {total} Dateien hinzugefügt'
+    skippedList: 'Übersprungen: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: Dieser Ordner existiert nicht mehr.
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden

@@ -613,27 +613,39 @@ export function ProjectFilesTab({
       // ensured for files that will actually land; a directory pick full of
       // OS junk must not build its folder tree first and fail after.
       const kept: typeof entries = [];
-      const issues: Array<{ title: string; description: string }> = [];
+      const skipped: Array<{
+        name: string;
+        message: { title: string; description: string };
+      }> = [];
       for (const entry of entries) {
         const issue = validateDocumentUploadSelection(entry.file, policyLimits);
         if (issue === null) {
           kept.push(entry);
         } else {
-          issues.push(documentUploadSelectionIssueMessage(issue, tDocuments));
+          skipped.push({
+            name: entry.file.name,
+            message: documentUploadSelectionIssueMessage(issue, tDocuments),
+          });
         }
       }
-      for (const message of issues.slice(0, 3)) {
-        toast({ ...message, variant: 'destructive' });
+      if (kept.length === 0) {
+        // Nothing will upload, so each refusal is the whole story — say it now.
+        for (const { message } of skipped.slice(0, 3)) {
+          toast({ ...message, variant: 'destructive' });
+        }
+        if (skipped.length > 3) {
+          toast({
+            title: t('files.moreSkipped', {
+              count: String(skipped.length - 3),
+            }),
+            variant: 'destructive',
+          });
+        }
+        return;
       }
-      if (issues.length > 3) {
-        toast({
-          title: t('files.moreSkipped', {
-            count: String(issues.length - 3),
-          }),
-          variant: 'destructive',
-        });
-      }
-      if (kept.length === 0) return;
+      // Some files go ahead: a refusal toasted now would be replaced by the
+      // success toast a moment later (one toast at a time), so the skipped
+      // files ride the ONE summary toast after the upload instead.
 
       setUploading(true);
       const folderCache = new Map<string, string>();
@@ -704,13 +716,30 @@ export function ProjectFilesTab({
         }
       }
       setUploading(false);
-      if (okCount > 0) {
+      // The summary counts every selected file, so a skipped one is visible
+      // in the arithmetic ("3 of 4 added") and named in the description.
+      const total = entries.length;
+      if (skipped.length === 0 && okCount === kept.length) {
         toast({
           title: t('files.attachSuccess'),
-          description: `${okCount} / ${kept.length}`,
+          description: `${okCount} / ${total}`,
           variant: 'success',
         });
+        return;
       }
+      const shown = skipped.slice(0, 3).map((entry) => entry.name);
+      toast({
+        title: t('files.attachPartial', { ok: okCount, total }),
+        description:
+          skipped[0] === undefined
+            ? undefined
+            : t('files.skippedList', {
+                names: shown.join(', '),
+                more: skipped.length - shown.length,
+                reason: skipped[0].message.description,
+              }),
+        variant: okCount > 0 ? 'default' : 'destructive',
+      });
     },
     [uploadOne, uploading, t, tDocuments, ensureFolderPath, policyLimits],
   );

@@ -1,4 +1,5 @@
 import { toast } from '@tale/ui/use-toast';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -794,5 +795,94 @@ describe('ProjectFilesTab', () => {
         }),
       );
     });
+  });
+});
+
+// A mixed pick (accepted + refused files) used to flash the refusal toast and
+// replace it ~400 ms later with "Document added to project 1 / 1" — the
+// refused file vanished from the story. One summary toast now names it.
+describe('ProjectFilesTab — mixed upload summary', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    documentsFixture = [];
+    foldersFixture = [];
+    projectFixture = { canEdit: true };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ storageId: 'storage-new' }), {
+        status: 200,
+      }),
+    );
+  });
+
+  // The drop zone's real <input type=file> (sr-only), by its stable id. The
+  // browser's accept filter is bypassed so a refused file reaches the tab —
+  // that is exactly the mixed pick under test.
+  const fileInput = () =>
+    document.getElementById('project-files-upload') as HTMLInputElement;
+  const picker = () => userEvent.setup({ applyAccept: false });
+
+  it('reports "n of total added" and names the skipped file once, at the end', async () => {
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+    const junk = new File(['\u0000'], 'random.bin', {
+      type: 'application/octet-stream',
+    });
+
+    await user.upload(fileInput(), [brief, junk]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '1 file of 2 added' }),
+      );
+    });
+    const calls = vi.mocked(toast).mock.calls.map(([arg]) => arg);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual(
+      expect.objectContaining({
+        variant: 'default',
+        description: expect.stringMatching(/^Skipped: random\.bin — /),
+      }),
+    );
+    expect(calls[0]?.description).toContain('random.bin is not a supported');
+  });
+
+  it('keeps the plain success toast when nothing was skipped', async () => {
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+
+    await user.upload(fileInput(), [brief]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Document added to project',
+          description: '1 / 1',
+          variant: 'success',
+        }),
+      );
+    });
+    expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+  });
+
+  it('still refuses a lone unsupported file up front', async () => {
+    renderTab();
+    const user = picker();
+    const junk = new File(['\u0000'], 'random.bin', {
+      type: 'application/octet-stream',
+    });
+
+    await user.upload(fileInput(), [junk]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Unsupported file type',
+          variant: 'destructive',
+        }),
+      );
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });
