@@ -116,11 +116,15 @@ describe('Better Auth’s session read when the database is unavailable', () => 
     expect(outcome.thrown).not.toHaveProperty('cause');
     // What they can still find: the database error Better Auth logged.
     expect(outcome.cause).toMatchObject({ code: 'ECONNREFUSED' });
-    // Logged as one warn line, not an error stack per request.
+    // Logged as one warn line, not an error stack per request. Better Auth
+    // colours its prefix when the terminal takes colour (CI does), so the
+    // line is matched on its parts, not as one span.
     expect(error).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringMatching(
-        /\[Better Auth\]: INTERNAL_SERVER_ERROR — database unavailable: connect ECONNREFUSED/,
+    const lines = warn.mock.calls.map(([line]) => String(line));
+    expect(lines).toContainEqual(expect.stringContaining('[Better Auth]:'));
+    expect(lines).toContainEqual(
+      expect.stringContaining(
+        'INTERNAL_SERVER_ERROR — database unavailable: connect ECONNREFUSED',
       ),
     );
     await poolOf(auth).end();
