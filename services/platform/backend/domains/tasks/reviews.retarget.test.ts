@@ -1,13 +1,20 @@
 import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { findOrganizationMember } from '../../auth/membership.ts';
+import {
+  findOrganizationMember,
+  getUserTeamIds,
+} from '../../auth/membership.ts';
 import {
   autoSubscribe,
   dismissReviewRequestNotifications,
   notifyTaskReviewRequested,
 } from '../collab/service.ts';
-import { type ApprovalRow, retargetPendingTaskReview } from './reviews.ts';
+import {
+  type ApprovalRow,
+  retargetPendingTaskReview,
+  reviewerEligibility,
+} from './reviews.ts';
 import type { TaskRow } from './service.ts';
 
 vi.mock('../../auth/membership.ts', () => ({
@@ -152,6 +159,7 @@ beforeEach(() => {
           : { id: `m-${userId}`, organizationId, userId, role },
       );
     });
+  vi.mocked(getUserTeamIds).mockReset().mockResolvedValue([]);
   vi.mocked(autoSubscribe).mockReset();
   vi.mocked(dismissReviewRequestNotifications).mockReset();
   vi.mocked(notifyTaskReviewRequested).mockReset();
@@ -316,5 +324,103 @@ describe('retargetPendingTaskReview', () => {
     expect(dismissReviewRequestNotifications).not.toHaveBeenCalled();
     expect(autoSubscribe).not.toHaveBeenCalled();
     expect(notifyTaskReviewRequested).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * An erasure moves a review off its subject through the same chain, never
+ * back to the subject: they stay a member until someone removes them, so
+ * the chain would otherwise hand the review straight back through a creator
+ * slot. No person made the change, so the request reads impersonally.
+ */
+describe('retargetPendingTaskReview — moving a review off an erased subject', () => {
+  it('skips the subject in the creator slot and asks the project creator, as the system', async () => {
+    const { tx, statements } = fakeTx(
+      [approval({ metadata: { taskId: 't-1', requestedFor: 'u-carol' } })],
+      { createdBy: 'u-lead', teamIds: [] },
+    );
+
+    const waitsOn = await retargetPendingTaskReview(tx, {
+      // The erasure cleared the subject's designation first.
+      task: taskRow({ reviewerUserId: null, createdBy: 'u-carol' }),
+      excludeUserId: 'u-carol',
+    });
+
+    expect(waitsOn).toBe('u-lead');
+    expect(approvalWrites(statements)).toEqual([
+      [{ json: { requestedFor: 'u-lead' } }, 'apv-1'],
+    ]);
+    expect(findOrganizationMember).not.toHaveBeenCalledWith(
+      tx,
+      'org-1',
+      'u-carol',
+    );
+    expect(autoSubscribe).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ subscriberId: 'u-lead', reason: 'reviewer' }),
+    );
+    expect(notifyTaskReviewRequested).toHaveBeenCalledWith(tx, {
+      organizationId: 'org-1',
+      task: { id: 't-1', projectId: 'p-1', title: 'Ship the launch notes' },
+      reviewerUserId: 'u-lead',
+      approvalId: 'apv-1',
+      submitter: { kind: 'system' },
+    });
+  });
+
+  it('empties the request when the subject is every link of the chain', async () => {
+    const { tx, statements } = fakeTx(
+      [approval({ metadata: { taskId: 't-1', requestedFor: 'u-carol' } })],
+      { createdBy: 'u-carol', teamIds: [] },
+    );
+
+    const waitsOn = await retargetPendingTaskReview(tx, {
+      task: taskRow({ reviewerUserId: null, createdBy: 'u-carol' }),
+      excludeUserId: 'u-carol',
+    });
+
+    expect(waitsOn).toBeUndefined();
+    expect(approvalWrites(statements)).toEqual([
+      [{ json: { requestedFor: null } }, 'apv-1'],
+    ]);
+    expect(notifyTaskReviewRequested).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The one rule a reviewer is held to — the gate resolves by it and a
+ * designation is refused by it, so a designee is never stored only to be
+ * routed past at mint.
+ */
+describe('reviewerEligibility', () => {
+  const { tx } = fakeTx([]);
+  const ask = (userId: string, projectTeamIds: string[] = []) =>
+    reviewerEligibility(tx, {
+      organizationId: 'org-1',
+      projectTeamIds,
+      userId,
+    });
+
+  it('takes an editor of an org-wide project', async () => {
+    await expect(ask('u-bob')).resolves.toBe('eligible');
+  });
+
+  it('refuses a member whose role cannot edit', async () => {
+    await expect(ask('u-viewer')).resolves.toBe('cannot_edit');
+  });
+
+  it('refuses an editor outside the teams of a team-restricted project', async () => {
+    vi.mocked(getUserTeamIds).mockImplementation((_sql, _org, userId) =>
+      Promise.resolve(userId === 'u-alice' ? ['team-a'] : ['team-b']),
+    );
+    await expect(ask('u-bob', ['team-a'])).resolves.toBe('cannot_edit');
+    await expect(ask('u-alice', ['team-a'])).resolves.toBe('eligible');
+    // An admin edits every project, team or not.
+    await expect(ask('u-lead', ['team-a'])).resolves.toBe('eligible');
+  });
+
+  it('calls a disabled account or a non-member no member at all', async () => {
+    await expect(ask('u-gone')).resolves.toBe('not_member');
+    await expect(ask('u-stranger')).resolves.toBe('not_member');
   });
 });

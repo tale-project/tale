@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 51 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -174,6 +174,26 @@ projects-list row ⋯ menu.
   (`tasks.reviewer.clear`) → the chip names the task creator (you: **Waiting
   on you**) and B's request bell clears. Before this, the open review stayed
   with A until someone moved the card.
+- [ ] `PROJ-F33` · **Change the reviewer before review** — Two sessions, A
+  and B, both project editors. As the OWNER, on a task in **To do**
+  (`tasks.status.todo`) set **Reviewer** (`tasks.fields.reviewer`) to A → A's
+  bell shows an unread **You're the reviewer** (`inbox.taskReviewerAssigned`);
+  pick B as **Reviewer** → A's heads-up turns read and A's unread count drops
+  without a reload, while B's bell shows the heads-up unread; **Clear
+  reviewer** (`tasks.reviewer.clear`) → B's heads-up turns read too.
+- [ ] `PROJ-F34` · **An erased reviewer's waiting review moves on** — As the
+  OWNER, create a task (you are its creator), set **Reviewer**
+  (`tasks.fields.reviewer`) to editor A and move the task to **In review**
+  (`tasks.status.in_review`); then at
+  `/dashboard/{org}/settings/governance/data-subject-requests` with a zero
+  cooling-off window, **File request**
+  (`governance.dataSubjectRequests.actions.fileRequest`) against A and wait
+  for the receipt to complete → On the board the card's chip reads **Waiting
+  on you** (`tasks.review.waitingOnYou`), never an unknown name, **Needs my
+  review** (`tasks.review.needsMyReview`) keeps the card for you, the task's
+  **Reviewer** reads **No reviewer** (`tasks.reviewer.none`), and your bell
+  holds **Review requested** (`inbox.taskReviewRequested`) reading
+  "… is ready for your review" (`inbox.taskReviewRequestedBodyHuman`).
 - [ ] `PROJ-F14` · **Archive** — Projects list → row ⋯
   (`common.actions.openMenu`) → **Archive**; toggle the archived view;
   **Unarchive** → Archived project leaves the active list and appears under
@@ -407,6 +427,15 @@ projects-list row ⋯ menu.
   **Add variable** → NAME + value → **Save** is refused with the
   archived-project sentence (backend `PROJECT_ARCHIVED` 403) and nothing
   lands; **Restore** → the same save goes through.
+- [ ] `PROJ-B9` · **Only an editor can be the reviewer** — On an org-wide
+  project with a member whose role is Member (read-only), and on a
+  team-restricted project with an editor outside its teams, open a task's
+  **Reviewer** (`tasks.fields.reviewer`) → neither is listed, and the footer
+  reads **Only members who can edit this project can be the reviewer.**
+  (`tasks.reviewer.editorsOnly`). From the browser console, `POST
+  /api/app/tasks/{taskId}?orgId={org}` with `{"reviewerUserId": "<the
+  Member's user id>"}` → 400 `TASK_REVIEWER_NO_EDIT_ACCESS`, and after reload
+  **Reviewer** still names the previous reviewer and the Member has no bell.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)

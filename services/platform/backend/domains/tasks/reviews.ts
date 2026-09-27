@@ -86,15 +86,51 @@ async function listTaskReviewApprovals(
   `;
 }
 
+/** Why a person can or cannot take a task's review. */
+export type ReviewerEligibility = 'eligible' | 'not_member' | 'cannot_edit';
+
+/**
+ * Whether a person can take a review in a project: a live member of the
+ * organization who holds project canEdit. The ONE rule — the gate resolves
+ * its reviewer by it, and a designation is held to it, so a designee the
+ * gate would route past is refused up front instead of silently skipped.
+ */
+export async function reviewerEligibility(
+  tx: TransactionSql | Sql,
+  args: {
+    organizationId: string;
+    /** The project's audience (`PROJECT_TEAM_IDS_SQL`); empty = org-wide. */
+    projectTeamIds: readonly string[];
+    userId: string;
+  },
+): Promise<ReviewerEligibility> {
+  const member = await findOrganizationMember(
+    tx,
+    args.organizationId,
+    args.userId,
+  );
+  if (member === null || member.role === 'disabled') return 'not_member';
+  const teamIds = await getUserTeamIds(tx, args.organizationId, args.userId);
+  const access = checkProjectAccess(
+    { teamIds: args.projectTeamIds },
+    teamIds,
+    member.role,
+  );
+  return access.canEdit ? 'eligible' : 'cannot_edit';
+}
+
 /**
  * Who should review a task parked at `in_review` — revalidated at every
  * call so a designee who lost project access falls through the chain:
  * explicit `reviewerUserId` → human task creator → project creator; the
- * first candidate who still holds project canEdit wins.
+ * first candidate who still holds project canEdit wins. `excluding` is
+ * skipped wherever it appears in the chain (an erased subject stays a
+ * member until someone removes them, and may be either creator).
  */
 async function resolveReviewer(
   tx: TransactionSql | Sql,
   task: TaskRow,
+  excluding?: string,
 ): Promise<string | undefined> {
   const projects = await tx<{ createdBy: string; teamIds: string[] | null }[]>`
     SELECT created_by AS "createdBy", ${tx.unsafe(PROJECT_TEAM_IDS_SQL)} AS "teamIds"
@@ -107,22 +143,16 @@ async function resolveReviewer(
     project?.createdBy,
   ];
   const seen = new Set<string>();
+  if (excluding !== undefined) seen.add(excluding);
   for (const candidate of candidates) {
     if (candidate === undefined || seen.has(candidate)) continue;
     seen.add(candidate);
-    const member = await findOrganizationMember(
-      tx,
-      task.organizationId,
-      candidate,
-    );
-    if (member === null || member.role === 'disabled') continue;
-    const teamIds = await getUserTeamIds(tx, task.organizationId, candidate);
-    const access = checkProjectAccess(
-      { teamIds: project?.teamIds ?? [] },
-      teamIds,
-      member.role,
-    );
-    if (access.canEdit) return candidate;
+    const eligibility = await reviewerEligibility(tx, {
+      organizationId: task.organizationId,
+      projectTeamIds: project?.teamIds ?? [],
+      userId: candidate,
+    });
+    if (eligibility === 'eligible') return candidate;
   }
   return undefined;
 }
@@ -246,19 +276,24 @@ export async function requestTaskReview(
  * Workflow-era rows are left alone, as on the status leave. Returns whom
  * the open review now waits on; undefined when none is open or nobody
  * resolves.
+ *
+ * An erasure moves a review off its subject the same way: no person made
+ * that change, so `actorUserId` is absent and the request reads
+ * impersonally, and `excludeUserId` keeps the chain from landing on the
+ * subject again through a creator slot.
  */
 export async function retargetPendingTaskReview(
   tx: TransactionSql,
-  args: { task: TaskRow; actorUserId: string },
+  args: { task: TaskRow; actorUserId?: string; excludeUserId?: string },
 ): Promise<string | undefined> {
-  const { task, actorUserId } = args;
+  const { task, actorUserId, excludeUserId } = args;
   const pending = (await listTaskReviewApprovals(tx, task.id)).filter(
     (approval) =>
       approval.status === 'pending' && approval.wfExecutionId === null,
   );
   if (pending.length === 0) return undefined;
 
-  const reviewer = await resolveReviewer(tx, task);
+  const reviewer = await resolveReviewer(tx, task, excludeUserId);
   for (const approval of pending) {
     if ((approval.metadata?.requestedFor ?? null) === (reviewer ?? null)) {
       continue;
@@ -286,7 +321,10 @@ export async function retargetPendingTaskReview(
       task: { id: task.id, projectId: task.projectId, title: task.title },
       reviewerUserId: reviewer,
       approvalId: approval.id,
-      submitter: { kind: 'user', userId: actorUserId },
+      submitter:
+        actorUserId === undefined
+          ? { kind: 'system' }
+          : { kind: 'user', userId: actorUserId },
     });
   }
   return reviewer;

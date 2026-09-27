@@ -24,6 +24,9 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
+import { TaskError } from '../tasks/errors.ts';
+import { retargetPendingTaskReview } from '../tasks/reviews.ts';
+import { loadTaskOrThrow, type TaskRow } from '../tasks/service.ts';
 import { hintVideoJobs } from '../video_links/hints.ts';
 
 /**
@@ -1159,10 +1162,52 @@ export async function processErasure(
 
   // Review decisions are pseudonymized rather than deleted: the decision is
   // the audit record of a governance gate, so the row stays and the identity
-  // goes. `tasks.reviewer_user_id` is different — it is live routing, not
-  // history, so it is cleared. Leaving it pointed at an erased user sends
-  // the next review to nobody.
+  // goes. Routing is different — it is live, not history. `tasks.
+  // reviewer_user_id` is cleared: leaving it pointed at an erased user sends
+  // the next review to nobody. A review still WAITING on the subject moves
+  // on through the chain a cleared designation takes (human task creator →
+  // project creator), never back to the subject; stamped with the pseudonym
+  // instead, it waited on nobody — on no board and in no bell. Only then is
+  // what still names the subject pseudonymized: the decisions, the
+  // workflow-era rows every review door leaves alone, and a waiting row
+  // whose task is gone or that was decided in the meantime.
   await pass('reviewDecisions', async () => {
+    const cleared = await sql<{ id: string }[]>`
+      UPDATE app.tasks SET reviewer_user_id = NULL
+      WHERE org_id = ${organizationId}
+        AND reviewer_user_id = ${targetUserId}
+      RETURNING id
+    `;
+    const waiting = await sql<{ id: string; taskId: string }[]>`
+      SELECT id, resource_id AS "taskId" FROM app.approvals
+      WHERE org_id = ${organizationId} AND resource_type = 'task_review'
+        AND status = 'pending' AND wf_execution_id IS NULL
+        AND metadata->>'requestedFor' = ${targetUserId}
+    `;
+    let handedOver = 0;
+    for (const taskId of new Set(waiting.map((row) => row.taskId))) {
+      const moved = await sql.begin(async (tx) => {
+        let task: TaskRow;
+        try {
+          task = await loadTaskOrThrow(tx, taskId, organizationId);
+        } catch (error) {
+          // A row whose task is gone has nowhere to move: the pseudonym
+          // below covers it.
+          if (error instanceof TaskError && error.code === 'TASK_NOT_FOUND') {
+            return false;
+          }
+          throw error;
+        }
+        await retargetPendingTaskReview(tx, {
+          task,
+          excludeUserId: targetUserId,
+        });
+        return true;
+      });
+      if (moved) {
+        handedOver += waiting.filter((row) => row.taskId === taskId).length;
+      }
+    }
     const decisions = await sql<
       { id: string; approvedBy: string | null; metadata: unknown }[]
     >`
@@ -1193,13 +1238,7 @@ export async function processErasure(
       `;
       changed++;
     }
-    const cleared = await sql<{ id: string }[]>`
-      UPDATE app.tasks SET reviewer_user_id = NULL
-      WHERE org_id = ${organizationId}
-        AND reviewer_user_id = ${targetUserId}
-      RETURNING id
-    `;
-    return changed + cleared.length;
+    return handedOver + changed + cleared.length;
   });
 
   // Global auth state: the lockout trail is keyed by email and the two-factor

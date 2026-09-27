@@ -8,7 +8,8 @@
  * check; these pin the transitions that used to be silent or unguarded —
  * the Retry of a receipt blocked at filing (policy re-applied, CAS re-arm),
  * the execution-time hold block (audited), the limiter outage (not a
- * denial), and the project-agent-runs pass.
+ * denial), the project-agent-runs pass, and the review pass handing a
+ * waiting review on instead of stamping it with the pseudonym.
  */
 
 import type { Sql } from 'postgres';
@@ -24,6 +25,9 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
+import { TaskError } from '../tasks/errors.ts';
+import { retargetPendingTaskReview } from '../tasks/reviews.ts';
+import { loadTaskOrThrow, type TaskRow } from '../tasks/service.ts';
 import {
   ErasureError,
   getErasureRequest,
@@ -63,6 +67,8 @@ vi.mock('../retention/service.ts', () => ({
   purgeThreadLineage: vi.fn(() => Promise.resolve(0)),
   purgeDocument: vi.fn(),
 }));
+vi.mock('../tasks/reviews.ts', () => ({ retargetPendingTaskReview: vi.fn() }));
+vi.mock('../tasks/service.ts', () => ({ loadTaskOrThrow: vi.fn() }));
 
 interface Statement {
   text: string;
@@ -438,6 +444,115 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
+  });
+});
+
+/**
+ * A review still waiting on the subject is routing, not history: stamping
+ * it with the pseudonym left it waiting on nobody — on no board and in no
+ * bell. It moves on through the chain a cleared designation takes, the
+ * subject excluded, and only what still names the subject afterwards is
+ * pseudonymized.
+ */
+describe('processErasure — the review pass', () => {
+  it('hands a waiting review on through the cleared chain, then pseudonymizes what still names the subject', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const task = { id: 'task-1', reviewerUserId: null } as unknown as TaskRow;
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'))
+        return [{ id: 'task-1' }];
+      if (text.startsWith('SELECT id, resource_id AS "taskId"'))
+        return [
+          { id: 'review-open', taskId: 'task-1' },
+          { id: 'review-orphan', taskId: 'task-gone' },
+        ];
+      if (text.startsWith('SELECT id, approved_by AS "approvedBy"'))
+        return [
+          // The orphan has no task to move to, so it keeps the old stamp.
+          {
+            id: 'review-orphan',
+            approvedBy: null,
+            metadata: { requestedFor: 'subject', round: 0 },
+          },
+          {
+            id: 'review-decided',
+            approvedBy: 'subject',
+            metadata: {
+              requestedFor: 'subject',
+              response: { decision: 'approve', respondedBy: 'subject' },
+            },
+          },
+        ];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+    let statementsAtLoad = -1;
+    vi.mocked(loadTaskOrThrow).mockImplementation((_tx, taskId) => {
+      if (taskId !== 'task-1') {
+        return Promise.reject(
+          new TaskError('TASK_NOT_FOUND', 'Task not found', 404),
+        );
+      }
+      statementsAtLoad = fake.statements.length;
+      return Promise.resolve(task);
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    // The designation is cleared BEFORE the chain runs, so the chain starts
+    // past the subject's designation — and the subject is excluded from the
+    // creator slots too (they are still a member until removed).
+    const clearedAt = fake.statements.findIndex((s) =>
+      s.text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'),
+    );
+    expect(clearedAt).toBeGreaterThanOrEqual(0);
+    expect(statementsAtLoad).toBeGreaterThan(clearedAt);
+    expect(loadTaskOrThrow).toHaveBeenCalledWith(
+      expect.anything(),
+      'task-1',
+      'org_1',
+    );
+    expect(retargetPendingTaskReview).toHaveBeenCalledTimes(1);
+    expect(retargetPendingTaskReview).toHaveBeenCalledWith(expect.anything(), {
+      task,
+      excludeUserId: 'subject',
+    });
+    // Only rows that still name the subject after the hand-over get the
+    // pseudonym; the handed-over review is not rewritten to it.
+    const pseudonymized = fake.statements
+      .filter((s) => s.text.startsWith('UPDATE app.approvals SET approved_by'))
+      .map((s) => s.values);
+    expect(pseudonymized).toEqual([
+      [null, { requestedFor: 'erased-user', round: 0 }, 'review-orphan'],
+      [
+        'erased-user',
+        {
+          requestedFor: 'erased-user',
+          response: { decision: 'approve', respondedBy: 'erased-user' },
+        },
+        'review-decided',
+      ],
+    ]);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[0]).toBe('done');
+    // One handed over, two pseudonymized, one designation cleared.
+    expect(settle?.values[2]).toMatchObject({ reviewDecisions: 4 });
   });
 });
 

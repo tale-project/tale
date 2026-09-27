@@ -20,6 +20,8 @@ Als Admin oder Inhaber bearbeitest du unter **Einstellungen > Richtlinien > Anfr
 
 Die Löschung entfernt betroffene Daten endgültig; sie verschiebt sie nicht in den Papierkorb. Der Beleg erfasst Kategorien und Anzahlen, darunter Chats, Dokumente und Uploads, Einstellungen, Feedback, Benachrichtigungen, Nutzung und das Bereinigen von Personenkennungen im Audit-Protokoll.
 
+Aufgaben, die die Person als **Reviewer** nennen, verlieren diese Zuweisung. Eine Prüfanfrage, die noch auf sie wartet, geht wie bei **Reviewer entfernen** an den Ersteller der Aufgabe oder des Projekts, und diese Person wird benachrichtigt. Prüfentscheidungen, die die Person bereits getroffen hat, bleiben ohne ihren Namen erhalten.
+
 ## Vorher die Richtlinie prüfen
 
 | Einstellung | Wirkung |
