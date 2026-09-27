@@ -37,7 +37,7 @@ import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
  * operator edits take effect only when an admin applies), the daily
  * cleanup dispatcher (per-org: policy file clamped to the applied row,
  * holds pre-fetched once), and the first category sweeps — usage ledger,
- * message feedback, and both notification tables.
+ * message feedback, both notification tables, and the guardrail verdicts.
  *
  * DELIBERATE phase-1 simplification: the 0.4 two-pass grace model (mark
  * `expired` → admin Trash → physical delete after grace) collapses to a
@@ -289,6 +289,7 @@ const DELETED_ACTION: Record<SweepCategory, string> = {
   usageLedger: 'usage_ledger.retention_deleted',
   messageFeedback: 'message_feedback.retention_deleted',
   notifications: 'notification.retention_deleted',
+  chatFilterEvents: 'chat_filter_event.retention_deleted',
   documents: 'document.retention_deleted',
   chatHistory: 'chat_history.retention_deleted',
   contacts: 'contact.retention_deleted',
@@ -518,6 +519,7 @@ interface SweepStats {
   usageLedger: number;
   messageFeedback: number;
   notifications: number;
+  chatFilterEvents: number;
 }
 
 function cutoffFor(days: number | undefined, graceDays: number): number | null {
@@ -538,6 +540,7 @@ async function sweepOrg(
     usageLedger: 0,
     messageFeedback: 0,
     notifications: 0,
+    chatFilterEvents: 0,
   };
   if (holds.orgHeld) {
     console.info(
@@ -553,6 +556,11 @@ async function sweepOrg(
   );
   stats.notifications = await sweepCategory(run, 'notifications', (trail) =>
     sweepNotifications(sql, org, holds, trail),
+  );
+  stats.chatFilterEvents = await sweepCategory(
+    run,
+    'chatFilterEvents',
+    (trail) => sweepChatFilterEvents(sql, org, holds, trail),
   );
   return stats;
 }
@@ -677,6 +685,56 @@ async function sweepNotifications(
         userNotifications: userRows.length,
       },
     };
+  });
+}
+
+/**
+ * The `chatFilterEvents` category — `app.chat_filter_events`, one row per
+ * non-pass guardrail verdict of a chat turn, which the Guardrails page's
+ * recent events and the chat-health stats read. Written since the guardrail
+ * chain landed and, until this sweep, never deleted, whatever the policy
+ * said. Aged by `created_at_ms` (served by `chat_filter_events_org_created`)
+ * past the window plus the grace, like the other row-level categories: the
+ * table has no lifecycle column, so there is no Trash stop.
+ *
+ * The row carries no user column; its custodian is the owner of the chat
+ * that raised it, the same `thread_metadata.user_id` the chat-history sweep
+ * protects by. A held member's events stay as long as their chat does, and
+ * the filter lives in SQL so held rows can never fill the batch. An event
+ * whose thread is gone has no owner left to hold it.
+ */
+async function sweepChatFilterEvents(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+  trail: CategoryTrail,
+): Promise<void> {
+  if (org.config.chatFilterEventsEnabled !== true) return;
+  const cutoff = cutoffFor(
+    org.config.chatFilterEventsRetentionDays,
+    org.config.deletionGraceDays ?? 0,
+  );
+  if (cutoff === null) return;
+  const protectedIds = [...holds.userMembershipIds];
+  await destroyInTx(sql, trail, async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      DELETE FROM app.chat_filter_events
+      WHERE id IN (
+        SELECT e.id FROM app.chat_filter_events e
+        WHERE e.org_id = ${org.organizationId}
+          AND e.created_at_ms < ${cutoff}
+          AND (${protectedIds.length === 0}
+               OR NOT EXISTS (
+                 SELECT 1 FROM app.thread_metadata tm
+                 WHERE tm.thread_id = e.thread_id
+                   AND tm.org_id = ${org.organizationId}
+                   AND tm.user_id = ANY(${protectedIds})
+               ))
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    return { deleted: rows.length };
   });
 }
 

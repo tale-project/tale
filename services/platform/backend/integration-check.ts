@@ -63,6 +63,7 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
+import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
@@ -54184,6 +54185,10 @@ async function main(): Promise<void> {
       [
         'checkRetentionAuditTrail',
         () => checkRetentionAuditTrail(sql, authCtx, record),
+      ],
+      [
+        'checkChatFilterEventRetention',
+        () => checkChatFilterEventRetention(sql, authCtx, record),
       ],
       [
         'checkErasure',
