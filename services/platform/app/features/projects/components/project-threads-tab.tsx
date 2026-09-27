@@ -182,6 +182,9 @@ export function ProjectThreadsTab({
                         void handleToggleShare(thread.id, checked)
                       }
                       label={t('threads.shareToggle')}
+                      // The disclosure above names the toggle; repeated on
+                      // every row it left a phone's chat title a few letters.
+                      hideLabelOnMobile
                     />
                   }
                 />
