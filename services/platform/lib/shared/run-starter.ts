@@ -13,8 +13,9 @@
  *                         runs the builder recorded before it prefixed them
  *
  * The door is not the billing subject. Every reader that needs the PERSON
- * behind a starter — the usage ledger, the budget gate, erasure — goes
- * through this parser, so the format is read in exactly one place; a
+ * behind a starter — the usage ledger, the budget gate, the member a task
+ * turn's connector calls act for, erasure — goes through this parser, so the
+ * format is read in exactly one place; a
  * `split(':')` on a starter anywhere else is a defect. Writers keep the
  * format as it is: the contract, the trigger fire ledger and erasure all
  * read it.

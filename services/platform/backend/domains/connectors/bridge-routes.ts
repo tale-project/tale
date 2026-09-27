@@ -6,10 +6,19 @@ import type { Sql } from 'postgres';
 import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { createLiveHost } from '../../../lib/connectors/live-host.ts';
+import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
+import { findOrganizationMember } from '../../auth/membership.ts';
 import { verifyHostcallToken } from '../../core/connectors/hostcall_token.ts';
 import {
   bridgeConnectorStatusImpl,
+  connectorCallerNotAMemberBlocker,
+  noConnectorCallerBlocker,
+  readTurnConnectorCaller,
   runBridgeConnectorImpl,
+  taskRunActsForNobodyBlocker,
+  taskRunEndedBlocker,
+  type BridgeBlocker,
+  type TurnConnectorCaller,
 } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
 import {
@@ -17,6 +26,7 @@ import {
   sandboxDoorBodyLimit,
   toolResultTooLarge,
 } from '../sandbox/door-body-limit.ts';
+import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import { getSessionTokenByHash } from '../sandbox/sessions.ts';
 import { runConnectorAction } from './service.ts';
 
@@ -28,8 +38,12 @@ import { runConnectorAction } from './service.ts';
  * Two different authorities meet here, and neither trusts the body:
  *
  *  - `execute`/`status` authenticate the session VK → the token row, and
- *    take the ORG, the USER and the GRANT SET from that row. A container
- *    cannot name another org, widen its grants, or claim another user.
+ *    take the ORG, the CALLER and the GRANT SET from that row. A container
+ *    cannot name another org, widen its grants, or claim another user. The
+ *    caller is the token's own user, or, for a task turn, the starter of
+ *    the task run on the exec the token names (`connectorCaller`), read
+ *    from the run on every call and only while that run is live; a call
+ *    runs only while that person is still an active member of the org.
  *  - `hostcall` authenticates a one-run HMAC capability minted at dispatch,
  *    bound to (org, connector, action, credential). It carries no secret:
  *    the door re-resolves the credential itself, so a leaked token cannot
@@ -106,7 +120,10 @@ interface BridgeAuth {
   organizationId: string;
   sessionId: string;
   connectorGrants: string[];
-  userId?: string;
+  /** Whom a connector call acts for, as the token records it: a user-keyed
+   * token's own user, else the task run its turn serves. Absent when the
+   * token records neither. */
+  caller?: { kind: 'user'; userId: string } | TurnConnectorCaller;
 }
 
 async function authSessionToken(
@@ -122,12 +139,78 @@ async function authSessionToken(
     createHash('sha256').update(token).digest('hex'),
   );
   if (row === null) return null;
+  const caller: BridgeAuth['caller'] =
+    row.scope.userId !== undefined
+      ? { kind: 'user', userId: row.scope.userId }
+      : readTurnConnectorCaller(row.scope.connectorCaller);
   return {
     organizationId: row.organizationId,
     sessionId: row.sessionId,
     connectorGrants: row.scope.connectorGrants,
-    ...(row.scope.userId !== undefined ? { userId: row.scope.userId } : {}),
+    ...(caller !== undefined ? { caller } : {}),
   };
+}
+
+/**
+ * The person a task turn's connector call acts for: the starter of the task
+ * run on the token's exec, through the same resolver that books the run's
+ * spend. The run must still be live (queued or running). A token whose run
+ * settled, failed, was cancelled or moved to a new exec (a steer restart)
+ * acts for nobody, so it cannot be spent after its run, or by another
+ * process on the agent's shared session once that run is gone.
+ */
+async function resolveTaskRunCaller(
+  sql: Sql,
+  auth: BridgeAuth,
+  execId: string,
+): Promise<{ userId: string } | { blocker: BridgeBlocker }> {
+  const live = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE org_id = ${auth.organizationId} AND session_id = ${auth.sessionId}
+      AND exec_id = ${execId} AND status IN ('queued', 'running')
+    LIMIT 1
+  `;
+  if (live.length === 0) return { blocker: taskRunEndedBlocker() };
+  const attribution = await resolveSessionOpAttribution(sql, {
+    organizationId: auth.organizationId,
+    sessionId: auth.sessionId,
+    execId,
+    kind: 'task-agent',
+  });
+  const userId = attribution?.userId ?? '';
+  // A run no member started is never handed to a stand-in (the task's
+  // creator, the agent's): the call and its audit row would name someone
+  // who did not act.
+  return userId === '' || isAutomationSubject(userId)
+    ? { blocker: taskRunActsForNobodyBlocker() }
+    : { userId };
+}
+
+/**
+ * The person a connector call runs for, or why it cannot run for anyone.
+ * The caller must still be an active member of the token's org, checked on
+ * every call: a task run lives for hours and a retry continues its
+ * starter's kick, so a member removed meanwhile must stop being acted for
+ * at their next call, not at the next run.
+ */
+async function resolveBridgeCaller(
+  sql: Sql,
+  auth: BridgeAuth,
+): Promise<{ userId: string } | { blocker: BridgeBlocker }> {
+  const caller = auth.caller;
+  if (caller === undefined) return { blocker: noConnectorCallerBlocker() };
+  let userId: string;
+  if (caller.kind === 'user') {
+    userId = caller.userId;
+  } else {
+    const person = await resolveTaskRunCaller(sql, auth, caller.execId);
+    if ('blocker' in person) return person;
+    userId = person.userId;
+  }
+  const member = await findOrganizationMember(sql, auth.organizationId, userId);
+  return member === null || member.role === 'disabled'
+    ? { blocker: connectorCallerNotAMemberBlocker() }
+    : { userId };
 }
 
 const HTTP_VERBS = {
@@ -190,17 +273,9 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
         ],
       });
     }
-    if (auth.userId === undefined) {
-      return json(200, {
-        status: 'unavailable',
-        blockers: [
-          {
-            code: 'no_user_context',
-            guidance:
-              'This session token carries no user context, so connector calls cannot run from it.',
-          },
-        ],
-      });
+    const caller = await resolveBridgeCaller(deps.sql, auth);
+    if ('blocker' in caller) {
+      return json(200, { status: 'unavailable', blockers: [caller.blocker] });
     }
     const result = await runBridgeConnectorImpl(
       (dispatchArgs) =>
@@ -216,7 +291,7 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
       {
         organizationId: auth.organizationId,
         sessionId: auth.sessionId,
-        userId: auth.userId,
+        userId: caller.userId,
         slug,
         operation,
         callArgs,
@@ -227,7 +302,7 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
       sessionId: auth.sessionId,
       slug,
       operation,
-      userId: auth.userId,
+      userId: caller.userId,
       outcome: result.status,
       callArgs,
     });
@@ -239,6 +314,12 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
     if (auth === null) {
       return json(401, { status: 'error', message: 'Unauthorized.' });
     }
+    // The listing answers what `execute` would: a turn that acts for nobody
+    // (or for a member who left) can call none of its connectors.
+    const caller =
+      auth.connectorGrants.length > 0
+        ? await resolveBridgeCaller(deps.sql, auth)
+        : null;
     return json(
       200,
       await bridgeConnectorStatusImpl(
@@ -260,6 +341,9 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
         {
           organizationId: auth.organizationId,
           grants: auth.connectorGrants,
+          ...(caller !== null && 'blocker' in caller
+            ? { callerBlocker: caller.blocker }
+            : {}),
         },
       ),
     );
