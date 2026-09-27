@@ -1193,6 +1193,7 @@ chat:
   uploadedSuccessfully: '{filename} hochgeladen'
   uploadFailed: Datei konnte nicht hochgeladen werden
   failedToUpload: '{filename} konnte nicht hochgeladen werden'
+  failedToUploadReason: '{filename} konnte nicht hochgeladen werden: {reason}'
   tooManyFiles: Zu viele Dateien
   tooManyFilesDescription:
     Du kannst bis zu {max} Dateien pro Nachricht anhängen.

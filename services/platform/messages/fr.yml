@@ -1204,6 +1204,7 @@ chat:
   uploadedSuccessfully: '{filename} téléversé'
   uploadFailed: Échec du téléversement
   failedToUpload: Échec du téléversement de {filename}
+  failedToUploadReason: 'Échec du téléversement de {filename} : {reason}'
   tooManyFiles: Trop de fichiers
   tooManyFilesDescription: Tu peux joindre jusqu'à {max} fichiers par message.
     {rejected} {rejected, plural, one {fichier n'a pas été ajouté} other

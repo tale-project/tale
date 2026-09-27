@@ -22,6 +22,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
+import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
+} from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -283,7 +287,8 @@ export function ConversationPanel({
             });
 
             if (!result.ok) {
-              throw new Error(tConversations('panel.uploadFailed'));
+              // The door's own refusal, so the toast below can say why.
+              throw await backendErrorFromResponse(result);
             }
 
             const { storageId: rawStorageId } = await result.json();
@@ -304,6 +309,7 @@ export function ConversationPanel({
         console.error('Error uploading attachments:', error);
         toast({
           title: tConversations('panel.uploadFailed'),
+          description: backendRefusalDetail(error),
           variant: 'destructive',
         });
         return;

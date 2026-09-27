@@ -1151,6 +1151,7 @@ chat:
   uploadedSuccessfully: '{filename} uploaded'
   uploadFailed: Couldn't upload the file
   failedToUpload: Couldn't upload {filename}
+  failedToUploadReason: "Couldn't upload {filename}: {reason}"
   tooManyFiles: Too many files
   tooManyFilesDescription: You can attach up to {max} files per message.
     {rejected} {rejected, plural, one {file was} other {files were}} not added.
