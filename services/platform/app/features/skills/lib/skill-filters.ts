@@ -1,9 +1,5 @@
-/**
- * The library's scope predicate and label accessor — the two skill-specific
- * pieces the shared `useCatalogFacets` pipeline needs. Everything generic about
- * narrowing (facet collection, AND semantics, search) lives in that hook, so all
- * three catalogs behave identically.
- */
+/** The skills library's scope tabs, in the order the settings page offers
+ * them. */
 
 export type SkillScopeTab = 'all' | 'org' | 'team' | 'personal';
 

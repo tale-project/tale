@@ -205,7 +205,6 @@ common:
     filters: Filtres
     nSelected: "{count} sélectionné(s)"
   loading:
-    label: Chargement
     navigating: Chargement de la page
   localeTabs:
     default: défaut

@@ -16,8 +16,8 @@ body {
   overscroll-behavior: none;
 }
 
-/* Short fade for content swapping in behind a skeleton (QueryState). Reuses the
-   shared `fade-in` keyframe + easing token from @tale/ui globals. */
+/* Short fade for content swapping in behind a skeleton. Reuses the shared
+   `fade-in` keyframe + easing token from @tale/ui globals. */
 .animate-content-in {
   animation: fade-in 200ms var(--ease-out-quint) both;
 }

@@ -25,7 +25,8 @@
  * however they want.
  *
  * Translations come from the `piiConfigPanel` and `piiTypes` namespaces
- * — mounting the shared `<I18nProvider>` is the only consumer wiring.
+ * — mounting `<I18nextProvider>` with the shared catalogs is the only
+ * consumer wiring.
  */
 
 import {

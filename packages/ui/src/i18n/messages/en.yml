@@ -205,7 +205,6 @@ common:
     filters: Filters
     nSelected: "{count} selected"
   loading:
-    label: Loading
     navigating: Loading page
   localeTabs:
     default: default

@@ -17,7 +17,7 @@ and stories live together under `src/components/<family>/`.
 | Controls and forms | `button`, `icon-button`, `input`, `select`, `checkbox`, `use-form`, `field-shell` |
 | Tables and values | `data-table/data-table`, `data-table/column-builders`, `copyable-field`, `json-viewer` |
 | Layout and navigation | `page-layout`, `adaptive-header`, `sub-panel`, `header-breadcrumbs`, `tab-navigation` |
-| Dialogs and feedback | `dialog/form-dialog`, `dialog/delete-dialog`, `toaster`, `use-toast`, `query-state` |
+| Dialogs and feedback | `dialog/form-dialog`, `dialog/delete-dialog`, `toaster`, `use-toast` |
 | Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/*` |
 | Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |

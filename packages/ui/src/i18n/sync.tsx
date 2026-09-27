@@ -21,11 +21,11 @@ interface LocaleSyncProps {
  * "react-to-locale-change" side effect that every Tale service needs:
  *
  *   - web / docs: locale comes from the URL (`useCurrentLocale()`); the host
- *     route renders `<LocaleSync locale={...} />` inside the I18nProvider.
+ *     route renders `<LocaleSync locale={...} />` inside the I18nextProvider.
  *   - platform / template services: locale comes from the user's saved
  *     preference + browser detection (`useLocale()` from
- *     `@tale/i18n/locale-provider`); the service's `I18nProvider` renders
- *     `<LocaleSync />` once the detected value is known.
+ *     `@tale/i18n/locale-provider`); the app shell renders `<LocaleSync />`
+ *     once the detected value is known.
  *
  * Reads the i18n instance via `useTranslation()` so it picks up whichever
  * singleton the surrounding `<I18nextProvider>` injected.

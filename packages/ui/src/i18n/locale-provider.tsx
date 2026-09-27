@@ -73,7 +73,7 @@ interface LocaleProviderProps {
  * languages), persists changes to localStorage, and exposes a `useLocale()`
  * hook for consumers (language picker, date formatter, etc.).
  *
- * Mount ABOVE `<I18nProvider>` so the locale-sync bridge — usually a small
+ * Mount ABOVE `<I18nextProvider>` so the locale-sync bridge — usually a small
  * `<LocaleSync>` wrapper that reads `useLocale()` — sees the same context as
  * the language picker. Without that shared context the picker only updates
  * its own copy and the change never reaches `<LocaleSync>` (the regression

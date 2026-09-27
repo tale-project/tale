@@ -11,8 +11,7 @@ const MOBILE_QUERY = '(max-width: 767px)';
  * rather than the other way round. Use it to gate the two mutually: a
  * `Sheet`'s `md:hidden` only hides its *content* via CSS — Radix still
  * portals the overlay on desktop, which intercepts clicks — so gate the
- * Sheet's `open` on this hook so it never opens above `md`. For the
- * three-way scale see {@link useBreakpoint}.
+ * Sheet's `open` on this hook so it never opens above `md`.
  */
 export function useIsMobile(): boolean {
   return useMediaQuery(MOBILE_QUERY);
