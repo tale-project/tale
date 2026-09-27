@@ -36,7 +36,7 @@ Changing the default bucket or endpoint does not copy existing blobs. Copy them 
 ## Connect an organization's knowledge database
 
 1. Open **Settings > Data residency** in the target organization and configure **Knowledge database** with host, port, database, user, SSL mode, and password.
-2. Use **Test connection**. Check both connectivity and extension availability; a successful connection does not prove the old corpus has migrated.
+2. Use **Test connection**. It first checks the fields the way **Save** does and names a missing host, database, or user under its field instead of running. Check both connectivity and extension availability; a successful connection does not prove the old corpus has migrated.
 3. Save only when the destination and existing-data plan are ready. Subsequent requests use the selected connection without a container restart.
 4. Index a controlled document, search for a known phrase, and verify that pre-existing content required by your users remains available.
 
@@ -78,7 +78,7 @@ Indexing a document gets at most 15 minutes per attempt. When a large document o
 
 1. Provision an S3-compatible bucket and the required object permissions. Configure CORS for the actual browser origins and the needed `GET`, `PUT`, and `HEAD` methods.
 2. In **Object storage**, enter region, endpoint when needed, bucket, optional key prefix, and credentials. Use path-style addressing when your store requires it.
-3. Run **Test connection**, then save. The server test writes, reads, and deletes a test object; it does not test browser CORS.
+3. Run **Test connection**, then save. A missing region or bucket, or a value past a field's length limit, is named under its field before anything is sent. The server test writes, reads, and deletes a test object; it does not test browser CORS.
 4. Upload and download a controlled file in the browser before relying on the new connection.
 
 New uploads use the organization's bucket. Earlier default-store files can remain readable through mixed references, so connecting the bucket does not by itself meet a requirement to relocate history. Configuration lives under `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` and `connection.secrets.json`.

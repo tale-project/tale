@@ -53,3 +53,19 @@ export function backendRefusalReason(err: unknown): string | undefined {
   if (message === undefined || message.length === 0) return undefined;
   return message === stringField(err, 'code') ? undefined : message;
 }
+
+/** The code every app door answers a body its schema refused with
+ * (`backend/lib/invalid-body-response.ts`). */
+export const INVALID_BODY_CODE = 'invalid body';
+
+/**
+ * The field-naming sentence of a refused body ("email: Invalid email
+ * address") — every app door's `invalid body` answer carries one, so a
+ * generic failure toast can say which field instead of "Try again", which
+ * would only send the same body again. Undefined for any other error: a
+ * different code's `message` is not a display contract.
+ */
+export function invalidBodyReason(err: unknown): string | undefined {
+  if (backendErrorCode(err) !== INVALID_BODY_CODE) return undefined;
+  return backendRefusalReason(err);
+}

@@ -83,7 +83,11 @@ export function ProductImageField({
         id={DROP_ZONE_ID}
         label={tProducts('edit.labels.image')}
         required={false}
-        errorMessage={errorMessage ?? uploadError}
+        // A refused address belongs under the URL field once it is showing
+        // (that is where it was typed); the drop zone keeps upload failures.
+        errorMessage={
+          showUrlInput ? uploadError : (errorMessage ?? uploadError)
+        }
       >
         {/* Wrapper is relative so the × button can overlay the zone as a sibling,
             keeping its click out of the DropZone's event path. */}
@@ -168,6 +172,7 @@ export function ProductImageField({
           onChange={(e) => onChange(e.target.value)}
           placeholder={tProducts('edit.imageUrlPlaceholder')}
           disabled={isDisabled}
+          errorMessage={errorMessage}
         />
       ) : (
         <button

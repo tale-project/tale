@@ -6,6 +6,7 @@ import {
   backendErrorMessage,
   backendRefusalReason,
   backendUserMessage,
+  invalidBodyReason,
 } from './backend-error';
 
 describe('backendErrorCode', () => {
@@ -121,5 +122,36 @@ describe('backendRefusalReason', () => {
   it('is undefined for an unstructured throw', () => {
     expect(backendRefusalReason(new Error('boom'))).toBeUndefined();
     expect(backendRefusalReason(undefined)).toBeUndefined();
+  });
+});
+
+describe('invalidBodyReason', () => {
+  it("returns a refused body's field-naming sentence", () => {
+    expect(
+      invalidBodyReason(
+        new AppError({
+          code: 'invalid body',
+          message: 'name: Too big: expected string to have <=300 characters',
+          issues: [{ path: 'name', message: 'Too big' }],
+        }),
+      ),
+    ).toBe('name: Too big: expected string to have <=300 characters');
+  });
+
+  it('is undefined when the refusal carries only the code', () => {
+    expect(
+      invalidBodyReason(
+        new AppError({ code: 'invalid body', message: 'invalid body' }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("is undefined for another code's message, which is no display contract", () => {
+    expect(
+      invalidBodyReason(
+        new AppError({ code: 'FORBIDDEN', message: 'internal text' }),
+      ),
+    ).toBeUndefined();
+    expect(invalidBodyReason(new Error('boom'))).toBeUndefined();
   });
 });

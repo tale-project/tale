@@ -18,7 +18,10 @@ import type {
 } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import { useT } from '@/lib/i18n/client';
-import { backendUserMessage } from '@/lib/utils/backend-error';
+import {
+  backendUserMessage,
+  invalidBodyReason,
+} from '@/lib/utils/backend-error';
 
 interface ConvexMutationExtras {
   /**
@@ -75,9 +78,14 @@ export function useBackendMutation<Name extends MutationName>(
       if (errorToast !== false) {
         toast({
           title: errorToast?.title ?? t('error.generic.title'),
+          // A refused body names its field; "Try again" would only send
+          // the same body again.
           description:
             errorToast?.description?.(error) ??
-            backendUserMessage(error, t('error.generic.description')),
+            backendUserMessage(
+              error,
+              invalidBodyReason(error) ?? t('error.generic.description'),
+            ),
           variant: 'destructive',
         });
       }
