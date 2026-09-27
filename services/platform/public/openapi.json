@@ -40627,7 +40627,7 @@
           },
           "rerankScore": {
             "type": "number",
-            "description": "Reserved for a deployment that installs a reranker — none ships, so it is never present today"
+            "description": "Never present: Tale ships no reranker. The property stays in the schema for compatibility"
           }
         }
       },
@@ -40663,11 +40663,11 @@
               },
               "reranked": {
                 "type": "boolean",
-                "description": "Reserved for a deployment that installs a reranker — none ships, so this is always false"
+                "description": "Always false: Tale ships no reranker. The flag stays in the response for compatibility"
               },
               "cached": {
                 "type": "boolean",
-                "description": "Reserved for a deployment that installs a semantic cache — none ships, so this is always false"
+                "description": "Always false: Tale ships no semantic cache. The flag stays in the response for compatibility"
               },
               "admitted": {
                 "type": "integer",

@@ -8767,7 +8767,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             rerankScore: {
               ...num,
               description:
-                'Reserved for a deployment that installs a reranker — none ships, so it is never present today',
+                'Never present: Tale ships no reranker. The property stays in the schema for compatibility',
             },
           },
         },
@@ -8805,12 +8805,12 @@ curl -H "Authorization: Bearer <api-key>" \\
                 reranked: {
                   ...bool,
                   description:
-                    'Reserved for a deployment that installs a reranker — none ships, so this is always false',
+                    'Always false: Tale ships no reranker. The flag stays in the response for compatibility',
                 },
                 cached: {
                   ...bool,
                   description:
-                    'Reserved for a deployment that installs a semantic cache — none ships, so this is always false',
+                    'Always false: Tale ships no semantic cache. The flag stays in the response for compatibility',
                 },
                 admitted: {
                   ...int,

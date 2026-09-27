@@ -328,11 +328,11 @@ export interface KnowledgeDiagnostics {
    * ran keyword-only — the twin of `bm25`, so a dead leg is never silent
    * (2026-09-14 evaluation, h4). */
   readonly dense: boolean;
-  /** Always false: no reranker ships. Kept on the wire, where the public
-   * contract documents it as reserved. */
+  /** Always false: no reranker ships. Kept on the wire for compatibility,
+   * as the public contract documents. */
   readonly reranked: boolean;
-  /** Always false: no semantic cache ships. Kept on the wire, where the
-   * public contract documents it as reserved. */
+  /** Always false: no semantic cache ships. Kept on the wire for
+   * compatibility, as the public contract documents. */
   readonly cached: boolean;
   /** Candidates that passed the admission re-check (the live-document check
    * of each documents-corpus hit) and were fused — before repeated passages
