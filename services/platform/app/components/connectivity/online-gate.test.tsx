@@ -11,11 +11,26 @@ const connectionState = {
   connectionCount: 1,
 };
 
+/**
+ * Most cases script the connection state directly; the probe cases flip
+ * this to run the REAL hook (`connection-state.ts` with a mocked `fetch`),
+ * so they prove the whole lane from the `offline` event to the overlay.
+ */
+let useRealConnectionState = false;
+const realConnectionState = await vi.importActual<
+  typeof import('@/app/hooks/use-backend-connection-state')
+>('@/app/hooks/use-backend-connection-state');
+
 vi.mock('@/app/hooks/use-backend-connection-state', () => ({
-  useBackendConnectionState: () => connectionState,
+  useBackendConnectionState: () =>
+    useRealConnectionState
+      ? realConnectionState.useBackendConnectionState()
+      : connectionState,
 }));
 
 const { OnlineGate } = await import('./online-gate');
+const { reportBackendReachable } =
+  await import('@/app/lib/backend/connection-state');
 
 // Matches the grace window in online-gate.tsx; bumped a few ms here to
 // dodge timer-rounding flakiness across vitest's fake-timer backends.
@@ -28,6 +43,10 @@ describe('OnlineGate', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+    useRealConnectionState = false;
+    reportBackendReachable();
+    delete window.__ENV__;
   });
 
   it('renders children when Convex is connected', () => {
@@ -141,20 +160,76 @@ describe('OnlineGate', () => {
     }
   });
 
-  it('ignores navigator.onLine — Convex on localhost stays reachable even when the device reports offline', () => {
-    Object.defineProperty(window.navigator, 'onLine', {
-      configurable: true,
-      value: false,
+  describe('backend probe', () => {
+    // The device going offline is not the verdict — the `/api/health` probe
+    // it triggers is. A probe that never gets a response shows the overlay;
+    // one that answers (a backend on localhost while the WAN is down, the
+    // common `bun run dev` shape) keeps it hidden.
+    function goOffline(): void {
+      Object.defineProperty(window.navigator, 'onLine', {
+        configurable: true,
+        value: false,
+      });
+      window.dispatchEvent(new Event('offline'));
+    }
+
+    afterEach(() => {
+      Object.defineProperty(window.navigator, 'onLine', {
+        configurable: true,
+        value: true,
+      });
     });
-    render(
-      <OnlineGate>
-        <p>Hello</p>
-      </OnlineGate>,
-    );
-    expect(screen.queryByRole('alertdialog')).toBeNull();
-    Object.defineProperty(window.navigator, 'onLine', {
-      configurable: true,
-      value: true,
+
+    it("shows the overlay when the offline event's probe gets no response", async () => {
+      useRealConnectionState = true;
+      window.__ENV__ = { BASE_PATH: '' };
+      const fetchMock = vi
+        .spyOn(window, 'fetch')
+        .mockRejectedValue(new TypeError('Failed to fetch'));
+      vi.useFakeTimers();
+      render(
+        <OnlineGate>
+          <p>Hello</p>
+        </OnlineGate>,
+      );
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+
+      await act(async () => {
+        goOffline();
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/health',
+        expect.objectContaining({ cache: 'no-store' }),
+      );
+      act(() => {
+        vi.advanceTimersByTime(GRACE_MS);
+      });
+      const overlay = screen.getByRole('alertdialog');
+      expect(overlay).toBeVisible();
+      expect(overlay).toHaveTextContent("You're offline");
+      expect(screen.getByText('Hello')).toBeInTheDocument();
+    });
+
+    it('keeps the overlay hidden when the probe answers although the device reports offline', async () => {
+      useRealConnectionState = true;
+      window.__ENV__ = { BASE_PATH: '' };
+      const fetchMock = vi
+        .spyOn(window, 'fetch')
+        .mockResolvedValue(new Response('ok', { status: 200 }));
+      vi.useFakeTimers();
+      render(
+        <OnlineGate>
+          <p>Hello</p>
+        </OnlineGate>,
+      );
+      await act(async () => {
+        goOffline();
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      act(() => {
+        vi.advanceTimersByTime(GRACE_MS);
+      });
+      expect(screen.queryByRole('alertdialog')).toBeNull();
     });
   });
 

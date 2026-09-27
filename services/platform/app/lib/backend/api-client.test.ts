@@ -9,6 +9,7 @@ import {
 } from './api-client';
 import {
   isBackendReachable,
+  probeBackend,
   reportBackendReachable,
   reportBackendUnreachable,
 } from './connection-state';
@@ -160,5 +161,66 @@ describe('backendFetch', () => {
     await expect(
       backendFetch<undefined>('/tasks/t1', { orgId: 'org1', method: 'DELETE' }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('probeBackend', () => {
+  it('asks /api/health past every cache, under the deployment base path', async () => {
+    window.__ENV__ = { BASE_PATH: '/tale' };
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(new Response('ok', { status: 200 }));
+    await expect(probeBackend()).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/tale/api/health',
+      expect.objectContaining({
+        cache: 'no-store',
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it('marks the backend reachable on any HTTP status — a draining 503 still answers', async () => {
+    reportBackendUnreachable();
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response('draining', { status: 503 }),
+    );
+    await expect(probeBackend()).resolves.toBe(true);
+    expect(isBackendReachable()).toBe(true);
+  });
+
+  it('marks the backend unreachable when the probe gets no response', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(window, 'fetch').mockRejectedValue(
+      new TypeError('Failed to fetch'),
+    );
+    await expect(probeBackend()).resolves.toBe(false);
+    expect(isBackendReachable()).toBe(false);
+  });
+
+  it('gives up on a probe that hangs past its timeout', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(window, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('aborted', 'AbortError'));
+          });
+        }),
+    );
+    const probe = probeBackend();
+    await vi.advanceTimersByTimeAsync(4_000);
+    await expect(probe).resolves.toBe(false);
+    expect(isBackendReachable()).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('shares one in-flight probe between concurrent callers', async () => {
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(new Response('ok', { status: 200 }));
+    await Promise.all([probeBackend(), probeBackend()]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

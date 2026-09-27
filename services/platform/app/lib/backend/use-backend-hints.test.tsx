@@ -66,6 +66,11 @@ beforeEach(() => {
   FakeEventSource.instances = [];
   window.__ENV__ = { BASE_PATH: '' };
   vi.stubGlobal('EventSource', FakeEventSource);
+  // Every stream error triggers a health probe; answer it unless a test
+  // says otherwise, so an abandoned handshake never reads as an outage.
+  vi.spyOn(window, 'fetch').mockResolvedValue(
+    new Response('ok', { status: 200 }),
+  );
 });
 
 afterEach(() => {
@@ -170,13 +175,36 @@ describe('useBackendHints', () => {
     expect(FakeEventSource.instances[1]?.closed).toBe(true);
   });
 
-  it('keeps the backend reachable when EventSource errors', () => {
+  it('keeps the backend reachable when EventSource errors but the health probe answers', async () => {
     expect(isBackendReachable()).toBe(true);
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(new Response('ok', { status: 200 }));
     renderHook(() => useBackendHints('org1'), { wrapper });
-    act(() => {
+    await act(async () => {
       FakeEventSource.instances[0]?.emit('error', '');
     });
+    // The error is not the verdict — the probe it triggers is.
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/health',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
     expect(isBackendReachable()).toBe(true);
+  });
+
+  it('flags the backend unreachable when the probe an EventSource error triggers gets no response', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    await act(async () => {
+      FakeEventSource.instances[0]?.emit('error', '');
+      // A second error while the probe is in flight must not fire another.
+      FakeEventSource.instances[0]?.emit('error', '');
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(isBackendReachable()).toBe(false);
   });
 
   it('opens nothing without an org scope', () => {

@@ -25,16 +25,21 @@ type OfflineReason = 'device' | 'backend';
  * so a transient blip doesn't unmount the app.
  *
  * Two distinct reasons drive the overlay, each with its own copy:
- *   - `'device'`  — `navigator.onLine === false`. The user's device is
- *                   offline. We surface this even when the Convex WS is
- *                   still nominally connected, because nothing the user
- *                   does will round-trip until the network returns.
- *   - `'backend'` — device thinks it's online but Convex's websocket has
- *                   been stale longer than the grace window. Tale's server
+ *   - `'device'`  — the backend is unreachable and `navigator.onLine` is
+ *                   false: the user's device is offline, and nothing they
+ *                   do will round-trip until the network returns.
+ *   - `'backend'` — the device thinks it's online but the backend has been
+ *                   unreachable longer than the grace window. Tale's server
  *                   is unreachable from here.
  *
+ * Reachability comes from `lib/backend/connection-state.ts`: a request or
+ * a `/api/health` probe that gets no response. The probe runs on the
+ * `offline` event and every few seconds while the state is in doubt, so an
+ * idle tab with cached data learns of a dropped network within seconds
+ * rather than on its next click (2026-09-26 evaluation, G-06).
+ *
  * The grace window prevents the overlay from flashing on benign blips
- * (HMR push, tab waking from sleep, brief WS reconnect on auth refresh).
+ * (HMR push, tab waking from sleep, a single request lost on auth refresh).
  */
 export function OnlineGate({ children }: OnlineGateProps) {
   const reason = useOfflineReason();
@@ -87,12 +92,12 @@ function useOfflineReason(): OfflineReason | null {
     };
   }, [connection.isWebSocketConnected]);
 
-  // The overlay only appears when Convex's WS is actually unreachable —
+  // The overlay only appears when the backend is actually unreachable —
   // `navigator.onLine` is unreliable on its own (a laptop with no WAN can
   // still talk to a local self-hosted backend, the common `bun run dev`
-  // shape). Once the WS is stale, we use `navigator.onLine` purely to
-  // *classify* the cause so the copy matches reality: device-offline vs
-  // server-unreachable.
+  // shape; the probe proves it). Once the backend is stale, we use
+  // `navigator.onLine` purely to *classify* the cause so the copy matches
+  // reality: device-offline vs server-unreachable.
   if (!isWsStale) return null;
   return isDeviceOffline ? 'device' : 'backend';
 }

@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 59 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -496,6 +496,15 @@ loaded, and reads **No teams** for an account in none.
   (continuing to the dashboard) when signed out. Signed out, a path beneath a
   sign-in page (such as log-in/typo) shows the same state inside the sign-in
   frame: one logo, no second page nested in it. Both themes render.
+- [ ] `NAV-B11` · **Offline gate, idle tab** — Open Projects (or any list)
+  and let it load, then drop the network completely (DevTools **Offline**, or
+  disconnect the machine) and **touch nothing** for 45 s → Within about 10 s
+  of the drop — with no click, reload or navigation — the full-screen
+  **You're offline** overlay (`role="alertdialog"`, `connectivity.deviceTitle`)
+  covers the cached list; it never sits silently on stale data. The Network
+  panel shows a `/api/health` probe every ~5 s while offline. Restore the
+  network → the overlay clears within ~5 s on its own, no reload, and the
+  list underneath is still mounted.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { isStructuredBackendError } from '@/app/hooks/use-action-query';
 
 import { eventsUrl } from './api-client';
-import { reportBackendReachable } from './connection-state';
+import { probeBackendSoon, reportBackendReachable } from './connection-state';
 import { backendEntityPrefix, backendOrgPrefix } from './query-keys';
 
 /**
@@ -118,7 +118,14 @@ export function useBackendHints(orgId: string | undefined): void {
     // CONNECTING is already retrying natively and must be left alone, or the
     // two loops race and open a stream per error.
     const onError = (): void => {
-      if (stopped || source?.readyState !== EVENT_SOURCE_CLOSED) {
+      if (stopped) {
+        return;
+      }
+      // The error itself is not evidence of an outage (proxy blips, native
+      // reconnects), but it is the only sign an idle tab gets when the
+      // network drops — let one HTTP probe decide, at most once per interval.
+      probeBackendSoon();
+      if (source?.readyState !== EVENT_SOURCE_CLOSED) {
         return;
       }
       detach();
