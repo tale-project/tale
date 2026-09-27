@@ -62,6 +62,8 @@ Open the task to add a description, attachments, dates, labels, subtasks, or com
 
 Typing `@` in a comment opens the mention picker. A mention of an assigned agent is an instruction: it can steer a running agent or start another run when the agent is idle. A plain comment records the discussion without requesting that agent action.
 
+Mentions in the task description work the same way when you save the task: the people you name are notified, and a named agent is steered or starts a run as described above. When you edit the description later, only the mentions you add take effect. Rewording the text around an existing mention notifies no one again.
+
 Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. A parent task cannot close while its subtasks remain open. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
 
 ## Review the result before closing

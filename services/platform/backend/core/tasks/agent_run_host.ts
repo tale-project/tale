@@ -239,10 +239,11 @@ async function stageTaskInputs(
 
 /** Phrase a FRESH conversation's prompt from the task brief (a bound rerun
  * resumes the previous conversation instead — `buildResumeKickPrompt`).
- * Exported for its unit test. `feedback` is the @mention comment that kicked
+ * Exported for its unit test. `feedback` is the @mention text that kicked
  * a rerun — it leads the brief's work section so the agent treats it as the
- * delta to address, not as one more line of context (the same comment closes
- * the discussion tail, so it is dropped from there rather than said twice).
+ * delta to address, not as one more line of context. A comment's closes the
+ * discussion tail, so it is dropped from there rather than said twice; a
+ * description's IS the Description, so its feedback section is dropped.
  * `discussion` is a fresh conversation's only memory of earlier runs.
  * `inputs` names what `stageTaskInputs` landed, and the same-file-name rule
  * makes a revision REPLACE the task's deliverable instead of piling a
@@ -250,7 +251,7 @@ async function stageTaskInputs(
  * named in the user prompt (not only the system addendum) because a resumed
  * standing-session conversation happily reuses last turn's path from memory,
  * and a deliverable written outside the box is not collected. */
-function buildTaskPrompt(
+export function buildTaskPrompt(
   brief: {
     title: string;
     description?: string;
@@ -277,6 +278,8 @@ function buildTaskPrompt(
   ) {
     discussion = discussion.slice(0, -1);
   }
+  const feedbackIsDescription =
+    feedbackText !== '' && feedbackText === (brief.description ?? '').trim();
   const stagedLines = [
     ...(inputs !== undefined && inputs.attachments.length > 0
       ? [
@@ -311,7 +314,7 @@ function buildTaskPrompt(
           ].join('\n\n'),
         ]
       : []),
-    ...(feedbackText !== ''
+    ...(feedbackText !== '' && !feedbackIsDescription
       ? [
           `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}`,
         ]
