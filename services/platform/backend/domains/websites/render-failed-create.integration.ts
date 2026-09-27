@@ -142,6 +142,8 @@ export async function checkRenderFailedCreate(
     const asked: string[] = [];
     const collectSpawner = {
       isAlive: (): Promise<boolean> => Promise.resolve(true),
+      setPinned: (): Promise<boolean> => Promise.resolve(true),
+      create: (): Promise<void> => Promise.resolve(),
       destroyIfIdle: (
         sessionId: string,
       ): Promise<{ destroyed: boolean; busy: boolean }> => {
