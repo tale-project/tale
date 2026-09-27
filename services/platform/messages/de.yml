@@ -6703,13 +6703,14 @@ settings:
       modelCatalogCustomHint:
         Embedding-Modelle aus der Modellliste dieses Anbieters; wähle „Anderes
         Modell“, um ein Tag einzugeben, das dort nicht steht.
-      modelUnlistedHint:
-        Keine Modellliste kann sagen, ob dieser Anbieter Embeddings bedient —
-        gib das Modell-Tag exakt so ein, wie der Anbieter es schreibt.
-      modelNoneHint:
-        Der Katalog von {provider} führt kein Embedding-Modell. Wähle einen
-        Anbieter, der eines bedient.
-      modelNone: Kein Embedding-Modell
+      modelUncuratedHint:
+        Tale kennt keine Vektorbreite für die Embedding-Modelle von
+        {provider}. Gib das Modell-Tag und seine Vektorbreite exakt so ein,
+        wie der Anbieter sie dokumentiert.
+      modelUnsupportedHint:
+        '{provider} bietet kein Embedding-Modell an. Wähle einen Anbieter, der
+        eines bedient.'
+      modelUnsupported: Bietet keine Embeddings
       modelCatalogUnavailableHint:
         Der Katalog von {provider} konnte nicht geladen werden. Aktualisiere
         die Kataloge unter Einstellungen → KI-Anbieter und versuche es erneut.
