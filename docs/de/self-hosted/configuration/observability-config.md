@@ -66,6 +66,8 @@ Die Abtastrate gilt für Leistungstraces im Browser. Das Backend sendet Fehlerbe
 
 Ein Neustart der Datenbank gilt nicht als Fehler; ein verwaltetes Upgrade erstellt die Datenbank bei jedem Release neu. Solange sie nicht erreichbar ist, antworten Anfragen mit `503 DATABASE_UNAVAILABLE` und `Retry-After`, Hintergrundjobs schlagen fehl und werden nach der Richtlinie ihrer Warteschlange wiederholt, und offene Live-Update-Streams warten ab und laufen danach weiter. Stattdessen landet jeweils eine Warnung im Protokoll. Bleibt die Datenbank länger als etwa eine Minute unerreichbar, sendet ein API-Prozess mit offenen Live-Update-Streams für diesen Ausfall ein einziges Ereignis der Stufe „warning“.
 
+Auch eine Anfrage, die ihr Client aufgegeben hat, meldet das Backend nicht. Das passiert etwa, wenn du einen Browser-Tab schließt oder einen Upload abbrichst, während die Daten noch übertragen werden. Die Anfrage erhält den Status `499`, zählt in den Anfragemetriken zu den Clientfehlern und hinterlässt eine einzige Debug-Zeile im Protokoll. Jeder andere Fehler in einer Anfrage, deren Client nicht mehr verbunden ist, wird weiterhin gemeldet. Eine App-Anfrage mit leerem oder abgeschnittenem JSON-Body beantwortet das Backend mit `400 INVALID_JSON`, ohne sie zu melden.
+
 Fehler, die auf keinen Defekt in Tale hinweisen, meldet der Browser nicht:
 
 - Fehler aus einer Browsererweiterung

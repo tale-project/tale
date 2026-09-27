@@ -284,13 +284,66 @@ export function databaseUnavailableResponse(
   );
 }
 
+/** Node's own error for a request body the client stopped sending:
+ * `Error: aborted` with `ECONNRESET` — searched a few `cause`s deep, in
+ * case a layer wrapped the read that failed. */
+function isRequestAbortError(err: unknown): boolean {
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
+    if (
+      current.message === 'aborted' &&
+      Reflect.get(current, 'code') === 'ECONNRESET'
+    ) {
+      return true;
+    }
+    current = current.cause;
+  }
+  return false;
+}
+
+/**
+ * Whether `err` is a client that went away before its request was answered
+ * — a closed tab, a cancelled upload, a proxy that gave up. Node fails the
+ * body read with `Error: aborted` (`ECONNRESET`), and the adapter aborts
+ * the request's signal as the socket closes, before that error reaches a
+ * handler. Both are required: the same `Error: aborted` is what Node's HTTP
+ * client raises for an OUTBOUND response cut mid-body (an object-store
+ * read), a failure of ours with the caller still waiting; and a defect
+ * thrown after the caller left is still a defect.
+ */
+export function isClientAbort(err: unknown, c: Context): boolean {
+  return isRequestAbortError(err) && c.req.raw.signal.aborted;
+}
+
+/** nginx's "client closed request": nobody is left to read the answer, so
+ * the status is for the request metrics — a 4xx, never an outage. */
+const CLIENT_CLOSED_REQUEST = 499;
+
+/**
+ * The answer a request the client abandoned gets — or `undefined` when
+ * `err` is something else. Unreported: a client leaving is not a defect,
+ * and every closed tab mid-upload used to land in the tracker as a 500.
+ * One debug line instead.
+ */
+export function clientAbortResponse(
+  err: unknown,
+  c: Context,
+): Response | undefined {
+  if (!isClientAbort(err, c)) return undefined;
+  console.debug(
+    `[backend] client closed the request — ${CLIENT_CLOSED_REQUEST} for ${c.req.method} ${scrubUrl(c.req.path)}`,
+  );
+  return new Response(null, { status: CLIENT_CLOSED_REQUEST });
+}
+
 /**
  * Hono's default error handler plus a capture: `getResponse` carriers
  * (HTTPException) pass through untouched — those are deliberate responses,
- * not defects — an unavailable database answers its 503, and everything else
- * is a real 500, reported. The backend signals expected 4xx via
- * `c.json(..., 4xx)` returns, so any other error reaching this handler is
- * report-worthy.
+ * not defects — an unavailable database answers its 503, a client that
+ * left answers its unread 499, and everything else is a real 500, reported.
+ * The backend signals expected 4xx via `c.json(..., 4xx)` returns (and an
+ * app-door body that is not JSON as the 400 `lib/app-json-body.ts`
+ * throws), so any other error reaching this handler is report-worthy.
  */
 export const appErrorHandler: ErrorHandler = (err, c) => {
   if ('getResponse' in err) {
@@ -299,6 +352,8 @@ export const appErrorHandler: ErrorHandler = (err, c) => {
   }
   const unavailable = databaseUnavailableResponse(err, c);
   if (unavailable !== undefined) return unavailable;
+  const abandoned = clientAbortResponse(err, c);
+  if (abandoned !== undefined) return abandoned;
   reportRequestError(err, c);
   return c.text('Internal Server Error', 500);
 };

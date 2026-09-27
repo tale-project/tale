@@ -539,6 +539,61 @@ describe('/api/v1 door — escaped errors and response hygiene', () => {
     }
   });
 
+  it('answers a caller that hung up mid-body with an unread 499, unreported', async () => {
+    // Node's own abort of a body read, with the signal the adapter aborts
+    // as the socket closes; a closed tab mid-upload used to be a reported
+    // 500.
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.post('/upload', () => {
+      throw Object.assign(new Error('aborted'), { code: 'ECONNRESET' });
+    });
+    const gone = new AbortController();
+    gone.abort('Error: aborted');
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    try {
+      const res = await app.request(
+        new Request('http://localhost/upload', {
+          method: 'POST',
+          ...bearer(GOOD_KEY),
+          signal: gone.signal,
+        }),
+      );
+      expect(res.status).toBe(499);
+      expect(await res.text()).toBe('');
+      expect(errors).not.toHaveBeenCalled();
+      expect(debug).toHaveBeenCalledWith(
+        '[backend] client closed the request — 499 for POST /upload',
+      );
+    } finally {
+      errors.mockRestore();
+      debug.mockRestore();
+    }
+  });
+
+  it('still reports the same error while the caller is there — an outbound read cut short', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.get('/download', () => {
+      throw Object.assign(new Error('aborted'), { code: 'ECONNRESET' });
+    });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const res = await app.request(
+        'http://localhost/download',
+        bearer(GOOD_KEY),
+      );
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ code: 'INTERNAL_ERROR' });
+      expect(errors).toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   it('turns a thrown HTTPException into the envelope with its own status', async () => {
     const { sql } = fakeSql();
     const { auth } = fakeAuth();
