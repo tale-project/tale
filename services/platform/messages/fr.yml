@@ -5652,14 +5652,13 @@ settings:
         Les enregistrements d'app chez chaque fournisseur, contre lesquels les
         membres de cette organisation accordent leur consentement quand ils
         connectent un connector OAuth. Une app configurée ici prime sur celle
-        de l'environnement du déploiement.
+        de l'environnement du déploiement. Sans l'une ni l'autre, un connector
+        ne peut pas être connecté.
       onedriveTarget: OneDrive / SharePoint (import de connaissances)
       statusOrg: App de l'organisation
       statusEnv: App du déploiement
       statusNone: Non configurée
       orgClientId: 'ID client : {clientId}'
-      statusEnvDetail: Utilise l'app enregistrée dans l'environnement du déploiement.
-      statusNoneDetail: Les membres ne peuvent pas s'y connecter tant qu'aucune app n'est configurée ici ou sur le déploiement.
       configure: Configurer
       remove: Retirer
       removeTitle: Retirer l'app OAuth de {connector} ?

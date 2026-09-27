@@ -5569,14 +5569,13 @@ settings:
         Die App-Registrierungen beim jeweiligen Anbieter, gegen die Mitglieder
         dieser Organisation ihre Freigabe erteilen, wenn sie einen
         OAuth-Connector verbinden. Eine hier hinterlegte App hat Vorrang vor
-        der deployment-weiten aus der Umgebung.
+        der deployment-weiten aus der Umgebung; ohne eine der beiden lässt
+        sich ein Connector nicht verbinden.
       onedriveTarget: OneDrive / SharePoint (Wissens-Import)
       statusOrg: App der Organisation
       statusEnv: App des Deployments
       statusNone: Nicht eingerichtet
       orgClientId: 'Client-ID: {clientId}'
-      statusEnvDetail: Verwendet die in der Deployment-Umgebung registrierte App.
-      statusNoneDetail: Mitglieder können sich erst verbinden, wenn hier oder im Deployment eine App eingerichtet ist.
       configure: Einrichten
       remove: Entfernen
       removeTitle: OAuth-App für {connector} entfernen?

@@ -206,21 +206,16 @@ export function OauthAppsCard({
                       <Text as="span" className="text-sm font-medium">
                         {target.displayName}
                       </Text>
-                      <Text as="span" variant="muted" className="text-xs">
-                        {loading ? (
-                          <span className="block w-64 max-w-full">
-                            <SkeletonText />
-                          </span>
-                        ) : orgApp ? (
-                          t('connectors.oauthApps.orgClientId', {
+                      {/* The badge names where the app comes from, and the
+                          section says what a connector without one cannot
+                          do; only an organization app adds a fact of its own. */}
+                      {orgApp && (
+                        <Text as="span" variant="muted" className="text-xs">
+                          {t('connectors.oauthApps.orgClientId', {
                             clientId: orgApp.clientId,
-                          })
-                        ) : target.envConfigured ? (
-                          t('connectors.oauthApps.statusEnvDetail')
-                        ) : (
-                          t('connectors.oauthApps.statusNoneDetail')
-                        )}
-                      </Text>
+                          })}
+                        </Text>
+                      )}
                     </Stack>
                     <div className="flex items-center gap-2">
                       <Badge
@@ -309,13 +304,6 @@ function OauthAppRowPlaceholder({ seed }: { seed: number }) {
       <Stack gap={1} className="min-w-0 flex-1">
         <Text as="span" className="block w-40 max-w-full text-sm font-medium">
           <SkeletonText seed={seed} />
-        </Text>
-        <Text
-          as="span"
-          variant="muted"
-          className="block w-64 max-w-full text-xs"
-        >
-          <SkeletonText seed={seed + 1} />
         </Text>
       </Stack>
       <div className="flex items-center gap-2">

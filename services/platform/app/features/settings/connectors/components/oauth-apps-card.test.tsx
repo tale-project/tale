@@ -41,8 +41,14 @@ const gmail: ConnectorSummary = {
   iconUrl: '/api/connectors/gmail/icon.svg',
 };
 
-const NONE_DETAIL =
-  "Members can't connect it until an app is configured here or on the deployment.";
+const NOT_CONFIGURED = 'Not configured';
+
+/** A row's status claim is only made once it is no longer masked. */
+function claimedStatuses(): HTMLElement[] {
+  return screen
+    .queryAllByText(NOT_CONFIGURED)
+    .filter((badge) => badge.closest('[aria-hidden="true"]') === null);
+}
 
 /**
  * The card's status column answers one question per row: is there an app
@@ -106,7 +112,7 @@ describe('OauthAppsCard while loading', () => {
     expect(
       screen.queryByText('OneDrive / SharePoint (Knowledge import)'),
     ).toBeNull();
-    expect(screen.queryByText(NONE_DETAIL)).toBeNull();
+    expect(claimedStatuses()).toHaveLength(0);
     const configures = screen.getAllByText('Configure');
     expect(configures).toHaveLength(5);
     for (const configure of configures) {
@@ -119,7 +125,7 @@ describe('OauthAppsCard while loading', () => {
     render(<OauthAppsCard organizationId="org-1" connectors={[gmail]} />);
 
     expect(screen.getByText('Gmail')).toBeInTheDocument();
-    expect(screen.queryByText(NONE_DETAIL)).toBeNull();
+    expect(claimedStatuses()).toHaveLength(0);
     expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
   });
 
@@ -127,6 +133,11 @@ describe('OauthAppsCard while loading', () => {
     render(<OauthAppsCard organizationId="org-1" connectors={[gmail]} />);
 
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getAllByText(NONE_DETAIL)).toHaveLength(2);
+    expect(claimedStatuses()).toHaveLength(2);
+    // What an unconfigured row costs is said once, by the section, not
+    // repeated under every row that has no app.
+    expect(
+      screen.getAllByText(/a connector with neither can't be connected/),
+    ).toHaveLength(1);
   });
 });

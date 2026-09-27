@@ -5757,14 +5757,13 @@ settings:
       description:
         The vendor app registrations this organization's members consent
         against when connecting an OAuth connector. An app configured here
-        overrides the deployment-wide one from the environment.
+        overrides the deployment-wide one from the environment; a connector
+        with neither can't be connected.
       onedriveTarget: OneDrive / SharePoint (Knowledge import)
       statusOrg: Organization app
       statusEnv: Deployment app
       statusNone: Not configured
       orgClientId: 'Client ID: {clientId}'
-      statusEnvDetail: Using the app registered on the deployment environment.
-      statusNoneDetail: Members can't connect it until an app is configured here or on the deployment.
       configure: Configure
       remove: Remove
       removeTitle: Remove the {connector} OAuth app?
