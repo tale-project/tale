@@ -57,6 +57,8 @@ La CLI démarre la couleur inactive et attend que ses réplicas passent les cont
 
 L’ancienne API est drainée avant son retrait : de nouveaux tours de chat peuvent être refusés, tandis que les tours en cours disposent d’un délai pour finir. Le drainage des chats attend jusqu’à trois minutes ; celui du service web utilise `DRAIN_TIMEOUT`, par défaut 30 secondes. La route de santé web reste saine tant que son alias est partagé. Déconnecter les anciens conteneurs des réseaux de service les retire du DNS et peut couper les connexions restantes ; cette étape vient donc après les drainages.
 
+Les onglets ouverts avant la bascule exécutent encore la version précédente. La première fois qu’un tel onglet a besoin d’une partie de l’application remplacée par la nouvelle version, par exemple un aperçu de document, il se recharge une fois et continue avec la nouvelle version. Si cette partie ne se charge toujours pas après le rechargement, parce que l’onglet a de nouveau atteint l’ancienne couleur par exemple, il ne se recharge pas une seconde fois. Il affiche alors **Une nouvelle version est disponible** avec l’action **Recharger**. Un onglet qui ne parvient pas du tout à joindre Tale ne se recharge pas ; il affiche son avis de connexion jusqu’à ce que Tale réponde de nouveau.
+
 Si le nouveau groupe ne devient pas sain avant `HEALTH_CHECK_TIMEOUT`, la CLI ne termine pas la bascule. Examine l’état enregistré et les journaux avant de réessayer. Un déploiement interrompu peut laisser les deux groupes ou un transfert en attente. Suis les indications de reprise de la CLI plutôt que de supprimer manuellement conteneurs ou fichiers d’état.
 
 ## Vérifier les migrations et le résultat utilisateur

@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 59 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 61 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -515,6 +515,23 @@ loaded, and reads **No teams** for an account in none.
   panel shows a `/api/health` probe every ~5 s while offline. Restore the
   network → the overlay clears within ~5 s on its own, no reload, and the
   list underneath is still mounted.
+- [ ] `NAV-B12` · **A tab kept open across a deploy** — Needs a production
+  build (mode C, or a real instance; a dev server has no content-hashed
+  chunks). Open `/dashboard/{org}/documents` and open no preview; deploy a
+  new build (rebuild mode C, or `tale deploy`) and leave the tab alone. Then,
+  in that same tab, click a previewable document (PDF or DOCX) → The tab
+  reloads **once** by itself: the Network panel shows the old
+  `assets/document-preview-…` chunk answered with HTML, then one document
+  load whose entry `assets/index-….js` has a new name. It comes back with the
+  preview open (the URL keeps its `?doc=`), and no toast shows. Now block one
+  preview chunk (DevTools → Network → **Block request URL**
+  `*document-preview-docx-*`) and click a DOCX document → After exactly one
+  automatic reload the page stops, and a destructive toast **A new version
+  is available** (`connectivity.newVersion.title`) offers **Reload**
+  (`connectivity.newVersion.reload`) and **Later**
+  (`connectivity.newVersion.later`). It stays until one is pressed, and
+  nothing reloads again on its own; **Reload** reloads once, and the toast
+  comes back while the block is on.
 
 ## Accessibility (WCAG 2.1 AA)
 

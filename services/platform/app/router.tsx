@@ -9,6 +9,7 @@ import { warmSession } from '@/app/lib/auth/session-query';
 import { installOrgErrorRecovery } from '@/app/lib/org-error-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { normalizeConvexSentryEvent } from '@/app/lib/sentry-normalize';
+import { isStaleBundleFallout } from '@/app/lib/stale-bundle-recovery';
 import { getEnv } from '@/lib/env';
 
 import { routeTree } from './routeTree.gen';
@@ -96,8 +97,11 @@ if (sentryDsn) {
     ],
     // Convex failure text embeds a per-call `[Request ID: …]`, which defeats
     // message-based grouping — every action failure opened its own issue.
-    // Strip it so events group by function + root cause.
-    beforeSend: (event) => normalizeConvexSentryEvent(event),
+    // Strip it so events group by function + root cause. A tab recovering
+    // from a deploy reports nothing its swallowed chunk loads left behind
+    // (app/lib/stale-bundle-recovery.tsx).
+    beforeSend: (event) =>
+      isStaleBundleFallout() ? null : normalizeConvexSentryEvent(event),
     tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
   });
 }

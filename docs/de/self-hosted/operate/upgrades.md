@@ -57,6 +57,8 @@ Die CLI startet die freie Farbe und wartet auf erfolgreiche Zustandsprüfungen i
 
 Vor dem Entfernen wird die alte API geleert: Neue Chat-Turns können eine Drain-Verweigerung erhalten, während laufende Turns Zeit zum Abschluss bekommen. Die Chat-Phase wartet bis zu drei Minuten; die Web-Phase nutzt `DRAIN_TIMEOUT`, standardmäßig 30 Sekunden. Die Web-Zustandsroute bleibt gesund, solange ihr Alias gemeinsam verwendet wird. Das Trennen der alten Container von den bedienenden Netzwerken entfernt sie aus DNS und kann übrige Verbindungen kappen. Deshalb erfolgt es nach den Entleerungsphasen.
 
+Browser-Tabs, die vor der Übergabe geöffnet wurden, laufen weiter mit der vorherigen Version. Braucht ein solcher Tab zum ersten Mal einen Teil der Anwendung, den die neue Version ersetzt hat, etwa eine Dokumentvorschau, lädt er sich einmal neu und arbeitet mit der neuen Version weiter. Lässt sich dieser Teil auch nach dem Neuladen nicht laden, zum Beispiel weil der Tab erneut die alte Farbe erreicht hat, lädt er kein zweites Mal neu. Stattdessen zeigt er **Eine neue Version ist verfügbar** mit der Aktion **Neu laden**. Ein Tab, der Tale gar nicht erreicht, lädt nicht neu; er zeigt seinen Verbindungshinweis, bis Tale wieder antwortet.
+
 Wird die neue Gruppe nicht innerhalb von `HEALTH_CHECK_TIMEOUT` gesund, schließt die CLI den Wechsel nicht ab. Prüfe gespeicherten Bereitstellungszustand und Protokolle vor einem erneuten Versuch. Ein unterbrochener Rollout kann beide Gruppen oder eine ausstehende Übergabe hinterlassen. Folge den Wiederherstellungshinweisen der CLI, statt Container oder Zustandsdateien von Hand zu löschen.
 
 ## Migrationen und Nutzerergebnis prüfen

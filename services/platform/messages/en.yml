@@ -1652,6 +1652,12 @@ connectivity:
   retry: Try again
   getApp: Get the app
   reachingServer: Trying to reach the server
+  newVersion:
+    title: A new version is available
+    description: This tab is still running the previous version, so part of the
+      page couldn't load. Reload to continue.
+    reload: Reload
+    later: Later
 conversations:
   title: Inbox
   unknownContact: Unknown contact

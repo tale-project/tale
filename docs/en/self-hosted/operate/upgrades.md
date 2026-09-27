@@ -57,6 +57,8 @@ The CLI starts the idle colour and waits for its replicas to pass health checks 
 
 The old API is drained before removal: new chat turns can receive a drain refusal while existing turns get time to finish. The chat drain waits up to three minutes; the web drain uses `DRAIN_TIMEOUT`, which defaults to 30 seconds. The web health route stays healthy while its alias is still shared. Disconnecting the old containers from serving networks removes them from DNS and can sever remaining connections, so it follows the drains.
 
+Browser tabs opened before the handover still run the previous version. The first time such a tab needs a part of the application that the new version replaced, such as a document preview, it reloads once and continues on the new version. If that part still cannot load after the reload, for example because the tab reached the old colour again, the tab does not reload a second time. It shows **A new version is available** with a **Reload** action instead. A tab that cannot reach Tale at all does not reload; it shows its connection notice until Tale answers again.
+
 If the new group does not become healthy within `HEALTH_CHECK_TIMEOUT`, the deploy does not complete the flip. Inspect the recorded deployment state and logs before retrying. An interrupted rollout can leave both groups or pending handover state; use the CLI's recovery output rather than deleting containers or state files by hand.
 
 ## Check migrations and the user outcome
