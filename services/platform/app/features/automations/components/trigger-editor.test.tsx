@@ -41,6 +41,12 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
+vi.mock('@tale/ui/use-toast', () => ({
+  toast: toastSpy,
+  useToast: () => ({ toast: toastSpy }),
+}));
+
 const SCHEDULE_ROW = {
   name: 'gmail-triage-inbox',
   kind: 'schedule',
@@ -299,6 +305,105 @@ describe('TriggerEditor', () => {
       );
       expect(screen.getByText(/No trigger/)).toBeVisible();
       expect(screen.queryByRole('button', { name: 'Add trigger' })).toBeNull();
+    });
+  });
+
+  // Replacing a live webhook with another kind, and rotating its token,
+  // both revoke the URL a sending system holds — neither happens on one
+  // click any more, and a revocation the server reports is said out loud
+  // (2026-09-26 evaluation, D-11).
+  describe('irreversible webhook moves', () => {
+    const WEBHOOK_ROW = {
+      name: 'gmail-triage-inbox',
+      kind: 'webhook',
+      hasToken: true,
+      enabled: true,
+    };
+
+    it('asks before switching a live webhook to another kind, then reports the revocation', async () => {
+      triggersData = [WEBHOOK_ROW];
+      mockSetTrigger.mockImplementation(
+        (
+          _args: unknown,
+          options?: { onSuccess?: (result: { revoked?: 'webhook' }) => void },
+        ) => {
+          options?.onSuccess?.({ revoked: 'webhook' });
+        },
+      );
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="gmail-triage-inbox"
+          canEdit
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole('combobox', { name: 'Trigger type' }),
+      );
+      await userEvent.click(
+        screen.getByRole('option', { name: 'Platform event' }),
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(mockSetTrigger).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog', {
+        name: 'Replace the webhook?',
+      });
+      expect(dialog).toHaveTextContent(/revokes the webhook URL immediately/);
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Replace and revoke' }),
+      );
+      expect(mockSetTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trigger: expect.objectContaining({ kind: 'event' }),
+        }),
+        expect.anything(),
+      );
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringMatching(/previous webhook URL has been revoked/),
+        }),
+      );
+    });
+
+    it('saves a schedule edit without asking — nothing is revoked', async () => {
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="gmail-triage-inbox"
+          canEdit
+        />,
+      );
+      const cron = screen.getByLabelText('Cron');
+      await userEvent.clear(cron);
+      await userEvent.type(cron, '0 9 * * 1');
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(mockSetTrigger).toHaveBeenCalledTimes(1);
+    });
+
+    it('rotates the token only through the confirm dialog', async () => {
+      triggersData = [WEBHOOK_ROW];
+      render(
+        <TriggerEditor
+          organizationId="org-1"
+          name="gmail-triage-inbox"
+          canEdit
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Rotate token' }),
+      );
+      expect(mockSetTrigger).not.toHaveBeenCalled();
+      const dialog = screen.getByRole('dialog', {
+        name: 'Rotate the webhook token?',
+      });
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Rotate token' }),
+      );
+      expect(mockSetTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({ rotateToken: true }),
+        expect.anything(),
+      );
     });
   });
 

@@ -720,6 +720,14 @@ automations:
       seule fois.
     webhookProjectHint: Pour un projet actif auquel l’automatisation est liée, indique son identifiant dans l’URL ci-dessous.
     rotate: Renouveler le token
+    revokeConfirm:
+      title: Remplacer le webhook ?
+      body: Changer le type de déclencheur révoque immédiatement l’URL du webhook — les expéditeurs qui l’utilisent encore reçoivent 404, et un webhook reconfiguré plus tard obtient une autre URL.
+      confirm: Remplacer et révoquer
+    rotateConfirm:
+      title: Renouveler le token du webhook ?
+      body: L’URL actuelle cesse de fonctionner dès que le nouveau token est généré. Copie la nouvelle URL et mets à jour chaque système expéditeur.
+    revokedToast: L’ancienne URL du webhook a été révoquée — les expéditeurs qui l’utilisent reçoivent désormais 404.
   canvas:
     ariaLabel: Canvas de l’automatisation
     readsFrom: 'Lit {nodes}'

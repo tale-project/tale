@@ -473,6 +473,15 @@ output:
       **Blank** wizard step 2, **Enable now** (`automations.blank.enableNow`)
       is unchecked by default → the created automation's trigger is off;
       check it → the trigger is on.
+- [ ] `AUTO-F46` · **Revoking a webhook asks first** — On an automation with
+      a live webhook (AUTO-F28), switch **Trigger type** to Platform event and
+      **Save settings** → a confirm dialog
+      (`automations.trigger.revokeConfirm.title`) names the revocation;
+      Cancel saves nothing and the old URL still answers 202; confirm → the
+      binding changes, a toast (`automations.trigger.revokedToast`) says the
+      URL was revoked, and a POST to the old URL answers 404. **Rotate
+      token** → confirm dialog (`automations.trigger.rotateConfirm.title`)
+      before any new URL is minted; Cancel leaves the old URL working.
 
 ## Boundary & error tests
 

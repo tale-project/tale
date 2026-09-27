@@ -14,6 +14,7 @@ import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { toast } from '@tale/ui/use-toast';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
@@ -122,6 +123,12 @@ export function TriggerEditor({
   const [refusal, setRefusal] = useState<string | null>(null);
   const [mintedToken, setMintedToken] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // The two irreversible webhook moves ask first: replacing a live webhook
+  // with another kind revokes its URL the moment the bind commits, and a
+  // rotation swaps it — the sending system breaks either way, so neither
+  // happens on a single click.
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
   // Whether the author opened the form for a binding that does not exist
   // yet — without one the panel says "no trigger" instead of drawing an
   // empty schedule that looks armed.
@@ -221,6 +228,11 @@ export function TriggerEditor({
       {
         onSuccess: (result) => {
           if (result.token !== undefined) setMintedToken(result.token);
+          // The server names the live URL this bind stopped answering on —
+          // say so, since nothing on the page shows the old URL any more.
+          if (result.revoked === 'webhook') {
+            toast({ title: t('trigger.revokedToast') });
+          }
         },
         onError: (error) => {
           setRefusal(automationErrorMessage(error));
@@ -229,8 +241,24 @@ export function TriggerEditor({
     );
   };
 
+  // Whether saving as things stand would revoke a live webhook URL: a
+  // token-bearing webhook binding, being replaced by another kind.
+  const revokesWebhook =
+    stored?.kind === 'webhook' && stored.hasToken && kind !== 'webhook';
+
+  /** Save, asking first when the save would revoke a live webhook URL. */
+  const requestSave = () => {
+    if (revokesWebhook) {
+      setConfirmRevoke(true);
+      return;
+    }
+    save();
+  };
+
   const saveRef = useRef(save);
   saveRef.current = save;
+  const requestSaveRef = useRef(requestSave);
+  requestSaveRef.current = requestSave;
 
   const blocked = kind === 'schedule' && cronPreview.kind === 'invalid';
   const canRotate = kind === 'webhook' && stored?.hasToken === true;
@@ -248,10 +276,10 @@ export function TriggerEditor({
       canRemove,
       removePending: deleteTrigger.isPending,
       save: () => {
-        saveRef.current();
+        requestSaveRef.current();
       },
       rotate: () => {
-        saveRef.current(true);
+        setConfirmRotate(true);
       },
       requestRemove: () => {
         setConfirmRemove(true);
@@ -451,7 +479,7 @@ export function TriggerEditor({
                 : t('trigger.nothingToSave')
             }
             onClick={() => {
-              save();
+              requestSave();
             }}
           >
             {t('trigger.save')}
@@ -463,7 +491,7 @@ export function TriggerEditor({
               icon={KeyRound}
               isLoading={setTrigger.isPending}
               onClick={() => {
-                save(true);
+                setConfirmRotate(true);
               }}
             >
               {t('trigger.rotate')}
@@ -484,6 +512,34 @@ export function TriggerEditor({
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmRevoke}
+        onOpenChange={setConfirmRevoke}
+        title={t('trigger.revokeConfirm.title')}
+        description={t('trigger.revokeConfirm.body')}
+        confirmText={t('trigger.revokeConfirm.confirm')}
+        variant="destructive"
+        isLoading={setTrigger.isPending}
+        onConfirm={() => {
+          setConfirmRevoke(false);
+          save();
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmRotate}
+        onOpenChange={setConfirmRotate}
+        title={t('trigger.rotateConfirm.title')}
+        description={t('trigger.rotateConfirm.body')}
+        confirmText={t('trigger.rotate')}
+        variant="destructive"
+        isLoading={setTrigger.isPending}
+        onConfirm={() => {
+          setConfirmRotate(false);
+          save(true);
+        }}
+      />
 
       <ConfirmDialog
         open={confirmRemove}

@@ -714,6 +714,14 @@ automations:
       einmal.
     webhookProjectHint: Für ein aktives Projekt, in dem die Automatisierung eingerichtet ist, setzt du dessen ID in die folgende URL ein.
     rotate: Token rotieren
+    revokeConfirm:
+      title: Webhook ersetzen?
+      body: Ein Wechsel des Trigger-Typs widerruft die Webhook-URL sofort — Absender, die sie noch nutzen, bekommen 404, und ein später neu eingerichteter Webhook erhält eine andere URL.
+      confirm: Ersetzen und widerrufen
+    rotateConfirm:
+      title: Webhook-Token rotieren?
+      body: Die aktuelle URL funktioniert nicht mehr, sobald das neue Token erzeugt ist. Kopiere die neue URL und aktualisiere jedes sendende System.
+    revokedToast: Die bisherige Webhook-URL wurde widerrufen — Absender, die sie nutzen, bekommen jetzt 404.
   canvas:
     ariaLabel: Canvas der Automatisierung
     readsFrom: 'Liest {nodes}'

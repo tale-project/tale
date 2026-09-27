@@ -679,6 +679,14 @@ automations:
     noToken: Save to mint the token; the full URL is shown once.
     webhookProjectHint: To run in an installed project, use its ID in the URL below. The project must be active.
     rotate: Rotate token
+    revokeConfirm:
+      title: Replace the webhook?
+      body: Switching the trigger type revokes the webhook URL immediately — senders still using it get 404, and configuring a webhook again later mints a different URL.
+      confirm: Replace and revoke
+    rotateConfirm:
+      title: Rotate the webhook token?
+      body: The current URL stops working the moment the new token is minted. Copy the new URL and update every sending system.
+    revokedToast: The previous webhook URL has been revoked — senders using it now get 404.
   canvas:
     ariaLabel: Automation canvas
     readsFrom: 'Reads {nodes}'
