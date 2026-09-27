@@ -73,15 +73,17 @@ export const SettingsToggleRow = forwardRef<
         <div className="flex max-w-2xl min-w-0 flex-col gap-1">
           <span
             id={labelId}
-            // Single-line label: truncate instead of wrapping — the detail
-            // belongs in `description`, which wraps (and clamps on small
-            // screens) below the label.
-            className="text-foreground truncate text-sm leading-none font-medium"
+            // Wraps like every `Label` rather than truncating: on a phone (or
+            // in German) it can outgrow the row, and an ellipsis would hide
+            // what the switch does.
+            className="text-foreground text-sm leading-none font-medium"
           >
             {label}
           </span>
           {description && (
-            <Description id={descId} className="max-sm:line-clamp-2">
+            // Never clamped: at 320px a two-line clamp cut the description
+            // mid-sentence with no way to read the rest (WCAG 1.4.10).
+            <Description id={descId}>
               {/* Masked while loading so a skeletonized settings page shows a
                   pulse here instead of raw (possibly stale) description text. */}
               <SkeletonBox fullWidth>{description}</SkeletonBox>

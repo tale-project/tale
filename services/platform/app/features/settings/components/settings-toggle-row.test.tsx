@@ -36,7 +36,7 @@ describe('SettingsToggleRow', () => {
       expect(screen.getByRole('switch')).toBeDisabled();
     });
 
-    it('keeps the switch beside a single-line label at every breakpoint (#2383)', () => {
+    it('keeps the switch beside its whole label and description at every breakpoint (#2383)', () => {
       const { container } = render(
         <SettingsToggleRow
           label="A long toggle label that must not push the switch"
@@ -49,9 +49,12 @@ describe('SettingsToggleRow', () => {
       const row = container.firstElementChild as HTMLElement;
       expect(row.className).toContain('justify-between');
       expect(row.className).not.toContain('flex-col');
-      // The label truncates to one line; detail belongs in the description.
+      // Neither the label nor the description is cut short: on a phone an
+      // ellipsis or a two-line clamp hid what the switch does (WCAG 1.4.10).
       const label = screen.getByText(/must not push the switch/i);
-      expect(label.className).toContain('truncate');
+      expect(label.className).not.toContain('truncate');
+      const description = screen.getByText(/wraps below the label/i);
+      expect(description.closest('[class*="line-clamp"]')).toBeNull();
     });
   });
 
