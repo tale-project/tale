@@ -61,6 +61,7 @@ import { checkConversationApi } from './domains/conversations/api-sync.integrati
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
+import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
@@ -54589,6 +54590,10 @@ async function main(): Promise<void> {
       [
         'checkTeamScopeRetirement',
         () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkOrphanedOrgRowsBackfill',
+        () => checkOrphanedOrgRowsBackfill(sql, authCtx, record),
       ],
       [
         'checkOrganizationLifecycle',
