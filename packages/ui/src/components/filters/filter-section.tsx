@@ -43,10 +43,7 @@ export function FilterSection({
           </span>
         )}
         {hasSelection && selectedCount === 0 && (
-          <span
-            className="size-2 rounded-full bg-blue-600"
-            aria-hidden="true"
-          />
+          <span className="bg-primary size-2 rounded-full" aria-hidden="true" />
         )}
         <ChevronDown
           className={cn(
