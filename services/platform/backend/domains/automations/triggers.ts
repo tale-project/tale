@@ -25,6 +25,7 @@ import {
   checkIpRateLimit,
   checkKeyedRateLimit,
 } from '../../lib/rate-limit.ts';
+import { lockAuditChain } from '../audit_logs/service.ts';
 import {
   AutomationError,
   beginRunInTx,
@@ -383,7 +384,17 @@ export async function scanScheduledTriggers(
 }
 
 /** Platform events → enabled `event` triggers of the org. Events raised BY
- * an automation run never fire triggers (loop safety). */
+ * an automation run never fire triggers (loop safety).
+ *
+ * Before it stamps a trigger, the dispatch takes the organization's audit
+ * chain (`lockAuditChain`): a run of that trigger landing meanwhile holds
+ * the chain for its audit row and only then writes the trigger's failure
+ * streak (`trigger-failures.ts`), so the chain comes first here too. Most
+ * producers audit before they emit and hold it already; one that emits
+ * first (a comment edit, a conversation opened before its first message, an
+ * external-ref intake) now takes it at the dispatch instead of at its own
+ * audit a few statements later — never the trigger row first, which is
+ * what deadlocked against the landing run. */
 export async function dispatchAutomationEvent(
   tx: TransactionSql,
   args: {
@@ -404,6 +415,8 @@ export async function dispatchAutomationEvent(
     WHERE org_id = ${args.organizationId} AND kind = 'event'
       AND enabled = true AND event = ${args.event}
   `;
+  if (triggers.length === 0) return { started: [], refused: false };
+  await lockAuditChain(tx, args.organizationId);
   const started: string[] = [];
   for (const trigger of triggers) {
     // The producer's transaction carries the run AND the stamp that names

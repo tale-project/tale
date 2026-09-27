@@ -35,13 +35,28 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * when the pause landed may succeed afterwards, and it must not leave a
  * paused schedule reading "0 runs in a row failed". Only a save clears it.
  *
- * Lock order: `finishRun` takes the trigger's row lock
- * ({@link lockTriggerForRunOutcome}) BEFORE the run's own audit row takes
- * the organization's audit chain, the order every other writer of a trigger
- * row takes them in — the schedule scan's claim, an event dispatch stamping
- * the trigger inside a producer that audits afterwards (a comment edit's
- * `comment.mentioned`). Keeping the streak after the audit row without that
- * lock would take the two the other way round and deadlock against them.
+ * Lock order — the organization's audit chain BEFORE any trigger row, in
+ * every transaction that takes both:
+ *
+ * - `finishRun` writes the run's audit row first and keeps the streak after
+ *   it; a pause audits again under the chain it already holds;
+ * - an event dispatch (`dispatchAutomationEvent`, inside the producer's
+ *   transaction) takes the chain (`lockAuditChain`) before it stamps a
+ *   trigger, so a producer that emits before it audits (a comment edit's
+ *   `comment.mentioned`, a conversation opened before its first message)
+ *   holds the chain by then, like one that audited first (a task or a
+ *   contact created);
+ * - the schedule scan, the webhook door and saving or removing a trigger
+ *   write the row and take no chain in that transaction.
+ *
+ * A landing run and a producer stamping the same event trigger therefore
+ * queue on the chain instead of each holding what the other waits for — a
+ * deadlock whose loser was the producer's dispatch (swallowed by
+ * `emitEvent`'s savepoint: the event's run silently never started), the
+ * streak (swallowed by its savepoint below: the run went uncounted) or the
+ * landing run's audit row (the terminal write rolled back, left to the
+ * sweep). The real-Postgres lane `trigger-lock-order.integration.ts` holds
+ * both orders of producer.
  *
  * The bookkeeping rides a savepoint, like an event dispatch (`emitEvent`):
  * the run's own terminal write is the contract, and a fault here must never
@@ -89,49 +104,11 @@ function streakTriggerId(outcome: TriggerRunOutcome): string | null {
 }
 
 /**
- * Lock the row of the trigger whose streak this landing run will move —
- * called by `finishRun` before the run's audit row, so the trigger row is
- * always locked ahead of the audit chain (see the module note). The lock
- * reads exactly the rows {@link recordTriggerRunOutcome} will write: a
- * success locks only a trigger with a streak to reset, so the common case (a
- * healthy trigger's run) takes no lock at all. Answers whether the streak
- * will move; false also when the lock could not be taken (logged — the run
- * lands regardless, and the streak misses it).
- */
-export async function lockTriggerForRunOutcome(
-  tx: TransactionSql,
-  outcome: TriggerRunOutcome,
-): Promise<boolean> {
-  const triggerId = streakTriggerId(outcome);
-  if (triggerId === null) return false;
-  const success = outcome.status === 'success';
-  try {
-    return await tx.savepoint(async (sp) => {
-      const rows = await sp<{ id: string }[]>`
-        SELECT id FROM app.automation_triggers
-        WHERE id = ${triggerId} AND org_id = ${outcome.organizationId}
-          AND updated_at_ms <= ${outcome.startedAt}
-          AND (${!success}::boolean OR (
-            consecutive_failures > 0
-            AND last_skip_reason IS DISTINCT FROM 'paused_after_failures'
-          ))
-        FOR UPDATE
-      `;
-      return rows.length > 0;
-    });
-  } catch (error) {
-    console.error(
-      `[automations] run ${outcome.runId}: trigger ${triggerId} could not be locked, its failure streak misses this run`,
-      error instanceof Error ? error.message : error,
-    );
-    return false;
-  }
-}
-
-/**
- * Keep the streak of the trigger that started a landing run. Answers the
- * automation whose trigger read changed — the caller emits its definition
- * hint so an open Trigger section refreshes — or null when nothing did.
+ * Keep the streak of the trigger that started a landing run — called by
+ * `finishRun` after the run's audit row (the lock order in the module
+ * note). Answers the automation whose trigger read changed — the caller
+ * emits its definition hint so an open Trigger section refreshes — or null
+ * when nothing did.
  */
 export async function recordTriggerRunOutcome(
   tx: TransactionSql,

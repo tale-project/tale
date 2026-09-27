@@ -6,28 +6,24 @@
  * (`trigger-failures.ts`) inside the same transaction as the run's own
  * write and audit row, and emits the `automation` hint when the trigger's
  * read changed — so an open Trigger section shows the streak or the pause
- * without a reload. A mock run never touches a trigger. The trigger's row
- * lock is taken BEFORE the run's audit row locks the organization's audit
- * chain — the order every other writer of a trigger row takes them in — so
- * a finish and a producer stamping the same trigger cannot deadlock.
+ * without a reload. A mock run never touches a trigger. The streak is kept
+ * AFTER the run's audit row: the organization's audit chain is locked ahead
+ * of any trigger row, here as in an event dispatch, so a finish and a
+ * producer stamping the same trigger queue on the chain instead of
+ * deadlocking (`trigger-lock-order.integration.ts` proves it on Postgres).
  */
 
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createAuditLog, lockTriggerForRunOutcome, recordTriggerRunOutcome } =
-  vi.hoisted(() => ({
-    createAuditLog: vi.fn(async () => 'audit_1'),
-    lockTriggerForRunOutcome: vi.fn(async (): Promise<boolean> => true),
-    recordTriggerRunOutcome: vi.fn(
-      async (): Promise<{ name: string; paused: boolean } | null> => null,
-    ),
-  }));
-vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
-vi.mock('./trigger-failures.ts', () => ({
-  lockTriggerForRunOutcome,
-  recordTriggerRunOutcome,
+const { createAuditLog, recordTriggerRunOutcome } = vi.hoisted(() => ({
+  createAuditLog: vi.fn(async () => 'audit_1'),
+  recordTriggerRunOutcome: vi.fn(
+    async (): Promise<{ name: string; paused: boolean } | null> => null,
+  ),
 }));
+vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
+vi.mock('./trigger-failures.ts', () => ({ recordTriggerRunOutcome }));
 
 import { finishRun } from './store.ts';
 
@@ -115,7 +111,8 @@ describe('finishRun — the trigger failure streak', () => {
   it('hands a failed live run to the streak, in the terminal transaction', async () => {
     const fake = fakeSql(runRow());
     await finish(fake.sql);
-    const outcome = {
+    expect(recordTriggerRunOutcome).toHaveBeenCalledTimes(1);
+    expect(recordTriggerRunOutcome).toHaveBeenCalledWith(fake.sql, {
       organizationId: 'org_1',
       runId: 'run_1',
       startedBy: 'trigger:trg_1',
@@ -123,34 +120,32 @@ describe('finishRun — the trigger failure streak', () => {
       status: 'failed',
       failureCode: 'node_error',
       now: expect.any(Number),
-    };
-    expect(lockTriggerForRunOutcome).toHaveBeenCalledTimes(1);
-    expect(lockTriggerForRunOutcome).toHaveBeenCalledWith(fake.sql, outcome);
-    expect(recordTriggerRunOutcome).toHaveBeenCalledTimes(1);
-    expect(recordTriggerRunOutcome).toHaveBeenCalledWith(fake.sql, outcome);
+    });
     // Nothing changed on the trigger: no definition hint.
     expect(definitionHints(fake.statements)).toEqual([]);
   });
 
-  it('locks the trigger row before the audit chain, and keeps the streak after the run audit', async () => {
-    const fake = fakeSql(runRow());
-    await finish(fake.sql);
-    const [lockedAt] = lockTriggerForRunOutcome.mock.invocationCallOrder;
-    const [auditedAt] = createAuditLog.mock.invocationCallOrder;
-    const [keptAt] = recordTriggerRunOutcome.mock.invocationCallOrder;
-    expect(lockedAt).toBeLessThan(auditedAt ?? 0);
-    expect(auditedAt).toBeLessThan(keptAt ?? 0);
-  });
-
-  it('keeps no streak when the lock says it will not move', async () => {
-    lockTriggerForRunOutcome.mockResolvedValueOnce(false);
-    const fake = fakeSql(runRow());
-    await finish(fake.sql);
-    // The run still lands and audits.
-    expect(createAuditLog).toHaveBeenCalledTimes(1);
-    expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
-    expect(definitionHints(fake.statements)).toEqual([]);
-  });
+  it.each([
+    ['failed', 'node_error'],
+    ['success', null],
+  ] as const)(
+    'writes the run audit row (the audit chain) before a %s run touches the trigger row',
+    async (status, failureCode) => {
+      const fake = fakeSql(runRow());
+      await finish(fake.sql, { status, failureCode });
+      const [auditedAt] = createAuditLog.mock.invocationCallOrder;
+      const [keptAt] = recordTriggerRunOutcome.mock.invocationCallOrder;
+      expect(auditedAt).toBeDefined();
+      expect(keptAt).toBeDefined();
+      expect(auditedAt).toBeLessThan(keptAt ?? 0);
+      // And nothing reads or writes a trigger row ahead of the audit row.
+      expect(
+        fake.statements.filter((s) =>
+          s.text.includes('app.automation_triggers'),
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it('hands a success over with no failure code', async () => {
     const fake = fakeSql(runRow());
@@ -186,14 +181,12 @@ describe('finishRun — the trigger failure streak', () => {
   it('leaves triggers alone for a mock run', async () => {
     const fake = fakeSql(runRow({ mode: 'mock', startedBy: 'user:u_1' }));
     await finish(fake.sql);
-    expect(lockTriggerForRunOutcome).not.toHaveBeenCalled();
     expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
   });
 
   it('leaves triggers alone when the run already landed', async () => {
     const fake = fakeSql(runRow({ status: 'failed' }));
     await expect(finish(fake.sql)).resolves.toEqual({ status: 'failed' });
-    expect(lockTriggerForRunOutcome).not.toHaveBeenCalled();
     expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
   });
 });

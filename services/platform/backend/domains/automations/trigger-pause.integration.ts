@@ -18,10 +18,7 @@ import {
   saveVersion,
   setTrigger,
 } from './store.ts';
-import {
-  lockTriggerForRunOutcome,
-  recordTriggerRunOutcome,
-} from './trigger-failures.ts';
+import { recordTriggerRunOutcome } from './trigger-failures.ts';
 import { scanScheduledTriggers } from './triggers.ts';
 
 interface TriggerState {
@@ -202,31 +199,26 @@ export async function checkTriggerPauseAfterFailures(
     );
 
     // ---- a run that overlapped the pause and succeeds after it leaves the
-    // streak that paused the schedule alone — and takes no trigger lock.
-    const overlapping = await sql.begin(async (tx) => {
-      const landing = {
+    // streak that paused the schedule alone.
+    const overlapping = await sql.begin(async (tx) => ({
+      change: await recordTriggerRunOutcome(tx, {
         organizationId: orgId,
         runId: lastRunId,
         startedBy: `trigger:${paused.id}`,
         startedAt: Date.now(),
-        status: 'success' as const,
+        status: 'success',
         failureCode: null,
         now: Date.now(),
-      };
-      return {
-        locked: await lockTriggerForRunOutcome(tx, landing),
-        change: await recordTriggerRunOutcome(tx, landing),
-      };
-    });
+      }),
+    }));
     const afterOverlap = await trigger();
     record(
       'a success landing after the pause keeps the streak that paused it',
-      !overlapping.locked &&
-        overlapping.change === null &&
+      overlapping.change === null &&
         !afterOverlap.enabled &&
         afterOverlap.lastSkipReason === 'paused_after_failures' &&
         afterOverlap.consecutiveFailures === PERMANENT_FAILURES_BEFORE_PAUSE,
-      `locked=${overlapping.locked} (want false), change=${JSON.stringify(overlapping.change)} (want null), enabled=${afterOverlap.enabled} reason=${afterOverlap.lastSkipReason} streak=${afterOverlap.consecutiveFailures} (want ${PERMANENT_FAILURES_BEFORE_PAUSE})`,
+      `change=${JSON.stringify(overlapping.change)} (want null), enabled=${afterOverlap.enabled} reason=${afterOverlap.lastSkipReason} streak=${afterOverlap.consecutiveFailures} (want ${PERMANENT_FAILURES_BEFORE_PAUSE})`,
     );
 
     // ---- the pause is audited and the owner is told, once.
