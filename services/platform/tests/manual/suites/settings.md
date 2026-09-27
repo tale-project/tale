@@ -571,6 +571,16 @@ any toggled setting after the run.
   Sandboxes → The row's **Workspace** column reads **Deleted agent**
   (`sandboxes.deletedAgent`), never the owner id; the row's menu still
   offers **Destroy**, and after destroying it the row is gone.
+- [ ] `SET-F48` · **One team name per organization** —
+  `/dashboard/{org}/settings/teams` with a team named `Finance` →
+  **Create team** (`settings.teams.createTeam`) → **Team name**
+  (`settings.teams.teamName`) `finance ` (other case, trailing space) →
+  create; then another team's row → **Edit team** (`settings.teams.editTeam`)
+  → rename it to `FINANCE` → **Save changes** (`settings.teams.saveChanges`)
+  → Both are refused under the field with
+  `settings.teams.teamNameTaken`; each dialog stays open, the list keeps one
+  `Finance` row and the audit log gains no team-created or team-updated row.
+  Reopening `Finance` itself and saving its own name unchanged goes through.
 
 ## Boundary & error tests
 

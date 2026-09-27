@@ -56,6 +56,39 @@ export async function listTeamDirectory(
   `;
 }
 
+/**
+ * The key two team names are compared on: trimmed, inner whitespace
+ * collapsed, case-folded — `Finance`, ` finance ` and `FINANCE` are one
+ * team. Every picker, audience badge, inbox queue and list filter shows a
+ * team by its name alone, so two teams that read the same would put a
+ * restriction on the wrong one (2026-09-26 evaluation, E-01); SSO group sync
+ * and SCIM already looked teams up by `lower("name")`.
+ */
+export function teamNameKey(name: string): string {
+  return name.trim().replaceAll(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * The organization's team whose name reads the same as `name` (by
+ * `teamNameKey`), or null — `excludeTeamId` leaves a rename's own row out.
+ */
+export async function findTeamNameCollision(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+  excludeTeamId?: string,
+): Promise<{ id: string; name: string } | null> {
+  const rows = await sql<{ id: string; name: string }[]>`
+    SELECT "id", "name" FROM "team"
+    WHERE "organizationId" = ${organizationId}
+      AND lower(regexp_replace(btrim("name"), '\\s+', ' ', 'g'))
+        = ${teamNameKey(name)}
+      AND "id" <> ${excludeTeamId ?? ''}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 export interface TeamScopeRetirement {
   /** Projects that carried the team in their audience. */
   projectsRetagged: number;

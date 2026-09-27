@@ -72,7 +72,7 @@ export function TeamCreateDialog({
     },
   });
 
-  const { handleSubmit, register, reset, formState } = form;
+  const { handleSubmit, register, reset, formState, setError } = form;
 
   const handleToggleMember = useCallback((userId: string) => {
     setSelectedMemberIds((prev) => {
@@ -95,6 +95,16 @@ export function TeamCreateDialog({
       });
 
       if (result.error) {
+        // The server's uniqueness rule (`TEAM_NAME_TAKEN`, 409): the name
+        // reads the same as another team's. Said under the field, where
+        // the fix is, instead of a generic failure toast.
+        if (result.error.code === 'TEAM_NAME_TAKEN') {
+          setError('name', {
+            type: 'server',
+            message: tSettings('teams.teamNameTaken'),
+          });
+          return;
+        }
         throw new Error(result.error.message || 'Failed to create team');
       }
       await queryClient.invalidateQueries({

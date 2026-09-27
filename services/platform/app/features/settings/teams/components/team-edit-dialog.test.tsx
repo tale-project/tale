@@ -88,4 +88,46 @@ describe('TeamEditDialog', () => {
     expect(client.getQueryState(other)?.isInvalidated).toBe(false);
     client.clear();
   });
+
+  // E-01: a rename onto a name another team of the organization already
+  // reads as is refused by the server (`TEAM_NAME_TAKEN`, 409); the dialog
+  // says so under the field and stays open.
+  it('shows the uniqueness refusal under the field when the new name is taken', async () => {
+    vi.mocked(authClient.organization.updateTeam).mockResolvedValue({
+      data: null,
+      error: {
+        code: 'TEAM_NAME_TAKEN',
+        message: 'A team named "Finance" already exists',
+        status: 409,
+        statusText: 'Conflict',
+      },
+    });
+    const client = new QueryClient();
+    const onOpenChange = vi.fn();
+    const { user } = render(
+      <QueryClientProvider client={client}>
+        <TeamEditDialog
+          team={{
+            id: 'team-a',
+            name: storedName,
+            memberCount: 1,
+            createdAt: 0,
+          }}
+          organizationId="org-a"
+          open
+          onOpenChange={onOpenChange}
+        />
+      </QueryClientProvider>,
+    );
+    const name = screen.getByRole('textbox', { name: /Team name/ });
+    await user.clear(name);
+    await user.type(name, 'Finance');
+    await user.click(screen.getByRole('button', { name: /Save/ }));
+
+    expect(
+      await screen.findByText('A team with this name already exists'),
+    ).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    client.clear();
+  });
 });

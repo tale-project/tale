@@ -5596,6 +5596,7 @@ settings:
       A team must keep at least one member. Delete the team instead to
       remove the last member.
     teamNameTooLong: Team name can be at most 80 characters
+    teamNameTaken: A team with this name already exists
     membershipChangesFailed: '{count, plural, one {# membership change was} other {# membership changes were}} refused. The list has been refreshed.'
     syncedBadge: Synced
     syncedNotice: This team is provisioned by your identity provider, which owns

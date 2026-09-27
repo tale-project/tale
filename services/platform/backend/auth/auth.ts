@@ -48,7 +48,10 @@ import {
   PLUGIN_SYSTEM_ACTOR,
   type TeamAuditActor,
 } from '../domains/teams/audit.ts';
-import { retireDeletedTeamScopes } from '../domains/teams/service.ts';
+import {
+  findTeamNameCollision,
+  retireDeletedTeamScopes,
+} from '../domains/teams/service.ts';
 import {
   anchorTwoFactorGraceOnSignIn,
   getTwoFactorLockState,
@@ -588,6 +591,32 @@ export function createAuth(config: AuthConfig) {
   /** Team name before a plugin-door rename, keyed by team id — set by
    * beforeUpdateTeam, consumed by afterUpdateTeam of the same request. */
   const pendingTeamRenames = new Map<string, string>();
+
+  /**
+   * Refuse a team name another team of the organization already reads as
+   * (trimmed, whitespace-collapsed, case-folded — `findTeamNameCollision`),
+   * BEFORE the plugin writes: `409 TEAM_NAME_TAKEN`, the code the team
+   * dialogs turn into their inline sentence. A rename leaves its own row
+   * out, so re-saving the current name (in any case) still goes through.
+   */
+  const refuseTakenTeamName = async (
+    organizationId: string,
+    name: string,
+    selfTeamId?: string,
+  ): Promise<void> => {
+    const taken = await findTeamNameCollision(
+      sql,
+      organizationId,
+      name,
+      selfTeamId,
+    );
+    if (taken !== null) {
+      throw new APIError('CONFLICT', {
+        code: 'TEAM_NAME_TAKEN',
+        message: `A team named "${taken.name}" already exists`,
+      });
+    }
+  };
 
   // Better Auth owns its own pool, so it needs the same TLS treatment as
   // every other connection this process opens — and node-postgres lets a
@@ -1203,6 +1232,14 @@ export function createAuth(config: AuthConfig) {
           // per write, delivered to every connected session of the org — and
           // on the audit chain: one `team.*` row per write, committed after
           // the plugin's own (the `joined_organization` posture), non-fatal.
+          // A team is shown by its name alone everywhere (audience badges,
+          // pickers, inbox queues, list filters), so two teams that read
+          // the same — `Finance` beside `finance ` — put a restriction on
+          // the wrong one. Better Auth's table has no unique constraint;
+          // this hook is the guard (2026-09-26 evaluation, E-01).
+          beforeCreateTeam: async (data) => {
+            await refuseTakenTeamName(data.team.organizationId, data.team.name);
+          },
           afterCreateTeam: async (data) => {
             await auditTeamLifecycle('afterCreateTeam', (tx) =>
               auditTeamCreated(tx, {
@@ -1223,6 +1260,13 @@ export function createAuth(config: AuthConfig) {
           // it replaced is stashed here so the rename's audit row can carry
           // both. Consumed by afterUpdateTeam of the same request.
           beforeUpdateTeam: async (data) => {
+            if (typeof data.updates.name === 'string') {
+              await refuseTakenTeamName(
+                data.organization.id,
+                data.updates.name,
+                data.team.id,
+              );
+            }
             pendingTeamRenames.set(data.team.id, data.team.name);
           },
           // `team` is null when the update matched no row — the hint then

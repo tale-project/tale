@@ -17,7 +17,7 @@ Une équipe est une étiquette posée sur le travail, pas un espace dans lequel 
 2. Sélectionne les membres de l’organisation à ajouter. Si tu ne sélectionnes personne, Tale t’ajoute à l’équipe.
 3. Sélectionne **Créer une équipe**. Vérifie la nouvelle ligne et le nombre de membres dans la liste.
 
-Choisis un nom reconnaissable partout où les équipes apparaissent : dans l’audience d’un document ou d’un projet, comme file dans la boîte de réception, dans un filtre de liste. Le formulaire accepte jusqu’à 80 caractères. Créer une équipe ne lui rattache pas le travail existant : sélectionne-la sur les documents, projets et conversations qu’elle doit couvrir.
+Choisis un nom reconnaissable partout où les équipes apparaissent : dans l’audience d’un document ou d’un projet, comme file dans la boîte de réception, dans un filtre de liste. Le formulaire accepte jusqu’à 80 caractères. Un nom est unique au sein de l’organisation : un nom déjà utilisé par une autre équipe – quelle que soit la casse ou l’espacement – est refusé. Créer une équipe ne lui rattache pas le travail existant : sélectionne-la sur les documents, projets et conversations qu’elle doit couvrir.
 
 ## Modifier le nom ou les membres
 

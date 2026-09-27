@@ -5433,6 +5433,7 @@ settings:
     lastMemberHint: Ein Team muss mindestens ein Mitglied behalten. Lösche
       stattdessen das Team, um das letzte Mitglied zu entfernen.
     teamNameTooLong: Der Teamname darf höchstens 80 Zeichen lang sein
+    teamNameTaken: Ein Team mit diesem Namen existiert bereits
     membershipChangesFailed: '{count, plural, one {# Mitgliedschaftsänderung wurde} other {# Mitgliedschaftsänderungen wurden}} abgelehnt. Die Liste wurde aktualisiert.'
     syncedBadge: Synchronisiert
     syncedNotice: Dieses Team wird von deinem Identity Provider bereitgestellt,

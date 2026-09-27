@@ -5518,6 +5518,7 @@ settings:
       Une équipe doit conserver au moins un membre. Supprime plutôt
       l'équipe pour retirer le dernier membre.
     teamNameTooLong: Le nom de l'équipe ne peut pas dépasser 80 caractères
+    teamNameTaken: Une équipe portant ce nom existe déjà
     membershipChangesFailed: '{count, plural, one {# modification de membre a été refusée} other {# modifications de membres ont été refusées}}. La liste a été actualisée.'
     syncedBadge: Synchronisée
     syncedNotice: "Cette équipe est provisionnée par ton fournisseur d'identité, qui gère son nom et ses membres. Modifie-les là-bas : une modification locale serait annulée à la prochaine synchronisation."

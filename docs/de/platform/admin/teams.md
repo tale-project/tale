@@ -17,7 +17,7 @@ Ein Team ist eine Markierung an der Arbeit, kein Ort, in den du wechselst. Ein D
 2. Wähle die Mitglieder der Organisation aus, die dazugehören sollen. Wenn du niemanden auswählst, fügt Tale dich selbst hinzu.
 3. Wähle **Team erstellen**. Prüfe den neuen Eintrag und die Mitgliederzahl in der Liste.
 
-Wähle einen Namen, den andere überall wiedererkennen, wo Teams erscheinen: in der Reichweite eines Dokuments oder Projekts, als Warteschlange im Posteingang, in einem Listenfilter. Das Formular erlaubt bis zu 80 Zeichen. Ein neues Team erhält nicht automatisch bestehende Arbeit. Wähle es bei den Dokumenten, Projekten und Konversationen aus, die es abdecken soll.
+Wähle einen Namen, den andere überall wiedererkennen, wo Teams erscheinen: in der Reichweite eines Dokuments oder Projekts, als Warteschlange im Posteingang, in einem Listenfilter. Das Formular erlaubt bis zu 80 Zeichen. Ein Name ist innerhalb der Organisation eindeutig: Einen Namen, den ein anderes Team bereits verwendet – unabhängig von Groß- und Kleinschreibung oder Leerzeichen –, lehnt Tale ab. Ein neues Team erhält nicht automatisch bestehende Arbeit. Wähle es bei den Dokumenten, Projekten und Konversationen aus, die es abdecken soll.
 
 ## Mitglieder oder Namen ändern
 

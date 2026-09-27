@@ -90,6 +90,7 @@ const MEMBERSHIPS = 'SELECT "organizationId" FROM "member"';
 const ORG_MEMBERS = 'SELECT "userId" FROM "member"';
 const TEAM_BY_ID =
   'SELECT "id", "name", "organizationId", "createdAt", "updatedAt" FROM "team" WHERE "id"';
+const TEAM_NAME_COLLISION = 'SELECT "id", "name" FROM "team"';
 
 const userRow = (id: string, email: string) => ({
   id,
@@ -336,6 +337,96 @@ describe('group writes — every member must belong to the org', () => {
       q.text.startsWith('INSERT INTO "teamMember"'),
     );
     expect(added?.values).toEqual(expect.arrayContaining(['t-1', 'u-in']));
+  });
+});
+
+// The app's team-name rule on the SCIM door: a displayName another team
+// already reads as (case- and whitespace-insensitively) is a 409
+// `uniqueness`, never a second team the pickers cannot tell apart (E-01).
+describe('group writes — one displayName per organization', () => {
+  const team = {
+    id: 't-1',
+    name: 'Squad',
+    organizationId: 'org-1',
+    createdAt: new Date(0),
+    updatedAt: null,
+  };
+  const taken = [{ id: 't-9', name: 'Finance' }];
+
+  it('provisionGroup refuses a displayName another team holds before inserting', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(TEAM_NAME_COLLISION)) return taken;
+      return [];
+    });
+
+    await expect(
+      provisionGroup(sql, {
+        organizationId: 'org-1',
+        displayName: ' finance ',
+        memberIds: [],
+      }),
+    ).rejects.toMatchObject({ data: { code: 'scim_group_conflict' } });
+    expect(writes(queries)).toEqual([]);
+    const gate = queries.find((q) => q.text.startsWith(TEAM_NAME_COLLISION));
+    expect(gate?.values).toEqual(['org-1', 'finance', '']);
+  });
+
+  it('replaceGroup refuses a rename onto another team, leaving its own row out', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(TEAM_BY_ID)) return [team];
+      if (text.startsWith(TEAM_NAME_COLLISION)) return taken;
+      return [];
+    });
+
+    await expect(
+      replaceGroup(sql, {
+        organizationId: 'org-1',
+        teamId: 't-1',
+        displayName: 'FINANCE',
+        memberIds: [],
+      }),
+    ).rejects.toMatchObject({ data: { code: 'scim_group_conflict' } });
+    expect(writes(queries)).toEqual([]);
+    const gate = queries.find((q) => q.text.startsWith(TEAM_NAME_COLLISION));
+    expect(gate?.values).toEqual(['org-1', 'finance', 't-1']);
+  });
+
+  it('patchGroup refuses a rename onto another team', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(TEAM_BY_ID)) return [team];
+      if (text.startsWith(TEAM_NAME_COLLISION)) return taken;
+      return [];
+    });
+
+    await expect(
+      patchGroup(sql, {
+        organizationId: 'org-1',
+        teamId: 't-1',
+        displayName: 'Finance',
+        addMembers: [],
+        removeMembers: [],
+      }),
+    ).rejects.toMatchObject({ data: { code: 'scim_group_conflict' } });
+    expect(writes(queries)).toEqual([]);
+  });
+
+  it("a re-push of the team's own name never asks", async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(TEAM_BY_ID)) return [team];
+      if (text.startsWith(TEAM_NAME_COLLISION)) return taken;
+      return [];
+    });
+
+    await patchGroup(sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      displayName: 'Squad',
+      addMembers: [],
+      removeMembers: [],
+    });
+    expect(queries.some((q) => q.text.startsWith(TEAM_NAME_COLLISION))).toBe(
+      false,
+    );
   });
 });
 

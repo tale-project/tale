@@ -160,8 +160,12 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // The MCP dispatch store's own gates — answered as JSON-RPC results.
   'FORBIDDEN_DEVELOPER_SETTINGS',
   'UNAUTHENTICATED',
-  // The connector bridge and the in-sandbox doors.
+  // The connector bridge and the in-sandbox doors — and Better Auth's
+  // status names, which its `APIError` takes as the first argument
+  // (`new APIError('CONFLICT', { code })`); the code beside it is what
+  // a client branches on.
   'BAD_REQUEST',
+  'CONFLICT',
   'TOO_MANY_REQUESTS',
   // Interactive confirmations the REST door supplies itself, or that
   // only the app asks for.
@@ -430,6 +434,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // list (TALE_ORGANIZATION_CREATORS) is judged in the before-hook of
   // `/organization/create`, which the REST door never mounts either.
   'ORGANIZATION_CREATION_FORBIDDEN',
+  // The same door's team-name rule (one name per organization, judged in
+  // the before-hooks of `/organization/create-team` and `/update-team`);
+  // REST has no team write, and SCIM answers its own 409 `uniqueness`.
+  'TEAM_NAME_TAKEN',
 ]);
 
 describe('the REST error-code registry', () => {

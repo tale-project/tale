@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { authClient } from '@/lib/auth-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -155,6 +156,42 @@ describe('TeamCreateDialog', () => {
         ).not.toBeInTheDocument();
         expect(submit).toBeEnabled();
       });
+    });
+  });
+
+  // E-01: the server refuses a name another team of the organization
+  // already reads as (`TEAM_NAME_TAKEN`, 409). The dialog says so under the
+  // field and stays open, instead of a generic failure toast.
+  describe('a taken name', () => {
+    it('shows the uniqueness refusal under the field and keeps the dialog open', async () => {
+      vi.mocked(authClient.organization.createTeam).mockResolvedValue({
+        data: null,
+        error: {
+          code: 'TEAM_NAME_TAKEN',
+          message: 'A team named "Finance" already exists',
+          status: 409,
+          statusText: 'Conflict',
+        },
+      });
+      const onOpenChange = vi.fn();
+      const { user } = render(
+        <TeamCreateDialog
+          organizationId="org-1"
+          open={true}
+          onOpenChange={onOpenChange}
+        />,
+      );
+
+      await user.type(
+        screen.getByRole('textbox', { name: /Team name/ }),
+        'finance',
+      );
+      await user.click(screen.getByRole('button', { name: 'Create team' }));
+
+      expect(
+        await screen.findByText('A team with this name already exists'),
+      ).toBeInTheDocument();
+      expect(onOpenChange).not.toHaveBeenCalledWith(false);
     });
   });
 });

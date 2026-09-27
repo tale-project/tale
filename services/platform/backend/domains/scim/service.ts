@@ -18,6 +18,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveProvisioning } from '../sso/config.ts';
 import {
+  findTeamNameCollision,
   resyncRetiredDocumentScopes,
   retireTeamScopes,
   type TeamScopeRetirement,
@@ -893,6 +894,32 @@ export async function listGroupRecords(
   };
 }
 
+/**
+ * A Group `displayName` another team of the organization already reads as
+ * (the app's team-name rule, `findTeamNameCollision`) is a SCIM 409
+ * `uniqueness` (`scim_group_conflict`), never a second team the pickers
+ * cannot tell apart; a rename leaves its own row out.
+ */
+async function assertGroupNameFree(
+  db: Db,
+  organizationId: string,
+  displayName: string,
+  selfTeamId?: string,
+): Promise<void> {
+  const taken = await findTeamNameCollision(
+    db,
+    organizationId,
+    displayName,
+    selfTeamId,
+  );
+  if (taken !== null) {
+    throw new AppError({
+      code: 'scim_group_conflict',
+      message: `displayName ${displayName} is already taken`,
+    });
+  }
+}
+
 export async function provisionGroup(
   sql: Sql,
   args: {
@@ -903,6 +930,7 @@ export async function provisionGroup(
   },
 ): Promise<ScimGroupRecord> {
   return sql.begin(async (tx) => {
+    await assertGroupNameFree(tx, args.organizationId, args.displayName);
     const now = new Date();
     const created = await tx<{ id: string }[]>`
       INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
@@ -966,6 +994,12 @@ export async function replaceGroup(
     }
     let changed = false;
     if (team.name !== args.displayName) {
+      await assertGroupNameFree(
+        tx,
+        args.organizationId,
+        args.displayName,
+        args.teamId,
+      );
       await tx`
         UPDATE "team" SET "name" = ${args.displayName},
                           "updatedAt" = ${new Date()}
@@ -1023,6 +1057,12 @@ export async function patchGroup(
     let displayName = team.name;
     let changed = false;
     if (args.displayName !== undefined && args.displayName !== team.name) {
+      await assertGroupNameFree(
+        tx,
+        args.organizationId,
+        args.displayName,
+        args.teamId,
+      );
       displayName = args.displayName;
       await tx`
         UPDATE "team" SET "name" = ${displayName}, "updatedAt" = ${new Date()}
