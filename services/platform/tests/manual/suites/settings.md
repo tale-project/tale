@@ -564,6 +564,13 @@ any toggled setting after the run.
   whose first section is **Email delivery**
   (`notificationPreferences.deliveryTitle`), the second section keeps its
   visible **Notifications** title (`notificationPreferences.title`).
+- [ ] `SET-F54` · **A deleted agent's workspace is named** —
+  `/dashboard/{org}/settings/sandboxes` as an owner, with a project agent
+  that has run at least one task (its workspace is listed under the agent's
+  name) → delete that agent from the project's Agents tab → back on
+  Sandboxes → The row's **Workspace** column reads **Deleted agent**
+  (`sandboxes.deletedAgent`), never the owner id; the row's menu still
+  offers **Destroy**, and after destroying it the row is gone.
 
 ## Boundary & error tests
 

@@ -7026,6 +7026,8 @@ tasks:
     started: L'agent s'y met — il rendra compte sur cette tâche pour relecture.
     alreadyRunning: L'agent de cette tâche tourne déjà.
     notStarted: L'exécution de l'agent n'a pas pu démarrer.
+    agentMissing: L'agent assigné n'existe plus. Assigne un autre agent pour exécuter cette tâche.
+    noAgentAssignee: Aucun agent n'est assigné à cette tâche. Assignes-en un pour lancer une exécution.
     cancelled: L'exécution de l'agent a été annulée.
     start: Démarrer l'agent
     willStart: "Déposer ici démarre l'exécution de l'agent."
@@ -7326,6 +7328,7 @@ tasks:
     runLabel: Exécution d'agent
     systemActor: Système
     unresolvedWorkflow: Automatisation
+    deletedAgent: Agent supprimé
     viewAgent: Voir l'agent
     viewWorkflow: Voir l'automatisation
   dueDate:
@@ -8227,3 +8230,4 @@ sandboxes:
       workflow est récupéré à la fin de l'exécution. Les chiffres de capacité
       ci-dessus incluent les sessions temporaires d'exploration.
   accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
+  deletedAgent: Agent supprimé

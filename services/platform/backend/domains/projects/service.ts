@@ -49,6 +49,7 @@ import {
   loadActiveHolds,
 } from '../legal_holds/service.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
+import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import {
   AGENT_TOOL_GRANT_NAMES,
   agentEquipmentRefusal,
@@ -2078,6 +2079,15 @@ export async function deleteProjectAgent(
   assertAgentWritable(project, auth);
 
   await tx`DELETE FROM app.project_agents WHERE id = ${agentId}`;
+  // The docs' promise, kept in the same transaction: no task stays "assigned"
+  // to a row that is gone (the board showed the raw id, Retry re-kicked an
+  // agent that could not exist). History — runs, comments, activity — stays.
+  const unassignedTaskIds = await clearAgentAssignmentsInTx(tx, {
+    organizationId: auth.organizationId,
+    projectId: agent.projectId,
+    agentId,
+    actorId: auth.userId,
+  });
   await tx`
     UPDATE app.projects SET
       project_agent_count = greatest(project_agent_count - 1, 0),
@@ -2088,7 +2098,11 @@ export async function deleteProjectAgent(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
       previousState: { name: agent.name, harness: agent.harness },
-      metadata: { op: 'delete', projectAgentId: agentId },
+      metadata: {
+        op: 'delete',
+        projectAgentId: agentId,
+        unassignedTaskCount: unassignedTaskIds.length,
+      },
     }),
   );
   await hintProject(tx, auth.organizationId, agent.projectId);

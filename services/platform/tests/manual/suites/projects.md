@@ -307,6 +307,18 @@ projects-list row ⋯ menu.
   pair, **Save** flashes **Saved** and the list/sidebar follow; a project
   never touched keeps the gray folder.
 
+- [ ] `PROJ-F28` · **Deleting an agent unassigns its tasks** — Agents tab →
+  create an agent, assign it two tasks and start one so a run exists (it
+  may fail); then row menu → **Delete agent** → confirm → Both tasks read
+  **Unassigned** in the Assignee field and on their cards (never the raw
+  agent id); each task's Activity shows **Assignee changed** from **Deleted
+  agent** (`tasks.timeline.deletedAgent`) to nobody, and the run's earlier
+  Activity/comments keep the **Deleted agent** label; the task's **Run**
+  strip still offers **Details** but no **Retry**/**Start agent**; a stale
+  tab that still shows the agent and clicks **Retry** gets **The assigned
+  agent no longer exists…** (`tasks.agentRun.agentMissing`); assigning a
+  person or another agent brings the verbs back.
+
 ## Boundary & error tests
 
 - [ ] `PROJ-B1` · **Empty name** — Create-project dialog → leave **Project

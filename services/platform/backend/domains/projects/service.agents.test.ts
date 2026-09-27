@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createProjectAgent,
+  deleteProjectAgent,
   detachSkillFromAgents,
   listProjectsPage,
   updateProjectAgent,
@@ -23,8 +24,11 @@ import {
 // Hoisted so the tests can read the mocks' calls without importing the
 // mocked modules themselves (a static import beside `importOriginal` made
 // the real equipment gate run).
-const { outbox, equipment } = vi.hoisted(() => ({
+const { outbox, equipment, unassign } = vi.hoisted(() => ({
   outbox: { emitHintInTx: vi.fn() },
+  unassign: {
+    clearAgentAssignmentsInTx: vi.fn(() => Promise.resolve(['task-1'])),
+  },
   equipment: {
     agentModelRefusal: vi.fn(() => Promise.resolve(null)),
     agentEquipmentRefusal: vi.fn(() => Promise.resolve(null)),
@@ -38,6 +42,7 @@ vi.mock('../documents/service.ts', () => ({
   recordTrashRefusalFromJson: () => null,
 }));
 vi.mock('../tasks/retire.ts', () => ({ retireTasksInTx: vi.fn() }));
+vi.mock('../tasks/unassign.ts', () => unassign);
 vi.mock('./agent-equipment.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agent-equipment.ts')>()),
   ...equipment,
@@ -339,6 +344,27 @@ describe('updateProjectAgent — equipment the project can no longer see', () =>
       expect.anything(),
       expect.objectContaining({ skills: ['docx'], connectors: [] }),
     );
+  });
+});
+
+describe('deleteProjectAgent', () => {
+  it('clears the tasks the agent was assigned to, in the same transaction, and counts them in the audit', async () => {
+    // The docs' promise ("clears task assignment references while preserving
+    // task history") was never kept: the delete touched only the agent row,
+    // and the board went on showing the raw id as the assignee.
+    const { tx, statements } = fakeTx();
+    await deleteProjectAgent(tx, auth, 'agent-1');
+    expect(unassign.clearAgentAssignmentsInTx).toHaveBeenCalledWith(tx, {
+      organizationId: 'org_1',
+      projectId: 'project-1',
+      agentId: 'agent-1',
+      actorId: 'user-1',
+    });
+    expect(
+      statements.some((s) =>
+        s.text.startsWith('DELETE FROM app.project_agents'),
+      ),
+    ).toBe(true);
   });
 });
 

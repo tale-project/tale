@@ -6923,6 +6923,8 @@ tasks:
     started: Der Agent ist dran — er meldet sich zur Prüfung an dieser Aufgabe zurück.
     alreadyRunning: Der Agent dieser Aufgabe läuft bereits.
     notStarted: Der Agenten-Lauf konnte nicht starten.
+    agentMissing: Der zugewiesene Agent existiert nicht mehr. Weise einen anderen Agenten zu, damit die Aufgabe läuft.
+    noAgentAssignee: Dieser Aufgabe ist kein Agent zugewiesen. Weise einen zu, um einen Lauf zu starten.
     cancelled: Der Agenten-Lauf wurde abgebrochen.
     start: Agent starten
     willStart: Hier ablegen startet den Agenten-Lauf.
@@ -7225,6 +7227,7 @@ tasks:
     runLabel: Agentenlauf
     systemActor: System
     unresolvedWorkflow: Automatisierung
+    deletedAgent: Gelöschter Agent
     viewAgent: Agent anzeigen
     viewWorkflow: Automatisierung anzeigen
   dueDate:
@@ -8136,3 +8139,4 @@ sandboxes:
       wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
       enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
+  deletedAgent: Gelöschter Agent

@@ -7024,6 +7024,8 @@ tasks:
     started: The agent is on it — it reports back to this task for review.
     alreadyRunning: This task's agent is already running.
     notStarted: The agent run could not start.
+    agentMissing: The assigned agent no longer exists. Assign another agent to run this task.
+    noAgentAssignee: No agent is assigned to this task. Assign one to start a run.
     cancelled: The agent run was cancelled.
     start: Start agent
     willStart: Dropping here starts the agent run.
@@ -7320,6 +7322,7 @@ tasks:
     runLabel: Agent run
     systemActor: System
     unresolvedWorkflow: Automation
+    deletedAgent: Deleted agent
     viewAgent: View agent
     viewWorkflow: View automation
   dueDate:
@@ -7831,3 +7834,4 @@ sandboxes:
       while the agent is idle. A workflow run's workspace is reclaimed once the
       run ends. Temporary crawler sessions are included in capacity counts above.
   accessDenied: You need developer or admin access to manage sandboxes.
+  deletedAgent: Deleted agent

@@ -1073,10 +1073,17 @@ export function EditTaskBody({
   const projectKey = project?.key ?? null;
   const { subtasks } = useSubtasks(taskId);
   const { data: me } = useCurrentMemberContext(task?.organizationId);
-  const { resolveActor } = useActorDirectory(
-    task?.organizationId ?? '',
-    task?.projectId,
-  );
+  const {
+    resolveActor,
+    agents: projectAgents,
+    agentsLoading,
+  } = useActorDirectory(task?.organizationId ?? '', task?.projectId);
+  // The assigned agent still exists in the project — Start/Retry are for a
+  // run that can happen. While the list loads, assume it does (no flicker).
+  const assigneeLive =
+    agentsLoading ||
+    task?.assigneeType !== 'agent' ||
+    projectAgents.some((agent) => agent.id === task.assigneeId);
   const { formatDate } = useFormatDate();
 
   const updateTask = useUpdateTask();
@@ -1839,6 +1846,7 @@ export function EditTaskBody({
             taskId={task._id}
             assigneeId={task.assigneeId}
             canEdit={canMutate}
+            assigneeLive={assigneeLive}
           />
         </PropertyField>
       )}

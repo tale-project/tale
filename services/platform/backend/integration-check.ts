@@ -1760,6 +1760,68 @@ async function checkProjects(
       overviewRow.overdueTaskCount === 1,
     `agents=${agents.success ? agents.data.agents.length : 'ERR'}, rollup=${overviewRow?.projectAgentCount ?? 'ERR'}, overdue=${overviewRow?.overdueTaskCount ?? 'ERR'} (want 1, task → ${overdueTask.status})`,
   );
+  // Deleting the agent clears the tasks it was assigned to in the same
+  // transaction (the docs' promise; the board used to show the raw id as
+  // the assignee) and keeps the task itself — and `0119` clears the rows
+  // deleted before the service did, so a fresh boot finds none dangling.
+  const overdueTaskBody = z
+    .object({ taskId: z.string() })
+    .safeParse(await overdueTask.json());
+  const agentIdToDelete = agentCreated.success ? agentCreated.data.agentId : '';
+  const assignedTaskId = overdueTaskBody.success
+    ? overdueTaskBody.data.taskId
+    : '';
+  const tasksApi = `${base}/api/app/tasks`;
+  const assignedToAgent = await fetch(
+    `${tasksApi}/${assignedTaskId}/assign?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        assigneeType: 'agent',
+        assigneeId: agentIdToDelete,
+      }),
+    },
+  );
+  const agentDeleted = await send(
+    'DELETE',
+    `/agents/${agentIdToDelete}?orgId=${orgId}`,
+  );
+  const taskAfterDelete = z
+    .object({
+      task: z
+        .object({
+          assigneeType: z.string().nullish(),
+          assigneeId: z.string().nullish(),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await fetch(`${tasksApi}/${assignedTaskId}?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  const [dangling] = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.tasks t
+    WHERE t.assignee_type = 'agent' AND t.assignee_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM app.project_agents a
+        WHERE a.id = t.assignee_id AND a.org_id = t.org_id
+      )
+  `;
+  record(
+    'project agent delete clears its task assignments (C-14, 0119)',
+    assignedToAgent.ok &&
+      agentDeleted.ok &&
+      taskAfterDelete.success &&
+      taskAfterDelete.data.task.assigneeType == null &&
+      taskAfterDelete.data.task.assigneeId == null &&
+      dangling?.count === 0,
+    `assign → ${assignedToAgent.status}, delete → ${agentDeleted.status}, assignee after=${taskAfterDelete.success ? `${taskAfterDelete.data.task.assigneeType ?? 'null'}/${taskAfterDelete.data.task.assigneeId ?? 'null'}` : 'ERR'} (want null/null), dangling=${dangling?.count ?? 'ERR'} (want 0)`,
+  );
   await agentProvider.cleanup();
 
   const archived = await send('POST', `/${projectId}/archive?orgId=${orgId}`);
