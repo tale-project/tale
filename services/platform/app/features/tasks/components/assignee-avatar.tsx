@@ -55,6 +55,7 @@ export function AssigneeAvatar({
           'border-border text-muted-foreground inline-flex items-center justify-center rounded-full border border-dashed',
           className,
         )}
+        role="img"
         aria-label={t('assignee.unassigned')}
         title={t('assignee.unassigned')}
       >
@@ -75,6 +76,8 @@ export function AssigneeAvatar({
 
   return (
     <span
+      // A bare <span aria-label> names nothing (axe aria-prohibited-attr);
+      // the chip is a picture of the assignee, so it is an image.
       role="img"
       title={label}
       aria-label={label}

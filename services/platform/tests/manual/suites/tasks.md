@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 46 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 47 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -416,6 +416,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   accessibility tree: the month grid, day cells and month buttons are
   listed); before the calendar opens, `document.body` holds no
   `[data-tale-datepicker-popper]` node at all.
+- [ ] `TASK-A6` · **Board passes axe; a card is one button** → Run axe
+  (wcag2a/aa + wcag21a/aa) on the board with cards that carry an assignee →
+  No `aria-valid-attr-value` on the **Board**/**List** tab triggers (they
+  carry no `aria-controls`), no `nested-interactive` (a card's title is its
+  only button — Tab lands on the title, **Enter** opens the task, **Space**
+  lifts it for a keyboard drag, the Priority and Assign buttons are siblings
+  beside it and still open their pickers on click), and no
+  `aria-prohibited-attr` on the assignee chips (each is a named
+  `role="img"`); clicking any blank part of the card still opens the task.
 
 ## Performance
 

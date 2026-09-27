@@ -133,3 +133,43 @@ describe('KanbanBoard archived cards', () => {
     expect(screen.queryByText('Archived')).not.toBeInTheDocument();
   });
 });
+
+// A card used to be a role="button" (dnd-kit's sortable attributes on the
+// wrapper) that CONTAINED the priority and assignee buttons — an interactive
+// element nested in another (axe nested-interactive). Now the title is the one
+// button: sortable activator + open target, with the pickers beside it.
+describe('KanbanBoard card semantics', () => {
+  it('makes the title the only card-level button, with the pickers outside it', () => {
+    render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit
+        tasks={[makeTask('Ship it', 'todo', 'a0')]}
+      />,
+    );
+    const title = screen.getByRole('button', { name: 'Ship it' });
+    expect(title.tagName).toBe('BUTTON');
+    expect(title.querySelector('button')).toBeNull();
+    // Space is the keyboard drag key (dnd-kit's activator lives on the title).
+    expect(title).toHaveAttribute('aria-roledescription', 'sortable');
+    const card = title.closest('[class*="cursor-pointer"]');
+    expect(card).not.toBeNull();
+    expect(card).not.toHaveAttribute('role');
+    expect(card).not.toHaveAttribute('tabindex');
+    for (const button of card?.querySelectorAll('button') ?? []) {
+      expect(button.contains(title) && button !== title).toBe(false);
+    }
+  });
+
+  it('opens the task from the title button', async () => {
+    const onOpenTask = vi.fn();
+    const task = makeTask('Ship it', 'todo', 'a0');
+    const { user } = render(
+      <KanbanBoard projectKey="TAL" tasks={[task]} onOpenTask={onOpenTask} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Ship it' }));
+    expect(onOpenTask).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: task._id }),
+    );
+  });
+});

@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 40 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -329,6 +329,14 @@ projects-list row ⋯ menu.
   reveal control has an accessible name.
 - [ ] `PROJ-A4` · **Tabs** → Project tabs (Files/Threads/Agents/…) are
   labelled as a tablist and keyboard reachable.
+- [ ] `PROJ-A5` · **Files list passes axe, keyboard-walkable** → On the
+  Files tab with a folder holding a file, run axe → no
+  `aria-required-children` (the list is a plain `list` named **Project
+  files**, `projects.files.treeLabel`, with no `tree`/`treeitem` roles; each
+  row is a button beside its Preview / Version history / Remove / menu
+  buttons); Tab into the list, **↓/↑** move between rows, **→** expands a
+  folder (`aria-expanded`), the selected folder reads `aria-current="true"`;
+  the same holds for an automation's **Uploads** settings tree.
 
 ## Performance
 

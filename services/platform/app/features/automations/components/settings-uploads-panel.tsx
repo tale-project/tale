@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import {
   iconForPath,
+  TREE_ROW_ATTR,
   TreeRowButton,
   treeNavigationKeyDown,
 } from '@tale/ui/file-tree-primitives';
@@ -537,16 +538,14 @@ export function SettingsUploadsPanel({
     const FileIcon = iconForPath(baseName);
     const rowKey = doc._id;
     return (
-      <li key={rowKey} role="none">
+      <li key={rowKey}>
         <HStack gap={1} align="center">
           <div className="min-w-0 flex-1">
-            {/* A treeitem with no action of its own (this panel opens
-                nothing): focusable so arrow navigation walks files too, but
-                not a button — the delete affordance sits beside the row. */}
+            {/* A row with no action of its own (this panel opens nothing):
+                focusable so arrow navigation walks files too, but not a
+                button — the delete affordance sits beside the row. */}
             <div
-              role="treeitem"
-              aria-level={depth + 1}
-              aria-selected={false}
+              {...{ [TREE_ROW_ATTR]: '' }}
               tabIndex={!hasValidPick && rowKey === firstRowKey ? 0 : -1}
               data-parent-path={parentKey === '' ? undefined : parentKey}
               className="text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs focus-visible:ring-1 focus-visible:outline-none"
@@ -588,11 +587,12 @@ export function SettingsUploadsPanel({
     const subDirs = childDirs.get(dir.id) ?? [];
     const dirFiles = filesIn.get(dir.id) ?? [];
     return (
-      <li key={dir.id} role="none">
+      <li key={dir.id}>
         {/* Click = pick as upload target AND expand, so the target is always
             visible; clicking the picked folder again collapses and clears it —
             the same semantics as the project Files tab. */}
         <TreeRowButton
+          semantics="list"
           isActive={isSelected}
           depth={depth}
           disabled={treeBusy}
@@ -620,7 +620,7 @@ export function SettingsUploadsPanel({
           <span className="min-w-0 flex-1 truncate">{dir.name}</span>
         </TreeRowButton>
         {isExpanded && (subDirs.length > 0 || dirFiles.length > 0) ? (
-          <ul role="group">
+          <ul>
             {subDirs.map((sub) => renderDir(sub, depth + 1))}
             {dirFiles.map((file) => renderFile(file, depth + 1, dir.id))}
           </ul>
@@ -636,9 +636,10 @@ export function SettingsUploadsPanel({
           {t('settings.uploads.loading')}
         </Text>
       ) : dirs.length > 0 || fileCount > 0 ? (
+        /* A plain list, not a `role="tree"`: the remove button beside each
+           row is nothing a tree may own (axe `aria-required-children`). */
         <ul
           ref={treeRef}
-          role="tree"
           aria-label={t('settings.uploads.treeLabel')}
           className="flex flex-col gap-0.5"
           onKeyDown={(event) => {

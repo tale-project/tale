@@ -905,11 +905,12 @@ export function ProjectFilesTab({
     const openPreview = () =>
       setPreviewDoc({ id: doc._id, title: displayTitle });
     return (
-      <li key={doc._id} role="none">
+      <li key={doc._id}>
         <HStack gap={1} align="center" className="group">
           <div className="min-w-0 flex-1">
             {canPreview ? (
               <TreeRowButton
+                semantics="list"
                 isActive={previewDoc?.id === doc._id}
                 depth={depth}
                 onClick={openPreview}
@@ -1020,10 +1021,11 @@ export function ProjectFilesTab({
     const subFolders = childFolders.get(id) ?? [];
     const files = filesByFolder.get(id) ?? [];
     return (
-      <li key={folder._id} role="none">
+      <li key={folder._id}>
         <HStack gap={1} align="center" className="group">
           <div className="min-w-0 flex-1">
             <TreeRowButton
+              semantics="list"
               isActive={isSelected}
               depth={depth}
               onClick={() => {
@@ -1079,7 +1081,7 @@ export function ProjectFilesTab({
           ) : null}
         </HStack>
         {isExpanded ? (
-          <ul role="group">
+          <ul>
             {subFolders.map((sub) => renderFolder(sub, depth + 1))}
             {files.map((doc) => renderFileRow(doc, depth + 1))}
           </ul>
@@ -1109,9 +1111,12 @@ export function ProjectFilesTab({
     >
       <FormSection>
         {!isEmpty ? (
+          /* A plain list, not a `role="tree"`: each row sits beside its own
+             Preview / History / Remove / menu buttons, which a tree cannot
+             own (axe `aria-required-children`). Rows keep aria-expanded,
+             aria-current and the arrow-key navigation. */
           <ul
             ref={treeRef}
-            role="tree"
             aria-label={t('files.treeLabel', { defaultValue: 'Project files' })}
             className="rounded-lg border p-2"
             onKeyDown={(event) =>

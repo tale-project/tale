@@ -88,8 +88,21 @@ export interface TreeRowButtonProps {
   disabled?: boolean;
   dataDirPath?: string;
   dataParentPath?: string | null;
+  /**
+   * `'tree'` (default): a WAI-ARIA treeitem inside a `role="tree"` list.
+   * `'list'`: a plain button in a plain list — for rows that sit BESIDE their
+   * own action buttons (preview, history, remove, a menu), which a tree
+   * cannot own: a treeitem may not contain other controls and a tree may
+   * own nothing but treeitems (axe `aria-required-children`). The row keeps
+   * `aria-expanded`, marks the active row `aria-current`, and arrow-key
+   * navigation ({@link treeNavigationKeyDown}) works in both modes.
+   */
+  semantics?: 'tree' | 'list';
   children: ReactNode;
 }
+
+/** Marks every row {@link treeNavigationKeyDown} walks, whatever its role. */
+export const TREE_ROW_ATTR = 'data-tree-row';
 
 /** One tree row (directory or file): WAI-ARIA treeitem with roving tabindex,
  *  depth-indented, `bg-muted` when active. */
@@ -104,17 +117,20 @@ export function TreeRowButton({
   disabled,
   dataDirPath,
   dataParentPath,
+  semantics = 'tree',
   children,
 }: TreeRowButtonProps) {
   const state = isActive
     ? 'bg-muted text-foreground'
     : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground';
+  const treeItem = semantics === 'tree';
   return (
     <button
       type="button"
-      role="treeitem"
-      aria-selected={isActive}
-      aria-level={depth + 1}
+      role={treeItem ? 'treeitem' : undefined}
+      aria-selected={treeItem ? isActive : undefined}
+      aria-level={treeItem ? depth + 1 : undefined}
+      aria-current={!treeItem && isActive ? 'true' : undefined}
       // aria-disabled (not the disabled attribute): the row stays focusable
       // so keyboard users can still traverse the tree while it is frozen.
       aria-disabled={disabled === true || undefined}
@@ -123,6 +139,7 @@ export function TreeRowButton({
       title={title}
       aria-label={ariaLabel}
       aria-expanded={ariaExpanded}
+      {...{ [TREE_ROW_ATTR]: '' }}
       data-dir-path={dataDirPath}
       data-parent-path={dataParentPath ?? undefined}
       style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
@@ -162,7 +179,7 @@ export function treeNavigationKeyDown(
   ) {
     return;
   }
-  const items = tree?.querySelectorAll<HTMLButtonElement>('[role="treeitem"]');
+  const items = tree?.querySelectorAll<HTMLButtonElement>(`[${TREE_ROW_ATTR}]`);
   if (!items || items.length === 0) return;
   event.preventDefault();
 

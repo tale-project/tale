@@ -151,7 +151,7 @@ describe('SettingsUploadsPanel', () => {
       screen.queryByText('history-2025-Q1-filed.json'),
     ).not.toBeInTheDocument();
     // The declared subtree itself is there: the quarter folder, collapsed.
-    const quarter = screen.getByRole('treeitem', { name: '2025Q1' });
+    const quarter = screen.getByRole('button', { name: '2025Q1' });
     expect(quarter).toHaveAttribute('aria-expanded', 'false');
     // …and it really LISTS the subtree: expanding shows the quarter's file
     // (an empty-but-green listing must not pass).
@@ -174,7 +174,7 @@ describe('SettingsUploadsPanel', () => {
     const { user } = mount();
 
     // Collapsed by default: the folder row renders, its contents do not.
-    const folderRow = screen.getByRole('treeitem', { name: '2025Q1' });
+    const folderRow = screen.getByRole('button', { name: '2025Q1' });
     expect(folderRow).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('history-b-filed.json')).not.toBeInTheDocument();
     // Roving tabindex fallback: with nothing picked, the FIRST row carries
@@ -184,22 +184,24 @@ describe('SettingsUploadsPanel', () => {
     // Click = expand AND pick as upload target (project Files tab semantics).
     await user.click(folderRow);
     expect(folderRow).toHaveAttribute('aria-expanded', 'true');
-    expect(folderRow).toHaveAttribute('aria-selected', 'true');
+    expect(folderRow).toHaveAttribute('aria-current', 'true');
     expect(screen.getByText('history-b-filed.json')).toBeInTheDocument();
     // The pick is wired through: the drop zone now names the folder…
     expect(
       screen.getByText('Drop files here — they go to "2025Q1"'),
     ).toBeInTheDocument();
-    // …and the revealed file row is a NAVIGABLE treeitem, not a dead div.
-    const fileRow = screen
-      .getAllByRole('treeitem')
-      .find((row) => row.textContent?.includes('history-b-filed.json'));
+    // …and the revealed file row is a NAVIGABLE row (arrow keys walk it),
+    // not a dead div.
+    const fileRow = [
+      ...document.querySelectorAll<HTMLElement>('[data-tree-row]'),
+    ].find((row) => row.textContent?.includes('history-b-filed.json'));
     expect(fileRow).toBeDefined();
+    expect(fileRow).toHaveAttribute('tabindex');
 
     // Clicking the picked folder again collapses it and clears the target.
     await user.click(folderRow);
     expect(folderRow).toHaveAttribute('aria-expanded', 'false');
-    expect(folderRow).toHaveAttribute('aria-selected', 'false');
+    expect(folderRow).not.toHaveAttribute('aria-current');
     expect(screen.queryByText('history-b-filed.json')).not.toBeInTheDocument();
   });
 

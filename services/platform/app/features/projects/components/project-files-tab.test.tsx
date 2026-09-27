@@ -227,17 +227,19 @@ describe('ProjectFilesTab', () => {
     loadingFixture = false;
     rerender(<ProjectFilesTab organizationId="org-1" projectId={PROJECT_ID} />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.getByRole('tree')).toBeInTheDocument();
+    expect(
+      screen.getByRole('list', { name: 'Project files' }),
+    ).toBeInTheDocument();
   });
 
   it('exposes a preview affordance on a row that has a stored file', () => {
     documentsFixture = [makeDoc()];
     renderTab();
 
-    // The title row is an interactive treeitem (opens the preview) and
+    // The title row is an interactive row button (opens the preview) and
     // there's an explicit "Preview file" control.
     expect(
-      screen.getByRole('treeitem', { name: 'Report.pdf' }),
+      screen.getByRole('button', { name: 'Report.pdf' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Preview file' }),
@@ -265,7 +267,7 @@ describe('ProjectFilesTab', () => {
     documentsFixture = [makeDoc()];
     const { user } = renderTab();
 
-    await user.click(screen.getByRole('treeitem', { name: 'Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Report.pdf' }));
 
     await waitFor(() => {
       expect(
@@ -283,13 +285,13 @@ describe('ProjectFilesTab', () => {
     ];
     renderTab();
 
-    const restRow = screen.getByRole('treeitem', { name: 'lead-verify.txt' });
+    const restRow = screen.getByRole('button', { name: 'lead-verify.txt' });
     expect(within(restRow).getByText('Not indexed')).toBeInTheDocument();
     expect(within(restRow).getByText('Not indexed')).toHaveAttribute(
       'title',
       'Not searchable in chat until it is indexed.',
     );
-    const indexedRow = screen.getByRole('treeitem', { name: 'Report.pdf' });
+    const indexedRow = screen.getByRole('button', { name: 'Report.pdf' });
     expect(within(indexedRow).getByText('Indexed')).toBeInTheDocument();
     // The not-indexed row offers the first run; the indexed one offers no
     // retry at all.
@@ -305,7 +307,7 @@ describe('ProjectFilesTab', () => {
     ];
     renderTab();
 
-    const row = screen.getByRole('treeitem', { name: 'Empty notes.txt' });
+    const row = screen.getByRole('button', { name: 'Empty notes.txt' });
     expect(within(row).getByText('Not supported')).toHaveAttribute(
       'title',
       'These file contents cannot be indexed. Upload a readable text version or a supported document with extractable text.',
@@ -435,18 +437,18 @@ describe('ProjectFilesTab', () => {
     ];
     const { user } = renderTab();
 
-    const folderRow = screen.getByRole('treeitem', { name: 'Reports' });
+    const folderRow = screen.getByRole('button', { name: 'Reports' });
     expect(folderRow).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('treeitem', { name: 'Q3.pdf' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Q3.pdf' })).toBeNull();
 
     await user.click(folderRow);
 
-    expect(screen.getByRole('treeitem', { name: 'Reports' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Reports' })).toHaveAttribute(
       'aria-expanded',
       'true',
     );
     expect(
-      await screen.findByRole('treeitem', { name: 'Q3.pdf' }),
+      await screen.findByRole('button', { name: 'Q3.pdf' }),
     ).toBeInTheDocument();
   });
 
@@ -559,9 +561,7 @@ describe('ProjectFilesTab', () => {
     expect(screen.queryByRole('button', { name: 'New folder' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete folder' })).toBeNull();
     // The tree itself still renders for readers.
-    expect(
-      screen.getByRole('treeitem', { name: 'Reports' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reports' })).toBeInTheDocument();
   });
 
   // Deep-link hydrate: `?folderId=` selects + expands the target (and
@@ -585,17 +585,17 @@ describe('ProjectFilesTab', () => {
     renderTab('folder-child');
 
     await waitFor(() => {
-      expect(screen.getByRole('treeitem', { name: 'Root' })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: 'Root' })).toHaveAttribute(
         'aria-expanded',
         'true',
       );
-      expect(screen.getByRole('treeitem', { name: 'Child' })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: 'Child' })).toHaveAttribute(
         'aria-expanded',
         'true',
       );
     });
     expect(
-      await screen.findByRole('treeitem', { name: 'Nested.pdf' }),
+      await screen.findByRole('button', { name: 'Nested.pdf' }),
     ).toBeInTheDocument();
     // Selected folder is the upload target — drop-zone copy names it.
     expect(screen.getByText(/Add file to "Child"/i)).toBeInTheDocument();
@@ -605,7 +605,7 @@ describe('ProjectFilesTab', () => {
     foldersFixture = [{ _id: 'folder-1' as string, name: 'Reports' }];
     const { user } = renderTab();
 
-    await user.click(screen.getByRole('treeitem', { name: 'Reports' }));
+    await user.click(screen.getByRole('button', { name: 'Reports' }));
 
     expect(mockNavigate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -784,7 +784,7 @@ describe('ProjectFilesTab', () => {
       renderTab(undefined, undefined, 'doc-nested');
 
       await screen.findByRole('dialog', { name: 'Preview' });
-      expect(screen.getByRole('treeitem', { name: 'SOPs' })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: 'SOPs' })).toHaveAttribute(
         'aria-expanded',
         'true',
       );

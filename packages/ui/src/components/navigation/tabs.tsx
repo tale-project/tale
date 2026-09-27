@@ -206,6 +206,13 @@ export function Tabs({
               value={item.value}
               disabled={item.disabled}
               aria-label={item.ariaLabel}
+              // Radix stamps `aria-controls` with the id its Content WOULD
+              // carry; a view-switching strip renders no panel, so that id
+              // dangles (axe `aria-valid-attr-value`). An explicit undefined
+              // in the props spread wins over Radix's default.
+              {...(item.content === undefined && {
+                'aria-controls': undefined,
+              })}
               className={cn(
                 triggerVariants({ variant }),
                 // `invisible`, not `hidden`: layout is kept so the overflow
