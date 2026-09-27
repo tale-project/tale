@@ -73,6 +73,20 @@ defect, with the reason. Anything not on this list is a finding, on any page.
   Metrics → Usage, Projects with a picked project, and the others once they
   have data. Recharts' responsive container logs it on its first measure
   before the card has a size; the chart paints on the next frame. Benign.
+- A tab kept open across a deploy (`NAV-B13`, any page — the box uses
+  `/dashboard/{org}/documents`): the browser's own `Failed to load module
+  script: Expected a JavaScript-or-Wasm module script but the server responded
+  with a MIME type of "text/html"` for the previous build's chunk, which the
+  deploy removed (the server answers the app shell). While that tab reloads
+  onto the new build, the lazy load the recovery swallowed can log `TypeError:
+  Cannot read properties of undefined (reading 'default')` (or of a preview
+  component's name); during a server restart the same fallout reads `Service
+  worker registration failed TypeError: Cannot destructure property 'Workbox'
+  of 'undefined'`. None of it reaches the error reporter
+  (`isStaleBundleFallout` in `app/lib/stale-bundle-recovery.tsx`). A `Failed to
+  fetch dynamically imported module` shown together with the **A new version
+  is available** toast is different: it is the real error of a chunk that
+  failed again after its reload, and it is reported.
 
 ## Known debt
 

@@ -12,6 +12,7 @@ import {
   isAbortErrorEvent,
   normalizeConvexSentryEvent,
 } from '@/app/lib/sentry-normalize';
+import { isStaleBundleFallout } from '@/app/lib/stale-bundle-recovery';
 import { getEnv } from '@/lib/env';
 
 import { routeTree } from './routeTree.gen';
@@ -98,11 +99,15 @@ if (sentryDsn) {
       Sentry.captureConsoleIntegration({ levels: ['error'] }),
     ],
     // A cancelled request is no failure: drop it, whichever handler caught
-    // it. Convex failure text embeds a per-call `[Request ID: …]`, which
-    // defeats message-based grouping — every action failure opened its own
-    // issue. Strip it so events group by function + root cause.
+    // it. A tab recovering from a deploy reports nothing its swallowed chunk
+    // loads left behind (app/lib/stale-bundle-recovery.tsx). Convex failure
+    // text embeds a per-call `[Request ID: …]`, which defeats message-based
+    // grouping — every action failure opened its own issue. Strip it so
+    // events group by function + root cause.
     beforeSend: (event, hint) =>
-      isAbortErrorEvent(event, hint) ? null : normalizeConvexSentryEvent(event),
+      isAbortErrorEvent(event, hint) || isStaleBundleFallout()
+        ? null
+        : normalizeConvexSentryEvent(event),
     tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
   });
 }

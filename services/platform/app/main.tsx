@@ -16,6 +16,7 @@ import { OnlineGate } from '@/app/components/connectivity/online-gate';
 import { BackupCodesDialogProvider } from '@/app/features/settings/account/components/backup-codes-dialog-provider';
 import { useSessionUser } from '@/app/hooks/use-session-user';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
+import { installStaleBundleRecovery } from '@/app/lib/stale-bundle-recovery';
 import { i18n } from '@/lib/i18n/i18n';
 import { SiteUrlProvider } from '@/lib/site-url-context';
 
@@ -23,6 +24,11 @@ import { queryClient, router } from './router';
 
 import './globals.css';
 import './locals.css';
+
+// Before anything can lazy-load: the initial route load below runs loaders
+// that warm chunks, and a tab that outlived a deploy asks for chunks the
+// deploy removed.
+installStaleBundleRecovery();
 
 startBrowserAnalytics(
   (resolved) => router.subscribe('onResolved', resolved),
