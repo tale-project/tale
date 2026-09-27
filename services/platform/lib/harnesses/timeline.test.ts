@@ -11,7 +11,6 @@ import {
   boundTimelineParts,
   entriesFromStoredParts,
   mergeTimelineEntries,
-  mergeTimelineParts,
   TIMELINE_MAX_ENTRIES,
   type TimelinePart,
 } from './timeline';
@@ -121,38 +120,5 @@ describe('boundTimelineParts', () => {
       { maxEntries: 400, maxJsonBytes: 10 },
     );
     expect(bounded).toHaveLength(1);
-  });
-});
-
-describe('mergeTimelineParts', () => {
-  it('folds a near-empty fresh-window flush into the stored transcript instead of wiping it', () => {
-    // The bug this module exists for: a new drain window replays only what
-    // the ring buffer still holds — after a huge payload flushed it, that is
-    // one or two entries. Assignment wiped the row down to them.
-    const stored = mergeTimelineParts(undefined, [
-      { type: 'text', text: 'working through the slides' },
-      tool('t1', { state: 'output-available', output: 'ok' }),
-      tool('t2', { state: 'output-available', output: 'ok' }),
-    ]);
-    const next = mergeTimelineParts(stored, [tool('t3')]);
-    expect(next.map((part) => part.toolCallId ?? 'text')).toEqual([
-      'text',
-      't1',
-      't2',
-      't3',
-    ]);
-  });
-
-  it('updates a stored tool in place from a replayed flush', () => {
-    const stored = mergeTimelineParts(undefined, [tool('t1')]);
-    const next = mergeTimelineParts(stored, [
-      tool('t1', { state: 'output-error', errorText: 'boom' }),
-    ]);
-    expect(next).toHaveLength(1);
-    expect(next[0]).toMatchObject({ state: 'output-error', errorText: 'boom' });
-  });
-
-  it('starts from the flush alone when nothing is stored yet', () => {
-    expect(mergeTimelineParts(undefined, [tool('t1')])).toHaveLength(1);
   });
 });

@@ -1174,15 +1174,6 @@ chat:
   noModelCanSeeImages: None of the available models can view images — they only see file names.
   fileTypes:
     image: IMG
-    pdf: PDF
-    doc: DOC
-    pptx: PPTX
-    txt: TXT
-    xlsx: XLSX
-    csv: CSV
-    audio: AUDIO
-    video: VIDEO
-    file: FILE
   transcription:
     transcribing: Transcribing…
     transcribed: Transcribed
@@ -1266,10 +1257,6 @@ chat:
       retryFailedTitle: Couldn't retry this video
   fallback:
     image: Image
-    file: File
-  imageEdit:
-    editThis: Edit this image
-  downloadFile: Download file
   loadingConversation: Loading conversation…
   speakOutLoud: Speak out loud
   showMore: Show more
@@ -1341,8 +1328,6 @@ chat:
     chatInput: Message input
     skipToComposer: Skip to message box
     threadActions: Conversation actions
-  structured:
-    nextSteps: Suggested follow-ups
   dictation:
     start: Start dictation
     stop: Stop dictation
@@ -1658,7 +1643,6 @@ common:
   moveUp: Move up
   moveDown: Move down
   drag: Drag to reorder
-  remove: Remove
   sessionIdle:
     warningTitle: You'll be signed out soon
     warningDescription: Your session ends after a period of inactivity. Interact
@@ -2473,13 +2457,6 @@ documents:
         Start a new sync import of this item to take the sync over — the
         account it ran under is gone.
   comparison:
-    title: Compare documents
-    description: Pick two files to see what changed between them.
-    baseDocument: Base
-    comparisonDocument: Compare to
-    compareButton: Compare
-    comparing: Comparing…
-    compareFailed: Couldn't compare documents
     statsSummary: Change summary
     statsAdded: '{count} added'
     statsDeleted: '{count} deleted'
@@ -2492,13 +2469,6 @@ documents:
     changeBlockLabel: Change {index}
     removedText: Removed
     addedText: Added
-    untitledDocument: Untitled document
-    upload: Upload
-    existing: Existing
-    clearSelection: Clear selection
-    dropOrClick: Drop a file here or click to upload
-    selectDocument: Select a document
-    listTruncated: Only the newest documents are listed here. Upload the file to compare an older one.
   history:
     dialogTitle: Version history — {name}
     dialogDescription: Select two versions to compare. The current file is listed first.
@@ -5395,11 +5365,6 @@ projects:
     effectiveAudience: Effective audience
     noTeamsHint: No teams yet.
     noTeamsCreateLink: Create a team
-  editor:
-    slugFallback: unavailable
-    slugEditorEmptyLockout:
-      Empty list locks every member out of this project. Add
-      at least one item or switch back to "All".
 settings:
   menu:
     groups:

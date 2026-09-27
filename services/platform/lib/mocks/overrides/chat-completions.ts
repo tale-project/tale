@@ -31,7 +31,6 @@ import {
   CANNED_HUMAN_INPUT_ACK,
   CANNED_HUMAN_INPUT_FIELD_LABEL,
   CANNED_HUMAN_INPUT_QUESTION,
-  CANNED_NEXT_STEPS_TEXT,
   CANNED_PLAN_ACK,
   CANNED_PLAN_TODOS,
   CANNED_REASONING,
@@ -176,7 +175,6 @@ type Scenario =
   | 'docsTool'
   | 'taskTriage'
   | 'reasoning'
-  | 'nextSteps'
   | 'humanInputTool'
   | 'humanInputAck'
   | 'fileWriteTool'
@@ -297,7 +295,6 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   const last = users[users.length - 1] ?? '';
   if (last.includes(MOCK_TRIGGERS.error)) return 'error';
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
-  if (last.includes(MOCK_TRIGGERS.nextSteps)) return 'nextSteps';
   // Docs-pipeline phrases come last so an e2e trigger always wins; anything
   // unmatched stays on the spec-pinned canned path. A tool-scripted entry
   // emits its tool call on the first turn and its `reply` on the resume turn
@@ -352,8 +349,6 @@ function scenarioContent(
       return triageScore(body) ?? CANNED_JSON_REPLY;
     case 'reasoning':
       return CANNED_REASONING_ANSWER;
-    case 'nextSteps':
-      return CANNED_NEXT_STEPS_TEXT;
     case 'humanInputAck':
       return CANNED_HUMAN_INPUT_ACK;
     case 'fileWriteAck':
@@ -382,10 +377,10 @@ function completionId(): string {
  *    and a docs phrase that silently fell back to the canned reply would ship a
  *    fake-looking shot.
  *
- * The streaming-chat e2e scenarios (nextSteps/reasoning/humanInput) must NOT
- * leak here: thread-title generation is a non-streamed `generateText` call whose
- * prompt is the user's first message, so routing it to `nextSteps` would surface
- * the raw `[[NEXT_STEPS]]` marker as the thread title.
+ * The streaming-chat e2e scenarios (reasoning/humanInput) must NOT leak here:
+ * thread-title generation is a non-streamed `generateText` call whose prompt is
+ * the user's first message, so routing it to a streaming scenario would put
+ * that scenario's canned content in the thread title.
  */
 function jsonCompletionContent(body: ChatCompletionRequest): string {
   const scenario = pickScenario(body);

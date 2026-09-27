@@ -113,18 +113,6 @@ export function contrastRatio(a: string, b: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-/**
- * Determine whether a hex color is "light" (luminance > 0.5).
- * Used to derive foreground contrast colors.
- */
-export function isLightColor(hex: string): boolean {
-  const { r, g, b } = hexToRgb(hex);
-
-  // Relative luminance (sRGB)
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance > 0.5;
-}
-
 /** Page background each theme applies the branded color against. */
 const THEME_BACKGROUND = { light: '#FFFFFF', dark: '#0A0A0A' } as const;
 const LIGHTNESS_STEP = 2;

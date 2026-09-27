@@ -184,7 +184,6 @@ gets the plain canned reply, byte-for-byte):
 | Trigger in the message | Exercises                                         |
 | ---------------------- | ------------------------------------------------- |
 | `e2e:reasoning`        | reasoning / thinking-timeline disclosure          |
-| `e2e:nextsteps`        | a `[[NEXT_STEPS]]` suggestion block               |
 | `e2e:humaninput`       | a `request_human_input` tool card                 |
 | `e2e:error`            | an HTTP 500 on generation → the provider-error UI |
 

@@ -4,7 +4,6 @@ import {
   buildAlternation,
   buildAnywhereMatcher,
   buildWholeMessageMatcher,
-  countMatches,
   escapeRegExp,
 } from './index';
 
@@ -71,22 +70,5 @@ describe('buildWholeMessageMatcher', () => {
   });
   it('does not match when ack is embedded in a longer message', () => {
     expect(re.test('hi can you help me build a parser')).toBe(false);
-  });
-});
-
-describe('countMatches', () => {
-  it('counts non-overlapping matches', () => {
-    const re = buildAnywhereMatcher({
-      wordTerms: ['debug'],
-      substringTerms: [],
-      flags: 'giu',
-    });
-    expect(countMatches(re, 'debug this then debug that')).toBe(2);
-  });
-  it('throws without the g flag', () => {
-    const re = buildAnywhereMatcher({ wordTerms: ['x'], substringTerms: [] });
-    expect(() => countMatches(re, 'x')).toThrow(
-      /requires a regex with the g flag/,
-    );
   });
 });

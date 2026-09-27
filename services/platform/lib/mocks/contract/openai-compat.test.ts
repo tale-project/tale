@@ -348,19 +348,17 @@ describe('chat/completions override', () => {
   test('non-stream call keeps the canned reply when the message carries a streaming-chat trigger', async () => {
     // Thread-title generation is a non-streamed `generateText` call whose
     // prompt is the user's first message. When that message triggers a
-    // streaming-chat scenario (e.g. next-steps), the non-stream path must NOT
-    // emit that scenario's content — otherwise the `[[NEXT_STEPS]]` marker
-    // leaks into the generated title. Only the streamed assistant turn renders
-    // the structured block.
+    // streaming-chat scenario (e.g. reasoning), the non-stream path must NOT
+    // emit that scenario's content — otherwise it leaks into the generated
+    // title. Only the streamed assistant turn carries the scenario.
     const res = await post('/v1/chat/completions', {
       model: 'e2e-chat-model',
       messages: [
-        { role: 'user', content: `${MOCK_TRIGGERS.nextSteps} draft a plan` },
+        { role: 'user', content: `${MOCK_TRIGGERS.reasoning} draft a plan` },
       ],
     });
     const body = await readJson(res);
     expect(body.choices[0].message.content).toBe(CANNED_REPLY);
-    expect(body.choices[0].message.content).not.toContain('[[NEXT_STEPS]]');
   });
 });
 

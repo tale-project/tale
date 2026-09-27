@@ -218,52 +218,13 @@ function pickField(
 }
 
 /**
- * Required columns for customer/vendor imports. Email is the only hard
+ * Required columns for contact imports. Email is the only hard
  * requirement; a file whose header row has no email-like column is rejected
  * with a clear error instead of importing partial/empty data.
  */
 export const CONTACT_REQUIRED_COLUMNS: RequiredColumn[] = [
   { label: 'email', aliases: EMAIL_HEADER_ALIASES },
 ];
-
-/**
- * Customer import mapper utilities.
- */
-export const customerMappers = {
-  csv: (row: string[], _index: number) => {
-    const email = row[0]?.trim();
-    if (!email) return null;
-
-    const second = row[1]?.trim();
-    const third = row[2]?.trim();
-    const isLocale = (value?: string) =>
-      !!value && /^[a-z]{2}(?:-[A-Z]{2})?$/i.test(value);
-
-    return {
-      email,
-      name: third
-        ? second || undefined
-        : isLocale(second)
-          ? undefined
-          : second || undefined,
-      locale: third || (isLocale(second) ? second : undefined) || 'en',
-      status: 'active' as const,
-      source: 'manual_import' as const,
-    };
-  },
-  excel: (record: Record<string, unknown>) => {
-    const email = pickField(record, EMAIL_HEADER_ALIASES);
-    if (!email) return null;
-
-    return {
-      email,
-      name: pickField(record, NAME_HEADER_ALIASES),
-      locale: pickField(record, LOCALE_HEADER_ALIASES) || 'en',
-      status: 'active' as const,
-      source: 'file_upload' as const,
-    };
-  },
-};
 
 /**
  * Contact import mapper utilities — shared by the contacts manual-entry

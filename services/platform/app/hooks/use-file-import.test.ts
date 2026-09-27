@@ -4,7 +4,6 @@ import { ImportRowRefusal, parseCSVWithMapper } from '@/lib/utils/file-parsing';
 
 import {
   contactMappers,
-  customerMappers,
   productMappers,
   PRODUCT_REQUIRED_COLUMNS,
 } from './use-file-import';
@@ -148,55 +147,6 @@ describe('contactMappers.excel', () => {
       'vendor name': 'Beta LLC',
     });
     expect(result).toMatchObject({ name: 'Beta LLC' });
-  });
-});
-
-describe('customerMappers.excel', () => {
-  it('parses record with lowercase keys', () => {
-    const result = customerMappers.excel({
-      email: 'user@example.com',
-      name: 'John Doe',
-      locale: 'es',
-    });
-    expect(result).toEqual({
-      email: 'user@example.com',
-      name: 'John Doe',
-      locale: 'es',
-      status: 'active',
-      source: 'file_upload',
-    });
-  });
-
-  it('defaults locale to en when missing', () => {
-    const result = customerMappers.excel({ email: 'user@example.com' });
-    expect(result).toEqual({
-      email: 'user@example.com',
-      name: undefined,
-      locale: 'en',
-      status: 'active',
-      source: 'file_upload',
-    });
-  });
-
-  it('returns null when email is missing', () => {
-    const result = customerMappers.excel({ name: 'John Doe' });
-    expect(result).toBeNull();
-  });
-
-  // Regression test for #1312: aliased header columns must still map.
-  it('maps aliased header columns (e-mail / full name / lang)', () => {
-    const result = customerMappers.excel({
-      'e-mail': 'user@example.com',
-      'full name': 'John Doe',
-      lang: 'fr',
-    });
-    expect(result).toEqual({
-      email: 'user@example.com',
-      name: 'John Doe',
-      locale: 'fr',
-      status: 'active',
-      source: 'file_upload',
-    });
   });
 });
 
@@ -350,44 +300,6 @@ describe('product import column validation (PRODUCT_REQUIRED_COLUMNS)', () => {
     expect(result.data).toHaveLength(0);
     expect(result.errors[0]).toContain('stock');
     expect(result.errors[0]).not.toContain('Missing required column(s): name');
-  });
-});
-
-describe('customerMappers.csv', () => {
-  it('parses email with locale (2 fields)', () => {
-    const result = customerMappers.csv(['user@example.com', 'fr'], 0);
-    expect(result).toEqual({
-      email: 'user@example.com',
-      name: undefined,
-      locale: 'fr',
-      status: 'active',
-      source: 'manual_import',
-    });
-  });
-
-  it('parses email with name (2 fields, non-locale value)', () => {
-    const result = customerMappers.csv(['user@example.com', 'John Doe'], 0);
-    expect(result).toEqual({
-      email: 'user@example.com',
-      name: 'John Doe',
-      locale: 'en',
-      status: 'active',
-      source: 'manual_import',
-    });
-  });
-
-  it('parses email, name, and locale (3 fields)', () => {
-    const result = customerMappers.csv(
-      ['user@example.com', 'John Doe', 'es'],
-      0,
-    );
-    expect(result).toEqual({
-      email: 'user@example.com',
-      name: 'John Doe',
-      locale: 'es',
-      status: 'active',
-      source: 'manual_import',
-    });
   });
 });
 

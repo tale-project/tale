@@ -23,7 +23,6 @@ export const CANNED_REPLY =
  */
 export const MOCK_TRIGGERS = {
   reasoning: 'e2e:reasoning',
-  nextSteps: 'e2e:nextsteps',
   humanInput: 'e2e:humaninput',
   error: 'e2e:error',
   fileWrite: 'e2e:filewrite',
@@ -47,22 +46,6 @@ export const CANNED_REASONING =
   'Let me think through this step by step before answering.';
 export const CANNED_REASONING_ANSWER =
   'Based on that reasoning, here is the deterministic answer.';
-
-/**
- * Structured-output scenario (`MOCK_TRIGGERS.nextSteps`): plain text carrying a
- * `[[NEXT_STEPS]]` marker. The frontend marker parser renders each item line as
- * a clickable follow-up button. Each item must be alone on its own line.
- */
-const CANNED_NEXT_STEPS_ITEMS = [
-  'Review the quarterly budget',
-  'Compare it with last quarter',
-] as const;
-export const CANNED_NEXT_STEPS_TEXT = [
-  'Here is the plan you asked for.',
-  '',
-  '[[NEXT_STEPS]]',
-  ...CANNED_NEXT_STEPS_ITEMS,
-].join('\n');
 
 /**
  * Tool-call scenario (`MOCK_TRIGGERS.humanInput`): the mock emits a

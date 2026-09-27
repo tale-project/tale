@@ -1218,15 +1218,6 @@ chat:
   noModelCanSeeImages: Keines der verfügbaren Modelle kann Bilder sehen — sie bekommen nur die Dateinamen.
   fileTypes:
     image: BILD
-    pdf: PDF
-    doc: DOC
-    pptx: PPTX
-    txt: TXT
-    xlsx: XLSX
-    csv: CSV
-    audio: AUDIO
-    video: VIDEO
-    file: DATEI
   transcription:
     transcribing: Transkribiere…
     transcribed: Transkribiert
@@ -1311,10 +1302,6 @@ chat:
       retryFailedTitle: Erneuter Versuch fehlgeschlagen
   fallback:
     image: Bild
-    file: Datei
-  imageEdit:
-    editThis: Dieses Bild bearbeiten
-  downloadFile: Datei herunterladen
   loadingConversation: Lädt die Unterhaltung…
   speakOutLoud: Vorlesen
   showMore: Mehr anzeigen
@@ -1386,8 +1373,6 @@ chat:
     chatInput: Nachrichteneingabe
     skipToComposer: Zum Nachrichtenfeld springen
     threadActions: Aktionen zur Unterhaltung
-  structured:
-    nextSteps: Vorgeschlagene Folgefragen
   dictation:
     start: Diktat starten
     stop: Diktat stoppen
@@ -1709,7 +1694,6 @@ common:
   moveUp: Nach oben
   moveDown: Nach unten
   drag: Zum Sortieren ziehen
-  remove: Entfernen
   sessionIdle:
     warningTitle: Du wirst bald abgemeldet
     warningDescription: Deine Sitzung endet nach einer Phase der Inaktivität.
@@ -2566,13 +2550,6 @@ documents:
         Übernimm die Synchronisierung mit einem neuen Synchronisierungsimport
         dieses Elements — das Konto, unter dem sie lief, gibt es nicht mehr.
   comparison:
-    title: Dokumente vergleichen
-    description: Wähle zwei Dateien, um die Unterschiede zu sehen.
-    baseDocument: Basis
-    comparisonDocument: Vergleichen mit
-    compareButton: Vergleichen
-    comparing: Vergleicht…
-    compareFailed: Dokumente konnten nicht verglichen werden
     statsSummary: Änderungsübersicht
     statsAdded: '{count} hinzugefügt'
     statsDeleted: '{count} gelöscht'
@@ -2585,13 +2562,6 @@ documents:
     changeBlockLabel: Änderung {index}
     removedText: Entfernt
     addedText: Hinzugefügt
-    untitledDocument: Unbenanntes Dokument
-    upload: Hochladen
-    existing: Vorhanden
-    clearSelection: Auswahl löschen
-    dropOrClick: Datei hier ablegen oder klicken zum Hochladen
-    selectDocument: Dokument auswählen
-    listTruncated: Hier stehen nur die neuesten Dokumente. Lade die Datei hoch, um ein älteres zu vergleichen.
   history:
     dialogTitle: Versionsverlauf — {name}
     dialogDescription: Wähle zwei Versionen zum Vergleich. Die aktuelle Datei steht zuerst.
@@ -8095,11 +8065,6 @@ projects:
     effectiveAudience: Tatsächliche Reichweite
     noTeamsHint: Noch keine Teams.
     noTeamsCreateLink: Team erstellen
-  editor:
-    slugFallback: nicht verfügbar
-    slugEditorEmptyLockout:
-      Eine leere Liste sperrt jedes Mitglied aus dem Projekt
-      aus. Füge mindestens einen Eintrag hinzu oder wähle wieder „Alle".
 webdav:
   description:
     Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder

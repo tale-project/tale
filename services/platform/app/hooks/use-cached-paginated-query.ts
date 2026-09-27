@@ -135,20 +135,3 @@ export function useCachedPaginatedQuery<Name extends PaginatedName>(
   }
   return adaptedResult;
 }
-
-/**
- * Loader-side priming for a paginated listing.
- *
- * The adapted lane's pages live in react-query, whose own cache the route's
- * component reads on mount — so there is nothing left for a loader to warm
- * here. Kept as a no-op (rather than deleted at 20 call sites) so a listing
- * that later grows its own prefetch has one obvious place to grow it.
- */
-export function primeCachedPaginatedQuery<Name extends PaginatedName>(
-  _client: unknown,
-  _name: Name,
-  _args: Omit<ArgsOf<Name>, 'paginationOpts'>,
-  _options: { initialNumItems: number },
-): Promise<void> {
-  return Promise.resolve();
-}

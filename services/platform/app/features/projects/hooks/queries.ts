@@ -55,8 +55,6 @@ export function useAgentSecrets(organizationId: string | undefined) {
 export type AgentSecretSummary =
   ItemOf<'agent_secrets/queries:listAgentSecrets'>;
 
-export type ProjectListItem = ItemOf<'projects/queries:listProjects'>;
-
 export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
 
 /** The project's user-created agents (name-sorted). */

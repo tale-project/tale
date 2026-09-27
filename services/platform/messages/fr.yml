@@ -1228,15 +1228,6 @@ chat:
   noModelCanSeeImages: Aucun des modèles disponibles ne peut voir les images — ils ne reçoivent que les noms de fichier.
   fileTypes:
     image: IMG
-    pdf: PDF
-    doc: DOC
-    pptx: PPTX
-    txt: TXT
-    xlsx: XLSX
-    csv: CSV
-    audio: AUDIO
-    video: VIDÉO
-    file: FICHIER
   transcription:
     transcribing: Transcription en cours…
     transcribed: Transcrit
@@ -1321,10 +1312,6 @@ chat:
       retryFailedTitle: Impossible de réessayer cette vidéo
   fallback:
     image: Image
-    file: Fichier
-  imageEdit:
-    editThis: Modifier cette image
-  downloadFile: Télécharger le fichier
   loadingConversation: Chargement de la conversation…
   speakOutLoud: Lire à voix haute
   showMore: Voir plus
@@ -1396,8 +1383,6 @@ chat:
     chatInput: Saisie du message
     skipToComposer: Aller au champ de message
     threadActions: Actions de la conversation
-  structured:
-    nextSteps: Suggestions de suivi
   dictation:
     start: Démarrer la dictée
     stop: Arrêter la dictée
@@ -1718,7 +1703,6 @@ common:
   moveUp: Monter
   moveDown: Descendre
   drag: Glisser pour réordonner
-  remove: Retirer
   sessionIdle:
     warningTitle: Tu vas bientôt être déconnecté
     warningDescription: Ta session prend fin après une période d'inactivité.
@@ -2591,13 +2575,6 @@ documents:
         reprendre la synchronisation : le compte sous lequel elle tournait
         n’existe plus.
   comparison:
-    title: Comparer des documents
-    description: Choisis deux fichiers pour voir ce qui a changé.
-    baseDocument: Base
-    comparisonDocument: Comparer à
-    compareButton: Comparer
-    comparing: Comparaison…
-    compareFailed: Impossible de comparer les documents
     statsSummary: Résumé des changements
     statsAdded: '{count} ajouté(s)'
     statsDeleted: '{count} supprimé(s)'
@@ -2610,13 +2587,6 @@ documents:
     changeBlockLabel: Changement {index}
     removedText: Supprimé
     addedText: Ajouté
-    untitledDocument: Document sans titre
-    upload: Téléverser
-    existing: Existant
-    clearSelection: Effacer la sélection
-    dropOrClick: Dépose un fichier ici ou clique pour téléverser
-    selectDocument: Sélectionner un document
-    listTruncated: Seuls les documents les plus récents sont listés ici. Charge le fichier pour en comparer un plus ancien.
   history:
     dialogTitle: Historique des versions — {name}
     dialogDescription:
@@ -8186,11 +8156,6 @@ projects:
     effectiveAudience: Audience effective
     noTeamsHint: Aucune équipe pour l'instant.
     noTeamsCreateLink: Créer une équipe
-  editor:
-    slugFallback: indisponible
-    slugEditorEmptyLockout:
-      Une liste vide bloque l'accès au projet pour tous les
-      membres. Ajoute au moins un élément ou repasse à « Tous ».
 webdav:
   description: Monte les documents Tale comme lecteur réseau dans Finder, File
     Explorer ou n'importe quel client WebDAV.

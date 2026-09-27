@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 84 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 83 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -29,9 +29,9 @@ message / enabling sharing — there is no static URL for them.)
 
 Stack up + signed in per [SETUP.md](../setup.md), with a provider configured
 (or mode A's mock). In **mode A** any prompt returns the canned reply and the
-keyword triggers (`e2e:reasoning` / `e2e:nextsteps` / `e2e:humaninput` /
-`e2e:error`) drive CHAT-F16–CHAT-F19. Rows marked **mode B** need a live
-provider; CHAT-F25 additionally needs a TTS-capable model,
+keyword triggers (`e2e:reasoning` / `e2e:humaninput` / `e2e:error`) drive
+CHAT-F16–CHAT-F19. Rows marked **mode B** need a live provider; CHAT-F25
+additionally needs a TTS-capable model,
 CHAT-F26/CHAT-AT7 an available organization audio transcription model, and CHAT-F32–CHAT-F33 a
 successfully indexed document (RAG indexing needs the full Docker stack — it
 fails under `TALE_DEV_SKIP_DOCKER=1`).
@@ -142,9 +142,6 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `chat.parts.toolCall`) are always visible; expanding the header
   (user-controlled, never automatic) reveals the reasoning prose; the answer
   text never renders inside the timeline.
-- [ ] `CHAT-F17` · **Next steps** — Mode A: send `e2e:nextsteps` → A
-  **Suggested follow-ups** section (`chat.structured.nextSteps`) renders
-  suggestion buttons; clicking one sends it as a new turn.
 - [ ] `CHAT-F18` · **Human input request** — Mode A: send `e2e:humaninput` →
   While the question is outstanding the composer carries it (the question
   panel, or its collapsed bar) and the response-status region

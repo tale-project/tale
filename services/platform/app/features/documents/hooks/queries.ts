@@ -37,24 +37,6 @@ export function useCloudImportAuthorizationStatus(
   );
 }
 
-export function useDocuments(
-  organizationId: string,
-  options?: { enabled?: boolean },
-) {
-  const { data, isLoading } = useBackendQuery(
-    'documents/queries:listDocuments',
-    options?.enabled === false ? 'skip' : { organizationId },
-  );
-
-  return {
-    documents: data?.documents ?? [],
-    // The hub read is bounded; a consumer that offers the list as a picker
-    // must say so instead of presenting a complete-looking subset.
-    truncated: data?.truncated ?? false,
-    isLoading,
-  };
-}
-
 /**
  * Point-query a single document by id (org/team access enforced server-side).
  * Use instead of pulling the whole collection to find one document. Pass

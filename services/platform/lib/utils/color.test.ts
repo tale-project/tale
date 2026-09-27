@@ -10,7 +10,6 @@ import {
   hexToHslParts,
   hslToHex,
   isHexColor,
-  isLightColor,
   relativeLuminance,
 } from './color';
 
@@ -44,24 +43,6 @@ describe('hexToHsl', () => {
 
   it('handles lowercase hex', () => {
     expect(hexToHsl('#ff0000')).toBe('0 100% 50%');
-  });
-});
-
-describe('isLightColor', () => {
-  it('white is light', () => {
-    expect(isLightColor('#FFFFFF')).toBe(true);
-  });
-
-  it('black is not light', () => {
-    expect(isLightColor('#000000')).toBe(false);
-  });
-
-  it('yellow is light', () => {
-    expect(isLightColor('#FFFF00')).toBe(true);
-  });
-
-  it('dark blue is not light', () => {
-    expect(isLightColor('#000080')).toBe(false);
   });
 });
 

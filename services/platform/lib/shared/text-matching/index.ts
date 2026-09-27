@@ -83,19 +83,3 @@ export function buildWholeMessageMatcher(spec: MatcherSpec): RegExp {
   if (!all) return new RegExp('(?!)', flags);
   return new RegExp(`^[\\s\\p{P}]*(?:${all})[\\s\\p{P}]*$`, flags);
 }
-
-/** Count non-overlapping matches of a `g`-flagged matcher in `text` (cap 100). */
-export function countMatches(re: RegExp, text: string): number {
-  if (!re.global) {
-    throw new Error('countMatches requires a regex with the g flag');
-  }
-  re.lastIndex = 0;
-  let n = 0;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    n++;
-    if (n > 100) break; // pathological-input guard
-    if (match[0].length === 0) re.lastIndex += 1; // never stall on zero-width
-  }
-  return n;
-}

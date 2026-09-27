@@ -165,20 +165,3 @@ export function boundTimelineParts(
   }
   return parts.slice(from);
 }
-
-/**
- * The stored-transcript merge: fold one flush into a persisted parts array
- * and re-bound it. This is what keeps the op row's `liveTimeline` monotonic
- * across drain windows — a fresh window's short first flush lands as an
- * update, never as a wipe.
- */
-export function mergeTimelineParts(
-  existing: readonly TimelinePart[] | undefined,
-  incoming: readonly TimelinePart[],
-): TimelinePart[] {
-  const merged = mergeTimelineEntries(
-    entriesFromStoredParts(existing ?? []),
-    incoming,
-  );
-  return boundTimelineParts(merged.map((entry) => entry.part));
-}

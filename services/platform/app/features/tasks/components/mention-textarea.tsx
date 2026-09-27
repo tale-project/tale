@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   detectMentionTrigger,
   type MentionTrigger,
-} from '@/app/features/shared/mentions/use-kb-mentions';
+} from '@/app/features/shared/mentions/mention-trigger';
 import { useT } from '@/lib/i18n/client';
 
 import {
