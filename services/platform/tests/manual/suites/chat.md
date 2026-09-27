@@ -602,8 +602,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   on a conversation assigned to nobody, ask the same question as a plain
   member → Nothing of the email is found, quoted or named. Assign the
   conversation to that member and ask again → It is found. Mark it as spam →
-  It is no longer found. Delete the conversation → A new search finds nothing
-  of it, for the admin too.
+  It is no longer found. Mark it open again and wait a moment → It is found
+  again. Delete the conversation → A new search finds nothing of it, for the
+  admin too.
 
 ## Accessibility (WCAG 2.1 AA)
 

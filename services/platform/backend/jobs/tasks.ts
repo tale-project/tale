@@ -403,11 +403,13 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 900,
   },
-  // Its own queue, so a mailbox backlog — one job per inbound email — never
-  // stands in front of an upload somebody is watching. Nothing re-queues a
-  // message the way a BM25 rebuild or an embedding fix re-queues a file, so
-  // the ladder is long enough (~40 minutes) to outlast a rebuild; the job
-  // ends quietly on the refusals no retry can change.
+  // Its own queue, so a mailbox backlog — one job per inbound email, a new
+  // mailbox's first sync included — never stands in front of an upload in
+  // `rag.index_file` (past the queues, both wait for the organization's
+  // embedding limiter in arrival order: `PRIORITY_INTERACTIVE`). Nothing
+  // re-queues a message the way a BM25 rebuild or an embedding fix
+  // re-queues a file, so the ladder is long enough (~40 minutes) to outlast
+  // a rebuild; the job ends quietly on the refusals no retry can change.
   'rag.index_message': {
     retryLimit: 8,
     retryDelay: 10,
