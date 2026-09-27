@@ -4,6 +4,7 @@ import {
   sessionDestroyIfIdle,
   sessionIsAlive,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { reconcileSession } from './service.ts';
@@ -38,17 +39,30 @@ const DEFAULT_SPAWNER: WatchdogSpawner = {
  */
 export const SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS = 10 * 60_000;
 
+/**
+ * How long after a fresh create failed its row becomes collectable. The
+ * failing turn already asked the spawner to destroy what the create left, so
+ * this pass is the backstop for a destroy that could not run or failed. Two
+ * sweep ticks, so a turn that took the row over before it read `failed` has
+ * started its exec by then — and the `if_idle` destroy leaves a busy session
+ * alone.
+ */
+export const SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS = 10 * 60_000;
+
 export interface SandboxWatchdogOptions {
   /** Rows probed against the spawner per tick (reconcile). */
   reconcileBatch?: number;
   /** Ended-run sessions reclaimed per tick. */
   reclaimBatch?: number;
   reclaimGraceMs?: number;
+  /** Failed creates whose leftovers are collected per tick. */
+  collectBatch?: number;
+  collectGraceMs?: number;
   /** Finalized ops whose gateway-key settlement is still open, settled per
    * tick. */
   settleBatch?: number;
-  /** Skip BOTH spawner-facing passes (reconcile + reclaim) — for callers
-   * with no spawner to ask. */
+  /** Skip EVERY spawner-facing pass (reconcile, reclaim, collect) — for
+   * callers with no spawner to ask. */
   skipReconcile?: boolean;
   spawner?: WatchdogSpawner;
 }
@@ -57,6 +71,9 @@ export interface SandboxWatchdogResult {
   expired: number;
   healed: number;
   reclaimed: number;
+  /** Failed creates the sweep settled this tick: their spawner session
+   * destroyed or confirmed absent, or already owned by a newer incarnation. */
+  collected: number;
   /** Finalized ops whose gateway-key settlement (spend booked, key revoked)
    * the sweep closed this tick. */
   settled: number;
@@ -86,6 +103,14 @@ export interface SandboxWatchdogResult {
  *    the retention purge deletes runs) past a grace, and only when the
  *    spawner confirms the session is not executing (`if_idle`): a late node
  *    is left for the next tick, and a spawner error leaves the row alone.
+ *  - COLLECT: the leftovers of FAILED creates. A `failed` row holds no live
+ *    status, so no pass above, no resume and no Sandboxes page ever reached
+ *    it: a container its create left behind (one cut short between Docker's
+ *    create and start stays `created`, pinning its runtime image through
+ *    every later deploy) and its host workspace had no owner at all. The
+ *    failing turn destroys them best-effort before the flip; this pass
+ *    collects what that destroy could not, past a grace, behind the same
+ *    `if_idle` guard as RECLAIM, and stamps `destroyed_at_ms` on the row.
  */
 export async function runSandboxWatchdog(
   sql: Sql,
@@ -123,6 +148,7 @@ export async function runSandboxWatchdog(
 
   let healed = 0;
   let reclaimed = 0;
+  let collected = 0;
   if (options.skipReconcile !== true) {
     const spawner = options.spawner ?? DEFAULT_SPAWNER;
     healed = await reconcilePass(sql, spawner, {
@@ -132,6 +158,12 @@ export async function runSandboxWatchdog(
     reclaimed = await reclaimEndedRunSessions(sql, spawner, {
       batch: options.reclaimBatch ?? 25,
       graceMs: options.reclaimGraceMs ?? SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
+      now,
+    });
+    collected = await collectFailedSessions(sql, spawner, {
+      batch: options.collectBatch ?? 25,
+      graceMs:
+        options.collectGraceMs ?? SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS,
       now,
     });
   }
@@ -150,7 +182,7 @@ export async function runSandboxWatchdog(
     console.error('[watchdog] gateway key settlement sweep failed:', error);
   }
 
-  return { expired: expired.length, healed, reclaimed, settled };
+  return { expired: expired.length, healed, reclaimed, collected, settled };
 }
 
 interface Candidate {
@@ -294,4 +326,89 @@ async function reclaimEndedRunSessions(
   }
   await stampVisited(sql, candidates, args.now);
   return reclaimed;
+}
+
+/**
+ * Collect the leftovers of failed creates — see the COLLECT lane above.
+ * Session ids are deterministic, so the next turn inserts a fresh row under
+ * the failed row's id: a row whose id a newer or live incarnation carries is
+ * settled WITHOUT a spawner call, since whatever the spawner holds under the
+ * id is that incarnation's. Otherwise the spawner destroys the session only
+ * when idle (`if_idle`), exactly like the reclaim: busy and errors leave the
+ * row for a later tick.
+ */
+async function collectFailedSessions(
+  sql: Sql,
+  spawner: WatchdogSpawner,
+  args: { batch: number; graceMs: number; now: number },
+): Promise<number> {
+  const horizon = args.now - args.graceMs;
+  const candidates = await sql<Candidate[]>`
+    SELECT id, session_id AS "sessionId", org_id AS "orgId"
+    FROM app.sandbox_sessions
+    WHERE status = 'failed' AND destroyed_at_ms IS NULL
+      AND coalesce(last_activity_at_ms, created_at_ms) < ${horizon}
+    ORDER BY last_reconciled_at_ms ASC NULLS FIRST, created_at_ms ASC, id ASC
+    LIMIT ${args.batch}
+  `;
+  let collected = 0;
+  for (const candidate of candidates) {
+    // Asked per row, right before the spawner call, so a successor inserted
+    // after the batch was selected still holds the destroy off.
+    if (!(await isSupersededIncarnation(sql, candidate))) {
+      let outcome: { destroyed: boolean; busy: boolean };
+      try {
+        outcome = await spawner.destroyIfIdle(candidate.sessionId);
+      } catch (error) {
+        console.warn(
+          `[watchdog] failed-session destroy failed for ${candidate.sessionId}:`,
+          error,
+        );
+        continue;
+      }
+      if (outcome.busy) continue;
+    }
+    if (await stampFailedSessionCollected(sql, candidate)) collected += 1;
+  }
+  await stampVisited(sql, candidates, args.now);
+  return collected;
+}
+
+/** Does another incarnation own the spawner session a failed row names — a
+ * newer row of any status, or a live row of any age? Deployment-wide, not
+ * per organization: the spawner's session namespace is. */
+async function isSupersededIncarnation(
+  sql: Sql,
+  candidate: Candidate,
+): Promise<boolean> {
+  const rows = await sql<{ superseded: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.sandbox_sessions f
+      JOIN app.sandbox_sessions n
+        ON n.session_id = f.session_id AND n.id <> f.id
+      WHERE f.id = ${candidate.id}
+        AND (n.created_at_ms > f.created_at_ms
+          OR n.status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]}))
+    ) AS superseded
+  `;
+  return rows[0]?.superseded ?? false;
+}
+
+/** Settle one collected row by primary key: `destroyed_at_ms` records that
+ * its leftovers are gone, and the status stays `failed` — the fact of that
+ * incarnation. NOT `markSessionDestroyed`: it settles every row and revokes
+ * every token under the session id, a live successor's included, while a
+ * failed incarnation never minted credentials (the hosts mint only after
+ * `ensureAgentSession` returns). */
+async function stampFailedSessionCollected(
+  sql: Sql,
+  candidate: Candidate,
+): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE app.sandbox_sessions SET destroyed_at_ms = ${Date.now()}
+    WHERE id = ${candidate.id} AND status = 'failed'
+      AND destroyed_at_ms IS NULL
+    RETURNING id
+  `;
+  return rows.length > 0;
 }

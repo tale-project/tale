@@ -11,6 +11,7 @@ import {
   SessionNotFoundError,
   sessionAcquire,
   sessionCreate,
+  sessionDestroyIfIdle,
 } from './helpers/session_client';
 
 type SessionContext = Pick<ActionCtx, 'runQuery' | 'runMutation'>;
@@ -58,6 +59,10 @@ function ownerPolicy(
  * /agent, including the harness conversation store, survives a stop on both
  * backends. A new row returns no previous stamp, even when adopting an orphan,
  * so a caller cannot resume a conversation from an unproven incarnation.
+ * A new row whose create fails first asks the spawner to destroy whatever it
+ * holds under the id unless a sibling turn is executing in it, then reads
+ * `failed`; the sandbox watchdog collects what that best-effort destroy could
+ * not.
  */
 export async function ensureAgentSession(
   ctx: SessionContext,
@@ -120,6 +125,28 @@ export async function ensureAgentSession(
   try {
     await createOrAcquireSession(sessionId, organizationId);
   } catch (error) {
+    // The spawner may already hold what this create made (one cut short
+    // between Docker's create and start stays `created`), and a `failed` row
+    // is never reconciled, resumed or listed. Destroy while this row still
+    // holds the owner's slot: once it reads `failed`, a fresh create of the
+    // same deterministic id may start, and a later destroy would hit that one.
+    // Only an idle session goes: a sibling turn of the same owner can resume
+    // this still-`creating` row and create or adopt the session itself, and
+    // its running exec must never die for this turn's failure. A container
+    // that never started runs no exec, so it is idle.
+    await sessionDestroyIfIdle(sessionId)
+      .then(({ busy }) => {
+        if (busy)
+          console.warn(
+            `[sandbox.session] ${sessionId} runs a sibling turn's exec after this failed create; the watchdog collects it once idle`,
+          );
+      })
+      .catch((destroyError: unknown) => {
+        console.warn(
+          `[sandbox.session] destroy after failed create of ${sessionId} failed (the watchdog collects it):`,
+          destroyError,
+        );
+      });
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
       rowId,
       status: 'failed',
