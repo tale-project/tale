@@ -889,6 +889,68 @@ describe('ProjectFilesTab — mixed upload summary', () => {
     }
   });
 
+  // A refused upload used to throw `upload failed: 400`, and the toast it
+  // raised was replaced by this summary in the same tick: the door's reason
+  // never reached the screen. It now rides the summary beside the file.
+  it("names a file the door refused beside the door's own reason", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'Uploaded object is too large',
+        },
+        { status: 400 },
+      ),
+    );
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+    const junk = new File(['\u0000'], 'random.bin', {
+      type: 'application/octet-stream',
+    });
+
+    await user.upload(fileInput(), [brief, junk]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '0 files of 2 added',
+          variant: 'destructive',
+        }),
+      );
+    });
+    const calls = vi.mocked(toast).mock.calls.map(([arg]) => arg);
+    expect(calls).toHaveLength(1);
+    const description =
+      typeof calls[0]?.description === 'string' ? calls[0].description : '';
+    const [skipped, refused] = description.split(' · ');
+    expect(skipped).toMatch(/^Skipped: random\.bin — /);
+    expect(refused).toBe('Not added: brief.txt — Uploaded object is too large');
+  });
+
+  it('names the bare code when the door sends no sentence', async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      Response.json(
+        { error: 'RATE_LIMITED', code: 'RATE_LIMITED' },
+        { status: 429 },
+      ),
+    );
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+
+    await user.upload(fileInput(), [brief]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '0 files of 1 added',
+          description: 'Not added: brief.txt — RATE_LIMITED',
+        }),
+      );
+    });
+  });
+
   it('keeps the plain success toast when nothing was skipped', async () => {
     renderTab();
     const user = picker();

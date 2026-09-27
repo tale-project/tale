@@ -995,6 +995,7 @@ automations:
       uploading: Lädt hoch…
       uploaded: '{count} Datei(en) hochgeladen.'
       uploadFailed: Datei konnte nicht hochgeladen werden — versuch es nochmal.
+      uploadFailedDetail: '{name}: {reason}'
       wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'
       wrongName: Der Dateiname passt nicht zum erwarteten Muster dieses Formulars.
       tooLarge: Die Datei überschreitet das Limit von {max} MB.
@@ -7828,6 +7829,7 @@ projects:
     moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
     attachPartial: '{ok} von {total} Dateien hinzugefügt'
     skippedList: 'Übersprungen: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+    failedList: 'Nicht hinzugefügt: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: Dieser Ordner existiert nicht mehr.
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden

@@ -954,6 +954,7 @@ automations:
       uploading: Uploading…
       uploaded: '{count} file(s) uploaded.'
       uploadFailed: Couldn't upload the file — try again.
+      uploadFailedDetail: '{name}: {reason}'
       wrongType: 'Only these file types are accepted: {types}'
       wrongName: The file name doesn't match the expected pattern for this form.
       tooLarge: File exceeds the {max} MB limit.
@@ -5139,6 +5140,7 @@ projects:
     moreSkipped: +{count} more file(s) were skipped.
     attachPartial: '{ok, plural, one {# file} other {# files}} of {total} added'
     skippedList: 'Skipped: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+    failedList: 'Not added: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: That folder no longer exists.
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder

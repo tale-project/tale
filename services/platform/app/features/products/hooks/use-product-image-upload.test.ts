@@ -81,6 +81,30 @@ describe('useProductImageUpload', () => {
     });
   });
 
+  it("carries the door's message beside its code", async () => {
+    mutation.mockResolvedValue('https://upload.example/post');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: 'FILE_SIZE_INVALID',
+            message: 'The file is 6291456 bytes; the limit is 5 MiB',
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useProductImageUpload());
+    await expect(result.current.uploadImage(file())).rejects.toMatchObject({
+      data: {
+        code: 'FILE_SIZE_INVALID',
+        message: 'The file is 6291456 bytes; the limit is 5 MiB',
+      },
+    });
+  });
+
   it('throws when the response has no stable image URL', async () => {
     mutation.mockResolvedValue('https://upload.example/post');
     vi.stubGlobal(

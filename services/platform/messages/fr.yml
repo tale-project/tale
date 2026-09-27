@@ -1004,6 +1004,7 @@ automations:
       uploading: Téléversement…
       uploaded: '{count} fichier(s) téléversé(s).'
       uploadFailed: Échec du téléversement — réessaie.
+      uploadFailedDetail: '{name} : {reason}'
       wrongType: 'Seuls ces types de fichiers sont acceptés : {types}'
       wrongName: Le nom du fichier ne correspond pas au motif attendu pour ce formulaire.
       tooLarge: Le fichier dépasse la limite de {max} Mo.
@@ -7925,6 +7926,7 @@ projects:
     moreSkipped: +{count} autre(s) fichier(s) ont été ignorés.
     attachPartial: '{ok, plural, one {# fichier ajouté} other {# fichiers ajoutés}} sur {total}'
     skippedList: 'Ignorés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+    failedList: 'Non ajoutés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: Ce dossier n'existe plus.
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier

@@ -14,6 +14,10 @@ import { DocumentPreviewDialog } from '@/app/features/documents/components/docum
 import { useDeleteDocument } from '@/app/features/documents/hooks/mutations';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
+} from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -139,7 +143,8 @@ export function TaskInputFilesCard({
           body: file,
         });
         if (!response.ok) {
-          throw new Error(`upload failed: ${response.status}`);
+          // The door's own refusal, so the toast below can say why.
+          throw await backendErrorFromResponse(response);
         }
         const uploadJson: unknown = await response.json();
         if (
@@ -169,7 +174,11 @@ export function TaskInputFilesCard({
       }
     } catch (error) {
       console.error('[tasks] input-file upload failed', error);
-      toast({ title: t('inputFiles.uploadFailed'), variant: 'destructive' });
+      toast({
+        title: t('inputFiles.uploadFailed'),
+        description: backendRefusalDetail(error),
+        variant: 'destructive',
+      });
     } finally {
       setUploading(false);
     }

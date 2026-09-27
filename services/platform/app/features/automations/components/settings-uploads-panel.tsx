@@ -44,6 +44,10 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
+} from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_MAX_FILE_SIZE,
@@ -398,7 +402,8 @@ export function SettingsUploadsPanel({
           body: file,
         });
         if (!response.ok) {
-          throw new Error(`upload failed: ${response.status}`);
+          // The door's own refusal, so the toast below can say why.
+          throw await backendErrorFromResponse(response);
         }
         const uploadJson: unknown = await response.json();
         if (
@@ -432,9 +437,16 @@ export function SettingsUploadsPanel({
         okCount++;
       } catch (error) {
         console.error('[automations] settings upload failed', file.name, error);
+        const reason = backendRefusalDetail(error);
         toast({
           title: t('settings.uploads.uploadFailed'),
-          description: file.name,
+          description:
+            reason === undefined
+              ? file.name
+              : t('settings.uploads.uploadFailedDetail', {
+                  name: file.name,
+                  reason,
+                }),
           variant: 'destructive',
         });
       }

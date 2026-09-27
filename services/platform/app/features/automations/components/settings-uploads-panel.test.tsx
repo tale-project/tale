@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import type { SettingsUploadsForm } from '@tale/shared/schemas/automation-settings';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fireEvent, render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 const toastMock = vi.hoisted(() => vi.fn());
 vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
@@ -101,6 +101,43 @@ describe('SettingsUploadsPanel', () => {
         description: 'notes.json',
       }),
     );
+  });
+
+  // A refused upload used to throw `upload failed: 400`, and the toast said
+  // "try again" with nothing the door had said.
+  it("says why the door refused an upload, beside the file's name", async () => {
+    convexMutation.mockResolvedValue('/api/app/files/upload?orgId=org_1');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'Uploaded object is too large',
+        },
+        { status: 400 },
+      ),
+    );
+    try {
+      const { user } = mount();
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]');
+      if (!input) throw new Error('drop-zone input missing');
+      await user.upload(
+        input,
+        new File(['{}'], 'history-2026-q1.json', { type: 'application/json' }),
+      );
+
+      await waitFor(() => {
+        expect(toastMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Couldn't upload the file — try again.",
+            description: 'history-2026-q1.json: Uploaded object is too large',
+            variant: 'destructive',
+          }),
+        );
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('renders no drop zone until a folder is picked when requireFolder is set', () => {

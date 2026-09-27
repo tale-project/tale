@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import type { TaskSubjectContract } from '@tale/shared/schemas/task-contract';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 // The FILES zone is always open and previews a FEW names: a folder holding a
 // quarter's documents plus one derived artifact per document must not push the
@@ -24,9 +24,15 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({ data: mocks.documents }),
 }));
 
+// One stand-in for every write the card makes: the upload-URL mint and the
+// document create.
+const backendMutation = vi.hoisted(() => vi.fn());
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
-  useBackendMutation: () => ({ mutateAsync: vi.fn() }),
+  useBackendMutation: () => ({ mutateAsync: backendMutation }),
 }));
+
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
 vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
   DocumentPreviewDialog: () => null,
@@ -185,5 +191,94 @@ describe('TaskInputFilesCard', () => {
 
     expect(screen.queryByRole('group', { name: 'Files' })).toBeNull();
     expect(screen.getByText('sales.csv')).toBeInTheDocument();
+  });
+});
+
+/**
+ * A refused upload used to throw `upload failed: 400`, and the toast said
+ * "try again" with nothing the door had said. It now names the door's reason.
+ */
+describe('TaskInputFilesCard upload refusals', () => {
+  beforeEach(() => {
+    mocks.documents = [];
+    toastMock.mockReset();
+    backendMutation.mockReset();
+    // The upload-URL mint; nothing past a refused POST is reached.
+    backendMutation.mockResolvedValue('/api/app/files/upload?orgId=org_1');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function dropZoneInput(): HTMLInputElement {
+    const input = document.getElementById('task-input-files-upload');
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error('drop-zone input missing');
+    }
+    return input;
+  }
+
+  const invoice = () =>
+    new File(['%PDF-1.7'], 'invoice.pdf', { type: 'application/pdf' });
+
+  it("shows the door's message when it refuses the upload", async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'Uploaded object is too large',
+        },
+        { status: 400 },
+      ),
+    );
+    const { user } = renderCard();
+
+    await user.upload(dropZoneInput(), invoice());
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith({
+        title: "Couldn't finish the upload — try again.",
+        description: 'Uploaded object is too large',
+        variant: 'destructive',
+      });
+    });
+    // Only the URL mint ran: nothing was filed for a refused upload.
+    expect(backendMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the bare code when the door sends no sentence', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json(
+        { error: 'RATE_LIMITED', code: 'RATE_LIMITED' },
+        { status: 429 },
+      ),
+    );
+    const { user } = renderCard();
+
+    await user.upload(dropZoneInput(), invoice());
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'RATE_LIMITED' }),
+      );
+    });
+  });
+
+  it('keeps the bare title for a failure the door did not answer', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new TypeError('Failed to fetch'),
+    );
+    const { user } = renderCard();
+
+    await user.upload(dropZoneInput(), invoice());
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith({
+        title: "Couldn't finish the upload — try again.",
+        description: undefined,
+        variant: 'destructive',
+      });
+    });
   });
 });

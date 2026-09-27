@@ -51,6 +51,10 @@ import {
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import {
+  backendErrorFromResponse,
+  backendRefusalDetail,
+} from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { isAuthoredSourceProvider } from '@/lib/shared/document-source-providers';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -82,6 +86,27 @@ const FOLDER_UPLOAD_MAX_TOTAL_BYTES = 200 * 1024 * 1024;
  * later files under the same path fail once, locally, instead of repeating
  * the failing create per file. */
 const DUPLICATE_PATH = '!duplicate';
+
+/** One upload summary sentence per distinct reason, in first-seen order:
+ * the first three names beside it and a count of the rest. */
+function groupNamesByReason(
+  files: ReadonlyArray<{ name: string; reason: string }>,
+): Array<{ names: string; more: number; reason: string }> {
+  const byReason = new Map<string, string[]>();
+  for (const { name, reason } of files) {
+    const names = byReason.get(reason) ?? [];
+    names.push(name);
+    byReason.set(reason, names);
+  }
+  return Array.from(byReason, ([reason, names]) => {
+    const shown = names.slice(0, 3);
+    return {
+      names: shown.join(', '),
+      more: names.length - shown.length,
+      reason,
+    };
+  });
+}
 
 interface ProjectFilesTabProps {
   organizationId: string;
@@ -485,7 +510,8 @@ export function ProjectFilesTab({
         body: file,
       });
       if (!response.ok) {
-        throw new Error(`upload failed: ${response.status}`);
+        // The door's own refusal, so the batch summary can say why.
+        throw await backendErrorFromResponse(response);
       }
       const uploadJson: unknown = await response.json();
       if (
@@ -647,9 +673,48 @@ export function ProjectFilesTab({
       // success toast a moment later (one toast at a time), so the skipped
       // files ride the ONE summary toast after the upload instead.
 
+      /** Why a kept file did not land: the house message for a refusal
+       * this tab names itself, else the server's own words, else the
+       * generic one. */
+      const failureReason = (error: unknown): string => {
+        const code: unknown =
+          error instanceof AppError ? error.data?.code : undefined;
+        if (code === 'DOCUMENT_SCOPE_CONFLICT' || code === 'FOLDER_NOT_FOUND') {
+          return t(
+            code === 'FOLDER_NOT_FOUND'
+              ? 'files.folderGone'
+              : 'errors.DOCUMENT_SCOPE_CONFLICT',
+            {
+              defaultValue:
+                code === 'FOLDER_NOT_FOUND'
+                  ? 'That folder no longer exists.'
+                  : undefined,
+            },
+          );
+        }
+        if (code === 'FOLDER_NAME_TAKEN') {
+          // ensureFolderPath hit a name that exists server-side but not in
+          // the (stale) reactive snapshot — the house message; a re-pick
+          // finds the existing folder once the list refreshes.
+          return tDocuments('folder.duplicateName');
+        }
+        if (
+          code === 'RBAC_FORBIDDEN' ||
+          code === 'PROJECT_FORBIDDEN' ||
+          code === 'PROJECT_ARCHIVED'
+        ) {
+          return t('errors.' + code, { defaultValue: t('files.attachError') });
+        }
+        return backendRefusalDetail(error) ?? t('files.attachError');
+      };
+
       setUploading(true);
       const folderCache = new Map<string, string>();
       let okCount = 0;
+      // A file that fails in flight rides the same summary as a skipped one,
+      // beside its reason: a toast of its own here was replaced by that
+      // summary in the same tick, and the server's reason went with it.
+      const failed: Array<{ name: string; reason: string }> = [];
       for (const { file, relativeDir } of kept) {
         try {
           const targetFolderId =
@@ -663,65 +728,13 @@ export function ProjectFilesTab({
           okCount++;
         } catch (error) {
           console.error('project file upload failed', file.name, error);
-          if (error instanceof AppError) {
-            const code = error.data?.code;
-            if (
-              code === 'DOCUMENT_SCOPE_CONFLICT' ||
-              code === 'FOLDER_NOT_FOUND'
-            ) {
-              toast({
-                title: t(
-                  code === 'FOLDER_NOT_FOUND'
-                    ? 'files.folderGone'
-                    : 'errors.DOCUMENT_SCOPE_CONFLICT',
-                  {
-                    defaultValue:
-                      code === 'FOLDER_NOT_FOUND'
-                        ? 'That folder no longer exists.'
-                        : undefined,
-                  },
-                ),
-                description: file.name,
-                variant: 'destructive',
-              });
-              continue;
-            }
-            if (code === 'FOLDER_NAME_TAKEN') {
-              // ensureFolderPath hit a name that exists server-side but not
-              // in the (stale) reactive snapshot — the house message; a
-              // re-pick finds the existing folder once the list refreshes.
-              toast({
-                title: tDocuments('folder.duplicateName'),
-                description: file.name,
-                variant: 'destructive',
-              });
-              continue;
-            }
-            if (
-              code === 'RBAC_FORBIDDEN' ||
-              code === 'PROJECT_FORBIDDEN' ||
-              code === 'PROJECT_ARCHIVED'
-            ) {
-              toast({
-                title: t('errors.' + code, {
-                  defaultValue: t('files.attachError'),
-                }),
-                description: file.name,
-                variant: 'destructive',
-              });
-              continue;
-            }
-          }
-          toast({
-            title: t('files.attachError'),
-            description: file.name,
-            variant: 'destructive',
-          });
+          failed.push({ name: file.name, reason: failureReason(error) });
         }
       }
       setUploading(false);
-      // The summary counts every selected file, so a skipped one is visible
-      // in the arithmetic ("3 of 4 added") and named in the description.
+      // The summary counts every selected file, so a skipped or failed one
+      // is visible in the arithmetic ("3 of 4 added") and named in the
+      // description.
       const total = entries.length;
       if (skipped.length === 0 && okCount === kept.length) {
         toast({
@@ -731,23 +744,20 @@ export function ProjectFilesTab({
         });
         return;
       }
-      // Each skipped file sits beside ITS reason: the names are grouped by
-      // reason, one `skippedList` sentence per group, never the first
-      // file's reason stamped on every name.
-      const byReason = new Map<string, string[]>();
-      for (const entry of skipped) {
-        const names = byReason.get(entry.message.description) ?? [];
-        names.push(entry.name);
-        byReason.set(entry.message.description, names);
-      }
-      const groups = Array.from(byReason, ([reason, names]) => {
-        const shown = names.slice(0, 3);
-        return t('files.skippedList', {
-          names: shown.join(', '),
-          more: names.length - shown.length,
-          reason,
-        });
-      });
+      // Each skipped or failed file sits beside ITS reason: the names are
+      // grouped by reason, one sentence per group, never the first file's
+      // reason stamped on every name.
+      const groups = [
+        ...groupNamesByReason(
+          skipped.map(({ name, message }) => ({
+            name,
+            reason: message.description,
+          })),
+        ).map((group) => t('files.skippedList', group)),
+        ...groupNamesByReason(failed).map((group) =>
+          t('files.failedList', group),
+        ),
+      ];
       toast({
         title: t('files.attachPartial', { ok: okCount, total }),
         description: groups.length === 0 ? undefined : groups.join(' · '),
