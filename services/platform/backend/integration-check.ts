@@ -55,6 +55,7 @@ import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
@@ -49362,21 +49363,34 @@ async function checkAutoRetryAndKickPlan(
   }
   await sleep(700); // budget_exhausted must add nothing after the cascade
   const finalCascade = await sql<
-    { status: string; trigger: string | null; attempt: number | null }[]
+    {
+      status: string;
+      trigger: string | null;
+      attempt: number | null;
+      startedBy: string;
+    }[]
   >`
-    SELECT status, trigger, auto_retry_attempt AS attempt
+    SELECT status, trigger, auto_retry_attempt AS attempt,
+           started_by AS "startedBy"
     FROM app.project_agent_runs
     WHERE task_id = ${retryTask}
     ORDER BY started_at_ms
   `;
   const retries = finalCascade.filter((r) => r.trigger === 'auto_retry');
+  // A retry continues its failed run's kick: every attempt names the
+  // person who started the first run (whom the spend and a task run's
+  // connector calls are for), never someone else.
+  const firstStarter = finalCascade[0]?.startedBy;
   record(
     'auto-retry cascade: 3 stamped attempts then budget exhausted',
     finalCascade.length === 4 &&
       finalCascade.every((r) => r.status === 'failed') &&
       retries.length === 3 &&
-      retries.map((r) => r.attempt).join(',') === '1,2,3',
-    `runs=${finalCascade.length} statuses=${finalCascade.map((r) => r.status).join(',')} attempts=${retries.map((r) => r.attempt).join(',')}`,
+      retries.map((r) => r.attempt).join(',') === '1,2,3' &&
+      firstStarter !== undefined &&
+      firstStarter !== '' &&
+      finalCascade.every((r) => r.startedBy === firstStarter),
+    `runs=${finalCascade.length} statuses=${finalCascade.map((r) => r.status).join(',')} attempts=${retries.map((r) => r.attempt).join(',')} startedBy=${finalCascade.map((r) => (r.startedBy === firstStarter ? 'first' : r.startedBy)).join(',')} (want every one the first run's)`,
   );
 
   // --- arm + guard negatives ---------------------------------------------
@@ -54461,6 +54475,10 @@ async function main(): Promise<void> {
       [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
+      ],
+      [
+        'checkTaskRunConnectorCaller',
+        () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskExternalIssueSync',
