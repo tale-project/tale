@@ -192,44 +192,51 @@ export function GuardrailsOverview({
       >
         {/* Marked so the shared divider rule separates the two sub-blocks
             of this section (cards, then the events table) with the same
-            hairline every settings surface uses. */}
-        <Grid md={3} data-settings-section="">
-          <StatusCard
-            title={t('guardrailsOverview.statusCards.contentSafety.title')}
-            description={t(
-              'guardrailsOverview.statusCards.contentSafety.description',
-            )}
-            enabled={chatFilterEnabled}
-            summary={chatFilterSummary}
-            offKind={
-              (chatFilterConfig?.categories?.length ?? 0) === 0
-                ? 'not_configured'
-                : 'off'
-            }
-            href="#guardrails-content-safety"
-            icon={ListFilter}
-          />
-          <StatusCard
-            title={t('guardrailsOverview.statusCards.pii.title')}
-            description={t('guardrailsOverview.statusCards.pii.description')}
-            enabled={piiEnabled}
-            summary={piiSummary}
-            offKind="off"
-            href="#guardrails-pii"
-            icon={Fingerprint}
-          />
-          <StatusCard
-            title={t('guardrailsOverview.statusCards.moderation.title')}
-            description={t(
-              'guardrailsOverview.statusCards.moderation.description',
-            )}
-            enabled={moderationEnabled}
-            summary={moderationSummary}
-            offKind={moderationConfig?.endpoint?.url ? 'off' : 'not_configured'}
-            href="#guardrails-moderation"
-            icon={Shield}
-          />
-        </Grid>
+            hairline every settings surface uses. Three cards across once
+            the settings column is 36rem wide — the column, not the viewport:
+            at a 768px window it is ~400px, where three cards squeezed their
+            copy to a word per line. */}
+        <div className="@container" data-settings-section="">
+          <Grid className="@xl:grid-cols-3">
+            <StatusCard
+              title={t('guardrailsOverview.statusCards.contentSafety.title')}
+              description={t(
+                'guardrailsOverview.statusCards.contentSafety.description',
+              )}
+              enabled={chatFilterEnabled}
+              summary={chatFilterSummary}
+              offKind={
+                (chatFilterConfig?.categories?.length ?? 0) === 0
+                  ? 'not_configured'
+                  : 'off'
+              }
+              href="#guardrails-content-safety"
+              icon={ListFilter}
+            />
+            <StatusCard
+              title={t('guardrailsOverview.statusCards.pii.title')}
+              description={t('guardrailsOverview.statusCards.pii.description')}
+              enabled={piiEnabled}
+              summary={piiSummary}
+              offKind="off"
+              href="#guardrails-pii"
+              icon={Fingerprint}
+            />
+            <StatusCard
+              title={t('guardrailsOverview.statusCards.moderation.title')}
+              description={t(
+                'guardrailsOverview.statusCards.moderation.description',
+              )}
+              enabled={moderationEnabled}
+              summary={moderationSummary}
+              offKind={
+                moderationConfig?.endpoint?.url ? 'off' : 'not_configured'
+              }
+              href="#guardrails-moderation"
+              icon={Shield}
+            />
+          </Grid>
+        </div>
 
         <RecentEvents
           organizationId={organizationId}

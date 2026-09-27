@@ -54,12 +54,13 @@ describe('ExternalTurnMetricsPage', () => {
     );
     expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
-    // Six SLO cards in a filled 3×2 strip.
+    // Six SLO cards in a filled 3×2 strip (three across once the strip is
+    // 28rem wide — its own width, not the viewport's).
     expect(screen.getByText('79%')).toBeInTheDocument();
     expect(screen.getByText('12.0s')).toBeInTheDocument();
     expect(
       screen.getByText('Total turns').closest('[class*="grid"]'),
-    ).toHaveClass('md:grid-cols-3');
+    ).toHaveClass('@md:grid-cols-3');
 
     // The per-harness table row.
     expect(screen.getByText('claude-code')).toBeInTheDocument();

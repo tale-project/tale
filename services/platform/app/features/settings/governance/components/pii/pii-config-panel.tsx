@@ -244,41 +244,43 @@ function PatternsSection({
       title={tPiiConfigPanel('patternsTitle')}
       description={tPiiConfigPanel('patternsDescription')}
     >
-      <Grid as="ul" sm={2} gap={2}>
-        {BUILT_IN_PII_PATTERN_NAMES.map((name) => {
-          const Icon = piiTypeIcon(name);
-          const id = `pii-pattern-${name}`;
-          return (
-            <li key={name}>
-              <label
-                htmlFor={id}
-                className={cn(
-                  'flex items-center gap-2.5 rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)] px-3 py-2 text-sm transition-colors',
-                  disabled
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'cursor-pointer hover:border-[color:var(--color-accent-base)]/40',
-                )}
-              >
-                <Checkbox
-                  id={id}
-                  checked={enabled.has(name)}
-                  disabled={disabled}
-                  onCheckedChange={(checked) =>
-                    togglePattern(name, checked === true)
-                  }
-                />
-                <Icon
-                  className="size-4 shrink-0 text-[color:var(--color-fg-muted)]"
-                  aria-hidden
-                />
-                <span className="text-[color:var(--color-fg-base)]">
-                  {piiTypeLabel(name, tTypes)}
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </Grid>
+      <div className="@container">
+        <Grid as="ul" gap={2} className="@md:grid-cols-2">
+          {BUILT_IN_PII_PATTERN_NAMES.map((name) => {
+            const Icon = piiTypeIcon(name);
+            const id = `pii-pattern-${name}`;
+            return (
+              <li key={name}>
+                <label
+                  htmlFor={id}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-md border border-[color:var(--color-border-base)] bg-[color:var(--color-bg-elevated)] px-3 py-2 text-sm transition-colors',
+                    disabled
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'cursor-pointer hover:border-[color:var(--color-accent-base)]/40',
+                  )}
+                >
+                  <Checkbox
+                    id={id}
+                    checked={enabled.has(name)}
+                    disabled={disabled}
+                    onCheckedChange={(checked) =>
+                      togglePattern(name, checked === true)
+                    }
+                  />
+                  <Icon
+                    className="size-4 shrink-0 text-[color:var(--color-fg-muted)]"
+                    aria-hidden
+                  />
+                  <span className="text-[color:var(--color-fg-base)]">
+                    {piiTypeLabel(name, tTypes)}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </Grid>
+      </div>
     </Section>
   );
 }

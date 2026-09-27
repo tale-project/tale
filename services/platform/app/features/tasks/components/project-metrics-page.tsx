@@ -383,94 +383,102 @@ export function ProjectMetricsPage({
           />
         </ChartCard>
 
-        <Grid lg={2}>
-          <ChartCard
-            title={t('metrics.throughput')}
-            bodyClassName="h-44"
-            loading={isLoading}
-            isEmpty={noDays}
-            emptyIcon={BarChart3}
-            emptyTitle={emptyTitle}
-            emptyDescription={emptyDescription}
-            legend={<ChartLegend items={seriesToLegend(throughputSeries)} />}
-          >
-            <TrendBarChart
-              data={throughputData}
-              series={throughputSeries}
-              xKey="dateKey"
-              xTickFormatter={shortDay}
-            />
-          </ChartCard>
+        {/* Two charts side by side once the page column is 42rem wide —
+            the column, not the viewport: the Home panel sits beside it. */}
+        <div className="@container">
+          <Grid className="@2xl:grid-cols-2">
+            <ChartCard
+              title={t('metrics.throughput')}
+              bodyClassName="h-44"
+              loading={isLoading}
+              isEmpty={noDays}
+              emptyIcon={BarChart3}
+              emptyTitle={emptyTitle}
+              emptyDescription={emptyDescription}
+              legend={<ChartLegend items={seriesToLegend(throughputSeries)} />}
+            >
+              <TrendBarChart
+                data={throughputData}
+                series={throughputSeries}
+                xKey="dateKey"
+                xTickFormatter={shortDay}
+              />
+            </ChartCard>
 
-          <ChartCard
-            title={t('metrics.cycleTimeTrend')}
-            bodyClassName="h-44"
-            loading={isLoading}
-            isEmpty={noCycleTimes}
-            emptyIcon={BarChart3}
-            emptyTitle={emptyTitle}
-            emptyDescription={emptyDescription}
-          >
-            <TrendLineChart
-              data={cycleTimeData}
-              series={[
-                {
-                  key: 'hours',
-                  label: t('metrics.cycleHoursLabel'),
-                  color: getChartSeriesColor(3),
-                },
-              ]}
-              xKey="dateKey"
-              xTickFormatter={shortDay}
-              valueFormatter={(v) => `${v.toFixed(1)}h`}
-            />
-          </ChartCard>
-        </Grid>
+            <ChartCard
+              title={t('metrics.cycleTimeTrend')}
+              bodyClassName="h-44"
+              loading={isLoading}
+              isEmpty={noCycleTimes}
+              emptyIcon={BarChart3}
+              emptyTitle={emptyTitle}
+              emptyDescription={emptyDescription}
+            >
+              <TrendLineChart
+                data={cycleTimeData}
+                series={[
+                  {
+                    key: 'hours',
+                    label: t('metrics.cycleHoursLabel'),
+                    color: getChartSeriesColor(3),
+                  },
+                ]}
+                xKey="dateKey"
+                xTickFormatter={shortDay}
+                valueFormatter={(v) => `${v.toFixed(1)}h`}
+              />
+            </ChartCard>
+          </Grid>
+        </div>
 
-        <Grid lg={2}>
-          <ChartCard
-            title={t('metrics.agentVsHuman')}
-            bodyClassName="h-44"
-            loading={isLoading}
-            isEmpty={noDays}
-            emptyIcon={BarChart3}
-            emptyTitle={emptyTitle}
-            emptyDescription={emptyDescription}
-            legend={<ChartLegend items={seriesToLegend(completionsSeries)} />}
-          >
-            <TrendBarChart
-              data={completionsData}
-              series={completionsSeries}
-              xKey="dateKey"
-              xTickFormatter={shortDay}
-            />
-          </ChartCard>
+        {/* Two charts side by side once the page column is 42rem wide —
+            the column, not the viewport: the Home panel sits beside it. */}
+        <div className="@container">
+          <Grid className="@2xl:grid-cols-2">
+            <ChartCard
+              title={t('metrics.agentVsHuman')}
+              bodyClassName="h-44"
+              loading={isLoading}
+              isEmpty={noDays}
+              emptyIcon={BarChart3}
+              emptyTitle={emptyTitle}
+              emptyDescription={emptyDescription}
+              legend={<ChartLegend items={seriesToLegend(completionsSeries)} />}
+            >
+              <TrendBarChart
+                data={completionsData}
+                series={completionsSeries}
+                xKey="dateKey"
+                xTickFormatter={shortDay}
+              />
+            </ChartCard>
 
-          <ChartCard
-            title={t('metrics.costTrend')}
-            bodyClassName="h-44"
-            loading={isLoading}
-            isEmpty={noDays}
-            emptyIcon={BarChart3}
-            emptyTitle={emptyTitle}
-            emptyDescription={emptyDescription}
-          >
-            <TrendBarChart
-              data={costData}
-              series={[
-                {
-                  key: 'cost',
-                  label: t('metrics.costLabel'),
-                  color: CHART_COLORS.warning,
-                },
-              ]}
-              xKey="dateKey"
-              xTickFormatter={shortDay}
-              allowDecimals
-              valueFormatter={(v) => formatCostCents(v * 100)}
-            />
-          </ChartCard>
-        </Grid>
+            <ChartCard
+              title={t('metrics.costTrend')}
+              bodyClassName="h-44"
+              loading={isLoading}
+              isEmpty={noDays}
+              emptyIcon={BarChart3}
+              emptyTitle={emptyTitle}
+              emptyDescription={emptyDescription}
+            >
+              <TrendBarChart
+                data={costData}
+                series={[
+                  {
+                    key: 'cost',
+                    label: t('metrics.costLabel'),
+                    color: CHART_COLORS.warning,
+                  },
+                ]}
+                xKey="dateKey"
+                xTickFormatter={shortDay}
+                allowDecimals
+                valueFormatter={(v) => formatCostCents(v * 100)}
+              />
+            </ChartCard>
+          </Grid>
+        </div>
       </MetricsLayout>
     </Skeletonize>
   );

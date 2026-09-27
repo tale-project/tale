@@ -497,58 +497,68 @@ function ChatHealthMetricsPageView({
       <TurnTrendChart series={health?.series ?? []} />
 
       <MetricsSection title={t('chatHealth.breakdown.title')}>
-        {/* 1 column on small screens, 2 on md+ — agents left, models right;
-            long model IDs truncate with the full name in the hover title. */}
-        <Grid md={2} gap={6}>
-          <BreakdownList
-            title={t('chatHealth.routing.byAgent')}
-            items={agentItems}
-            total={totalTurns}
-            countTooltip={turnsTooltip}
-          />
-          <BreakdownList
-            title={t('chatHealth.routing.byModel')}
-            items={modelItems}
-            total={totalTurns}
-            countTooltip={turnsTooltip}
-          />
-        </Grid>
+        {/* One column, two once the section itself is 42rem wide — agents
+            left, models right. Measured on the section, not the viewport:
+            beside the rail and the settings panel a 768px window leaves it
+            ~400px, where two columns cut every name to two letters beside
+            its 10rem bar. Long model IDs truncate with the full name in the
+            hover title. */}
+        <div className="@container">
+          <Grid gap={6} className="@2xl:grid-cols-2">
+            <BreakdownList
+              title={t('chatHealth.routing.byAgent')}
+              items={agentItems}
+              total={totalTurns}
+              countTooltip={turnsTooltip}
+            />
+            <BreakdownList
+              title={t('chatHealth.routing.byModel')}
+              items={modelItems}
+              total={totalTurns}
+              countTooltip={turnsTooltip}
+            />
+          </Grid>
+        </div>
       </MetricsSection>
 
       <MetricsSection title={t('chatHealth.errorBreakdown.title')}>
-        {/* Same responsive grid: 1 column on small, 2 on md+. The
-            recent-errors list is a wide table, so it spans the full width. */}
-        <Grid md={2} gap={6}>
-          <BreakdownList
-            title={t('chatHealth.errorBreakdown.byType')}
-            items={errorTypeItems}
-            total={errorTotal}
-            countTooltip={turnsTooltip}
-          />
-          <div className="md:col-span-2">
-            <RecentErrorsList items={recentErrorItems} />
-          </div>
-        </Grid>
+        {/* The same grid, measured the same way. The recent-errors list is
+            a wide table, so it spans the full width. */}
+        <div className="@container">
+          <Grid gap={6} className="@2xl:grid-cols-2">
+            <BreakdownList
+              title={t('chatHealth.errorBreakdown.byType')}
+              items={errorTypeItems}
+              total={errorTotal}
+              countTooltip={turnsTooltip}
+            />
+            <div className="@2xl:col-span-2">
+              <RecentErrorsList items={recentErrorItems} />
+            </div>
+          </Grid>
+        </div>
       </MetricsSection>
 
       <MetricsSection title={t('chatHealth.guardrails.title')}>
-        <Grid md={2} gap={6}>
-          <BreakdownList
-            title={t('chatHealth.guardrails.byKind')}
-            items={kindItems}
-            total={guardrailTotal}
-            countTooltip={eventsTooltip}
-          />
-          <BreakdownList
-            title={t('chatHealth.guardrails.byFilter')}
-            items={filterItems}
-            total={guardrailTotal}
-            countTooltip={eventsTooltip}
-          />
-          <div className="md:col-span-2">
-            <GuardrailTrendChart series={guardrails?.series ?? []} />
-          </div>
-        </Grid>
+        <div className="@container">
+          <Grid gap={6} className="@2xl:grid-cols-2">
+            <BreakdownList
+              title={t('chatHealth.guardrails.byKind')}
+              items={kindItems}
+              total={guardrailTotal}
+              countTooltip={eventsTooltip}
+            />
+            <BreakdownList
+              title={t('chatHealth.guardrails.byFilter')}
+              items={filterItems}
+              total={guardrailTotal}
+              countTooltip={eventsTooltip}
+            />
+            <div className="@2xl:col-span-2">
+              <GuardrailTrendChart series={guardrails?.series ?? []} />
+            </div>
+          </Grid>
+        </div>
       </MetricsSection>
     </MetricsLayout>
   );

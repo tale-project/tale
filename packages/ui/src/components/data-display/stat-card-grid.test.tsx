@@ -6,6 +6,11 @@ import { render, screen } from '@/tests/utils/render';
 import { Skeletonize } from '../feedback/skeleton-context';
 import { StatCard, StatCardGrid } from './stat-card-grid';
 
+// The grid inside the `@container` wrapper.
+function stripOf(container: HTMLElement): Element | null {
+  return container.firstElementChild?.firstElementChild ?? null;
+}
+
 describe('StatCardGrid', () => {
   describe('rendering', () => {
     it('renders label and value', () => {
@@ -24,8 +29,12 @@ describe('StatCardGrid', () => {
           <StatCard label="A" value="1" />
         </StatCardGrid>,
       );
-      expect(container.firstChild).toHaveClass(
-        'md:grid-cols-4',
+      // The strip answers to its own width: an `@container` wrapper around
+      // the grid, which goes four across from 36rem.
+      expect(container.firstChild).toHaveClass('@container');
+      expect(stripOf(container)).toHaveClass(
+        'grid-cols-2',
+        '@xl:grid-cols-4',
         'gap-px',
         'custom-class',
       );
@@ -37,7 +46,7 @@ describe('StatCardGrid', () => {
           <StatCard label="A" value="1" />
         </StatCardGrid>,
       );
-      expect(container.firstChild).toHaveClass('bg-border-base');
+      expect(stripOf(container)).toHaveClass('bg-border-base');
       expect(container.querySelector('.bg-bg-base')).toBeInTheDocument();
     });
 
@@ -47,16 +56,16 @@ describe('StatCardGrid', () => {
           <StatCard label="A" value="1" />
         </StatCardGrid>,
       );
-      expect(container.firstChild).toHaveClass('md:grid-cols-2');
+      expect(stripOf(container)).toHaveClass('grid-cols-2');
     });
 
-    it('applies cols=3 as a single column on mobile', () => {
+    it('applies cols=3 as a single column until the strip is 28rem wide', () => {
       const { container } = render(
         <StatCardGrid cols={3}>
           <StatCard label="A" value="1" />
         </StatCardGrid>,
       );
-      expect(container.firstChild).toHaveClass('grid-cols-1', 'md:grid-cols-3');
+      expect(stripOf(container)).toHaveClass('grid-cols-1', '@md:grid-cols-3');
     });
 
     it('spans both columns for colSpan=2', () => {

@@ -189,47 +189,52 @@ function ActivityLogViewInner({
         </StatCardGrid>
       </Stack>
 
-      <Grid lg={2}>
-        <BreakdownPanel
-          title={t('logs.activity.byCategory.title')}
-          empty={categories.length === 0}
-          isLoading={isLoading}
-        >
-          <Stack gap={3}>
-            {categories.map(([category, count]) => (
-              <BreakdownRow
-                key={category}
-                label={t('logs.audit.categoryLabels.' + category, {
-                  defaultValue: category,
-                })}
-                count={count}
-                maxCount={maxCategoryCount}
-              />
-            ))}
-          </Stack>
-        </BreakdownPanel>
+      {/* Two breakdowns side by side once the settings column is 42rem
+          wide — the column, not the viewport, which also holds the rail and
+          the settings panel. */}
+      <div className="@container">
+        <Grid className="@2xl:grid-cols-2">
+          <BreakdownPanel
+            title={t('logs.activity.byCategory.title')}
+            empty={categories.length === 0}
+            isLoading={isLoading}
+          >
+            <Stack gap={3}>
+              {categories.map(([category, count]) => (
+                <BreakdownRow
+                  key={category}
+                  label={t('logs.audit.categoryLabels.' + category, {
+                    defaultValue: category,
+                  })}
+                  count={count}
+                  maxCount={maxCategoryCount}
+                />
+              ))}
+            </Stack>
+          </BreakdownPanel>
 
-        <BreakdownPanel
-          title={t('logs.activity.topActors.title')}
-          empty={topActors.length === 0}
-          isLoading={isLoading}
-        >
-          <Stack gap={3}>
-            {topActors.map((actor) => (
-              <BreakdownRow
-                key={actor.actorId}
-                label={
-                  actor.actorEmail ??
-                  userEmailMap?.get(actor.actorId) ??
-                  actor.actorId
-                }
-                count={actor.count}
-                maxCount={maxActorCount}
-              />
-            ))}
-          </Stack>
-        </BreakdownPanel>
-      </Grid>
+          <BreakdownPanel
+            title={t('logs.activity.topActors.title')}
+            empty={topActors.length === 0}
+            isLoading={isLoading}
+          >
+            <Stack gap={3}>
+              {topActors.map((actor) => (
+                <BreakdownRow
+                  key={actor.actorId}
+                  label={
+                    actor.actorEmail ??
+                    userEmailMap?.get(actor.actorId) ??
+                    actor.actorId
+                  }
+                  count={actor.count}
+                  maxCount={maxActorCount}
+                />
+              ))}
+            </Stack>
+          </BreakdownPanel>
+        </Grid>
+      </div>
     </Stack>
   );
 }

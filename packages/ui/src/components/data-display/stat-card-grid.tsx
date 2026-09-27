@@ -24,15 +24,21 @@ import { Text } from '../typography/text';
  * which Tailwind `divide-*` cannot do (sibling borders only span each cell).
  * Prefer a column count that fills every row; a short last row leaves empty
  * tracks showing the divider color.
+ *
+ * Columns answer to the strip's OWN width (an `@container` wrapper), not the
+ * viewport — like `CardGrid`. A metrics page sits beside the rail and the
+ * settings panel, so at a 768px window its strip is ~400px wide: four cards
+ * there were 100px each, their labels wrapping a word per line. A card keeps
+ * ~145px+: four across from 36rem, three from 28rem, two below.
  */
 const statCardGridVariants = cva(
   'border-border-base bg-border-base grid gap-px overflow-hidden rounded-lg border',
   {
     variants: {
       cols: {
-        2: 'grid-cols-2 md:grid-cols-2',
-        3: 'grid-cols-1 md:grid-cols-3',
-        4: 'grid-cols-2 md:grid-cols-4',
+        2: 'grid-cols-2',
+        3: 'grid-cols-1 @md:grid-cols-3',
+        4: 'grid-cols-2 @xl:grid-cols-4',
       },
     },
     defaultVariants: { cols: 4 },
@@ -48,8 +54,10 @@ export interface StatCardGridProps extends VariantProps<
 
 export function StatCardGrid({ cols, children, className }: StatCardGridProps) {
   return (
-    <div className={cn(statCardGridVariants({ cols }), className)}>
-      {children}
+    <div className="@container">
+      <div className={cn(statCardGridVariants({ cols }), className)}>
+        {children}
+      </div>
     </div>
   );
 }

@@ -114,26 +114,30 @@ export function SandboxCapacitySection({
           </Button>
         }
       >
-        <Grid cols={1} sm={2} gap={3}>
-          {metrics.map((metric) => (
-            <Card key={metric.label} padding="md">
-              <dl className="flex flex-col gap-2">
-                <dt className="text-muted-foreground text-sm">
-                  {metric.label}
-                </dt>
-                <dd className="text-lg font-semibold tabular-nums">
-                  <SkeletonBox>{metric.value}</SkeletonBox>
-                </dd>
-                <dd className="text-muted-foreground text-xs">{metric.hint}</dd>
-                {metric.states && (
-                  <dd className="text-muted-foreground text-xs">
-                    {metric.states}
+        <div className="@container">
+          <Grid cols={1} gap={3} className="@md:grid-cols-2">
+            {metrics.map((metric) => (
+              <Card key={metric.label} padding="md">
+                <dl className="flex flex-col gap-2">
+                  <dt className="text-muted-foreground text-sm">
+                    {metric.label}
+                  </dt>
+                  <dd className="text-lg font-semibold tabular-nums">
+                    <SkeletonBox>{metric.value}</SkeletonBox>
                   </dd>
-                )}
-              </dl>
-            </Card>
-          ))}
-        </Grid>
+                  <dd className="text-muted-foreground text-xs">
+                    {metric.hint}
+                  </dd>
+                  {metric.states && (
+                    <dd className="text-muted-foreground text-xs">
+                      {metric.states}
+                    </dd>
+                  )}
+                </dl>
+              </Card>
+            ))}
+          </Grid>
+        </div>
         <p className="text-muted-foreground text-sm">
           {t('capacity.operatorLimits')}
         </p>

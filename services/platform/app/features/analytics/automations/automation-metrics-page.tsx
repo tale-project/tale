@@ -90,21 +90,26 @@ function AutomationMetricsPageView({
         previous={data?.previousSummary}
       />
 
-      <Grid lg={3}>
-        <div className="lg:col-span-2">
-          <RunTrendChart series={series} />
-        </div>
-        <div>
-          <StatusBreakdown
-            success={summary?.success ?? 0}
-            failed={summary?.failed ?? 0}
-            running={summary?.running ?? 0}
-            waiting={summary?.waiting ?? 0}
-            queued={summary?.queued ?? 0}
-            cancelled={summary?.cancelled ?? 0}
-          />
-        </div>
-      </Grid>
+      {/* Trend two-thirds, breakdown one-third once the metrics column is
+          36rem wide — measured on the column, not the viewport, which also
+          holds the rail and the settings panel. */}
+      <div className="@container">
+        <Grid className="@xl:grid-cols-3">
+          <div className="@xl:col-span-2">
+            <RunTrendChart series={series} />
+          </div>
+          <div>
+            <StatusBreakdown
+              success={summary?.success ?? 0}
+              failed={summary?.failed ?? 0}
+              running={summary?.running ?? 0}
+              waiting={summary?.waiting ?? 0}
+              queued={summary?.queued ?? 0}
+              cancelled={summary?.cancelled ?? 0}
+            />
+          </div>
+        </Grid>
+      </div>
 
       <TopAutomationsTable
         rows={topAutomations}

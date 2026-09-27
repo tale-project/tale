@@ -377,17 +377,21 @@ export function RunDetail({
         />
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <section className="flex flex-col gap-2">
-          <SectionHeader as="h3" size="sm" title={t('runs.inputTitle')} />
-          <JsonViewer data={run.input} collapsed={1} />
-        </section>
-        {run.output !== undefined && (
+      {/* Input and output side by side once the run column is 42rem wide —
+          the column, not the viewport. */}
+      <div className="@container">
+        <div className="grid gap-4 @2xl:grid-cols-2">
           <section className="flex flex-col gap-2">
-            <SectionHeader as="h3" size="sm" title={t('runs.outputTitle')} />
-            <JsonViewer data={run.output} collapsed={1} />
+            <SectionHeader as="h3" size="sm" title={t('runs.inputTitle')} />
+            <JsonViewer data={run.input} collapsed={1} />
           </section>
-        )}
+          {run.output !== undefined && (
+            <section className="flex flex-col gap-2">
+              <SectionHeader as="h3" size="sm" title={t('runs.outputTitle')} />
+              <JsonViewer data={run.output} collapsed={1} />
+            </section>
+          )}
+        </div>
       </div>
     </ContentArea>
   );
