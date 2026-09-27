@@ -11,7 +11,6 @@ import {
   PreferencesError,
   setChatModel,
   setCustomInstructionsEnabled,
-  setMemoriesEnabled,
   setOnboardingCompleted,
   setVoiceOutput,
   upsertCustomInstructions,
@@ -69,13 +68,12 @@ export function createUserPreferenceRoutes(deps: {
   const flagRoutes: [
     string,
     (
-      tx: Parameters<typeof setMemoriesEnabled>[0],
+      tx: Parameters<typeof setCustomInstructionsEnabled>[0],
       scope: { userId: string; orgId: string },
       enabled: boolean,
     ) => Promise<void>,
   ][] = [
     ['/custom-instructions-enabled', setCustomInstructionsEnabled],
-    ['/memories-enabled', setMemoriesEnabled],
     ['/voice-output', setVoiceOutput],
   ];
   for (const [route, setter] of flagRoutes) {

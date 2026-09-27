@@ -12,11 +12,6 @@
  * settings header's global Save/Discard cluster; only the enable switch saves
  * instantly.
  *
- * Memories are NOT here. The backend keeps its store and approval gate
- * (`domains/chat/memories.ts`), but nothing proposes a memory today, and
- * whether the chat assistant should keep any is an open product decision —
- * so the page shows no switch that would promise one.
- *
  * Reading replies aloud is NOT here either. It is a property of the message
  * being sent, so it lives in the composer's mode menu; duplicating it as a
  * stored preference would give the same behaviour two sources of truth.

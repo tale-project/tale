@@ -16,16 +16,12 @@ const {
   pgAutomationStore,
   resolveAccessScope,
   runConnectorAction,
-  saveMemory,
-  searchApprovedMemories,
   searchKnowledgeForOrg,
 } = vi.hoisted(() => ({
   createAuditLog: vi.fn(),
   pgAutomationStore: vi.fn(),
   resolveAccessScope: vi.fn(),
   runConnectorAction: vi.fn(),
-  saveMemory: vi.fn(),
-  searchApprovedMemories: vi.fn(),
   searchKnowledgeForOrg: vi.fn(),
 }));
 
@@ -36,7 +32,6 @@ vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
   searchKnowledgeForOrg,
 }));
-vi.mock('./memories.ts', () => ({ saveMemory, searchApprovedMemories }));
 vi.mock('./shim.ts', () => ({ resolveAccessScope }));
 
 import { KnowledgeError } from '../knowledge/service.ts';

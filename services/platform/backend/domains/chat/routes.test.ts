@@ -24,9 +24,6 @@ const {
   isBackendDraining,
   runChatTurn,
   appendMessageRow,
-  searchApprovedMemories,
-  saveMemory,
-  deleteMemory,
   cancelDeferredSendsForThread,
   emitHintInTx,
   bulkUpdateThreads,
@@ -45,9 +42,6 @@ const {
   isBackendDraining: vi.fn(),
   runChatTurn: vi.fn(),
   appendMessageRow: vi.fn(),
-  searchApprovedMemories: vi.fn(),
-  saveMemory: vi.fn(),
-  deleteMemory: vi.fn(),
   cancelDeferredSendsForThread: vi.fn(),
   emitHintInTx: vi.fn(),
   bulkUpdateThreads: vi.fn(),
@@ -89,12 +83,6 @@ vi.mock('./store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./store.ts')>()),
   appendMessageRow,
 }));
-vi.mock('./memories.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./memories.ts')>()),
-  searchApprovedMemories,
-  saveMemory,
-  deleteMemory,
-}));
 vi.mock('./deferred-sends.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./deferred-sends.ts')>()),
   cancelDeferredSendsForThread,
@@ -126,7 +114,6 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 
 import { endAllEventStreams } from '../../realtime/sse.ts';
 import { ChatBudgetExceededError } from './budget-admission.ts';
-import { MemoryError } from './memories.ts';
 import { createChatRoutes } from './routes.ts';
 
 function makeApp(sql: unknown = {}) {
@@ -662,35 +649,6 @@ describe('GET /threads/archived — the numeric query params are a boundary', ()
   });
 });
 
-describe('GET /memories/search — the limit is a boundary', () => {
-  beforeEach(() => {
-    searchApprovedMemories.mockResolvedValue([]);
-  });
-
-  it('passes a well-formed query and limit through', async () => {
-    const res = await makeApp().request(
-      '/memories/search?orgId=o1&q=metric&limit=5',
-    );
-
-    expect(res.status).toBe(200);
-    expect(searchApprovedMemories).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: 'o1',
-      userId: 'u1',
-      query: 'metric',
-      limit: 5,
-    });
-  });
-
-  it('answers 400 to a malformed limit instead of silently returning nothing', async () => {
-    const res = await makeApp().request(
-      '/memories/search?orgId=o1&q=metric&limit=abc',
-    );
-
-    expect(res.status).toBe(400);
-    expect(searchApprovedMemories).not.toHaveBeenCalled();
-  });
-});
-
 describe('GET /threads/:threadId/stream — enrolled in the shutdown drain', () => {
   it('ends with every other SSE stream when the process drains', async () => {
     // A tagged-template `sql` stub: the owned-thread read answers a thread,
@@ -725,41 +683,5 @@ describe('GET /threads/:threadId/stream — enrolled in the shutdown drain', () 
     ).resolves.toBe('ended');
     // Unregistered on the way out: nothing left to drain.
     expect(endAllEventStreams()).toBe(0);
-  });
-});
-
-describe('the memory doors', () => {
-  it('answers a refused proposal with its code and status, not a 500', async () => {
-    saveMemory.mockRejectedValue(
-      new MemoryError('MEMORIES_DISABLED', 'Memories are turned off.', 403),
-    );
-
-    const res = await makeApp().request('/memories?orgId=o1', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content: 'Prefers metric units' }),
-    });
-
-    expect(res.status).toBe(403);
-    await expect(res.json()).resolves.toEqual({
-      error: 'MEMORIES_DISABLED',
-      message: 'Memories are turned off.',
-    });
-  });
-
-  it('deletes a memory of the caller through DELETE /memories/:id', async () => {
-    deleteMemory.mockResolvedValue(true);
-
-    const res = await makeApp().request('/memories/mem_1?orgId=o1', {
-      method: 'DELETE',
-    });
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true });
-    expect(deleteMemory).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: 'o1',
-      userId: 'u1',
-      memoryId: 'mem_1',
-    });
   });
 });

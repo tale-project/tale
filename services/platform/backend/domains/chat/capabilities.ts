@@ -4,18 +4,14 @@ import {
   CapabilityRegistry,
   createAutomationsBackend,
   createCapabilitySurface,
-  type CapabilityAuditSink,
   type CapabilityBackends,
   type CapabilitySurface,
   type KnowledgeBackend,
   type KnowledgePassage,
-  type MemoryStore,
 } from '../../../lib/chat/index.ts';
 import type { KnowledgeCorpus } from '../../../lib/knowledge/types.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import { KnowledgeError, searchKnowledgeForOrg } from '../knowledge/service.ts';
-import { saveMemory, searchApprovedMemories } from './memories.ts';
 import { resolveAccessScope } from './shim.ts';
 
 /**
@@ -23,10 +19,9 @@ import { resolveAccessScope } from './shim.ts';
  * `chat/capabilities_action` twin. The pure registry/dispatcher
  * (`lib/chat`) stays whole; this fills its ports: the registry holds the
  * org's deployed automations and they run through the pg `DispatchStore`
- * (a chat/MCP-triggered run is the same act as any other run), memory
- * writes land pending, knowledge retrieval goes through the one search
- * entry point and answers `unavailable`-with-reason rather than an empty
- * list when it cannot run.
+ * (a chat/MCP-triggered run is the same act as any other run), and
+ * knowledge retrieval goes through the one search entry point and answers
+ * `unavailable`-with-reason rather than an empty list when it cannot run.
  */
 
 class CapabilityAuthError extends Error {
@@ -142,53 +137,6 @@ function buildKnowledgeBackend(
   };
 }
 
-function buildMemoryStore(sql: Sql): MemoryStore {
-  return {
-    async save(request) {
-      const id = await saveMemory(sql, {
-        organizationId: request.organizationId,
-        userId: request.userId,
-        content: request.content,
-        ...(request.sourceThreadId !== undefined
-          ? { sourceThreadId: request.sourceThreadId }
-          : {}),
-        ...(request.sourceMessageId !== undefined
-          ? { sourceMessageId: request.sourceMessageId }
-          : {}),
-      });
-      return { id };
-    },
-    async search(request) {
-      return searchApprovedMemories(sql, {
-        organizationId: request.organizationId,
-        userId: request.userId,
-        ...(request.query !== undefined ? { query: request.query } : {}),
-        ...(request.limit !== undefined ? { limit: request.limit } : {}),
-      });
-    },
-  };
-}
-
-function buildAuditSink(sql: Sql): CapabilityAuditSink {
-  return {
-    async record(entry) {
-      await sql.begin((tx) =>
-        createAuditLog(tx, {
-          organizationId: entry.organizationId,
-          actorId: entry.userId,
-          actorType: 'user',
-          action: entry.action,
-          category: 'ai',
-          resourceType: 'chat_memory',
-          resourceId: entry.memoryId,
-          status: 'success',
-          ...(entry.threadId ? { metadata: { threadId: entry.threadId } } : {}),
-        }),
-      );
-    },
-  };
-}
-
 /** Deployed automations as invocable capabilities — best-effort (the 0.4
  * posture: a store read failure leaves them out, never fails the surface). */
 async function registerAutomations(
@@ -236,8 +184,6 @@ export async function buildCapabilitySurface(
     registry,
     backends: buildBackends(sql, scope),
     knowledge: buildKnowledgeBackend(sql, scope),
-    memory: buildMemoryStore(sql),
-    audit: buildAuditSink(sql),
   });
 }
 

@@ -329,7 +329,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [settings](../suites/settings.md) | `SET-F41` (team writes reach a second session) | 🔶 component | — (needs two live sessions for the round trip; `auth.team-hints.test.ts` owns the hint each team write emits) |
 | [settings](../suites/settings.md) | `SET-F32` (API key lifecycle) | ✅ automated | `settings-depth.spec.ts` |
 | [settings](../suites/settings.md) | `SET-F11` (theme & language) | ✅ automated | `preferences.spec.ts` (Manage-account menu) |
-| [settings](../suites/settings.md) | `SET-F6` (preference toggles) | 🔶 partial | `settings-depth.spec.ts` (custom-instructions toggle only; memories + org-default hint manual) |
+| [settings](../suites/settings.md) | `SET-F6` (preference toggles) | 🔶 partial | `settings-depth.spec.ts` (custom-instructions toggle only; the org-default hint manual) |
 | [settings](../suites/settings.md) | `SET-F28` (branding) | 🔶 partial | `settings-depth.spec.ts` (accent color only; logo/favicon/reset manual) |
 | [settings](../suites/settings.md) | `SET-F20`–`SET-F21` (providers page + add) | 🔶 partial | `settings.spec.ts` (empty state + add-catalog picker + the suggested name on a fresh org; no credential is actually created) |
 | [settings](../suites/settings.md) | `SET-F21a` (suggested name numbered past a held one; an untouched suggestion closes without a prompt) | 🔶 component | `app/features/settings/providers/components/providers-settings.test.tsx`, `lib/shared/utils/credential-name.test.ts` (a mocked credential list — persisted rows and the rename stay manual) |

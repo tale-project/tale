@@ -32,8 +32,7 @@
  * string `error`), a capability that was refused (an unknown id, arguments
  * its schema rejects, no deployment) or could not act (`unavailable`), a run
  * tool whose run ended in `error` or `invalid` — and on a call that threw. A
- * capability that answers `pending` (a memory saved for a human's approval)
- * and a read that found a failed run are outcomes, not failures, and keep the
+ * read that found a failed run is an outcome, not a failure, and keeps the
  * flag off.
  *
  * Protocol notes: `initialize`/`ping`/`tools/*` only. The envelope is checked
@@ -168,8 +167,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * top-level string `error` (a run view's failure detail is an object, so a
  * read that succeeded is not mistaken for one); a capability answers
  * `refused` (an unknown id, arguments its schema rejects, a backend that
- * would not act) or `unavailable` (a knowledge base it could not search),
- * while `pending` — a memory saved for a human's approval — is an outcome;
+ * would not act) or `unavailable` (a knowledge base it could not search);
  * a run tool's `status` is the run's own, so `error` / `invalid` there is the
  * call failing at what it was asked to do. */
 function isFailureShaped(tool: McpTool, result: unknown): boolean {

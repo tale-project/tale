@@ -21,10 +21,6 @@
  *    `search_capabilities` because retrieving facts and finding a tool are
  *    different questions; one returns knowledge, the other returns things to
  *    call, and a merged result list makes the model guess which it got.
- *  - **Memories are a tool with an approval gate.** `memory.save` writes a
- *    PENDING row and an audit entry; `memory.search` reads approved rows only.
- *    Nothing is injected into a prompt automatically — a model cannot give
- *    itself durable state about a person by writing it down.
  *
  * Every method is org-scoped: the registry is bound to one organization at
  * construction and every backend call carries that id.
@@ -232,56 +228,6 @@ export interface KnowledgeBackend {
   search(request: KnowledgeRequest): Promise<KnowledgeResult>;
 }
 
-// ----------------------------------------------------------------- memory
-
-export interface MemoryRecord {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly userId: string;
-  readonly content: string;
-  readonly status: 'pending' | 'approved' | 'rejected';
-  readonly createdAt: number;
-}
-
-export interface MemorySaveRequest {
-  readonly organizationId: string;
-  readonly userId: string;
-  readonly content: string;
-  /** Always `pending`: the surface never offers any other status, so a model
-   * cannot write itself an approved memory. */
-  readonly status: 'pending';
-  readonly sourceThreadId?: string;
-  readonly sourceMessageId?: string;
-  readonly createdAt: number;
-}
-
-export interface MemorySearchRequest {
-  readonly organizationId: string;
-  readonly userId: string;
-  readonly query: string;
-  readonly limit?: number;
-}
-
-export interface MemoryStore {
-  save(request: MemorySaveRequest): Promise<{ id: string }>;
-  search(request: MemorySearchRequest): Promise<readonly MemoryRecord[]>;
-}
-
-/** One line in the audit trail. A memory is durable state about a person, so
- * proposing one is an auditable act even before anyone approves it. */
-export interface CapabilityAuditEntry {
-  readonly organizationId: string;
-  readonly userId: string;
-  readonly action: 'memory.save';
-  readonly memoryId: string;
-  readonly threadId?: string;
-  readonly at: number;
-}
-
-export interface CapabilityAuditSink {
-  record(entry: CapabilityAuditEntry): Promise<void>;
-}
-
 // ---------------------------------------------------------------- results
 
 export interface CapabilitySearchHit {
@@ -323,11 +269,6 @@ export interface CapabilitySurfaceDeps {
   readonly registry: CapabilityRegistry;
   readonly backends: CapabilityBackends;
   readonly knowledge: KnowledgeBackend;
-  readonly memory: MemoryStore;
-  readonly audit: CapabilityAuditSink;
-  /** The thread the turn belongs to, recorded on saved memories. */
-  readonly threadId?: string;
-  readonly now?: () => number;
 }
 
 export interface SearchCapabilitiesParams {
@@ -349,20 +290,6 @@ export interface GetKnowledgeParams {
   readonly limit?: number;
 }
 
-export interface MemorySaveParams {
-  readonly content: string;
-  readonly sourceMessageId?: string;
-}
-
-export interface MemorySearchParams {
-  readonly query: string;
-  readonly limit?: number;
-}
-
-export type MemorySaveResult =
-  | { readonly status: 'pending'; readonly id: string; readonly note: string }
-  | { readonly status: 'refused'; readonly reason: string };
-
 /** The method names the surface answers to. The same table is what the
  * platform MCP endpoint exposes, so a harness turn and a chat model reach the
  * identical capability set. */
@@ -370,8 +297,6 @@ export const CAPABILITY_METHODS = [
   'search_capabilities',
   'invoke_capability',
   'get_knowledge',
-  'memory.save',
-  'memory.search',
 ] as const;
 
 export type CapabilityMethod = (typeof CAPABILITY_METHODS)[number];
@@ -382,8 +307,6 @@ export interface CapabilitySurface {
   ): readonly CapabilitySearchHit[];
   invokeCapability(params: InvokeCapabilityParams): Promise<InvokeResult>;
   getKnowledge(params: GetKnowledgeParams): Promise<KnowledgeResult>;
-  saveMemory(params: MemorySaveParams): Promise<MemorySaveResult>;
-  searchMemories(params: MemorySearchParams): Promise<readonly MemoryRecord[]>;
   /** One entry point for the JSON-RPC and MCP faces. */
   dispatch(method: string, params: unknown): Promise<unknown>;
 }
@@ -437,7 +360,6 @@ export function createCapabilitySurface(
       '[chat] capability registry belongs to a different organization than the surface',
     );
   }
-  const now = deps.now ?? (() => Date.now());
   const { organizationId, userId, registry, backends } = deps;
 
   /**
@@ -542,58 +464,6 @@ export function createCapabilitySurface(
       limit: params.limit,
     });
 
-  const saveMemory = async (
-    params: MemorySaveParams,
-  ): Promise<MemorySaveResult> => {
-    const content = params.content.trim();
-    if (content.length === 0) {
-      return { status: 'refused', reason: 'A memory cannot be empty.' };
-    }
-    const at = now();
-    const { id } = await deps.memory.save({
-      organizationId,
-      userId,
-      content,
-      status: 'pending',
-      sourceThreadId: deps.threadId,
-      sourceMessageId: params.sourceMessageId,
-      createdAt: at,
-    });
-    await deps.audit.record({
-      organizationId,
-      userId,
-      action: 'memory.save',
-      memoryId: id,
-      threadId: deps.threadId,
-      at,
-    });
-    return {
-      status: 'pending',
-      id,
-      note: 'Saved as pending. It becomes usable only once the user approves it, and nothing is added to this conversation automatically.',
-    };
-  };
-
-  const searchMemories = async (
-    params: MemorySearchParams,
-  ): Promise<readonly MemoryRecord[]> => {
-    const found = await deps.memory.search({
-      organizationId,
-      userId,
-      query: params.query,
-      limit: params.limit,
-    });
-    // Filtered here as well as in the store: "approved only" is the rule this
-    // surface promises, and it must not depend on every store implementation
-    // remembering it.
-    return found.filter(
-      (memory) =>
-        memory.status === 'approved' &&
-        memory.organizationId === organizationId &&
-        memory.userId === userId,
-    );
-  };
-
   const asObject = (params: unknown): Record<string, unknown> =>
     params !== null && typeof params === 'object' && !Array.isArray(params)
       ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
@@ -651,21 +521,6 @@ export function createCapabilitySurface(
                   : undefined,
           limit: typeof p.limit === 'number' ? p.limit : undefined,
         });
-      case 'memory.save':
-        return saveMemory({
-          content: asString(p.content),
-          sourceMessageId:
-            typeof p.sourceMessageId === 'string'
-              ? p.sourceMessageId
-              : undefined,
-        });
-      case 'memory.search':
-        return {
-          memories: await searchMemories({
-            query: asString(p.query),
-            limit: typeof p.limit === 'number' ? p.limit : undefined,
-          }),
-        };
       default: {
         const exhaustive: never = knownMethod;
         throw new Error(
@@ -679,8 +534,6 @@ export function createCapabilitySurface(
     searchCapabilities,
     invokeCapability,
     getKnowledge,
-    saveMemory,
-    searchMemories,
     dispatch,
   };
 }

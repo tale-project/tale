@@ -31,7 +31,6 @@ export const POLICY_TYPES = [
   'chat_filter',
   'moderation_provider',
   'custom_instructions',
-  'user_memories',
   // Org-level default for the voice-output (TTS) feature. Missing row →
   // effective default ON; row with `config.enabled === false` is the
   // org-wide kill switch admins use to block voice for the whole tenant
@@ -146,13 +145,6 @@ export function sandboxQuotaTotal(config: SandboxQuotaConfig): number {
 // absent user preference falls back to this value. Missing row entirely →
 // effective default is OFF.
 const customInstructionsConfigSchema = z.object({
-  enabled: z.boolean(),
-});
-
-// Org-level default for the user-memories feature (memory injection +
-// the `propose_memory` agent tool). Per-user
-// `userPreferences.memoriesEnabled` may override; missing row → OFF.
-const userMemoriesConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
@@ -1058,7 +1050,7 @@ export function frameAncestorsOf(config: EmbeddingConfig | null): string[] {
  * the cache-sync action uses it to validate before mirroring into Convex.
  *
  * `personalization` is intentionally absent — it is a legacy combined toggle
- * being drained into `custom_instructions` + `user_memories`; it has no file
+ * being drained into `custom_instructions`; it has no file
  * representation and is never written through the new path.
  */
 export const POLICY_SCHEMAS = {
@@ -1077,7 +1069,6 @@ export const POLICY_SCHEMAS = {
   chat_filter: chatFilterConfigSchema,
   moderation_provider: moderationProviderConfigSchema,
   custom_instructions: customInstructionsConfigSchema,
-  user_memories: userMemoriesConfigSchema,
   voice_output: voiceOutputConfigSchema,
   data_classification_notice: dataNoticeConfigSchema,
   dsar_governance: dsarGovernanceConfigSchema,

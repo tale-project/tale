@@ -14,7 +14,6 @@ export interface UserPreferences {
   organizationId: string;
   customInstructions: string;
   customInstructionsEnabled?: boolean;
-  memoriesEnabled?: boolean;
   voiceOutput?: boolean;
   chatModelId?: string;
   /** The connector that served `chatModelId` when it was picked. Absent on a
@@ -35,7 +34,6 @@ export interface ChatModelPick {
 interface PreferencesRow {
   customInstructions: string;
   customInstructionsEnabled: boolean | null;
-  memoriesEnabled: boolean | null;
   voiceOutput: boolean | null;
   chatModelId: string | null;
   chatModelProviderSlug: string | null;
@@ -60,7 +58,6 @@ export async function getMyPreferences(
   const rows = await sql<PreferencesRow[]>`
     SELECT custom_instructions AS "customInstructions",
            custom_instructions_enabled AS "customInstructionsEnabled",
-           memories_enabled AS "memoriesEnabled",
            voice_output AS "voiceOutput",
            chat_model_id AS "chatModelId",
            chat_model_provider_slug AS "chatModelProviderSlug",
@@ -79,9 +76,6 @@ export async function getMyPreferences(
     customInstructions: row.customInstructions,
     ...(row.customInstructionsEnabled !== null
       ? { customInstructionsEnabled: row.customInstructionsEnabled }
-      : {}),
-    ...(row.memoriesEnabled !== null
-      ? { memoriesEnabled: row.memoriesEnabled }
       : {}),
     ...(row.voiceOutput !== null ? { voiceOutput: row.voiceOutput } : {}),
     ...(row.chatModelId !== null ? { chatModelId: row.chatModelId } : {}),
@@ -220,7 +214,6 @@ export async function upsertCustomInstructions(
 
 type FlagColumn =
   | 'custom_instructions_enabled'
-  | 'memories_enabled'
   | 'voice_output'
   | 'onboarding_completed';
 
@@ -246,14 +239,6 @@ export function setCustomInstructionsEnabled(
   enabled: boolean,
 ): Promise<void> {
   return upsertFlag(tx, scope, 'custom_instructions_enabled', enabled);
-}
-
-export function setMemoriesEnabled(
-  tx: TransactionSql,
-  scope: { userId: string; orgId: string },
-  enabled: boolean,
-): Promise<void> {
-  return upsertFlag(tx, scope, 'memories_enabled', enabled);
 }
 
 export function setVoiceOutput(

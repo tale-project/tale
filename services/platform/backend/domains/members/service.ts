@@ -320,8 +320,7 @@ export async function removeMember(
   const targetEmail = await userEmail(tx, member.userId);
   await tx`DELETE FROM "member" WHERE "id" = ${memberId}`;
   // The membership's per-org footprint goes with it: team memberships (and
-  // their SSO-sync provenance) and the preference row — user_memories
-  // follows with its domain.
+  // their SSO-sync provenance) and the preference row.
   const { teamIds } = await removeMembershipCascade(
     tx,
     member.organizationId,

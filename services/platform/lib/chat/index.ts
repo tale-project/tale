@@ -10,7 +10,7 @@
  *     gets, in exactly which order, with the prompt-cache breakpoint between
  *     the stable prefix and the volatile tail.
  *  3. `capabilities.ts` — one registry and one dispatcher for everything the
- *     model can call, plus the knowledge seam and the memory tool.
+ *     model can call, plus the knowledge seam.
  *
  * `backends.ts` holds the adapter that must not be re-implemented: an
  * automation always goes through the automations store.
@@ -26,8 +26,6 @@ export {
   type AutomationInvocation,
   type BackendResult,
   type Capability,
-  type CapabilityAuditEntry,
-  type CapabilityAuditSink,
   type CapabilityBackends,
   type CapabilityKind,
   type CapabilityMethod,
@@ -40,10 +38,6 @@ export {
   type KnowledgePassage,
   type KnowledgeRequest,
   type KnowledgeResult,
-  type MemoryRecord,
-  type MemorySaveRequest,
-  type MemorySearchRequest,
-  type MemoryStore,
 } from './capabilities';
 export {
   type AgentInstructions,

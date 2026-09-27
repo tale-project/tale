@@ -393,9 +393,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'UPLOAD_BLOB_INVALID',
   'UPLOAD_NOT_OWNED',
   'UPLOAD_SCOPE_CONFLICT',
-  // Memories, message limits and text-to-speech — app-only lanes.
-  'EMPTY_MEMORY',
-  'MEMORIES_DISABLED',
+  // Message limits and text-to-speech — app-only lanes.
   'MESSAGE_CHAR_LIMIT',
   'TTS_CHUNK_LIMIT',
   'TTS_EMPTY_TEXT',

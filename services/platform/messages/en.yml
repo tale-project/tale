@@ -5167,7 +5167,7 @@ projects:
     emptyYours: You haven't started any chats in this project yet.
     emptyShared: No shared chats yet.
     shareToggle: Share with project
-    shareToggleDisclosure: Sharing hides your personal memories and instructions from other members.
+    shareToggleDisclosure: Sharing hides your custom instructions from other members.
     shareSuccess: Chat shared with project
     unshareSuccess: Chat hidden from project
     shareError: Couldn't update sharing
@@ -5373,7 +5373,7 @@ settings:
     account:
       description: Your profile, sign-in, and security.
     personalization:
-      description: How Tale adapts to you — memory, instructions, and voice.
+      description: Standing instructions the chat assistant follows for you.
     notifications:
       description: Choose which events send you a notification.
     usage:

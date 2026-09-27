@@ -6,19 +6,15 @@ import {
   createCapabilitySurface,
   isUnstructured,
   type Capability,
-  type CapabilityAuditEntry,
   type CapabilityBackends,
   type CapabilitySurfaceDeps,
-  type MemoryRecord,
-  type MemorySaveRequest,
-  type MemoryStore,
 } from './capabilities';
 
 /**
  * The surface's promises: one registry of the org's deployed automations,
  * one dispatcher that validates the input and sends the call to the
- * automations backend, a memory tool that can only ever propose, and a
- * knowledge method that is a separate question from finding a capability.
+ * automations backend, and a knowledge method that is a separate question
+ * from finding a capability.
  *
  * Every backend here is a spy — nothing runs, nothing leaves the process.
  */
@@ -57,33 +53,12 @@ function fakeBackends(): {
   return { backends: calls, calls };
 }
 
-function fakeMemoryStore(seed: readonly MemoryRecord[] = []): {
-  store: MemoryStore;
-  saved: MemorySaveRequest[];
-} {
-  const saved: MemorySaveRequest[] = [];
-  return {
-    saved,
-    store: {
-      save(request) {
-        saved.push(request);
-        return Promise.resolve({ id: `mem_${saved.length}` });
-      },
-      search() {
-        return Promise.resolve(seed);
-      },
-    },
-  };
-}
-
 function surface(
   overrides: Partial<CapabilitySurfaceDeps> = {},
   capabilities: readonly Capability[] = [capability()],
 ) {
   const registry = new CapabilityRegistry(ORG).registerAll(capabilities);
   const { backends, calls } = fakeBackends();
-  const audit: CapabilityAuditEntry[] = [];
-  const memory = fakeMemoryStore();
   const deps: CapabilitySurfaceDeps = {
     organizationId: ORG,
     userId: USER,
@@ -92,23 +67,12 @@ function surface(
     knowledge: {
       search: () => Promise.resolve({ status: 'ok', passages: [] }),
     },
-    memory: memory.store,
-    audit: {
-      record(entry) {
-        audit.push(entry);
-        return Promise.resolve();
-      },
-    },
-    threadId: 'thread_1',
-    now: () => 1_700_000_000_000,
     ...overrides,
   };
   return {
     surface: createCapabilitySurface(deps),
     registry,
     calls,
-    audit,
-    memory,
   };
 }
 
@@ -144,8 +108,6 @@ describe('CapabilityRegistry', () => {
         knowledge: {
           search: () => Promise.resolve({ status: 'ok', passages: [] }),
         },
-        memory: fakeMemoryStore().store,
-        audit: { record: () => Promise.resolve() },
       }),
     ).toThrow(/different organization/);
   });
@@ -397,116 +359,6 @@ describe('get_knowledge', () => {
   });
 });
 
-describe('memory', () => {
-  it('saves as PENDING and records an audit entry', async () => {
-    const { surface: s, memory, audit } = surface();
-
-    const result = await s.saveMemory({
-      content: '  Prefers email over calls  ',
-    });
-
-    expect(result).toMatchObject({ status: 'pending', id: 'mem_1' });
-    expect(memory.saved).toEqual([
-      {
-        organizationId: ORG,
-        userId: USER,
-        content: 'Prefers email over calls',
-        status: 'pending',
-        sourceThreadId: 'thread_1',
-        sourceMessageId: undefined,
-        createdAt: 1_700_000_000_000,
-      },
-    ]);
-    expect(audit).toEqual([
-      {
-        organizationId: ORG,
-        userId: USER,
-        action: 'memory.save',
-        memoryId: 'mem_1',
-        threadId: 'thread_1',
-        at: 1_700_000_000_000,
-      },
-    ]);
-  });
-
-  it('refuses an empty memory', async () => {
-    const { surface: s, memory } = surface();
-    await expect(s.saveMemory({ content: '   ' })).resolves.toMatchObject({
-      status: 'refused',
-    });
-    expect(memory.saved).toEqual([]);
-  });
-
-  it('searches approved memories only', async () => {
-    const record = (
-      id: string,
-      status: MemoryRecord['status'],
-    ): MemoryRecord => ({
-      id,
-      organizationId: ORG,
-      userId: USER,
-      content: id,
-      status,
-      createdAt: 1,
-    });
-    const store = fakeMemoryStore([
-      record('approved-one', 'approved'),
-      record('still-pending', 'pending'),
-      record('was-rejected', 'rejected'),
-    ]);
-
-    const { surface: s } = surface({ memory: store.store });
-
-    await expect(s.searchMemories({ query: 'anything' })).resolves.toEqual([
-      record('approved-one', 'approved'),
-    ]);
-  });
-
-  it('never returns another organization or user rows', async () => {
-    const store = fakeMemoryStore([
-      {
-        id: 'other-org',
-        organizationId: 'org_2',
-        userId: USER,
-        content: 'leak',
-        status: 'approved',
-        createdAt: 1,
-      },
-      {
-        id: 'other-user',
-        organizationId: ORG,
-        userId: 'user_2',
-        content: 'leak',
-        status: 'approved',
-        createdAt: 1,
-      },
-    ]);
-    const { surface: s } = surface({ memory: store.store });
-
-    await expect(s.searchMemories({ query: 'leak' })).resolves.toEqual([]);
-  });
-
-  it('is a tool, not an injection — nothing is read unless it is called', async () => {
-    const store = fakeMemoryStore([
-      {
-        id: 'm1',
-        organizationId: ORG,
-        userId: USER,
-        content: 'approved fact',
-        status: 'approved',
-        createdAt: 1,
-      },
-    ]);
-    const search = vi.spyOn(store.store, 'search');
-    const { surface: s } = surface({ memory: store.store });
-
-    s.searchCapabilities({ query: 'anything' });
-    await s.invokeCapability({ id: 'automation.github/triage-issues' });
-
-    expect(search).not.toHaveBeenCalled();
-  });
-});
-
 describe('dispatch', () => {
   it('exposes the same methods behind one entry point', async () => {
     const { surface: s, calls } = surface();
@@ -522,10 +374,6 @@ describe('dispatch', () => {
       id: 'automation.github/triage-issues',
     });
     expect(calls.automation).toHaveBeenCalled();
-
-    await expect(s.dispatch('memory.search', { query: 'x' })).resolves.toEqual({
-      memories: [],
-    });
   });
 
   it('names the available methods when asked for one that does not exist', async () => {

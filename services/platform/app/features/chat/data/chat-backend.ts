@@ -4,8 +4,8 @@
  * THE SEAM between the chat surface and its Convex functions.
  *
  * Each read this surface needs is declared here once, in the shape the screen
- * consumes. Live reads — threads, messages, the live generation, and memories
- * — subscribe to `api.chat.*` and stream updates in real time. The composer's
+ * consumes. Live reads — threads, messages and the live generation —
+ * subscribe to `api.chat.*` and stream updates in real time. The composer's
  * model catalog goes through the providers domain's aggregator ACTION (models
  * live in the config tree, which only a `'use node'` action may read) and
  * resolves on mount. The writes the surface performs — sending a turn,

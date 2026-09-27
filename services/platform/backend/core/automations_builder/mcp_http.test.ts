@@ -453,28 +453,6 @@ describe('tools/call — the capability surface', () => {
     expect(isErrorFlag(payload)).toBe(false);
   });
 
-  it('keeps a pending memory — saved for a human’s approval — an outcome, not a failure', async () => {
-    const runAction = vi.fn().mockResolvedValue({
-      status: 'pending',
-      id: 'mem_1',
-      note: 'Saved as pending. It becomes usable only once the user approves it.',
-    });
-    const { payload } = await call(
-      {
-        jsonrpc: '2.0',
-        id: 10,
-        method: 'tools/call',
-        params: {
-          name: 'invoke_capability',
-          arguments: { id: 'memory.save', input: { content: 'Prefers CSV' } },
-        },
-      },
-      runAction,
-    );
-    expect(isErrorFlag(payload)).toBe(false);
-    expect(resultText(payload)).toContain('pending');
-  });
-
   it.each([
     ['an unknown capability', 'No capability "automation.nope" exists here.'],
     [

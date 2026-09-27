@@ -350,6 +350,12 @@ default means deleting the override and fixing what surfaces:
   per-turn row (no reader ever folded it; `0110`, 2026-09); erasure and retention still sweep its
   legacy rows. Paying it down means a `DROP TABLE` migration one release after every image has
   stopped writing it, and removing the two sweeps with it.
+- **`app.memories` and `user_preferences.memories_enabled` are retired, not dropped** — chat
+  memories lost their routes, their capability methods and the `user_memories` policy
+  (2026-09-27); nothing reads or writes either any more, but rows proposed while the review UI
+  shipped may exist, and organization deletion and erasure still sweep the table. Paying it down
+  means a migration that drops both once a release has run without them, with the erasure pass
+  and its breakdown category going in the same change.
 - **Nine `app.projects` settings columns are retired, not dropped** — `knowledge_mode`,
   `agent_mode`, `recommended_agent_slugs`, `allowed_agent_slugs`, `model_mode`,
   `recommended_models`, `allowed_models`, `connectors_mode` and `allowed_connector_slugs` lost

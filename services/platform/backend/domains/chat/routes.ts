@@ -46,14 +46,6 @@ import {
   listDeferredSends,
 } from './deferred-sends.ts';
 import { getOrgChatHealth } from './health.ts';
-import {
-  deleteMemory,
-  listMemories,
-  MemoryError,
-  reviewMemory,
-  saveMemory,
-  searchApprovedMemories,
-} from './memories.ts';
 import { getPendingQuestion, resolveQuestion } from './questions.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
@@ -139,11 +131,6 @@ const createThreadSchema = z.object({
 // own ceiling is the schema's max.
 const archivedQuerySchema = z.object({
   cursor: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(50).optional(),
-});
-
-const memorySearchQuerySchema = z.object({
-  q: z.string().max(500).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 
@@ -961,89 +948,6 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         ...(projectId !== undefined ? { projectId } : {}),
       }),
     );
-  });
-
-  // Memories: approval-gated durable facts (the preferences page's review
-  // surface + the model-readable approved set).
-  app.get('/memories', async (c) => {
-    const { organizationId, userId } = caller(c);
-    return c.json(await listMemories(deps.sql, organizationId, userId));
-  });
-
-  app.get('/memories/search', async (c) => {
-    const query = memorySearchQuerySchema.safeParse(c.req.query());
-    if (!query.success) return c.json({ error: 'invalid query' }, 400);
-    const { organizationId, userId } = caller(c);
-    return c.json({
-      memories: await searchApprovedMemories(deps.sql, {
-        organizationId,
-        userId,
-        ...(query.data.q !== undefined ? { query: query.data.q } : {}),
-        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
-      }),
-    });
-  });
-
-  app.post('/memories', async (c) => {
-    const body = z
-      .object({
-        content: z.string().min(1).max(4_000),
-        sourceThreadId: z.string().max(128).optional(),
-        sourceMessageId: z.string().max(128).optional(),
-      })
-      .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    const { organizationId, userId } = caller(c);
-    try {
-      const id = await saveMemory(deps.sql, {
-        organizationId,
-        userId,
-        email: c.get('sessionBundle').user.email,
-        content: body.data.content,
-        ...(body.data.sourceThreadId !== undefined
-          ? { sourceThreadId: body.data.sourceThreadId }
-          : {}),
-        ...(body.data.sourceMessageId !== undefined
-          ? { sourceMessageId: body.data.sourceMessageId }
-          : {}),
-      });
-      return c.json({ id }, 201);
-    } catch (error) {
-      if (error instanceof MemoryError) {
-        return c.json(
-          { error: error.code, message: error.message },
-          error.status,
-        );
-      }
-      throw error;
-    }
-  });
-
-  app.post('/memories/:memoryId/review', async (c) => {
-    const body = z
-      .object({ decision: z.enum(['approved', 'rejected']) })
-      .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await reviewMemory(deps.sql, {
-        organizationId,
-        userId,
-        memoryId: c.req.param('memoryId'),
-        decision: body.data.decision,
-      }),
-    });
-  });
-
-  app.delete('/memories/:memoryId', async (c) => {
-    const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await deleteMemory(deps.sql, {
-        organizationId,
-        userId,
-        memoryId: c.req.param('memoryId'),
-      }),
-    });
   });
 
   // Deferred sends: park a send while media settle; the tray + cancel.

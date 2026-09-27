@@ -30,7 +30,6 @@ export interface UserPreferencesContract {
       _id: string;
       _creationTime: number;
       customInstructionsEnabled?: boolean;
-      memoriesEnabled?: boolean;
       voiceOutput?: boolean;
       chatModelId?: string;
       /** The connector that served `chatModelId` when it was picked; absent

@@ -13,11 +13,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 
-// The org default for the one personalization feature the app offers. The
-// `user_memories` policy still exists in the governance schema (a policy file
-// an org may carry), but no switch reads it while chat memories stay an open
-// product decision — offering a default for a feature nobody can turn on
-// would be a promise the app cannot keep.
+// The org default for the one personalization feature the app offers.
 type PolicyType = 'custom_instructions';
 
 interface PersonalizationPolicyToggleProps {

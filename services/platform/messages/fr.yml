@@ -5246,7 +5246,7 @@ settings:
     account:
       description: Ton profil, ta connexion et ta sécurité.
     personalization:
-      description: Comment Tale s'adapte à toi — mémoire, instructions et voix.
+      description: Les instructions permanentes que l’assistant de chat suit pour toi.
     notifications:
       description: Choisis les événements qui t'envoient une notification.
     usage:
@@ -7948,8 +7948,8 @@ projects:
     emptyShared: Aucun chat partagé pour l'instant.
     shareToggle: Partager avec le projet
     shareToggleDisclosure:
-      En partageant, tes souvenirs et instructions personnels
-      restent cachés des autres membres.
+      En partageant, tes instructions personnalisées restent cachées des
+      autres membres.
     shareSuccess: Chat partagé avec le projet
     unshareSuccess: Chat retiré du projet
     shareError: Impossible de mettre à jour le partage

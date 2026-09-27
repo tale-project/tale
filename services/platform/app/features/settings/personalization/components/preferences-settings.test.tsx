@@ -54,7 +54,7 @@ beforeEach(() => {
 });
 
 describe('PreferencesSettings', () => {
-  it('offers exactly one switch — no voice output (a composer mode), no memories (undecided)', () => {
+  it('offers exactly one switch — no voice output (a composer mode), no memories (removed)', () => {
     preferences = { customInstructionsEnabled: true };
     renderPage();
 

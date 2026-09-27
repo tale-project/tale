@@ -84,7 +84,7 @@ describe('PersonalizationPolicyEditor', () => {
       setLoaded();
       render(<PersonalizationPolicyEditor organizationId="org-1" />);
       // The one personalization policy the app offers a default for: custom
-      // instructions. Memories have no switch while the feature is undecided.
+      // instructions. Chat memories were removed, so no switch names them.
       expect(screen.getAllByRole('switch')).toHaveLength(1);
       expect(screen.queryByText(/memor/i)).not.toBeInTheDocument();
     });

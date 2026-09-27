@@ -134,7 +134,7 @@ any toggled setting after the run.
   the section's description carries the org-default hint
   (`personalization.page.enable.followingOrgDefault` /
   `…overridingOrgDefault`); it is the page's ONLY toggle — no Memories switch
-  (retired with SET-F8, the feature is undecided); theme and language are
+  (retired with SET-F8; chat memories were removed); theme and language are
   **not** on this page (SET-F11)
 - [ ] `SET-F7` · **Custom instructions text** — With the toggle on, type into
   the instructions field
@@ -145,11 +145,10 @@ any toggled setting after the run.
   (`personalization.errors.tooLong`)
 - [ ] `SET-F8` · **~~Memories & pending sections~~ (retired)** → The
   memories section left the preferences page when custom instructions were
-  wired into chat: nothing ever proposed a memory, and whether the chat
-  assistant should keep any is an open product decision (knowledge entries
-  and the sandbox agent's own memory already cover the need). The page
-  carries the custom-instructions section only (SET-F6, SET-F7); the backend
-  store and its approval gate stay, unreachable from the UI.
+  wired into chat: nothing ever proposed a memory, and the feature was later
+  removed with its backend store (knowledge entries and the sandbox agent's
+  own memory cover the need). The page carries the custom-instructions
+  section only (SET-F6, SET-F7).
 - [ ] `SET-F9` · **Notification preferences** —
   `/dashboard/{org}/settings/notifications` → flip e.g. **Task assigned to
   me** (`notificationPreferences.fields.taskAssigned.label`); inspect **Review

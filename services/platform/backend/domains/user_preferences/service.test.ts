@@ -50,7 +50,6 @@ function row(overrides: {
   return {
     customInstructions: overrides.customInstructions ?? '',
     customInstructionsEnabled: overrides.customInstructionsEnabled ?? null,
-    memoriesEnabled: null,
     voiceOutput: null,
     chatModelId: null,
     chatModelProviderSlug: null,
