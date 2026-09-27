@@ -205,7 +205,7 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
 1. transform — pure JavaScript for reshaping data (no network, no imports).
    "code" is a function body; "input" is this node's own evaluated input object (define what the code needs). It MUST return a value.
 
-2. llm — call a language model. "model" is required and always explicit — the engine never picks one for you.
+2. llm — call a language model. "model" is required and always explicit — the engine never picks one for you; it must be a model one of the organization's connected providers serves (validate_automation warns LLM_MODEL_UNAVAILABLE otherwise, and a live run fails at the node).
    {id, type: llm, model: "<model id>", system?: "...", prompt: "... {{ nodes.get.output }} ..."} → output {text: string}
    With "outputSchema" (a JSON Schema), the output becomes the schema-shaped OBJECT instead — this is the one bridge from free text to structured data, and the fix for "an unstructured output has no fields".
 

@@ -13,7 +13,7 @@ import type {
   UsageMetric,
 } from '@/app/features/analytics/usage/usage-trend-chart';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { ensureConvexQuery } from '@/app/lib/loader-preload';
+import { ensureOrgSettingsQuery } from '@/app/lib/loader-preload';
 
 export const Route = createFileRoute('/dashboard/$id/settings/metrics/usage')({
   validateSearch: usageSearchSchema,
@@ -27,14 +27,19 @@ export const Route = createFileRoute('/dashboard/$id/settings/metrics/usage')({
   // capped series + top-N), safe to await; never fail the transition on a
   // transient/auth error.
   loader: ({ context, params, deps }) =>
-    ensureConvexQuery(context, 'governance/queries:getOrgUsageMetrics', {
-      organizationId: params.id,
-      periodDays: deps.periodDays,
-      granularity: deps.granularity,
-      agentSlug: undefined,
-      model: undefined,
-      provider: undefined,
-    }).catch((error: unknown) => {
+    ensureOrgSettingsQuery(
+      context,
+      params.id,
+      'governance/queries:getOrgUsageMetrics',
+      {
+        organizationId: params.id,
+        periodDays: deps.periodDays,
+        granularity: deps.granularity,
+        agentSlug: undefined,
+        model: undefined,
+        provider: undefined,
+      },
+    ).catch((error: unknown) => {
       console.warn('Failed to preload usage metrics', error);
     }),
   component: UsageRoute,

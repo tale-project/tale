@@ -49,6 +49,7 @@ import {
   loadActiveHolds,
 } from '../legal_holds/service.ts';
 import { retireTasksInTx } from '../tasks/retire.ts';
+import { clearAgentAssignmentsInTx } from '../tasks/unassign.ts';
 import {
   AGENT_TOOL_GRANT_NAMES,
   agentEquipmentRefusal,
@@ -219,7 +220,10 @@ function stampAccessFlags(
   const access = checkProjectAccess(accessInput(row), auth.teamIds, auth.role);
   return Object.assign(row, {
     isOrgWide: isOrgWideProject(accessInput(row)),
-    canEdit: access.canEdit,
+    // An archived project is read-only for everyone: the write CTAs the UI
+    // gates on `canEdit` vanish with it. `canAdminister` stays, so Restore
+    // (and Delete) remain reachable — that is how it stops being archived.
+    canEdit: access.canEdit && row.archivedAt === null,
     canAdminister: access.canAdminister,
   });
 }
@@ -290,6 +294,27 @@ export function assertWritable(
   if (!access.canEdit) {
     throw new ProjectError('RBAC_FORBIDDEN', 'Editor role required', 403);
   }
+}
+
+/**
+ * An archived project is read-only: every write on it — its own settings,
+ * its agents, tasks, documents and folders — answers this one code, so a
+ * door can tell "restore it first" from "you may not". The lifecycle verbs
+ * (restore, delete) stay admin verbs and never pass through here.
+ */
+export function assertProjectActive(project: ProjectRow): void {
+  if (project.archivedAt !== null) {
+    throw new ProjectError('PROJECT_ARCHIVED', 'Project is archived', 403);
+  }
+}
+
+/** The project-settings write gate: editable by the caller AND active. */
+function assertActiveWritable(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): void {
+  assertWritable(project, auth);
+  assertProjectActive(project);
 }
 
 function assertAdmin(auth: ProjectAuthContext): void {
@@ -820,7 +845,7 @@ export async function updateProjectIdentity(
   },
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertWritable(project, auth);
+  assertActiveWritable(project, auth);
 
   const previousState: Record<string, unknown> = {};
   const newState: Record<string, unknown> = {};
@@ -905,7 +930,7 @@ export async function updateProjectExternalItemId(
   args: { projectId: string; externalItemId: string | null },
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertWritable(project, auth);
+  assertActiveWritable(project, auth);
   const externalItemId =
     args.externalItemId === null
       ? null
@@ -963,7 +988,7 @@ export async function updateProjectInstructions(
   instructions: string,
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, projectId);
-  assertWritable(project, auth);
+  assertActiveWritable(project, auth);
   const validated = validateInstructions(instructions);
   await tx`
     UPDATE app.projects SET
@@ -1000,6 +1025,9 @@ export async function updateProjectSharing(
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertReadable(project, auth);
   assertAdmin(auth);
+  // The audience is a write like any other: an archived project refuses it
+  // (the REST door already did; the app door now agrees).
+  assertProjectActive(project);
 
   let requested: string[];
   if (args.teamIds !== undefined) {
@@ -1068,7 +1096,7 @@ export async function updateProjectKnowledgeMode(
   knowledgeMode: 'off' | 'tool' | 'context' | 'both',
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, projectId);
-  assertWritable(project, auth);
+  assertActiveWritable(project, auth);
   await tx`
     UPDATE app.projects SET
       knowledge_mode = ${knowledgeMode}, updated_at_ms = ${Date.now()}
@@ -1097,7 +1125,7 @@ export async function updateProjectAgentSettings(
   },
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertWritable(project, auth);
+  assertActiveWritable(project, auth);
 
   const previousState = {
     agentMode: project.agentMode ?? 'all',
@@ -1158,7 +1186,7 @@ export async function updateProjectModelSettings(
   },
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertWritable(project, auth);
+  assertActiveWritable(project, auth);
   const previousState = {
     modelMode: project.modelMode ?? 'all',
     recommendedModels: project.recommendedModels,
@@ -1203,7 +1231,7 @@ export async function updateProjectConnectorSettings(
   },
 ): Promise<void> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertWritable(project, auth);
+  assertActiveWritable(project, auth);
   const previousState = {
     connectorsMode: project.connectorsMode ?? 'all',
     allowedConnectorSlugs: project.allowedConnectorSlugs,
@@ -1775,14 +1803,7 @@ function assertAgentWritable(
   project: ProjectRow,
   auth: ProjectAuthContext,
 ): void {
-  assertWritable(project, auth);
-  if (project.archivedAt !== null) {
-    throw new ProjectError(
-      'PROJECT_FORBIDDEN',
-      'You do not have permission to modify this project',
-      403,
-    );
-  }
+  assertActiveWritable(project, auth);
 }
 
 export async function listProjectAgents(
@@ -2058,6 +2079,15 @@ export async function deleteProjectAgent(
   assertAgentWritable(project, auth);
 
   await tx`DELETE FROM app.project_agents WHERE id = ${agentId}`;
+  // The docs' promise, kept in the same transaction: no task stays "assigned"
+  // to a row that is gone (the board showed the raw id, Retry re-kicked an
+  // agent that could not exist). History — runs, comments, activity — stays.
+  const unassignedTaskIds = await clearAgentAssignmentsInTx(tx, {
+    organizationId: auth.organizationId,
+    projectId: agent.projectId,
+    agentId,
+    actorId: auth.userId,
+  });
   await tx`
     UPDATE app.projects SET
       project_agent_count = greatest(project_agent_count - 1, 0),
@@ -2068,7 +2098,11 @@ export async function deleteProjectAgent(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
       previousState: { name: agent.name, harness: agent.harness },
-      metadata: { op: 'delete', projectAgentId: agentId },
+      metadata: {
+        op: 'delete',
+        projectAgentId: agentId,
+        unassignedTaskCount: unassignedTaskIds.length,
+      },
     }),
   );
   await hintProject(tx, auth.organizationId, agent.projectId);

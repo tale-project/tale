@@ -39,7 +39,7 @@ Un admin peut placer un gel. Sa libération exige deux personnes et un délai. U
 
 Un gel peut empêcher une demande d’effacement, la suppression des chats ou documents couverts, ou celle d’un dossier contenant des fichiers gelés. Tout gel actif au niveau de l’organisation ou d’un membre empêche aussi la suppression de l’organisation elle-même.
 
-Si une suppression échoue, examine le gel concerné au lieu de répéter l’action. Libérer un gel ne retire pas un autre gel qui couvre les mêmes données. La libération permet à la rétention ou à l’effacement applicable de reprendre.
+Si une suppression échoue, examine le gel concerné au lieu de répéter l’action. Libérer un gel ne retire pas un autre gel qui couvre les mêmes données. La libération permet à la rétention ou à l’effacement applicable de reprendre. Un reçu d’effacement bloqué par le gel ne reprend pas tout seul : ouvre-le dans Demandes des personnes concernées et choisis **Réessayer**.
 
 ## Examiner les demandes liées
 

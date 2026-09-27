@@ -408,6 +408,14 @@ const runProperties: Record<string, Json> = {
       'in-product builder recorded before it prefixed them. Split ' +
       'on the first `:`; treat a value without one as a user id.',
   },
+  startedVia: {
+    type: 'string',
+    enum: ['schedule', 'webhook', 'event'],
+    description:
+      'Which kind of trigger started a `trigger:<id>` run — read off the ' +
+      'run’s own input (`input.trigger`), so it stays true after the ' +
+      'binding changes kind. Absent on a run a person or an API key started.',
+  },
   input: {},
   output: {},
   checkpoints: {},
@@ -2355,12 +2363,15 @@ export function buildSpec(): Json {
       summary: 'Delete product',
       operationId: 'deleteProduct',
       description:
-        'Deletes the product permanently — products have no trash and no restore, unlike contacts: its `name` and `externalId` are free for a new product at once (a re-created product is a new row with a new id, so a catalog sync must re-key anything it holds on the old one). A product already deleted answers 404 `PRODUCT_NOT_FOUND`.',
+        'Deletes the product permanently — products have no trash and no restore, unlike contacts: its `name` and `externalId` are free for a new product at once (a re-created product is a new row with a new id, so a catalog sync must re-key anything it holds on the old one). A product already deleted answers 404 `PRODUCT_NOT_FOUND`. Legal holds gate the delete the way they gate document and contact deletes: an organization-wide hold, or a custodian hold on the user who uploaded the product’s image, answers 409 `LEGAL_HOLD_ACTIVE` and nothing is removed.',
       security: sec,
       parameters: [pathParam('id', 'Product ID')],
       responses: {
         '204': noContent('Deleted'),
         '404': errorResponse('Product not found'),
+        '409': errorResponse(
+          'A legal hold on the organization, or on the uploader of the product’s image (`LEGAL_HOLD_ACTIVE`)',
+        ),
         ...standardErrors,
       },
     },
@@ -8538,6 +8549,15 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'the trigger read answers), or a bare user id on runs the ' +
                 'in-product builder recorded before it prefixed them. Split ' +
                 'on the first `:`; treat a value without one as a user id.',
+            },
+            startedVia: {
+              type: 'string',
+              enum: ['schedule', 'webhook', 'event'],
+              description:
+                'Which kind of trigger started a `trigger:<id>` run — read ' +
+                'off the run’s own input, so it stays true after the ' +
+                'binding changes kind. Absent on a run a person or an API ' +
+                'key started.',
             },
             detail: {
               ...str,

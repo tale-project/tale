@@ -18,7 +18,7 @@ import {
 } from 'react';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -72,7 +72,7 @@ export function DocumentUploadDialog({
   // teams — or the destination folder has its own, which then wins.
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
 
-  const { teams, isLoading: isLoadingTeams } = useTeams();
+  const { teams, isLoading: isLoadingTeams } = useOrgTeams();
   const policyLimits = useUploadPolicy(organizationId);
   // Proactive quota meter — only rendered when the org enforces a per-user
   // volume cap, so a full quota is visible before it rejects an upload.
@@ -270,15 +270,13 @@ export function DocumentUploadDialog({
 
         {/* Team selection */}
         <Stack gap={2}>
-          <span className="text-muted-foreground text-sm font-medium">
-            {tDocuments('upload.selectTeams')}
-          </span>
           {isLoadingTeams ? (
             <Row gap={0} justify="center" className="py-3">
               <Spinner size="sm" label={tCommon('actions.loading')} />
             </Row>
           ) : (
             <TeamMultiSelect
+              label={tDocuments('upload.selectTeams')}
               teams={teams ?? []}
               selectedTeamIds={selectedTeamIds}
               onSelectionChange={handleTeamSelectionChange}

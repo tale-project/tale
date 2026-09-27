@@ -22,6 +22,7 @@ import { getOrgAutomationMetrics } from './metrics.ts';
 import {
   AutomationError,
   answerAsk,
+  automationTombstone,
   beginRun,
   cancelRun,
   deleteAutomationCascade,
@@ -36,6 +37,7 @@ import {
   saveVersion,
   setAutomationProjects,
   setTrigger,
+  toRunDetail,
   versionRow,
   deployedVersion,
   bindingProjectIds,
@@ -387,7 +389,12 @@ export function createAutomationRoutes(deps: {
   app.post('/runs/:runId/cancel', async (c) => {
     try {
       return c.json(
-        await cancelRun(deps.sql, c.get('orgId'), c.req.param('runId')),
+        await cancelRun(
+          deps.sql,
+          c.get('orgId'),
+          c.req.param('runId'),
+          c.get('sessionBundle').user.id,
+        ),
       );
     } catch (error) {
       // cancelRun is now a terminal door (audit row + session stop) — surface
@@ -396,24 +403,28 @@ export function createAutomationRoutes(deps: {
     }
   });
 
+  // Both run reads answer the read model (`waitingFor`, `startedVia`), never
+  // the raw row: the app names what a run waits on and what started it in
+  // words, and the row's ask fact is the read's own input.
   app.get('/runs/:runId', async (c) => {
     const run = await getRun(deps.sql, c.get('orgId'), c.req.param('runId'));
     return run === null
       ? c.json({ error: 'run not found' }, 404)
-      : c.json({ run });
+      : c.json({ run: toRunDetail(run) });
   });
 
   app.get('/runs', async (c) => {
     const name = c.req.query('name');
     const projectId = c.req.query('projectId');
     const limitRaw = Number(c.req.query('limit') ?? '50');
-    return c.json({
-      runs: await listRuns(deps.sql, c.get('orgId'), {
-        ...(name !== undefined ? { name } : {}),
-        ...(projectId !== undefined ? { projectId } : {}),
-        ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
-      }),
+    const rows = await listRuns(deps.sql, c.get('orgId'), {
+      ...(name !== undefined ? { name } : {}),
+      ...(projectId !== undefined ? { projectId } : {}),
+      ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
     });
+    // The full rows, not summaries: the editor overlays the last run's
+    // trace and checkpoints on the canvas from this listing.
+    return c.json({ runs: rows.map(toRunDetail) });
   });
 
   app.post('/:name{.+}/save', async (c) => {
@@ -674,6 +685,40 @@ export function createAutomationRoutes(deps: {
       Number.isFinite(versionParam) ? versionParam : undefined,
     );
     if (!row) {
+      // `?version=N` on an automation that EXISTS is a missing version, not
+      // a missing automation: the editor used to show "Automation not found"
+      // under the automation's own tabs. The REST door's code for the same
+      // case, with the latest version the client can fall back to.
+      if (Number.isFinite(versionParam)) {
+        const latest = await versionRow(deps.sql, orgId, name, undefined);
+        if (latest) {
+          return handleError(
+            c,
+            new AutomationError(
+              'AUTOMATION_VERSION_UNKNOWN',
+              `version ${versionParam} of ${name} does not exist — the latest is ${latest.version}`,
+              404,
+              { latestVersion: latest.version },
+            ),
+          );
+        }
+      }
+      // A deleted automation is not "not found": its runs are kept until
+      // retention removes them, and a run page must be able to say so — a
+      // run link used to open a blank page under repeated 404s
+      // (2026-09-26 evaluation, D-14). Still a 404, with the date.
+      const tombstone = await automationTombstone(deps.sql, orgId, name);
+      if (tombstone !== null) {
+        return handleError(
+          c,
+          new AutomationError(
+            'AUTOMATION_DELETED',
+            `"${name}" was deleted — its run history stays until retention removes it`,
+            404,
+            { deletedAt: tombstone.deletedAt },
+          ),
+        );
+      }
       return c.json({ error: 'automation not found' }, 404);
     }
     // `deployedVersion` answers undefined (never null) for an undeployed

@@ -15,6 +15,7 @@
  */
 
 import { Alert } from '@tale/ui/alert';
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
@@ -53,6 +54,9 @@ import { READ_ONLY_EMPTY, StatusBadge } from './residency-chrome';
 /** The org's embedding config as the admin form reads it. */
 export interface KnowledgeEmbeddingView {
   configured: boolean;
+  /** False when the settings' credential selection no longer resolves —
+   *  the named credential was deleted, or the provider has no default. */
+  credentialResolvable?: boolean;
   providerSlug?: string;
   credentialId?: string;
   model?: string;
@@ -649,7 +653,14 @@ export function OrgEmbeddingSection({
 
   // Unlike the sibling toggles, the badge tracks the PERSISTED state, not the
   // reveal state: a just-opened empty form is not "Configured".
-  const statusBadge = (
+  // Settings whose credential is gone are not "Configured": indexing and
+  // search are down until a key is restored or another one chosen.
+  const credentialMissing = configured && view?.credentialResolvable === false;
+  const statusBadge = credentialMissing ? (
+    <Badge variant="orange" dot>
+      {t('dataResidency.orgEmbedding.statusCredentialMissing')}
+    </Badge>
+  ) : (
     <StatusBadge
       enabled={configured}
       onLabel={t('dataResidency.orgEmbedding.statusConfigured')}
@@ -742,6 +753,13 @@ export function OrgEmbeddingSection({
             />
             {recommendationAlert}
           </Stack>
+        ) : credentialMissing ? (
+          <Alert
+            variant="warning"
+            description={t(
+              'dataResidency.orgEmbedding.credentialMissingWarning',
+            )}
+          />
         ) : null
       ) : (
         <Stack gap={5}>
@@ -749,6 +767,13 @@ export function OrgEmbeddingSection({
             <Alert
               variant="warning"
               description={t('dataResidency.orgEmbedding.notConfiguredWarning')}
+            />
+          ) : credentialMissing ? (
+            <Alert
+              variant="warning"
+              description={t(
+                'dataResidency.orgEmbedding.credentialMissingWarning',
+              )}
             />
           ) : null}
           {recommendationAlert}

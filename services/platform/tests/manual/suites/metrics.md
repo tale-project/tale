@@ -1,6 +1,6 @@
 # Metrics
 
-> **Prefix** `MET-` · **Reset** none · **Cost** 17 boxes
+> **Prefix** `MET-` · **Reset** none · **Cost** 19 boxes
 
 Exercise the org metrics section under Settings — six tabs (Usage, Feedback,
 Chat health, Harness turns, Automations, Projects), each with the shared
@@ -155,14 +155,41 @@ rollups**, so figures may legitimately lag same-day activity.
   widens the window in place; the filter-empty alert
   (`analytics.feedback.filterEmpty.title`) offers **Clear filters** — each
   recovers to the populated view without a reload.
+- [ ] `MET-F12` · **Feedback is attributed by the reply** — In a chat under a
+  named assistant rate one reply thumbs-up, and in a plain chat (no
+  assistant) rate one reply thumbs-down → on `feedback` the **Top Assistants
+  by feedback** table (`analytics.feedback.tables.topAgents.title`) lists the
+  assistant's slug with 1 helpful and **Unattributed** with 1 not helpful;
+  **Top Models by feedback** lists the model that answered each — never the
+  empty **No model feedback yet** state while ratings exist. On
+  `chat-health` the **By model** breakdown lists each model **once**, under
+  its provider, even after a cancelled turn (which stores the model alone).
+  Cast one arena verdict on two copies of the same model → **Arena verdicts**
+  gains a **Same model** cell (`analytics.feedback.arena.cells.sameModel`)
+  counting it, and **Decisive + Tie + Both bad** equals the row sum of **Top
+  Model Matchups**.
+- [ ] `MET-F13` · **Harness turns add up and are named** — After one
+  sandboxed agent run per harness you can start (a task agent on
+  `claude-code`, an automation agent on `codex`), open `external-turns` → the
+  rail entry (`metrics.groups.external-turns`), the header
+  (`analytics.externalTurns.title`) and the table heading
+  (`analytics.externalTurns.byHarness.title`) all say **Harness**; the **By
+  harness** table names each harness slug — never `unknown` for a run that
+  started on this version; **Total turns** equals the sum of the rows'
+  **Turns**, the summary **Success rate** / **Timeout rate** equal what the
+  rows imply, and a turn that ended on the harness's own error or its turn
+  limit counts as failed in both.
 
 ## Boundary & error tests
 
 - [ ] `MET-B1` · **Role gating** — Sign in as a **developer** or **member**
-  account; hit `/dashboard/{org}/settings/metrics/usage` directly → The rail
-  shows no **Metrics** group; the direct URL renders the access-denied message
-  (`accessDenied.organization`) after the ability loads — never a partial page
-  or raw error.
+  account; hit `/dashboard/{org}/settings/metrics/usage` directly (then
+  `…/metrics/feedback`, `…/metrics/chat-health`, `…/metrics/external-turns`)
+  → The rail shows no **Metrics** group; the direct URL renders the
+  access-denied message (`accessDenied.organization`) **within 2 s** of the
+  navigation — never a partial page, a raw error, or a longer skeleton; the
+  network log shows each admin read refused once (no retried 403s), and the
+  shell asks neither the embedding-model nor the provider-credentials door.
 - [ ] `MET-B2` · **Legacy redirects & bad params** — Open
   `/dashboard/{org}/automations/metrics?period=90`,
   `/dashboard/{org}/settings/governance/usage`,

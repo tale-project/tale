@@ -142,6 +142,51 @@ describe('TrashPage', () => {
     expect(screen.getByRole('button', { name: FILTER_BUTTON })).toBeEnabled();
   });
 
+  // 2026-09-26 evaluation, E-20/G-15: the filter offered both "Chat history"
+  // and "Chats", "Automation runs" beside a raw `automationRun`, and other
+  // categories the server never lists.
+  it('offers each listable category once, labelled, and nothing the server never lists', async () => {
+    mockListTrashedRows.mockReturnValue({
+      data: {
+        rows: [
+          {
+            resourceType: 'chatThread' as const,
+            id: 'thread-1',
+            status: 'trashed' as const,
+            statusChangedAt: Date.now(),
+            createdAt: Date.now(),
+            displayName: 'Why the sky is blue',
+            ownerId: 'user-1',
+            ownerName: 'Ada Lovelace',
+          },
+        ],
+        nextCursor: null,
+      },
+      isLoading: false,
+    });
+
+    const { user } = render(<TrashPage organizationId="org-1" />);
+    expect(screen.getByText('Why the sky is blue')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: FILTER_BUTTON }));
+    if (screen.queryAllByRole('checkbox').length === 0) {
+      await user.click(screen.getByRole('button', { name: /Category/ }));
+    }
+    const categories = [
+      'Chats',
+      'Contacts',
+      'Documents',
+      'External conversations',
+      'Message feedback',
+      'Temporary files',
+    ];
+    // `getByRole` throws on a duplicate, so each category is offered once.
+    for (const name of categories) {
+      expect(screen.getByRole('checkbox', { name })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole('checkbox')).toHaveLength(categories.length);
+  });
+
   it('renders the fixed frame the Logs table uses', () => {
     // The trash table scrolls its own rows, the way the Logs table does: the
     // section header, the column headers and the count footer stay put while

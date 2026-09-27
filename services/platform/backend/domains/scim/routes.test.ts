@@ -9,6 +9,7 @@ import { scimResponseForAppError } from './routes.ts';
 describe('scimResponseForAppError', () => {
   it.each([
     ['scim_user_conflict', 409, 'uniqueness'],
+    ['scim_group_conflict', 409, 'uniqueness'],
     ['scim_owner_protected', 403, 'mutability'],
     ['scim_identity_shared', 403, 'mutability'],
     ['scim_invalid_member', 400, 'invalidValue'],

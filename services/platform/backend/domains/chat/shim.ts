@@ -178,6 +178,8 @@ interface TaskLegRow {
   _id: string;
   title: string;
   description?: string;
+  /** The per-project sequence behind the human key (`KEY-n`). */
+  number?: number;
   status: string;
   priority?: string;
   assigneeType?: string;
@@ -226,27 +228,37 @@ async function searchTasks(
   const like = `%${term}%`;
   const words = wordStartPatterns(term);
   const status = args.status;
+  // The human task key (`KEY-n`) is what the board, the global search and a
+  // reply show, so a question naming one must resolve it: the key is the
+  // project's key joined to the task's number, matched whole and
+  // case-insensitively, and an exact key match leads the page. `t.` on
+  // every column — projects carry `description` and `status` too.
+  const keyed = term !== '';
   const walk = async (
     listing: boolean,
     page: { limit: number; offset: number },
   ): Promise<TaskLegRow[]> => {
     const rows = await sql<TaskLegRow[]>`
-      SELECT id AS "_id", title, description, status, priority,
-             assignee_type AS "assigneeType", assignee_id AS "assigneeId",
-             project_id AS "projectId", due_date_ms::float8 AS "dueDate",
-             archived_at_ms::float8 AS "archivedAt"
-      FROM app.tasks
-      WHERE org_id = ${args.organizationId}
-        AND project_id = ANY(${readable})
-        AND (${listing || term === ''} OR title ILIKE ${like}
-             OR description ILIKE ${like}
+      SELECT t.id AS "_id", t.title, t.description, t.number, t.status,
+             t.priority,
+             t.assignee_type AS "assigneeType", t.assignee_id AS "assigneeId",
+             t.project_id AS "projectId", t.due_date_ms::float8 AS "dueDate",
+             t.archived_at_ms::float8 AS "archivedAt"
+      FROM app.tasks t
+      LEFT JOIN app.projects p ON p.id = t.project_id
+      WHERE t.org_id = ${args.organizationId}
+        AND t.project_id = ANY(${readable})
+        AND (${listing || term === ''} OR t.title ILIKE ${like}
+             OR t.description ILIKE ${like}
+             OR lower(coalesce(p.key || '-' || t.number::text, '')) = lower(${term})
              OR (${words.length > 0}
-                 AND (title ~* ANY(${words}) OR description ~* ANY(${words}))))
+                 AND (t.title ~* ANY(${words}) OR t.description ~* ANY(${words}))))
         AND (${status === undefined}
-             OR (${status ?? ''} = 'open' AND NOT (status = ANY(${OPEN_EXCLUDED})))
-             OR status = ${status ?? ''})
-        AND (${args.excludeArchived !== true} OR archived_at_ms IS NULL)
-      ORDER BY updated_at_ms DESC
+             OR (${status ?? ''} = 'open' AND NOT (t.status = ANY(${OPEN_EXCLUDED})))
+             OR t.status = ${status ?? ''})
+        AND (${args.excludeArchived !== true} OR t.archived_at_ms IS NULL)
+      ORDER BY (${keyed} AND lower(coalesce(p.key || '-' || t.number::text, '')) = lower(${term})) DESC,
+               t.updated_at_ms DESC
       LIMIT ${page.limit + 1} OFFSET ${page.offset}
     `;
     const nullsStripped = rows.map((row) =>
@@ -854,7 +866,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { taskId: string; organizationId: string };
       const rows = await sql<TaskLegRow[]>`
-        SELECT id AS "_id", title, description, status, priority,
+        SELECT id AS "_id", title, description, number, status, priority,
                assignee_type AS "assigneeType", assignee_id AS "assigneeId",
                project_id AS "projectId", due_date_ms::float8 AS "dueDate",
                archived_at_ms::float8 AS "archivedAt"
@@ -879,7 +891,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const tasks = await sql<
         (TaskLegRow & { discussionThreadId: string | null })[]
       >`
-        SELECT id AS "_id", title, description, status, priority,
+        SELECT id AS "_id", title, description, number, status, priority,
                project_id AS "projectId",
                discussion_thread_id AS "discussionThreadId"
         FROM app.tasks
@@ -937,6 +949,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           _id: task._id,
           title: task.title,
           status: task.status,
+          ...(task.number != null ? { number: task.number } : {}),
           ...(task.description != null
             ? { description: task.description }
             : {}),

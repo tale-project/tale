@@ -19,7 +19,7 @@ Prüfe ein Release in dieser Reihenfolge. Überschriften und Detailtiefe können
 | --- | --- |
 | Inkompatible Änderungen und Verhaltensänderungen | Welche Abläufe, Standardwerte oder Konfigurationen ändern sich? |
 | Migrationen und Upgrade-Anleitung | Welche Voraussetzungen, Unterbrechungen oder Wiederherstellungsschritte sind nötig? |
-| API-Änderungen | Brauchen Clients neue Anfragefelder, angepasstes Verhalten oder eine andere Fehlerbehandlung? |
+| API-Änderungen | Brauchen Clients neue Anfragefelder, angepasstes Verhalten oder eine andere Fehlerbehandlung? Dieser Abschnitt wird beim Release aus dem Vertrags-Fingerabdruck erzeugt: Hat sich `info.version` seit dem vorherigen Tag geändert, nennt er die alte und die neue Version, die hinzugekommenen und entfernten Operationen sowie den Changelog-Eintrag des Vertrags; sonst hält er fest, dass der Vertrag unverändert bleibt. |
 | Sicherheit | Ist deine Installation betroffen, und welche korrigierte Version oder Übergangslösung hilft? |
 | Bekannte Probleme | Sind die Einschränkungen akzeptabel und die Übergangslösungen praktikabel? |
 | Neuerungen und vollständige Änderungsliste | Welche Funktionen und Korrekturen sollten deine Benutzer kennen? |

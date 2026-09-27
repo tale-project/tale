@@ -14,9 +14,15 @@
 
 import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setEnqueueBoss } from '../../jobs/enqueue.ts';
+
+const { createAuditLog } = vi.hoisted(() => ({
+  createAuditLog: vi.fn(async () => 'audit_1'),
+}));
+vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
+
 import { cancelRunInTx, finishRun } from './store.ts';
 
 interface Statement {
@@ -62,6 +68,7 @@ const runRow = {
 };
 
 beforeEach(() => {
+  createAuditLog.mockClear();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- capture stub; nothing here enqueues, but the doors share the module
   setEnqueueBoss({
     send: () => Promise.resolve('job-id'),
@@ -125,5 +132,47 @@ describe('the terminal doors withdraw the run’s open approvals', () => {
     });
     expect(result).toEqual({ status: 'failed' });
     expectWithdrawal(fake.statements);
+  });
+});
+
+/**
+ * The stop's audit row names the person who stopped the run. It used to
+ * name the run's STARTER as `system`, so a stop by a colleague read as the
+ * starter's own doing (2026-09-26 evaluation, D-07). The count of approvals
+ * the stop withdrew rides on the row, since the run's own park string is
+ * cleared by the cancel.
+ */
+describe('the cancel audit row', () => {
+  it('names the acting user and the approvals the stop withdrew', async () => {
+    const fake = fakeSql({ ...runRow, mode: 'live', startedBy: 'user:u_1' });
+    await cancelRunInTx(
+      fake.sql as unknown as TransactionSql,
+      'org_1',
+      'run_1',
+      'u_2',
+    );
+    expect(createAuditLog).toHaveBeenCalledWith(
+      fake.sql,
+      expect.objectContaining({
+        actorId: 'u_2',
+        actorType: 'user',
+        action: 'automation.run.cancelled',
+        resourceId: 'run_1',
+        metadata: { approvalsWithdrawn: 2 },
+      }),
+    );
+  });
+
+  it('falls back to the starter as `system` when nobody asked for the stop', async () => {
+    const fake = fakeSql({ ...runRow, mode: 'live', startedBy: 'user:u_1' });
+    await cancelRunInTx(
+      fake.sql as unknown as TransactionSql,
+      'org_1',
+      'run_1',
+    );
+    expect(createAuditLog).toHaveBeenCalledWith(
+      fake.sql,
+      expect.objectContaining({ actorId: 'user:u_1', actorType: 'system' }),
+    );
   });
 });

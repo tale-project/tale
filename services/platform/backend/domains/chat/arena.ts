@@ -7,6 +7,8 @@ import {
 } from '../../../lib/shared/arena.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { toJson } from '../../db/sql.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
+import { loadActiveHolds } from '../legal_holds/service.ts';
 import { loadOwnedThread } from './threads.ts';
 
 /**
@@ -20,7 +22,9 @@ import { loadOwnedThread } from './threads.ts';
  *
  * B ties into A's lineage (`branch_root_id`) for the trash cascade but never
  * `branch_parent_id`, so the branch navigator never surfaces the hidden
- * column as an edit sibling.
+ * column as an edit sibling. Settling detaches the loser and moves it to
+ * Trash as a conversation of its own — never a hidden row nobody can list,
+ * open or delete.
  */
 
 /** Bound on the history copied into column B — enough conversation for a
@@ -369,12 +373,18 @@ export type SettleArenaResult =
 
 /**
  * Settle the pair. The verdict picks the surviving thread (`b_better` → B,
- * everything else → A; no verdict = plain exit → A). The loser goes
- * hidden + archived with its marker cleared; a winning B graduates to a
- * standalone visible conversation. A verdict also records itself as a fresh
- * `message_feedback` row in the SAME transaction — and only when BOTH
- * columns hold a finished reply written since the pair formed; a plain exit
- * needs no such round.
+ * everything else → A; no verdict = plain exit → A). A winning B graduates
+ * to a standalone visible conversation. The loser is discarded the way a
+ * deleted chat is: detached from the lineage and moved to Trash in the SAME
+ * transaction (`status = 'trashed'`, its own hidden edit siblings with it),
+ * so it shows in the organization's Trash under its title, an admin can
+ * restore it, retention purges it after the grace window, and its old URL
+ * answers "not found" instead of an archived stub nobody can list or delete
+ * (2026-09-26 evaluation, A-09). A legal hold freezes deletion, so under a
+ * hold the loser stays a hidden, archived root as before. A verdict also
+ * records itself as a fresh `message_feedback` row in the same transaction —
+ * and only when BOTH columns hold a finished reply written since the pair
+ * formed; a plain exit needs no such round.
  */
 export async function settleArenaPair(
   sql: Sql,
@@ -392,63 +402,88 @@ export async function settleArenaPair(
     args.threadId,
   );
   if (thread === null) return { refused: 'not_found' };
-  const arena = await arenaStateOf(sql, args.organizationId, thread.id);
-  if (arena === null) return { refused: 'not_found' };
+  // An unlocked peek names the partner; the pair itself is judged under
+  // the lock below, never from this read.
+  const peek = await arenaStateOf(sql, args.organizationId, thread.id);
+  if (peek === null) return { refused: 'not_found' };
 
-  const partnerArena = await arenaStateOf(
-    sql,
-    args.organizationId,
-    arena.partnerThreadId,
-  );
-  if (partnerArena?.pairId !== arena.pairId) {
-    // Half-open pair: clear the marker so the surface recovers.
-    await sql`
-      UPDATE app.thread_metadata SET arena = NULL
-      WHERE thread_id = ${thread.id} AND org_id = ${args.organizationId}
+  return sql.begin(async (tx): Promise<SettleArenaResult> => {
+    // Both columns locked FOR UPDATE, in thread-id order so a settle from
+    // each side never deadlocks. Two settles of one pair used to read the
+    // pair outside the transaction and both run their UPDATEs: the second
+    // trashed the first's survivor. Under the lock the second one finds
+    // `arena` already NULL and answers not_found instead.
+    const locked = await tx<{ threadId: string; arena: unknown }[]>`
+      SELECT thread_id AS "threadId", arena FROM app.thread_metadata
+      WHERE org_id = ${args.organizationId}
+        AND thread_id IN (${thread.id}, ${peek.partnerThreadId})
+      ORDER BY thread_id
+      FOR UPDATE
     `;
-    return { refused: 'not_found' };
-  }
+    const arena = readArena(
+      locked.find((row) => row.threadId === thread.id)?.arena,
+    );
+    if (arena === null) return { refused: 'not_found' };
+    // Re-paired with someone else between the peek and the lock: the new
+    // partner's row is not locked here, so let the caller try again.
+    if (arena.partnerThreadId !== peek.partnerThreadId) {
+      return { refused: 'busy' };
+    }
+    const partnerArena = readArena(
+      locked.find((row) => row.threadId === arena.partnerThreadId)?.arena,
+    );
+    if (partnerArena?.pairId !== arena.pairId) {
+      // Half-open pair: clear the marker so the surface recovers.
+      await tx`
+        UPDATE app.thread_metadata SET arena = NULL
+        WHERE thread_id = ${thread.id} AND org_id = ${args.organizationId}
+      `;
+      return { refused: 'not_found' };
+    }
 
-  const idA = arena.role === 'a' ? thread.id : arena.partnerThreadId;
-  const idB = arena.role === 'a' ? arena.partnerThreadId : thread.id;
+    const idA = arena.role === 'a' ? thread.id : arena.partnerThreadId;
+    const idB = arena.role === 'a' ? arena.partnerThreadId : thread.id;
 
-  // A verdict about answers mid-flight would rate an unfinished reply.
-  if (
-    (await hasLiveGeneration(sql, args.organizationId, idA)) ||
-    (await hasLiveGeneration(sql, args.organizationId, idB))
-  ) {
-    return { refused: 'busy' };
-  }
+    // A verdict about answers mid-flight would rate an unfinished reply.
+    if (
+      (await hasLiveGeneration(tx, args.organizationId, idA)) ||
+      (await hasLiveGeneration(tx, args.organizationId, idB))
+    ) {
+      return { refused: 'busy' };
+    }
 
-  // A verdict compares THIS round's two replies. A column whose newest
-  // turn row is not a finished reply written since pairing — a side the
-  // fan-out could not start, an unanswered prompt, or only the copied
-  // history (which carries a model too) — has nothing to rate: the verdict
-  // is refused rather than attributed to a reply that never happened.
-  if (
-    args.verdict !== undefined &&
-    !(
-      (await hasJudgeableReply(sql, idA, arena.createdAt)) &&
-      (await hasJudgeableReply(sql, idB, arena.createdAt))
-    )
-  ) {
-    return { refused: 'one_sided' };
-  }
+    // A verdict compares THIS round's two replies. A column whose newest
+    // turn row is not a finished reply written since pairing — a side the
+    // fan-out could not start, an unanswered prompt, or only the copied
+    // history (which carries a model too) — has nothing to rate: the verdict
+    // is refused rather than attributed to a reply that never happened.
+    if (
+      args.verdict !== undefined &&
+      !(
+        (await hasJudgeableReply(tx, idA, arena.createdAt)) &&
+        (await hasJudgeableReply(tx, idB, arena.createdAt))
+      )
+    ) {
+      return { refused: 'one_sided' };
+    }
 
-  const winnerId = args.verdict === 'b_better' ? idB : idA;
-  const loserId = winnerId === idA ? idB : idA;
+    const winnerId = args.verdict === 'b_better' ? idB : idA;
+    const loserId = winnerId === idA ? idB : idA;
 
-  await sql.begin(async (tx) => {
-    await tx`
-      UPDATE app.thread_metadata
-      SET arena = NULL, hidden = true, archived = true
-      WHERE thread_id = ${loserId} AND org_id = ${args.organizationId}
-    `;
+    // The same custodian check `trashThread` makes: both columns belong to
+    // the pair's owner, so one read covers the loser — inside the
+    // transaction, so a hold placed meanwhile is honoured.
+    const holds = await loadActiveHolds(tx, args.organizationId);
+    const loserHeld =
+      holds.orgHeld || holds.userMembershipIds.has(thread.userId);
+    const now = Date.now();
+
     if (winnerId === idB) {
       // B graduates to a standalone visible conversation and takes over what
       // the conversation had on A — its pin, its read watermark, and (for a
-      // pair opened before B carried the project) its filing. The losing A
-      // stays a hidden root until retention reaps it.
+      // pair opened before B carried the project) its filing. It leaves A's
+      // lineage BEFORE the loser's cascade below, so trashing A never takes
+      // the winner with it.
       await tx`
         UPDATE app.thread_metadata b
         SET arena = NULL, hidden = NULL, branch_root_id = NULL,
@@ -466,18 +501,63 @@ export async function settleArenaPair(
       `;
     }
 
+    if (loserHeld) {
+      await tx`
+        UPDATE app.thread_metadata
+        SET arena = NULL, hidden = true, archived = true
+        WHERE thread_id = ${loserId} AND org_id = ${args.organizationId}
+      `;
+    } else {
+      // Detached: a losing B carried `branch_root_id = A`, and as a trashed
+      // root of its own it is what Trash lists, what an admin restores, and
+      // what retention's root walk purges. A losing A takes its own edit
+      // siblings with it, as a deleted chat does; the cascade's
+      // `status = 'active'` guard keeps a later delete of the survivor from
+      // touching these rows twice.
+      await tx`
+        UPDATE app.thread_metadata
+        SET arena = NULL, hidden = NULL, branch_root_id = NULL,
+            status = 'trashed', status_changed_at_ms = ${now}
+        WHERE thread_id = ${loserId} AND org_id = ${args.organizationId}
+          AND status = 'active'
+      `;
+      await tx`
+        UPDATE app.thread_metadata
+        SET status = 'trashed', status_changed_at_ms = ${now}
+        WHERE branch_root_id = ${loserId} AND org_id = ${args.organizationId}
+          AND status = 'active'
+      `;
+      await createAuditLog(tx, {
+        organizationId: args.organizationId,
+        actorId: args.userId,
+        actorType: 'user',
+        action: 'chat_thread.trashed',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: loserId,
+        ...(thread.title !== null ? { resourceName: thread.title } : {}),
+        status: 'success',
+        metadata: {
+          reason: 'arena_settled',
+          ...(args.verdict !== undefined ? { verdict: args.verdict } : {}),
+        },
+      });
+    }
+
     if (args.verdict !== undefined) {
       const modelA = await newestAssistantModel(tx, idA);
       const modelB = await newestAssistantModel(tx, idB);
       // Attribution needs both sides to have answered; an aborted pair
       // settles without a data point.
+      // The row rides the SURVIVING conversation: a loser's purge at the
+      // end of its grace window takes its feedback rows with it.
       if (modelA !== null && modelB !== null) {
         await tx`
           INSERT INTO app.message_feedback (
             org_id, thread_id, message_id, user_id, rating, metadata,
             created_at_ms
           ) VALUES (
-            ${args.organizationId}, ${idA},
+            ${args.organizationId}, ${winnerId},
             ${arenaFeedbackMessageId(modelA, modelB)}, ${args.userId},
             ${ratingForVerdict(args.verdict)},
             ${tx.json(toJson({ arenaVerdict: args.verdict, modelA, modelB }))},
@@ -486,7 +566,6 @@ export async function settleArenaPair(
         `;
       }
     }
+    return { continueThreadId: winnerId };
   });
-
-  return { continueThreadId: winnerId };
 }

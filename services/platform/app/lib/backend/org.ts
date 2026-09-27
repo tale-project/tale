@@ -266,9 +266,11 @@ export const orgWriteAdapters: Record<string, WriteAdapter> = {
       if (typeof organizationId !== 'string' || organizationId === '') {
         throw new Error('deleteOrganization needs an organization');
       }
+      const confirmName =
+        typeof args.confirmName === 'string' ? args.confirmName : '';
       return backendFetch<unknown>(
         `/organizations/${encodeURIComponent(organizationId)}/delete`,
-        { body: {} },
+        { body: { confirmName } },
       );
     },
   },

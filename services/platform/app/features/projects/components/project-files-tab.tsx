@@ -78,7 +78,7 @@ import {
 const FOLDER_UPLOAD_MAX_FILES = 200;
 const FOLDER_UPLOAD_MAX_TOTAL_BYTES = 200 * 1024 * 1024;
 
-/** Cache sentinel for a folder path that failed on FOLDER_DUPLICATE_NAME —
+/** Cache sentinel for a folder path that failed on FOLDER_NAME_TAKEN —
  * later files under the same path fail once, locally, instead of repeating
  * the failing create per file. */
 const DUPLICATE_PATH = '!duplicate';
@@ -547,7 +547,7 @@ export function ProjectFilesTab({
         if (cached === DUPLICATE_PATH) {
           // This exact path already failed on a duplicate name this batch —
           // fail its remaining files without re-hitting the server per file.
-          throw new AppError({ code: 'FOLDER_DUPLICATE_NAME' });
+          throw new AppError({ code: 'FOLDER_NAME_TAKEN' });
         }
         if (cached !== undefined) {
           parentId = cached;
@@ -573,7 +573,7 @@ export function ProjectFilesTab({
             // batch reports it once, then rethrow for the per-file handler.
             if (
               error instanceof AppError &&
-              error.data?.code === 'FOLDER_DUPLICATE_NAME'
+              error.data?.code === 'FOLDER_NAME_TAKEN'
             ) {
               cache.set(key, DUPLICATE_PATH);
             }
@@ -613,27 +613,39 @@ export function ProjectFilesTab({
       // ensured for files that will actually land; a directory pick full of
       // OS junk must not build its folder tree first and fail after.
       const kept: typeof entries = [];
-      const issues: Array<{ title: string; description: string }> = [];
+      const skipped: Array<{
+        name: string;
+        message: { title: string; description: string };
+      }> = [];
       for (const entry of entries) {
         const issue = validateDocumentUploadSelection(entry.file, policyLimits);
         if (issue === null) {
           kept.push(entry);
         } else {
-          issues.push(documentUploadSelectionIssueMessage(issue, tDocuments));
+          skipped.push({
+            name: entry.file.name,
+            message: documentUploadSelectionIssueMessage(issue, tDocuments),
+          });
         }
       }
-      for (const message of issues.slice(0, 3)) {
-        toast({ ...message, variant: 'destructive' });
+      if (kept.length === 0) {
+        // Nothing will upload, so each refusal is the whole story — say it now.
+        for (const { message } of skipped.slice(0, 3)) {
+          toast({ ...message, variant: 'destructive' });
+        }
+        if (skipped.length > 3) {
+          toast({
+            title: t('files.moreSkipped', {
+              count: String(skipped.length - 3),
+            }),
+            variant: 'destructive',
+          });
+        }
+        return;
       }
-      if (issues.length > 3) {
-        toast({
-          title: t('files.moreSkipped', {
-            count: String(issues.length - 3),
-          }),
-          variant: 'destructive',
-        });
-      }
-      if (kept.length === 0) return;
+      // Some files go ahead: a refusal toasted now would be replaced by the
+      // success toast a moment later (one toast at a time), so the skipped
+      // files ride the ONE summary toast after the upload instead.
 
       setUploading(true);
       const folderCache = new Map<string, string>();
@@ -674,7 +686,7 @@ export function ProjectFilesTab({
               });
               continue;
             }
-            if (code === 'FOLDER_DUPLICATE_NAME') {
+            if (code === 'FOLDER_NAME_TAKEN') {
               // ensureFolderPath hit a name that exists server-side but not
               // in the (stale) reactive snapshot — the house message; a
               // re-pick finds the existing folder once the list refreshes.
@@ -685,7 +697,11 @@ export function ProjectFilesTab({
               });
               continue;
             }
-            if (code === 'RBAC_FORBIDDEN' || code === 'PROJECT_FORBIDDEN') {
+            if (
+              code === 'RBAC_FORBIDDEN' ||
+              code === 'PROJECT_FORBIDDEN' ||
+              code === 'PROJECT_ARCHIVED'
+            ) {
               toast({
                 title: t('errors.' + code, {
                   defaultValue: t('files.attachError'),
@@ -704,13 +720,39 @@ export function ProjectFilesTab({
         }
       }
       setUploading(false);
-      if (okCount > 0) {
+      // The summary counts every selected file, so a skipped one is visible
+      // in the arithmetic ("3 of 4 added") and named in the description.
+      const total = entries.length;
+      if (skipped.length === 0 && okCount === kept.length) {
         toast({
           title: t('files.attachSuccess'),
-          description: `${okCount} / ${kept.length}`,
+          description: `${okCount} / ${total}`,
           variant: 'success',
         });
+        return;
       }
+      // Each skipped file sits beside ITS reason: the names are grouped by
+      // reason, one `skippedList` sentence per group, never the first
+      // file's reason stamped on every name.
+      const byReason = new Map<string, string[]>();
+      for (const entry of skipped) {
+        const names = byReason.get(entry.message.description) ?? [];
+        names.push(entry.name);
+        byReason.set(entry.message.description, names);
+      }
+      const groups = Array.from(byReason, ([reason, names]) => {
+        const shown = names.slice(0, 3);
+        return t('files.skippedList', {
+          names: shown.join(', '),
+          more: names.length - shown.length,
+          reason,
+        });
+      });
+      toast({
+        title: t('files.attachPartial', { ok: okCount, total }),
+        description: groups.length === 0 ? undefined : groups.join(' · '),
+        variant: okCount > 0 ? 'default' : 'destructive',
+      });
     },
     [uploadOne, uploading, t, tDocuments, ensureFolderPath, policyLimits],
   );
@@ -876,11 +918,12 @@ export function ProjectFilesTab({
     const openPreview = () =>
       setPreviewDoc({ id: doc._id, title: displayTitle });
     return (
-      <li key={doc._id} role="none">
+      <li key={doc._id}>
         <HStack gap={1} align="center" className="group">
           <div className="min-w-0 flex-1">
             {canPreview ? (
               <TreeRowButton
+                semantics="list"
                 isActive={previewDoc?.id === doc._id}
                 depth={depth}
                 onClick={openPreview}
@@ -991,10 +1034,11 @@ export function ProjectFilesTab({
     const subFolders = childFolders.get(id) ?? [];
     const files = filesByFolder.get(id) ?? [];
     return (
-      <li key={folder._id} role="none">
+      <li key={folder._id}>
         <HStack gap={1} align="center" className="group">
           <div className="min-w-0 flex-1">
             <TreeRowButton
+              semantics="list"
               isActive={isSelected}
               depth={depth}
               onClick={() => {
@@ -1050,7 +1094,7 @@ export function ProjectFilesTab({
           ) : null}
         </HStack>
         {isExpanded ? (
-          <ul role="group">
+          <ul>
             {subFolders.map((sub) => renderFolder(sub, depth + 1))}
             {files.map((doc) => renderFileRow(doc, depth + 1))}
           </ul>
@@ -1080,9 +1124,12 @@ export function ProjectFilesTab({
     >
       <FormSection>
         {!isEmpty ? (
+          /* A plain list, not a `role="tree"`: each row sits beside its own
+             Preview / History / Remove / menu buttons, which a tree cannot
+             own (axe `aria-required-children`). Rows keep aria-expanded,
+             aria-current and the arrow-key navigation. */
           <ul
             ref={treeRef}
-            role="tree"
             aria-label={t('files.treeLabel', { defaultValue: 'Project files' })}
             className="rounded-lg border p-2"
             onKeyDown={(event) =>

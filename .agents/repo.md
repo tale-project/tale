@@ -148,9 +148,9 @@ default means deleting the override and fixing what surfaces:
   engine false-positives on widening assertions over frozen literals and on mock returns.
 - **`DataTable` rows that open only on pointer click** — `onRowClick` is a bare `onClick` on a
   `<tr>`, and the data-table guide's rule ("keep a named keyboard-accessible link or action in the
-  row") is enforced by no lint. The automations list and the metrics drill-down tables carry a
-  real link/button in the lead cell (2026-09); the other `onRowClick` lists (projects, contacts,
-  knowledge entries, skills, websites, teams, audit logs, …) still rely on the row click alone
+  row") is enforced by no lint. The automations list, the projects list and the metrics
+  drill-down tables carry a real link/button in the lead cell (2026-09); the other `onRowClick`
+  lists (contacts, knowledge entries, skills, websites, teams, audit logs, …) still rely on the row click alone
   where the lead cell is plain text. Paying it down means the same lead-cell control per list, or
   a `DataTable` `rowLink` prop rendering the first cell as the row's link for every list at once.
 

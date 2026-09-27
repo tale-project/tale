@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 44 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 49 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -214,6 +214,22 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   shows the tool calls, the subagent's call and the report; the follow-up
   continues the same conversation; no step reads a provider 400 — env-gated:
   mark **ENVIRONMENT** without a credential that serves the models.
+- [ ] `TASK-F31` · **Drop into an empty lane lands there** — On the board,
+  with an empty lane (e.g. **Cancelled**) beside a lane holding cards, drag a
+  card and release it just inside the empty lane's body, level with a card
+  of the neighbouring lane (~150 px below the lane header) → The card takes
+  the lane under the pointer (the dnd live region names that lane's status
+  as the drop area, never a card id), the lane highlights while hovered,
+  and the status reads back after reload; releasing between two cards of a
+  populated lane still slots the card between them, and a drop below a
+  lane's last card appends it.
+- [ ] `TASK-F32` · **Back walks the task trail; a subtask names its parent**
+  — From the board (URL without `?task`) open a task A, then click one of
+  its subtasks B (URL `?task=B`), then press browser **Back** twice → The
+  first Back reopens A (`?task=A`), the second closes the dialog on the
+  board — never the projects list; B's dialog header shows **Part of
+  {A's key}** (`tasks.detail.partOf`) above its identifier, and clicking it
+  opens A; closing a dialog then pressing **Forward** does not reopen it.
 
 ### The task page
 
@@ -371,6 +387,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   to `/dashboard/{org}`, beside the Home panel — never a blank column without
   a header or a way back. While the read is still on its way the page shows
   no dead end.
+- [ ] `TASK-B8` · **Deep link to a missing task** — Open the board with
+  `?task=00000000-0000-4000-8000-000000000000`, then with
+  `?task=not-a-uuid`, then with the id of a task that was deleted → The
+  dialog opens titled **Tasks** and reads **We couldn't find that task. It
+  may have been deleted.** (`tasks.detail.notFound`) with a **Close**
+  button that returns to the board (the URL loses `?task`); while the read
+  is in flight the dialog shows a skeleton, never the message; a task you
+  may not see (another member's private project) reads the same, not a
+  blank sheet.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -393,6 +418,22 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   `aria-controls`; the round send button is named **Comment**
   (`tasks.actions.comment`); everything is reachable by keyboard in reading
   order, header first.
+- [ ] `TASK-A5` · **Due-date calendar inside the task dialog** → Open a task
+  (or **Create task**), click **Due date** → the calendar is a
+  `role="dialog"` named **Calendar** (`common.datePicker.calendar`) that
+  neither it nor any ancestor carries `aria-hidden="true"` (inspect the
+  accessibility tree: the month grid, day cells and month buttons are
+  listed); before the calendar opens, `document.body` holds no
+  `[data-tale-datepicker-popper]` node at all.
+- [ ] `TASK-A6` · **Board passes axe; a card is one button** → Run axe
+  (wcag2a/aa + wcag21a/aa) on the board with cards that carry an assignee →
+  No `aria-valid-attr-value` on the **Board**/**List** tab triggers (they
+  carry no `aria-controls`), no `nested-interactive` (a card's title is its
+  only button — Tab lands on the title, **Enter** opens the task, **Space**
+  lifts it for a keyboard drag, the Priority and Assign buttons are siblings
+  beside it and still open their pickers on click), and no
+  `aria-prohibited-attr` on the assignee chips (each is a named
+  `role="img"`); clicking any blank part of the card still opens the task.
 
 ## Performance
 

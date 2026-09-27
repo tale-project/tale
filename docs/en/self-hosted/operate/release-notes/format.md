@@ -19,7 +19,7 @@ Use this order when scanning a release. Headings and detail vary by release; fol
 | --- | --- |
 | Breaking and behavior changes | Which user workflows, defaults or configuration values change? |
 | Migrations and upgrading instructions | What prerequisites, downtime or recovery preparation does this version require? |
-| API contract changes | Do clients need updated request fields, endpoint behavior or error handling? |
+| API contract changes | Do clients need updated request fields, endpoint behavior or error handling? This section is generated at release time from the contract fingerprint: when `info.version` moved since the previous tag it lists the old and new version, the operations added or removed and the contract changelog entry; otherwise it states that the contract stayed. |
 | Security | Is your deployment affected, and what patched version or mitigation applies? |
 | Known issues | Can you accept the remaining limitations, and are the workarounds practical? |
 | Highlights and full change list | Which new capabilities or fixes should your users know about? |

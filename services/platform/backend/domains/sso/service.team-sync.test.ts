@@ -22,7 +22,8 @@ const { createAuditLog, retireTeamScopes, resyncRetiredDocumentScopes } =
     resyncRetiredDocumentScopes: vi.fn(),
   }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
-vi.mock('../teams/service.ts', () => ({
+vi.mock('../teams/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../teams/service.ts')>()),
   retireTeamScopes,
   resyncRetiredDocumentScopes,
 }));

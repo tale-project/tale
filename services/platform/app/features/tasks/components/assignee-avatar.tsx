@@ -75,6 +75,8 @@ export function AssigneeAvatar({
 
   return (
     <span
+      // A bare <span aria-label> names nothing (axe aria-prohibited-attr);
+      // the chip is a picture of the assignee, so it is an image.
       role="img"
       title={label}
       aria-label={label}

@@ -59,8 +59,8 @@ analytics:
       title: Keine Läufe
       description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
   externalTurns:
-    title: Agent-Laufzeit-Runden
-    description: Zuverlässigkeit der Agent-Laufzeit-Runden in der Sandbox.
+    title: Harness-Runden
+    description: Zuverlässigkeit der Harness-Runden in der Sandbox.
     cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
       angezeigt. Ältere Runden fließen nicht in diese Summen ein.
     cards:
@@ -71,8 +71,8 @@ analytics:
       cancelled: Von Nutzer gestoppt
       recovered: Wiederhergestellt
     byHarness:
-      title: Nach Agent-Laufzeit
-      harness: Agent-Laufzeit
+      title: Nach Harness
+      harness: Harness
       turns: Runden
       successRate: Erfolgsquote
       timeouts: Timeouts
@@ -179,6 +179,7 @@ analytics:
         decisive: Eindeutig
         tie: Unentschieden
         bothBad: Beide schlecht
+        sameModel: Gleiches Modell
     tables:
       topAgents:
         title: Top-Assistenten nach Feedback
@@ -608,8 +609,14 @@ automations:
     promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
       neue eine Aufgabe anlegen.
     equipmentLabel: Ausrüstung
-    webhookHint: Die Webhook-URL bekommst du nach dem Anlegen auf der
-      Trigger-Karte der Automatisierung.
+    timezoneInvalid: Wähle eine gültige IANA-Zeitzone (z. B. Europe/Zurich oder UTC).
+    webhookHint: Die Webhook-URL erscheint genau einmal, direkt nach dem
+      Anlegen — kopiere sie, bevor du den Editor öffnest.
+    stepWebhook: Kopiere die Webhook-URL — sie wird nur jetzt angezeigt.
+    copyWebhookUrl: Webhook-URL kopieren
+    openAutomation: Automatisierung öffnen
+    enableNow: Jetzt aktivieren
+    enableNowHint: Aus lässt den Trigger pausiert — es startet nichts, bis du ihn auf der Trigger-Karte einschaltest.
     triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
       sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
     cancel: Abbrechen
@@ -625,6 +632,13 @@ automations:
       Organisation.
   detail:
     loading: Automatisierung wird geladen …
+    # Eine gelöschte Automatisierung behält ihre Laufhistorie, bis die
+    # Aufbewahrung sie entfernt; die Läufe-Seiten öffnen unter diesem Banner.
+    deleted:
+      banner: 'Diese Automatisierung wurde am {date} gelöscht. Ihre Laufhistorie bleibt, bis die Aufbewahrung sie entfernt.'
+      title: Automatisierung gelöscht
+      description: Es gibt nichts mehr zu bearbeiten oder zu veröffentlichen; die aufgezeichneten Läufe sind weiterhin lesbar.
+      openRuns: Laufhistorie öffnen
     deployedVersion: 'Live: v{version}'
     versionSelect: Version
     deployThis: Diese Version live schalten
@@ -670,7 +684,8 @@ automations:
       failed: Automatisierung konnte nicht gelöscht werden
   trigger:
     title: Trigger
-    none: Noch nichts startet diese Automatisierung.
+    none: Kein Trigger — diese Automatisierung läuft nur, wenn du sie von Hand oder über die API startest.
+    add: Trigger hinzufügen
     kindLabel: Trigger-Typ
     kinds:
       schedule: Zeitplan
@@ -679,7 +694,10 @@ automations:
     cronLabel: Cron
     cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
     cronInvalid: Dieser Cron-Ausdruck ist ungültig.
+    cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
     cronNext: 'Nächster Lauf {at}'
+    paused: Pausiert — es starten keine Läufe
+    notDeployed: 'Startet erst, wenn eine Version bereitgestellt ist · nächster Lauf wäre {at}'
     cronEveryMinutes: '{n, plural, one {Jede Minute} other {Alle # Minuten}}'
     cronEveryHours: '{n, plural, one {Jede Stunde} other {Alle # Stunden}}'
     cronDailyAt: 'Jeden Tag um {time}'
@@ -707,6 +725,14 @@ automations:
       einmal.
     webhookProjectHint: Für ein aktives Projekt, in dem die Automatisierung eingerichtet ist, setzt du dessen ID in die folgende URL ein.
     rotate: Token rotieren
+    revokeConfirm:
+      title: Webhook ersetzen?
+      body: Ein Wechsel des Trigger-Typs widerruft die Webhook-URL sofort — Absender, die sie noch nutzen, bekommen 404, und ein später neu eingerichteter Webhook erhält eine andere URL.
+      confirm: Ersetzen und widerrufen
+    rotateConfirm:
+      title: Webhook-Token rotieren?
+      body: Die aktuelle URL funktioniert nicht mehr, sobald das neue Token erzeugt ist. Kopiere die neue URL und aktualisiere jedes sendende System.
+    revokedToast: Die bisherige Webhook-URL wurde widerrufen — Absender, die sie nutzen, bekommen jetzt 404.
   canvas:
     ariaLabel: Canvas der Automatisierung
     readsFrom: 'Liest {nodes}'
@@ -743,12 +769,26 @@ automations:
       sind nur die eingebauten Typen beschrieben. Die Felder dieser Node siehst
       du trotzdem.
     invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
+    versionNotFound:
+      title: 'Version {version} gibt es nicht'
+      description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
+      openLatest: Neueste öffnen
     controlFlowTitle: Ablaufsteuerung
     agent:
       equipmentLabel: Ausrüstung
       harnessDefault: Standard (Claude Code)
       modelUnlisted: 'Kein verbundener Anbieter bietet das gespeicherte Modell
         "{model}" für diese Agent-Laufzeit an — wähle eines aus der Liste.'
+    # Die Modellauswahl der llm-Node: was die Anbieter der Organisation
+    # bedienen, mit Freitext für ein Modell, dessen Anbieter noch fehlt.
+    llm:
+      modelPlaceholder: Modell wählen, das aufgerufen wird
+      modelUnlisted: 'Kein verbundener Anbieter bedient "{model}" — ein
+        Live-Lauf würde an dieser Node fehlschlagen. Wähle ein Modell aus der
+        Liste oder behalte die ID, wenn du den Anbieter noch verbindest.'
+      typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
+      modelIdLabel: Modell-ID
+      modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
     runTitle: In diesem Lauf
     resolvedInput: Aufgelöste Eingabe
     output: Ausgabe
@@ -862,11 +902,34 @@ automations:
     # wiederholt — damit klar ist, dass nicht du es warst.
     autoRetrying: 'Automatischer Versuch {n} von {max}'
     cancel: Lauf stoppen
-    startedBy: 'Gestartet von {actor}'
+    # Wird vor dem Stoppen gefragt: Es ist endgültig und zieht zurück, worauf
+    # der Lauf wartet (eine Freigabekarte, eine Frage).
+    cancelConfirm:
+      title: Diesen Lauf stoppen?
+      body:
+        Der Lauf stoppt an der nächsten Schrittgrenze und lässt sich nicht
+        fortsetzen. Bereits Erledigtes bleibt; eine offene Freigabe oder Frage
+        wird zurückgezogen.
+    # Wer oder was den Lauf gestartet hat — nie die `user:<id>`- /
+    # `trigger:<id>`-Tür, die der Datensatz trägt.
     starter:
-      apiKey: '{name} über einen API-Schlüssel'
-      trigger: einem Auslöser
-      formerMember: einem ehemaligen Mitglied
+      you: Von dir gestartet
+      youApi: Von dir gestartet (API)
+      member: 'Gestartet von {name}'
+      apiKey: 'Gestartet von {name} (API)'
+      formerMember: Gestartet von einem ehemaligen Mitglied
+      formerMemberApi: Gestartet von einem ehemaligen Mitglied (API)
+      schedule: Gestartet vom Zeitplan
+      webhook: Gestartet von einem Webhook
+      event: Gestartet von einem Plattform-Ereignis
+      trigger: Gestartet von einem Trigger
+      unknown: Starter nicht erfasst
+    # Worauf ein wartender Lauf parkt, in Worten.
+    waiting:
+      approval: Wartet auf Freigabe
+      ask: Wartet auf deine Antwort
+      agent: Agent arbeitet
+      repeat: 'Pollt — Schritt {node}'
     startedAt: 'Gestartet {date}'
     finishedAt: 'Beendet {date}'
     inputTitle: Eingabe des Laufs
@@ -892,6 +955,7 @@ automations:
       not_run: Nie erreicht
       pending: Noch nicht erreicht
       running: Läuft gerade
+      stopped: Hier gestoppt
     effects:
       title: '{count, plural, one {# Auswirkung} other {# Auswirkungen}}'
       description:
@@ -1320,6 +1384,7 @@ chat:
     messageHistory: Nachrichtenverlauf
     chatRegion: Chat
     chatInput: Nachrichteneingabe
+    skipToComposer: Zum Nachrichtenfeld springen
     threadActions: Aktionen zur Unterhaltung
   structured:
     nextSteps: Vorgeschlagene Folgefragen
@@ -1333,6 +1398,7 @@ chat:
     retry: Erneut versuchen
     discard: Aufnahme verwerfen
     permissionDenied: Mikrofonzugriff verweigert. Erlaube ihn in den Browsereinstellungen.
+    serviceUnavailable: Diktat ist gerade nicht verfügbar. Der Browser erreicht seinen Sprachdienst nicht; prüfe die Verbindung und versuche es erneut.
   citations:
     source: Quelle {number}
     page: Seite {page}
@@ -1538,6 +1604,25 @@ chat:
   budgetWarningTypeRequests: Anfragen
   budgetViewUsage: Nutzung anzeigen
 common:
+  import:
+    rowErrorsTitle: '{count, plural, one {# Zeile wurde nicht importiert} other {# Zeilen wurden nicht importiert}}'
+    rowError: 'Zeile {row}: {message}'
+    moreRows: '… und {count} weitere'
+    fields:
+      name: Name
+      price: Preis
+      stock: Bestand
+      currency: Währung
+      status: Status
+      email: E-Mail
+    reasons:
+      blank: '{field} darf nicht leer sein'
+      notNumber: '{field} muss eine Zahl sein'
+      negative: '{field} muss 0 oder mehr sein'
+      tooLarge: '{field} ist zu groß'
+      notInteger: '{field} muss eine ganze Zahl sein'
+      notCurrency: '{field} muss ein dreistelliger ISO-4217-Währungscode sein'
+      notOneOf: '{field} muss einer dieser Werte sein: {options}'
   or: oder
   units:
     stock: '{count, plural, one {# Einheit} other {# Einheiten}}'
@@ -1595,6 +1680,7 @@ common:
     dismiss: Verwerfen
     zoomIn: Vergrößern
     zoomOut: Verkleinern
+    pageNumber: Seitenzahl
     removeNamed: '{name} entfernen'
     unread: Ungelesen
     completed: Abgeschlossen
@@ -1974,7 +2060,7 @@ dialogs:
     badgeArchived: Archiviert
     badgeProjectArchived: Archiviertes Projekt
   thisMember: dieses Mitglied
-  confirmRemoveMember: '{name} aus dem Team entfernen? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.'
+  confirmRemoveMember: '{name} aus dieser Organisation entfernen? Die Person verliert den Zugriff darauf und auf alle zugehörigen Ressourcen.'
   toSend: zum Senden
   contactInfo:
     title: Kontaktdetails
@@ -3922,6 +4008,7 @@ governance:
       cancel: Anfrage abbrechen
     approval:
       description: Ein anderer Admin muss diesen Antrag genehmigen, bevor die Wartezeit beginnt.
+      capturedPolicy: Die Freigabepflicht wurde bei der Einreichung festgehalten; eine spätere Änderung der Richtlinie gilt nicht für diesen Antrag.
       approve: Antrag genehmigen
       reject: Antrag ablehnen
       approveDescription: Genehmige diesen Löschantrag und starte die festgelegte Wartezeit. Ohne Wartezeit kann die Löschung sofort beginnen.
@@ -4005,6 +4092,7 @@ governance:
         Die Person steht unter einem Custodian-Legal-Hold. Hebe ihn
         auf, bevor du es erneut versuchst.
       generic: Ein aktiver Legal Hold bewahrt die Daten der Person.
+      released: Der Legal Hold wurde aufgehoben — wähle Erneut versuchen, um die Löschung fortzusetzen.
       threadsCount:
         '{count, plural, one {# bewahrte Konversation} other {# bewahrte
         Konversationen}}.'
@@ -4316,7 +4404,10 @@ knowledgeEntries:
   viewDialog:
     title: Details zum Wissenseintrag
     updated: Aktualisiert
-    entryId: Eintrags-ID
+    entryId: Versions-ID
+    entryIdHint: Bei jeder Bearbeitung wird eine neue ID vergeben. Das Thema
+      kennzeichnet den Eintrag über alle Versionen hinweg, ebenso seine
+      Dokument-ID.
     history: Versionsverlauf
     versionCount: '{count, plural, one {# frühere Version} other {# frühere Versionen}}'
     superseded: Ersetzt
@@ -4833,9 +4924,18 @@ products:
     pasteUrl: Oder URL einfügen
     imageTooLarge: Bild ist zu groß (max. 5 MB).
     imageUploadFailed: Bild-Upload fehlgeschlagen. Versuch es nochmal.
+    imageActiveContent: Diese SVG-Datei enthält Skripte oder Event-Handler und kann nicht verwendet werden. Lade ein normales Bild oder eine SVG-Datei ohne solche Inhalte hoch.
+    imageUnsupported: Diese Datei ist kein unterstütztes Bild. Verwende PNG, JPEG, WebP, GIF oder SVG.
     currencyPlaceholder: USD
     validation:
       currency: Gib einen dreistelligen ISO-4217-Währungscode ein (zum Beispiel EUR oder CHF)
+      priceNumber: Gib eine Zahl als Preis ein
+      priceNonNegative: Der Preis muss 0 oder mehr sein
+      priceTooLarge: Der Preis ist zu hoch
+      stockNumber: Gib eine Zahl als Bestand ein
+      stockNonNegative: Der Bestand muss 0 oder mehr sein
+      stockTooLarge: Der Bestand ist zu hoch
+      stockInteger: Der Bestand muss eine ganze Zahl sein
     labels:
       name: Produktname
       description: Beschreibung
@@ -5149,8 +5249,10 @@ settings:
       Automatisierungen zu erstellen, auszuführen und zu verwalten — und um an
       die Capabilities und das Wissen dieser Organisation zu kommen.
     copyEndpoint: MCP-Endpunkt-URL kopieren
-    authHelp: 'Authentifiziere dich mit einem API-Schlüssel der Organisation als
-      Bearer-Token: Schlüssel erstellst und verwaltest du unter'
+    authHelp: 'Authentifiziere dich mit einem REST-API-Schlüssel als
+      Bearer-Token. Ein Schlüssel gehört der Person, die ihn erstellt hat, und
+      gilt in jeder Organisation, der sie angehört; diese Organisation nennt der
+      Header X-Organization-Slug. Schlüssel erstellst und verwaltest du unter'
     authLink: REST-API-Schlüssel.
     orgSlug:
       title: Organisations-Slug
@@ -5297,6 +5399,8 @@ settings:
     deleteSuccess: Organisation gelöscht
     deleteFailed: Organisation konnte nicht gelöscht werden
     deleteBlockedByLegalHold: Ein aktiver Legal Hold bewahrt die Daten dieser Organisation. Gib alle Holds unter Richtlinien > Legal Hold frei und versuch es dann erneut.
+    deleteTypeNameLabel: Tippe den Namen der Organisation zur Bestätigung
+    deleteConfirmNameMismatch: Die Bestätigung stimmt nicht mit dem Namen der Organisation überein. Lade die Seite neu und versuch es erneut.
     editMember: Mitglied bearbeiten
     removeMember: Mitglied entfernen
     memberUpdated: Mitglied aktualisiert
@@ -5351,6 +5455,7 @@ settings:
     lastMemberHint: Ein Team muss mindestens ein Mitglied behalten. Lösche
       stattdessen das Team, um das letzte Mitglied zu entfernen.
     teamNameTooLong: Der Teamname darf höchstens 80 Zeichen lang sein
+    teamNameTaken: Ein Team mit diesem Namen existiert bereits
     membershipChangesFailed: '{count, plural, one {# Mitgliedschaftsänderung wurde} other {# Mitgliedschaftsänderungen wurden}} abgelehnt. Die Liste wurde aktualisiert.'
     syncedBadge: Synchronisiert
     syncedNotice: Dieses Team wird von deinem Identity Provider bereitgestellt,
@@ -5378,6 +5483,7 @@ settings:
       Standard mehr, bis du einen neuen wählst.
     deletedToast: Zugangsdaten gelöscht
     updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
+    deleteFailed: 'Konnte die Zugangsdaten nicht löschen: {error}'
     noDefault: >-
       Keine Standard-Zugangsdaten für {vendors} — ein Aufruf ohne eigene Angabe
       kann nicht automatisch wählen. Mache einen Eintrag zum Standard.
@@ -5945,6 +6051,15 @@ settings:
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
     credential:
       disabled: Deaktiviert
+      deleteEmbeddingWarning: >-
+        Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten:
+        Nach dem Löschen stehen Dokumentindexierung und Suche für die ganze
+        Organisation still. Wähle zuerst unter Einstellungen → Datenresidenz
+        → Embedding-Modell andere Zugangsdaten.
+      inUseByEmbedding: >-
+        Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten.
+        Wähle dafür unter Einstellungen → Datenresidenz → Embedding-Modell
+        andere Zugangsdaten und lösche diese danach.
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       envTitle: Umgebungsvariable ändern
@@ -6057,6 +6172,9 @@ settings:
       name: Schlüsselname
       namePlaceholder: Schlüsselnamen eingeben...
       nameRequired: Name ist erforderlich
+      scopeHint: Dieser Schlüssel gehört dir, nicht dieser Organisation. Er
+        handelt in deinem Namen in jeder Organisation, der du angehörst; eine
+        REST-Anfrage nennt die Organisation im Header X-Organization-Slug.
       expiresIn: Ablaufzeit
       expiresOptions:
         7days: 7 Tage
@@ -6118,6 +6236,7 @@ settings:
         last7Days: Letzte 7 Tage
         last30Days: Letzte 30 Tage
         last90Days: Letzte 90 Tage
+      periodCaption: 'Zeitraum: {period}. Alle Summen unten beziehen sich auf diesen Zeitraum.'
       cards:
         total: Aktionen gesamt
         success: Erfolgreich
@@ -6510,6 +6629,7 @@ settings:
     resetConfirmDescription:
       Logo und Favicons werden gelöscht, die Akzentfarbe wird
       entfernt. Gelöschte Bilder lassen sich nicht wiederherstellen.
+    resetDone: Branding zurückgesetzt
   dataResidency:
     readOnly:
       title: Nur Lesezugriff
@@ -6584,6 +6704,12 @@ settings:
         Wissenssuche laufen kann, auf jeder Datenbank.
       statusConfigured: Eingerichtet
       statusNotConfigured: Nicht eingerichtet
+      statusCredentialMissing: Zugangsdaten fehlen
+      credentialMissingWarning: >-
+        Die Zugangsdaten, die dieses Embedding-Modell verwendet, existieren
+        nicht mehr; Dokumentindexierung und Wissenssuche stehen still. Lege
+        unter Einstellungen → KI-Anbieter Zugangsdaten an oder stelle sie
+        wieder her, oder wähle hier andere und speichere.
       notConfiguredWarning:
         Die Wissenssuche ist nicht verfügbar, bis ein Embedding-Modell
         eingerichtet ist.
@@ -6887,6 +7013,8 @@ tasks:
     started: Der Agent ist dran — er meldet sich zur Prüfung an dieser Aufgabe zurück.
     alreadyRunning: Der Agent dieser Aufgabe läuft bereits.
     notStarted: Der Agenten-Lauf konnte nicht starten.
+    agentMissing: Der zugewiesene Agent existiert nicht mehr. Weise einen anderen Agenten zu, damit die Aufgabe läuft.
+    noAgentAssignee: Dieser Aufgabe ist kein Agent zugewiesen. Weise einen zu, um einen Lauf zu starten.
     cancelled: Der Agenten-Lauf wurde abgebrochen.
     start: Agent starten
     willStart: Hier ablegen startet den Agenten-Lauf.
@@ -7064,6 +7192,7 @@ tasks:
     removeDependency: Abhängigkeit entfernen
     partOf: Teil von {task}
     subtask: Teilaufgabe
+    notFound: Wir konnten diese Aufgabe nicht finden. Sie wurde möglicherweise gelöscht.
   comment:
     edited: bearbeitet
     deleteConfirm: Diesen Kommentar löschen?
@@ -7145,6 +7274,8 @@ tasks:
   watch:
     watch: Verfolgen
     unwatch: Nicht mehr verfolgen
+  errors:
+    PROJECT_ARCHIVED: Dieses Projekt ist archiviert. Stelle es wieder her, um seine Aufgaben zu ändern.
   runFailure:
     title: Agent konnte nicht starten
     description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe
@@ -7186,6 +7317,7 @@ tasks:
     runLabel: Agentenlauf
     systemActor: System
     unresolvedWorkflow: Automatisierung
+    deletedAgent: Gelöschter Agent
     viewAgent: Agent anzeigen
     viewWorkflow: Automatisierung anzeigen
   dueDate:
@@ -7450,7 +7582,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: Eine URL pro Zeile. Nur genau diese Seiten werden indexiert, nicht die gesamte Website. URLs verschiedener Domains werden als separate Websites angelegt.
+  urlListHint: Eine URL pro Zeile. Nur genau diese Seiten werden indexiert, nicht die gesamte Website. URLs verschiedener Domains werden als separate Websites angelegt. Die Seiten werden über HTTPS geholt; eine http://-Zeile wird als https:// abgerufen.
   kindList: URL-Liste
   scanIntervals:
     1hour: Jede Stunde
@@ -7472,6 +7604,9 @@ websites:
     addErrorDuplicate: Diese Website wurde bereits hinzugefügt
     addListSuccess: '{count} URLs zur Indexierung vorgemerkt'
     addListPartial: 'Einige Quellen konnten nicht hinzugefügt werden: {domains}'
+    addErrorReason:
+      domainInvalid: Gib einen öffentlichen https://-Host ohne Port und Pfad ein, z. B. example.com — http://-Adressen werden nicht gecrawlt.
+      notCrawlable: Der Crawler erreicht diesen Host nicht — private, Loopback- und Cloud-Metadaten-Adressen werden abgelehnt.
     updateSuccess: Website aktualisiert
     updateError: Website konnte nicht aktualisiert werden
     fetchPagesError: Seiten konnten nicht geladen werden
@@ -7623,6 +7758,63 @@ projects:
     projectSectionDescription: Name, Beschreibung und feste Anweisungen für
       dieses Projekt.
     sharingHeading: Freigabe
+  identity:
+    label: Icon und Farbe
+    hint: Wird neben dem Projektnamen in Listen und der Chat-Seitenleiste angezeigt.
+    trigger: Icon und Farbe ändern
+    colorLabel: Farbe
+    iconLabel: Icon
+    colors:
+      gray: Grau
+      slate: Schiefer
+      red: Rot
+      orange: Orange
+      amber: Bernstein
+      yellow: Gelb
+      lime: Limette
+      green: Grün
+      emerald: Smaragd
+      teal: Petrol
+      cyan: Cyan
+      sky: Himmelblau
+      blue: Blau
+      indigo: Indigo
+      violet: Violett
+      purple: Purpur
+      fuchsia: Fuchsia
+      pink: Pink
+      rose: Rosé
+    icons:
+      FolderKanban: Kanban-Ordner
+      Folder: Ordner
+      FolderOpen: Geöffneter Ordner
+      FolderTree: Ordnerbaum
+      FolderGit2: Git-Ordner
+      Briefcase: Aktentasche
+      Building2: Gebäude
+      Layers: Ebenen
+      Box: Kiste
+      BookOpen: Aufgeschlagenes Buch
+      GraduationCap: Doktorhut
+      Lightbulb: Glühbirne
+      Rocket: Rakete
+      Target: Zielscheibe
+      Flag: Flagge
+      Compass: Kompass
+      Map: Karte
+      Star: Stern
+      Beaker: Becherglas
+      FlaskConical: Erlenmeyerkolben
+      Microscope: Mikroskop
+      Atom: Atom
+      Cpu: Prozessor
+      Code: Code
+      Heart: Herz
+      Users: Personen
+      MessageSquare: Sprechblase
+      Phone: Telefon
+      Mail: Briefumschlag
+      Globe: Globus
   instructions:
     label: Anweisungen
     hint: Jeder Chat in diesem Projekt startet mit diesen Anweisungen.
@@ -7663,6 +7855,8 @@ projects:
     addFolderButton: Ordner hochladen
     batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
     moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
+    attachPartial: '{ok} von {total} Dateien hinzugefügt'
+    skippedList: 'Übersprungen: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: Dieser Ordner existiert nicht mehr.
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden
@@ -7841,10 +8035,14 @@ projects:
   readOnlyBanner:
     title: Du siehst dieses Projekt nur an
     description: Kontaktiere einen Projekt-Editor, um Änderungen vorzunehmen.
+    archivedTitle: Dieses Projekt ist archiviert
+    archivedDescription: Es ist schreibgeschützt, bis es jemand wiederherstellt.
+      Projekt-Administratoren können es im Abschnitt Archiv unten wiederherstellen.
   archived:
     badge: Archiviert
   errors:
     PROJECT_FORBIDDEN: Du hast keinen Zugriff auf dieses Projekt.
+    PROJECT_ARCHIVED: Dieses Projekt ist archiviert. Stelle es wieder her, um Änderungen vorzunehmen.
     PROJECT_NOT_FOUND: Wir konnten dieses Projekt nicht finden. Es wurde möglicherweise gelöscht.
     PROJECT_MISMATCH: Dieser Chat liegt in einem anderen Projekt. Wechsle den
       Kontext, um fortzufahren.
@@ -8062,3 +8260,4 @@ sandboxes:
       wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
       enthalten auch temporäre Crawler-Sitzungen.
   accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
+  deletedAgent: Gelöschter Agent

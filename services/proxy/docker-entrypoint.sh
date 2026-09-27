@@ -272,7 +272,9 @@ BACKEND_BLOCK=$(cat <<EOF
 	# segment keeps the rule true under a subpath deployment
 	# (\`/tale/api/…\`). Character classes, not backslash escapes: the block
 	# crosses a shell heredoc and an awk -v assignment, each of which eats
-	# a backslash.
+	# a backslash. The WebDAV door carries the same rule as
+	# \`@davDotSegments\` in the static Caddyfile (its handle never moved
+	# into this block) — change one, change the other.
 	@apiDotSegments expression \`(path("/api/*") || {http.request.uri}.matches("(?i)^(/[^/?]+)?/api/")) && {http.request.uri}.matches("(?i)(^|/)(%2e|[.]){1,2}(/|$|[?])")\`
 	handle @apiDotSegments {
 		import edge_json_refusal

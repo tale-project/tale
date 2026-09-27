@@ -12,7 +12,9 @@ export interface OrganizationsContract {
    * the config cleanup commit as one transaction, or nothing changes. */
   'organizations/delete:deleteOrganization': {
     kind: 'mutation';
-    args: { organizationId: string };
+    /** `confirmName`: the organization's name typed back — the door's
+     * proof (`ORG_CONFIRM_NAME_MISMATCH` otherwise). */
+    args: { organizationId: string; confirmName: string };
     returns: { orgSlug: string };
   };
 }

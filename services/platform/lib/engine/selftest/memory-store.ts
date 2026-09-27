@@ -72,7 +72,14 @@ export interface MemoryStore extends StoreAdapter {
 /** Who a run started as, when nothing more specific is known. */
 const MEMORY_ACTOR = 'memory-store';
 
-export function memoryStore(): MemoryStore {
+export function memoryStore(
+  storeOptions: {
+    /** Model ids the store answers `false` for on `modelAvailable` — every
+     * other id is available. Without it the store carries no model seam,
+     * so validation never warns about a model. */
+    unavailableModels?: readonly string[];
+  } = {},
+): MemoryStore {
   const versions = new Map<string, StoredVersion[]>();
   const deployed = new Map<string, number>();
   const triggers = new Map<string, TriggerView>();
@@ -118,6 +125,12 @@ export function memoryStore(): MemoryStore {
     async deployedVersion(name) {
       return deployed.get(name) ?? null;
     },
+    ...(storeOptions.unavailableModels === undefined
+      ? {}
+      : {
+          modelAvailable: async (modelId: string) =>
+            !storeOptions.unavailableModels?.includes(modelId),
+        }),
 
     async listVersions(name) {
       const summaries: VersionSummary[] = [];

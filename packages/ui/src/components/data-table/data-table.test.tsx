@@ -602,6 +602,50 @@ describe('DataTable entity count footer (#2646)', () => {
     expect(screen.getByText('Showing all 1 projects')).toBeInTheDocument();
   });
 
+  // 2026-09-26 evaluation, E-03: an audit table read "Showing all 30 audit
+  // logs" while thousands more were a scroll away.
+  it('never claims "all" while more rows can load and no server total exists', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        infiniteScroll={{
+          hasMore: true,
+          onLoadMore: vi.fn(),
+          entityLabel: { one: 'audit log', other: 'audit logs' },
+          // What a paginated source counts: the rows loaded so far.
+          totalCount: 3,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText('Showing the first 3 audit logs — scroll for more'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Showing all/)).not.toBeInTheDocument();
+  });
+
+  it('keeps "Showing X of Y" while more can load when a real total is known', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        infiniteScroll={{
+          hasMore: true,
+          onLoadMore: vi.fn(),
+          entityLabel: { one: 'audit log', other: 'audit logs' },
+          totalCount: 4290,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText('Showing 3 of 4,290 audit logs'),
+    ).toBeInTheDocument();
+  });
+
   it('pluralizes off the total (not the filtered count) for a filtered subset', () => {
     render(
       <DataTable

@@ -229,6 +229,7 @@ describe('MCP and engine actor project scope', () => {
       expect.anything(),
       'org-1',
       'run-1',
+      'user-1',
     );
     vi.mocked(getRun).mockResolvedValue({ ...run, projectId: null } as never);
     await expect(engine.getRun?.('run-1')).resolves.toMatchObject({
@@ -237,7 +238,12 @@ describe('MCP and engine actor project scope', () => {
     await expect(engine.cancelRun?.('run-1')).resolves.toEqual({
       cancelled: true,
     });
-    expect(cancelRun).toHaveBeenCalledWith(expect.anything(), 'org-1', 'run-1');
+    expect(cancelRun).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'run-1',
+      'user-1',
+    );
   });
 
   it('authorizes and records a builder mock run inside its project', async () => {

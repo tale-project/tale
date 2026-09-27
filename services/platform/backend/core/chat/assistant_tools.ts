@@ -61,6 +61,7 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
+import { isCredentialMissing } from '../provider_credentials/resolve_credential';
 import type { AgentReadSubject } from '../sandbox/workspace_access';
 
 /** Who the tools run for. The user is re-checked per dispatch. */
@@ -202,6 +203,17 @@ interface SearchResultEntry {
  * next to `projectId`, matching the `rag_fetch` task fields. */
 type ProjectLabel = { name: string; key?: string };
 
+/** The human task key (`KEY-n`) the board and the global search show — the
+ * id a user names in a question. Absent when the project has no key. */
+function taskKeyOf(
+  projectKey: string | undefined,
+  number: unknown,
+): string | undefined {
+  return projectKey !== undefined && typeof number === 'number'
+    ? `${projectKey}-${number}`
+    : undefined;
+}
+
 function taskResultEntry(
   task: Doc<'tasks'>,
   archivedProjectIds: ReadonlySet<string>,
@@ -210,6 +222,7 @@ function taskResultEntry(
   const projectId = task.projectId != null ? String(task.projectId) : undefined;
   const label =
     projectId !== undefined ? projectsById.get(projectId) : undefined;
+  const taskKey = taskKeyOf(label?.key, task.number);
   return {
     kind: 'task',
     title: task.title,
@@ -220,6 +233,9 @@ function taskResultEntry(
       ? { snippet: clip(task.description, SNIPPET_CHARS) }
       : {}),
     data: {
+      // The key first: it is the id a user names ("find TE2-1"), and the
+      // one a reply should quote back — never the internal ref.
+      ...(taskKey !== undefined ? { taskKey } : {}),
       status: task.status,
       ...(task.priority ? { priority: task.priority } : {}),
       ...(task.assigneeType ? { assigneeType: task.assigneeType } : {}),
@@ -527,6 +543,26 @@ const KNOWLEDGE_UNAVAILABLE_FOR_MODEL =
   'organization yet. An administrator configures it under Settings → Data ' +
   'residency (the embedding model). Say this plainly if it matters to the ' +
   'answer; do not guess at the cause.';
+
+/**
+ * The same, when the cause is known to be the credential: the embedding
+ * model IS set up, but the provider key it resolves was deleted (or the
+ * provider has no default left). "Not set up yet" sent the administrator to
+ * the wrong page while the settings said "Configured".
+ */
+const KNOWLEDGE_CREDENTIAL_MISSING_FOR_MODEL =
+  'unavailable: document and web-page search is down because the provider ' +
+  'credential of the embedding model is missing. An administrator adds or ' +
+  'restores it under Settings → AI providers, or chooses another credential ' +
+  'under Settings → Data residency (the embedding model). Say this plainly ' +
+  'if it matters to the answer; do not guess at the cause.';
+
+/** The sentence for the model, by cause — never the raw error. */
+function knowledgeUnavailableForModel(error: unknown): string {
+  return isCredentialMissing(error)
+    ? KNOWLEDGE_CREDENTIAL_MISSING_FOR_MODEL
+    : KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
+}
 
 // ------------------------------------------------------------ result shapes
 
@@ -1067,14 +1103,15 @@ export function createChatToolExecutor(
           // internals. Relaying `Error.message` verbatim is how configuration
           // prose ended up quoted to an end user, who read it as a product
           // fault.
+          const unavailable = knowledgeUnavailableForModel(error);
           if (runLeg('document')) {
-            sources.documents = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
+            sources.documents = unavailable;
           }
           if (runLeg('mail-attachment')) {
-            sources.mailAttachments = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
+            sources.mailAttachments = unavailable;
           }
           if (runLeg('web-page')) {
-            sources.webPages = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
+            sources.webPages = unavailable;
           }
         }
       } else {
@@ -2015,12 +2052,17 @@ export function createChatToolExecutor(
       }
       const description = context.task.description ?? '';
       const paged = windowText(description, offset, limit);
+      const fetchedTaskKey = taskKeyOf(
+        context.project?.key,
+        context.task.number,
+      );
       await recordDispatch('rag_fetch', 'ok');
       return {
         status: 'ok',
         kind: 'task',
         ref,
         title: context.task.title,
+        ...(fetchedTaskKey !== undefined ? { taskKey: fetchedTaskKey } : {}),
         status_: context.task.status,
         ...(context.project !== null
           ? { project: context.project.name, projectKey: context.project.key }
@@ -2091,6 +2133,9 @@ export function createChatToolExecutor(
         await recordDispatch('rag_fetch', missing.status, missing.message);
         return missing;
       }
+      const projectKey = (
+        await projectLabelsById(ctx, who.organizationId, [projectId])
+      ).get(projectId)?.key;
       await recordDispatch('rag_fetch', 'ok');
       return {
         status: 'ok',
@@ -2098,6 +2143,9 @@ export function createChatToolExecutor(
         ref,
         tasks: tasks.page.map((task: Doc<'tasks'>) => ({
           ref: `${WORK_REF_PREFIX.task}${String(task._id)}`,
+          ...(taskKeyOf(projectKey, task.number) !== undefined
+            ? { taskKey: taskKeyOf(projectKey, task.number) }
+            : {}),
           title: task.title,
           status: task.status,
           ...(task.priority ? { priority: task.priority } : {}),

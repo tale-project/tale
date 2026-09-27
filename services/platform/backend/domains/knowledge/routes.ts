@@ -13,7 +13,10 @@ import { isAudienceAdmin } from '../../core/lib/audience.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
-import { listCredentials } from '../provider_credentials/service.ts';
+import {
+  isCredentialSelectionResolvable,
+  listCredentials,
+} from '../provider_credentials/service.ts';
 import {
   KnowledgeAdminError,
   deleteKnowledgeConnection,
@@ -260,7 +263,26 @@ export function createKnowledgeRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      return c.json(await readKnowledgeEmbeddingView(orgSlug));
+      const view = await readKnowledgeEmbeddingView(orgSlug);
+      if (!view.configured || view.providerSlug === undefined) {
+        return c.json(view);
+      }
+      // "Configured" used to be the file's existence alone: with its
+      // credential deleted the page still said so while indexing and search
+      // were down. Say whether the selection still resolves.
+      return c.json({
+        ...view,
+        credentialResolvable: await isCredentialSelectionResolvable(
+          deps.sql,
+          c.get('orgId'),
+          {
+            providerSlug: view.providerSlug,
+            ...(view.credentialId !== undefined
+              ? { credentialId: view.credentialId }
+              : {}),
+          },
+        ),
+      });
     } catch (error) {
       return handleAdminError(c, error);
     }

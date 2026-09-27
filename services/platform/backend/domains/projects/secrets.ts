@@ -5,6 +5,7 @@ import { encryptSecret } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
+  assertProjectActive,
   assertProjectAdministrable,
   loadProjectOrThrow,
   ProjectError,
@@ -15,7 +16,8 @@ import {
  * Project-scoped secrets — the 0.4 `projects/secrets` surface: metadata-only
  * listings (values are write-only), name normalization + shape checks with
  * the same structured codes the Secrets tab maps, the atomic
- * `_USERNAME`/`_PASSWORD` pair write, project-administer gating throughout.
+ * `_USERNAME`/`_PASSWORD` pair write, project-administer gating throughout
+ * and every write refused on an archived project (`PROJECT_ARCHIVED`).
  */
 
 const SECRET_VALUE_MAX = 8192;
@@ -54,6 +56,18 @@ async function requireAdministrable(
 ): Promise<void> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertProjectAdministrable(project, auth);
+}
+
+/** The write gate: administrable AND active — an archived project's
+ * secrets are read-only like the rest of it (`PROJECT_ARCHIVED`). */
+async function requireActiveAdministrable(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<void> {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertProjectAdministrable(project, auth);
+  assertProjectActive(project);
 }
 
 /** List project secret METADATA (never values) — project-administer only:
@@ -109,7 +123,7 @@ export async function setProjectSecret(
     description?: string;
   },
 ): Promise<void> {
-  await requireAdministrable(tx, auth, args.projectId);
+  await requireActiveAdministrable(tx, auth, args.projectId);
   const name = normalizeSecretName(args.name);
   assertSecretValue(args.value);
   await upsertSecretRow(
@@ -148,7 +162,7 @@ export async function setProjectSecretPair(
     description?: string;
   },
 ): Promise<void> {
-  await requireAdministrable(tx, auth, args.projectId);
+  await requireActiveAdministrable(tx, auth, args.projectId);
   // Validate the base shape first, then each suffixed name (an over-long
   // base fails with the same SECRET_NAME_INVALID the tab maps).
   const base = normalizeSecretName(args.baseName);
@@ -186,7 +200,7 @@ export async function deleteProjectSecret(
   auth: ProjectAuthContext,
   args: { projectId: string; name: string },
 ): Promise<void> {
-  await requireAdministrable(tx, auth, args.projectId);
+  await requireActiveAdministrable(tx, auth, args.projectId);
   await tx`
     DELETE FROM app.project_secrets
     WHERE org_id = ${auth.organizationId}

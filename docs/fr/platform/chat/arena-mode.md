@@ -26,12 +26,14 @@ Vérifie les faits dans la source, le respect des instructions, les informations
 | Verdict | Quand le choisir | Le chat continue avec |
 | --- | --- | --- |
 | **A est meilleur** | A est plus utile ou plus exact. | La colonne A. |
-| **B est meilleur** | B est plus utile ou plus exact. | La colonne B. |
+| **B est meilleur** | B est plus utile ou plus exact. | La colonne B, et la zone de saisie passe au modèle B. |
 | **Égalité** | Les deux répondent aussi bien à la demande. | La colonne A. |
 | **Les deux sont mauvais** | Aucune réponse n’est acceptable. | La colonne A. |
 | **Quitter sans verdict** | Tu ne souhaites pas noter ce résultat. | La colonne A, sans verdict. |
 
 Chaque choix termine la comparaison à deux colonnes. Le message suivant est envoyé dans le chat conservé. Réactive l’Arène pour comparer à nouveau : une égalité ne maintient pas les deux colonnes actives.
+
+La réponse de l’autre colonne est écartée et rejoint la [corbeille](/fr/platform/admin/governance/trash) de l’organisation, où un administrateur peut la restaurer comme chat à part entière jusqu’à la fin du délai de grâce de rétention. Elle n’apparaît plus dans ta liste de chats ni dans la recherche, et un lien vers elle indique que le chat n’est pas disponible.
 
 ## Retrouver le feedback enregistré
 

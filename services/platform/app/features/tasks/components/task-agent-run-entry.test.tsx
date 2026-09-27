@@ -1,4 +1,3 @@
-import { toast } from '@tale/ui/use-toast';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,6 +34,17 @@ vi.mock('@tale/ui/i18n/client', () => ({
       if (key === 'runs.agentLog.empty') {
         return 'The agent produced no log for this run.';
       }
+      if (key === 'agentRun.retry') return 'Retry';
+      if (key === 'agentRun.start') return 'Start agent';
+      if (key === 'agentRun.status.failed') return 'Failed';
+      if (key === 'agentRun.agentMissing') {
+        return 'The assigned agent no longer exists.';
+      }
+      if (key === 'agentRun.noAgentAssignee') {
+        return 'No agent is assigned to this task.';
+      }
+      if (key === 'agentRun.notStarted')
+        return 'The agent run could not start.';
       return key;
     },
   }),
@@ -56,12 +66,17 @@ vi.mock('@tale/ui/responsive-dialog', () => ({
   ),
 }));
 
-vi.mock('@tale/ui/use-toast', () => ({ toast: vi.fn() }));
-const { startRun } = vi.hoisted(() => ({ startRun: vi.fn() }));
+const { startRun, toast } = vi.hoisted(() => ({
+  startRun: vi.fn(),
+  toast: vi.fn(),
+}));
+
 vi.mock('../hooks/mutations', () => ({
   useStartTaskAgentRun: () => ({ mutateAsync: startRun }),
   useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
 }));
+
+vi.mock('@tale/ui/use-toast', () => ({ toast }));
 
 // Routes the card's two reads: the run-card query (args carry `taskId`) and
 // the details dialog's op query (args carry `runId`, `'skip'` until opened).
@@ -354,5 +369,75 @@ describe('TaskAgentRunEntry details', () => {
     expect(
       screen.getByText('The agent produced no log for this run.'),
     ).toBeInTheDocument();
+  });
+});
+
+// A deleted agent's task: its runs stay readable, but Start/Retry would only
+// kick a run for an agent that cannot exist, and a refusal names its reason.
+describe('TaskAgentRunEntry with a missing agent', () => {
+  it('withholds Retry (and Start) when the assignee is no longer a live agent', () => {
+    state.run = { ...settledRun(), status: 'failed', error: 'boom' };
+    const { rerender } = render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+        assigneeLive={false}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Details' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+
+    state.run = null;
+    rerender(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+        assigneeLive={false}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Start agent' })).toBeNull();
+  });
+
+  it('names the reason a start was refused instead of the generic line', async () => {
+    const user = userEvent.setup();
+    state.run = { ...settledRun(), status: 'failed', error: 'boom' };
+    startRun.mockReset();
+    toast.mockReset();
+    render(
+      <TaskAgentRunEntry
+        organizationId="org-1"
+        taskId={taskId}
+        assigneeId="agent-1"
+        canEdit
+      />,
+    );
+
+    startRun.mockResolvedValueOnce({ started: false, reason: 'agent_missing' });
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(toast).toHaveBeenLastCalledWith({
+      title: 'The assigned agent no longer exists.',
+      variant: 'destructive',
+    });
+
+    startRun.mockResolvedValueOnce({
+      started: false,
+      reason: 'no_agent_assignee',
+    });
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(toast).toHaveBeenLastCalledWith({
+      title: 'No agent is assigned to this task.',
+      variant: 'destructive',
+    });
+
+    startRun.mockResolvedValueOnce({ started: false, reason: 'capacity' });
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(toast).toHaveBeenLastCalledWith({
+      title: 'The agent run could not start.',
+      variant: 'destructive',
+    });
   });
 });

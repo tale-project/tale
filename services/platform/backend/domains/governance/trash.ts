@@ -1,5 +1,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  TRASH_LISTED_RESOURCE_TYPES,
+  type TrashListedResourceType,
+} from '../../core/governance/soft_delete.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { restoreContact } from '../contacts/service.ts';
@@ -9,10 +13,12 @@ import { restoreContact } from '../contacts/service.ts';
  * pair): soft-deleted rows across the lifecycle-bearing tables, newest
  * status-change first, walked type by type with a composite keyset cursor;
  * restore flips one row back to live (documents et al → lifecycle NULL,
- * chat threads → status 'active').
+ * chat threads → status 'active', their hidden lineage with them).
  *
- * 0.4 types with no pg lifecycle column (workflowExecution, usageLedger)
- * answer empty — their pg retention path hard-deletes without a trash stop.
+ * Only `TRASH_LISTED_RESOURCE_TYPES` have a source here; a type without a
+ * pg trash stop (automation runs since migration 0083, workflow
+ * executions, the usage ledger) is deleted outright and is neither listed
+ * nor offered as a filter.
  */
 
 export class TrashError extends Error {
@@ -37,13 +43,16 @@ interface TrashSource {
   /** SQL expression for the owner user id (aliased over `t`). */
   ownerExpr: string;
   createdColumn: string;
+  /** Extra listing predicate (aliased over `t`) — rows the surface must not
+   * show as records of their own. */
+  listPredicate?: string;
   /** Live value written back on restore. */
   restoreValue: string | null;
   /** Outbox entity a restore invalidates. */
   hintEntity: string;
 }
 
-const TRASH_SOURCES: Record<string, TrashSource> = {
+const TRASH_SOURCES: Record<TrashListedResourceType, TrashSource> = {
   document: {
     table: 'documents',
     idColumn: 'id',
@@ -98,26 +107,27 @@ const TRASH_SOURCES: Record<string, TrashSource> = {
     table: 'thread_metadata',
     idColumn: 'thread_id',
     statusColumn: 'status',
-    displayExpr: 't.title',
+    // The title lives on `app.threads`; `thread_metadata.title` exists but
+    // nothing writes it, so the page used to fall back to the thread id
+    // (2026-09-26 evaluation, E-20/G-15).
+    displayExpr:
+      '(SELECT th.title FROM app.threads th WHERE th.id = t.thread_id)',
     ownerExpr: 't.user_id',
     createdColumn: 'status_changed_at_ms',
+    // A hidden row is a branch sibling (an edit tail, an arena column) that
+    // travels with its root: it is restored with the root, never listed as
+    // a record of its own.
+    listPredicate: 't.hidden IS NOT true',
     restoreValue: 'active',
     hintEntity: 'chat_thread',
   },
 };
 
-/** 0.4 types the pg schema retains no trash stop for — automation runs
- * among them since migration 0083 dropped their never-written lifecycle
- * column (a listing that still selected it failed the whole Trash page);
- * a run is deleted outright, through its API door or retention. */
-const EMPTY_TYPES = new Set([
-  'thread',
-  'workflowExecution',
-  'usageLedger',
-  'automationRun',
-]);
+const TYPE_ORDER: readonly string[] = [...TRASH_LISTED_RESOURCE_TYPES].sort();
 
-const TYPE_ORDER = [...Object.keys(TRASH_SOURCES), ...EMPTY_TYPES].sort();
+function isListedType(type: string): type is TrashListedResourceType {
+  return TYPE_ORDER.includes(type);
+}
 
 export interface TrashRow {
   resourceType: string;
@@ -152,8 +162,8 @@ async function pageForType(
   after: { statusChangedAt: number; id: string } | null,
   limit: number,
 ): Promise<TrashRow[]> {
+  if (!isListedType(resourceType)) return [];
   const source = TRASH_SOURCES[resourceType];
-  if (!source) return [];
   const rows = await sql<TrashSourceRow[]>`
     SELECT t.${sql.unsafe(source.idColumn)} AS id,
            t.${sql.unsafe(source.statusColumn)} AS status,
@@ -164,6 +174,7 @@ async function pageForType(
     FROM app.${sql.unsafe(source.table)} t
     WHERE t.org_id = ${organizationId}
       AND t.${sql.unsafe(source.statusColumn)} IN ('trashed', 'expired')
+      AND ${sql.unsafe(source.listPredicate ?? 'true')}
       AND (${after === null}
         OR (coalesce(t.status_changed_at_ms, 0), t.${sql.unsafe(source.idColumn)})
           < (${after?.statusChangedAt ?? 0}, ${after?.id ?? ''}))
@@ -204,7 +215,6 @@ export async function listTrashedRows(
   for (const type of types) {
     if (rows.length >= limit + 1) break;
     if (cursor !== null && type < cursor.resourceType) continue;
-    if (EMPTY_TYPES.has(type)) continue;
     const after =
       cursor !== null && cursor.resourceType === type
         ? { statusChangedAt: cursor.statusChangedAt, id: cursor.id }
@@ -257,13 +267,13 @@ export async function restoreSoftDeletedRow(
   auth: { organizationId: string; userId: string; email?: string },
   args: { resourceType: string; id: string },
 ): Promise<void> {
-  const source = TRASH_SOURCES[args.resourceType];
-  if (!source) {
+  if (!isListedType(args.resourceType)) {
     throw new TrashError(
       'RESOURCE_TYPE_UNSUPPORTED',
       `No restore lane for ${args.resourceType}`,
     );
   }
+  const source = TRASH_SOURCES[args.resourceType];
   // A contact restores through the directory's own door, which re-runs the
   // create's uniqueness rule: the generic row flip used to mint a live twin
   // of a contact whose email or external id another contact had since taken
@@ -296,6 +306,18 @@ export async function restoreSoftDeletedRow(
   `;
   if (!restored[0]) {
     throw new TrashError('ROW_NOT_FOUND', 'Nothing to restore', 404);
+  }
+  // A chat's lineage travels together, as the owner's own delete and
+  // restore move it: the hidden siblings (edit tails) trashed with the root
+  // come back with it, so the branch navigator has its versions again.
+  if (args.resourceType === 'chatThread') {
+    await tx`
+      UPDATE app.thread_metadata SET
+        status = 'active', status_changed_at_ms = ${Date.now()}
+      WHERE org_id = ${auth.organizationId}
+        AND branch_root_id = ${args.id}
+        AND status IN ('trashed', 'expired')
+    `;
   }
   await createAuditLog(tx, {
     organizationId: auth.organizationId,

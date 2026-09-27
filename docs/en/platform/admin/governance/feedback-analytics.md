@@ -7,7 +7,7 @@ Use **Settings > Metrics > Feedback** as an Admin or Owner to review the feedbac
 
 ## Find the feedback you need
 
-Choose a period, then narrow by feedback type, assistant, or model. The available windows are 1, 7, 30, and 90 days, plus all time; the initial view uses 7 days. Selecting an assistant or model in a breakdown filters the view. Clear the filter chips to broaden it again.
+Choose a period, then narrow by feedback type, assistant, or model. The available windows are 1, 7, 30, and 90 days, plus all time; the initial view uses 7 days. Selecting an assistant or model in a breakdown filters the view. Clear the filter chips to broaden it again. Tale attributes each rating from the rated reply itself: the model and provider that answered, and the assistant the conversation runs under. The assistant is the one the conversation runs under when the rating is given, not necessarily the one that wrote the reply: after a conversation switches assistants, a rating on an earlier reply counts for the new assistant. A reply in a plain chat, outside any assistant, is listed as **Unattributed**.
 
 Use **Comments only** to focus on written explanations. If no feedback appears, check the period and filters before concluding that nobody has rated a reply. Feedback is voluntary; an unrated answer is neither a positive nor a negative vote.
 
@@ -16,7 +16,7 @@ Use **Comments only** to focus on written explanations. If no feedback appears, 
 | Signal | What it tells you |
 | --- | --- |
 | Thumbs up/down | Whether a member found a particular reply helpful. An optional comment provides context. |
-| Arena verdict | Which answer a member preferred in a specific pair, or whether the pair tied or both were bad. |
+| Arena verdict | Which answer a member preferred in a specific pair, or whether the pair tied or both were bad. A verdict cast on two copies of the same model is counted under **Same model**, apart from the verdicts and the matchup table. |
 
 Members can change or withdraw a rating. The dashboard reflects the current state, not a permanent count of every click. [Arena mode](/platform/chat/arena-mode) explains how members compare two answers.
 

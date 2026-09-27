@@ -74,6 +74,13 @@ export function CredentialRowActions<
     busy,
   });
 
+  const dependencyWarning = adapter.useDeleteWarning({
+    t,
+    credential,
+    organizationId,
+    open: dialogs.isOpen.delete,
+  });
+
   const failToast = (err: unknown) =>
     toast({
       title: t('credentials.updateFailed', { error: adapter.mapError(err, t) }),
@@ -116,7 +123,12 @@ export function CredentialRowActions<
       dialogs.setOpen.delete(false);
     } catch (err) {
       console.error(`${adapter.logTag}: delete credential failed`, err);
-      failToast(err);
+      toast({
+        title: t('credentials.deleteFailed', {
+          error: adapter.mapError(err, t),
+        }),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -213,10 +225,17 @@ export function CredentialRowActions<
         title={t('credentials.deleteTitle')}
         description={t('credentials.deleteBody', { name: credential.name })}
         warning={
-          adapter.deleteWarning?.(t, credential, vendor, siblingCount) ??
-          (credential.isDefault
-            ? t('credentials.deleteDefaultWarning')
-            : undefined)
+          // What depends on the credential comes first: it is why the
+          // delete will be refused.
+          [
+            dependencyWarning,
+            adapter.deleteWarning?.(t, credential, vendor, siblingCount) ??
+              (credential.isDefault
+                ? t('credentials.deleteDefaultWarning')
+                : undefined),
+          ]
+            .filter((line) => line !== undefined)
+            .join(' ') || undefined
         }
         isDeleting={remove.isPending}
         onDelete={() => void handleDelete()}

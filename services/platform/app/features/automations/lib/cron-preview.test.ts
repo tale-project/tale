@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { listTimezoneOptions, previewCronExpression } from './cron-preview';
+import {
+  isValidTimezone,
+  listTimezoneOptions,
+  previewCronExpression,
+} from './cron-preview';
 
 describe('previewCronExpression', () => {
   it('returns empty for a blank expression', () => {
@@ -9,6 +13,23 @@ describe('previewCronExpression', () => {
 
   it('flags invalid expressions', () => {
     expect(previewCronExpression('not a cron', 'UTC').kind).toBe('invalid');
+  });
+
+  // The preview judges with the bind's own parser: a four-field expression
+  // used to preview a "next run" and then fail to save (2026-09-26
+  // evaluation, D-05). Six fields, names and `?` are refused the same way.
+  it.each([
+    ['*/1 * * *', 'got 4'],
+    ['0 0 * * * *', 'got 6'],
+    ['0 9 * * MON', 'out of range'],
+    ['0 9 ? * 1', 'out of range'],
+    ['61 * * * *', '"61" is out of range (0..59)'],
+  ])('refuses %s with the validator’s own sentence', (cron, reason) => {
+    const preview = previewCronExpression(cron, 'UTC');
+    expect(preview.kind).toBe('invalid');
+    if (preview.kind === 'invalid') {
+      expect(preview.reason).toContain(reason);
+    }
   });
 
   it.each(['0 0 30 2 *', '0 0 31 4 *', '0 0 31 4,6,9,11 *'])(
@@ -54,6 +75,22 @@ describe('previewCronExpression', () => {
       expect(preview.pattern).toEqual({ type: 'everyHours', n: 6 });
     }
   });
+});
+
+describe('isValidTimezone', () => {
+  it.each(['UTC', 'Europe/Zurich', 'America/New_York'])(
+    'accepts %s',
+    (zone) => {
+      expect(isValidTimezone(zone)).toBe(true);
+    },
+  );
+
+  it.each(['', '   ', 'Mars/Olympus', 'Europe/Nowhere'])(
+    'refuses %j like the bind does',
+    (zone) => {
+      expect(isValidTimezone(zone)).toBe(false);
+    },
+  );
 });
 
 describe('listTimezoneOptions', () => {

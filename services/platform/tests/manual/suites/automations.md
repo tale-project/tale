@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 70 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -259,8 +259,9 @@ output:
 - [ ] `AUTO-F19` · **Runs tab** — **Runs** tab (`automations.navigation.runs`)
       after AUTO-F18 → `…/{slug}/runs` lists the runs newest first under the
       heading (`automations.runs.title` + `automations.runs.description`): each
-      row shows status badge, mode, version, and starter
-      (`automations.runs.startedBy`); an automation that never ran reads
+      row shows status badge, mode, version, and starter in words
+      (`automations.runs.starter.you` for your own runs — never a raw
+      `user:<id>`); an automation that never ran reads
       `automations.runs.empty`; clicking a run row navigates to the run route,
       where the strip stays and **Runs** remains the active tab.
 - [ ] `AUTO-F20` · **Run live** — (env-gated: deployed version + live
@@ -322,7 +323,9 @@ output:
   working.
 - [ ] `AUTO-F29` · **Trigger — remove** — **Remove trigger**
       (`automations.trigger.remove`) → confirm (`automations.trigger.removeTitle`)
-      → The panel reads `automations.trigger.none` after reload; versions and run
+      → The panel reads `automations.trigger.none` with an **Add trigger**
+      button (`automations.trigger.add`) — no Trigger type, Cron or Enabled
+      switch is drawn — immediately and after reload; versions and run
       history untouched.
 - [ ] `AUTO-F30` · **Project bindings** — Inspector **Projects** (no node
   selected) → select project(s) → **Save settings**
@@ -409,6 +412,122 @@ output:
       floating action dock, not under it; the dock's own row is fully
       readable. Repeat on **Settings > Account** and on a project's Tasks
       board, which reserve the same clearance.
+- [ ] `AUTO-F39` · **Starters and waiting reasons read as words** — Start a
+      Test run yourself, let a schedule or webhook start one, park a live run
+      on an approval (AUTO-F25) and start a `repeatUntil` polling run → On the
+      **Runs** tab and in the run header: your run reads
+      `automations.runs.starter.you`, another member's run names that member,
+      an API-key start carries "(API)" (`automations.runs.starter.apiKey`), a
+      scheduled run reads `automations.runs.starter.schedule` and a webhook
+      delivery `automations.runs.starter.webhook` — the two are told apart;
+      the waiting rows read `automations.runs.waiting.approval` /
+      `automations.runs.waiting.repeat` (naming the step), never
+      `approval:<uuid>` or `repeat:tick`; a failed run's row and header keep
+      its failure sentence; a succeeded run's row shows its starter only.
+- [ ] `AUTO-F40` · **One cron validator** — In the **Trigger** panel on a
+      schedule, type a four-field cron (`*/1 * * *`), then a six-field one and
+      `0 9 * * MON` → Each shows the refusal with the validator's own sentence
+      under the field (`automations.trigger.cronInvalidReason`, e.g. "got 4")
+      and NO "Next run" line; **Save settings** is disabled with that reason;
+      nothing is sent to the server. A five-field cron restores the preview
+      (`automations.trigger.cronNext`).
+- [ ] `AUTO-F41` · **Blank wizard validates the schedule before creating** —
+      **Create automation** › **Blank** › step 2 with **Schedule** → The
+      **Cron** field shows the pattern and next run (`automations.trigger.cronNext`)
+      for the default; **Timezone** is a searchable picker
+      (`automations.trigger.timezoneSearch`), not free text. Type
+      `61 * * * *`, then `0 0 31 2 *`, then `*/1 * * *` → each shows the
+      refusal under the field (`automations.trigger.cronInvalidReason`) and
+      **Create automation** is disabled with that reason — no automation is
+      created (the list is unchanged, no `automations.blank.triggerFailed` toast).
+- [ ] `AUTO-F42` · **Blank wizard keeps the typed name** — **Blank** wizard,
+      Name `Eval-D agent 测试 🚀` → the field reads `Saved as: eval-d-agent`
+      (`automations.blank.slugHint`); after **Create automation** the editor
+      header, breadcrumb and list row show **Eval-D agent 测试 🚀** while the
+      URL carries `eval-d-agent`. Name `发票提醒` → `Saved as:
+      automation-<8 hex>`, **Next** enabled, the created automation is titled
+      `发票提醒`. Save a new version from the canvas (no presentation of its
+      own) → the list still shows the typed name, never "Automation <hex>".
+- [ ] `AUTO-F43` · **Deep link to a missing version** — Open an existing
+      automation's editor with `?version=99` → The breadcrumb and tab strip
+      stay; the editor area reads `automations.editor.versionNotFound.title`
+      ("Version 99 doesn't exist") with **Open latest**
+      (`automations.editor.versionNotFound.openLatest`), never
+      `automations.notFound.title`; **Open latest** drops `?version=` and
+      draws the latest version. `?version=abc` and `?version=0` still open
+      the latest directly (AUTO-F36); an unknown slug still shows
+      `automations.notFound.title`.
+- [ ] `AUTO-F44` · **A schedule says what it will do** — On a deployed
+      automation with an enabled schedule the Cron line reads the pattern and
+      `automations.trigger.cronNext`. Switch **Enabled** off → the line reads
+      `automations.trigger.paused` with no next run, before and after **Save
+      settings** + reload. Open a not-deployed automation with a schedule (a
+      fresh upload, or a built-in pack) → the line reads
+      `automations.trigger.notDeployed` naming the would-be occurrence, never
+      a bare "Next run"; deploy a version → the plain next run returns.
+- [ ] `AUTO-F45` · **A new trigger starts off** — On an automation with no
+      trigger, **Add trigger** (`automations.trigger.add`) → the form opens
+      with **Enabled** OFF; type a cron and **Save settings** → after reload
+      the switch is still off and the Cron line reads
+      `automations.trigger.paused`; nothing fires at the cron's minute. In the
+      **Blank** wizard step 2, **Enable now** (`automations.blank.enableNow`)
+      is unchecked by default → the created automation's trigger is off;
+      check it → the trigger is on.
+- [ ] `AUTO-F46` · **Revoking a webhook asks first** — On an automation with
+      a live webhook (AUTO-F28), switch **Trigger type** to Platform event and
+      **Save settings** → a confirm dialog
+      (`automations.trigger.revokeConfirm.title`) names the revocation;
+      Cancel saves nothing and the old URL still answers 202; confirm → the
+      binding changes, a toast (`automations.trigger.revokedToast`) says the
+      URL was revoked, and a POST to the old URL answers 404. **Rotate
+      token** → confirm dialog (`automations.trigger.rotateConfirm.title`)
+      before any new URL is minted; Cancel leaves the old URL working.
+- [ ] `AUTO-F47` · **Blank wizard hands over the webhook URL** — **Blank**
+      wizard, step 2 **Trigger type** Webhook → the hint reads
+      `automations.blank.webhookHint`; **Create automation** → the dialog
+      stays open on `automations.trigger.tokenTitle` with the full URL and a
+      copy button (`automations.blank.copyWebhookUrl`); the copied URL
+      answers 202 to a POST (after Deploy); **Open the automation**
+      (`automations.blank.openAutomation`) lands in the editor, whose Trigger
+      card says a token is active (`automations.trigger.hasToken`) — no
+      Rotate needed. Closing the dialog with Escape also lands there.
+- [ ] `AUTO-F48` · **Stopping a run asks first and keeps what ran** — On a
+      live run parked on an approval (AUTO-F25) whose first node already ran,
+      **Stop the run** (`automations.runs.cancel`) → a confirm dialog
+      (`automations.runs.cancelConfirm.title`); Cancel leaves the run Waiting
+      and the approval card in place; confirm → the run reads **Stopped**
+      (`automations.runs.status.cancelled`), the approval card is gone, the
+      node that ran still reads **Ran** with its output in the inspector's
+      run section, the node the run was on reads **Stopped here**
+      (`automations.runs.nodeStatus.stopped`) — never **Running now** — and
+      later nodes **Not reached yet**; the same after a hard reload. Settings
+      › Audit log lists the run’s cancelled action with YOUR name as the
+      actor (not the starter's, when another member started it).
+- [ ] `AUTO-F49` · **A deleted automation keeps its run history** — Note a
+      run URL of an automation with runs, then delete the automation
+      (`automations.detail.delete.title`) and open that URL → the page is
+      NOT blank: under the breadcrumb and tab strip an info banner
+      (`automations.detail.deleted.banner`) names the deletion date, the
+      **Editor** and **Versions** tabs are disabled, **Runs** works, and the
+      run page shows its header, a canvas drawn from the run's own steps
+      (each with its status), the effects and the JSON sections; the Runs
+      list still lists the runs; opening `…/editor` shows
+      `automations.detail.deleted.title` with **Open the run history**
+      (`automations.detail.deleted.openRuns`). A slug nobody ever saved still
+      reads `automations.notFound.title`.
+- [ ] `AUTO-F50` · **Unserved model warns, never blocks** — Open a built-in
+      package whose `llm` node pins a model no connected provider serves and
+      select that node → the **Model** field is a picker listing only served
+      models, its description reads `automations.editor.llm.modelUnlisted`,
+      and a **Model id** box (`automations.editor.llm.modelIdLabel`) holds
+      the saved id; **Save version** succeeds and the save's warnings name
+      `LLM_MODEL_UNAVAILABLE` for that node; MCP `validate_automation` with
+      `model: nonexistent/model-xyz` answers `valid: true` with the same
+      warning (`errors: []`); a **Test run** still answers mock output. Pick a
+      listed model → the description disappears, the document stores only
+      `model` (no `modelProvider`), and a live run of that node succeeds.
+      **Type a model that is not listed** (`automations.editor.llm.typeUnlisted`)
+      shows the id box for free text.
 
 ## Boundary & error tests
 

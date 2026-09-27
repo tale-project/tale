@@ -43,7 +43,11 @@ describe('EntityViewDialog', () => {
         summary="Example Domain"
         badges={<span>Active</span>}
         icon={Globe}
-        identifier={{ label: 'Website ID', value: 'website-123' }}
+        identifier={{
+          label: 'Website ID',
+          value: 'website-123',
+          hint: 'Stays the same across scans.',
+        }}
         facts={[
           { label: 'Scan interval', value: 'Every 1 day' },
           { label: 'Description', value: 'A test site', colSpan: 2 },
@@ -75,6 +79,9 @@ describe('EntityViewDialog', () => {
       section.compareDocumentPosition(identifier) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(
+      within(dialog).getByText('Stays the same across scans.'),
+    ).toBeInTheDocument();
   });
 
   it('closes from the labelled header control', async () => {

@@ -1192,10 +1192,20 @@ export function DataTable<TData, TValue = unknown>({
               total: infiniteScroll.totalCount,
               ...entityLabelForms(infiniteScroll.entityLabel),
             })
-          : t('pagination.showingAll', {
-              count: shownEntityCount,
-              ...entityLabelForms(infiniteScroll.entityLabel),
-            })}
+          : infiniteScroll.hasMore
+            ? // No server total to name (a paginated source counts only what
+              // it has loaded) while more can still load: "Showing all N"
+              // would claim a completeness the list does not have, and an
+              // investigator reading an audit table might conclude an event is
+              // absent (2026-09-26 evaluation, E-03).
+              t('pagination.showingLoaded', {
+                count: shownEntityCount,
+                ...entityLabelForms(infiniteScroll.entityLabel),
+              })
+            : t('pagination.showingAll', {
+                count: shownEntityCount,
+                ...entityLabelForms(infiniteScroll.entityLabel),
+              })}
       </output>
     );
 
@@ -1220,9 +1230,12 @@ export function DataTable<TData, TValue = unknown>({
               min-w-full` wrapper spans the full table width so full-width
               children (infinite-scroll footer separators) cover overflowing
               content too. `overflow-hidden` on the frame clips the rounded
-              corners (safe here: this layout has no sticky header). */}
+              corners (safe here: this layout has no sticky header). The
+              scrollport is `relative` so an absolutely positioned descendant
+              (a cell's `sr-only` live region) is contained and clipped here
+              instead of widening the page. */}
           <div className="border-border overflow-hidden rounded-lg border">
-            <div ref={horizontalScrollRef} className="overflow-x-auto">
+            <div ref={horizontalScrollRef} className="relative overflow-x-auto">
               <div className="w-fit min-w-full">
                 {tableContent}
                 {infiniteScrollContent}
@@ -1273,7 +1286,9 @@ export function DataTable<TData, TValue = unknown>({
             // assert it takes the overflow instead of the page shell — the
             // difference between a table that scrolls and a page that grows.
             data-testid="data-table-scrollport"
-            className="min-h-0 overflow-auto overscroll-contain"
+            // `relative`: an absolutely positioned descendant (a cell's
+            // `sr-only` live region) is contained here, not by the page.
+            className="relative min-h-0 overflow-auto overscroll-contain"
           >
             <div className="w-fit min-w-full">
               {tableContent}

@@ -7,7 +7,7 @@ import { useActorDirectory } from './use-actor-directory';
 // The directory serves members from the org roster and agents from the
 // PROJECT's user-created instances (`projectAgents` rows): with a project the
 // instances are assignable and resolve to their names; without one no agent
-// is assignable, and an unknown/foreign agent actor resolves to its raw id.
+// is assignable, and an unknown/foreign agent actor reads as a deleted agent.
 
 const PROJECT_AGENTS = [
   {
@@ -117,10 +117,14 @@ describe('useActorDirectory — members + project-agent instances', () => {
     });
   });
 
-  it('falls back to the raw id for an unknown agent actor', () => {
+  it('labels an agent actor the project no longer has as a deleted agent, never its raw id', () => {
+    // A deleted agent's history stays on the task (its runs, its comments,
+    // the activity it wrote); the id it left behind is nothing a reader can
+    // look up, so the timeline says what it was instead.
     const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
     expect(result.current.resolveActor('agent', 'research-bot')).toMatchObject({
-      name: 'research-bot',
+      id: 'research-bot',
+      name: 'timeline.deletedAgent',
       isAgent: true,
     });
   });

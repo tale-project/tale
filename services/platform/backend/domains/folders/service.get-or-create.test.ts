@@ -45,13 +45,18 @@ interface Statement {
 
 function fakeTx(
   answer: (text: string, values: unknown[], nth: number) => unknown,
+  options: { archived?: boolean } = {},
 ): { tx: TransactionSql; statements: Statement[] } {
   const statements: Statement[] = [];
   const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
     if (text.includes('FROM app.projects WHERE id = ?')) {
-      return Promise.resolve([PROJECT]);
+      return Promise.resolve([
+        options.archived
+          ? { ...PROJECT, archivedAt: 1_700_000_000_000 }
+          : PROJECT,
+      ]);
     }
     const answered = answer(
       text,
@@ -71,6 +76,22 @@ const siblingLookup = (text: string) =>
   text.includes('lower(name) = ?');
 
 describe('getOrCreateProjectFolder', () => {
+  it('refuses a folder write on an archived project before any lookup', async () => {
+    // Archived = read-only for the whole project, folders included — the
+    // code the project's own writes answer, so the UI says "restore first".
+    const archived = fakeTx(() => [], { archived: true });
+    await expect(
+      getOrCreateProjectFolder(archived.tx, auth, {
+        projectId: 'p-1',
+        name: 'Inbox',
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
+    expect(archived.statements.some((s) => siblingLookup(s.text))).toBe(false);
+    expect(archived.statements.some((s) => s.text.startsWith('INSERT'))).toBe(
+      false,
+    );
+  });
+
   it('answers a sibling that differs only in case, with its stored spelling', async () => {
     const { tx, statements } = fakeTx((text) =>
       siblingLookup(text) ? [{ id: 'f-1', name: 'inbox' }] : [],

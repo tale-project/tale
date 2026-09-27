@@ -22,9 +22,11 @@ import { createAuditLog } from '../audit_logs/service.ts';
  *    `tale:rest.act-as` — naming an `actor` on the REST ask and review
  *    doors), checked by `holdsCapability`. The namespace is closed: only the slugs in
  *    `PLATFORM_CAPABILITIES` can be granted under it, so a typo or a
- *    look-alike never reads as a right it does not confer. Removing the
- *    membership revokes these grants (`removeMembershipCascade`), so a
- *    re-added member starts without the right.
+ *    look-alike never reads as a right it does not confer.
+ *
+ * Removing the membership revokes EVERY live grant the member holds here —
+ * capabilities and qualifications alike (`removeMembershipCascade`) — so a
+ * re-added member starts with none of them.
  *
  * Three rules carry over from 0.4 verbatim:
  *

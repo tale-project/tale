@@ -59,6 +59,7 @@ Click **Failed** or **Not supported** to read the explanation. The next action d
 | PDF cannot be parsed | Check that the original opens, remove password protection where permitted, or export a new PDF. A corrupt Office file may instead report a general indexing failure; check the original before repeatedly retrying. |
 | A secret or personal-data policy blocks indexing | Remove the credential from the source, or ask an administrator to review the reported policy restriction. Then upload the corrected material or retry after the configuration is repaired. |
 | Embedding model missing or provider account refused | An administrator must configure the model under **Settings > Data residency**, or repair the provider key, model access, plan, or balance. Then retry. |
+| Embedding credential missing | The credential the embedding model used was deleted, or its provider has no default credential left; **Settings > Data residency** shows **Credential missing**. An administrator adds or restores a credential under **Settings > AI providers**, or chooses another one for the embedding model, then retries. |
 | Temporary provider or indexing-service failure | Background jobs retry transient failures. If the error persists, give an administrator the document name and error; after repair, use **Retry indexing**. |
 | Search index rebuilding or repair failed | Rebuilding can recover automatically. A failed repair needs the operator to repair or restore the knowledge database before retrying. |
 

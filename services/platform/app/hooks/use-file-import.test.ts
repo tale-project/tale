@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { parseCSVWithMapper } from '@/lib/utils/file-parsing';
+import { ImportRowRefusal, parseCSVWithMapper } from '@/lib/utils/file-parsing';
 
 import {
   contactMappers,
@@ -119,9 +119,10 @@ describe('contactMappers.excel', () => {
     });
   });
 
-  it('returns null when email is missing', () => {
-    const result = contactMappers.excel({ name: 'Acme Corp' });
-    expect(result).toBeNull();
+  it('refuses a row without an email instead of dropping it', () => {
+    expect(() => contactMappers.excel({ name: 'Acme Corp' })).toThrow(
+      expect.objectContaining({ field: 'email', reason: 'blank' }),
+    );
   });
 
   // Regression test for #1323: a contact file whose columns are named
@@ -226,9 +227,45 @@ describe('productMappers.record', () => {
     expect(result).toMatchObject({ name: 'Gadget' });
   });
 
-  it('returns null when name and title are missing', () => {
-    const result = productMappers.record({ description: 'orphan' });
-    expect(result).toBeNull();
+  it('refuses a row without a name instead of dropping it', () => {
+    expect(() => productMappers.record({ description: 'orphan' })).toThrow(
+      expect.objectContaining({ field: 'name', reason: 'blank' }),
+    );
+  });
+
+  // `notanumber` used to import as a free product with no stock; a row
+  // the catalog would refuse is a row error in the door's own voice.
+  // The refusal carries field + reason KEYS (translated by the dialog), never
+  // an English sentence.
+  it.each([
+    [{ name: 'X', price: 'notanumber' }, 'price', 'notNumber'],
+    [{ name: 'X', stock: 'many' }, 'stock', 'notNumber'],
+    [{ name: 'X', price: '-5' }, 'price', 'negative'],
+    [{ name: 'X', stock: -3 }, 'stock', 'negative'],
+    [{ name: 'X', stock: '1.5' }, 'stock', 'notInteger'],
+    [{ name: 'X', price: '1e20' }, 'price', 'tooLarge'],
+    [{ name: 'X', currency: 'EURO' }, 'currency', 'notCurrency'],
+    [{ price: 1 }, 'name', 'blank'],
+  ])('refuses %j as a row error', (record, field, reason) => {
+    let thrown: unknown;
+    try {
+      productMappers.record(record);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ImportRowRefusal);
+    expect(thrown).toMatchObject({ field, reason });
+  });
+
+  it('accepts a blank price or stock as not given and uppercases the currency', () => {
+    expect(
+      productMappers.record({
+        name: 'X',
+        price: '',
+        stock: ' ',
+        currency: 'chf',
+      }),
+    ).toMatchObject({ price: 0, stock: 0, currency: 'CHF' });
   });
 
   it('defaults stock to 0, price to 0, currency to USD', () => {
@@ -248,6 +285,32 @@ describe('productMappers.record', () => {
     expect(result).toMatchObject({
       imageUrl: 'https://example.com/pic.png',
     });
+  });
+});
+
+describe('productMappers.validateStatus', () => {
+  const statuses = ['active', 'draft'] as const;
+
+  it('takes the default for a blank status, in any case for a known one', () => {
+    expect(productMappers.validateStatus('', statuses, 'draft')).toBe('draft');
+    expect(productMappers.validateStatus(undefined, statuses, 'draft')).toBe(
+      'draft',
+    );
+    expect(productMappers.validateStatus(' Active ', statuses, 'draft')).toBe(
+      'active',
+    );
+  });
+
+  it('refuses an unknown status instead of importing it as the default', () => {
+    expect(() =>
+      productMappers.validateStatus('flying', statuses, 'draft'),
+    ).toThrow(
+      expect.objectContaining({
+        field: 'status',
+        reason: 'notOneOf',
+        values: { options: 'active, draft' },
+      }),
+    );
   });
 });
 
@@ -325,5 +388,49 @@ describe('customerMappers.csv', () => {
       status: 'active',
       source: 'manual_import',
     });
+  });
+});
+
+describe('product import row accounting', () => {
+  // A row of empty cells (a spreadsheet's trailing lines) is not a record
+  // the mapper refuses — it is skipped like an empty line.
+  it('skips an all-blank row instead of refusing it', () => {
+    const csv = [
+      'name,price,stock',
+      'Kettle,10,1',
+      ',,',
+      ' , , ',
+      'Mixer,5,2',
+    ].join('\n');
+    const result = parseCSVWithMapper(csv, productMappers.csv, {
+      recordMapper: productMappers.record,
+      requiredColumns: PRODUCT_REQUIRED_COLUMNS,
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.rowErrors).toEqual([]);
+    expect(result.data.map((row) => row.name)).toEqual(['Kettle', 'Mixer']);
+    expect(result.rows).toEqual([2, 5]);
+  });
+
+  it('files a refused row under its spreadsheet line and keeps the rest', () => {
+    const csv = [
+      'name,price,stock',
+      'Kettle,10,1',
+      ',10,1',
+      'Toaster,notanumber,1',
+      'Mixer,5,2',
+    ].join('\n');
+    const result = parseCSVWithMapper(csv, productMappers.csv, {
+      recordMapper: productMappers.record,
+      requiredColumns: PRODUCT_REQUIRED_COLUMNS,
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.data.map((row) => row.name)).toEqual(['Kettle', 'Mixer']);
+    // Line 1 is the header, so the first data row is line 2.
+    expect(result.rows).toEqual([2, 5]);
+    expect(result.rowErrors).toEqual([
+      { row: 3, field: 'name', reason: 'blank' },
+      { row: 4, field: 'price', reason: 'notNumber' },
+    ]);
   });
 });

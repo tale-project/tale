@@ -9,7 +9,7 @@ import { useCallback } from 'react';
 
 import { ExternalTurnMetricsPage } from '@/app/features/analytics/external-turns/external-turns-metrics-page';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { ensureConvexQuery } from '@/app/lib/loader-preload';
+import { ensureOrgSettingsQuery } from '@/app/lib/loader-preload';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/metrics/external-turns',
@@ -17,8 +17,9 @@ export const Route = createFileRoute(
   validateSearch: metricsPeriodSearchSchema,
   loaderDeps: ({ search }) => ({ period: search.period ?? '30' }),
   loader: ({ context, params, deps }) =>
-    ensureConvexQuery(
+    ensureOrgSettingsQuery(
       context,
+      params.id,
       'sandbox/session_queries_public:getExternalTurnMetrics',
       {
         organizationId: params.id,

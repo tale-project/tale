@@ -23,6 +23,37 @@ vi.mock('@tale/ui/json-viewer', () => ({
   ),
 }));
 
+// The llm node's Model picker reads the organization's served models off the
+// composer roster; this test org serves exactly one direct model and one
+// subscription-only entry (offered to agents, never to an llm node).
+const roster = vi.hoisted(() => ({
+  data: {
+    harnesses: [],
+    models: [
+      {
+        id: 'anthropic/claude-haiku-4-5',
+        label: 'anthropic/claude-haiku-4-5',
+        providerSlug: 'openrouter',
+        providerLabel: 'OpenRouter',
+        credential: { authMethod: 'api-key' },
+      },
+      {
+        id: 'claude-fable-5',
+        label: 'claude-fable-5',
+        providerSlug: 'anthropic',
+        providerLabel: 'Anthropic',
+        credential: {
+          authMethod: 'subscription-broker',
+          constraints: { harness: 'claude-code' },
+        },
+      },
+    ],
+  } as unknown,
+}));
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjectHarnesses: () => ({ data: roster.data }),
+}));
+
 const llmType = coreNodeTypes().find((def) => def.type === 'llm');
 const transformType = coreNodeTypes().find((def) => def.type === 'transform');
 
@@ -99,11 +130,93 @@ describe('NodeInspector', () => {
     expect(screen.getByRole('textbox', { name: 'Prompt' })).toHaveValue(
       'One sentence, please.',
     );
-    expect(screen.getByRole('textbox', { name: 'Model' })).toHaveValue(
+    // The model is a picker over the models the organization serves, and
+    // the saved (served) model reads on its trigger.
+    expect(screen.getByRole('button', { name: 'Model' })).toHaveTextContent(
       'anthropic/claude-haiku-4-5',
     );
+    expect(screen.queryByRole('textbox', { name: 'Model id' })).toBeNull();
     // `code` belongs to `transform`, not to `llm`.
     expect(screen.queryByRole('textbox', { name: 'Code' })).toBeNull();
+  });
+
+  /**
+   * The Model field of an llm node used to be a bare text box that accepted
+   * any id, so a model nobody served was discovered on the first live run
+   * (2026-09-26 evaluation, D-16). It is now the served-model picker with a
+   * typed escape that says a live run would fail.
+   */
+  describe('llm model picker', () => {
+    it('offers only direct-served models and stores the pick as `model` alone', async () => {
+      const onChange = vi.fn();
+      const { user } = render(
+        <NodeInspector
+          id="inspector"
+          node={llmNode}
+          nodeType={llmType}
+          readOnly={false}
+          organizationId="org_test"
+          onChange={onChange}
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Model' }));
+      expect(
+        screen.getByRole('option', { name: /anthropic\/claude-haiku-4-5/ }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole('option', { name: /^claude-fable-5/ }),
+      ).toBeNull();
+      await user.click(
+        screen.getByRole('option', { name: /anthropic\/claude-haiku-4-5/ }),
+      );
+      expect(onChange).toHaveBeenCalledWith({
+        model: 'anthropic/claude-haiku-4-5',
+      });
+    });
+
+    it('keeps an unlisted model editable and says a live run would fail', () => {
+      render(
+        <NodeInspector
+          id="inspector"
+          node={{ ...llmNode, model: 'nonexistent/model-xyz' }}
+          nodeType={llmType}
+          readOnly={false}
+          organizationId="org_test"
+          onChange={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('textbox', { name: 'Model id' })).toHaveValue(
+        'nonexistent/model-xyz',
+      );
+      expect(
+        screen.getByText(
+          /No connected provider serves "nonexistent\/model-xyz"/,
+        ),
+      ).toBeVisible();
+    });
+
+    it('opens the typed escape on request', async () => {
+      const onChange = vi.fn();
+      const { user } = render(
+        <NodeInspector
+          id="inspector"
+          node={llmNode}
+          nodeType={llmType}
+          readOnly={false}
+          organizationId="org_test"
+          onChange={onChange}
+        />,
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Type a model that is not listed' }),
+      );
+      const box = screen.getByRole('textbox', { name: 'Model id' });
+      expect(box).toHaveValue('anthropic/claude-haiku-4-5');
+      await user.type(box, 'x');
+      expect(onChange).toHaveBeenLastCalledWith({
+        model: 'anthropic/claude-haiku-4-5x',
+      });
+    });
   });
 
   it('renders the transform body for a transform node', () => {

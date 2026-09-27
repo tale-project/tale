@@ -39,7 +39,7 @@ Für das Setzen genügt ein Admin. Die Freigabe braucht das Vier-Augen-Prinzip u
 
 Eine Sperre kann Löschanfragen für die Person, das Löschen betroffener Chats oder Dokumente und das Löschen eines Ordners mit gesperrten Dateien verhindern. Jede aktive Organisations- oder Mitgliedssperre verhindert außerdem das Löschen der gesamten Organisation.
 
-Scheitert eine Löschung, prüfe die zuständige Sperre, statt die Aktion zu wiederholen. Die Freigabe einer Sperre hebt keine andere überlappende Sperre auf. Nach der Freigabe kann die geltende Aufbewahrungs- oder Löschverarbeitung fortfahren.
+Scheitert eine Löschung, prüfe die zuständige Sperre, statt die Aktion zu wiederholen. Die Freigabe einer Sperre hebt keine andere überlappende Sperre auf. Nach der Freigabe kann die geltende Aufbewahrungs- oder Löschverarbeitung fortfahren. Ein Löschbeleg, den die Sperre blockiert hat, läuft nicht von selbst weiter: Öffne ihn unter Anfragen betroffener Personen und wähle **Erneut versuchen**.
 
 ## Zugehörige Anfragen prüfen
 

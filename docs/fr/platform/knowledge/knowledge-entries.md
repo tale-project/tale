@@ -55,7 +55,7 @@ Clique sur **Enregistrer**. La ligne affiche le sujet, le contenu, la source (**
 
 Dans le menu de la ligne, choisis **Modifier**, corrige le contenu et clique sur **Enregistrer**. Cela crée une nouvelle version courante et programme l’indexation de son texte. Chaque sujet possède une seule entrée courante ; corriger l’entrée existante évite les réponses contradictoires.
 
-Après une correction, ouvre les détails pour consulter l’**Historique des versions**. Les anciennes versions permettent de retrouver ce qui a changé et leur date de remplacement. Elles ne constituent pas des informations courantes supplémentaires. Une application peut également créer et modifier des entrées via l’[API REST](/fr/develop/api-reference).
+Après une correction, ouvre les détails pour consulter l’**Historique des versions**. Les anciennes versions permettent de retrouver ce qui a changé et leur date de remplacement. Elles ne constituent pas des informations courantes supplémentaires. L’**ID de version** affiché dans les détails appartient à la version courante et change à chaque modification ; c’est le sujet qui identifie l’entrée d’une version à l’autre. Une application peut également créer et modifier des entrées via l’[API REST](/fr/develop/api-reference).
 
 <Tip>
 

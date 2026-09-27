@@ -21,6 +21,10 @@ import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useCreateProject } from '../hooks/mutations';
+import {
+  ProjectIdentityPicker,
+  type ProjectIdentityValue,
+} from './project-identity-picker';
 
 type FormData = {
   name: string;
@@ -61,6 +65,12 @@ export function ProjectCreateDialog({
   // for an admin). Empty = organization-wide, the default.
   const { teams: assignableTeams } = useOrgTeams();
   const [teamIds, setTeamIds] = useState<string[]>([]);
+  // The icon/color pair lives beside the form like the audience does: it has
+  // no native input, and `null` (the default folder / gray) sends nothing.
+  const [identity, setIdentity] = useState<ProjectIdentityValue>({
+    icon: null,
+    color: null,
+  });
 
   const formSchema = useMemo(
     () =>
@@ -113,6 +123,7 @@ export function ProjectCreateDialog({
     if (!open) {
       reset();
       setTeamIds([]);
+      setIdentity({ icon: null, color: null });
       keyEditedRef.current = false;
     }
   }, [open, reset]);
@@ -126,6 +137,8 @@ export function ProjectCreateDialog({
         name: data.name,
         key: normalizeProjectKey(data.key),
         description: data.description || undefined,
+        ...(identity.icon !== null ? { icon: identity.icon } : {}),
+        ...(identity.color !== null ? { color: identity.color } : {}),
         ...(teamIds.length > 0 ? { teamIds } : {}),
       });
       toast({
@@ -217,6 +230,21 @@ export function ProjectCreateDialog({
         }}
         errorMessage={errors.key?.message}
       />
+      <div
+        role="group"
+        aria-labelledby="project-identity-label"
+        className="flex flex-col gap-1.5"
+      >
+        <p id="project-identity-label" className="text-sm font-medium">
+          {t('identity.label')}
+        </p>
+        <ProjectIdentityPicker
+          name={name.trim().length > 0 ? name : t('create.nameLabel')}
+          value={identity}
+          onChange={setIdentity}
+          disabled={isSubmitting}
+        />
+      </div>
       <Textarea
         id="project-description"
         label={t('create.descriptionLabel')}
@@ -227,21 +255,16 @@ export function ProjectCreateDialog({
         errorMessage={errors.description?.message}
       />
       {assignableTeams && assignableTeams.length > 0 ? (
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="project-audience">
-            {t('create.audienceLabel')}
-          </label>
-          <p className="text-muted-foreground text-sm">
-            {t('create.audienceHelp')}
-          </p>
-          <TeamMultiSelect
-            teams={assignableTeams}
-            selectedTeamIds={teamIds}
-            onSelectionChange={setTeamIds}
-            orgWideLabel={t('list.sharingOrgWide')}
-            disabled={isSubmitting}
-          />
-        </div>
+        <TeamMultiSelect
+          id="project-audience"
+          label={t('create.audienceLabel')}
+          description={t('create.audienceHelp')}
+          teams={assignableTeams}
+          selectedTeamIds={teamIds}
+          onSelectionChange={setTeamIds}
+          orgWideLabel={t('list.sharingOrgWide')}
+          disabled={isSubmitting}
+        />
       ) : null}
     </FormDialog>
   );

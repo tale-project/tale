@@ -5,7 +5,13 @@ import { z } from 'zod/v4';
 import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
 import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import { OrganizationSettingsView } from './organization-settings';
 
@@ -20,6 +26,13 @@ const nameRequiredMessage = enMessages.settings.organization.nameRequired;
 // it has its own coverage.
 vi.mock('./members-settings', () => ({
   MembersSettings: () => null,
+}));
+
+// The danger zone's delete wiring (router, session, toasts) is stubbed; the
+// dialog's type-to-confirm gate is what the `canDelete` case covers.
+const deleteOrganization = vi.fn().mockResolvedValue(true);
+vi.mock('@/app/features/organization/hooks/use-delete-organization', () => ({
+  useDeleteOrganization: () => ({ deleteOrganization, isDeleting: false }),
 }));
 
 interface Form {
@@ -230,5 +243,94 @@ describe('OrganizationSettingsView locale select', () => {
 
     await waitFor(() => expect(holder.current?.isDirty).toBe(true));
     expect(holder.current?.form.getValues('defaultLocale')).toBe('de');
+  });
+});
+
+// E-22: the most destructive action in the product used to be one click
+// after a plain confirm; it now asks for the organization's name, like an
+// erasure asks for ERASE, and hands the typed name to the server.
+describe('OrganizationSettingsView danger zone', () => {
+  function DeleteHarness({
+    organization = { _id: 'org1', name: 'Acme' },
+  }: {
+    organization?: { _id: string; name: string } | null;
+  }) {
+    const editor = useFormEditor<Form>({
+      data: { name: 'Acme', defaultLocale: 'en' },
+      save,
+    });
+    return (
+      <OrganizationSettingsView
+        controller={editor}
+        organization={organization}
+        organizationId="org1"
+        canDelete
+        isCurrentOrganization
+      />
+    );
+  }
+
+  // The client compared the trimmed input to the UNtrimmed name (the
+  // server trims both), and an unknown organization made the phrase ''
+  // — Delete enabled with nothing typed.
+  it('compares against the trimmed name and sends it trimmed', async () => {
+    const { user } = render(
+      <DeleteHarness organization={{ _id: 'org1', name: '  Acme  ' }} />,
+    );
+    const action = enMessages.settings.organization.deleteConfirmAction;
+    await user.click(screen.getByRole('button', { name: action }));
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: action });
+    await user.type(
+      within(dialog).getByLabelText(
+        enMessages.settings.organization.deleteTypeNameLabel,
+      ),
+      'Acme',
+    );
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(deleteOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({ confirmName: 'Acme' }),
+      ),
+    );
+  });
+
+  it('withholds the danger zone until the organization is known', () => {
+    render(<DeleteHarness organization={null} />);
+    expect(
+      screen.queryByRole('button', {
+        name: enMessages.settings.organization.deleteConfirmAction,
+      }),
+    ).toBeNull();
+  });
+
+  it('keeps Delete disabled until the organization name is typed, then sends it', async () => {
+    const { user } = render(<DeleteHarness />);
+    const action = enMessages.settings.organization.deleteConfirmAction;
+
+    await user.click(screen.getByRole('button', { name: action }));
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: action });
+    expect(confirm).toBeDisabled();
+
+    const field = within(dialog).getByLabelText(
+      enMessages.settings.organization.deleteTypeNameLabel,
+    );
+    await user.type(field, 'Acme Corp');
+    expect(confirm).toBeDisabled();
+
+    await user.clear(field);
+    await user.type(field, 'Acme');
+    expect(confirm).toBeEnabled();
+
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(deleteOrganization).toHaveBeenCalledWith({
+        organizationId: 'org1',
+        confirmName: 'Acme',
+        isCurrent: true,
+      }),
+    );
   });
 });

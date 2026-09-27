@@ -1,6 +1,6 @@
 # Approvals
 
-> **Prefix** `APV-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `APV-` · **Reset** none · **Cost** 21 boxes
 
 Exercise the cross-cutting human-in-the-loop surface — every place a run or
 agent parks for a human decision and what that decision does downstream. After
@@ -150,6 +150,16 @@ chat probe) and the rendering/regression checks.
   chat.md CHAT-F35's case — here only cross-check that the underlying approval
   reaches the same terminal state you decided (no orphaned **Pending** row
   after the decision)
+- [ ] `APV-F13` · **No credential → no card** — In an organization with NO
+  credential for a connector (Settings › Connectors), deploy an automation
+  with a write node of that connector (e.g. a mail `send`) and **Run live** →
+  the run never parks Waiting and no approval card is minted; it reads
+  **Failed** (`automations.runs.status.failed`) and its alert is one readable
+  sentence — "no usable credential for …", naming Settings → Connectors and
+  ending with the hint "connect the connector, or mark one of its credentials
+  as the default" — never a raw `{"code":…}` JSON blob; the node inspector's
+  run section shows the same sentence as the node's error. REST `GET
+  /api/v1/runs/{id}` answers `failureCode: connector_error`.
 
 ## Boundary & error tests
 

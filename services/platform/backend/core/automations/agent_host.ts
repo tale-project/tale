@@ -650,12 +650,14 @@ export async function ensureWorkflowSession(
   ctx: ActionCtx,
   organizationId: string,
   runId: string,
+  harness?: string,
 ): Promise<string> {
   const sessionId = sessionIdForWorkflowExecution(runId);
   await ensureAgentSession(ctx, {
     organizationId,
     sessionId,
     owner: { type: 'workflow_run', runId },
+    ...(harness !== undefined ? { agentKind: harness } : {}),
   });
   return sessionId;
 }
@@ -1106,7 +1108,12 @@ export async function startWorkflowAgentTurnImpl(
         await reapRefusedStart(ctx, args, early);
         return null;
       }
-      await ensureWorkflowSession(ctx, args.organizationId, args.runId);
+      await ensureWorkflowSession(
+        ctx,
+        args.organizationId,
+        args.runId,
+        args.harness,
+      );
 
       const skillViewer = await resolveRunSkillViewer(
         ctx,
@@ -1669,7 +1676,12 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       // The wait may have outlived the container (idle reaper stops and
       // preserves) — the session volume holds the workspace AND the harness's
       // own conversation state, so an adopt-or-recreate brings both back.
-      await ensureWorkflowSession(ctx, args.organizationId, askRunId);
+      await ensureWorkflowSession(
+        ctx,
+        args.organizationId,
+        askRunId,
+        agent.harness,
+      );
 
       const serving = await resolveWorkflowAgentServing(ctx, {
         organizationId: args.organizationId,

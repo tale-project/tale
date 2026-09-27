@@ -59,6 +59,12 @@ export interface ProviderCredentialsContract {
     args: { organizationId: string; credentialId: string };
     returns: null;
   };
+  'provider_credentials/queries:getCredentialDependents': {
+    kind: 'query';
+    args: { organizationId: string; credentialId: string };
+    /** What resolves its key through the credential (`embedding`). */
+    returns: { usedBy: string[] };
+  };
   'provider_credentials/queries:listCredentials': {
     kind: 'query';
     args: { organizationId: string };

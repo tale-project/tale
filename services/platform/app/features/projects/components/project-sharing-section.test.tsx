@@ -101,3 +101,12 @@ describe('ProjectSharingSection', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 });
+
+describe('ProjectSharingSection accessibility', () => {
+  it('names the Audience combobox', () => {
+    renderSection([]);
+    expect(
+      screen.getByRole('combobox', { name: 'Audience' }),
+    ).toBeInTheDocument();
+  });
+});

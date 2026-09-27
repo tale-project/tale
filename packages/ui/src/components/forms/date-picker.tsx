@@ -11,7 +11,10 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { forwardRef, memo } from 'react';
 import ReactDatePicker from 'react-datepicker';
 
-import { DatePickerPopperContainer } from './date-picker-popper';
+import {
+  DatePickerCalendarContainer,
+  DatePickerPopperContainer,
+} from './date-picker-popper';
 
 import styles from './date-range-picker.module.css';
 
@@ -201,6 +204,7 @@ export function DatePicker({
         popperClassName="date-range-picker-popper"
         popperPlacement="bottom-start"
         popperContainer={DatePickerPopperContainer}
+        calendarContainer={DatePickerCalendarContainer}
       />
     </div>
   );

@@ -25,7 +25,7 @@ Un chat de projet démarre avec les instructions enregistrées du projet. Il peu
 
 ## Choisir une identité reconnaissable
 
-**Créer un projet** demande un nom et une **Clé du projet**, avec une description facultative. La clé devient le préfixe des identifiants de tâches, comme `WR-1`, et ne peut plus changer après la création. Choisis une abréviation courte et durable.
+**Créer un projet** demande un nom et une **Clé du projet**, avec une description, une icône et une couleur facultatives. La clé devient le préfixe des identifiants de tâches, comme `WR-1`, et ne peut plus changer après la création. Choisis une abréviation courte et durable.
 
 Tu peux ensuite modifier le nom, la description, l’icône, la couleur et les instructions dans **Général**. Utilise **Enregistrer** pour appliquer les modifications ou **Abandonner** pour les annuler. Pour suivre toutes les étapes, consulte [Utiliser les projets](/fr/tutorials/member/use-projects).
 
@@ -49,4 +49,4 @@ Utilise **Déplacer vers un projet…** dans les actions du chat, ou fais glisse
 
 Crée une [tâche](/fr/platform/projects/tasks) lorsqu’une décision a besoin d’un responsable ou d’un résultat. Un collègue peut la réaliser, ou un [agent de projet](/fr/platform/projects/project-agents) configuré peut y travailler. Indique les critères d’acceptation dans la description pour permettre la relecture.
 
-Archive un projet terminé pour le retirer de la liste active. Avant de supprimer, lis le choix proposé pour ses contenus : les détacher conserve les fichiers dans la bibliothèque et les chats comme conversations personnelles ; les supprimer retire aussi ces contenus. Les fichiers détachés peuvent devenir accessibles à un public plus large. Choisis selon ce qui doit rester disponible.
+Archive un projet terminé pour le retirer de la liste active. Un projet archivé est en lecture seule pour tout le monde : ses réglages, ses tâches, ses fichiers et ses agents restent consultables mais ne peuvent plus être modifiés, jusqu’à ce qu’un administrateur du projet le restaure depuis **Général**. Avant de supprimer, lis le choix proposé pour ses contenus : les détacher conserve les fichiers dans la bibliothèque et les chats comme conversations personnelles ; les supprimer retire aussi ces contenus. Les fichiers détachés peuvent devenir accessibles à un public plus large. Choisis selon ce qui doit rester disponible.

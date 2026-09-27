@@ -31,6 +31,7 @@ export interface FeedbackContract {
           tie: number;
           both_bad: number;
         };
+        selfMatches: number;
         total: number;
       };
       series: Array<{ dateKey: string; positive: number; negative: number }>;

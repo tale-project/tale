@@ -64,6 +64,10 @@ export const CODES = {
   // Connector contracts.
   CONNECTOR_INPUT_INVALID: 'connector inputs must match their JSON Schema',
 
+  // Models.
+  LLM_MODEL_UNAVAILABLE:
+    'an llm/agent model should be one a connected provider of the organization serves',
+
   // Document quality.
   OUTPUT_MISSING: 'an automation without output returns null',
   UNUSED_NODE:

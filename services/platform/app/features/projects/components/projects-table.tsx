@@ -10,7 +10,7 @@ import { BulkArchiveBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { HStack } from '@tale/ui/layout';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { useListPage } from '@tale/ui/use-list-page';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
 import { Folder, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -267,8 +267,14 @@ export function ProjectsTable({
                 {row.original.key}
               </span>
             ) : null}
-            <span
-              className="min-w-0 truncate text-sm font-medium"
+            {/* The name is the row's real link: `onRowClick` is a pointer
+                convenience a `<tr>` cannot offer the keyboard. The link stops
+                its click at itself so the row does not navigate twice. */}
+            <Link
+              to="/dashboard/$id/projects/$projectId/tasks"
+              params={{ id: organizationId, projectId: row.original._id }}
+              onClick={(event) => event.stopPropagation()}
+              className="focus-visible:ring-ring min-w-0 truncate rounded-sm text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
               title={
                 row.original.description
                   ? `${row.original.name} — ${row.original.description}`
@@ -281,7 +287,7 @@ export function ProjectsTable({
                   ({t('archived.badge')})
                 </span>
               ) : null}
-            </span>
+            </Link>
           </HStack>
         ),
       },

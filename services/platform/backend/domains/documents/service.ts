@@ -390,6 +390,10 @@ export async function requireDocumentWriteAccess(
     if (!access.canEdit) {
       throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
     }
+    // Archived = read-only for the whole project, its documents included.
+    if (project.archivedAt !== null) {
+      throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
+    }
   }
   return doc;
 }
@@ -463,6 +467,9 @@ export async function createDocumentFromUpload(
     }
     if (!access.canEdit) {
       throw new DocumentError('RBAC_FORBIDDEN', 'Editor role required', 403);
+    }
+    if (project.archivedAt !== null) {
+      throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
     }
     if (args.folderId) {
       const folder = await loadFolderOrThrow(tx, args.folderId);
@@ -819,6 +826,12 @@ export async function detachDocumentFromProject(
   const access = checkProjectAccess(project, auth.teamIds, auth.role);
   if (!access.canEdit) {
     throw new DocumentError('RBAC_FORBIDDEN', 'Editor role required', 403);
+  }
+  // Archived = read-only for the whole project, its documents included: a
+  // detach is a write on the project's file set, so it refuses the way
+  // every other project-file write does.
+  if (project.archivedAt !== null) {
+    throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
   }
   await tx`
     UPDATE app.documents SET
@@ -2154,6 +2167,10 @@ export async function deleteDocumentHard(
     const access = checkProjectAccess(project, auth.teamIds, auth.role);
     if (!access.canEdit) {
       throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
+    }
+    // Archived = read-only for the whole project, its documents included.
+    if (project.archivedAt !== null) {
+      throw new DocumentError('PROJECT_ARCHIVED', 'Project is archived', 403);
     }
   }
   assertRecordTrashableJson(doc.record);

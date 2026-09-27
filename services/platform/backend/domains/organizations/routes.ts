@@ -2,6 +2,7 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
   MembershipError,
@@ -168,12 +169,20 @@ export function createOrganizationRoutes(deps: {
   app.post('/:id/delete', async (c) => {
     const organizationId = c.req.param('id');
     const session = c.get('sessionBundle');
+    // `confirmName`: the organization's name typed back — the door refuses
+    // a body without it (`ORG_CONFIRM_NAME_MISMATCH`, 400).
+    const body: unknown = await c.req.json().catch(() => null);
+    const confirmName =
+      isRecord(body) && typeof body.confirmName === 'string'
+        ? body.confirmName
+        : '';
     try {
       const result = await transactSerializable(deps.sql, (tx) =>
         deleteOrganization(
           tx,
           { userId: session.user.id, email: session.user.email },
           organizationId,
+          confirmName,
         ),
       );
       return c.json(result);

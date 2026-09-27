@@ -118,5 +118,8 @@ declare module '@tanstack/react-router' {
       id: string;
       status: 'open' | 'closed' | 'spam' | 'archived';
     };
+    /** How many `?task=` sheet entries the tasks board pushed above the bare
+     *  board (see `features/tasks/lib/view.ts`). */
+    taskSheetDepth?: number;
   }
 }

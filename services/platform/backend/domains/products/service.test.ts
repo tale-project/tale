@@ -11,16 +11,26 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createAuditLog, emitHintInTx } = vi.hoisted(() => ({
+const { createAuditLog, emitHintInTx, loadActiveHolds } = vi.hoisted(() => ({
   createAuditLog: vi.fn(async (..._args: unknown[]) => 'audit-1'),
   emitHintInTx: vi.fn(async () => undefined),
+  loadActiveHolds: vi.fn(async () => ({
+    orgHeld: false,
+    userMembershipIds: new Set<string>(),
+  })),
 }));
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
+vi.mock('../legal_holds/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../legal_holds/service.ts')>()),
+  loadActiveHolds,
+}));
 
+import { productImageUrl } from './image-url.ts';
 import {
   createProduct,
+  deleteProduct,
   PRODUCT_STATUSES,
   ProductError,
   updateProduct,
@@ -67,6 +77,10 @@ const product = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  loadActiveHolds.mockResolvedValue({
+    orgHeld: false,
+    userMembershipIds: new Set<string>(),
+  });
 });
 
 describe('product status vocabulary', () => {
@@ -298,5 +312,147 @@ describe('product update — a patch that changes nothing', () => {
       statements.some((s) => s.text.startsWith('UPDATE app.products')),
     ).toBe(true);
     expect(createAuditLog).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A deleted product's uploaded image used to stay: its `file_metadata` row
+ * kept answering the uploader's preview and the blob was never reclaimed.
+ * The row now goes inside the write, the blob ref comes back for the
+ * post-commit reclaim, and a hold or a second product keeps the bytes.
+ */
+describe('product delete and image release', () => {
+  const imageId = '05b12345-1020-4000-8000-123456789abc';
+  const imageUrl = productImageUrl('org-1', imageId);
+  const withImage = { ...product, imageUrl };
+  const imageRow = { storageRef: 's3:org-1/img', uploadedBy: 'user-2' };
+
+  function harness(options: {
+    stillShown?: boolean;
+    imageRow?: typeof imageRow | null;
+    referenced?: boolean;
+  }) {
+    return recordingSql((text) => {
+      if (text.includes('FROM app.products WHERE id = ?')) return [withImage];
+      if (text.includes('AND image_url = ?'))
+        return options.stillShown ? [{ id: 'p-2' }] : [];
+      if (text.includes('FROM app.file_metadata WHERE id = ?'))
+        return options.imageRow === null ? [] : [options.imageRow ?? imageRow];
+      if (text.includes('AS referenced'))
+        return [{ referenced: options.referenced ?? false }];
+      return [];
+    });
+  }
+
+  it('deletes the image row inside the write and answers its blob for the reclaim', async () => {
+    const { sql, statements } = harness({});
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    const released = await deleteProduct(sql as never, scope, 'p-1');
+    expect(released).toEqual(['s3:org-1/img']);
+    const texts = statements.map((s) => s.text);
+    expect(texts.some((t) => t.startsWith('DELETE FROM app.products'))).toBe(
+      true,
+    );
+    expect(
+      texts.some((t) => t.startsWith('DELETE FROM app.file_metadata')),
+    ).toBe(true);
+    // Never the blob from inside the transaction: the caller reclaims it
+    // once the delete is committed.
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'product.deleted' }),
+    );
+  });
+
+  it('keeps the upload when another product still shows it', async () => {
+    const { sql, statements } = harness({ stillShown: true });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    expect(await deleteProduct(sql as never, scope, 'p-1')).toEqual([]);
+    expect(
+      statements.some((s) =>
+        s.text.startsWith('DELETE FROM app.file_metadata'),
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps the blob when another row still serves the same bytes', async () => {
+    const { sql } = harness({ referenced: true });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    expect(await deleteProduct(sql as never, scope, 'p-1')).toEqual([]);
+  });
+
+  it('releases nothing for an external image URL', async () => {
+    const { sql, statements } = recordingSql((text) =>
+      text.includes('FROM app.products WHERE id = ?')
+        ? [{ ...product, imageUrl: 'https://images.example/p.png' }]
+        : [],
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    expect(await deleteProduct(sql as never, scope, 'p-1')).toEqual([]);
+    expect(statements.some((s) => s.text.includes('app.file_metadata'))).toBe(
+      false,
+    );
+  });
+
+  it('refuses the delete under an organization-wide legal hold, nothing written', async () => {
+    loadActiveHolds.mockResolvedValue({
+      orgHeld: true,
+      userMembershipIds: new Set<string>(),
+    });
+    const { sql, statements } = harness({});
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await expect(
+      deleteProduct(sql as never, scope, 'p-1'),
+    ).rejects.toMatchObject({ code: 'LEGAL_HOLD_ACTIVE', status: 409 });
+    expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(false);
+  });
+
+  it('refuses the delete while the image uploader is on a custodian hold', async () => {
+    loadActiveHolds.mockResolvedValue({
+      orgHeld: false,
+      userMembershipIds: new Set(['user-2']),
+    });
+    const { sql, statements } = harness({});
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+    await expect(
+      deleteProduct(sql as never, scope, 'p-1'),
+    ).rejects.toMatchObject({ code: 'LEGAL_HOLD_ACTIVE' });
+    expect(statements.some((s) => s.text.startsWith('DELETE'))).toBe(false);
+  });
+
+  it('releases the superseded image on a replace or a remove, and keeps it under a hold', async () => {
+    const run = async (patch: { imageUrl: string | null }) => {
+      const { sql, statements } = harness({});
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag stands in for a transaction
+      const released = await updateProduct(sql as never, scope, 'p-1', patch);
+      return { released, statements };
+    };
+    const removed = await run({ imageUrl: null });
+    expect(removed.released).toEqual(['s3:org-1/img']);
+    expect(
+      removed.statements.some((s) =>
+        s.text.startsWith('DELETE FROM app.file_metadata'),
+      ),
+    ).toBe(true);
+    const replaced = await run({ imageUrl: 'https://images.example/new.png' });
+    expect(replaced.released).toEqual(['s3:org-1/img']);
+    // A patch that keeps the image releases nothing.
+    const kept = await run({ imageUrl });
+    expect(kept.released).toEqual([]);
+
+    loadActiveHolds.mockResolvedValue({
+      orgHeld: true,
+      userMembershipIds: new Set<string>(),
+    });
+    const held = await run({ imageUrl: null });
+    expect(held.released).toEqual([]);
+    expect(
+      held.statements.some((s) => s.text.startsWith('UPDATE app.products')),
+    ).toBe(true);
+    expect(
+      held.statements.some((s) =>
+        s.text.startsWith('DELETE FROM app.file_metadata'),
+      ),
+    ).toBe(false);
   });
 });

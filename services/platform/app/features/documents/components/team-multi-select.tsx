@@ -1,7 +1,7 @@
 'use client';
 
 import { MultiSelect } from '@tale/ui/multi-select';
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -24,6 +24,18 @@ interface TeamMultiSelectProps {
    */
   emptyPlaceholderStyle?: 'chip' | 'muted';
   disabled?: boolean;
+  /** Id of the combobox, for a caller that deep-links or focuses it. */
+  id?: string;
+  /**
+   * Visible label above the picker; it names the combobox (a `<label
+   * htmlFor>` cannot name a `role="combobox"` div). Pass it, or `aria-label`
+   * when the surrounding layout already shows the words — never neither.
+   */
+  label?: ReactNode;
+  /** Accessible name when no visible `label` is rendered. */
+  'aria-label'?: string;
+  /** Help text under the picker, tied to it as its description. */
+  description?: ReactNode;
 }
 
 /**
@@ -40,6 +52,10 @@ export function TeamMultiSelect({
   orgWideLabel,
   emptyPlaceholderStyle = 'chip',
   disabled,
+  id,
+  label,
+  'aria-label': ariaLabel,
+  description,
 }: TeamMultiSelectProps) {
   const { t } = useT('common');
 
@@ -59,6 +75,10 @@ export function TeamMultiSelect({
 
   return (
     <MultiSelect
+      id={id}
+      label={label}
+      aria-label={ariaLabel}
+      description={description}
       value={selectedTeamIds}
       onValueChange={onSelectionChange}
       options={options}

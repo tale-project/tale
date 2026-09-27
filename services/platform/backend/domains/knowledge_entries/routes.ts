@@ -9,6 +9,7 @@ import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,
 } from '../../core/knowledge_entries/constants.ts';
+import { describeIssues } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
@@ -57,13 +58,6 @@ export function parseListQuery(raw: {
   topic?: string;
 }): ReturnType<typeof listQuerySchema.safeParse> {
   return listQuerySchema.safeParse(raw);
-}
-
-/** One line naming what was wrong, so the caller can fix the request. */
-function describeIssues(error: z.ZodError): string {
-  return error.issues
-    .map((issue) => `${issue.path.join('.') || 'body'}: ${issue.message}`)
-    .join('; ');
 }
 
 /** The domain's own caps (the dialogs enforce the same constants), so an

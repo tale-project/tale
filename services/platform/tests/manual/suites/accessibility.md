@@ -1,6 +1,6 @@
 # Accessibility (cross-cutting)
 
-> **Prefix** `A11Y-` · **Reset** none · **Cost** 22 boxes
+> **Prefix** `A11Y-` · **Reset** none · **Cost** 26 boxes
 
 A WCAG 2.1 **Level AA** sweep across the whole app. Tale's standard (root
 [`AGENTS.md`](../../../AGENTS.md) → Accessibility) is mandatory, not
@@ -77,7 +77,10 @@ component-level axe coverage comes from `vitest-axe` via
 - [ ] `A11Y-A8` · **Contrast** — Sample body text, muted text, primary button
   on each surface (DevTools / contrast tool) → Body text ≥ 4.5:1; large text ≥
   3:1; non-text UI (borders, icons) ≥ 3:1; colour is never the only signal
-  (status uses icon/text too)
+  (status uses icon/text too). Include the chat sidebar's relative timestamps
+  ("2m", "6d ago") in light theme, the inactive Board/List pill tab and the
+  inbox tab count chips (muted text on the muted surface) → each ≥ 4.5:1; an
+  axe `color-contrast` run over the chat and board pages reports no node.
 - [ ] `A11Y-A9` · **Reduced motion** — OS _Reduce motion_ on (macOS: System
   Settings → Accessibility → Display); reload chat, send a turn → Chat segment
   reveal and route transitions present instantly (no fade/slide) under
@@ -107,6 +110,35 @@ component-level axe coverage comes from `vitest-axe` via
   area rather than the glyph. Standard 32/36 px controls are valid; do not
   report a WCAG 2.1 AA failure merely for missing the stronger 44 px target.
   Cross-ref [responsive.md](responsive.md) RESP-A1.
+- [ ] `A11Y-A15` · **Export chat checkbox names** — In a chat with a reply
+  longer than a screen, open **Export chat** (`chat.export.title`) and read the
+  row checkboxes with a screen reader or the accessibility tree → Every row
+  checkbox is named "You: …" / "Assistant: …" (`chat.export.you`,
+  `chat.export.assistant`) followed by a short snippet of that message, never
+  unnamed and never the whole reply.
+- [ ] `A11Y-A16` · **Reaching the chat composer by keyboard** — On a desktop
+  (mouse) browser open a new chat (`/chat?new=1`) → The message box
+  (`chat.aria.chatInput`) holds the focus on load (not on a touch device, and
+  not when opening an existing chat). Then from the top of any chat page press
+  Tab: after **Skip to main content** (`common.aria.skipToContent`) the next
+  stop is **Skip to message box** (`chat.aria.skipToComposer`); Enter lands the
+  focus in the message box, past every sidebar row.
+- [ ] `A11Y-A17` · **Team pickers and the PDF page box are named** — Open
+  Documents → **Upload documents** → **From your device**, a row's **Assign
+  team**, a project's **New project** and **Sharing** section, and a skill's
+  **Team** visibility; read each team combobox in the accessibility tree →
+  Its accessible name is the visible words above it (**Assign to teams**
+  `documents.upload.selectTeams`, **Team** `documents.teamTags.team`,
+  `projects.create.audienceLabel`, `projects.settings.audience`,
+  `skills.visibility.teamsLabel`), never unnamed; axe `aria-input-field-name`
+  reports nothing. Preview a multi-page PDF → the page-number box is a
+  spinbutton named **Page number** (`common.aria.pageNumber`).
+- [ ] `A11Y-A18` · **Muted text meets AA** — In light mode open **Add
+  website** and **Add product**; measure with axe `color-contrast` or a
+  contrast picker → the inactive **URL list** segment reads ≥ 4.5:1 on its
+  track and every **(optional)** label suffix (`common.optional`) reads
+  ≥ 4.5:1 on the dialog; the suffix is the full muted colour, not a faded
+  copy of it.
 
 ## Boundary & error tests
 

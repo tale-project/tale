@@ -49,24 +49,42 @@ describe('contact file import validation', () => {
     bulkCreateContacts.mockResolvedValue({ success: 1, failed: 0, errors: [] });
   });
 
+  // A refused row never reaches the domain; the rest of the file does.
   it.each([
     'not-an-email',
     'ui-eval-r2-data-no-at',
     '',
     'a'.repeat(65) + '@example.test',
-  ])(
-    'refuses an invalid imported email before writing any row: %s',
-    async (email) => {
-      expect((await upload([good, { ...good, email }])).status).toBe(400);
-      expect(bulkCreateContacts).not.toHaveBeenCalled();
-    },
-  );
+  ])('refuses an invalid imported email as a row error: %s', async (email) => {
+    const response = await upload([good, { ...good, email }]);
+    expect(response.status).toBe(200);
+    expect(bulkCreateContacts).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1' }),
+      [good],
+    );
+    const body = (await response.json()) as {
+      failed: number;
+      errors: { index: number; errorCode: string }[];
+    };
+    expect(body.failed).toBe(1);
+    expect(body.errors).toEqual([
+      expect.objectContaining({ index: 1, errorCode: 'INVALID_BODY' }),
+    ]);
+  });
 
   it.each(['not a locale', 'en-123', 'de!'])(
-    'refuses an invalid imported locale before writing any row: %s',
+    'refuses an invalid imported locale as a row error: %s',
     async (locale) => {
-      expect((await upload([good, { ...good, locale }])).status).toBe(400);
-      expect(bulkCreateContacts).not.toHaveBeenCalled();
+      const response = await upload([good, { ...good, locale }]);
+      expect(response.status).toBe(200);
+      expect(bulkCreateContacts).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        [good],
+      );
+      const body = (await response.json()) as { errors: { index: number }[] };
+      expect(body.errors.map((entry) => entry.index)).toEqual([1]);
     },
   );
 
@@ -92,5 +110,34 @@ describe('contact file import validation', () => {
       body: JSON.stringify({ ...good, locale: 'not a locale' }),
     });
     expect(response.status).toBe(400);
+  });
+
+  // Regression: the refusal carried only `invalid body`, so the import
+  // dialog could not say which row or column was wrong.
+  it('names the row and column of a refused import', async () => {
+    const response = await upload([good, { ...good, email: 'not-an-email' }]);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      errors: {
+        index: number;
+        error: string;
+        issues: { path: string }[];
+        contact: unknown;
+      }[];
+    };
+    expect(body.errors[0]?.index).toBe(1);
+    expect(body.errors[0]?.error).toMatch(/^email: /);
+    expect(body.errors[0]?.issues[0]?.path).toBe('email');
+    expect(body.errors[0]?.contact).toEqual({ ...good, email: 'not-an-email' });
+  });
+
+  it('still refuses a body that is not a row list', async () => {
+    const response = await app.request('/bulk?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contacts: 'nope' }),
+    });
+    expect(response.status).toBe(400);
+    expect(bulkCreateContacts).not.toHaveBeenCalled();
   });
 });

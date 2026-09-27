@@ -318,6 +318,9 @@ export const connectorCredentialAdapter: CredentialAdapter<
         : t('connectors.credential.needsReauthHint')
       : undefined,
 
+  // Nothing resolves its key through a connector credential by reference.
+  useDeleteWarning: () => undefined,
+
   useExtraActions: ({ t, credential, organizationId, busy }) => [
     {
       key: 'reconnect',

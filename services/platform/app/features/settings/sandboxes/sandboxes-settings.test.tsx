@@ -52,6 +52,19 @@ const aliceRow = {
   ],
 };
 
+/** A project agent's workspace that outlived its agent: the owner join
+ * answers nothing, so the label is null and only the id remains. */
+const orphanRow = {
+  ...aliceRow,
+  sessionId: 'session-orphan',
+  ownerId: '2408c68d-4585-4dc4-9123-a6d9f31af5b9',
+  ownerLabel: null,
+  busy: false,
+  totalSpentCents: 0,
+  currentOp: null,
+  runningOps: [],
+};
+
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({
     can: (action: string) =>
@@ -102,6 +115,7 @@ beforeEach(() => {
             runningOps: [],
           },
           aliceRow,
+          orphanRow,
         ]
       : name.endsWith(':getSandboxQuotaUsage')
         ? [
@@ -219,6 +233,15 @@ describe('SandboxesSettings workspace rows', () => {
     expect(
       within(row as HTMLElement).getByText('claude-code'),
     ).toBeInTheDocument();
+  });
+
+  it('names a workspace whose agent was deleted, never its raw id', () => {
+    renderSettings();
+    const row = screen.getByText('Deleted agent').closest('tr');
+    expect(row).not.toBeNull();
+    expect(
+      screen.queryByText('2408c68d-4585-4dc4-9123-a6d9f31af5b9'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows an idle workspace without a task and without a spend', () => {

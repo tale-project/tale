@@ -37,7 +37,10 @@ bun run --filter @tale/platform build
 Review the generated document and contract fingerprint with the source change;
 do not edit generated API output directly. `validate-builtin-configs.ts` checks
 the shipped configuration catalog against the shared schemas. The platform build
-also runs this validation and renders its boot shell through
+also runs this validation, pins the service worker's precache manifest
+(`check-sw-manifest.ts`), refuses a cold load that preloads the editor stack
+and prints the gzip weight of the preloaded JavaScript
+(`check-entry-budget.ts`), and renders its boot shell through
 `prerender-boot-shell.tsx`.
 
 `cls-harness.ts` supports layout-shift investigations. Screenshot and video

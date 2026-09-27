@@ -9,7 +9,7 @@ Mit Enterprise-SSO melden sich Mitglieder über deinen Identitätsanbieter (IdP)
 
 Du brauchst die Berechtigung, beim IdP eine Anwendung zu registrieren, deren Client-Zugangsdaten oder SAML-Metadaten sowie die öffentliche Tale-Adresse deiner Mitglieder. Lass während der Tests eine funktionierende Admin-Sitzung offen, damit du die Verbindung bei einem Anmeldefehler korrigieren kannst.
 
-Trage unter **Anzeigename** einen Namen ein, den Mitglieder erkennen. Er erscheint in der Organisationsauswahl auf der öffentlichen Anmeldeseite. Verwende dafür keine vertraulichen oder rein internen Angaben.
+Trage unter **Anzeigename** einen Namen ein, den Mitglieder erkennen. Haben mehrere Organisationen der Installation SSO aktiviert, erscheint er in der Organisationsauswahl auf der öffentlichen Anmeldeseite. Verwende dafür keine vertraulichen oder rein internen Angaben.
 
 <Frame caption="Wähle zuerst das Protokoll. Tale zeigt die passenden Felder und die Callback-Adresse für deinen Identitätsanbieter.">
 
@@ -90,7 +90,7 @@ Der Schlüssel bestimmt die Organisation: Ein Mitglied wird angemeldet, eine Adr
 
 ## Prüfen und Fehler beheben
 
-Öffne eine separate Browsersitzung, wähle **Weiter mit SSO** und dann die Organisation anhand ihres Anzeigenamens. Melde dich an und prüfe Rolle und Teammitgliedschaften. **Verbindung testen** prüft die Verbindungsdaten, aber nicht, ob eine echte Person die vorgesehenen Zugriffsrechte erhält.
+Öffne eine separate Browsersitzung und wähle **Weiter mit SSO**. Die Organisationsauswahl erscheint nur, wenn mehrere Organisationen der Installation SSO aktiviert haben; wähle dort die Organisation anhand ihres Anzeigenamens. Andernfalls öffnet die Schaltfläche direkt den Identitätsanbieter der einen aktivierten Organisation, und eine in das E-Mail-Feld eingetragene Adresse wird nur als Anmeldehinweis weitergegeben – Tale leitet nicht nach E-Mail-Domain weiter. Melde dich an und prüfe Rolle und Teammitgliedschaften. **Verbindung testen** prüft die Verbindungsdaten, aber nicht, ob eine echte Person die vorgesehenen Zugriffsrechte erhält.
 
 | Symptom | Was du prüfst |
 | --- | --- |

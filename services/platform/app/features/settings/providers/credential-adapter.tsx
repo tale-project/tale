@@ -43,7 +43,11 @@ import {
   useDeleteCredential,
   useSetDefaultCredential,
 } from './hooks/mutations';
-import type { MaskedCredential, ProviderCatalog } from './hooks/queries';
+import {
+  type MaskedCredential,
+  type ProviderCatalog,
+  useCredentialDependents,
+} from './hooks/queries';
 import {
   apiFormatLabel,
   authMethodLabel,
@@ -492,6 +496,18 @@ export const providerCredentialAdapter: CredentialAdapter<
     vendor !== null && isOrgDefined(vendor) && siblingCount === 0
       ? t('providers.custom.deleteRetires', { provider: vendor.displayName })
       : undefined,
+
+  // The embedding model resolves its key through a credential: deleting
+  // that one takes knowledge indexing and search down, so the dialog says
+  // so up front (the server refuses the delete with `CREDENTIAL_IN_USE`).
+  useDeleteWarning: ({ t, credential, organizationId, open }) => {
+    const dependents = useCredentialDependents(organizationId, credential.id, {
+      enabled: open,
+    });
+    return dependents.data?.usedBy.includes('embedding')
+      ? t('providers.credential.deleteEmbeddingWarning')
+      : undefined;
+  },
 
   // "Check models" on a custom provider's row: list its endpoint afresh, with
   // this organization's key, and say how many models answered.

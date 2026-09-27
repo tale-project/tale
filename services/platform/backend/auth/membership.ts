@@ -252,17 +252,18 @@ export async function removeMembershipCascade(
     DELETE FROM app.user_preferences
     WHERE org_id = ${organizationId} AND user_id = ${userId}
   `;
-  // A platform capability (a `tale:` grant in the competence register,
-  // domains/governance/competence.ts) delegates a right the membership
-  // carried, so it ends with the membership: stamped revoked, never deleted
-  // — the register is the trail. The literal is the register's
-  // PLATFORM_CAPABILITY_PREFIX (its test pins the two together; importing
-  // it here would close an import cycle).
+  // Every live grant in the competence register
+  // (domains/governance/competence.ts) ends with the membership — a
+  // platform capability delegates a right the membership carried, and a
+  // qualification gates who may approve a review, so neither may survive
+  // the removal and re-attach to a re-added member without an admin
+  // granting it again. Stamped revoked, never deleted — the register is the
+  // trail. (Migration 0116 revoked the grants earlier removals left live.)
   await tx`
     UPDATE app.competence_records
     SET revoked_at_ms = ${Date.now()}, revoked_by = 'system'
     WHERE org_id = ${organizationId} AND user_id = ${userId}
-      AND revoked_at_ms IS NULL AND competence LIKE 'tale:%'
+      AND revoked_at_ms IS NULL
   `;
   return { teamIds: [...new Set(left.map((row) => row.teamId))] };
 }

@@ -99,6 +99,35 @@ describe('ProductCreateDialog', () => {
     );
   });
 
+  // Regression (2026-09-26 evaluation, B-04): a refused body reached the
+  // user as "Couldn't create product" with no field named.
+  it('puts the refused field under the error toast', async () => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onError(
+        new AppError({
+          code: 'invalid body',
+          message:
+            'price: Number must be less than or equal to 9007199254740991',
+          data: { issues: [{ path: 'price', message: 'too large' }] },
+        }),
+      );
+    });
+
+    const { user } = renderDialog();
+    await submitWizard(user);
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'products.create.toast.error',
+          description:
+            'price: Number must be less than or equal to 9007199254740991',
+          variant: 'destructive',
+        }),
+      );
+    });
+  });
+
   it('shows the generic error toast for any other failure', async () => {
     mockMutate.mockImplementation((_args, opts) => {
       opts.onError(new Error('network down'));
@@ -141,18 +170,14 @@ describe('ProductCreateDialog', () => {
     await user.click(
       screen.getByRole('button', { name: 'common.actions.next' }),
     );
-    await user.click(
-      screen.getByRole('button', { name: 'common.actions.create' }),
-    );
-    expect(mockMutate).not.toHaveBeenCalled();
-
-    // The refusal sits on the pricing step's field.
-    await user.click(
-      screen.getByRole('button', { name: 'common.actions.back' }),
-    );
+    // The step refuses to advance and names the field; Review is never shown.
     expect(
       await screen.findByText('products.edit.validation.currency'),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'common.actions.create' }),
+    ).not.toBeInTheDocument();
+    expect(mockMutate).not.toHaveBeenCalled();
     const again = screen.getByLabelText('products.edit.labels.currency', {
       exact: false,
     });
@@ -168,5 +193,78 @@ describe('ProductCreateDialog', () => {
       expect(mockMutate).toHaveBeenCalledTimes(1);
     });
     expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({ currency: 'EUR' });
+  });
+});
+
+describe('ProductCreateDialog — price and stock', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function toPricing(user: ReturnType<typeof renderDialog>['user']) {
+    await user.type(
+      screen.getByLabelText('products.edit.labels.name', { exact: false }),
+      'Widget',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.next' }),
+    );
+  }
+
+  // A negative price and stock used to reach Review and be created; an
+  // amount past the safe range failed after Create as a bare toast.
+  it.each([
+    ['price', '-5', 'products.edit.validation.priceNonNegative'],
+    ['price', '1e20', 'products.edit.validation.priceTooLarge'],
+    ['stock', '-3', 'products.edit.validation.stockNonNegative'],
+    ['stock', '1.5', 'products.edit.validation.stockInteger'],
+    ['stock', '99999999999999999999', 'products.edit.validation.stockTooLarge'],
+  ])(
+    'refuses %s %s at the Pricing step with a field error',
+    async (field, value, message) => {
+      const { user } = renderDialog();
+      await toPricing(user);
+      await user.type(
+        screen.getByLabelText(`products.edit.labels.${field}`, {
+          exact: false,
+        }),
+        value,
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.next' }),
+      );
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'common.actions.create' }),
+      ).not.toBeInTheDocument();
+      expect(mockMutate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('sends a valid price and stock as numbers', async () => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onSuccess();
+    });
+    const { user } = renderDialog();
+    await toPricing(user);
+    await user.type(
+      screen.getByLabelText('products.edit.labels.price', { exact: false }),
+      '12.5',
+    );
+    await user.type(
+      screen.getByLabelText('products.edit.labels.stock', { exact: false }),
+      '3',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.next' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.create' }),
+    );
+    await waitFor(() => expect(mockMutate).toHaveBeenCalledTimes(1));
+    expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({
+      price: 12.5,
+      stock: 3,
+    });
   });
 });

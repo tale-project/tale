@@ -35,6 +35,8 @@ export interface ProductsContract {
         index: number;
         error: string;
         errorCode: string;
+        /** The field-named issues of a row the door refused (`INVALID_BODY`). */
+        issues?: Array<{ path: string; message: string }>;
         product: unknown;
       }>;
     };

@@ -212,8 +212,9 @@ export function clearDisplayPositionCache() {
 // ============================================================================
 // Allows external callers (e.g. stop generating) to freeze all active stream
 // buffer instances without prop drilling. Only one stream is active at a time,
-// so a single global flag is sufficient. Cleared when a new streaming session
-// begins.
+// so a single global flag is sufficient. Cleared when the frozen stream
+// settles (the row then shows its saved text at once) or when a new
+// streaming session begins.
 
 let globalFrozen = false;
 let frozenDisplayText: string | null = null;
@@ -705,6 +706,25 @@ export function useStreamBuffer({
         lastFrameTimeRef.current = 0;
         animationFrameRef.current = requestAnimationFrame(animate);
       }
+    } else if (wasStreamingRef.current && (frozenRef.current || globalFrozen)) {
+      // Stopped, now settled. The freeze held the reveal where the user
+      // clicked Stop while the server settled with everything it had
+      // received by then — usually more than the typewriter had shown. The
+      // settled row is authoritative, so release this row's freeze and show
+      // its saved text at once (no drain): the screen must equal what a
+      // reload shows, and a stopped reply must not keep typing.
+      frozenRef.current = false;
+      if (activeFrozenRef === frozenRef) {
+        globalFrozen = false;
+        frozenDisplayText = null;
+      }
+      wasStreamingRef.current = false;
+      hasStartedRevealRef.current = false;
+      drainCPSRef.current = 0;
+      displayedLengthRef.current = text.length;
+      accumulatedTimeRef.current = 0;
+      setDisplayLength(text.length);
+      setIsTyping(false);
     } else if (
       wasStreamingRef.current &&
       !frozenRef.current &&

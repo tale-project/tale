@@ -3,6 +3,8 @@
 import {
   PROJECT_DESCRIPTION_MAX,
   PROJECT_NAME_MAX,
+  projectColorSchema,
+  projectIconSchema,
 } from '@tale/shared/schemas/projects';
 import { ContentArea } from '@tale/ui/content-area';
 import {
@@ -29,6 +31,7 @@ import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
 import { ProjectArchiveSection } from './project-archive-section';
 import { ProjectDangerZone } from './project-danger-zone';
+import { ProjectIdentityPicker } from './project-identity-picker';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSharingSection } from './project-sharing-section';
@@ -41,6 +44,9 @@ interface ProjectOverviewProps {
 type IdentityForm = {
   name: string;
   description: string;
+  /** `null` = the default folder / gray — what a fresh project carries. */
+  icon: string | null;
+  color: string | null;
 };
 
 const PROJECT_OVERVIEW_FORM_ID = 'project-overview-identity-form';
@@ -99,6 +105,8 @@ function ProjectOverviewContent({
           )
           .max(PROJECT_NAME_MAX, t('errors.PROJECT_NAME_INVALID')),
         description: z.string().trim().max(PROJECT_DESCRIPTION_MAX),
+        icon: projectIconSchema.nullable(),
+        color: projectColorSchema.nullable(),
       }),
     [t, tCommon],
   );
@@ -109,6 +117,8 @@ function ProjectOverviewContent({
         ? {
             name: project.name,
             description: project.description ?? '',
+            icon: project.icon ?? null,
+            color: project.color ?? null,
           }
         : undefined,
     [project],
@@ -128,6 +138,8 @@ function ProjectOverviewContent({
           name: values.name,
           description:
             values.description.trim().length > 0 ? values.description : null,
+          icon: values.icon,
+          color: values.color,
         });
       } catch (error) {
         if (identityErrorField(error)) throw error;
@@ -172,13 +184,25 @@ function ProjectOverviewContent({
   const {
     form: {
       register,
+      setValue,
+      watch,
       formState: { errors },
     },
   } = editor;
 
+  // The icon/color pair has no native input to `register`, so the picker
+  // writes through `setValue` with `shouldDirty` — that is what lets the tab
+  // strip's Save cluster wake up and Discard restore the saved pair.
+  const iconValue = watch('icon');
+  const colorValue = watch('color');
+
   if (!project) return null;
 
-  const canEdit = project.canEdit;
+  // An archived project is read-only for everyone (the backend drops
+  // `canEdit` with it) — only Restore, in the Archive section below, and
+  // Delete stay, for administrators.
+  const isArchived = project.archivedAt !== undefined;
+  const canEdit = project.canEdit && !isArchived;
   const canAdminister = project.canAdminister;
   const isViewerOnly = !canEdit && !canAdminister;
 
@@ -189,7 +213,11 @@ function ProjectOverviewContent({
     // what draws exactly one hairline between each pair of neighbours —
     // Project, Instructions, Sharing — and nothing after the last one.
     <ContentArea variant="narrow" gap={6} className={SECTION_DIVIDER_CLASS}>
-      {isViewerOnly ? <ProjectReadOnlyBanner /> : null}
+      {isArchived ? (
+        <ProjectReadOnlyBanner reason="archived" />
+      ) : isViewerOnly ? (
+        <ProjectReadOnlyBanner />
+      ) : null}
 
       {/* The project's basics — inline edit when canEdit, read-only summary
           otherwise. The layout's header already names the project, so this
@@ -247,6 +275,25 @@ function ProjectOverviewContent({
                     {...register('description')}
                   />
                 </SettingsFieldRow>
+
+                <SettingsFieldRow
+                  label={t('identity.label')}
+                  description={t('identity.hint')}
+                  className="sm:items-center"
+                >
+                  <ProjectIdentityPicker
+                    name={project.name}
+                    value={{
+                      icon: iconValue ?? null,
+                      color: colorValue ?? null,
+                    }}
+                    onChange={(next) => {
+                      setValue('icon', next.icon, { shouldDirty: true });
+                      setValue('color', next.color, { shouldDirty: true });
+                    }}
+                    disabled={editor.isLoading || editor.isSaving}
+                  />
+                </SettingsFieldRow>
               </SettingsFieldList>
             </fieldset>
           </form>
@@ -274,7 +321,7 @@ function ProjectOverviewContent({
               ...(project.sharedWithTeamIds ?? []),
             ]
           }
-          canAdminister={canAdminister}
+          canAdminister={canAdminister && !isArchived}
         />
       </SettingsSection>
 

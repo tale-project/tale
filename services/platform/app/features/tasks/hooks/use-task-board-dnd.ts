@@ -1,7 +1,6 @@
 import {
   KeyboardSensor,
   PointerSensor,
-  closestCorners,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -11,6 +10,8 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { createBoardCollisionDetection } from '@/app/hooks/use-board-dnd';
 
 import type { TaskRow } from '../components/task-card';
 import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
@@ -266,13 +267,21 @@ export function useTaskBoardDnd(
 
   const activeTask = activeId ? (byId.get(activeId) ?? null) : null;
 
+  // Pointer-first: the lane under the pointer decides (an empty lane is a
+  // valid target), never the nearest card of the neighbouring lane. Reads the
+  // ref so a mid-drag lane change (onDragOver) is judged live.
+  const collisionDetection = useMemo(
+    () => createBoardCollisionDetection(() => columnsRef.current),
+    [],
+  );
+
   return {
     columns,
     byId,
     activeId,
     activeTask,
     sensors,
-    collisionDetection: closestCorners,
+    collisionDetection,
     onDragStart,
     onDragOver,
     onDragEnd,

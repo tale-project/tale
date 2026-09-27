@@ -19,7 +19,7 @@ import { type RefObject, useMemo, useState } from 'react';
 
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { LegalHoldBadge } from '@/app/features/settings/governance/legal-hold/legal-hold-badge';
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
 import { useFileUrl } from '@/app/features/shared/files/use-file-url';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
@@ -76,7 +76,7 @@ function DetailsSidebar({
 }) {
   const { t } = useT('documents');
   const { formatDate } = useFormatDate();
-  const { teams } = useTeams();
+  const { nameOf: teamNameOf } = useTeamNames();
   const organizationId = useOrganizationId();
   const { data: legalHold } = useLegalHoldByTarget({
     organizationId: organizationId ?? undefined,
@@ -84,17 +84,15 @@ function DetailsSidebar({
     targetId: doc?.id,
   });
 
-  const teamNames = useMemo(() => {
-    const ids = doc?.teamIds ?? [];
-    if (ids.length === 0 || !teams) return [];
-    return ids
-      .map(
-        (id: string) =>
-          teams.find((entry: { id: string; name: string }) => entry.id === id)
-            ?.name,
-      )
-      .filter(Boolean);
-  }, [doc?.teamIds, teams]);
+  // The directory names every team of the organization, so a document
+  // shared with a team the viewer is not in still shows that team's name.
+  const teamNames = useMemo(
+    () =>
+      (doc?.teamIds ?? [])
+        .map((id: string) => teamNameOf(id))
+        .filter((name): name is string => name !== undefined),
+    [doc?.teamIds, teamNameOf],
+  );
 
   // The same map the Source column reads, so the two never name one
   // provenance differently — or print its internal slug.

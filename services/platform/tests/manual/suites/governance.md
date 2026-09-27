@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 49 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 54 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -295,6 +295,14 @@ select lists only the current admin's keys (`useApiKeys`).
   the date reads **Revoked by** your name. **Logs** lists
   `competence_granted` and `competence_revoked`; the Developer's `/api/v1/me`
   answers `capabilities.actAs: false` on its next call.
+- [ ] `GOV-F34` · **Removal revokes qualifications too** — Grant GOV-F22's
+  member a **Qualification** named `removal-check` with **Expires** =
+  **Never**, then remove the member from the org (**Members** → row menu →
+  remove) → back on `competences` the **Active** view no longer lists the
+  member; **Filter** → **Status** → **Revoked** shows both the capability and
+  `removal-check` as **Former member**, revoked today. Re-add the same e-mail
+  → the **Active** view stays empty for them (no grant re-attaches) and
+  **Logs** shows a `competence_revoked` line per grant.
 - [ ] `GOV-F25` · **Route by mailbox and address** — With TWO mailboxes on one
   email connector (A and B) and a team T1 and T2, `policies-limits` →
   **Conversation routing** → add three rules: **Any mailbox** · `support@…` →
@@ -356,6 +364,48 @@ select lists only the current admin's keys (`useApiKeys`).
   (`settings.logs.audit.actionLabels.branding.image_deleted`) on the
   organization; the trashed file also sits in the client's `.trash/`
   collection and under `trash`.
+- [ ] `GOV-F31` · **Trash names chats and lists each category once** — As a
+  member, edit a message in a chat you own so it has two versions, then
+  delete the chat; as an admin open `trash` → The row's **Name**
+  (`governance.trash.column.name`) is the chat's title, not its id, its
+  **Type** reads **Chats** (`governance.trash.tab.chatThread`), and the
+  edited version is NOT a second row; **Filter** → **Category**
+  (`governance.trash.filterTitle`) offers exactly **Chats**, **Documents**
+  (`governance.trash.tab.document`), **Temporary files**
+  (`governance.trash.tab.fileMetadata`), **Message feedback**
+  (`governance.trash.tab.messageFeedback`), **Contacts**
+  (`governance.trash.tab.contact`) and **External conversations**
+  (`governance.trash.tab.externalConversation`) — no **Chat history**, no
+  raw `automationRun`, no category twice; **Restore**
+  (`governance.trash.restore.label`) → the chat is back in the owner's list
+  with both versions in its branch navigator.
+- [ ] `GOV-F32` · **Log counts never claim more than they show** — In an org
+  with more audit events than one page (seed a few hundred), open `logs` →
+  **Audit logs** (`settings.logs.auditLogs`) → The footer reads **Showing the
+  first N audit logs — scroll for more** (the shared data-table footer over
+  `settings.logs.audit.entityLabel`), never **Showing all N** while a scroll
+  still loads rows; scroll to the end → once nothing more loads the footer
+  switches to **Showing all N audit logs**; then **Activity logs**
+  (`settings.logs.activityLogs`) → above the
+  stat cards a caption reads **Period: Last 7 days. All totals below cover
+  this period.** (`settings.logs.activity.periodCaption`); **Filter** →
+  **Period** (`settings.logs.activity.period.label`) → **Last 30 days**
+  (`settings.logs.activity.period.last30Days`) → the caption and the totals
+  change together.
+- [ ] `GOV-F33` · **A blocked erasure receipt tells the truth about the
+  hold** — Place a custodian hold on a member (GOV-F7), then file an erasure
+  request for them (GOV-F8) → the receipt is **Blocked** and its panel reads
+  **The subject is on a custodian hold**
+  (`governance.dataSubjectRequests.legalHoldBlock.userCustodianHeld`), not the
+  generic line. Release the hold (request + second admin + cooldown) and reopen
+  the receipt → the status stays **Blocked** but the panel now reads **The
+  hold was released — choose Retry to continue the erasure**
+  (`governance.dataSubjectRequests.legalHoldBlock.released`); **Retry**
+  (`governance.dataSubjectRequests.actions.retry`) re-arms it. With **Require
+  dual approval** on, file another request, then turn dual approval off → the
+  pending receipt still shows the approval actions with the hint **The
+  approval requirement was captured when the request was filed**
+  (`governance.dataSubjectRequests.approval.capturedPolicy`).
 
 ## Boundary & error tests
 
@@ -410,6 +460,13 @@ select lists only the current admin's keys (`useApiKeys`).
   mail its address → the conversation still arrives, unassigned. Adding a
   second rule for the same mailbox and address is refused inline
   (`governance.conversationRouting.duplicateRule`).
+- [ ] `GOV-B12` · **A member's deep link is refused fast** — Signed in as a
+  **member** in a fresh browser, open `policies-limits`, `content-models`,
+  `security-monitoring` and `data-subject-requests` by URL → Each renders
+  the access-denied message (`accessDenied.organization`) **within 2 s**, the
+  same as `/dashboard/{org}/settings/members`; the skeleton never sits
+  longer, and the network log shows every admin read refused once (no
+  retried 403s) — or, on a warm in-app navigation, not asked at all.
 
 ## Accessibility (WCAG 2.1 AA)
 

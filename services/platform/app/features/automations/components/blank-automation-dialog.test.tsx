@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -76,6 +76,12 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ id: 'org-1' }),
 }));
 
+beforeEach(() => {
+  saveAutomation.mockClear();
+  setTrigger.mockClear();
+  navigate.mockClear();
+});
+
 function renderDialog() {
   return render(
     <BlankAutomationDialog
@@ -85,6 +91,199 @@ function renderDialog() {
     />,
   );
 }
+
+/** Fill step 1 and move to the trigger step. */
+async function reachTriggerStep(user: ReturnType<typeof renderDialog>['user']) {
+  await user.type(screen.getByLabelText(/Name/i), 'Triage');
+  await user.click(screen.getByRole('button', { name: /Agent model/i }));
+  await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+  await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan issues');
+  await user.click(screen.getByRole('button', { name: /Next/i }));
+}
+
+/**
+ * The wizard judges the schedule before it writes anything — with the
+ * bind's own validator — so an invalid cron never half-creates an
+ * automation whose trigger then fails to set (2026-09-26 evaluation, D-02).
+ */
+describe('BlankAutomationDialog schedule validation', () => {
+  it('previews the next run of a valid cron and offers a timezone picker', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    expect(screen.getByText(/Every 6 hours · Next run/)).toBeVisible();
+    // The searchable picker renders its trigger as a button, like the model
+    // picker on step 1 — free text is gone.
+    expect(screen.getByRole('button', { name: /Timezone/i })).toHaveTextContent(
+      'UTC',
+    );
+    expect(screen.queryByRole('textbox', { name: /Timezone/i })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Create automation/i }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('refuses an invalid cron inline and disables Create without writing', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    const cron = screen.getByLabelText('Cron');
+    await user.clear(cron);
+    await user.type(cron, '61 * * * *');
+    expect(
+      screen.getByText(/not valid: "61" is out of range \(0\.\.59\)/),
+    ).toBeVisible();
+    expect(screen.queryByText(/Next run/)).toBeNull();
+    const create = screen.getByRole('button', { name: /Create automation/i });
+    expect(create).toHaveAttribute('aria-disabled', 'true');
+    await user.click(create);
+    expect(saveAutomation).not.toHaveBeenCalled();
+    expect(setTrigger).not.toHaveBeenCalled();
+
+    // A four-field cron — the one the packaged parser used to accept.
+    await user.clear(cron);
+    await user.type(cron, '*/1 * * *');
+    expect(screen.getByText(/got 4/)).toBeVisible();
+    expect(create).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('sends the schedule it previewed', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    const cron = screen.getByLabelText('Cron');
+    await user.clear(cron);
+    await user.type(cron, '43 7 * * *');
+    expect(screen.getByText(/Every day at 07:43 · Next run/)).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(setTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: expect.objectContaining({
+          kind: 'schedule',
+          cron: '43 7 * * *',
+          timezone: 'UTC',
+          // Off by default — the trigger is created paused (D-10).
+          enabled: false,
+        }),
+      }),
+    );
+  });
+
+  it('arms the trigger only when Enable now is checked', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    const enableNow = screen.getByRole('checkbox', { name: /Enable now/i });
+    expect(enableNow).not.toBeChecked();
+    await user.click(enableNow);
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(setTrigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: expect.objectContaining({ enabled: true }),
+      }),
+    );
+  });
+});
+
+/**
+ * The typed name is the display name — the slug only addresses the
+ * automation. The wizard used to send no presentation, so `eval-D-agent 测试
+ * 🚀` became "Eval d agent" and a name outside the Latin script could not be
+ * created at all (2026-09-26 evaluation, D-03).
+ */
+describe('BlankAutomationDialog display name', () => {
+  it('keeps the typed name as the presentation and slugifies only the address', async () => {
+    const { user } = renderDialog();
+    await user.type(screen.getByLabelText(/Name/i), 'Eval-D agent 测试 🚀');
+    expect(screen.getByText('Saved as: eval-d-agent')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /Agent model/i }));
+    await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+    await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+    await user.click(screen.getByRole('button', { name: /Next/i }));
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(saveAutomation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentation: { name: 'Eval-D agent 测试 🚀' },
+        automation: expect.objectContaining({ name: 'eval-d-agent' }),
+      }),
+    );
+  });
+
+  it('derives a generated slug for a name outside the Latin script and says so', async () => {
+    const { user } = renderDialog();
+    await user.type(screen.getByLabelText(/Name/i), '发票提醒');
+    const hint = screen.getByText(/^Saved as: automation-[0-9a-f]{8}$/);
+    expect(hint).toBeVisible();
+    const slug = hint.textContent?.replace('Saved as: ', '') ?? '';
+    await user.click(screen.getByRole('button', { name: /Agent model/i }));
+    await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+    await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
+    const next = screen.getByRole('button', { name: /Next/i });
+    expect(next).toBeEnabled();
+    await user.click(next);
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(saveAutomation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        presentation: { name: '发票提醒' },
+        automation: expect.objectContaining({ name: slug }),
+      }),
+    );
+  });
+});
+
+/**
+ * A webhook's token is minted by the create and shown by the server exactly
+ * once — the wizard used to navigate straight past it, leaving Rotate as the
+ * only way to a usable URL (2026-09-26 evaluation, D-13).
+ */
+describe('BlankAutomationDialog webhook URL', () => {
+  it('shows the minted URL with a copy button before opening the automation', async () => {
+    setTrigger.mockResolvedValueOnce({ token: 'wht_once_1' });
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    await user.click(screen.getByRole('combobox', { name: /Trigger type/i }));
+    await user.click(screen.getByRole('option', { name: 'Webhook' }));
+    expect(screen.getByText(/shown once, right after/)).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+
+    expect(await screen.findByText('Webhook URL — copy it now')).toBeVisible();
+    expect(
+      screen.getByText(/\/api\/automations\/webhook\/wht_once_1$/),
+    ).toBeVisible();
+    // The copy control is the pill itself, named by its label and value.
+    expect(
+      screen.getByRole('button', {
+        name: /Webhook endpoint .*\/api\/automations\/webhook\/wht_once_1/,
+      }),
+    ).toBeVisible();
+    expect(navigate).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Open the automation' }),
+    );
+    expect(navigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ automationSlug: 'triage' }),
+      }),
+    );
+  });
+
+  it('opens the automation straight away for a schedule', async () => {
+    const { user } = renderDialog();
+    await reachTriggerStep(user);
+    await user.click(
+      screen.getByRole('button', { name: /Create automation/i }),
+    );
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Webhook URL — copy it now')).toBeNull();
+  });
+});
 
 describe('BlankAutomationDialog model pin', () => {
   it('offers one option per (provider, model) pair, harness-filtered', async () => {

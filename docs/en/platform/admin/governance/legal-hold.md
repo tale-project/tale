@@ -39,7 +39,7 @@ Placing a hold takes one admin; releasing it uses two-person review and a delay.
 
 A hold can block a person's erasure request, deletion of their covered chats or documents, and deletion of a folder that contains held files. Any active organization or member hold also prevents deletion of the organization itself.
 
-If a deletion fails, inspect the relevant hold instead of repeatedly trying the action. Releasing one hold does not remove another overlapping hold, and release allows the applicable retention or erasure process to continue.
+If a deletion fails, inspect the relevant hold instead of repeatedly trying the action. Releasing one hold does not remove another overlapping hold, and release allows the applicable retention or erasure process to continue. An erasure receipt the hold blocked does not resume on its own: open it under Data subject requests and choose **Retry**.
 
 ## Review related requests
 

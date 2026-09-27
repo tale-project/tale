@@ -24,7 +24,7 @@ A waiting approval or question requires a person; a running agent or polling nod
 
 Select a node on the run’s canvas. **Resolved input** shows the actual values after template evaluation; **Output** shows what the step returned. These fields distinguish a bad reference from a service failure.
 
-Node states include **Ran**, **Skipped**, **Failed**, **Never reached** and **Not reached yet**. A skipped node may have a false condition, an unmet dependency, an alternate branch or a failure rule that permits continuation. Do not assume every skipped node is an error.
+Node states include **Ran**, **Skipped**, **Failed**, **Never reached**, **Not reached yet** and, on a stopped run, **Stopped here** for the node the run was on when it was stopped. A skipped node may have a false condition, an unmet dependency, an alternate branch or a failure rule that permits continuation. Do not assume every skipped node is an error.
 
 For example, a reminder node may receive a customer name but an empty invoice ID. Inspect its upstream output: if the record now uses another field, correct the reference there rather than replacing the mail credential. Verify the corrected resolved input in a new test run.
 
@@ -34,7 +34,7 @@ Applications reading the [run API](/develop/api-reference) also receive `failure
 
 The effects list records connector writes, with the node, connector and input. A test uses deterministic stand-ins; live actions can change external systems. The run explicitly reports when it has no recorded effects.
 
-Read effects before retrying. A failure later in the graph does not undo an earlier message or update. For delivery-sensitive work, confirm the result with the receiving service as well. Effects are retained with the run until deletion or retention removes that record; they are not a permanent independent archive.
+Read effects before retrying. A failure later in the graph does not undo an earlier message or update. For delivery-sensitive work, confirm the result with the receiving service as well. Effects are retained with the run until deletion or retention removes that record; they are not a permanent independent archive. Deleting the automation keeps its runs: a run page still opens, marked with the deletion date and drawn from the run’s own trace, until retention removes it.
 
 ## Understand continuation and automatic retries
 
@@ -48,7 +48,7 @@ An exhausted budget, full execution-window timeout, or expired question does not
 
 ## Stop or repair the workflow
 
-Select **Stop the run** for an unfinished run you want to cancel. Cancellation stops further work at the engine’s execution boundaries; it does not roll back completed effects. If the run finishes before the cancellation reaches it, its completed outcome is retained.
+Select **Stop the run** for an unfinished run you want to cancel, and confirm. Cancellation stops further work at the engine’s execution boundaries; it does not roll back completed effects. If the run finishes before the cancellation reaches it, its completed outcome is retained.
 
 To repair a document problem, return to the editor, change the relevant input or node, and save a version with a useful message. Run a test with representative input and inspect the values and output, not only the success badge. Deploy that version when the result is ready. Scheduled and webhook starts then use the deployed version; an older failed run remains a record of the old version.
 

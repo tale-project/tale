@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { parseCron } from '../../../lib/automations/cron.ts';
 import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -13,13 +14,14 @@ import {
   EMITTED_EVENT_TYPES,
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   boundCheckpointTrace,
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
 import type { NodeCheckpoint } from '../../core/automations/checkpoints.ts';
-import { parseCron, wallClockIn } from '../../core/automations/cron.ts';
+import { wallClockIn } from '../../core/automations/cron.ts';
 import {
   LIVENESS_SWEEP_LIMIT,
   RUN_CLAIM_PROMISE_MS,
@@ -234,7 +236,7 @@ export async function saveVersion(
              ${args.testsPassed === undefined ? null : now},
              ${args.taskContract === undefined ? null : tx.json(toJson(args.taskContract))},
              ${args.settings === undefined ? null : tx.json(toJson(args.settings))},
-             ${args.presentation === undefined ? null : tx.json(toJson(args.presentation))},
+             ${args.presentation === undefined || args.presentation === null ? null : tx.json(toJson(args.presentation))},
              ${args.actor}, ${now}
       FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
@@ -347,6 +349,26 @@ export async function automationExists(
     LIMIT 1
   `;
   return rows.length > 0;
+}
+
+/**
+ * The tombstone a deleted automation leaves — when and by whom — or null
+ * for a name nobody deleted (never saved, or saved again since). Read by
+ * the app's single read so a run page of a deleted automation can say
+ * "deleted on …" over its retained history instead of "not found".
+ */
+export async function automationTombstone(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<{ deletedAt: number; deletedBy: string } | null> {
+  const rows = await sql<{ deletedAt: number; deletedBy: string }[]>`
+    SELECT deleted_at_ms::float8 AS "deletedAt", deleted_by AS "deletedBy"
+    FROM app.automation_tombstones
+    WHERE org_id = ${organizationId} AND name = ${name}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
 }
 
 /** Whether any run in the org bears the name — the history a deleted
@@ -517,6 +539,15 @@ export interface AutomationListing {
   } | null;
 }
 
+/**
+ * The presentation a listing shows is the newest NON-NULL one: a version
+ * saved from the canvas, over MCP or by an upload without a manifest carries
+ * no presentation of its own, and reading the latest row alone made the
+ * name the wizard stored vanish on the next save (2026-09-26 evaluation,
+ * D-03). A declared name outlives the versions that did not restate it.
+ * A JSON `null` stored by an older save counts as absent too (the save
+ * writes SQL NULL for it now).
+ */
 export async function listAutomations(
   sql: Sql,
   organizationId: string,
@@ -539,7 +570,9 @@ export async function listAutomations(
            (array_agg(a.document->'inputs'
               ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
              AS inputs,
-           (array_agg(a.presentation ORDER BY a.version DESC))[1]
+           (array_agg(a.presentation ORDER BY a.version DESC)
+              FILTER (WHERE a.presentation IS NOT NULL
+                        AND jsonb_typeof(a.presentation) <> 'null'))[1]
              AS presentation
     FROM app.automations a
     LEFT JOIN app.automation_deployments d
@@ -633,7 +666,9 @@ export async function listAutomationsForApp(
              AS "taskContract",
            (array_agg(a.settings ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
              AS settings,
-           (array_agg(a.presentation ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
+           (array_agg(a.presentation ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC)
+              FILTER (WHERE a.presentation IS NOT NULL
+                        AND jsonb_typeof(a.presentation) <> 'null'))[1]
              AS presentation
     FROM app.automations a
     LEFT JOIN app.automation_deployments d
@@ -731,8 +766,8 @@ export async function setAutomationProjects(
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
-    const owned = await tx<{ id: string }[]>`
-      SELECT id FROM app.projects
+    const owned = await tx<{ id: string; archivedAt: number | null }[]>`
+      SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
       WHERE org_id = ${args.organizationId}
         AND id = ANY(${args.projectIds})
     `;
@@ -741,6 +776,15 @@ export async function setAutomationProjects(
         'AUTOMATION_PROJECT_UNKNOWN',
         'One of the projects does not exist in this organization.',
         404,
+      );
+    }
+    // Binding is a write on the project: an archived one is read-only and
+    // answers the code every other write on it does.
+    if (owned.some((project) => (project.archivedAt ?? null) !== null)) {
+      throw new AutomationError(
+        'PROJECT_ARCHIVED',
+        'One of the projects is archived — restore it before binding an automation to it.',
+        403,
       );
     }
     await tx`
@@ -1314,6 +1358,7 @@ export function toRunSummary(
     | 'status'
     | 'mode'
     | 'startedBy'
+    | 'input'
     | 'detail'
     | 'failureCode'
     | 'startedAt'
@@ -1322,6 +1367,7 @@ export function toRunSummary(
   >,
 ): RunSummary {
   const waitingFor = runWaitingFor(row);
+  const startedVia = runStartedVia(row);
   return {
     // One value under both names: the listing rows said `runId` and the
     // single read `id`, so a client mapping rows by `id` read undefined.
@@ -1336,12 +1382,47 @@ export function toRunSummary(
     status: row.status,
     mode: row.mode,
     startedBy: row.startedBy,
+    ...(startedVia !== undefined ? { startedVia } : {}),
     ...(row.detail !== null ? { detail: row.detail } : {}),
     ...(row.failureCode !== null ? { failureCode: row.failureCode } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
     startedAt: row.startedAt,
     ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
   };
+}
+
+/** The run row stores `input` as a JSON-encoded string (the stepper's
+ * contract); the engine-facing detail hands back the decoded value. */
+export function decodeRunInput(input: unknown): unknown {
+  if (typeof input !== 'string') return input;
+  try {
+    return JSON.parse(input);
+  } catch {
+    return input;
+  }
+}
+
+/**
+ * Which KIND of trigger started a run — derived from the run's input, where
+ * every trigger door writes `{trigger: 'schedule' | 'webhook' | 'event'}`
+ * beside its payload. `startedBy` names only the binding's id, and a binding
+ * keeps its id when its kind changes, so mapping the id through the current
+ * trigger row would misreport old runs; the input is the record of what
+ * fired. Present only on trigger-started runs whose input names a kind.
+ */
+export function runStartedVia(
+  row: Pick<RunRow, 'startedBy' | 'input'>,
+): RunSummary['startedVia'] {
+  // A row without a starter is a fixture, never a stored run (the column is
+  // NOT NULL) — answer nothing rather than throw on it.
+  if (typeof row.startedBy !== 'string') return undefined;
+  if (parseRunStarter(row.startedBy).kind !== 'trigger') return undefined;
+  const input = decodeRunInput(row.input);
+  if (input === null || typeof input !== 'object') return undefined;
+  const kind = (input as { trigger?: unknown }).trigger;
+  return kind === 'schedule' || kind === 'webhook' || kind === 'event'
+    ? kind
+    : undefined;
 }
 
 /**
@@ -1364,13 +1445,20 @@ export function runWaitingFor(
 }
 
 /** The full row as the single read answers it: every column, `waitingFor`
- * beside `detail` while the run is parked, and never the raw ask fact. */
-export function toRunDetail(
-  row: RunRow,
-): Omit<RunRow, 'askPending'> & { waitingFor?: RunSummary['waitingFor'] } {
+ * beside `detail` while the run is parked, `startedVia` on a trigger's run,
+ * and never the raw ask fact. */
+export function toRunDetail(row: RunRow): Omit<RunRow, 'askPending'> & {
+  waitingFor?: RunSummary['waitingFor'];
+  startedVia?: RunSummary['startedVia'];
+} {
   const { askPending: _askPending, ...rest } = row;
   const waitingFor = runWaitingFor(row);
-  return waitingFor === undefined ? rest : { ...rest, waitingFor };
+  const startedVia = runStartedVia(row);
+  return {
+    ...rest,
+    ...(startedVia !== undefined ? { startedVia } : {}),
+    ...(waitingFor !== undefined ? { waitingFor } : {}),
+  };
 }
 
 export interface ListRunsOptions {
@@ -1519,16 +1607,27 @@ export async function resolveRunProject(
     );
   }
   if (args.projectId !== undefined) {
-    const owned = await sql<{ id: string }[]>`
-      SELECT id FROM app.projects
+    const owned = await sql<{ id: string; archivedAt: number | null }[]>`
+      SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
       WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
       LIMIT 1
     `;
-    if (owned.length === 0) {
+    const project = owned[0];
+    if (project === undefined) {
       throw new AutomationError(
         'AUTOMATION_PROJECT_UNKNOWN',
         'The project does not exist in this organization.',
         404,
+      );
+    }
+    // A run scoped to an archived project is a write on it — the MCP and
+    // REST doors refuse it before reaching here; the app's start (and any
+    // other caller naming a project) answers the same code.
+    if ((project.archivedAt ?? null) !== null) {
+      throw new AutomationError(
+        'PROJECT_ARCHIVED',
+        'The project is archived — restore it before starting a run in it.',
+        403,
       );
     }
     if (
@@ -1643,6 +1742,10 @@ export async function cancelRunInTx(
   tx: TransactionSql,
   organizationId: string,
   runId: string,
+  /** The user who asked for the stop — the audit row names them. Absent
+   * only on a system-driven stop (a retired task's live run), which the
+   * row attributes to the run's starter as `system`. */
+  actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
   {
     const now = Date.now();
@@ -1673,22 +1776,30 @@ export async function cancelRunInTx(
     // does: the provenance audit row (live runs) that must never be missing,
     // and freeing the run's sandbox sessions so cancelled agents stop holding
     // org slot capacity until a late settle or the turn deadline.
+    const approvalsWithdrawn = await closeRunApprovals(
+      tx,
+      organizationId,
+      runId,
+    );
     if (row.mode === 'live') {
+      // The person who stopped the run is the actor; the starter is not
+      // (they may be someone else entirely). A stop nobody asked for — a
+      // retired task taking its live run with it — stays `system`.
       await createAuditLog(tx, {
         organizationId,
-        actorId: row.startedBy,
-        actorType: 'system',
+        ...(actor === undefined
+          ? { actorId: row.startedBy, actorType: 'system' }
+          : { actorId: actor, actorType: 'user' }),
         action: 'automation.run.cancelled',
         category: 'ai',
         resourceType: 'automation_run',
         resourceId: runId,
         resourceName: `${row.name}@${row.version}`,
         status: 'failure',
-        metadata: {},
+        metadata: { approvalsWithdrawn },
       });
     }
     await stopRunSandboxSessions(tx, organizationId, runId);
-    await closeRunApprovals(tx, organizationId, runId);
     await closePendingAsksForRun(
       tx,
       organizationId,
@@ -1704,8 +1815,9 @@ export async function cancelRun(
   sql: Sql,
   organizationId: string,
   runId: string,
+  actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
-  return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId));
+  return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId, actor));
 }
 
 // ---------------------------------------------------- idempotent starts

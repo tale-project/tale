@@ -263,3 +263,33 @@ describe.each(scenarios)('ensureAgentSession ($owner.type)', (scenario) => {
     ]);
   });
 });
+
+describe('ensureAgentSession — the harness names the session', () => {
+  it('reserves a fresh session under the harness it will run, so the metrics can name it', async () => {
+    const f = fixture(scenarios[0]!, null);
+    await ensureAgentSession(f.ctx, {
+      organizationId: 'org_1',
+      sessionId: 'session_1',
+      owner: scenarios[0]!.owner,
+      agentKind: 'claude-code',
+    });
+    const reserve = f.ctx.runMutation.mock.calls.find(
+      ([ref]) =>
+        functionRefName(ref).split(':')[1] === 'reserveSessionSlotAndInsert',
+    );
+    expect(reserve?.[1]).toMatchObject({
+      sessionId: 'session_1',
+      agentKind: 'claude-code',
+    });
+  });
+
+  it('leaves the kind unset for a session no harness opens', async () => {
+    const f = fixture(scenarios[1]!, null);
+    await f.ensure();
+    const reserve = f.ctx.runMutation.mock.calls.find(
+      ([ref]) =>
+        functionRefName(ref).split(':')[1] === 'reserveSessionSlotAndInsert',
+    );
+    expect(reserve?.[1]).not.toHaveProperty('agentKind');
+  });
+});

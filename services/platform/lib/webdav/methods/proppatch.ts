@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { escapeXml } from '../xml/escape';
 import { createWebdavXmlParser, isRecord, pick } from '../xml/parse';
+import { READ_ONLY_COLLECTION_METHODS } from './options';
 
 // v1 dead-prop policy: store nothing, but echo a per-prop 200 OK for
 // non-live props the client tried to set. This is the "lying-200"
@@ -44,6 +45,16 @@ export async function handleProppatch(
 ): Promise<WebDAVResponse> {
   if (parsed.namespace === '.trash') {
     return { status: 403, headers: {}, body: 'Trash is read-only' };
+  }
+  // The organization root has no row to carry a property; it advertises
+  // `OPTIONS, PROPFIND` and answers a write with that same `Allow`. It used
+  // to fall through to the documents root and echo the lying-200.
+  if (parsed.isRoot) {
+    return {
+      status: 405,
+      headers: { Allow: READ_ONLY_COLLECTION_METHODS },
+      body: 'PROPPATCH not allowed on the organization root',
+    };
   }
 
   const resolved = await ctx.backend.query(

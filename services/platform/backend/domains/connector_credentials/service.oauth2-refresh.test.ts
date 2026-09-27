@@ -24,6 +24,7 @@ import {
   type EncryptedSecret,
 } from '../../core/lib/secret_box.ts';
 import {
+  assertConnectorCredentialInService,
   resolveConnectorCredential,
   resolveCredentialRowForShim,
 } from './service.ts';
@@ -483,5 +484,37 @@ describe('resolveCredentialRowForShim — oauth2 refresh', () => {
     await expect(
       resolveCredentialRowForShim(fakeSql({ row: row(EXPIRED) }), ARGS),
     ).rejects.toThrow('db down');
+  });
+});
+
+/**
+ * The pre-approval probe's question is the row's status, not its material:
+ * it re-runs on every wake while a run waits at the gate, and going through
+ * the resolver spent an OAuth refresh (and could flip a grant to
+ * needs-reauth) on each pass (2026-09-26 evaluation, D-09).
+ */
+describe('assertConnectorCredentialInService — the row-only check', () => {
+  it('passes an active row with an expired grant without a vendor call or a write', async () => {
+    const store: Store = { row: row(EXPIRED) };
+    const sql = fakeSql(store);
+    const fetchImpl = vi.fn();
+    vi.stubGlobal('fetch', fetchImpl);
+    await expect(
+      assertConnectorCredentialInService(sql, ARGS),
+    ).resolves.toBeUndefined();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(sql.updates).toEqual([]);
+    expect(store.row.status).toBe('active');
+  });
+
+  it.each([
+    ['disabled', 'CREDENTIAL_DISABLED'],
+    ['needs-reauth', 'CREDENTIAL_NEEDS_REAUTH'],
+  ])('refuses a %s row with %s', async (status, code) => {
+    const sql = fakeSql({ row: row(EXPIRED, { status }) });
+    await expect(
+      assertConnectorCredentialInService(sql, ARGS),
+    ).rejects.toMatchObject({ code });
+    expect(sql.updates).toEqual([]);
   });
 });

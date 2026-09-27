@@ -5,10 +5,115 @@
 
 import { isSpreadsheet } from '@/lib/shared/file-types';
 
+/** The columns a record mapper can refuse — each a label key under
+ * `common.import.fields`. */
+export const IMPORT_ROW_FIELDS = [
+  'name',
+  'price',
+  'stock',
+  'currency',
+  'status',
+  'email',
+] as const;
+export type ImportRowField = (typeof IMPORT_ROW_FIELDS)[number];
+
+/** Why a record mapper refused a cell — each a sentence key under
+ * `common.import.reasons`, taking `{field}` plus the listed values. */
+export const IMPORT_ROW_REASONS = [
+  'blank',
+  'notNumber',
+  'negative',
+  'tooLarge',
+  'notInteger',
+  'notCurrency',
+  'notOneOf',
+] as const;
+export type ImportRowReason = (typeof IMPORT_ROW_REASONS)[number];
+
+/** A row the mapper refused, by the line the user sees in a spreadsheet
+ * (the header is line 1, so the first data row is line 2). The parser's own
+ * refusals carry an i18n `field` + `reason` the dialog translates; a row the
+ * server refused carries the server's text as `message`. */
+export type ImportRowError =
+  | { row: number; message: string }
+  | {
+      row: number;
+      field: ImportRowField;
+      reason: ImportRowReason;
+      values?: Record<string, string | number>;
+    };
+
 export type FileParseResult<T> = {
   data: T[];
+  /** The spreadsheet line each `data` entry came from, by position — what
+   * maps a server's per-row refusal (`errors[].index`) back to the file. */
+  rows: number[];
+  /** File-level failures: format, a missing required column. */
   errors: string[];
+  /** Rows the mapper refused; the rest of the file still parsed. */
+  rowErrors: ImportRowError[];
 };
+
+/** A refused row, thrown by a record mapper; the parser files it under the
+ * row's own line instead of dropping the row or the whole file. */
+export class ImportRowRefusal extends Error {
+  readonly field: ImportRowField;
+  readonly reason: ImportRowReason;
+  readonly values: Record<string, string | number> | undefined;
+
+  constructor(
+    field: ImportRowField,
+    reason: ImportRowReason,
+    values?: Record<string, string | number>,
+  ) {
+    super(`${field}: ${reason}`);
+    this.name = 'ImportRowRefusal';
+    this.field = field;
+    this.reason = reason;
+    this.values = values;
+  }
+
+  /** The row error the parser files, at the given spreadsheet line. */
+  toRowError(row: number): ImportRowError {
+    return {
+      row,
+      field: this.field,
+      reason: this.reason,
+      ...(this.values ? { values: this.values } : {}),
+    };
+  }
+}
+
+/** A cell nobody filled: missing, or a string of nothing but whitespace. */
+function isBlankCell(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'string' && value.trim() === '')
+  );
+}
+
+/** A row of nothing but blank cells (`,,,,`) — a spreadsheet's trailing
+ * lines, never a record the mapper should refuse. */
+function isBlankRecord(cells: Iterable<unknown>): boolean {
+  for (const cell of cells) {
+    if (!isBlankCell(cell)) return false;
+  }
+  return true;
+}
+
+/** The row error for whatever a mapper threw at the given line. */
+function refusedRow(row: number, error: unknown): ImportRowError {
+  if (error instanceof ImportRowRefusal) return error.toRowError(row);
+  return {
+    row,
+    message: error instanceof Error ? error.message : 'Unknown error',
+  };
+}
+
+function emptyResult<T>(errors: string[] = []): FileParseResult<T> {
+  return { data: [], rows: [], errors, rowErrors: [] };
+}
 
 /**
  * A column the import file must contain. `label` is the canonical name shown
@@ -147,22 +252,22 @@ export function parseCSVWithMapper<T>(
     ...csvOptions,
     hasHeaders: !!recordMapper,
   });
-  const data: T[] = [];
-  const errors: string[] = [];
+  const result = emptyResult<T>();
 
   // Fail loudly when the header row is missing a required column, instead of
   // silently dropping rows or importing partial data (see #1312, #1323).
   if (recordMapper) {
     const missing = detectMissingColumns(headers, requiredColumns);
     if (missing.length > 0) {
-      return {
-        data: [],
-        errors: [missingColumnsError(missing, headers ?? [])],
-      };
+      return emptyResult([missingColumnsError(missing, headers ?? [])]);
     }
   }
 
+  const firstLine = headers ? 2 : 1;
   rows.forEach((row, index) => {
+    const line = firstLine + index;
+    // `,,,,` is not a record: skipped like an empty line, never refused.
+    if (isBlankRecord(row)) return;
     try {
       let mapped: T | null;
       if (headers && recordMapper) {
@@ -175,16 +280,15 @@ export function parseCSVWithMapper<T>(
         mapped = mapper(row, index);
       }
       if (mapped !== null) {
-        data.push(mapped);
+        result.data.push(mapped);
+        result.rows.push(line);
       }
     } catch (error) {
-      errors.push(
-        `Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
+      result.rowErrors.push(refusedRow(line, error));
     }
   });
 
-  return { data, errors };
+  return result;
 }
 
 /**
@@ -229,28 +333,52 @@ function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
   });
 }
 
+/** One data row of a sheet: its record (header keys lower-cased) and the
+ * spreadsheet line it sits on — the one-based row number a person sees. */
+export interface ExcelRecord {
+  record: Record<string, unknown>;
+  line: number;
+}
+
 /**
- * Parse an Excel file and return the data as array of records.
+ * The records of a worksheet with the line each one came from. SheetJS
+ * skips blank rows, so a record's index is not its row: an import error
+ * reported as `index + 2` named the wrong line once a blank row sat above
+ * it. Every object `sheet_to_json` answers carries the sheet's own
+ * zero-based row index as `__rowNum__`, so the line is read from that.
+ */
+export function excelRecords(
+  XLSX: typeof import('xlsx'),
+  worksheet: import('xlsx').WorkSheet,
+): ExcelRecord[] {
+  const rows = XLSX.utils.sheet_to_json<
+    Record<string, unknown> & { __rowNum__?: number }
+  >(worksheet);
+  return rows.map((row, index) => ({
+    record: Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [
+        key.trim().toLowerCase(),
+        value,
+      ]),
+    ),
+    // `__rowNum__` is non-enumerable, so it never lands in the record; the
+    // index fallback (header + 1) is for a build without it.
+    line: (row.__rowNum__ ?? index + 1) + 1,
+  }));
+}
+
+/**
+ * Parse an Excel file and return its rows with their lines.
  * Dynamically imports xlsx to reduce initial bundle size.
  */
-async function parseExcelFile(
-  file: File,
-): Promise<Array<Record<string, unknown>>> {
+async function parseExcelFile(file: File): Promise<ExcelRecord[]> {
   const XLSX = await import('xlsx');
   const buffer = await readFileAsArrayBuffer(file);
   const data = new Uint8Array(buffer);
   const workbook = XLSX.read(data, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
-  return rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).map(([key, value]) => [
-        key.trim().toLowerCase(),
-        value,
-      ]),
-    ),
-  );
+  return excelRecords(XLSX, worksheet);
 }
 
 function isCSVFile(file: File): boolean {
@@ -273,9 +401,6 @@ export async function parseImportFile<T>(
   excelMapper: (record: Record<string, unknown>) => T | null,
   options: { requiredColumns?: RequiredColumn[] } = {},
 ): Promise<FileParseResult<T>> {
-  const errors: string[] = [];
-  const data: T[] = [];
-
   try {
     if (isCSVFile(file)) {
       const text = await readFileAsText(file);
@@ -289,35 +414,35 @@ export async function parseImportFile<T>(
 
       // Validate the header row (the keys of the first record) so a
       // mismatched schema fails loudly rather than dropping data silently.
-      const headerKeys = records.length > 0 ? Object.keys(records[0]) : [];
+      const headerKeys =
+        records.length > 0 ? Object.keys(records[0].record) : [];
       const missing = detectMissingColumns(headerKeys, options.requiredColumns);
       if (missing.length > 0) {
-        return { data: [], errors: [missingColumnsError(missing, headerKeys)] };
+        return emptyResult([missingColumnsError(missing, headerKeys)]);
       }
 
-      records.forEach((record, index) => {
+      const result = emptyResult<T>();
+      records.forEach(({ record, line }) => {
+        if (isBlankRecord(Object.values(record))) return;
         try {
           const mapped = excelMapper(record);
           if (mapped !== null) {
-            data.push(mapped);
+            result.data.push(mapped);
+            result.rows.push(line);
           }
         } catch (error) {
-          errors.push(
-            `Row ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          );
+          result.rowErrors.push(refusedRow(line, error));
         }
       });
-      return { data, errors };
+      return result;
     } else {
-      return {
-        data: [],
-        errors: ['Unsupported file format. Please use CSV or Excel files.'],
-      };
+      return emptyResult([
+        'Unsupported file format. Please use CSV or Excel files.',
+      ]);
     }
   } catch (error) {
-    return {
-      data: [],
-      errors: [error instanceof Error ? error.message : 'Failed to parse file'],
-    };
+    return emptyResult([
+      error instanceof Error ? error.message : 'Failed to parse file',
+    ]);
   }
 }

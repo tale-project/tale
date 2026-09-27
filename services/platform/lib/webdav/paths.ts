@@ -64,6 +64,25 @@ export function parseDavPath(pathname: string): ParsedPath | null {
   };
 }
 
+// True when the RAW request-target carries a dot-segment — `.` or `..`,
+// percent-encoded in any case (`%2e%2e`, `.%2e`, `%2E.`) or not. The
+// WHATWG parser the Node adapter builds `req.url` with folds those away
+// before `parseDavPath` runs (`isValidSegment` never saw the `..` a client
+// sent, and a PUT through `<folder>/%2E%2E/x` landed one level up), so
+// the check runs on the request line as the wire carried it, never on a
+// parsed URL. A raw backslash is a segment boundary too: for an http URL
+// the WHATWG parser reads `\` as `/`, so `a\..\x` folds exactly like
+// `a/../x` (a `%5C` stays a literal, it is not decoded). Only the path is
+// judged; the query is not a path. A name that merely contains dots
+// (`..foo`, `foo.`) is a legal name.
+export function hasDotSegment(rawTarget: string): boolean {
+  const end = rawTarget.search(/[?#]/);
+  const path = end === -1 ? rawTarget : rawTarget.slice(0, end);
+  return path
+    .split(/[/\\]/)
+    .some((segment) => /^(?:%2e|\.){1,2}$/i.test(segment));
+}
+
 // Build the wire URL for a resource (used in PROPFIND `<href>` and in
 // Location headers after MOVE/COPY). Reverses parseDavPath. Segments
 // are NFC-normalized before percent-encoding so a round-trip from
@@ -84,6 +103,13 @@ export function buildDavPath(parsed: {
   let s = '/' + parts.join('/');
   if (parsed.isCollection) s += '/';
   return s;
+}
+
+// The wire URL of the organization root `/dav/<orgSlug>/` — the pseudo-
+// collection above the two namespaces, which `buildDavPath` cannot name
+// because it has no namespace of its own.
+export function buildDavRootPath(orgSlug: string): string {
+  return `/dav/${encodeURIComponent(orgSlug.normalize('NFC'))}/`;
 }
 
 // Canonical wire path used as the lock key — strips the /dav/<orgSlug>

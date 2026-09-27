@@ -3,7 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { EmptyState } from '@tale/ui/empty-state';
-import { Label } from '@tale/ui/label';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
@@ -11,7 +10,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Settings, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useT } from '@/lib/i18n/client';
 
@@ -59,7 +58,7 @@ function DocumentTeamDialogContent({
 
   const updateDocument = useUpdateDocument();
   const updateFolderTeams = useUpdateFolderTeams();
-  const { teams, isLoading } = useTeams();
+  const { teams, isLoading } = useOrgTeams();
 
   const hasTeams = teams && teams.length > 0;
 
@@ -190,8 +189,8 @@ function DocumentTeamDialogContent({
         />
       ) : (
         <div className="space-y-1.5 px-6 pt-2 pb-4">
-          <Label>{tDocuments('teamTags.team')}</Label>
           <TeamMultiSelect
+            label={tDocuments('teamTags.team')}
             teams={teams ?? []}
             selectedTeamIds={selectedTeamIds}
             onSelectionChange={setSelectedTeamIds}

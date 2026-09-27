@@ -34,8 +34,18 @@ export function LegalHoldBlockPanel({
   const { request } = data;
   const heldThreads = request.threadsBlockedByHold ?? [];
   const heldDocs = request.documentsBlockedByHold ?? [];
-  const orgHeld = request.errorMessage === 'org_hold';
-  const userCustodianHeld = request.errorMessage === 'user_custodian_hold';
+  // `holdBlock` is the live check the receipt read performs (the receipt
+  // keeps its `blocked` status after the hold is released — nothing re-arms
+  // it — so the panel must not describe a hold that is gone); the recorded
+  // `errorMessage` token is the fallback for a receipt read without it.
+  const holdBlock = request.holdBlock;
+  const released = holdBlock !== undefined && !holdBlock.active;
+  const orgHeld = holdBlock
+    ? holdBlock.orgHeld
+    : request.errorMessage === 'org_hold';
+  const userCustodianHeld = holdBlock
+    ? holdBlock.userCustodianHeld
+    : request.errorMessage === 'user_custodian_hold';
 
   return (
     <Stack
@@ -60,11 +70,13 @@ export function LegalHoldBlockPanel({
             {t('dataSubjectRequests.legalHoldBlock.title')}
           </span>
           <span className="text-foreground/80">
-            {orgHeld
-              ? t('dataSubjectRequests.legalHoldBlock.orgHeld')
-              : userCustodianHeld
-                ? t('dataSubjectRequests.legalHoldBlock.userCustodianHeld')
-                : t('dataSubjectRequests.legalHoldBlock.generic')}
+            {released
+              ? t('dataSubjectRequests.legalHoldBlock.released')
+              : orgHeld
+                ? t('dataSubjectRequests.legalHoldBlock.orgHeld')
+                : userCustodianHeld
+                  ? t('dataSubjectRequests.legalHoldBlock.userCustodianHeld')
+                  : t('dataSubjectRequests.legalHoldBlock.generic')}
           </span>
         </Stack>
       </Row>

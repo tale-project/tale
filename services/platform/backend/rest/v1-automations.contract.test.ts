@@ -510,7 +510,13 @@ describe('POST /runs/{runId}/cancel', () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ cancelled: false });
-    expect(cancelRun).toHaveBeenCalledWith(expect.anything(), 'org-1', 'run-1');
+    // The key holder is the actor of the stop, never the run's starter.
+    expect(cancelRun).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      'run-1',
+      'user-1',
+    );
   });
 });
 

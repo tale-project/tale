@@ -25,7 +25,7 @@ Project chat starts with the saved project instructions. It can search this proj
 
 ## Create an identity people can recognize
 
-**Create project** asks for a name and a **Project key**, with an optional description. The key becomes the prefix of task IDs such as `WR-1` and cannot change after creation. Choose a short, durable abbreviation.
+**Create project** asks for a name and a **Project key**, with an optional description, icon, and color. The key becomes the prefix of task IDs such as `WR-1` and cannot change after creation. Choose a short, durable abbreviation.
 
 You can revise the name, description, icon, color, and instructions on **General** later. Use **Save** to apply field edits or **Discard** to abandon them. For a complete walkthrough, follow [Use projects](/tutorials/member/use-projects).
 
@@ -49,4 +49,4 @@ Use **Move to project…** in a chat's actions, or drag the chat onto the projec
 
 Create a [task](/platform/projects/tasks) when a decision needs an owner or a result. A teammate can complete it manually, or a configured [project agent](/platform/projects/project-agents) can work on it. Keep the acceptance criteria in the description so the reviewer can judge the result.
 
-Archive a finished project when you want it out of the active list. Before deleting, read the choice about its contents: detaching leaves files in the library and chats as personal conversations; deleting the contents removes them too. Detaching files can widen access, so choose according to what should remain available.
+Archive a finished project when you want it out of the active list. An archived project is read-only for everyone — its settings, tasks, files, and agents can be read but not changed — until a project administrator restores it from **General**. Before deleting, read the choice about its contents: detaching leaves files in the library and chats as personal conversations; deleting the contents removes them too. Detaching files can widen access, so choose according to what should remain available.

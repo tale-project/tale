@@ -134,21 +134,15 @@ export function ProjectSharingSection({
   return (
     <>
       <FormSection>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">
-            {t('settings.audience')}
-          </label>
-          <p className="text-muted-foreground text-sm">
-            {t('settings.audienceHelp')}
-          </p>
-          <TeamMultiSelect
-            teams={assignableTeams}
-            selectedTeamIds={teamIds}
-            onSelectionChange={handleChange}
-            orgWideLabel={t('list.sharingOrgWide')}
-            disabled={isPending}
-          />
-        </div>
+        <TeamMultiSelect
+          label={t('settings.audience')}
+          description={t('settings.audienceHelp')}
+          teams={assignableTeams}
+          selectedTeamIds={teamIds}
+          onSelectionChange={handleChange}
+          orgWideLabel={t('list.sharingOrgWide')}
+          disabled={isPending}
+        />
       </FormSection>
 
       <ConfirmDialog

@@ -7,6 +7,8 @@ import { CONTACT_LOCALE_PATTERN } from '../../../lib/shared/schemas/common.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { mergeBulkResult, partitionBulkRows } from '../../lib/bulk-rows.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   CONTACT_EXTERNAL_ID_MAX,
@@ -120,7 +122,7 @@ export function createContactRoutes(deps: {
   app.post('/', async (c) => {
     const body = contactInputSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);
@@ -149,24 +151,33 @@ export function createContactRoutes(deps: {
 
   app.post('/bulk', async (c) => {
     const body = z
-      // The bulk lane REQUIRES an email: it is the duplicate key the
-      // per-row check uses, and a row without one cannot be deduplicated.
-      .object({
-        contacts: z
-          .array(
-            contactInputSchema.extend({
-              email: contactEmailSchema,
-            }),
-          )
-          .max(1000),
-      })
+      .object({ contacts: z.array(z.unknown()).max(1000) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
+      // Row by row: a refused row names its field at the caller's index and
+      // the rest of the file still lands (the REST contacts-bulk semantics).
+      // The bulk lane REQUIRES an email: it is the duplicate key the per-row
+      // check uses, and a row without one cannot be deduplicated.
+      const { valid, refused } = partitionBulkRows(
+        body.data.contacts,
+        contactInputSchema.extend({ email: contactEmailSchema }),
+      );
+      const landed = await bulkCreateContacts(
+        deps.sql,
+        scopeOf(c),
+        valid.map((entry) => entry.item),
+      );
       return c.json(
-        await bulkCreateContacts(deps.sql, scopeOf(c), body.data.contacts),
+        mergeBulkResult(
+          valid,
+          refused.map(({ input, ...refusal }) =>
+            Object.assign(refusal, { contact: input }),
+          ),
+          landed,
+        ),
       );
     } catch (error) {
       return handleError(c, error);
@@ -190,7 +201,7 @@ export function createContactRoutes(deps: {
   app.post('/:contactId', async (c) => {
     const body = contactInputSchema.partial().safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);

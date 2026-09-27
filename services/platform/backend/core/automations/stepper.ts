@@ -713,6 +713,37 @@ type StepOutcome =
  * A loop body reads `item` / `index`, which exist only once the loop turns —
  * the preview then has nothing honest to show and the card carries none.
  */
+/**
+ * Whether a live call of a `<connector>.<action>` node could resolve its
+ * credential — asked before the approval gate, so a run is never parked
+ * waiting for a person to release an action that cannot run. A malformed
+ * node type is left to the connector body, which names it.
+ */
+async function assertConnectorCredentialUsable(
+  run: RunContext,
+  nodeType: string,
+): Promise<void> {
+  const separator = nodeType.indexOf('.');
+  if (separator <= 0 || separator === nodeType.length - 1) return;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the probe handler answers exactly this shape
+  const probe = (await run.ctx.runQuery(
+    internal.connector_credentials.queries.probeCredentialUsableInternal,
+    {
+      organizationId: run.organizationId,
+      connectorSlug: nodeType.slice(0, separator),
+    },
+  )) as { usable?: boolean; message?: string; hint?: string } | null;
+  // Only an explicit refusal fails the node — a seam that answers nothing
+  // usable-shaped leaves the verdict to the connector body.
+  if (probe !== null && typeof probe === 'object' && probe.usable === false) {
+    throw new NodeFailure(
+      'connector_error',
+      probe.message ?? `no usable credential for ${nodeType}`,
+      probe.hint,
+    );
+  }
+}
+
 async function previewNodeInput(
   node: { input?: unknown },
   scope: Parameters<typeof evalTemplates>[1],
@@ -795,6 +826,12 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     // re-checked on every re-entry, so an approval granted later simply lets
     // the next turn through.
     if (run.mode === 'live' && !CORE_TYPES.has(node.type) && approvalGate) {
+      // Fail fast on a call that cannot run at all: a connector with no
+      // usable credential used to park the run on an approval card, and
+      // only the approver's "yes" surfaced the missing credential
+      // (2026-09-26 evaluation, D-09). The probe is the dispatcher's own
+      // lookup, done ahead of it, so the failure reads the same.
+      await assertConnectorCredentialUsable(run, node.type);
       // The card shows the call the step would make, not the run's input:
       // the same resolution the connector body performs, done ahead of it.
       const preview = await previewNodeInput(node, makeScope(input, outputs));
@@ -954,7 +991,14 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     trace.output = output;
     return await record({ status: 'ok', output, trace, effects });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    // A failure that knows what to do next says so in the one sentence the
+    // run detail and the trace show — `message — hint`, never a JSON blob.
+    const message =
+      error instanceof NodeFailure && error.hint !== undefined
+        ? `${error.message} — ${error.hint}`
+        : error instanceof Error
+          ? error.message
+          : String(error);
     trace.status = 'error';
     trace.error = message;
     if (node.onError === 'continue') {

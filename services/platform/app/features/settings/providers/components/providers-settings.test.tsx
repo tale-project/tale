@@ -6,6 +6,7 @@ import {
   SettingsHeaderActionsSetter,
   type SettingsHeaderAction,
 } from '@/app/features/settings/components/settings-secondary-action-context';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -35,6 +36,8 @@ const fixtures = vi.hoisted(() => ({
   catalogs: [] as unknown[],
   credentials: [] as unknown[],
   catalogsError: null as unknown,
+  /** What the dependents read answers for any credential. */
+  dependents: [] as string[],
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -51,6 +54,17 @@ vi.mock('../hooks/queries', () => ({
   }),
   useProviderCredentials: () => ({
     data: fixtures.credentials,
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useCredentialDependents: (
+    _organizationId: string,
+    _credentialId: string,
+    options?: { enabled?: boolean },
+  ) => ({
+    data:
+      options?.enabled === false ? undefined : { usedBy: fixtures.dependents },
     isPending: false,
     isError: false,
     error: null,
@@ -607,6 +621,48 @@ describe('ProvidersSettings', () => {
           credentialId: 'cred-1',
         }),
       );
+    });
+
+    // The embedding model resolves its key through this credential: the
+    // dialog says so before the server refuses the delete for it.
+    it('warns that the embedding model uses the credential, and maps the refusal', async () => {
+      fixtures.dependents = ['embedding'];
+      deleteCredential.mockRejectedValueOnce(
+        new AppError({
+          code: 'CREDENTIAL_IN_USE',
+          message: 'in use',
+          data: { usedBy: ['embedding'] },
+        }),
+      );
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Ops key' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Delete',
+        }),
+      );
+      const confirm = within(
+        await screen.findByRole('dialog', { name: 'Delete credential' }),
+      );
+      expect(
+        await confirm.findByText(
+          /knowledge embedding model uses this credential/i,
+        ),
+      ).toBeInTheDocument();
+      await user.click(confirm.getByRole('button', { name: /Delete/ }));
+      await waitFor(() =>
+        expect(toastSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: expect.stringMatching(
+              /Could not delete the credential: The knowledge embedding model uses this credential/,
+            ),
+            variant: 'destructive',
+          }),
+        ),
+      );
+      fixtures.dependents = [];
     });
 
     it('keeps make-default visible but inert on a disabled credential', async () => {

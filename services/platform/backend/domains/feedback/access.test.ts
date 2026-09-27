@@ -28,21 +28,27 @@ const VOTE = { threadId: 't-1', messageId: 'm-1', rating: 'positive' } as const;
 
 /** A tagged-template `tx` that answers the message lookup from `messageRows`
  * and records every statement, so the test can see whether a write ran. */
-function fakeTx(messageRows: { id: string }[]): {
+function fakeTx(messageRows: Record<string, unknown>[]): {
   tx: TransactionSql;
   statements: string[];
+  values: unknown[][];
 } {
   const statements: string[] = [];
-  const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
+  const values: unknown[][] = [];
+  const tag = (
+    strings: TemplateStringsArray,
+    ...params: unknown[]
+  ): Promise<unknown[]> => {
     const text = strings.join('?');
     statements.push(text);
+    values.push(params);
     return Promise.resolve(
       text.includes('FROM app.messages') ? messageRows : [],
     );
   };
   Object.assign(tag, { json: (value: unknown) => value });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `json` are exercised
-  return { tx: tag as unknown as TransactionSql, statements };
+  return { tx: tag as unknown as TransactionSql, statements, values };
 }
 
 const wrote = (statements: string[]): boolean =>
@@ -95,5 +101,59 @@ describe('submitMessageFeedback — the message must be within reach', () => {
     expect(refusal).toBeInstanceOf(FeedbackError);
     expect(refusal).toMatchObject({ code: 'MESSAGE_NOT_FOUND', status: 404 });
     expect(wrote(statements)).toBe(false);
+  });
+});
+
+describe('submitMessageFeedback — the vote is attributed by the message, not the client', () => {
+  it('records the model, provider and assistant the message carries', async () => {
+    loadOwnedThread.mockResolvedValue({ id: 't-1' });
+    const { tx, statements, values } = fakeTx([
+      {
+        id: 'm-1',
+        model: 'deepseek-v4-flash',
+        provider: 'deepseek',
+        agentSlug: 'support',
+      },
+    ]);
+    await submitMessageFeedback(tx, SCOPE, VOTE);
+    const lookup = statements.findIndex((text) =>
+      text.includes('FROM app.messages'),
+    );
+    // The read joins the thread's assistant onto the message row.
+    expect(statements[lookup]).toContain('LEFT JOIN app.thread_metadata');
+    const insert = statements.findIndex((text) =>
+      text.includes('INSERT INTO app.message_feedback'),
+    );
+    expect(values[insert]).toEqual([
+      'org-1',
+      't-1',
+      'm-1',
+      'user-1',
+      'positive',
+      null,
+      'support',
+      'deepseek-v4-flash',
+      'deepseek',
+      expect.any(Number),
+      'positive',
+      null,
+      expect.any(Number),
+    ]);
+  });
+
+  it('leaves a plain chat unattributed — no assistant, and only what the message knows', async () => {
+    loadOwnedThread.mockResolvedValue({ id: 't-1' });
+    const { tx, statements, values } = fakeTx([
+      { id: 'm-1', model: 'deepseek-v4-pro', provider: null, agentSlug: null },
+    ]);
+    await submitMessageFeedback(tx, SCOPE, VOTE);
+    const insert = statements.findIndex((text) =>
+      text.includes('INSERT INTO app.message_feedback'),
+    );
+    expect(values[insert]?.slice(6, 9)).toEqual([
+      null,
+      'deepseek-v4-pro',
+      null,
+    ]);
   });
 });

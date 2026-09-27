@@ -226,6 +226,63 @@ describe('PROPFIND', () => {
     expect(parsed.multistatus.response.length).toBe(3);
   });
 
+  // The organization root is a pseudo-collection: it describes itself and
+  // its two namespaces, with no tree or lock lookup — an unstubbed backend
+  // proves no query ran (the stub throws on any unregistered name).
+  interface RootResponse {
+    href: string;
+    propstat: { prop: { displayname: string; resourcetype: unknown } }[];
+  }
+  const rootMultistatus = (xml: string): RootResponse[] =>
+    (xmlParser.parse(xml) as { multistatus: { response: RootResponse[] } })
+      .multistatus.response;
+
+  it('Depth: 0 on the organization root describes the root itself', async () => {
+    const res = await dispatch(
+      makeRequest({
+        method: 'PROPFIND',
+        pathname: '/dav/myorg/',
+        headers: { Depth: '0' },
+        authenticated: true,
+      }),
+      makeStubCtx(),
+    );
+    expect(res.status).toBe(207);
+    const responses = rootMultistatus(await bodyToText(res.body));
+    expect(responses.map((r) => r.href)).toEqual(['/dav/myorg/']);
+    expect(responses[0].propstat[0].prop.displayname).toBe('myorg');
+    expect(responses[0].propstat[0].prop.resourcetype).toHaveProperty(
+      'collection',
+    );
+  });
+
+  it('Depth: 1 on the organization root lists exactly documents/ and .trash/', async () => {
+    const res = await dispatch(
+      makeRequest({
+        method: 'PROPFIND',
+        pathname: '/dav/myorg/',
+        headers: { Depth: '1' },
+        authenticated: true,
+      }),
+      makeStubCtx(),
+    );
+    expect(res.status).toBe(207);
+    const responses = rootMultistatus(await bodyToText(res.body));
+    expect(responses.map((r) => r.href)).toEqual([
+      '/dav/myorg/',
+      '/dav/myorg/documents/',
+      '/dav/myorg/.trash/',
+    ]);
+    expect(responses.map((r) => r.propstat[0].prop.displayname)).toEqual([
+      'myorg',
+      'documents',
+      '.trash',
+    ]);
+    for (const r of responses) {
+      expect(r.propstat[0].prop.resourcetype).toHaveProperty('collection');
+    }
+  });
+
   it('Depth: infinity → 403 with <propfind-finite-depth/>', async () => {
     const ctx = makeStubCtx();
     const res = await dispatch(
@@ -423,6 +480,22 @@ describe('PUT', () => {
     );
     expect(res.status).toBe(411);
     expect(res.body).toBe('Content-Length required');
+  });
+});
+
+describe('PROPPATCH', () => {
+  it('on the organization root → 405 with the read-only Allow', async () => {
+    const res = await dispatch(
+      makeRequest({
+        method: 'PROPPATCH',
+        pathname: '/dav/myorg/',
+        authenticated: true,
+        body: '<?xml version="1.0"?><D:propertyupdate xmlns:D="DAV:"><D:set><D:prop><Z:tag xmlns:Z="urn:x">red</Z:tag></D:prop></D:set></D:propertyupdate>',
+      }),
+      makeStubCtx(),
+    );
+    expect(res.status).toBe(405);
+    expect(res.headers?.['Allow']).toBe('OPTIONS, PROPFIND');
   });
 });
 

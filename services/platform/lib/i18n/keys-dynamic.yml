@@ -277,3 +277,9 @@ entries:
   - 'documents.googledrive.oneTimeDescription'
   - 'documents.googledrive.syncImport'
   - 'documents.googledrive.syncDescription'
+
+  # The park of a waiting automation run, in words — `runs.waiting.<kind>`
+  # is composed from the read model's `waitingFor` in
+  # app/features/automations/lib/run-view.ts (`runReasonKey`) and rendered by
+  # the run list and the run header.
+  - 'automations.runs.waiting'

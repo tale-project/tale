@@ -333,6 +333,15 @@ const run = {
   finishedAt: 1_700_000_000_500,
 };
 
+/** A run a schedule started — its input names the kind, its starter the
+ * binding, and the read answers `startedVia: "schedule"`. */
+const triggerRun = {
+  ...run,
+  id: 'run-2',
+  startedBy: 'trigger:t-1',
+  input: JSON.stringify({ trigger: 'schedule', firedAt: 1_700_000_000_000 }),
+};
+
 describe('handler responses validate against the spec', () => {
   const cases: {
     name: string;
@@ -459,6 +468,14 @@ describe('handler responses validate against the spec', () => {
       spec: ['/api/v1/runs/{runId}', 'get', '200'],
     },
     {
+      // A trigger's run answers `startedVia` — the enum the schema declares.
+      name: 'GET /runs/{runId} (trigger run)',
+      routes: () => createAutomationRestRoutes({ sql: fakeSql([triggerRun]) }),
+      rows: [triggerRun],
+      request: '/runs/run-2',
+      spec: ['/api/v1/runs/{runId}', 'get', '200'],
+    },
+    {
       // A projected read answers only the keys named — the `RunProjection`
       // half of the declared `anyOf`, since `Run` requires keys it omits.
       name: 'GET /runs/{runId}?fields=',
@@ -507,6 +524,21 @@ describe('handler responses validate against the spec', () => {
       ).toBe(true);
     },
   );
+
+  it('answers startedVia on a trigger run and never on a person’s', async () => {
+    const scheduled: unknown = await (
+      await mount(
+        createAutomationRestRoutes({ sql: fakeSql([triggerRun]) }),
+      ).request('http://localhost/runs/run-2')
+    ).json();
+    expect(scheduled).toMatchObject({ startedVia: 'schedule' });
+    const manual: unknown = await (
+      await mount(createAutomationRestRoutes({ sql: fakeSql([run]) })).request(
+        'http://localhost/runs/run-1',
+      )
+    ).json();
+    expect(manual).not.toHaveProperty('startedVia');
+  });
 });
 
 // ── Status + shape parity for the operations whose prose once drifted ───────

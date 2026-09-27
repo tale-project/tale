@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogTitle,
+} from '../overlays/responsive-dialog';
 import { DatePicker } from './date-picker';
 import { DATE_PICKER_POPPER_ATTR } from './date-picker-popper';
 
@@ -83,5 +89,44 @@ describe('DatePicker', () => {
     document.body.style.pointerEvents = 'none';
     expect(getComputedStyle(popper as HTMLElement).pointerEvents).toBe('auto');
     document.body.style.pointerEvents = '';
+  });
+});
+
+describe('DatePicker popper container', () => {
+  it('portals nothing while the calendar is closed', () => {
+    render(<DatePicker onChange={vi.fn()} />);
+    expect(document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`)).toBeNull();
+  });
+
+  it('names the open calendar as ONE dialog', async () => {
+    const { user } = render(<DatePicker onChange={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: /pick a date/i }));
+    const popper = document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`);
+    expect(popper).toHaveAttribute('role', 'dialog');
+    expect(popper).toHaveAccessibleName('Calendar');
+    // react-datepicker's default container is a second, English-labelled
+    // aria-modal dialog nested inside this one; the calendar body is plain.
+    expect(popper?.querySelector('[role="dialog"]')).toBeNull();
+    expect(popper?.querySelector('[aria-modal]')).toBeNull();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(popper?.querySelector('.react-datepicker')).not.toBeNull();
+  });
+
+  it('stays perceivable inside a modal dialog', async () => {
+    const { user } = render(
+      <ResponsiveDialog open onOpenChange={vi.fn()}>
+        <ResponsiveDialogContent closeLabel="Close">
+          <ResponsiveDialogTitle>Task</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>Due date</ResponsiveDialogDescription>
+          <DatePicker onChange={vi.fn()} />
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>,
+    );
+    await user.click(screen.getByRole('button', { name: /pick a date/i }));
+    const popper = document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`);
+    expect(popper).not.toBeNull();
+    expect(popper).not.toHaveAttribute('aria-hidden');
+    expect(popper?.closest('[aria-hidden="true"]')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Calendar' })).toBeVisible();
   });
 });

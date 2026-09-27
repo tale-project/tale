@@ -19,6 +19,11 @@ const mockDeleteMutateAsync = vi.fn().mockResolvedValue(undefined);
 let secretsFixture: { name: string; description?: string }[] = [];
 let secretsErrorFixture: unknown = undefined;
 
+let projectFixture: { archivedAt?: number } | null = { archivedAt: undefined };
+vi.mock('../hooks/queries', () => ({
+  useProject: () => ({ project: projectFixture, isLoading: false }),
+}));
+
 vi.mock('../hooks/secrets', () => ({
   useProjectSecrets: () => ({
     secrets: secretsFixture,
@@ -69,6 +74,24 @@ describe('ProjectSecretsTab', () => {
     vi.clearAllMocks();
     secretsFixture = [];
     secretsErrorFixture = undefined;
+    projectFixture = { archivedAt: undefined };
+  });
+
+  describe('archived project', () => {
+    it('shows the read-only banner and disables every write control', async () => {
+      projectFixture = { archivedAt: 1_700_000_000_000 };
+      secretsFixture = [{ name: 'OPENAI_API_KEY' }];
+      const { container } = renderTab();
+
+      expect(screen.getByText('This project is archived')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Add variable' }),
+      ).toBeDisabled();
+      expect(screen.getByDisplayValue('OPENAI_API_KEY')).toBeDisabled();
+      expect(mockSetMutateAsync).not.toHaveBeenCalled();
+
+      await checkAccessibility(container, NO_HEADING_ORDER);
+    });
   });
 
   describe('rendering', () => {

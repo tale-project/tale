@@ -27,7 +27,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import type { ServerResponse } from 'node:http';
+import { request as httpRequest, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -1759,6 +1759,68 @@ async function checkProjects(
       overviewRow?.projectAgentCount === 1 &&
       overviewRow.overdueTaskCount === 1,
     `agents=${agents.success ? agents.data.agents.length : 'ERR'}, rollup=${overviewRow?.projectAgentCount ?? 'ERR'}, overdue=${overviewRow?.overdueTaskCount ?? 'ERR'} (want 1, task → ${overdueTask.status})`,
+  );
+  // Deleting the agent clears the tasks it was assigned to in the same
+  // transaction (the docs' promise; the board used to show the raw id as
+  // the assignee) and keeps the task itself — and `0119` clears the rows
+  // deleted before the service did, so a fresh boot finds none dangling.
+  const overdueTaskBody = z
+    .object({ taskId: z.string() })
+    .safeParse(await overdueTask.json());
+  const agentIdToDelete = agentCreated.success ? agentCreated.data.agentId : '';
+  const assignedTaskId = overdueTaskBody.success
+    ? overdueTaskBody.data.taskId
+    : '';
+  const tasksApi = `${base}/api/app/tasks`;
+  const assignedToAgent = await fetch(
+    `${tasksApi}/${assignedTaskId}/assign?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        assigneeType: 'agent',
+        assigneeId: agentIdToDelete,
+      }),
+    },
+  );
+  const agentDeleted = await send(
+    'DELETE',
+    `/agents/${agentIdToDelete}?orgId=${orgId}`,
+  );
+  const taskAfterDelete = z
+    .object({
+      task: z
+        .object({
+          assigneeType: z.string().nullish(),
+          assigneeId: z.string().nullish(),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await fetch(`${tasksApi}/${assignedTaskId}?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  const [dangling] = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.tasks t
+    WHERE t.assignee_type = 'agent' AND t.assignee_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM app.project_agents a
+        WHERE a.id = t.assignee_id AND a.org_id = t.org_id
+      )
+  `;
+  record(
+    'project agent delete clears its task assignments (C-14, 0119)',
+    assignedToAgent.ok &&
+      agentDeleted.ok &&
+      taskAfterDelete.success &&
+      taskAfterDelete.data.task.assigneeType == null &&
+      taskAfterDelete.data.task.assigneeId == null &&
+      dangling?.count === 0,
+    `assign → ${assignedToAgent.status}, delete → ${agentDeleted.status}, assignee after=${taskAfterDelete.success ? `${taskAfterDelete.data.task.assigneeType ?? 'null'}/${taskAfterDelete.data.task.assigneeId ?? 'null'}` : 'ERR'} (want null/null), dangling=${dangling?.count ?? 'ERR'} (want 0)`,
   );
   await agentProvider.cleanup();
 
@@ -7239,6 +7301,72 @@ async function checkSmallDomains(
       stackedVotes[0].rating === 'negative' &&
       forgedArenaRows[0]?.count === '0',
     `rows=${stackedVotes[0]?.count} (want 1) rating=${stackedVotes[0]?.rating} (want negative), forgedArenaRows=${forgedArenaRows[0]?.count} (want 0)`,
+  );
+
+  // The vote's attribution is the MESSAGE's — the model and provider that
+  // answered and the thread's assistant — whatever a client claims; and
+  // migration 0121 fills the rows voted before the door derived it, from
+  // the same sources, leaving a re-run nothing to do.
+  const fbAttributedId = `${fbMessageId}-attributed`;
+  await sql`
+    UPDATE app.thread_metadata SET agent_slug = 'itest-fb-assistant'
+    WHERE thread_id = ${fbThreadId} AND org_id = ${orgId}
+  `;
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, text, status,
+      model, provider_slug, created_at_ms
+    ) VALUES (${fbAttributedId}, ${fbThreadId}, ${orgId}, 3, 0, 'assistant',
+              'a fourth answer', 'complete', 'itest-model', 'itest-provider',
+              ${fbNow})
+  `;
+  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: fbThreadId,
+    messageId: fbAttributedId,
+    rating: 'positive',
+    agentSlug: 'forged-assistant',
+    model: 'forged-model',
+    provider: 'forged-provider',
+  });
+  const attributionOf = async () =>
+    sql<
+      {
+        agentSlug: string | null;
+        model: string | null;
+        provider: string | null;
+      }[]
+    >`
+      SELECT agent_slug AS "agentSlug", model, provider
+      FROM app.message_feedback
+      WHERE org_id = ${orgId} AND message_id = ${fbAttributedId}
+    `;
+  const derived = await attributionOf();
+  await sql`
+    UPDATE app.message_feedback SET agent_slug = NULL, model = NULL, provider = NULL
+    WHERE org_id = ${orgId} AND message_id = ${fbAttributedId}
+  `;
+  const attributionBackfill = await readFile(
+    new URL(
+      './db/migrations/0121_message_feedback_attribution_backfill.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  await sql.unsafe(attributionBackfill);
+  const backfilled = await attributionOf();
+  await sql.unsafe(attributionBackfill);
+  const backfilledAgain = await attributionOf();
+  const wantAttribution = {
+    agentSlug: 'itest-fb-assistant',
+    model: 'itest-model',
+    provider: 'itest-provider',
+  };
+  record(
+    'message feedback: attribution comes from the message, and migration 0121 backfills it idempotently',
+    JSON.stringify(derived[0]) === JSON.stringify(wantAttribution) &&
+      JSON.stringify(backfilled[0]) === JSON.stringify(wantAttribution) &&
+      JSON.stringify(backfilledAgain) === JSON.stringify(backfilled),
+    `derived=${JSON.stringify(derived[0])}, backfilled=${JSON.stringify(backfilled[0])} (want ${JSON.stringify(wantAttribution)}), idempotent=${JSON.stringify(backfilledAgain) === JSON.stringify(backfilled)}`,
   );
 
   // Products: unique-name conflict + one-row read.
@@ -20654,6 +20782,54 @@ async function checkCompetences(
     `revoke=${revoked.status}, retained=${afterRevoke.length === 1}/${afterRevoke[0]?.revokedBy === userId}, refusal=${refusedRes.status}/${refusedBody.success ? `${refusedBody.data.error}:${refusedBody.data.message.includes('iso-13485-auditor')}` : 'ERR'}, audits=${[...actions].sort().join(',')}`,
   );
 
+  // ---- migration 0120: grants of former members are closed ------------
+  // A grant whose holder is no longer a member (what the cascade used to
+  // leave live for a qualification) is revoked by 'system' on re-apply, a
+  // member's live grant is untouched, and a second pass changes nothing.
+  const formerUserId = `former-${now}`;
+  await sql`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms
+    ) VALUES
+      (${orgId}, ${formerUserId}, 'former-qualification', ${userId}, ${now}),
+      (${orgId}, ${userId}, 'member-qualification', ${userId}, ${now})
+  `;
+  const formerMemberGrants = await readFile(
+    new URL(
+      './db/migrations/0120_competence_grants_of_former_members.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const grantsAfter = async () =>
+    sql<{ user: string; revokedAt: number | null; revokedBy: string | null }[]>`
+      SELECT user_id AS "user", revoked_at_ms::float8 AS "revokedAt",
+             revoked_by AS "revokedBy"
+      FROM app.competence_records
+      WHERE org_id = ${orgId}
+        AND competence IN ('former-qualification', 'member-qualification')
+      ORDER BY competence
+    `;
+  await sql.unsafe(formerMemberGrants);
+  const firstSweep = await grantsAfter();
+  await sql.unsafe(formerMemberGrants);
+  const secondSweep = await grantsAfter();
+  const formerGrant = firstSweep.find((row) => row.user === formerUserId);
+  const memberGrant = firstSweep.find((row) => row.user === userId);
+  record(
+    'competences: migration 0120 revokes the grants of former members only, idempotently',
+    formerGrant?.revokedBy === 'system' &&
+      formerGrant.revokedAt !== null &&
+      memberGrant?.revokedAt === null &&
+      JSON.stringify(secondSweep) === JSON.stringify(firstSweep),
+    `former=${formerGrant?.revokedBy ?? 'live'}/${formerGrant?.revokedAt ?? 'null'}, member=${memberGrant?.revokedAt ?? 'live'}, idempotent=${JSON.stringify(secondSweep) === JSON.stringify(firstSweep)}`,
+  );
+  await sql`
+    DELETE FROM app.competence_records
+    WHERE org_id = ${orgId}
+      AND competence IN ('former-qualification', 'member-qualification')
+  `;
+
   // Leave the org as we found it: the policy file off, the seeded card gone
   // (a pending review row would skew every later approvals fold).
   await writeFile(path.join(governanceDir, 'review-policy.yml'), '{}\n');
@@ -27795,10 +27971,62 @@ async function checkWebdav(
     method: 'PROPFIND',
     headers: { depth: '1' },
   });
+  // The organization root describes itself and exactly its two namespaces
+  // (it used to answer as the documents root, hiding `.trash/`).
+  const orgRoot = await dav('/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+  const orgRootXml = orgRoot.ok ? await orgRoot.text() : '';
+  const orgRootHrefs = [
+    ...orgRootXml.matchAll(/<D:href>([^<]*)<\/D:href>/g),
+  ].map((m) => m[1]);
+  record(
+    'webdav: PROPFIND on the organization root lists itself, documents/ and .trash/',
+    orgRoot.status === 207 &&
+      orgRootHrefs.join(' ') ===
+        `/dav/${orgSlug}/ /dav/${orgSlug}/documents/ /dav/${orgSlug}/.trash/`,
+    `status=${orgRoot.status} (want 207) hrefs=${orgRootHrefs.join(' ')} (want /dav/${orgSlug}/ /dav/${orgSlug}/documents/ /dav/${orgSlug}/.trash/)`,
+  );
 
   // MKCOL + double-MKCOL (405 per RFC 4918 §9.3.1).
   const mkcol = await dav('/documents/DavReports', { method: 'MKCOL' });
   const mkcolAgain = await dav('/documents/DavReports', { method: 'MKCOL' });
+
+  // A dot-segment in the request line is refused before routing — 404, and
+  // no file lands one level up. `fetch` folds `%2E%2E` client-side, so the
+  // probe writes the request line itself through node:http.
+  const dotSegmentPut = await new Promise<number>((resolve, reject) => {
+    const origin = new URL(base);
+    const req = httpRequest(
+      {
+        host: origin.hostname,
+        port: origin.port,
+        method: 'PUT',
+        path: `/dav/${orgSlug}/documents/DavReports/%2E%2E/dot-escape.txt`,
+        headers: {
+          authorization: `Basic ${basic}`,
+          'content-type': 'text/plain',
+          'content-length': '3',
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode ?? 0));
+      },
+    );
+    req.on('error', reject);
+    req.end('dot');
+  });
+  const dotSegmentRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.documents
+    WHERE org_id = ${orgId} AND title = 'dot-escape.txt' LIMIT 1
+  `;
+  record(
+    'webdav: a raw dot-segment in the request-target is refused with 404 before routing',
+    dotSegmentPut === 404 && dotSegmentRows.length === 0,
+    `PUT …/DavReports/%2E%2E/dot-escape.txt=${dotSegmentPut} (want 404) rows=${dotSegmentRows.length} (want 0)`,
+  );
 
   // Sized PUT → blob in MinIO + document row + RAG queued.
   const putBody = 'hello webdav';
@@ -46482,7 +46710,15 @@ async function checkMetricsSurface(
       (${orgId}, 'mx-sess', 'mx-e3', 'task-agent', 'cancelled', 'cancelled',
        0, NULL, ${now - 30_000}, ${now - 29_000}),
       (${orgId}, 'mx-sess', 'mx-e4', 'task-agent', 'failed', 'timeout',
-       0, 1, ${now - 20_000}, ${now - 5_000})
+       0, 1, ${now - 20_000}, ${now - 5_000}),
+      -- the harness's own endings: an error and a turn limit are failures,
+      -- and a turn parked on a question is not an outcome at all
+      (${orgId}, 'mx-sess', 'mx-e5', 'task-agent', 'completed', 'error',
+       0, 1, ${now - 19_000}, ${now - 18_000}),
+      (${orgId}, 'mx-sess', 'mx-e6', 'task-agent', 'completed', 'max-turns',
+       0, 1, ${now - 17_000}, ${now - 16_000}),
+      (${orgId}, 'mx-sess', 'mx-e7', 'task-agent', 'completed',
+       'awaiting_human', 0, 1, ${now - 15_000}, ${now - 14_000})
   `;
 
   // ---- probes ------------------------------------------------------------
@@ -46692,18 +46928,18 @@ async function checkMetricsSurface(
     );
   const turnsOk =
     turns.success &&
-    turns.data.total === 4 &&
+    turns.data.total === 6 &&
     turns.data.completed === 1 &&
-    turns.data.failed === 1 &&
+    turns.data.failed === 3 &&
     turns.data.cancelled === 1 &&
     turns.data.timeout === 1 &&
     turns.data.recovered === 1 &&
     turns.data.successRate !== null &&
-    Math.abs(turns.data.successRate - 1 / 3) < 1e-9 &&
+    Math.abs(turns.data.successRate - 1 / 5) < 1e-9 &&
     turns.data.durationP95Ms === 15_000 &&
-    turns.data.spentCents === 8 &&
+    turns.data.spentCents === 10 &&
     turns.data.byHarness[0]?.harness === 'claude-code' &&
-    turns.data.byHarness[0].total === 4;
+    turns.data.byHarness[0].total === 6;
   record(
     'metrics: external-turn outcomes + percentiles',
     turnsOk,
@@ -47123,11 +47359,13 @@ async function checkArenaAndQuestions(
     {
       threadId: string;
       hidden: boolean | null;
-      archived: boolean;
+      status: string;
+      branchRootId: string | null;
       arena: unknown;
     }[]
   >`
-    SELECT thread_id AS "threadId", hidden, archived, arena
+    SELECT thread_id AS "threadId", hidden, status,
+           branch_root_id AS "branchRootId", arena
     FROM app.thread_metadata
     WHERE thread_id IN (${threadA}, ${threadB})
   `;
@@ -47176,21 +47414,26 @@ async function checkArenaAndQuestions(
         )
       ).json(),
     );
+  // The losing column goes to Trash as a root of its own (A-09): trashed,
+  // detached from A's lineage, no longer hidden — what the admin Trash
+  // lists and restores, what retention's root walk purges.
   record(
-    'arena: settle picks A, verdicts stack per run, resettle refused',
+    'arena: settle picks A, loser trashed, verdicts stack, resettle refused',
     settled1.success &&
       settled1.data.continueThreadId === threadA &&
-      (rowB?.hidden ?? false) &&
-      (rowB?.archived ?? false) &&
-      rowB?.arena === null &&
-      rowA?.arena === null &&
+      rowB?.status === 'trashed' &&
+      rowB.branchRootId === null &&
+      rowB.hidden !== true &&
+      rowB.arena === null &&
+      rowA?.status === 'active' &&
+      rowA.arena === null &&
       verdictRows1[0]?.count === '1' &&
       settled2.success &&
       settled2.data.continueThreadId === threadA &&
       verdictRows2[0]?.count === '2' &&
       settleAgain.success &&
       settleAgain.data.refused === 'not_found',
-    `settle=${settled1.success && settled1.data.continueThreadId === threadA}, loser=${rowB?.hidden}/${rowB?.archived}, verdicts=${verdictRows1[0]?.count}→${verdictRows2[0]?.count}, resettle=${settleAgain.success ? settleAgain.data.refused : 'shape-fail'}`,
+    `settle=${settled1.success && settled1.data.continueThreadId === threadA}, loser=${rowB?.status}/root=${rowB?.branchRootId}/hidden=${rowB?.hidden}, verdicts=${verdictRows1[0]?.count}→${verdictRows2[0]?.count}, resettle=${settleAgain.success ? settleAgain.data.refused : 'shape-fail'}`,
   );
 
   // ---- vote upsert regression (partial-unique keeps the vote lane) -------
@@ -52300,7 +52543,7 @@ async function checkOrganizationLifecycle(
   const refusedCustodian = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const refusedCustodianBody = await readError(refusedCustodian);
   const afterCustodian = await snapshot();
@@ -52318,7 +52561,7 @@ async function checkOrganizationLifecycle(
   const refusedOrg = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const refusedOrgBody = await readError(refusedOrg);
   const afterOrgHold = await snapshot();
@@ -52383,7 +52626,7 @@ async function checkOrganizationLifecycle(
   const memberDelete = await post(
     plain.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const afterMember = await snapshot();
   record(
@@ -52392,13 +52635,35 @@ async function checkOrganizationLifecycle(
     `status=${memberDelete.status} ${describe(afterMember)}`,
   );
 
+  // The typed name is the proof: a body without the organization's name
+  // is refused before the hold gate, and the org is intact.
+  const wrongName = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    { confirmName: 'Life B' },
+  );
+  const wrongNameBody = await readError(wrongName);
+  const afterWrongName = await snapshot();
+  record(
+    'org deletion refuses a confirmation that is not the organization name',
+    wrongName.status === 400 &&
+      wrongNameBody.error === 'ORG_CONFIRM_NAME_MISMATCH' &&
+      intact(afterWrongName),
+    `status=${wrongName.status} code=${wrongNameBody.error ?? ''} ${describe(afterWrongName)}`,
+  );
+
   // The teardown is one transaction: abort it after the whole cascade ran
   // and nothing — rows, audit, cleanup job — survives.
   const orgService = await import('./domains/organizations/service.ts');
   let aborted = false;
   try {
     await sql.begin(async (tx) => {
-      await orgService.deleteOrganization(tx, { userId: owner.userId }, orgA);
+      await orgService.deleteOrganization(
+        tx,
+        { userId: owner.userId },
+        orgA,
+        'Life A',
+      );
       throw new Error('itest-abort');
     });
   } catch (error) {
@@ -52439,7 +52704,7 @@ async function checkOrganizationLifecycle(
   const deleted = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    {},
+    { confirmName: 'Life A' },
   );
   const deletedBody = z
     .object({ orgSlug: z.string() })

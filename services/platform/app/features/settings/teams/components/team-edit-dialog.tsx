@@ -91,7 +91,7 @@ export function TeamEditDialog({
     },
   });
 
-  const { handleSubmit, register, reset, formState } = form;
+  const { handleSubmit, register, reset, formState, setError } = form;
 
   useEffect(() => {
     reset({ name: team.name });
@@ -130,6 +130,16 @@ export function TeamEditDialog({
         });
 
         if (result.error) {
+          // The server's uniqueness rule (`TEAM_NAME_TAKEN`, 409): the new
+          // name reads the same as another team's. Said under the field;
+          // the membership changes stay unsent until the name is fixed.
+          if (result.error.code === 'TEAM_NAME_TAKEN') {
+            setError('name', {
+              type: 'server',
+              message: tSettings('teams.teamNameTaken'),
+            });
+            return;
+          }
           throw new Error(result.error.message || 'Failed to update team');
         }
         await queryClient.invalidateQueries({

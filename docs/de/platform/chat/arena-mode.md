@@ -26,12 +26,14 @@ Prüfe die Fakten anhand der Quelle, die Einhaltung der Anweisungen, fehlende we
 | Bewertung | Wann sie passt | Der Chat geht weiter mit |
 | --- | --- | --- |
 | **A ist besser** | A ist hilfreicher oder genauer. | Spalte A. |
-| **B ist besser** | B ist hilfreicher oder genauer. | Spalte B. |
+| **B ist besser** | B ist hilfreicher oder genauer. | Spalte B; der Eingabebereich wechselt zu Modell B. |
 | **Unentschieden** | Beide erfüllen den Auftrag gleich gut. | Spalte A. |
 | **Beide schlecht** | Keine Antwort ist brauchbar. | Spalte A. |
 | **Ohne Bewertung beenden** | Du möchtest den Vergleich nicht bewerten. | Spalte A, ohne Bewertung. |
 
 Jede Auswahl beendet den Vergleich mit zwei Spalten. Die nächste Nachricht geht an den verbleibenden Chat. Aktiviere die Arena für einen neuen Vergleich erneut; bei einem Unentschieden bleiben nicht beide Spalten aktiv.
+
+Die Antwort der anderen Spalte wird verworfen und landet im [Papierkorb](/de/platform/admin/governance/trash) der Organisation. Dort kann ein Administrator sie bis zum Ende der Schonfrist als eigenen Chat wiederherstellen. Sie erscheint nicht mehr in deiner Chatliste oder in der Suche, und ein Link darauf meldet, dass der Chat nicht verfügbar ist.
 
 ## Gespeichertes Feedback finden
 

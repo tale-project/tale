@@ -19,19 +19,38 @@ export const PRODUCT_CURRENCY_MAX = 3;
 /** Maximum length of a product image URL (characters). */
 export const PRODUCT_IMAGE_URL_MAX = 2048;
 
+/** `undefined` = not asked yet; `null` = the runtime cannot say. */
+let iso4217Cache: ReadonlySet<string> | null | undefined;
+
 /**
- * Every ISO 4217 currency code the runtime's ICU data knows, uppercase.
+ * Every ISO 4217 currency code the runtime's ICU data knows, uppercase —
+ * or `null` where the runtime has no `Intl.supportedValuesOf` (a browser
+ * older than Safari 15.4), asked lazily so the module loads there too.
  * `currency` is documented as an ISO 4217 code and used to accept any three
  * characters (`ZZZ`, `123`, `$`); one set serves the door, the dialogs and
  * the OpenAPI description, with no dependency to keep current.
  */
-export const ISO_4217_CURRENCIES: ReadonlySet<string> = new Set(
-  Intl.supportedValuesOf('currency'),
-);
+export function iso4217Currencies(): ReadonlySet<string> | null {
+  if (iso4217Cache !== undefined) return iso4217Cache;
+  try {
+    iso4217Cache = new Set(Intl.supportedValuesOf('currency'));
+  } catch (error) {
+    console.warn(
+      '[products] Intl.supportedValuesOf unavailable; accepting any three-letter currency code',
+      error,
+    );
+    iso4217Cache = null;
+  }
+  return iso4217Cache;
+}
 
-/** Whether `code` (any case) is an ISO 4217 currency the runtime knows. */
+/** Whether `code` (any case) is an ISO 4217 currency the runtime knows;
+ * where the runtime cannot list them, any three letters (the server, which
+ * always can, still judges the write). */
 export function isIso4217Currency(code: string): boolean {
-  return ISO_4217_CURRENCIES.has(code.toUpperCase());
+  const upper = code.toUpperCase();
+  const known = iso4217Currencies();
+  return known === null ? /^[A-Z]{3}$/.test(upper) : known.has(upper);
 }
 
 interface ProductTranslationStringFields {

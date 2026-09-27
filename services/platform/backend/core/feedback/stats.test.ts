@@ -187,6 +187,7 @@ describe('computeFeedbackStats', () => {
     const out = computeFeedbackStats([], NO_FILTER);
     expect(out.message.total).toBe(0);
     expect(out.arena.total).toBe(0);
+    expect(out.arena.selfMatches).toBe(0);
     expect(out.topAgents).toEqual([]);
     expect(out.topModels).toEqual([]);
     expect(out.topMatchups).toEqual([]);
@@ -261,6 +262,51 @@ describe('computeFeedbackStats', () => {
     expect(out.topMatchups).toEqual([]);
     // Arena totals still increment; only matchup rollup is skipped.
     expect(out.arena.total).toBe(4);
+    // The self-pair is counted apart — not as a decisive verdict.
+    expect(out.arena.selfMatches).toBe(1);
+    expect(out.arena.byVerdict.a_better).toBe(3);
+  });
+
+  it('keeps the verdict summary equal to the matchup table by counting self-matches apart', () => {
+    const out = computeFeedbackStats(
+      [
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'alpha',
+            modelB: 'zeta',
+          },
+        }),
+        row({
+          metadata: { arenaVerdict: 'tie', modelA: 'alpha', modelB: 'zeta' },
+        }),
+        row({
+          metadata: {
+            arenaVerdict: 'a_better',
+            modelA: 'zeta',
+            modelB: 'zeta',
+          },
+        }),
+        row({
+          metadata: { arenaVerdict: 'tie', modelA: 'zeta', modelB: 'zeta' },
+        }),
+      ],
+      NO_FILTER,
+    );
+    expect(out.arena.total).toBe(4);
+    expect(out.arena.selfMatches).toBe(2);
+    expect(out.arena.byVerdict).toEqual({
+      a_better: 1,
+      b_better: 0,
+      tie: 1,
+      both_bad: 0,
+    });
+    const decisive =
+      out.arena.byVerdict.a_better + out.arena.byVerdict.b_better;
+    const matchup = out.topMatchups[0];
+    expect(matchup).toMatchObject({ leftWins: 1, rightWins: 0, ties: 1 });
+    expect(decisive).toBe((matchup?.leftWins ?? 0) + (matchup?.rightWins ?? 0));
+    expect(out.arena.byVerdict.tie).toBe(matchup?.ties);
   });
 
   it('ignores arena rows with unknown verdict in byVerdict', () => {

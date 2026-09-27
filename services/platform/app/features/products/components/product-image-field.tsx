@@ -18,6 +18,7 @@ import {
   PRODUCT_IMAGE_MAX_BYTES,
   useProductImageUpload,
 } from '../hooks/use-product-image-upload';
+import { productImageUploadErrorKey } from '../utils/image-upload-error';
 
 interface ProductImageFieldProps {
   value: string;
@@ -43,17 +44,23 @@ export function ProductImageField({
   const { t: tCommon } = useT('common');
   const { uploadImage, isUploading } = useProductImageUpload();
   const [showUrlInput, setShowUrlInput] = useState(false);
+  // Why the last upload was refused — under the field, where the user is,
+  // as well as in the toast; cleared by the next attempt or a chosen value.
+  const [uploadError, setUploadError] = useState<string | undefined>();
   const isDisabled = disabled || isUploading;
+
+  const refuse = (message: string) => {
+    setUploadError(message);
+    toast({ title: message, variant: 'destructive' });
+  };
 
   const handleFilesSelected = async (files: File[]) => {
     const file = files[0];
     if (!file) return;
+    setUploadError(undefined);
 
     if (file.size > PRODUCT_IMAGE_MAX_BYTES) {
-      toast({
-        title: tProducts('edit.imageTooLarge'),
-        variant: 'destructive',
-      });
+      refuse(tProducts('edit.imageTooLarge'));
       return;
     }
 
@@ -62,17 +69,11 @@ export function ProductImageField({
       if (url) {
         onChange(url);
       } else {
-        toast({
-          title: tProducts('edit.imageUploadFailed'),
-          variant: 'destructive',
-        });
+        refuse(tProducts('edit.imageUploadFailed'));
       }
     } catch (err) {
       console.error('Product image upload failed:', err);
-      toast({
-        title: tProducts('edit.imageUploadFailed'),
-        variant: 'destructive',
-      });
+      refuse(tProducts(productImageUploadErrorKey(err)));
     }
   };
 
@@ -82,7 +83,7 @@ export function ProductImageField({
         id={DROP_ZONE_ID}
         label={tProducts('edit.labels.image')}
         required={false}
-        errorMessage={errorMessage}
+        errorMessage={errorMessage ?? uploadError}
       >
         {/* Wrapper is relative so the × button can overlay the zone as a sibling,
             keeping its click out of the DropZone's event path. */}
@@ -145,7 +146,10 @@ export function ProductImageField({
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onChange('')}
+              onClick={() => {
+                setUploadError(undefined);
+                onChange('');
+              }}
               aria-label={tProducts('edit.removeImage')}
               className="absolute top-2 right-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
             >

@@ -111,11 +111,13 @@ import {
 } from './task-comments';
 import { TaskConversation } from './task-conversation';
 import { TaskDependencies } from './task-dependencies';
+import { TaskDetailFallback } from './task-detail-fallback';
 import { TaskExternalIssueCard } from './task-external-issue-card';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
 import { TaskPageLayout } from './task-page-layout';
+import { TaskParentLink } from './task-parent-link';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
@@ -810,11 +812,13 @@ function CreateTaskBody({
       onClose();
     } catch (error) {
       console.error('Create task error:', error);
-      if (
-        error instanceof AppError &&
-        error.data?.code === 'TASK_SCHEDULE_INVALID'
-      ) {
+      const code = error instanceof AppError ? error.data?.code : undefined;
+      if (code === 'TASK_SCHEDULE_INVALID') {
         toast({ title: t('startDate.afterDue'), variant: 'destructive' });
+      } else if (code === 'PROJECT_ARCHIVED') {
+        // The project was archived under the open dialog (or the board's
+        // CTA was stale): say so instead of "something went wrong".
+        toast({ title: t('errors.PROJECT_ARCHIVED'), variant: 'destructive' });
       } else {
         toast({ title: tCommon('errors.generic'), variant: 'destructive' });
       }
@@ -1050,7 +1054,13 @@ export function EditTaskBody({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const { task, canEdit, canComment } = useTask(taskId);
+  const {
+    task,
+    canEdit,
+    canComment,
+    notFound,
+    error: readError,
+  } = useTask(taskId);
   const { project } = useProject(task?.projectId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const { copy } = useCopy();
@@ -1063,10 +1073,17 @@ export function EditTaskBody({
   const projectKey = project?.key ?? null;
   const { subtasks } = useSubtasks(taskId);
   const { data: me } = useCurrentMemberContext(task?.organizationId);
-  const { resolveActor } = useActorDirectory(
-    task?.organizationId ?? '',
-    task?.projectId,
-  );
+  const {
+    resolveActor,
+    agents: projectAgents,
+    agentsLoading,
+  } = useActorDirectory(task?.organizationId ?? '', task?.projectId);
+  // The assigned agent still exists in the project — Start/Retry are for a
+  // run that can happen. While the list loads, assume it does (no flicker).
+  const assigneeLive =
+    agentsLoading ||
+    task?.assigneeType !== 'agent' ||
+    projectAgents.some((agent) => agent.id === task.assigneeId);
   const { formatDate } = useFormatDate();
 
   const updateTask = useUpdateTask();
@@ -1169,6 +1186,18 @@ export function EditTaskBody({
 
   if (!task) {
     if (surface === 'dialog') {
+      // Settled on nothing (a deleted task, a stale notification link, a
+      // tampered `?task=`) or broken: say so, with a way out — never a
+      // skeleton that stays. The page surface has its own dead end
+      // (`TaskDetailPage`).
+      if (notFound || readError != null) {
+        return (
+          <TaskDetailFallback
+            state={notFound ? 'missing' : 'error'}
+            onClose={onClose}
+          />
+        );
+      }
       // The dialog's own shape while the task is on its way — its key, its
       // title, the brief and the details, masked where each will land —
       // instead of an empty panel.
@@ -1423,6 +1452,13 @@ export function EditTaskBody({
 
   const headerNode = (
     <Stack gap={2}>
+      {task.parentTaskId && (
+        <TaskParentLink
+          parentTaskId={task.parentTaskId}
+          projectKey={projectKey}
+          onOpenTask={onOpenTask}
+        />
+      )}
       {identifier && (
         <Text
           as="span"
@@ -1810,6 +1846,7 @@ export function EditTaskBody({
             taskId={task._id}
             assigneeId={task.assigneeId}
             canEdit={canMutate}
+            assigneeLive={assigneeLive}
           />
         </PropertyField>
       )}

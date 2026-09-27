@@ -1,4 +1,5 @@
 import { toast } from '@tale/ui/use-toast';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -120,9 +121,10 @@ vi.mock('@/app/features/documents/hooks/queries', () => ({
 
 // The record menu consults legal holds per row; the submit dialog lists org
 // members. Neither backend surface is under test here.
+let policyFixture: Record<string, unknown> = {};
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useLegalHoldByTarget: () => ({ data: null }),
-  useUploadPolicy: () => ({}),
+  useUploadPolicy: () => policyFixture,
 }));
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
@@ -226,17 +228,19 @@ describe('ProjectFilesTab', () => {
     loadingFixture = false;
     rerender(<ProjectFilesTab organizationId="org-1" projectId={PROJECT_ID} />);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.getByRole('tree')).toBeInTheDocument();
+    expect(
+      screen.getByRole('list', { name: 'Project files' }),
+    ).toBeInTheDocument();
   });
 
   it('exposes a preview affordance on a row that has a stored file', () => {
     documentsFixture = [makeDoc()];
     renderTab();
 
-    // The title row is an interactive treeitem (opens the preview) and
+    // The title row is an interactive row button (opens the preview) and
     // there's an explicit "Preview file" control.
     expect(
-      screen.getByRole('treeitem', { name: 'Report.pdf' }),
+      screen.getByRole('button', { name: 'Report.pdf' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Preview file' }),
@@ -264,7 +268,7 @@ describe('ProjectFilesTab', () => {
     documentsFixture = [makeDoc()];
     const { user } = renderTab();
 
-    await user.click(screen.getByRole('treeitem', { name: 'Report.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Report.pdf' }));
 
     await waitFor(() => {
       expect(
@@ -282,13 +286,13 @@ describe('ProjectFilesTab', () => {
     ];
     renderTab();
 
-    const restRow = screen.getByRole('treeitem', { name: 'lead-verify.txt' });
+    const restRow = screen.getByRole('button', { name: 'lead-verify.txt' });
     expect(within(restRow).getByText('Not indexed')).toBeInTheDocument();
     expect(within(restRow).getByText('Not indexed')).toHaveAttribute(
       'title',
       'Not searchable in chat until it is indexed.',
     );
-    const indexedRow = screen.getByRole('treeitem', { name: 'Report.pdf' });
+    const indexedRow = screen.getByRole('button', { name: 'Report.pdf' });
     expect(within(indexedRow).getByText('Indexed')).toBeInTheDocument();
     // The not-indexed row offers the first run; the indexed one offers no
     // retry at all.
@@ -304,7 +308,7 @@ describe('ProjectFilesTab', () => {
     ];
     renderTab();
 
-    const row = screen.getByRole('treeitem', { name: 'Empty notes.txt' });
+    const row = screen.getByRole('button', { name: 'Empty notes.txt' });
     expect(within(row).getByText('Not supported')).toHaveAttribute(
       'title',
       'These file contents cannot be indexed. Upload a readable text version or a supported document with extractable text.',
@@ -434,18 +438,18 @@ describe('ProjectFilesTab', () => {
     ];
     const { user } = renderTab();
 
-    const folderRow = screen.getByRole('treeitem', { name: 'Reports' });
+    const folderRow = screen.getByRole('button', { name: 'Reports' });
     expect(folderRow).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('treeitem', { name: 'Q3.pdf' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Q3.pdf' })).toBeNull();
 
     await user.click(folderRow);
 
-    expect(screen.getByRole('treeitem', { name: 'Reports' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Reports' })).toHaveAttribute(
       'aria-expanded',
       'true',
     );
     expect(
-      await screen.findByRole('treeitem', { name: 'Q3.pdf' }),
+      await screen.findByRole('button', { name: 'Q3.pdf' }),
     ).toBeInTheDocument();
   });
 
@@ -558,9 +562,7 @@ describe('ProjectFilesTab', () => {
     expect(screen.queryByRole('button', { name: 'New folder' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Delete folder' })).toBeNull();
     // The tree itself still renders for readers.
-    expect(
-      screen.getByRole('treeitem', { name: 'Reports' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reports' })).toBeInTheDocument();
   });
 
   // Deep-link hydrate: `?folderId=` selects + expands the target (and
@@ -584,17 +586,17 @@ describe('ProjectFilesTab', () => {
     renderTab('folder-child');
 
     await waitFor(() => {
-      expect(screen.getByRole('treeitem', { name: 'Root' })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: 'Root' })).toHaveAttribute(
         'aria-expanded',
         'true',
       );
-      expect(screen.getByRole('treeitem', { name: 'Child' })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: 'Child' })).toHaveAttribute(
         'aria-expanded',
         'true',
       );
     });
     expect(
-      await screen.findByRole('treeitem', { name: 'Nested.pdf' }),
+      await screen.findByRole('button', { name: 'Nested.pdf' }),
     ).toBeInTheDocument();
     // Selected folder is the upload target — drop-zone copy names it.
     expect(screen.getByText(/Add file to "Child"/i)).toBeInTheDocument();
@@ -604,7 +606,7 @@ describe('ProjectFilesTab', () => {
     foldersFixture = [{ _id: 'folder-1' as string, name: 'Reports' }];
     const { user } = renderTab();
 
-    await user.click(screen.getByRole('treeitem', { name: 'Reports' }));
+    await user.click(screen.getByRole('button', { name: 'Reports' }));
 
     expect(mockNavigate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -783,7 +785,7 @@ describe('ProjectFilesTab', () => {
       renderTab(undefined, undefined, 'doc-nested');
 
       await screen.findByRole('dialog', { name: 'Preview' });
-      expect(screen.getByRole('treeitem', { name: 'SOPs' })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: 'SOPs' })).toHaveAttribute(
         'aria-expanded',
         'true',
       );
@@ -794,5 +796,135 @@ describe('ProjectFilesTab', () => {
         }),
       );
     });
+  });
+});
+
+// A mixed pick (accepted + refused files) used to flash the refusal toast and
+// replace it ~400 ms later with "Document added to project 1 / 1" — the
+// refused file vanished from the story. One summary toast now names it.
+describe('ProjectFilesTab — mixed upload summary', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    documentsFixture = [];
+    foldersFixture = [];
+    projectFixture = { canEdit: true };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ storageId: 'storage-new' }), {
+        status: 200,
+      }),
+    );
+  });
+
+  // The drop zone's real <input type=file> (sr-only), by its stable id. The
+  // browser's accept filter is bypassed so a refused file reaches the tab —
+  // that is exactly the mixed pick under test.
+  const fileInput = () =>
+    document.getElementById('project-files-upload') as HTMLInputElement;
+  const picker = () => userEvent.setup({ applyAccept: false });
+
+  it('reports "n of total added" and names the skipped file once, at the end', async () => {
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+    const junk = new File(['\u0000'], 'random.bin', {
+      type: 'application/octet-stream',
+    });
+
+    await user.upload(fileInput(), [brief, junk]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '1 file of 2 added' }),
+      );
+    });
+    const calls = vi.mocked(toast).mock.calls.map(([arg]) => arg);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual(
+      expect.objectContaining({
+        variant: 'default',
+        description: expect.stringMatching(/^Skipped: random\.bin — /),
+      }),
+    );
+    expect(calls[0]?.description).toContain('random.bin is not a supported');
+  });
+
+  // Every skipped name used to carry the FIRST skipped file's reason.
+  it('names each skipped file beside its own reason', async () => {
+    policyFixture = {
+      policyEnabled: true,
+      documentMaxFileSize: 8,
+      blockedExtensions: [],
+      allowedExtensions: [],
+    };
+    try {
+      renderTab();
+      const user = picker();
+      const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+      const junk = new File(['\u0000'], 'random.bin', {
+        type: 'application/octet-stream',
+      });
+      const huge = new File(['0123456789abcdef'], 'huge.txt', {
+        type: 'text/plain',
+      });
+
+      await user.upload(fileInput(), [brief, junk, huge]);
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ title: '1 file of 3 added' }),
+        );
+      });
+      const last = vi.mocked(toast).mock.calls.at(-1)?.[0];
+      const description =
+        typeof last?.description === 'string' ? last.description : '';
+      const [unsupported, tooLarge] = description.split(' · ');
+      expect(unsupported).toMatch(/^Skipped: random\.bin — /);
+      expect(unsupported).toContain('random.bin is not a supported');
+      expect(unsupported).not.toContain('huge.txt');
+      expect(tooLarge).toMatch(/^Skipped: huge\.txt — /);
+      expect(tooLarge).not.toContain('not a supported');
+      expect(tooLarge).not.toContain('random.bin');
+    } finally {
+      policyFixture = {};
+    }
+  });
+
+  it('keeps the plain success toast when nothing was skipped', async () => {
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+
+    await user.upload(fileInput(), [brief]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Document added to project',
+          description: '1 / 1',
+          variant: 'success',
+        }),
+      );
+    });
+    expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+  });
+
+  it('still refuses a lone unsupported file up front', async () => {
+    renderTab();
+    const user = picker();
+    const junk = new File(['\u0000'], 'random.bin', {
+      type: 'application/octet-stream',
+    });
+
+    await user.upload(fileInput(), [junk]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Unsupported file type',
+          variant: 'destructive',
+        }),
+      );
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

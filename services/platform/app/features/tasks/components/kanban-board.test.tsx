@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import type { TaskDoc } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
@@ -131,5 +131,111 @@ describe('KanbanBoard archived cards', () => {
     );
     expect(screen.getByText('TAL-1')).toBeInTheDocument();
     expect(screen.queryByText('Archived')).not.toBeInTheDocument();
+  });
+});
+
+// A card used to be a role="button" (dnd-kit's sortable attributes on the
+// wrapper) that CONTAINED the priority and assignee buttons — an interactive
+// element nested in another (axe nested-interactive). Now the title is the one
+// button: sortable activator + open target, with the pickers beside it.
+describe('KanbanBoard card semantics', () => {
+  it('makes the title the only card-level button, with the pickers outside it', () => {
+    render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit
+        tasks={[makeTask('Ship it', 'todo', 'a0')]}
+      />,
+    );
+    const title = screen.getByRole('button', { name: 'Ship it' });
+    expect(title.tagName).toBe('BUTTON');
+    expect(title.querySelector('button')).toBeNull();
+    // Space is the keyboard drag key (dnd-kit's activator lives on the title).
+    expect(title).toHaveAttribute('aria-roledescription', 'sortable');
+    const card = title.closest('[class*="cursor-pointer"]');
+    expect(card).not.toBeNull();
+    expect(card).not.toHaveAttribute('role');
+    expect(card).not.toHaveAttribute('tabindex');
+    for (const button of card?.querySelectorAll('button') ?? []) {
+      expect(button.contains(title) && button !== title).toBe(false);
+    }
+  });
+
+  it('opens the task from the title button', async () => {
+    const onOpenTask = vi.fn();
+    const task = makeTask('Ship it', 'todo', 'a0');
+    const { user } = render(
+      <KanbanBoard projectKey="TAL" tasks={[task]} onOpenTask={onOpenTask} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Ship it' }));
+    expect(onOpenTask).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: task._id }),
+    );
+  });
+
+  // dnd-kit's attributes on a disabled sortable announce the title button
+  // as `aria-disabled` "sortable" — although it still opens the task. A
+  // read-only card is a plain button.
+  it('leaves a read-only card as a plain button, not a disabled sortable', () => {
+    render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit={false}
+        tasks={[makeTask('Ship it', 'todo', 'a0')]}
+      />,
+    );
+    const title = screen.getByRole('button', { name: 'Ship it' });
+    expect(title).not.toHaveAttribute('aria-disabled');
+    expect(title).not.toHaveAttribute('aria-roledescription');
+    expect(title).not.toHaveAttribute('aria-describedby');
+    expect(title).not.toHaveAttribute('aria-pressed');
+  });
+
+  it('opens a read-only card on Space once, from the keyboard', async () => {
+    const onOpenTask = vi.fn();
+    const task = makeTask('Ship it', 'todo', 'a0');
+    const { user } = render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit={false}
+        tasks={[task]}
+        onOpenTask={onOpenTask}
+      />,
+    );
+    screen.getByRole('button', { name: 'Ship it' }).focus();
+    await user.keyboard(' ');
+    expect(onOpenTask).toHaveBeenCalledTimes(1);
+  });
+
+  // Space on an editable card starts a keyboard drag (dnd-kit prevents the
+  // keydown). A native button still clicks on Space KEYUP in Firefox, which
+  // would ALSO open the task — so the keyup is prevented too. (user-event
+  // models Chrome, where the prevented keydown already swallows the click,
+  // so the keyup is asserted directly.)
+  it('prevents the Space keyup click that would open an editable card', async () => {
+    const onOpenTask = vi.fn();
+    const task = makeTask('Ship it', 'todo', 'a0');
+    const { user } = render(
+      <KanbanBoard
+        projectKey="TAL"
+        canEdit
+        tasks={[task]}
+        onOpenTask={onOpenTask}
+      />,
+    );
+    screen.getByRole('button', { name: 'Ship it' }).focus();
+    await user.keyboard(' ');
+    expect(onOpenTask).not.toHaveBeenCalled();
+    // The drag re-renders the card (the overlay clone included), so the
+    // title is read again. `fireEvent` answers false when a handler
+    // prevented the default.
+    const titles = screen.getAllByRole('button', { name: 'Ship it' });
+    expect(titles.length).toBeGreaterThan(0);
+    for (const title of titles) {
+      expect(document.contains(title)).toBe(true);
+      expect(fireEvent.keyUp(title, { key: ' ' })).toBe(false);
+      expect(fireEvent.keyUp(title, { key: 'Enter' })).toBe(true);
+    }
+    expect(onOpenTask).not.toHaveBeenCalled();
   });
 });

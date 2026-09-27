@@ -11,14 +11,49 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { listProducts } = vi.hoisted(() => ({
+const {
+  listProducts,
+  bulkCreateProducts,
+  deleteProduct,
+  updateProduct,
+  deleteOrgBlobRefs,
+  order,
+} = vi.hoisted(() => ({
   listProducts: vi.fn(),
+  bulkCreateProducts: vi.fn(),
+  deleteProduct: vi.fn(),
+  updateProduct: vi.fn(),
+  deleteOrgBlobRefs: vi.fn(),
+  order: [] as string[],
 }));
 
 vi.mock('./service.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./service.ts')>();
-  return { ...actual, listProducts };
+  return {
+    ...actual,
+    listProducts,
+    bulkCreateProducts,
+    deleteProduct,
+    updateProduct,
+  };
 });
+
+vi.mock('../files/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../files/service.ts')>()),
+  deleteOrgBlobRefs,
+}));
+
+// The transaction's commit is observable: the blob reclaim must follow it.
+vi.mock('@tale/shared/db/serializable', () => ({
+  transactSerializable: async (
+    _sql: unknown,
+    run: (tx: unknown) => Promise<unknown>,
+  ) => {
+    const result = await run({});
+    order.push('commit');
+    return result;
+  },
+}));
 
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
@@ -95,5 +130,128 @@ describe('GET /products — the listing query boundary', () => {
     const options = listProducts.mock.calls[0]?.[2] as Record<string, unknown>;
     expect(options.limit).toBeUndefined();
     expect(options.cursor).toBeNull();
+  });
+});
+
+describe('POST /products — a refused body names its field', () => {
+  // Regression: the door answered a bare `{ error: 'invalid body' }`, so the
+  // create dialog could only say "Couldn't create product" for a price the
+  // schema refuses.
+  it('answers the failed field and the issues beside the code', async () => {
+    const res = await makeApp().request('/?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Kettle', price: 1e20 }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as {
+      error: string;
+      message: string;
+      data: { issues: { path: string }[] };
+    };
+    expect(body.error).toBe('invalid body');
+    expect(body.message).toMatch(/^price: /);
+    expect(body.data.issues.map((issue) => issue.path)).toEqual(['price']);
+  });
+
+  it('imports the valid rows and names the row and column of each refused one', async () => {
+    bulkCreateProducts.mockResolvedValue({ success: 1, failed: 0, errors: [] });
+    const res = await makeApp().request('/bulk?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        products: [
+          { name: 'Kettle' },
+          { name: 'Toaster', price: 'free' },
+          { name: '', stock: 1 },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(bulkCreateProducts).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1' }),
+      [{ name: 'Kettle' }],
+    );
+    const body = (await res.json()) as {
+      success: number;
+      failed: number;
+      errors: { index: number; error: string; issues: { path: string }[] }[];
+    };
+    expect(body.success).toBe(1);
+    expect(body.failed).toBe(2);
+    expect(body.errors.map((entry) => entry.index)).toEqual([1, 2]);
+    expect(body.errors[0]?.error).toMatch(/^price: /);
+    expect(body.errors[0]?.issues[0]?.path).toBe('price');
+    expect(body.errors[1]?.error).toMatch(/^name: /);
+  });
+
+  it('reports a domain refusal at the row index the caller sent', async () => {
+    bulkCreateProducts.mockResolvedValue({
+      success: 0,
+      failed: 1,
+      errors: [
+        {
+          index: 0,
+          error: 'exists',
+          errorCode: 'DUPLICATE_PRODUCT_NAME',
+          product: { name: 'Kettle' },
+        },
+      ],
+    });
+    const res = await makeApp().request('/bulk?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        products: [{ name: 'Toaster', price: 'free' }, { name: 'Kettle' }],
+      }),
+    });
+    const body = (await res.json()) as { errors: { index: number }[] };
+    expect(body.errors.map((entry) => entry.index)).toEqual([0, 1]);
+  });
+});
+
+describe('DELETE and POST /products/:id — the managed image goes with the row', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    order.length = 0;
+    deleteOrgBlobRefs.mockImplementation(async () => {
+      order.push('reclaim');
+    });
+  });
+
+  it('reclaims the released blobs only after the delete committed', async () => {
+    deleteProduct.mockResolvedValue(['s3:o1/img']);
+    const res = await makeApp().request('/p-1?orgId=o1', { method: 'DELETE' });
+    expect(res.status).toBe(200);
+    expect(deleteOrgBlobRefs).toHaveBeenCalledWith(expect.anything(), 'o1', [
+      's3:o1/img',
+    ]);
+    expect(order).toEqual(['commit', 'reclaim']);
+  });
+
+  it('reclaims what an update released', async () => {
+    updateProduct.mockResolvedValue(['s3:o1/old']);
+    const res = await makeApp().request('/p-1?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl: null }),
+    });
+    expect(res.status).toBe(200);
+    expect(deleteOrgBlobRefs).toHaveBeenCalledWith(expect.anything(), 'o1', [
+      's3:o1/old',
+    ]);
+    expect(order).toEqual(['commit', 'reclaim']);
+  });
+
+  it('answers a legal hold as 409 LEGAL_HOLD_ACTIVE with nothing reclaimed', async () => {
+    const { LegalHoldError } = await import('../legal_holds/service.ts');
+    deleteProduct.mockRejectedValue(
+      new LegalHoldError('LEGAL_HOLD_ACTIVE', 'held', 409),
+    );
+    const res = await makeApp().request('/p-1?orgId=o1', { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'LEGAL_HOLD_ACTIVE' });
+    expect(deleteOrgBlobRefs).not.toHaveBeenCalled();
   });
 });

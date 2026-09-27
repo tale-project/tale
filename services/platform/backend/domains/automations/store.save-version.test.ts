@@ -192,3 +192,60 @@ describe('saveVersion', () => {
     ).toBe(false);
   });
 });
+
+/**
+ * A save body's `presentation: null` (the editor clearing the wizard's
+ * name, an older client's default) went through `tx.json`, so the column
+ * held the jsonb `'null'` — which `IS NOT NULL`, so the listings' newest
+ * non-null presentation was that `null` and the declared name vanished
+ * anyway (2026-09-26 evaluation, D-03). A null presentation is SQL NULL.
+ */
+describe('saveVersion presentation', () => {
+  /** The scripted store with a json wrapper that can be told apart from a
+   * bare SQL NULL. */
+  function jsonTaggingStore() {
+    const statements: Statement[] = [];
+    const tx = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<unknown[]> => {
+      const text = strings.join('?');
+      statements.push({ text, values });
+      if (text.includes('SELECT max(version)')) {
+        return Promise.resolve([{ latest: null }]);
+      }
+      if (text.includes('INSERT INTO app.automations')) {
+        return Promise.resolve([{ version: 1 }]);
+      }
+      return Promise.resolve([]);
+    };
+    tx.json = (value: unknown): unknown => ({ json: value });
+    const sql = {
+      begin: (callback: (handle: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+    };
+    return { sql: sql as unknown as Sql, statements };
+  }
+  const presentationValue = (statements: Statement[]): unknown => {
+    const insert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.automations'),
+    );
+    // org, name, document, message, testsPassed, testsCheckedAt,
+    // taskContract, settings, presentation, …
+    return insert?.values[8];
+  };
+
+  it.each([undefined, null])('stores SQL NULL for %s', async (presentation) => {
+    const fake = jsonTaggingStore();
+    await saveVersion(fake.sql, args({ presentation }));
+    expect(presentationValue(fake.statements)).toBeNull();
+  });
+
+  it('stores a declared presentation as json', async () => {
+    const fake = jsonTaggingStore();
+    await saveVersion(fake.sql, args({ presentation: { name: 'Greeter' } }));
+    expect(presentationValue(fake.statements)).toEqual({
+      json: { name: 'Greeter' },
+    });
+  });
+});

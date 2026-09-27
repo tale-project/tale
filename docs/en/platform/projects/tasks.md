@@ -3,7 +3,7 @@ title: Manage tasks on a project board
 description: Create a task, name its owner, track progress, and review the result in one place.
 ---
 
-A task keeps a piece of work together: its purpose, owner, status, files, and the conversation about the result. Use the project board for work a person will do as well as work you delegate to an agent. You need permission to edit the project to change its tasks.
+A task keeps a piece of work together: its purpose, owner, status, files, and the conversation about the result. Use the project board for work a person will do as well as work you delegate to an agent. You need permission to edit the project to change its tasks, and the project must be active: an archived project is read-only until an administrator restores it.
 
 <Frame caption="The board groups the same tasks by status. Switch to List when you prefer rows.">
 
@@ -62,7 +62,7 @@ Open the task to add a description, attachments, dates, labels, subtasks, or com
 
 Typing `@` in a comment opens the mention picker. A mention of an assigned agent is an instruction: it can steer a running agent or start another run when the agent is idle. A plain comment records the discussion without requesting that agent action.
 
-Use **Subtasks** to split work that has separately checkable results. A parent task cannot close while its subtasks remain open. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
+Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. A parent task cannot close while its subtasks remain open. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
 
 ## Review the result before closing
 

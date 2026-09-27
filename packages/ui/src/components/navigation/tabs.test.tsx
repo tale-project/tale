@@ -1,7 +1,7 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { Tabs } from './tabs';
 
@@ -154,5 +154,42 @@ describe('overflow menu full-hide (partially fitting tabs)', () => {
     if (invisible.length > 0) {
       throw new Error('no tab may stay hidden once the row fits');
     }
+  });
+});
+
+// A view-switching strip (Board / List) renders no panels; Radix would still
+// stamp `aria-controls` with the id of a Content that never exists (axe
+// `aria-valid-attr-value`, critical).
+describe('Tabs without panels', () => {
+  it('omits aria-controls on a trigger that has no content', async () => {
+    const { container } = render(
+      <Tabs
+        defaultValue="board"
+        listAriaLabel="View"
+        items={[
+          { value: 'board', label: 'Board' },
+          { value: 'list', label: 'List' },
+        ]}
+      />,
+    );
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab).not.toHaveAttribute('aria-controls');
+    }
+    await checkAccessibility(container);
+  });
+
+  it('keeps aria-controls when the tab has a panel', () => {
+    render(
+      <Tabs
+        defaultValue="a"
+        items={[{ value: 'a', label: 'A', content: <p>A panel</p> }]}
+      />,
+    );
+    const tab = screen.getByRole('tab', { name: 'A' });
+    expect(tab).toHaveAttribute('aria-controls');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute(
+      'id',
+      tab.getAttribute('aria-controls'),
+    );
   });
 });

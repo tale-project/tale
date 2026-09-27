@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 46 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -294,6 +294,31 @@ projects-list row ⋯ menu.
   request and click **Try again** → the rows appear without navigating away;
   alternatively switch tabs and back → the list refetches on its own.
 
+- [ ] `PROJ-F29` · **Icon and color on create and on General** — **Create
+  project** → **Icon and color** (`projects.identity.label`) → **Change icon
+  and color** (`projects.identity.trigger`) → pick a color and an icon →
+  create; then on the project's **General** page the same row → pick another
+  pair → **Save** → The popover is named **Icon and color** and holds two
+  radio groups, **Color** (`projects.identity.colorLabel`, 19 swatches) and
+  **Icon** (`projects.identity.iconLabel`, 30 icons); the trigger's avatar
+  previews the pair live; the new project's row in the Projects list and its
+  folder in the chat sidebar show the picked icon on the picked color; on
+  General the Save cluster wakes on a pick, **Discard** restores the saved
+  pair, **Save** flashes **Saved** and the list/sidebar follow; a project
+  never touched keeps the gray folder.
+
+- [ ] `PROJ-F30` · **Deleting an agent unassigns its tasks** — Agents tab →
+  create an agent, assign it two tasks and start one so a run exists (it
+  may fail); then row menu → **Delete agent** → confirm → Both tasks read
+  **Unassigned** in the Assignee field and on their cards (never the raw
+  agent id); each task's Activity shows **Assignee changed** from **Deleted
+  agent** (`tasks.timeline.deletedAgent`) to nobody, and the run's earlier
+  Activity/comments keep the **Deleted agent** label; the task's **Run**
+  strip still offers **Details** but no **Retry**/**Start agent**; a stale
+  tab that still shows the agent and clicks **Retry** gets **The assigned
+  agent no longer exists…** (`tasks.agentRun.agentMissing`); assigning a
+  person or another agent brings the verbs back.
+
 ## Boundary & error tests
 
 - [ ] `PROJ-B1` · **Empty name** — Create-project dialog → leave **Project
@@ -309,8 +334,46 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-B4` · **Empty task title** — Create-task dialog → leave **Title**
   empty → submit → Required validation; task not created (dialog stays open or
   shows the field error)
-
-## Accessibility (WCAG 2.1 AA)
+- [ ] `PROJ-B5` · **Mixed upload names the skipped file** — Files tab →
+  **Add file** → select three supported files plus one unsupported (e.g.
+  `.bin`) in ONE pick → No error toast flashes before the upload; once it
+  settles a single toast reads **3 of 4 files added**
+  (`projects.files.attachPartial`) with **Skipped: <name> — <reason>**
+  (`projects.files.skippedList`, the unsupported-format sentence) and stays
+  until dismissed; the three files appear in the tree. Picking the `.bin`
+  alone still shows the destructive **Unsupported file type** toast; a pick
+  with no refusal reads **Document added to project · 4 / 4**.
+- [ ] `PROJ-B6` · **Archived project is read-only everywhere** — Open a
+  project's Agents, Tasks and Files tabs in a second tab, then on
+  **General** → **Archive** → confirm → In the fresh tabs every write
+  control is gone: no **New agent**, no **Create task**, no **Add file** /
+  folder actions, the task dialog's fields are read-only, and General shows
+  the **This project is archived** banner
+  (`projects.readOnlyBanner.archivedTitle`) above a read-only summary with
+  **Restore** (`projects.rowActions.restore`) still offered and the Sharing
+  section read-only; in the STALE tabs submit **New agent**, **Create task**
+  and a file drop → each is refused with **This project is archived.
+  Restore it to make changes.** (`projects.errors.PROJECT_ARCHIVED`; the
+  task one reads `tasks.errors.PROJECT_ARCHIVED`), never the generic
+  "Couldn't save the agent"; **Restore** brings every control back.
+- [ ] `PROJ-B7` · **Archived project refuses the leftover writes too** —
+  Same setup as `PROJ-B6` with a file, a task and an automation bound to
+  the project; in the STALE tabs: the file's row menu → **Delete** and
+  **Detach from project**, a comment on the task, and — under
+  `/dashboard/{org}/automations/{name}` → **Projects** — adding the archived
+  project, plus **Run** with that project selected → each is refused with
+  the archived-project sentence (backend `PROJECT_ARCHIVED` 403), the file
+  stays in the project, no comment lands, the binding and run list are
+  unchanged; **Restore** → every one of them goes through.
+- [ ] `PROJ-B8` · **Archived project's Secrets are read-only** — As an
+  admin open the project's **Secrets** tab in a second tab, archive the
+  project on **General**, then reload the Secrets tab → the **This project
+  is archived** banner (`projects.readOnlyBanner.archivedTitle`) sits above
+  the list, the stored names still read, and **Add variable**, every name
+  field and every row's remove control are disabled; in the STALE tab
+  **Add variable** → NAME + value → **Save** is refused with the
+  archived-project sentence (backend `PROJECT_ARCHIVED` 403) and nothing
+  lands; **Restore** → the same save goes through.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)
@@ -320,6 +383,21 @@ projects-list row ⋯ menu.
   reveal control has an accessible name.
 - [ ] `PROJ-A4` · **Tabs** → Project tabs (Files/Threads/Agents/…) are
   labelled as a tablist and keyboard reachable.
+- [ ] `PROJ-A5` · **Files list passes axe, keyboard-walkable** → On the
+  Files tab with a folder holding a file, run axe → no
+  `aria-required-children` (the list is a plain `list` named **Project
+  files**, `projects.files.treeLabel`, with no `tree`/`treeitem` roles; each
+  row is a button beside its Preview / Version history / Remove / menu
+  buttons); Tab into the list, **↓/↑** move between rows, **→** expands a
+  folder (`aria-expanded`), the selected folder reads `aria-current="true"`;
+  the same holds for an automation's **Uploads** settings tree.
+- [ ] `PROJ-A6` · **Projects rows open by keyboard** → On the Projects list,
+  Tab through a row → the stops are **Select row**, the project **name**
+  (a link, visible focus ring, `href` ending in
+  `/projects/<id>/tasks`), then **Open menu**; **Enter** on the name opens
+  the project's tasks, exactly like a pointer click on the row; the row
+  click still works and does not navigate twice when the name itself is
+  clicked.
 
 ## Performance
 

@@ -8,7 +8,7 @@ Als Admin oder Inhaber kannst du unter **Einstellungen > Richtlinien > Papierkor
 ## Einen Datensatz wiederherstellen
 
 1. Öffne den Papierkorb und grenze die Liste mit **Filter > Kategorie** ein. Ohne Filter siehst du alle unterstützten Typen.
-2. Prüfe Name, Eigentümer, Typ und Löschzeitpunkt. Damit unterscheidest du ähnlich benannte Datensätze.
+2. Prüfe Name, Eigentümer, Typ und Löschzeitpunkt. Damit unterscheidest du ähnlich benannte Datensätze. Ein Chat erscheint unter seinem Titel; die in einem [Arena](/de/platform/chat/arena-mode)-Vergleich verworfene Antwort behält den Titel ihres Chats.
 3. Wähle in der Zeile **Wiederherstellen** und lies die Bestätigung.
 4. Gib bei einem durch Aufbewahrung abgelaufenen Datensatz exakt `restore` ein. Bestätige und suche den Datensatz anschließend an seinem ursprünglichen Ort, etwa in der Chatliste oder im Wissensbereich.
 
@@ -23,7 +23,7 @@ Die wiederhergestellte Zeile verschwindet aus dem Papierkorb. Tale protokolliert
 
 **Abgelaufen** bedeutet nicht, dass die Wiederherstellungsfrist schon vorbei ist. Die Aufbewahrung markiert Datensätze zu Beginn der Schonfrist als abgelaufen. Nach deren Ende folgt die endgültige Bereinigung.
 
-Der Kategoriefilter umfasst unterstützte Chats, Dokumente, Dateien, Feedback, Kontakte, externe Konversationen, Workflow- und Automatisierungsläufe, Nutzungsdaten, Audit-Einträge und Chat-Filterereignisse. Manche Daten werden direkt oder zusammen mit übergeordneten Datensätzen gelöscht und haben keine eigene Wiederherstellungsaktion.
+Der Kategoriefilter listet die Datensatztypen, die über den Papierkorb laufen: Chats, Dokumente, temporäre Dateien, Nachrichten-Feedback, Kontakte und externe Konversationen. Die früheren Versionen eines Chats reisen mit ihm: Sie werden zusammen mit dem Chat verworfen und wiederhergestellt und erscheinen nie als eigene Zeilen. Andere Daten wie Automatisierungsläufe, Nutzungsdaten, Audit-Einträge und Chat-Filterereignisse werden direkt oder zusammen mit übergeordneten Datensätzen gelöscht und haben hier keine Wiederherstellungsaktion.
 
 ## Die Wiederherstellungsfrist prüfen
 

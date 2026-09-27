@@ -158,6 +158,9 @@ describe('mapProviderDefinitionError', () => {
     expect(mapProviderDefinitionError(t, coded('PROVIDER_IN_USE'))).toBe(
       'providers.custom.errors.inUse',
     );
+    expect(mapProviderDefinitionError(t, coded('CREDENTIAL_IN_USE'))).toBe(
+      'providers.credential.inUseByEmbedding',
+    );
     expect(
       mapProviderDefinitionError(t, coded('CONFIG_VERSION_CONFLICT')),
     ).toBe('providers.custom.errors.versionConflict');

@@ -93,6 +93,10 @@ export interface RunSummary {
   status: string;
   mode: string;
   startedBy: string;
+  /** Which kind of trigger started a `trigger:<id>` run — read off the
+   * run's own input, so it stays true after the binding changes kind.
+   * Absent on a run a person or an API key started. */
+  startedVia?: 'schedule' | 'webhook' | 'event';
   detail?: string;
   /** Why a `failed` run failed, as a stable code to branch on — `detail`
    * carries the sentence, which is not contractual. Present only when

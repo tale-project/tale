@@ -81,6 +81,38 @@ describe('WorkflowSettings', () => {
     ).toBeInTheDocument();
   });
 
+  it('hands the deployed version to the trigger panel', () => {
+    const { unmount } = render(
+      <WorkflowSettings organizationId="org-1" name="digest" canEdit />,
+    );
+    expect(
+      screen.getByText(/Won't start until a version is deployed/),
+    ).toBeVisible();
+    unmount();
+    render(
+      <WorkflowSettings
+        organizationId="org-1"
+        name="digest"
+        canEdit
+        deployedVersion={1}
+      />,
+    );
+    expect(screen.getByText(/Next run/)).toBeVisible();
+    expect(screen.queryByText(/deployed/)).toBeNull();
+  });
+
+  it('routes the footer Rotate token through the confirm dialog', async () => {
+    triggersData = [
+      { name: 'digest', kind: 'webhook', hasToken: true, enabled: true },
+    ];
+    render(<WorkflowSettings organizationId="org-1" name="digest" canEdit />);
+    await userEvent.click(screen.getByRole('button', { name: 'Rotate token' }));
+    expect(mockSetTrigger).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('dialog', { name: 'Rotate the webhook token?' }),
+    ).toBeVisible();
+  });
+
   it('saves both dirty sections from the shared Save settings', async () => {
     render(<WorkflowSettings organizationId="org-1" name="digest" canEdit />);
 

@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 45 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 46 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -117,7 +117,12 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-F12` · **SSO** — With an IdP configured, click **Continue with
   SSO** (`auth.login.continueWithSso`) on `/log-in` → OAuth round-trip →
   `/dashboard/{org}`. Manual-only — button is hidden unless
-  `useIsSsoConfigured()` returns true.
+  `useIsSsoConfigured()` returns true. The organization picker
+  (`auth.login.ssoTitle` / `auth.login.ssoDescription`) appears only when
+  more than one organization has SSO enabled; with a single enabled
+  organization the button opens that organization's IdP directly and a typed
+  e-mail rides along only as `login_hint` — an unknown domain ends on the
+  IdP's own error, never on a Tale-side picker.
 - [ ] `AUTH-F13` · **Idle sign-out** — Open `/log-in?reason=idle` (the idle
   watchdog appends `?reason=idle`) → A `role="status"` notice reads **You were
   signed out because your session was inactive for too long.**
@@ -157,6 +162,13 @@ compute codes from the enrollment secret.
 
 - [ ] `AUTH-F19` · **A new member reaches a connected application** — As an admin, add a colleague under **Settings > Members** with a new address and password, hand the credentials to a second browser profile, and start an OIDC authorization from a registered test application there (`AUTH-F18`'s flow) → the application receives the identity on the first attempt and its `email_verified` claim is true; no verification mail exists to wait for. The same account also receives its organization's notification mirror.
 
+- [ ] `AUTH-F28` · **OIDC acr agrees with discovery** — `curl
+  <site>/api/auth/.well-known/openid-configuration | jq
+  '.acr_values_supported, .claims_supported'` and, with `AUTH-F18`'s test
+  application, decode the ID token it receives → discovery lists
+  `acr_values_supported: ["0"]` and `acr` under `claims_supported`; the
+  token's `acr` is exactly `"0"` (never `urn:mace:incommon:iap:bronze`), so a
+  relying party cross-checking the two sees no mismatch.
 - [ ] `AUTH-F21` · **Trusted headers card** — As an admin open
   `/dashboard/{org}/settings/enterprise-sso` → below the SSO form the
   **Trusted headers** card (`settings.enterpriseSso.trustedHeaders.section`)

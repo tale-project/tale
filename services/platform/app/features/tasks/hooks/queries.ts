@@ -1,6 +1,7 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 type TaskStatusFilter =
   | 'backlog'
@@ -78,12 +79,20 @@ export function useTasksAcrossProjects(options?: {
   };
 }
 
+/** The refusals that mean "there is no such task for you": the adapter
+ *  answers a 404 with `null` (no error), a 403 arrives as a coded error. */
+const TASK_MISSING_CODES: ReadonlySet<string> = new Set([
+  'TASK_NOT_FOUND',
+  'TASK_FORBIDDEN',
+]);
+
 export function useTask(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useBackendQuery(
+  const { data, isLoading, error } = useBackendQuery(
     'tasks/queries:getTask',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
+  const code = backendErrorCode(error);
   return {
     task: data?.task ?? null,
     canEdit: data?.canEdit ?? false,
@@ -92,6 +101,16 @@ export function useTask(taskId: string | undefined) {
     // composer doesn't flash, then true for any member who can open the task.
     canComment: data?.canComment ?? false,
     isLoading,
+    /** The read failed for a reason other than the task being gone. */
+    error:
+      error != null && (code === undefined || !TASK_MISSING_CODES.has(code))
+        ? error
+        : null,
+    /** Settled and gone: deleted, never existed, or not this member's to see
+     *  — a deep link to it deserves a "not found" state, not a blank sheet. */
+    notFound:
+      !isLoading &&
+      (data === null || (code !== undefined && TASK_MISSING_CODES.has(code))),
   };
 }
 

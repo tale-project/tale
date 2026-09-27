@@ -39,6 +39,8 @@ const {
     deployedVersion: 2 as number | undefined,
     /** Agent nodes of the DEPLOYED version without a provider pin. */
     deployedUnpinnedAgentNodes: undefined as string[] | undefined,
+    /** A `?version=` the read refuses with `AUTOMATION_VERSION_UNKNOWN`. */
+    missingVersion: undefined as number | undefined,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
    * appears only when two or more projects are bound. */
@@ -81,33 +83,48 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // this hook; each test sets the roster it needs on `projectsData`.
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({ projects: projectsData.list, isLoading: false }),
+  // The llm node's Model picker reads the served-model roster; the editor
+  // tests select llm nodes but never pick a model.
+  useProjectHarnesses: () => ({ data: { harnesses: [], models: [] } }),
 }));
 
 vi.mock('../hooks/queries', () => ({
-  useAutomation: (
-    _organizationId: string,
-    _name: string,
-    version?: number,
-  ) => ({
-    data: {
-      document:
-        version === state.deployedVersion &&
-        state.deployedDocument !== undefined
-          ? state.deployedDocument
-          : state.document,
-      version: version ?? state.version,
-      deployedVersion: state.deployedVersion,
-      ...(state.presentation !== undefined
-        ? { presentation: state.presentation }
-        : {}),
-      settings: state.settings,
-      taskContract: state.taskContract,
-      ...(state.deployedUnpinnedAgentNodes !== undefined
-        ? { deployedUnpinnedAgentNodes: state.deployedUnpinnedAgentNodes }
-        : {}),
-    },
-    isPending: false,
-  }),
+  useAutomation: (_organizationId: string, _name: string, version?: number) =>
+    version !== undefined && version === state.missingVersion
+      ? {
+          data: undefined,
+          isPending: false,
+          isError: true,
+          error: {
+            data: {
+              code: 'AUTOMATION_VERSION_UNKNOWN',
+              message: `version ${version} does not exist`,
+              latestVersion: state.version,
+            },
+          },
+        }
+      : {
+          data: {
+            document:
+              version === state.deployedVersion &&
+              state.deployedDocument !== undefined
+                ? state.deployedDocument
+                : state.document,
+            version: version ?? state.version,
+            deployedVersion: state.deployedVersion,
+            ...(state.presentation !== undefined
+              ? { presentation: state.presentation }
+              : {}),
+            settings: state.settings,
+            taskContract: state.taskContract,
+            ...(state.deployedUnpinnedAgentNodes !== undefined
+              ? { deployedUnpinnedAgentNodes: state.deployedUnpinnedAgentNodes }
+              : {}),
+          },
+          isPending: false,
+          isError: false,
+          error: null,
+        },
   useAutomationVersions: () => ({
     data: [
       {
@@ -286,6 +303,28 @@ beforeEach(() => {
   state.version = 3;
   state.deployedVersion = 2;
   state.deployedUnpinnedAgentNodes = undefined;
+  state.missingVersion = undefined;
+});
+
+/**
+ * A `?version=` the automation never saved is a missing VERSION, not a
+ * missing automation (2026-09-26 evaluation, D-04): the page says which
+ * version is missing and offers the latest, instead of the automation-level
+ * not-found state under the automation's own tabs.
+ */
+describe('AutomationEditor missing version', () => {
+  it('names the missing version and opens the latest on request', async () => {
+    state.missingVersion = 99;
+    const { user } = renderPage({ version: 99 });
+    expect(
+      screen.getByRole('heading', { name: "Version 99 doesn't exist" }),
+    ).toBeVisible();
+    expect(screen.queryByText('Automation not found')).toBeNull();
+    // "Open latest" asks the route to drop `?version=`; the route's search
+    // update is what redraws the latest, so the ask is what is pinned here.
+    await user.click(screen.getByRole('button', { name: 'Open latest' }));
+    expect(onSelectVersion).toHaveBeenCalledWith(undefined);
+  });
 });
 
 describe('AutomationEditor', () => {

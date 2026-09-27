@@ -1,11 +1,13 @@
 import { lazyComponent } from '@tale/ui/lazy-component';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { TasksPageSkeleton } from '@/app/features/tasks/components/tasks-skeleton';
 import {
+  dismissTaskSheet,
   isAllProjectsSearch,
+  openTaskNavigation,
   persistTaskView,
   TASK_VIEW_ROUTES,
   type TaskView,
@@ -56,6 +58,7 @@ function TasksListPage() {
   const { id: organizationId, projectId } = Route.useParams();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const router = useRouter();
   const allProjects = isAllProjectsSearch(search);
 
   // Remember the last-visited view so the bare `/tasks` alias reopens it.
@@ -76,15 +79,13 @@ function TasksListPage() {
       }}
       openTaskParam={search.task}
       onOpenTaskParamChange={(taskId: string | null) => {
-        void navigate({
-          search: (prev) => {
-            const next = { ...prev };
-            if (taskId) next.task = taskId;
-            else delete next.task;
-            return next;
-          },
-          replace: true,
-        });
+        if (taskId) {
+          void navigate(
+            openTaskNavigation(taskId, router.history.location.state),
+          );
+        } else {
+          dismissTaskSheet(router.history, navigate);
+        }
       }}
     />
   );

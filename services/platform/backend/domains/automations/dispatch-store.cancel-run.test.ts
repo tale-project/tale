@@ -48,6 +48,16 @@ describe('pgAutomationStore.cancelRun', () => {
     await expect(store.cancelRun?.('run_1')).resolves.toEqual({
       cancelled: false,
     });
-    expect(cancelRun).toHaveBeenCalledWith(sql, 'org_1', 'run_1');
+    expect(cancelRun).toHaveBeenCalledWith(sql, 'org_1', 'run_1', 'user_1');
+  });
+
+  it('names the acting user, not the run’s starter, on the stop', async () => {
+    cancelRun.mockResolvedValueOnce({ cancelled: true, status: 'cancelled' });
+    const store = pgAutomationStore(sql, {
+      organizationId: 'org_1',
+      actor: 'api-key:user_1',
+    });
+    await store.cancelRun?.('run_1');
+    expect(cancelRun).toHaveBeenLastCalledWith(sql, 'org_1', 'run_1', 'user_1');
   });
 });

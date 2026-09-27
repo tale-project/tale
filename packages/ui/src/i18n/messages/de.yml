@@ -160,6 +160,7 @@ common:
   dataTable:
     dateFilterUnavailable: Datumsfilter nicht verfügbar
   datePicker:
+    calendar: Kalender
     nextMonth: Nächster Monat
     placeholder: Datum wählen
     presets:
@@ -220,6 +221,7 @@ common:
     rowsPerPage: Zeilen pro Seite
     showing: "{start}–{end} von {total}"
     showingAll: "{count, plural, one {# {entityOne} wird angezeigt} other {Alle # {entityOther} werden angezeigt}}"
+    showingLoaded: "{count, plural, one {# {entityOne} geladen – scrolle für mehr} other {Die ersten # {entityOther} werden angezeigt – scrolle für mehr}}"
     showingFiltered: "{total, plural, one {{filtered} von # {entityOne} wird angezeigt} other {{filtered} von # {entityOther} werden angezeigt}}"
     showingRange: "{total, plural, one {{start}-{end} von # {entityOne} wird angezeigt} other {{start}-{end} von # {entityOther} werden angezeigt}}"
   search:

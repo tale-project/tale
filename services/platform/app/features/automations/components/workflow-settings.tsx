@@ -23,10 +23,13 @@ export function WorkflowSettings({
   organizationId,
   name,
   canEdit,
+  deployedVersion,
 }: {
   organizationId: string;
   name: string;
   canEdit: boolean;
+  /** The deployed version, for the trigger panel's arming state. */
+  deployedVersion?: number | undefined;
 }) {
   const { t } = useT('automations');
   const [trigger, setTrigger] = useState<TriggerEditorController | null>(null);
@@ -61,6 +64,7 @@ export function WorkflowSettings({
           name={name}
           canEdit={canEdit}
           showActions={false}
+          deployedVersion={deployedVersion}
           onControllerChange={onTriggerController}
         />
         <ProjectBindingsSection

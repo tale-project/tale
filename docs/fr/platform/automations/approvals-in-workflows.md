@@ -17,6 +17,8 @@ Lis attentivement l’action et les données sous **L'étape appellerait avec**.
 
 Choisis **Approuver** pour autoriser l’action. L’exécution reprend et tente l’écriture ; vérifie ensuite le résultat du nœud et les effets produits. Choisis **Rejeter** si la demande est incorrecte ou ne doit pas être exécutée. Le refus empêche cette action et fait échouer l’exécution.
 
+Une exécution en direct vérifie que le connecteur dispose d’un identifiant utilisable avant de demander une approbation : s’il n’en existe aucun, le nœud échoue avec cette raison au lieu d’attendre une décision.
+
 Tu ne peux pas modifier les paramètres sur la carte. Rejette une demande incorrecte, corrige le workflow ou ses entrées, puis teste la correction avant une nouvelle exécution réelle. Modifier la politique d’approbation ne libère pas une carte déjà en attente. Consulte les [concepts d’approbation](/fr/platform/approvals/concepts) pour le cycle de décision et la [configuration de la politique](/fr/self-hosted/configuration/approvals) pour les règles d’exploitation.
 
 ## Répondre à une question de l’agent

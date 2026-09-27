@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -9211,7 +9211,7 @@
         "tags": ["Products"],
         "summary": "Delete product",
         "operationId": "deleteProduct",
-        "description": "Deletes the product permanently — products have no trash and no restore, unlike contacts: its `name` and `externalId` are free for a new product at once (a re-created product is a new row with a new id, so a catalog sync must re-key anything it holds on the old one). A product already deleted answers 404 `PRODUCT_NOT_FOUND`.",
+        "description": "Deletes the product permanently — products have no trash and no restore, unlike contacts: its `name` and `externalId` are free for a new product at once (a re-created product is a new row with a new id, so a catalog sync must re-key anything it holds on the old one). A product already deleted answers 404 `PRODUCT_NOT_FOUND`. Legal holds gate the delete the way they gate document and contact deletes: an organization-wide hold, or a custodian hold on the user who uploaded the product’s image, answers 409 `LEGAL_HOLD_ACTIVE` and nothing is removed.",
         "security": [
           {
             "bearerAuth": []
@@ -9352,6 +9352,24 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "A legal hold on the organization, or on the uploader of the product’s image (`LEGAL_HOLD_ACTIVE`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -34732,7 +34750,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "2.0.0"
+          "example": "2.1.0"
         }
       },
       "Location": {
@@ -37523,6 +37541,11 @@
             "type": "string",
             "description": "What started the run — one of four forms: `api-key:<userId>` (a start through this API or the MCP endpoint), `user:<userId>` (a start from the product), `trigger:<triggerId>` (a schedule, webhook or event — the id the trigger read answers), or a bare user id on runs the in-product builder recorded before it prefixed them. Split on the first `:`; treat a value without one as a user id."
           },
+          "startedVia": {
+            "type": "string",
+            "enum": ["schedule", "webhook", "event"],
+            "description": "Which kind of trigger started a `trigger:<id>` run — read off the run’s own input, so it stays true after the binding changes kind. Absent on a run a person or an API key started."
+          },
           "detail": {
             "type": "string",
             "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
@@ -37644,6 +37667,11 @@
             "type": "string",
             "description": "What started the run — one of four forms: `api-key:<userId>` (a start through this API or the MCP endpoint), `user:<userId>` (a start from the product), `trigger:<triggerId>` (a schedule, webhook or event — the id the trigger read answers), or a bare user id on runs the in-product builder recorded before it prefixed them. Split on the first `:`; treat a value without one as a user id."
           },
+          "startedVia": {
+            "type": "string",
+            "enum": ["schedule", "webhook", "event"],
+            "description": "Which kind of trigger started a `trigger:<id>` run — read off the run’s own input (`input.trigger`), so it stays true after the binding changes kind. Absent on a run a person or an API key started."
+          },
           "input": {},
           "output": {},
           "checkpoints": {},
@@ -37756,6 +37784,11 @@
           "startedBy": {
             "type": "string",
             "description": "What started the run — one of four forms: `api-key:<userId>` (a start through this API or the MCP endpoint), `user:<userId>` (a start from the product), `trigger:<triggerId>` (a schedule, webhook or event — the id the trigger read answers), or a bare user id on runs the in-product builder recorded before it prefixed them. Split on the first `:`; treat a value without one as a user id."
+          },
+          "startedVia": {
+            "type": "string",
+            "enum": ["schedule", "webhook", "event"],
+            "description": "Which kind of trigger started a `trigger:<id>` run — read off the run’s own input (`input.trigger`), so it stays true after the binding changes kind. Absent on a run a person or an API key started."
           },
           "input": {},
           "output": {},

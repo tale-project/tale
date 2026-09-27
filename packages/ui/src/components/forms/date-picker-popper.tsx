@@ -1,5 +1,6 @@
 'use client';
 
+import { useT } from '@tale/ui/i18n/client';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -37,13 +38,40 @@ export function isDatePickerPopperEvent(event: Event): boolean {
   return isDatePickerPopperTarget(event.target);
 }
 
-/** Renders the react-datepicker floating calendar on `document.body`. */
+/**
+ * The calendar's own container, in place of react-datepicker's default,
+ * which is a second `role="dialog"` (aria-modal, English "Choose Date")
+ * nested inside the popper's — two dialogs for one calendar. The popper
+ * below carries the one, localized dialog role.
+ */
+export function DatePickerCalendarContainer({
+  className,
+  children,
+}: {
+  className?: string;
+  children?: ReactNode;
+}) {
+  return <div className={className}>{children}</div>;
+}
+
+/**
+ * Renders the react-datepicker floating calendar on `document.body`.
+ *
+ * react-datepicker renders its `popperContainer` even while the calendar is
+ * closed (with no children). Portaling an empty node then would put it on
+ * the body in the same commit a modal mounts, and the modal's hide-others
+ * pass would mark it `aria-hidden` — hiding the calendar from assistive
+ * technology once it opens. So nothing is portaled until there is a calendar
+ * to show: the node is created after the modal's pass and stays perceivable.
+ */
 export function DatePickerPopperContainer({
   children,
 }: {
   children?: ReactNode;
 }) {
+  const { t } = useT('common');
   const ref = useRef<HTMLDivElement>(null);
+  const open = children != null;
 
   useEffect(() => {
     const node = ref.current;
@@ -59,12 +87,16 @@ export function DatePickerPopperContainer({
       node.removeEventListener('mousedown', stop);
       node.removeEventListener('pointerdown', stop);
     };
-  }, []);
+    // The node only exists while the calendar is open — re-bind on open.
+  }, [open]);
 
+  if (!open) return null;
   if (typeof document === 'undefined') return children;
   return createPortal(
     <div
       ref={ref}
+      role="dialog"
+      aria-label={t('datePicker.calendar')}
       data-tale-datepicker-popper=""
       className={`${styles.wrapper} ${styles.portal}`}
     >

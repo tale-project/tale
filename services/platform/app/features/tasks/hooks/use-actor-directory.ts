@@ -192,9 +192,16 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
           // refusal activity (#2609) names the agent that was asked to run,
           // which is by definition often not live (disabled/uninstalled). Fall
           // back to the unfiltered catalog so the timeline still shows a
-          // friendly name instead of the raw slug for that common case.
+          // friendly name instead of the raw slug for that common case. An
+          // agent in neither is gone (deleted from the project): its history
+          // stays on the task, so say what it was rather than print its id.
           const agent = agentMap.get(id) ?? agentCatalog.get(id);
-          return { type, id, name: agent?.name ?? id, isAgent: true };
+          return {
+            type,
+            id,
+            name: agent?.name ?? t('timeline.deletedAgent'),
+            isAgent: true,
+          };
         }
         const member = memberMap.get(id);
         return {

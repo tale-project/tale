@@ -25,7 +25,7 @@ Ein Projektchat beginnt mit den gespeicherten Projektanweisungen. Er kann die Da
 
 ## Eine wiedererkennbare Identität wählen
 
-**Projekt erstellen** fragt nach einem Namen und einem **Projektkürzel**; die Beschreibung ist optional. Der Schlüssel wird zum Präfix von Aufgaben-IDs wie `WR-1` und lässt sich nach dem Erstellen nicht mehr ändern. Wähle ein kurzes, dauerhaft passendes Kürzel.
+**Projekt erstellen** fragt nach einem Namen und einem **Projektkürzel**; Beschreibung, Icon und Farbe sind optional. Der Schlüssel wird zum Präfix von Aufgaben-IDs wie `WR-1` und lässt sich nach dem Erstellen nicht mehr ändern. Wähle ein kurzes, dauerhaft passendes Kürzel.
 
 Name, Beschreibung, Icon, Farbe und Anweisungen kannst du später unter **Allgemein** ändern. Mit **Speichern** übernimmst du Feldänderungen, mit **Verwerfen** gibst du sie auf. Eine vollständige Anleitung bietet [Projekte nutzen](/de/tutorials/member/use-projects).
 
@@ -49,4 +49,4 @@ Gehört ein bestehendes Gespräch zu dieser Arbeit, nutze **In Projekt verschieb
 
 Erstelle eine [Aufgabe](/de/platform/projects/tasks), wenn eine Entscheidung eine zuständige Person oder ein Ergebnis braucht. Ein Teammitglied kann sie selbst erledigen; ein eingerichteter [Projektagent](/de/platform/projects/project-agents) kann sie ebenfalls bearbeiten. Schreibe die Abnahmekriterien in die Beschreibung, damit das Ergebnis prüfbar ist.
 
-Archiviere ein abgeschlossenes Projekt, um es aus der aktiven Liste zu nehmen. Lies vor dem Löschen die Auswahl für seine Inhalte: Beim Herauslösen bleiben Dateien in der Bibliothek und Chats als persönliche Gespräche erhalten. Beim Mitlöschen werden auch die Inhalte entfernt. Herausgelöste Dateien können einem größeren Kreis zugänglich werden. Entscheide danach, was verfügbar bleiben soll.
+Archiviere ein abgeschlossenes Projekt, um es aus der aktiven Liste zu nehmen. Ein archiviertes Projekt ist für alle schreibgeschützt: Einstellungen, Aufgaben, Dateien und Agenten lassen sich lesen, aber nicht ändern, bis ein Projekt-Administrator es unter **Allgemein** wiederherstellt. Lies vor dem Löschen die Auswahl für seine Inhalte: Beim Herauslösen bleiben Dateien in der Bibliothek und Chats als persönliche Gespräche erhalten. Beim Mitlöschen werden auch die Inhalte entfernt. Herausgelöste Dateien können einem größeren Kreis zugänglich werden. Entscheide danach, was verfügbar bleiben soll.

@@ -41,7 +41,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 }));
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useTeams: () => ({ teams: [], isLoading: false }),
+  useOrgTeams: () => ({ teams: [], isLoading: false }),
 }));
 
 // Contents of the "Meetings" folder returned when collectAllFiles expands it.

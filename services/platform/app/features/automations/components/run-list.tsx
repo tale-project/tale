@@ -7,12 +7,11 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 import { History } from 'lucide-react';
 
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
-import { parseRunStarter } from '@/lib/shared/run-starter';
 
-import { readRunStatus } from '../lib/run-view';
+import { useRunStarterLabel } from '../hooks/use-run-starter-label';
+import { readRunStatus, runReasonKey } from '../lib/run-view';
 import { RunBadge } from './run-status-badge';
 
 /** One run as the listing reports it. */
@@ -23,6 +22,8 @@ export interface AutomationRunSummary {
   status: string;
   mode: string;
   startedBy: string;
+  startedVia?: 'schedule' | 'webhook' | 'event';
+  waitingFor?: 'approval' | 'ask' | 'agent' | 'repeat';
   detail?: string;
   startedAt: number;
   finishedAt?: number;
@@ -52,26 +53,17 @@ export function RunList({
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
-  const { members } = useMembers(organizationId);
+  const starterLabel = useRunStarterLabel(organizationId);
 
-  // Who started the run, in words: the stored value is the door it came
-  // through (`user:<id>`, `api-key:<id>`, `trigger:<id>`), which the row
-  // used to print verbatim. Nothing is said while the member list loads —
-  // better a moment of silence than a flash of an internal id.
-  const starterLabel = (startedBy: string): string | null => {
-    const starter = parseRunStarter(startedBy);
-    if (starter.kind === 'trigger') return t('runs.starter.trigger');
-    if (starter.kind === 'unknown' || members === undefined) return null;
-    const member = members.find((entry) => entry.userId === starter.userId);
-    const name = member?.displayName || member?.email;
-    if (!name) return t('runs.starter.formerMember');
-    return starter.kind === 'api-key'
-      ? t('runs.starter.apiKey', { name })
-      : name;
-  };
-  const runStarterLine = (startedBy: string) => {
-    const actor = starterLabel(startedBy);
-    return actor === null ? null : t('runs.startedBy', { actor });
+  // A failed run's sentence or a waiting run's park, in words; every other
+  // row names its starter — a person, "you", an API key or the trigger kind,
+  // never the `user:<id>` / `trigger:<id>` door the record carries.
+  const rowText = (run: AutomationRunSummary): string => {
+    const reason = runReasonKey(run);
+    if (reason === undefined) return starterLabel(run);
+    return reason.kind === 'failed'
+      ? reason.detail
+      : t(reason.key, reason.values);
   };
 
   if (runs.length === 0) {
@@ -122,7 +114,7 @@ export function RunList({
               {t('versions.versionLabel', { version: run.version })}
             </span>
             <span className="min-w-0 flex-1 truncate text-sm">
-              {run.detail ?? runStarterLine(run.startedBy)}
+              {rowText(run)}
             </span>
             <Text as="span" variant="muted" className="text-xs">
               {formatDate(new Date(run.startedAt), 'long')}

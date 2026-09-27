@@ -24,7 +24,7 @@ Eine ausstehende Freigabe oder Frage braucht eine Person. Ein arbeitender Agent 
 
 Wähle eine Node auf dem Canvas des Laufs. **Aufgelöste Eingabe** zeigt die Werte nach der Vorlagenauswertung, **Ausgabe** das Ergebnis des Schritts. So unterscheidest du einen falschen Verweis von einem Dienstausfall.
 
-Node-Zustände sind unter anderem **Gelaufen**, **Übersprungen**, **Fehlgeschlagen**, **Nie erreicht** und **Noch nicht erreicht**. Eine Node kann wegen einer falschen Bedingung, einer Abhängigkeit, eines anderen Zweigs oder einer Weiterlaufregel übersprungen werden. Das ist nicht immer ein Fehler.
+Node-Zustände sind unter anderem **Gelaufen**, **Übersprungen**, **Fehlgeschlagen**, **Nie erreicht**, **Noch nicht erreicht** und bei einem gestoppten Lauf **Hier gestoppt** für die Node, an der der Lauf beim Stoppen stand. Eine Node kann wegen einer falschen Bedingung, einer Abhängigkeit, eines anderen Zweigs oder einer Weiterlaufregel übersprungen werden. Das ist nicht immer ein Fehler.
 
 Beispielsweise kann eine Erinnerungs-Node den Kundennamen, aber eine leere Rechnungs-ID erhalten. Prüfe die Ausgabe davor. Verwendet der Datensatz inzwischen ein anderes Feld, korrigiere den Verweis statt der Mail-Zugangsdaten. Prüfe danach die aufgelöste Eingabe in einem neuen Testlauf.
 
@@ -34,7 +34,7 @@ Anwendungen erhalten über die [Lauf-API](/de/develop/api-reference) zusätzlich
 
 Die Auswirkungen protokollieren Connector-Schreibvorgänge mit Node, Connector und Eingabe. Tests verwenden festgelegte Ersatzantworten; Live-Aktionen können externe Systeme ändern. Fehlen protokollierte Auswirkungen, zeigt der Lauf das ausdrücklich an.
 
-Lies diese Liste vor einer Wiederholung. Ein späterer Fehler macht eine frühere Nachricht oder Änderung nicht rückgängig. Ist die Zustellung entscheidend, prüfe auch den empfangenden Dienst. Die Auswirkungen bleiben beim Lauf, bis Löschung oder Aufbewahrungsregeln den Datensatz entfernen. Sie sind kein eigenständiges dauerhaftes Archiv.
+Lies diese Liste vor einer Wiederholung. Ein späterer Fehler macht eine frühere Nachricht oder Änderung nicht rückgängig. Ist die Zustellung entscheidend, prüfe auch den empfangenden Dienst. Die Auswirkungen bleiben beim Lauf, bis Löschung oder Aufbewahrungsregeln den Datensatz entfernen. Sie sind kein eigenständiges dauerhaftes Archiv. Wird die Automatisierung gelöscht, bleiben ihre Läufe: Die Laufseite öffnet weiterhin, mit dem Löschdatum markiert und aus der Aufzeichnung des Laufs gezeichnet, bis die Aufbewahrung sie entfernt.
 
 ## Fortsetzung und automatische Wiederholungen verstehen
 
@@ -48,7 +48,7 @@ Ein ausgeschöpftes Ausführungszeitfenster, eine abgelaufene Frage oder eine Ab
 
 ## Stoppen oder den Workflow korrigieren
 
-Wähle bei einem nicht abgeschlossenen Lauf **Lauf stoppen**, wenn du ihn abbrechen möchtest. Der Abbruch verhindert weitere Arbeit an den Ausführungsgrenzen des Ablaufs. Bereits erfolgte Änderungen werden nicht zurückgesetzt. Endet der Lauf, bevor der Abbruch ihn erreicht, bleibt sein abgeschlossenes Ergebnis erhalten.
+Wähle bei einem nicht abgeschlossenen Lauf **Lauf stoppen**, wenn du ihn abbrechen möchtest, und bestätige. Der Abbruch verhindert weitere Arbeit an den Ausführungsgrenzen des Ablaufs. Bereits erfolgte Änderungen werden nicht zurückgesetzt. Endet der Lauf, bevor der Abbruch ihn erreicht, bleibt sein abgeschlossenes Ergebnis erhalten.
 
 Korrigiere einen Dokumentfehler im Editor an der betroffenen Eingabe oder Node und speichere eine Version mit aussagekräftiger Nachricht. Teste mit typischen Eingaben und prüfe Werte und Ausgabe, nicht nur den Erfolgsstatus. Schalte die geprüfte Version live. Zeitpläne und Webhooks verwenden danach diese Version; der ältere fehlgeschlagene Lauf dokumentiert weiterhin die alte.
 

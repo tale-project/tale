@@ -118,7 +118,10 @@ export function TaskCard({
       shadow="sm"
       interactive
       className={cn(
-        'group cursor-pointer text-left hover:shadow-md',
+        // `relative`: the title button's stretched ::after covers the card,
+        // so a click anywhere on it opens the task without the card itself
+        // being a button (a button may not contain the pickers' buttons).
+        'group relative cursor-pointer text-left hover:shadow-md',
         task.archivedAt != null && 'opacity-70',
         // While dragging, the in-place card becomes a faint placeholder marking
         // the slot the floating overlay will land in.
@@ -127,26 +130,7 @@ export function TaskCard({
         dragging && 'ring-border rotate-1 shadow-lg ring-1',
       )}
     >
-      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- draggable kanban card; dnd-kit's {...sortable.attributes} injects role/tabIndex at runtime and keyboard activation is handled via onKeyDown */}
-      <div
-        ref={sortable.setNodeRef}
-        style={style}
-        {...sortable.attributes}
-        {...sortable.listeners}
-        onClick={() => onOpen?.(task)}
-        onKeyDown={(e) => {
-          // Enter always opens the task. Space starts a keyboard drag via
-          // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`),
-          // so we must forward to it rather than shadow it — but only when the
-          // card is draggable. For read-only cards Space opens instead.
-          if (e.key === 'Enter' || (e.key === ' ' && !editable)) {
-            e.preventDefault();
-            onOpen?.(task);
-            return;
-          }
-          sortable.listeners?.onKeyDown?.(e);
-        }}
-      >
+      <div ref={sortable.setNodeRef} style={style}>
         {identifier || task.archivedAt != null ? (
           <Row gap={1} align="center">
             {identifier && (
@@ -163,9 +147,46 @@ export function TaskCard({
             )}
           </Row>
         ) : null}
-        <Text as="p" variant="label" className="line-clamp-2 leading-snug">
+        {/* The ONE interactive element of the card: its sortable activator
+            (dnd-kit's role/tabIndex/keyboard listeners land here) and its
+            open target. The stretched ::after makes the whole card its hit
+            area; the pickers below sit above it (`relative z-10`). A
+            read-only card is a plain button: dnd-kit's attributes would
+            announce it disabled ("sortable", aria-disabled) although it
+            still opens the task. */}
+        <button
+          type="button"
+          ref={sortable.setActivatorNodeRef}
+          {...(editable ? sortable.attributes : {})}
+          {...(editable ? sortable.listeners : {})}
+          onClick={() => onOpen?.(task)}
+          onKeyDown={(e) => {
+            // Enter always opens the task. Space starts a keyboard drag via
+            // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`),
+            // so we must forward to it rather than shadow it — but only when
+            // the card is draggable. For read-only cards Space opens instead.
+            if (e.key === 'Enter' || (e.key === ' ' && !editable)) {
+              e.preventDefault();
+              onOpen?.(task);
+              return;
+            }
+            sortable.listeners?.onKeyDown?.(e);
+          }}
+          onKeyUp={(e) => {
+            // A native button clicks on Space KEYUP, so a keyboard drag
+            // (or drop) on Space would also open the task; keydown already
+            // did whatever Space means for this card.
+            if (e.key === ' ') e.preventDefault();
+          }}
+          className={cn(
+            'text-foreground line-clamp-2 w-full text-left text-sm leading-snug font-medium',
+            'focus-visible:outline-none',
+            "after:absolute after:inset-0 after:rounded-[inherit] after:content-['']",
+            'focus-visible:after:ring-ring focus-visible:after:ring-2',
+          )}
+        >
           {task.title}
-        </Text>
+        </button>
 
         {task.labels && task.labels.length > 0 && (
           <Row gap={1} align="stretch" wrap className="mt-2">
@@ -181,7 +202,9 @@ export function TaskCard({
           </Row>
         )}
 
-        <Row gap={2} justify="between" className="mt-3">
+        {/* Above the title's stretched hit layer: the pickers keep their own
+            clicks, and the indicators' tooltips still get their hover. */}
+        <Row gap={2} justify="between" className="relative z-10 mt-3">
           <div className="flex items-center gap-1.5">
             <PriorityPicker
               priority={task.priority ?? null}

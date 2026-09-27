@@ -26,7 +26,7 @@ Choisis l’**Intervalle d'analyse**, puis **Enregistrer**. La valeur par défau
 
 ## Garder une liste d’URL ciblée
 
-Une liste récupère uniquement les adresses fournies et ne suit aucun autre lien. Elle peut couvrir plusieurs sites ; Tale les regroupe en une source par site. Ajouter une liste à une source de type liste d’URL existante complète les adresses sans retirer les précédentes et actualise son intervalle de scan.
+Une liste récupère uniquement les adresses fournies et ne suit aucun autre lien. Elle peut couvrir plusieurs sites ; Tale les regroupe en une source par site. Une adresse listée en `http://` est acceptée et récupérée en `https://`, contrairement à un domaine `http://` en mode site entier, qui est refusé ; une page qui ne répond qu’en clair reste inaccessible dans les deux cas. Ajouter une liste à une source de type liste d’URL existante complète les adresses sans retirer les précédentes et actualise son intervalle de scan.
 
 Utilise des URL publiques complètes. Les PDF et documents Office modernes liés peuvent être indexés s’ils contiennent du texte lisible. Les images et scans sans texte extractible ne deviennent pas des contenus recherchables.
 

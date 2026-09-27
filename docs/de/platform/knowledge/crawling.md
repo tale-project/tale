@@ -26,7 +26,7 @@ Wähle das **Scan-Intervall** und **Speichern**. Standard sind sechs Stunden; di
 
 ## Eine URL-Liste gezielt halten
 
-Eine URL-Liste ruft nur die angegebenen Adressen ab und folgt keinen weiteren Links. Sie darf Seiten mehrerer Websites enthalten. Tale fasst sie zu einer Quelle pro Website zusammen. Eine weitere Liste für eine vorhandene URL-Listenquelle ergänzt Adressen, ohne bestehende zu entfernen, und aktualisiert ihr Scan-Intervall.
+Eine URL-Liste ruft nur die angegebenen Adressen ab und folgt keinen weiteren Links. Sie darf Seiten mehrerer Websites enthalten. Tale fasst sie zu einer Quelle pro Website zusammen. Eine gelistete `http://`-Adresse wird angenommen und als `https://` abgerufen — anders als eine `http://`-Domain im Modus für ganze Websites, die abgewiesen wird; eine Seite, die nur unverschlüsselt antwortet, bleibt in beiden Fällen unerreichbar. Eine weitere Liste für eine vorhandene URL-Listenquelle ergänzt Adressen, ohne bestehende zu entfernen, und aktualisiert ihr Scan-Intervall.
 
 Nutze vollständige öffentliche URLs. Verlinkte PDF- und moderne Office-Dateien lassen sich indexieren, wenn sie lesbaren Text enthalten. Bilder und Scans ohne extrahierbaren Text werden dadurch nicht durchsuchbar.
 

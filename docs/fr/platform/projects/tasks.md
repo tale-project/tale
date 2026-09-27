@@ -3,7 +3,7 @@ title: Gérer les tâches d’un projet
 description: Crée une tâche, désigne son responsable, suis sa progression et examine le résultat au même endroit.
 ---
 
-Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Tu dois pouvoir modifier le projet pour changer ses tâches.
+Une tâche regroupe le but d’un travail, son responsable, son statut, ses fichiers et les échanges autour du résultat. Utilise le tableau du projet pour le travail confié à une personne comme pour celui délégué à un agent. Tu dois pouvoir modifier le projet pour changer ses tâches, et le projet doit être actif : un projet archivé reste en lecture seule jusqu’à ce qu’un administrateur le restaure.
 
 <Frame caption="Le tableau classe les tâches par statut. Passe à Liste pour retrouver les mêmes tâches sous forme de lignes.">
 
@@ -62,7 +62,7 @@ Ouvre la tâche pour ajouter une description, des pièces jointes, des dates, de
 
 Saisis `@` dans un commentaire pour ouvrir le sélecteur de mentions. Mentionner l’agent assigné constitue une instruction : cela peut guider une exécution en cours ou en démarrer une autre si l’agent est inactif. Un commentaire sans mention conserve l’échange sans demander cette action à l’agent.
 
-Utilise **Sous-tâches** pour séparer des résultats vérifiables indépendamment. Une tâche parente ne peut pas être clôturée tant que ses sous-tâches restent ouvertes. **Dépendances** indique ce qui bloque la tâche et ce qu’elle bloque. Les dépendances circulaires sont refusées.
+Utilise **Sous-tâches** pour séparer des résultats vérifiables indépendamment. Une sous-tâche nomme sa tâche parente en haut de ses détails (**Partie de …**) ; clique dessus pour y remonter. Une tâche parente ne peut pas être clôturée tant que ses sous-tâches restent ouvertes. **Dépendances** indique ce qui bloque la tâche et ce qu’elle bloque. Les dépendances circulaires sont refusées.
 
 ## Vérifier le résultat avant de clôturer
 

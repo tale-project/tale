@@ -11,20 +11,28 @@ import type { ArenaVerdict } from './types';
 
 interface ArenaSummaryProps {
   byVerdict: Record<ArenaVerdict, number>;
+  /** Verdicts cast on two copies of the same model — no comparison. */
+  selfMatches?: number;
   total: number;
 }
 
 // A vs B is a user-picked position (model selector), not random — so
 // aggregating "A wins" / "B wins" across rows mixes different model
 // pairs and yields no actionable signal. We surface a position-agnostic
-// triple instead: decisive votes, ties, and both-bad. Per-pair
-// matchups live in `top-matchups-feedback-table.tsx`.
+// triple instead: decisive votes, ties, and both-bad — over the same rows
+// the matchup table counts, so the two agree — plus the self-matches the
+// table leaves out, shown apart when there are any. Per-pair matchups live
+// in `top-matchups-feedback-table.tsx`.
 type ArenaSummaryCell = {
-  key: 'decisive' | 'tie' | 'bothBad';
+  key: 'decisive' | 'tie' | 'bothBad' | 'sameModel';
   count: number;
 };
 
-export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
+export function ArenaSummary({
+  byVerdict,
+  selfMatches = 0,
+  total,
+}: ArenaSummaryProps) {
   const { t: tAnalytics } = useT('analytics');
   const { formatNumber } = useFormatNumber();
   const loading = useSkeleton();
@@ -41,11 +49,14 @@ export function ArenaSummary({ byVerdict, total }: ArenaSummaryProps) {
     },
     { key: 'tie', count: byVerdict.tie ?? 0 },
     { key: 'bothBad', count: byVerdict.both_bad ?? 0 },
+    ...(selfMatches > 0
+      ? [{ key: 'sameModel' as const, count: selfMatches }]
+      : []),
   ];
 
   return (
     <MetricsSection title={tAnalytics('feedback.arena.title')}>
-      <StatCardGrid cols={3}>
+      <StatCardGrid cols={selfMatches > 0 ? 4 : 3}>
         {cells.map((cell) => (
           <StatCard
             key={cell.key}

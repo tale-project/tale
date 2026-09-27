@@ -1,4 +1,5 @@
 import { dispatch } from '../handler';
+import { hasDotSegment } from '../paths';
 import {
   WebDAVBodyTooLarge,
   type WebDAVCtx,
@@ -10,10 +11,21 @@ import { firstForwardedFor } from './headers';
 // Hono adapter. Hono delivers a standard Web Fetch Request and expects
 // a standard Web Fetch Response back. The dispatch layer is framework-
 // neutral so this adapter is the only Hono-specific glue.
+//
+// `rawTarget` is the request line as the wire carried it (the route reads
+// it off the Node binding): `req.url` is a parsed URL, whose dot-segments
+// are already folded, so a `..` / `%2e%2e` segment is refused here — 404,
+// before any routing, the way the edge refuses it — and never resolved.
+// Without the raw target (a host that hands over no `IncomingMessage`)
+// only the parsed path is judged, which the path parser covers.
 export async function fetchAdapter(
   req: Request,
   ctx: WebDAVCtx,
+  options: { rawTarget?: string } = {},
 ): Promise<Response> {
+  if (options.rawTarget !== undefined && hasDotSegment(options.rawTarget)) {
+    return new Response('Not found', { status: 404 });
+  }
   const url = new URL(req.url);
 
   // Body is streamed straight through for PUT. For XML methods we

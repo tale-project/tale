@@ -14,7 +14,8 @@ import { Select } from '@tale/ui/select';
 import { Switch } from '@tale/ui/switch';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { KeyRound, Trash2 } from 'lucide-react';
+import { toast } from '@tale/ui/use-toast';
+import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -25,10 +26,8 @@ import {
   useSetAutomationTrigger,
 } from '../hooks/mutations';
 import { useAutomationTriggers } from '../hooks/queries';
-import {
-  listTimezoneOptions,
-  previewCronExpression,
-} from '../lib/cron-preview';
+import { useCronPreview } from '../hooks/use-cron-preview';
+import { listTimezoneOptions } from '../lib/cron-preview';
 import { automationErrorMessage } from '../lib/errors';
 
 const TRIGGER_KINDS = ['schedule', 'webhook', 'event'] as const;
@@ -62,8 +61,10 @@ export type TriggerEditorController = {
  * chance to copy it; afterwards only "a token exists" survives.
  *
  * A trigger fires nothing until a version is deployed — `beginRun` resolves
- * through the deployment — which is why the panel never warns about arming a
- * draft: arming is safe by construction.
+ * through the deployment — so arming a draft is safe by construction; the
+ * panel SAYS so under the schedule ("won't start until a version is
+ * deployed"), and says "paused" while the binding is off, instead of
+ * promising a next run that nothing will start.
  *
  * Lives in the inspector when no node is selected; fields stack in one
  * column so they fit the panel. Prefer {@link WorkflowSettings} for the
@@ -79,12 +80,16 @@ export function TriggerEditor({
    * through `onControllerChange` (the workflow inspector footer).
    */
   showActions = true,
+  deployedVersion,
   onControllerChange,
 }: {
   organizationId: string;
   name: string;
   canEdit: boolean;
   showActions?: boolean;
+  /** The version triggers start — undefined while nothing is deployed, when
+   * the panel says a schedule will not start rather than when it will. */
+  deployedVersion?: number | undefined;
   onControllerChange?: (controller: TriggerEditorController | null) => void;
 }) {
   const { t } = useT('automations');
@@ -111,10 +116,23 @@ export function TriggerEditor({
   const [cron, setCron] = useState('');
   const [timezone, setTimezone] = useState('UTC');
   const [eventName, setEventName] = useState('');
-  const [enabled, setEnabled] = useState(true);
+  // A NEW binding starts OFF: the docs say to keep Enabled off while
+  // preparing, and a binding that armed itself the moment a cron was typed
+  // started runs nobody had asked for yet.
+  const [enabled, setEnabled] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [mintedToken, setMintedToken] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // The two irreversible webhook moves ask first: replacing a live webhook
+  // with another kind revokes its URL the moment the bind commits, and a
+  // rotation swaps it — the sending system breaks either way, so neither
+  // happens on a single click.
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+  // Whether the author opened the form for a binding that does not exist
+  // yet — without one the panel says "no trigger" instead of drawing an
+  // empty schedule that looks armed.
+  const [adding, setAdding] = useState(false);
 
   // Load the stored binding into the form whenever it changes under us —
   // the row is the truth; local state only carries unsaved edits.
@@ -125,6 +143,7 @@ export function TriggerEditor({
     setTimezone(stored.timezone ?? 'UTC');
     setEventName(stored.event ?? '');
     setEnabled(stored.enabled);
+    setAdding(false);
   }, [stored]);
 
   const dirty = useMemo(() => {
@@ -134,7 +153,7 @@ export function TriggerEditor({
         (timezone !== '' && timezone !== 'UTC') ||
         eventName !== '' ||
         kind !== 'schedule' ||
-        !enabled
+        enabled
       );
     }
     return (
@@ -155,32 +174,40 @@ export function TriggerEditor({
     [timezone],
   );
 
-  const cronPreview = useMemo(
-    () => previewCronExpression(cron, timezone || 'UTC'),
-    [cron, timezone],
-  );
+  // The validator's verdict and the words under the field — shared with
+  // the blank-automation wizard, so both surfaces refuse the same crons.
+  const {
+    preview: cronPreview,
+    description: cronNextDescription,
+    invalidText: cronInvalidText,
+    pattern: cronPattern,
+  } = useCronPreview(cron, timezone, kind === 'schedule');
 
+  // What the schedule will actually do: nothing while the switch is off,
+  // nothing until a version is deployed (the occurrence it WOULD take is
+  // still named, so the author knows what arming means), the next run else.
   const cronDescription = useMemo(() => {
-    if (kind !== 'schedule') return undefined;
-    if (cronPreview.kind === 'empty') return t('trigger.cronHint');
-    if (cronPreview.kind === 'invalid') return t('trigger.cronInvalid');
-    const next = t('trigger.cronNext', {
-      at: formatDate(cronPreview.nextAt, 'long'),
-    });
-    if (cronPreview.pattern?.type === 'everyMinutes') {
-      return `${t('trigger.cronEveryMinutes', { n: cronPreview.pattern.n })} · ${next}`;
+    if (kind !== 'schedule' || cronPreview.kind !== 'ok') {
+      return cronNextDescription;
     }
-    if (cronPreview.pattern?.type === 'everyHours') {
-      return `${t('trigger.cronEveryHours', { n: cronPreview.pattern.n })} · ${next}`;
+    const lead = cronPattern === undefined ? '' : `${cronPattern} · `;
+    if (!enabled) return `${lead}${t('trigger.paused')}`;
+    if (deployedVersion === undefined) {
+      return `${lead}${t('trigger.notDeployed', {
+        at: formatDate(cronPreview.nextAt, 'long'),
+      })}`;
     }
-    if (cronPreview.pattern?.type === 'dailyAt') {
-      const { hour, minute } = cronPreview.pattern;
-      const hh = String(hour).padStart(2, '0');
-      const mm = String(minute).padStart(2, '0');
-      return `${t('trigger.cronDailyAt', { time: `${hh}:${mm}` })} · ${next}`;
-    }
-    return next;
-  }, [kind, cronPreview, t, formatDate]);
+    return cronNextDescription;
+  }, [
+    kind,
+    cronPreview,
+    cronNextDescription,
+    cronPattern,
+    enabled,
+    deployedVersion,
+    t,
+    formatDate,
+  ]);
 
   const save = (rotateToken?: boolean) => {
     setRefusal(null);
@@ -201,6 +228,11 @@ export function TriggerEditor({
       {
         onSuccess: (result) => {
           if (result.token !== undefined) setMintedToken(result.token);
+          // The server names the live URL this bind stopped answering on —
+          // say so, since nothing on the page shows the old URL any more.
+          if (result.revoked === 'webhook') {
+            toast({ title: t('trigger.revokedToast') });
+          }
         },
         onError: (error) => {
           setRefusal(automationErrorMessage(error));
@@ -209,12 +241,30 @@ export function TriggerEditor({
     );
   };
 
+  // Whether saving as things stand would revoke a live webhook URL: a
+  // token-bearing webhook binding, being replaced by another kind.
+  const revokesWebhook =
+    stored?.kind === 'webhook' && stored.hasToken && kind !== 'webhook';
+
+  /** Save, asking first when the save would revoke a live webhook URL. */
+  const requestSave = () => {
+    if (revokesWebhook) {
+      setConfirmRevoke(true);
+      return;
+    }
+    save();
+  };
+
   const saveRef = useRef(save);
   saveRef.current = save;
+  const requestSaveRef = useRef(requestSave);
+  requestSaveRef.current = requestSave;
 
   const blocked = kind === 'schedule' && cronPreview.kind === 'invalid';
   const canRotate = kind === 'webhook' && stored?.hasToken === true;
   const canRemove = stored !== undefined;
+  // The form draws for a stored binding, or once the author asked to add one.
+  const showForm = stored !== undefined || (canEdit && adding);
 
   useEffect(() => {
     if (onControllerChange === undefined) return undefined;
@@ -226,10 +276,10 @@ export function TriggerEditor({
       canRemove,
       removePending: deleteTrigger.isPending,
       save: () => {
-        saveRef.current();
+        requestSaveRef.current();
       },
       rotate: () => {
-        saveRef.current(true);
+        setConfirmRotate(true);
       },
       requestRemove: () => {
         setConfirmRemove(true);
@@ -271,7 +321,7 @@ export function TriggerEditor({
             </Text>
           )}
         </div>
-        {(canEdit || stored !== undefined) && (
+        {showForm && (
           <Switch
             label={t('trigger.enabledLabel')}
             checked={enabled}
@@ -282,10 +332,24 @@ export function TriggerEditor({
       </header>
 
       <div className="flex min-h-0 flex-col gap-3">
-        {stored === undefined && !canEdit && (
-          <Text as="p" variant="muted" className="text-sm">
-            {t('trigger.none')}
-          </Text>
+        {!showForm && (
+          <div className="flex flex-col items-start gap-2">
+            <Text as="p" variant="muted" className="text-sm">
+              {t('trigger.none')}
+            </Text>
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={Plus}
+                onClick={() => {
+                  setAdding(true);
+                }}
+              >
+                {t('trigger.add')}
+              </Button>
+            )}
+          </div>
         )}
 
         {refusal !== null && (
@@ -309,7 +373,7 @@ export function TriggerEditor({
           />
         )}
 
-        {(canEdit || stored !== undefined) && (
+        {showForm && (
           <div className="grid gap-3">
             <Select
               label={t('trigger.kindLabel')}
@@ -332,11 +396,7 @@ export function TriggerEditor({
                   description={
                     cronPreview.kind === 'invalid' ? undefined : cronDescription
                   }
-                  error={
-                    cronPreview.kind === 'invalid'
-                      ? t('trigger.cronInvalid')
-                      : undefined
-                  }
+                  error={cronInvalidText}
                 >
                   <Input
                     id={cronId}
@@ -404,7 +464,7 @@ export function TriggerEditor({
         )}
       </div>
 
-      {canEdit && showActions && (
+      {canEdit && showActions && showForm && (
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
@@ -414,12 +474,12 @@ export function TriggerEditor({
               (kind === 'schedule' && cronPreview.kind === 'invalid')
             }
             disabledReason={
-              kind === 'schedule' && cronPreview.kind === 'invalid'
-                ? t('trigger.cronInvalid')
+              kind === 'schedule' && cronInvalidText !== undefined
+                ? cronInvalidText
                 : t('trigger.nothingToSave')
             }
             onClick={() => {
-              save();
+              requestSave();
             }}
           >
             {t('trigger.save')}
@@ -431,7 +491,7 @@ export function TriggerEditor({
               icon={KeyRound}
               isLoading={setTrigger.isPending}
               onClick={() => {
-                save(true);
+                setConfirmRotate(true);
               }}
             >
               {t('trigger.rotate')}
@@ -454,6 +514,34 @@ export function TriggerEditor({
       )}
 
       <ConfirmDialog
+        open={confirmRevoke}
+        onOpenChange={setConfirmRevoke}
+        title={t('trigger.revokeConfirm.title')}
+        description={t('trigger.revokeConfirm.body')}
+        confirmText={t('trigger.revokeConfirm.confirm')}
+        variant="destructive"
+        isLoading={setTrigger.isPending}
+        onConfirm={() => {
+          setConfirmRevoke(false);
+          save();
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmRotate}
+        onOpenChange={setConfirmRotate}
+        title={t('trigger.rotateConfirm.title')}
+        description={t('trigger.rotateConfirm.body')}
+        confirmText={t('trigger.rotate')}
+        variant="destructive"
+        isLoading={setTrigger.isPending}
+        onConfirm={() => {
+          setConfirmRotate(false);
+          save(true);
+        }}
+      />
+
+      <ConfirmDialog
         open={confirmRemove}
         onOpenChange={setConfirmRemove}
         title={t('trigger.removeTitle')}
@@ -469,6 +557,13 @@ export function TriggerEditor({
             {
               onSuccess: () => {
                 setConfirmRemove(false);
+                // Back to "no trigger" — with a fresh, OFF form next time.
+                setAdding(false);
+                setKind('schedule');
+                setCron('');
+                setTimezone('UTC');
+                setEventName('');
+                setEnabled(false);
               },
               onError: (error) => {
                 setRefusal(automationErrorMessage(error));

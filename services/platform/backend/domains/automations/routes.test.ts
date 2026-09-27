@@ -18,15 +18,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { answerAsk, deployedVersion, versionRow } = vi.hoisted(() => ({
-  answerAsk: vi.fn(),
-  deployedVersion: vi.fn(),
-  versionRow: vi.fn(),
-}));
+const { answerAsk, automationTombstone, deployedVersion, versionRow } =
+  vi.hoisted(() => ({
+    answerAsk: vi.fn(),
+    automationTombstone: vi.fn(),
+    deployedVersion: vi.fn(),
+    versionRow: vi.fn(),
+  }));
 
 vi.mock('./store.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./store.ts')>();
-  return { ...actual, answerAsk, deployedVersion, versionRow };
+  return {
+    ...actual,
+    answerAsk,
+    automationTombstone,
+    deployedVersion,
+    versionRow,
+  };
 });
 
 vi.mock('../../auth/session.ts', () => ({
@@ -86,6 +94,7 @@ function row(version: number, unpinnedAgentId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  automationTombstone.mockResolvedValue(null);
 });
 
 describe('POST /asks/:askId/answer', () => {
@@ -115,6 +124,81 @@ describe('POST /asks/:askId/answer', () => {
       answer: 'Account 4400.',
       answeredBy: 'u1',
     });
+  });
+});
+
+/**
+ * `?version=N` on an automation that EXISTS is a missing version, not a
+ * missing automation (2026-09-26 evaluation, D-04): the door answers the
+ * REST code for that case with the latest version beside it, so the editor
+ * can say which version is missing and offer the latest instead of the
+ * automation-level not-found page under the automation's own tabs.
+ */
+describe('GET /:name?version= — a version the automation does not have', () => {
+  it('answers AUTOMATION_VERSION_UNKNOWN with the latest version', async () => {
+    versionRow.mockImplementation(
+      (_sql: unknown, _org: string, _name: string, version?: number) =>
+        Promise.resolve(version === undefined ? row(3, 'agent') : null),
+    );
+
+    const res = await makeApp().request('/ops/greet?version=99&orgId=o1');
+    const body: unknown = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toMatchObject({
+      error: 'AUTOMATION_VERSION_UNKNOWN',
+      data: { latestVersion: 3 },
+    });
+    expect(deployedVersion).not.toHaveBeenCalled();
+  });
+
+  it('keeps the plain not-found for an automation that does not exist', async () => {
+    versionRow.mockResolvedValue(null);
+
+    const res = await makeApp().request('/ops/ghost?version=99&orgId=o1');
+    const body: unknown = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toEqual({ error: 'automation not found' });
+  });
+});
+
+// A deleted automation keeps its runs, but its run page read the plain 404
+// and rendered blank (2026-09-26 evaluation, D-14): the read now names the
+// deletion, with its date, so the page can show the retained history.
+describe('GET /:name — a deleted automation', () => {
+  it('answers AUTOMATION_DELETED with the tombstone date, still a 404', async () => {
+    versionRow.mockResolvedValue(null);
+    automationTombstone.mockResolvedValue({
+      deletedAt: 1789363170729,
+      deletedBy: 'u1',
+    });
+
+    const res = await makeApp().request('/ops/gone?orgId=o1');
+    const body: unknown = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body).toMatchObject({
+      error: 'AUTOMATION_DELETED',
+      data: { deletedAt: 1789363170729 },
+    });
+    // The name rides after `/api/app/automations/` on the mounted app; the
+    // routes are tested unmounted here, so only the org is asserted.
+    expect(automationTombstone).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      expect.any(String),
+    );
+  });
+
+  it('never consults the tombstone for a name that still exists', async () => {
+    versionRow.mockResolvedValue(row(1, 'agent'));
+    deployedVersion.mockResolvedValue(undefined);
+
+    const res = await makeApp().request('/ops/greet?orgId=o1');
+
+    expect(res.status).toBe(200);
+    expect(automationTombstone).not.toHaveBeenCalled();
   });
 });
 

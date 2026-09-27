@@ -7,7 +7,11 @@ import type {
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useBoardDnd, type BoardMove } from './use-board-dnd';
+import {
+  createBoardCollisionDetection,
+  useBoardDnd,
+  type BoardMove,
+} from './use-board-dnd';
 
 interface Row {
   id: string;
@@ -236,5 +240,73 @@ describe('useBoardDnd — moveToLaneEnd (keyboard path)', () => {
       doing: [],
       done: ['d'],
     });
+  });
+});
+
+describe('createBoardCollisionDetection', () => {
+  type Rect = { top: number; left: number; width: number; height: number };
+  const rect = ({ top, left, width, height }: Rect) => ({
+    top,
+    left,
+    width,
+    height,
+    bottom: top + height,
+    right: left + width,
+  });
+  // Two lanes side by side: "todo" (x 0–200) holds cards a (y 40–100) and
+  // b (y 110–170); "doing" (x 220–420) is empty.
+  const rects = new Map<string, ReturnType<typeof rect>>([
+    ['todo', rect({ top: 0, left: 0, width: 200, height: 600 })],
+    ['a', rect({ top: 40, left: 10, width: 180, height: 60 })],
+    ['b', rect({ top: 110, left: 10, width: 180, height: 60 })],
+    ['doing', rect({ top: 0, left: 220, width: 200, height: 600 })],
+  ]);
+  const columns = { todo: ['a', 'b'], doing: [] };
+  const detect = createBoardCollisionDetection(() => columns);
+
+  function args(
+    pointer: { x: number; y: number } | null,
+    collisionRect = rect({ top: 40, left: 10, width: 180, height: 60 }),
+  ) {
+    return {
+      active: { id: 'a' },
+      collisionRect,
+      droppableRects: rects,
+      droppableContainers: [...rects.keys()].map((id) => ({ id })),
+      pointerCoordinates: pointer,
+    } as unknown as Parameters<typeof detect>[0];
+  }
+
+  it('drops into the empty lane under the pointer, not the neighbouring card', () => {
+    // 30 px into the empty lane, level with card b — closestCorners would
+    // pick b (todo); the pointer says doing.
+    expect(detect(args({ x: 250, y: 130 })).map((c) => c.id)).toEqual([
+      'doing',
+    ]);
+  });
+
+  it('prefers the card under the pointer', () => {
+    expect(detect(args({ x: 100, y: 130 })).map((c) => c.id)).toEqual(['b']);
+  });
+
+  it("judges only the pointed lane's cards in the gap between them", () => {
+    const ids = detect(
+      args(
+        { x: 100, y: 105 },
+        rect({ top: 80, left: 10, width: 180, height: 60 }),
+      ),
+    ).map((c) => c.id);
+    expect(ids[0]).toBe('b');
+    expect(ids).not.toContain('doing');
+  });
+
+  it('targets the lane surface below its last card (append)', () => {
+    expect(detect(args({ x: 100, y: 400 })).map((c) => c.id)).toEqual(['todo']);
+  });
+
+  it('falls back to closest corners without a pointer (keyboard)', () => {
+    const ids = detect(args(null)).map((c) => c.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids[0]).toBe('a');
   });
 });

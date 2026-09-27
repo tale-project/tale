@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 38 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 48 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -364,6 +364,30 @@ records and delete them after.
   **Something went wrong** with **Try again** — never a table of the one
   folder row with **Showing all 1 document**. Unblock and **Try again** →
   the documents appear without navigating away.
+- [ ] `KNOW-F26` · **Entry content renders as Markdown** — Knowledge entries →
+  **Add entry** (`knowledgeEntries.addButton`) with content
+  `Open **only on Thursdays**`, a `- ` bullet list and
+  `![plan](https://example.com/plan.png)`; save, edit the content once more,
+  then open the row → The details show bold text and
+  a real list (no literal asterisks) for the current version and for the
+  superseded one under **Version history**; no image is requested (network
+  panel shows no `plan.png`). The table's **Content** column shows one line
+  of plain text with the decoration stripped.
+- [ ] `KNOW-F27` · **The copyable id is named as a version id** — Open an
+  entry's details → The copyable identifier at the bottom is labelled
+  **Version ID** (`knowledgeEntries.viewDialog.entryId`) with a caption
+  saying a new ID is issued on every edit and that the topic identifies the
+  entry (`knowledgeEntries.viewDialog.entryIdHint`). **Edit** the content,
+  save, reopen the details → the Version ID differs from the one copied
+  before while the topic and **Version history** carry the previous version.
+- [ ] `KNOW-F28` · **An Owner or Admin may pick any team** — Signed in as an
+  Owner who is a member of none of the org's teams (Settings › Teams lists at
+  least one synced team) → Documents → **Upload documents** → **Assign to
+  teams**, a row's **Assign team**, **New folder** → **Team**, and the
+  OneDrive / Google Drive import dialogs' team picker → Each lists every team
+  of the organization, synced ones included, as the documents guide says. As
+  a plain Member of one team → the same pickers list that team only. Assign a
+  document to a team you are not in → its preview sidebar names that team.
 
 ## Boundary & error tests
 
@@ -374,7 +398,13 @@ records and delete them after.
 - [ ] `KNOW-B2` · **Invalid domain** — KNOW-F7 Websites → **Add website** →
   **Domain** = `not a url` → submit → Inline error **Enter a valid domain
   (e.g. example.com)** (`websites.validation.validDomain`); dialog stays open,
-  nothing added (verified live).
+  nothing added (verified live). Then **Domain** = `https://example.org:8443`
+  → **Save** → ONE toast **Couldn't add website** (`websites.toast.addError`)
+  whose description is the https-host sentence
+  (`websites.toast.addErrorReason.domainInvalid`); `https://169.254.169.254/`
+  → the same title with the not-reachable sentence
+  (`websites.toast.addErrorReason.notCrawlable`). Never a bare title, never a
+  second generic toast behind it.
 - [ ] `KNOW-B3` · **Unsupported upload** — KNOW-F1 upload a genuinely
   unsupported type (e.g. `.exe`) or a file over the size cap (the cap is
   exactly 100 MB — a 100 MB file passes, 100 MB + 1 byte is rejected; enforced
@@ -402,6 +432,72 @@ records and delete them after.
   refused with the record message — nothing inside is removed. In every
   rejected or cancelled case the row version, preview content, approval state,
   and RAG state remain unchanged.
+- [ ] `KNOW-B6` · **Duplicate folder name is named** — Documents → **New
+  folder** `Reports`, then **New folder** `reports` beside it (a project's
+  files tab and an automation's uploads panel behave the same) → toast **A
+  folder with this name already exists** (`documents.folder.duplicateName`),
+  never the generic **Couldn't create folder**; nothing is created.
+- [ ] `KNOW-B7` · **A refused product names its field** — Products → **Add
+  product** → **Pricing & inventory** with currency `zzz` → **Next** stays on
+  the step and names the field (`products.edit.validation.currency`); a
+  refusal the form does not know (an image URL on a private host, pasted
+  under **Or paste a URL**) reaches **Create** as the toast **Couldn't create
+  product** (`products.create.toast.error`) with a description starting
+  `imageUrl:`; the same for **Edit**.
+- [ ] `KNOW-B9` · **Price and stock are refused at the step** — **Add
+  product** → **Pricing & inventory**: price `-5` → **Next** stays on the
+  step with **Price must be 0 or more**
+  (`products.edit.validation.priceNonNegative`) under **Price**; price `1e20`
+  → `products.edit.validation.priceTooLarge`; stock `-3` →
+  `products.edit.validation.stockNonNegative`; stock `1.5` →
+  `products.edit.validation.stockInteger`; **Review** is never shown. Price
+  `12.50`, stock `3` → **Next** → **Create** → the row shows them. **Edit** a
+  product to price `-5` → **Save** → the same field error, nothing saved.
+- [ ] `KNOW-B10` · **A refused image says why** — **Add product** → **Basics**:
+  upload an SVG carrying `onload="alert(1)"` → under **Image** and as a toast,
+  `products.edit.imageActiveContent` (names scripts/event handlers), never
+  "try again"; upload a `.txt` renamed `.png` →
+  `products.edit.imageUnsupported`; a 6 MB PNG →
+  `products.edit.imageTooLarge`. A passive SVG (`<rect/>` only) uploads and
+  previews; **Remove image** clears the message.
+- [ ] `KNOW-B11` · **An import lists its refused rows by line** — Products →
+  **Add product** → **From your device** with a CSV whose header is line 1
+  and whose lines 2–6 are: a good row; an empty name; price `notanumber`;
+  currency `EURO`; status `flying` → **Import** → toast **Import successful**
+  (`products.import.success`) "Imported 1 products, 4 failed"; the dialog
+  stays open with the banner **4 rows were not imported**
+  (`common.import.rowErrorsTitle`) listing `Row 3: name: must not be blank`,
+  `Row 4: price: must be a number`, `Row 5: currency: …`, `Row 6: status:
+  must be one of …` (`common.import.rowError`); the table shows the one
+  product, and no product carries `flying` or status **Draft** from an
+  unknown status. A file whose every row is refused → toast **No products
+  were imported** (`products.noneImported`) naming the first line, nothing
+  created. Contacts → **Upload contacts** with a CSV whose line 3 has no
+  email and line 4 an email already in the directory → the same banner:
+  `Row 3: email: must not be blank`, `Row 4: A contact with this email
+  already exists` (`contacts.import.errorCodes.duplicate_email`); line 2
+  imported. Reopening either dialog starts clean.
+- [ ] `KNOW-B12` · **A deleted product's image goes with it** — Products →
+  **Add product** with an uploaded PNG → **Create** → open the details and
+  copy the image address (`/api/app/products/images/<id>?orgId=…`); with the
+  signed-in session, GET it → 200. Delete the product → the same GET → 404
+  `PRODUCT_IMAGE_NOT_FOUND`, also for the uploader, also after a minute; the
+  object is gone from the org store. **Edit** another product with an
+  uploaded image → **Remove image** → **Save** → its old address → 404; the
+  same after replacing it with a second upload. Two products created with
+  the same pasted managed address → delete one → the other's image still
+  loads. Settings › Governance › Legal holds with an org-wide hold active →
+  **Delete** on a product → toast **Couldn't delete product**
+  (`products.actions.deleteFailed`), the row stays; **Remove image** →
+  **Save** succeeds and the old address still answers 200 for the uploader.
+- [ ] `KNOW-B8` · **`http://` in each add-website mode** — Websites → **Add
+  website** → **Whole website** → **Domain** = `http://example.net` → **Save**
+  → the field shows the https-host sentence inline
+  (`websites.toast.addErrorReason.domainInvalid`), no request leaves, no
+  toast. Switch to **URL list** → the hint under **URLs**
+  (`websites.urlListHint`) says pages are fetched over HTTPS and an `http://`
+  line is fetched as `https://`; paste `http://example.org/` → **Save** → the
+  source appears and its page is stored as `https://example.org/`.
 
 ## Accessibility (WCAG 2.1 AA)
 

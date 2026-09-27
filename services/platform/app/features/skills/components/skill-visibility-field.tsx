@@ -129,10 +129,8 @@ export function SkillVisibilityField({
 
       {value.visibility === 'team' && (
         <Stack gap={1}>
-          <Text as="span" variant="label">
-            {t('visibility.teamsLabel')}
-          </Text>
           <TeamMultiSelect
+            label={t('visibility.teamsLabel')}
             teams={orgTeams}
             selectedTeamIds={[...value.teams]}
             onSelectionChange={(teamIds) =>

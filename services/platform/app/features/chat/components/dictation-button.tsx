@@ -103,6 +103,9 @@ const DictationButtonComponent = forwardRef<
   const isListening = useFallback ? recorder.isListening : speech.isListening;
   const isTranscribing = useFallback ? recorder.isTranscribing : false;
   const error = useFallback ? recorder.error : speech.error;
+  // The recorder path surfaces its failures through the persistent pill,
+  // so only the Web Speech path needs the repeat counter.
+  const errorNonce = useFallback ? 0 : speech.errorNonce;
   const startListening = useFallback
     ? recorder.startListening
     : speech.startListening;
@@ -116,16 +119,28 @@ const DictationButtonComponent = forwardRef<
 
   const level = useMicrophoneLevel({ enabled: isListening });
 
+  // Keyed by nonce AND code: the same code on a second click is a new
+  // announcement, while a re-render with nothing new stays silent.
   const prevErrorRef = useRef<string | null>(null);
   useEffect(() => {
-    if (error && error !== prevErrorRef.current) {
-      // Map only known error codes to user-facing messages. Unknown codes
-      // (notably transient Web Speech codes like "network" or
-      // "service-not-allowed") get logged but not toasted as "not
-      // supported", which would be wrong and confusing.
+    const announcement = error === null ? null : `${errorNonce}:${error}`;
+    if (announcement !== null && announcement !== prevErrorRef.current) {
+      // Map the Web Speech / recorder error codes to user-facing messages.
+      // Unknown codes get logged, never toasted as "not supported", which
+      // would be wrong and confusing.
       let message: string | null = null;
-      if (error === 'not-allowed' || error === 'audio-capture') {
+      if (
+        error === 'not-allowed' ||
+        error === 'audio-capture' ||
+        // The page (an embedding, a policy) is not allowed to use the
+        // speech service — the remedy is the same permission check.
+        error === 'service-not-allowed'
+      ) {
         message = t('dictation.permissionDenied');
+      } else if (error === 'network') {
+        // The browser's speech service could not be reached; the
+        // microphone itself is fine.
+        message = t('dictation.serviceUnavailable');
       } else if (error === 'transcription-failed') {
         // Surfaced by the persistent failed-dictation pill (with retry /
         // discard) instead of a transient toast. No toast here.
@@ -142,8 +157,8 @@ const DictationButtonComponent = forwardRef<
         toast({ title: message, variant: 'destructive' });
       }
     }
-    prevErrorRef.current = error;
-  }, [error, t]);
+    prevErrorRef.current = announcement;
+  }, [error, errorNonce, t]);
 
   // Edge-detect the listening state so we play start/stop tones once per
   // transition. We intentionally skip the first render (no transition).

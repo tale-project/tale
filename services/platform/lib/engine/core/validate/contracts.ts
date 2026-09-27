@@ -157,11 +157,71 @@ export async function validateContracts(
     return names;
   };
 
+  // One answer per model per validation call: a document that names the
+  // same model on five nodes asks the host once.
+  const modelAnswers = new Map<string, Promise<boolean | undefined>>();
+  const modelAvailable = async (
+    modelId: string,
+    nodeType: 'llm' | 'agent',
+  ): Promise<boolean | undefined> => {
+    if (store?.modelAvailable === undefined) return undefined;
+    const key = `${nodeType}:${modelId}`;
+    let pending = modelAnswers.get(key);
+    if (pending === undefined) {
+      pending = store.modelAvailable(modelId, nodeType).catch((e: unknown) => {
+        // A provider outage is not a document problem — the check is skipped.
+        console.warn(
+          '[engine] skipping model availability (store lookup failed):',
+          e instanceof Error ? e.message : e,
+        );
+        return undefined;
+      });
+      modelAnswers.set(key, pending);
+    }
+    return pending;
+  };
+
+  // Every distinct model is asked up front so the host answers them side by
+  // side — the loop below awaits each in turn, which walked the catalogs one
+  // model after another on a document naming several.
+  for (const n of unique) {
+    if (
+      (n.type === 'llm' || n.type === 'agent') &&
+      typeof n.model === 'string' &&
+      n.model !== ''
+    ) {
+      void modelAvailable(n.model, n.type);
+    }
+  }
+
   for (const n of unique) {
     const def = nodeTypes().get(n.type);
 
     if (def?.connector && isRecord(n.input)) {
       checkConnectorInput(n, n.input, def.connector, issues);
+    }
+
+    // A model nobody serves fails the node on the first live run, and the
+    // mock run answers for any model — so the author learns it here, as a
+    // warning: the host's answer is a snapshot of its providers, never a
+    // rule of the document (2026-09-26 evaluation, D-16).
+    if (
+      (n.type === 'llm' || n.type === 'agent') &&
+      typeof n.model === 'string' &&
+      n.model !== '' &&
+      (await modelAvailable(n.model, n.type)) === false
+    ) {
+      issues.push(
+        warn(
+          'LLM_MODEL_UNAVAILABLE',
+          `node "${n.id}": no connected provider of this organization serves model "${n.model}" — a live run would fail at this node`,
+          {
+            nodeId: n.id,
+            path: 'model',
+            hint: 'pick a model a connected provider serves (Settings → Providers lists them), or connect a provider that serves this one',
+          },
+        ),
+      );
     }
 
     if (n.type === 'subautomation' && typeof n.automation === 'string') {

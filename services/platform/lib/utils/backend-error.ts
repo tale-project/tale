@@ -40,3 +40,16 @@ export function backendErrorMessage(err: unknown, fallback: string): string {
 export function backendUserMessage(err: unknown, fallback: string): string {
   return stringField(err, 'userMessage') ?? fallback;
 }
+
+/**
+ * The sentence a handler wrote beside its code — a refusal explaining
+ * itself ("price: Number must be less than or equal to …") — or undefined
+ * when the payload carries only the code (the app's fetch boundary repeats
+ * a bare code as the message) or nothing structured at all. A toast puts
+ * it under its localized title; it never replaces one.
+ */
+export function backendRefusalReason(err: unknown): string | undefined {
+  const message = stringField(err, 'message');
+  if (message === undefined || message.length === 0) return undefined;
+  return message === stringField(err, 'code') ? undefined : message;
+}

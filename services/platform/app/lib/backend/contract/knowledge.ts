@@ -36,6 +36,7 @@ export interface KnowledgeContract {
     args: { organizationId: string };
     returns: {
       configured: boolean;
+      credentialResolvable?: boolean;
       providerSlug?: string;
       credentialId?: string;
       model?: string;

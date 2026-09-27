@@ -153,15 +153,24 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // a `projectId` in the body answers it. (`AUTOMATION_PROJECT_ARCHIVED` is
   // thrown by nothing and left the registry with it.)
   'AUTOMATION_PROJECT_UNKNOWN',
+  // Deleting a provider credential the embedding model resolves: the
+  // credential admin surface is the app's (`/api/app/provider-credentials`);
+  // REST has no credential door.
+  'CREDENTIAL_IN_USE',
   // The MCP dispatch store's own gates — answered as JSON-RPC results.
   'FORBIDDEN_DEVELOPER_SETTINGS',
   'UNAUTHENTICATED',
-  // The connector bridge and the in-sandbox doors.
+  // The connector bridge and the in-sandbox doors — and Better Auth's
+  // status names, which its `APIError` takes as the first argument
+  // (`new APIError('CONFLICT', { code })`); the code beside it is what
+  // a client branches on.
   'BAD_REQUEST',
+  'CONFLICT',
   'TOO_MANY_REQUESTS',
   // Interactive confirmations the REST door supplies itself, or that
   // only the app asks for.
   'DEFAULT_ORG_PROTECTED',
+  'ORG_CONFIRM_NAME_MISMATCH',
   'PROJECT_CONFIRM_PHRASE_MISMATCH',
   // Hub folder team sharing — no REST body carries teams.
   'FOLDER_TEAM_FORBIDDEN',
@@ -181,6 +190,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // Product-image intake and bare-file deletion are app-only. The REST
   // binding adapter translates its metadata refusal to FILE_NOT_FOUND.
   'FILE_BOUND_TO_PRODUCT',
+  'PRODUCT_IMAGE_ACTIVE_CONTENT',
   'PRODUCT_IMAGE_INVALID',
   'PRODUCT_IMAGE_NOT_FOUND',
   // Transcription settings/dictation are app doors; queued audio/video
@@ -425,6 +435,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // list (TALE_ORGANIZATION_CREATORS) is judged in the before-hook of
   // `/organization/create`, which the REST door never mounts either.
   'ORGANIZATION_CREATION_FORBIDDEN',
+  // The same door's team-name rule (one name per organization, judged in
+  // the before-hooks of `/organization/create-team` and `/update-team`);
+  // REST has no team write, and SCIM answers its own 409 `uniqueness`.
+  'TEAM_NAME_TAKEN',
 ]);
 
 describe('the REST error-code registry', () => {

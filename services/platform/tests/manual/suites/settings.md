@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 74 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 83 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -386,7 +386,11 @@ any toggled setting after the run.
   after Done); the row is in the table after reload (columns
   `settings.apiKeys.columns.name` / `…key` / `…created` / `…lastUsed`);
   revoking confirms (`settings.apiKeys.revokeKeyTitle`), toasts
-  `settings.apiKeys.keyRevoked`, and the row is gone after reload.
+  `settings.apiKeys.keyRevoked`, and the row is gone after reload. The create
+  dialog's hint (`settings.apiKeys.form.scopeHint`) says the key belongs to
+  the person, not the organization; as a member of two organizations, `GET
+  /api/v1/me` with the key and no `X-Organization-Slug` header answers `400
+  ORG_SLUG_REQUIRED`, and with the header it lists the role in each.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →
@@ -412,6 +416,23 @@ any toggled setting after the run.
   (`webdav.list.title`) after reload; the connection details show username +
   URL (`webdav.connectionDetails.usernameLabel`); revoking confirms
   (`webdav.revokeDialog.title`) and marks the row revoked after reload.
+- [ ] `SET-F52` · **WebDAV refuses dot-segments** — with a SET-F34
+  app-password, `MKCOL /dav/<org>/documents/dotprobe/`, then
+  `curl --path-as-is --user <email>:<password> --upload-file note.txt
+  <site>/dav/<org>/documents/dotprobe/%2E%2E/escape.txt` and the same with a
+  raw `../` → both answer `404`; `PROPFIND Depth: 1` on `/dav/<org>/documents/`
+  lists no `escape.txt`, and the Document Hub shows no stray file either;
+  `dotprobe/` deletes cleanly afterwards. Repeat the raw spelling with
+  backslashes (`dotprobe\..\escape.txt`, sent as-is) → `404` as well, and
+  still no `escape.txt` anywhere.
+- [ ] `SET-F53` · **WebDAV organization root** — with a SET-F34
+  app-password, `curl --user <email>:<password> -X PROPFIND -H 'Depth: 1'
+  <site>/dav/<org>/` → `207` whose first `href` is `/dav/<org>/` (a
+  collection named after the org slug) followed by exactly
+  `/dav/<org>/documents/` and `/dav/<org>/.trash/`; `Depth: 0` answers the
+  root alone; mounting `/dav/<org>/` in Finder or Explorer shows the two
+  folders and nothing else; a `PROPPATCH` on `/dav/<org>/` answers `405`
+  with `Allow: OPTIONS, PROPFIND`.
 - [ ] `SET-F35` · **Enterprise SSO configure** —
   `/dashboard/{org}/settings/enterprise-sso` → pick a **Protocol**
   (`settings.enterpriseSso.protocolLabel`; options
@@ -564,6 +585,45 @@ any toggled setting after the run.
   whose first section is **Email delivery**
   (`notificationPreferences.deliveryTitle`), the second section keeps its
   visible **Notifications** title (`notificationPreferences.title`).
+- [ ] `SET-F54` · **A deleted agent's workspace is named** —
+  `/dashboard/{org}/settings/sandboxes` as an owner, with a project agent
+  that has run at least one task (its workspace is listed under the agent's
+  name) → delete that agent from the project's Agents tab → back on
+  Sandboxes → The row's **Workspace** column reads **Deleted agent**
+  (`sandboxes.deletedAgent`), never the owner id; the row's menu still
+  offers **Destroy**, and after destroying it the row is gone.
+- [ ] `SET-F55` · **One team name per organization** —
+  `/dashboard/{org}/settings/teams` with a team named `Finance` →
+  **Create team** (`settings.teams.createTeam`) → **Team name**
+  (`settings.teams.teamName`) `finance ` (other case, trailing space) →
+  create; then another team's row → **Edit team** (`settings.teams.editTeam`)
+  → rename it to `FINANCE` → **Save changes** (`settings.teams.saveChanges`)
+  → Both are refused under the field with
+  `settings.teams.teamNameTaken`; each dialog stays open, the list keeps one
+  `Finance` row and the audit log gains no team-created or team-updated row.
+  Reopening `Finance` itself and saving its own name unchanged goes through.
+- [ ] `SET-F49` · **Remove member names the organization** — A member row's
+  action menu → **Remove member** (`settings.organization.removeMember`) →
+  The confirmation (`dialogs.confirmRemoveMember`) asks about removing the
+  person **from this organization** and says they lose access to it — never
+  "from the team" (teams have their own Delete flow) — then cancel.
+- [ ] `SET-F50` · **Branding Reset commits at once** — On a throwaway
+  organization with a saved accent color and an uploaded logo →
+  `/dashboard/{org}/settings/branding` → the header's **Reset** action
+  (`common.actions.reset`) → confirm (`settings.branding.resetConfirmTitle`)
+  → Toast `settings.branding.resetDone`; the accent field is empty, the logo
+  slot shows the placeholder and **Reset** is disabled; navigating away
+  raises no unsaved-changes prompt and no **Save** is needed; after a reload
+  the accent is still the default; `logs` → **Audit logs** shows one
+  **Branding updated** (`settings.logs.audit.actionLabels.branding.updated`)
+  row beside the image removals.
+- [ ] `SET-F51` · **Delete organization asks for its name** — Same page as
+  SET-F13 → **Delete organization**
+  (`settings.organization.deleteConfirmAction`) — **cancel-only** → The
+  confirm shows a field labelled `settings.organization.deleteTypeNameLabel`
+  and its **Delete organization** button stays disabled; typing a different
+  name keeps it disabled, typing the organization's exact name enables it —
+  then cancel; reopening the dialog starts with an empty field again.
 
 ## Boundary & error tests
 
@@ -648,6 +708,30 @@ any toggled setting after the run.
   The name truncates with an ellipsis and never pushes the **Synced** badge
   (`settings.teams.syncedBadge`) or the member count out of place; hovering the
   name shows it in full; the name column is wider than the member-count column.
+
+- [ ] `SET-B16` · **The embedding model's credential cannot be deleted** —
+  With Settings › Data residency › **Embedding model** saved on provider P
+  and credential C (or **Provider default** with C as P's active default —
+  even while P has another active credential), go to
+  `/dashboard/{org}/settings/providers` → C's **Actions**
+  → **Delete** → the dialog carries the warning
+  `settings.providers.credential.deleteEmbeddingWarning` ("The knowledge
+  embedding model uses this credential…") above the usual lines; **Delete**
+  → toast **Could not delete the credential:** … (`settings.credentials.deleteFailed`
+  with `settings.providers.credential.inUseByEmbedding`), C stays in the
+  list, Data residency still says **Configured**, a document upload still
+  indexes. Make another active credential of P the default (with
+  **Provider default** selected) or pick another credential under Data
+  residency → **Delete** C → succeeds. A credential of another provider, or
+  a non-default sibling, shows no such warning and deletes.
+- [ ] `SET-B17` · **…nor disabled** — Same setup as `SET-B16` with
+  **Provider default** and C as P's active default → C's **Actions** →
+  **Disable** (`settings.credentials.disable`) → toast **Could not update
+  the credential:** … (`settings.credentials.updateFailed` with
+  `settings.providers.credential.inUseByEmbedding`), C still reads active
+  and stays **Default**. A sibling's **Actions** → **Make default**
+  (`settings.credentials.makeDefault`) succeeds — the model now resolves
+  the sibling — and C then disables and deletes.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -50,8 +50,8 @@ analytics:
       title: No automation runs
       description: No automations have run in the selected period.
   externalTurns:
-    title: Agent turns
-    description: Reliability of agent turns running in the sandbox.
+    title: Harness turns
+    description: Reliability of harness turns running in the sandbox.
     cappedNotice: Showing the most recent 5,000 turns in this window. Older
       turns in this period are not included in these totals.
     cards:
@@ -62,12 +62,12 @@ analytics:
       cancelled: Stopped by user
       recovered: Recovered
     byHarness:
-      title: By agent
-      harness: Agent
+      title: By harness
+      harness: Harness
       turns: Turns
       successRate: Success rate
       timeouts: Timeouts
-      empty: No agent turns have run in the selected period.
+      empty: No harness turns have run in the selected period.
   usage:
     title: Usage metrics
     description: Token consumption, requests, and active users over time.
@@ -166,6 +166,7 @@ analytics:
         decisive: Decisive
         tie: Tie
         bothBad: Both bad
+        sameModel: Same model
     tables:
       topAgents:
         title: Top Assistants by feedback
@@ -577,8 +578,14 @@ automations:
     promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
       new one.
     equipmentLabel: Equipment
-    webhookHint: You'll get the webhook URL on the automation's Trigger card
-      after it's created.
+    timezoneInvalid: Pick a valid IANA time zone (e.g. Europe/Zurich or UTC).
+    webhookHint: The webhook URL is shown once, right after the automation is
+      created — copy it before opening the editor.
+    stepWebhook: Copy the webhook URL — it is shown only now.
+    copyWebhookUrl: Copy the webhook URL
+    openAutomation: Open the automation
+    enableNow: Enable now
+    enableNowHint: Off keeps the trigger paused — nothing starts until you switch it on from the Trigger card.
     triggerFailed: 'The automation was created, but its trigger could not be
       set: {error}. Set it from the Trigger card.'
     cancel: Cancel
@@ -593,6 +600,13 @@ automations:
       organization.
   detail:
     loading: Loading the automation…
+    # A deleted automation keeps its run history until retention removes
+    # it; the Runs pages still open under this banner.
+    deleted:
+      banner: 'This automation was deleted on {date}. Its run history stays until retention removes it.'
+      title: Automation deleted
+      description: There is nothing left to edit or deploy; the runs it recorded are still readable.
+      openRuns: Open the run history
     deployedVersion: 'Live: v{version}'
     versionSelect: Version
     deployThis: Deploy this version
@@ -638,7 +652,8 @@ automations:
       failed: Could not delete the automation
   trigger:
     title: Trigger
-    none: Nothing starts this automation yet.
+    none: No trigger — this automation runs only when started by hand or through the API.
+    add: Add trigger
     kindLabel: Trigger type
     kinds:
       schedule: Schedule
@@ -647,7 +662,10 @@ automations:
     cronLabel: Cron
     cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
     cronInvalid: That cron expression is not valid.
+    cronInvalidReason: 'That cron expression is not valid: {reason}'
     cronNext: 'Next run {at}'
+    paused: Paused — no runs start
+    notDeployed: "Won't start until a version is deployed · would next run {at}"
     cronEveryMinutes: '{n, plural, one {Every minute} other {Every # minutes}}'
     cronEveryHours: '{n, plural, one {Every hour} other {Every # hours}}'
     cronDailyAt: 'Every day at {time}'
@@ -672,6 +690,14 @@ automations:
     noToken: Save to mint the token; the full URL is shown once.
     webhookProjectHint: To run in an installed project, use its ID in the URL below. The project must be active.
     rotate: Rotate token
+    revokeConfirm:
+      title: Replace the webhook?
+      body: Switching the trigger type revokes the webhook URL immediately — senders still using it get 404, and configuring a webhook again later mints a different URL.
+      confirm: Replace and revoke
+    rotateConfirm:
+      title: Rotate the webhook token?
+      body: The current URL stops working the moment the new token is minted. Copy the new URL and update every sending system.
+    revokedToast: The previous webhook URL has been revoked — senders using it now get 404.
   canvas:
     ariaLabel: Automation canvas
     readsFrom: 'Reads {nodes}'
@@ -705,12 +731,26 @@ automations:
     unknownType: 'Unknown node type: {type}'
     catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
     invalidJson: This is not valid JSON yet, so the node was not changed.
+    versionNotFound:
+      title: "Version {version} doesn't exist"
+      description: This automation has no version with that number — the link may be stale, or the number mistyped.
+      openLatest: Open latest
     controlFlowTitle: Control flow
     agent:
       equipmentLabel: Equipment
       harnessDefault: Default (Claude Code)
       modelUnlisted: 'No connected provider offers the saved model "{model}"
         for this harness — pick one from the list.'
+    # The llm node's model picker: what the organization's providers serve,
+    # with a typed escape for a model whose provider is not connected yet.
+    llm:
+      modelPlaceholder: Choose the model to call
+      modelUnlisted: 'No connected provider serves "{model}" — a live run
+        would fail at this node. Pick a listed model, or keep the id if you
+        will connect its provider.'
+      typeUnlisted: Type a model that is not listed
+      modelIdLabel: Model id
+      modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
     runTitle: In this run
     resolvedInput: Resolved input
     output: Output
@@ -822,11 +862,33 @@ automations:
     # to tell the platform's retry from their own rerun.
     autoRetrying: 'Auto-retry {n} of {max}'
     cancel: Stop the run
-    startedBy: 'Started by {actor}'
+    # Asked before a stop: it is final, and it withdraws whatever the run is
+    # waiting on (an approval card, a question).
+    cancelConfirm:
+      title: Stop this run?
+      body:
+        The run stops at its next step boundary and cannot be resumed. Work
+        already done stays; a pending approval or question is withdrawn.
+    # Who or what started the run — never the `user:<id>` / `trigger:<id>`
+    # door the record carries.
     starter:
-      apiKey: '{name} via an API key'
-      trigger: a trigger
-      formerMember: a former member
+      you: Started by you
+      youApi: Started by you (API)
+      member: 'Started by {name}'
+      apiKey: 'Started by {name} (API)'
+      formerMember: Started by a former member
+      formerMemberApi: Started by a former member (API)
+      schedule: Started by the schedule
+      webhook: Started by a webhook
+      event: Started by a platform event
+      trigger: Started by a trigger
+      unknown: Starter not recorded
+    # What a waiting run is parked on, in words.
+    waiting:
+      approval: Waiting for approval
+      ask: Waiting for your answer
+      agent: Agent working
+      repeat: 'Polling — step {node}'
     startedAt: 'Started {date}'
     finishedAt: 'Finished {date}'
     inputTitle: Run input
@@ -852,6 +914,7 @@ automations:
       not_run: Never reached
       pending: Not reached yet
       running: Running now
+      stopped: Stopped here
     effects:
       title: '{count, plural, one {# effect} other {# effects}}'
       description:
@@ -1276,6 +1339,7 @@ chat:
     messageHistory: Message history
     chatRegion: Chat
     chatInput: Message input
+    skipToComposer: Skip to message box
     threadActions: Conversation actions
   structured:
     nextSteps: Suggested follow-ups
@@ -1289,6 +1353,7 @@ chat:
     retry: Try again
     discard: Discard recording
     permissionDenied: Microphone access denied. Allow it in your browser settings.
+    serviceUnavailable: Dictation is unavailable right now. The browser could not reach its speech service; check the connection and try again.
   citations:
     source: Source {number}
     page: Page {page}
@@ -1488,6 +1553,25 @@ chat:
   budgetWarningTypeRequests: request
   budgetViewUsage: View usage
 common:
+  import:
+    rowErrorsTitle: '{count, plural, one {# row was not imported} other {# rows were not imported}}'
+    rowError: 'Row {row}: {message}'
+    moreRows: '…and {count} more'
+    fields:
+      name: Name
+      price: Price
+      stock: Stock
+      currency: Currency
+      status: Status
+      email: Email
+    reasons:
+      blank: '{field} must not be blank'
+      notNumber: '{field} must be a number'
+      negative: '{field} must be 0 or more'
+      tooLarge: '{field} is too large'
+      notInteger: '{field} must be a whole number'
+      notCurrency: '{field} must be a three-letter ISO 4217 currency code'
+      notOneOf: '{field} must be one of {options}'
   or: or
   units:
     stock: '{count, plural, one {# unit} other {# units}}'
@@ -1545,6 +1629,7 @@ common:
     dismiss: Dismiss
     zoomIn: Zoom in
     zoomOut: Zoom out
+    pageNumber: Page number
     removeNamed: Remove {name}
     unread: Unread
     completed: Completed
@@ -1903,7 +1988,7 @@ dialogs:
     badgeArchived: Archived
     badgeProjectArchived: Archived project
   thisMember: this member
-  confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
+  confirmRemoveMember: Remove {name} from this organization? They'll lose access to it and all associated resources.
   toSend: to send
   contactInfo:
     title: Contact details
@@ -3780,6 +3865,7 @@ governance:
       cancel: Cancel request
     approval:
       description: A different admin must approve this request before its waiting period begins.
+      capturedPolicy: The approval requirement was captured when the request was filed; a later policy change does not apply to it.
       approve: Approve request
       reject: Reject request
       approveDescription: Approve this erasure request and start its configured waiting period. With no waiting period, erasure can begin immediately.
@@ -3858,6 +3944,7 @@ governance:
         Release it before retrying erasure.
       userCustodianHeld: The subject is on a custodian hold. Release it before retrying erasure.
       generic: An active legal hold is preserving the subject's data.
+      released: The hold was released — choose Retry to continue the erasure.
       threadsCount: '{count, plural, =1 {# held thread} other {# held threads}} preserved.'
       documentsCount:
         '{count, plural, =1 {# held document} other {# held documents}}
@@ -4160,7 +4247,9 @@ knowledgeEntries:
   viewDialog:
     title: Knowledge entry details
     updated: Updated
-    entryId: Entry ID
+    entryId: Version ID
+    entryIdHint: A new ID is issued on every edit. The topic identifies the
+      entry across versions, as does its document ID.
     history: Version history
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded
@@ -4669,9 +4758,18 @@ products:
     pasteUrl: Or paste a URL
     imageTooLarge: Image is too large (max 5 MB).
     imageUploadFailed: Image upload failed. Try again.
+    imageActiveContent: 'This SVG contains scripts or event handlers and can''t be used. Upload a plain image or an SVG without them.'
+    imageUnsupported: 'This file isn''t a supported image. Use PNG, JPEG, WebP, GIF or SVG.'
     currencyPlaceholder: USD
     validation:
       currency: Enter a three-letter ISO 4217 currency code (for example USD or EUR)
+      priceNumber: Enter a number for the price
+      priceNonNegative: Price must be 0 or more
+      priceTooLarge: Price is too large
+      stockNumber: Enter a number for the stock
+      stockNonNegative: Stock must be 0 or more
+      stockTooLarge: Stock is too large
+      stockInteger: Stock must be a whole number
     labels:
       name: Product name
       description: Description
@@ -4982,6 +5080,63 @@ projects:
     projectSectionDescription: Name, description, and standing instructions for
       this project.
     sharingHeading: Sharing
+  identity:
+    label: Icon and color
+    hint: Shown next to the project name in lists and the chat sidebar.
+    trigger: Change icon and color
+    colorLabel: Color
+    iconLabel: Icon
+    colors:
+      gray: Gray
+      slate: Slate
+      red: Red
+      orange: Orange
+      amber: Amber
+      yellow: Yellow
+      lime: Lime
+      green: Green
+      emerald: Emerald
+      teal: Teal
+      cyan: Cyan
+      sky: Sky
+      blue: Blue
+      indigo: Indigo
+      violet: Violet
+      purple: Purple
+      fuchsia: Fuchsia
+      pink: Pink
+      rose: Rose
+    icons:
+      FolderKanban: Kanban folder
+      Folder: Folder
+      FolderOpen: Open folder
+      FolderTree: Folder tree
+      FolderGit2: Git folder
+      Briefcase: Briefcase
+      Building2: Building
+      Layers: Layers
+      Box: Box
+      BookOpen: Open book
+      GraduationCap: Graduation cap
+      Lightbulb: Light bulb
+      Rocket: Rocket
+      Target: Target
+      Flag: Flag
+      Compass: Compass
+      Map: Map
+      Star: Star
+      Beaker: Beaker
+      FlaskConical: Flask
+      Microscope: Microscope
+      Atom: Atom
+      Cpu: Chip
+      Code: Code
+      Heart: Heart
+      Users: People
+      MessageSquare: Speech bubble
+      Phone: Phone
+      Mail: Envelope
+      Globe: Globe
   instructions:
     label: Instructions
     hint: Every chat in this project starts with these instructions.
@@ -5022,6 +5177,8 @@ projects:
     addFolderButton: Upload folder
     batchTooLarge: A folder upload is capped at {maxFiles} files / {maxSize} MB — split the folder and retry.
     moreSkipped: +{count} more file(s) were skipped.
+    attachPartial: '{ok, plural, one {# file} other {# files}} of {total} added'
+    skippedList: 'Skipped: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
     folderGone: That folder no longer exists.
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder
@@ -5187,10 +5344,14 @@ projects:
   readOnlyBanner:
     title: You're viewing this project
     description: Contact a project editor to make changes.
+    archivedTitle: This project is archived
+    archivedDescription: It's read-only until someone restores it. Project
+      administrators can restore it from the Archive section below.
   archived:
     badge: Archived
   errors:
     PROJECT_FORBIDDEN: You don't have access to this project.
+    PROJECT_ARCHIVED: This project is archived. Restore it to make changes.
     PROJECT_NOT_FOUND: We couldn't find that project. It may have been deleted.
     PROJECT_MISMATCH: This chat is in a different project. Switch context to continue.
     PROJECT_AGENT_NOT_ALLOWED: "{agentName} isn't available in this project. Pick another agent."
@@ -5294,7 +5455,9 @@ settings:
       knowledge.
     copyEndpoint: Copy MCP endpoint URL
     authHelp:
-      'Authenticate with an organization API key as a bearer token: create
+      'Authenticate with a REST API key as a bearer token. A key belongs to
+      the person who created it and works in every organization they are a
+      member of; this one is named by the X-Organization-Slug header. Create
       and manage keys under'
     authLink: REST API keys.
     orgSlug:
@@ -5432,6 +5595,8 @@ settings:
     deleteSuccess: Organization deleted
     deleteFailed: Couldn't delete organization
     deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
+    deleteTypeNameLabel: Type the organization name to confirm
+    deleteConfirmNameMismatch: The confirmation doesn't match the organization name. Reload the page and try again.
     editMember: Edit member
     removeMember: Remove member
     memberUpdated: Member updated
@@ -5484,6 +5649,7 @@ settings:
       A team must keep at least one member. Delete the team instead to
       remove the last member.
     teamNameTooLong: Team name can be at most 80 characters
+    teamNameTaken: A team with this name already exists
     membershipChangesFailed: '{count, plural, one {# membership change was} other {# membership changes were}} refused. The list has been refreshed.'
     syncedBadge: Synced
     syncedNotice: This team is provisioned by your identity provider, which owns
@@ -5511,6 +5677,7 @@ settings:
       pick another one.
     deletedToast: Credential deleted
     updateFailed: 'Could not update the credential: {error}'
+    deleteFailed: 'Could not delete the credential: {error}'
     noDefault: >-
       No default credential for {vendors} — a call that names none can't pick
       one automatically. Make one of them the default.
@@ -6042,6 +6209,15 @@ settings:
       catalogUnavailable: 'Model catalog unavailable: {error}'
     credential:
       disabled: Disabled
+      deleteEmbeddingWarning: >-
+        The knowledge embedding model uses this credential: deleting it stops
+        document indexing and search for the whole organization. Choose
+        another credential under Settings → Data residency → Embedding model
+        first.
+      inUseByEmbedding: >-
+        The knowledge embedding model uses this credential. Choose another
+        credential for it under Settings → Data residency → Embedding model,
+        then delete this one.
     replace:
       apiKeyTitle: Replace API key
       envTitle: Change environment variable
@@ -6150,6 +6326,9 @@ settings:
       name: Key name
       namePlaceholder: Enter key name...
       nameRequired: Name is required
+      scopeHint: This key belongs to you, not to this organization. It acts as
+        you in every organization you are a member of; a REST call names the
+        organization with the X-Organization-Slug header.
       expiresIn: Expiration
       expiresOptions:
         7days: 7 days
@@ -6208,6 +6387,7 @@ settings:
         last7Days: Last 7 days
         last30Days: Last 30 days
         last90Days: Last 90 days
+      periodCaption: 'Period: {period}. All totals below cover this period.'
       cards:
         total: Total actions
         success: Success
@@ -6600,6 +6780,7 @@ settings:
     resetConfirmDescription:
       This deletes the uploaded logo and favicons and clears
       the accent color. Removed images can’t be restored.
+    resetDone: Branding reset
   dataResidency:
     readOnly:
       title: Read-only access
@@ -6673,6 +6854,12 @@ settings:
         run, on any database.
       statusConfigured: Configured
       statusNotConfigured: Not configured
+      statusCredentialMissing: Credential missing
+      credentialMissingWarning: >-
+        The credential this embedding model resolves no longer exists, so
+        document indexing and knowledge search are down. Add or restore a
+        credential under Settings → AI providers, or choose another one
+        here and save.
       notConfiguredWarning:
         Knowledge search is unavailable until an embedding model is
         configured.
@@ -6957,6 +7144,8 @@ tasks:
     started: The agent is on it — it reports back to this task for review.
     alreadyRunning: This task's agent is already running.
     notStarted: The agent run could not start.
+    agentMissing: The assigned agent no longer exists. Assign another agent to run this task.
+    noAgentAssignee: No agent is assigned to this task. Assign one to start a run.
     cancelled: The agent run was cancelled.
     start: Start agent
     willStart: Dropping here starts the agent run.
@@ -7135,6 +7324,7 @@ tasks:
     removeDependency: Remove dependency
     partOf: Part of {task}
     subtask: Subtask
+    notFound: We couldn't find that task. It may have been deleted.
   comment:
     edited: edited
     deleteConfirm: Delete this comment?
@@ -7210,6 +7400,8 @@ tasks:
   watch:
     watch: Watch
     unwatch: Unwatch
+  errors:
+    PROJECT_ARCHIVED: This project is archived. Restore it to change its tasks.
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'
@@ -7250,6 +7442,7 @@ tasks:
     runLabel: Agent run
     systemActor: System
     unresolvedWorkflow: Automation
+    deletedAgent: Deleted agent
     viewAgent: View agent
     viewWorkflow: View automation
   dueDate:
@@ -7499,7 +7692,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: One URL per line. Only these exact pages are indexed, not the whole site. URLs from different domains are registered as separate websites.
+  urlListHint: One URL per line. Only these exact pages are indexed, not the whole site. URLs from different domains are registered as separate websites. Pages are fetched over HTTPS; an http:// line is fetched as https://.
   kindList: URL list
   scanIntervals:
     1hour: Every 1 hour
@@ -7521,6 +7714,9 @@ websites:
     addErrorDuplicate: This website has already been added
     addListSuccess: '{count} URLs registered for indexing'
     addListPartial: 'Some sources could not be added: {domains}'
+    addErrorReason:
+      domainInvalid: Enter a public https:// host without a port or path, e.g. example.com — http:// addresses are not crawled.
+      notCrawlable: The crawler cannot reach this host — private, loopback and cloud-metadata addresses are refused.
     updateSuccess: Website updated
     updateError: Couldn't update website
     fetchPagesError: Couldn't load pages
@@ -7758,3 +7954,4 @@ sandboxes:
       while the agent is idle. A workflow run's workspace is reclaimed once the
       run ends. Temporary crawler sessions are included in capacity counts above.
   accessDenied: You need developer or admin access to manage sandboxes.
+  deletedAgent: Deleted agent

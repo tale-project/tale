@@ -1046,8 +1046,14 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           const cancelled =
             live === null
               ? false
-              : (await cancelRunInTx(tx, auth.organizationId, live.runId))
-                  .cancelled;
+              : (
+                  await cancelRunInTx(
+                    tx,
+                    auth.organizationId,
+                    live.runId,
+                    auth.userId,
+                  )
+                ).cancelled;
           if (task.status !== 'cancelled') {
             await updateTaskStatus(tx, auth, task.id, 'cancelled');
           }

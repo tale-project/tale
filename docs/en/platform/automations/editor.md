@@ -31,7 +31,7 @@ Badges show conditions and loops: `when`, `else of`, `for each`, `repeat until`,
 
 ## Edit a node
 
-Select a box to open its fields. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has harness and equipment. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
+Select a box to open its fields. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has harness and equipment. The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but validation warns that a live run would fail at that node until its provider is connected. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
 
 Open **Control flow** for conditions and iteration. Click the empty canvas, **Close**, or press Escape outside a text field to return to trigger and project settings. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
 

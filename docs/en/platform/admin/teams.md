@@ -17,7 +17,7 @@ A team is a label on work, not a place you switch into. A document, folder, or p
 2. Select the organization's members who should join. If you select nobody, Tale adds you to the team.
 3. Select **Create team**. Check the new row and its member count in the list.
 
-Choose a name that people will recognize wherever teams are shown: the audience of a document or project, a queue in the inbox, a list filter. The form accepts up to 80 characters. Creating the team does not put existing work under it; choose the team on the documents, projects, and conversations it should cover.
+Choose a name that people will recognize wherever teams are shown: the audience of a document or project, a queue in the inbox, a list filter. The form accepts up to 80 characters. A name is unique within the organization: one that another team already uses — in any letter case or spacing — is refused. Creating the team does not put existing work under it; choose the team on the documents, projects, and conversations it should cover.
 
 ## Change membership or the name
 

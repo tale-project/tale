@@ -17,6 +17,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'dictation.level': 'Microphone level',
         'dictation.transcribing': 'Transcribing…',
         'dictation.permissionDenied': 'Microphone access denied',
+        'dictation.serviceUnavailable': 'Dictation is unavailable right now',
         'dictation.notSupported': 'Speech recognition not supported',
         'transcription.noModel':
           'No compatible model is available for audio-file transcription.',
@@ -35,8 +36,15 @@ const speechState = vi.hoisted(() => ({
   isListening: false,
   isSupported: true,
   error: null as string | null,
+  errorNonce: 0,
   startListening: vi.fn(),
   stopListening: vi.fn(),
+}));
+
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock('@tale/ui/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/use-toast')>()),
+  toast: toastMock,
 }));
 
 vi.mock('../hooks/use-speech-to-text', () => ({
@@ -78,7 +86,9 @@ afterEach(() => {
   speechState.isListening = false;
   speechState.isSupported = true;
   speechState.error = null;
+  speechState.errorNonce = 0;
   speechState.startListening.mockReset();
+  toastMock.mockReset();
   speechState.stopListening.mockReset();
   recorderState.isListening = false;
   recorderState.isTranscribing = false;
@@ -361,6 +371,55 @@ describe('DictationButton', () => {
       expect(
         screen.queryByText('Transcription failed'),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('error toasts (Web Speech path)', () => {
+    // 2026-09-26 evaluation, A-07: a denied microphone left the click
+    // without any visible effect, and a repeat of the same code was
+    // swallowed by the "same error as before" guard.
+    // The button is memoized: a fresh `onTranscript` per render is what
+    // makes a rerender re-read the (mocked) hook state.
+    const button = () => (
+      <DictationButton organizationId={ORG_ID} onTranscript={vi.fn()} />
+    );
+    function renderWithError(error: string, errorNonce = 1) {
+      speechState.error = error;
+      speechState.errorNonce = errorNonce;
+      return render(button());
+    }
+
+    it('announces a denied microphone, and again on the next click', () => {
+      const { rerender } = renderWithError('not-allowed');
+      expect(toastMock).toHaveBeenCalledTimes(1);
+      expect(toastMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ title: 'Microphone access denied' }),
+      );
+
+      // A re-render with nothing new stays silent…
+      rerender(button());
+      expect(toastMock).toHaveBeenCalledTimes(1);
+
+      // …and a second click that fails the same way announces it again.
+      speechState.errorNonce = 2;
+      rerender(button());
+      expect(toastMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('treats a refused speech service like a denied microphone', () => {
+      renderWithError('service-not-allowed');
+      expect(toastMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ title: 'Microphone access denied' }),
+      );
+    });
+
+    it('names an unreachable speech service as such, not as unsupported', () => {
+      renderWithError('network');
+      expect(toastMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          title: 'Dictation is unavailable right now',
+        }),
+      );
     });
   });
 

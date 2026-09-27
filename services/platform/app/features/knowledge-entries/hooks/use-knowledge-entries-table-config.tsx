@@ -17,6 +17,7 @@ import { BookOpen } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { RagStatusBadge } from '@/app/features/documents/components/rag-status-badge';
+import { stripMarkdownOnce } from '@/app/features/shared/markdown/markdown-strip';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { useT } from '@/lib/i18n/client';
 
@@ -55,19 +56,24 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
         header: tEntity('headers.content'),
         size: 280,
         meta: { className: 'overflow-hidden' },
-        cell: ({ row }) => (
-          <div className="w-0 min-w-full overflow-hidden">
-            <Text
-              as="span"
-              variant="caption"
-              truncate
-              title={row.original.content}
-              className="block"
-            >
-              {row.original.content}
-            </Text>
-          </div>
-        ),
+        cell: ({ row }) => {
+          // The column is a one-line preview: the Markdown decoration the
+          // details dialog renders would read as literal asterisks here.
+          const preview = stripMarkdownOnce(row.original.content);
+          return (
+            <div className="w-0 min-w-full overflow-hidden">
+              <Text
+                as="span"
+                variant="caption"
+                truncate
+                title={preview}
+                className="block"
+              >
+                {preview}
+              </Text>
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'source',

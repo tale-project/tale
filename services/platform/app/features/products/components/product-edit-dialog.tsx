@@ -21,8 +21,10 @@ import {
   PRODUCT_NAME_MAX,
 } from '@/backend/core/products/field_limits';
 import { useT } from '@/lib/i18n/client';
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useUpdateProduct } from '../hooks/mutations';
+import { productNumberSchema } from '../utils/product-number-schema';
 import { ProductImageField } from './product-image-field';
 
 interface EditProductDialogProps {
@@ -104,8 +106,19 @@ export function ProductEditDialog({
             max: PRODUCT_IMAGE_URL_MAX,
           }),
         ),
-        stock: z.string(),
-        price: z.string(),
+        // Named under the box on Save (a negative used to save, an amount
+        // past the safe range to fail as a bare toast).
+        stock: productNumberSchema({
+          number: tProducts('edit.validation.stockNumber'),
+          nonNegative: tProducts('edit.validation.stockNonNegative'),
+          tooLarge: tProducts('edit.validation.stockTooLarge'),
+          integer: tProducts('edit.validation.stockInteger'),
+        }),
+        price: productNumberSchema({
+          number: tProducts('edit.validation.priceNumber'),
+          nonNegative: tProducts('edit.validation.priceNonNegative'),
+          tooLarge: tProducts('edit.validation.priceTooLarge'),
+        }),
         // The door's rule, mirrored: an ISO 4217 code in any case (sent
         // uppercase), or nothing.
         currency: z
@@ -217,6 +230,7 @@ export function ProductEditDialog({
           }
           toast({
             title: tProducts('edit.toast.error'),
+            description: backendRefusalReason(err),
             variant: 'destructive',
           });
         },
@@ -273,6 +287,7 @@ export function ProductEditDialog({
           {...register('price')}
           placeholder={tProducts('edit.pricePlaceholder')}
           disabled={isSubmitting}
+          errorMessage={errors.price?.message}
         />
         <Input
           id="currency"
@@ -294,6 +309,7 @@ export function ProductEditDialog({
           {...register('stock')}
           placeholder={tProducts('edit.stockPlaceholder')}
           disabled={isSubmitting}
+          errorMessage={errors.stock?.message}
         />
         <Input
           id="category"

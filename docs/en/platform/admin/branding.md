@@ -43,4 +43,4 @@ After saving, reload the page and check a selected navigation item, a button, an
 
 Organization branding applies inside that workspace. Switching organizations loads the destination organization's branding. Sign-in screens appear before an organization is selected and use the platform's default branding.
 
-If you still see an old browser icon, reload the page and check the explicit favicon fields. An explicit favicon takes precedence over one derived from the logo. Use **Reset** only when you intend to remove the organization's configured branding, and read the confirmation first.
+If you still see an old browser icon, reload the page and check the explicit favicon fields. An explicit favicon takes precedence over one derived from the logo. Use **Reset** only when you intend to remove the organization's configured branding, and read the confirmation first. Confirming takes effect immediately: the images are deleted and the cleared accent color is saved, so no further **Save** is needed and nothing is left unsaved.

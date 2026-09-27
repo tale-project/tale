@@ -126,6 +126,53 @@ describe("chat shim 'contacts/internal_queries:queryContacts'", () => {
   });
 });
 
+describe("chat shim 'tasks/search_for_chat:searchTasksForChat'", () => {
+  it('resolves the human task key the board shows, exact match first', async () => {
+    // 2026-09-26 evaluation, A-05: "find TE2-1" matched only title and
+    // description, so the assistant answered that no task carries that id.
+    const { sql, texts } = capturingSql();
+    const handlers = chatShimHandlers(sql);
+    const search = handlers['tasks/search_for_chat:searchTasksForChat'];
+    if (search === undefined) throw new Error('task search handler missing');
+
+    await search({
+      organizationId: 'org_1',
+      projectIds: ['project_1'],
+      term: 'TE2-1',
+    });
+
+    const tasks = texts.find((text) => text.includes('FROM app.tasks t'));
+    expect(tasks).toContain('LEFT JOIN app.projects p ON p.id = t.project_id');
+    expect(tasks).toContain('t.number');
+    const keyMatch =
+      "lower(coalesce(p.key || '-' || t.number::text, '')) = lower(?)";
+    expect(tasks).toContain(`OR ${keyMatch}`);
+    // The exact key match leads the page, before recency.
+    const orderBy = `ORDER BY (? AND ${keyMatch}) DESC`;
+    expect(tasks).toContain(orderBy);
+    const recency = 't.updated_at_ms DESC';
+    expect(tasks).toContain(recency);
+    expect(tasks?.indexOf(orderBy)).toBeLessThan(tasks?.indexOf(recency) ?? -1);
+  });
+
+  it('reads the task number for the fetched task, so the key can be named', async () => {
+    const { sql, texts } = capturingSql();
+    const handlers = chatShimHandlers(sql);
+    const byId = handlers['tasks/internal_queries:getTaskByIdInternal'];
+    const context = handlers['tasks/internal_queries:getTaskContextForAgent'];
+    if (byId === undefined || context === undefined) {
+      throw new Error('task read handlers missing');
+    }
+
+    await byId({ taskId: 'task_1', organizationId: 'org_1' });
+    await context({ taskId: 'task_1', organizationId: 'org_1' });
+
+    const reads = texts.filter((text) => text.includes('FROM app.tasks'));
+    expect(reads).toHaveLength(2);
+    for (const read of reads) expect(read).toContain('number');
+  });
+});
+
 describe("chat shim 'products/internal_queries:queryProducts'", () => {
   it('reads every user-facing field — the chat row is the only view of a product', async () => {
     const { sql, texts } = capturingSql();

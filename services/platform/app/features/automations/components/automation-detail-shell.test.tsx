@@ -20,6 +20,7 @@ const fixtures = vi.hoisted(() => ({
   isPending: false,
   error: undefined as unknown,
   dirtyKeys: undefined as ReadonlySet<string> | undefined,
+  pathname: '/dashboard/org-1/automations/sync-emails',
 }));
 
 // The shell reads the location to tell a RESTORED arrival (the rail reopening
@@ -27,11 +28,14 @@ const fixtures = vi.hoisted(() => ({
 // back to the list instead of dead-ending. No router is mounted here.
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({
-    pathname: '/dashboard/org-1/automations/sync-emails',
+    pathname: fixtures.pathname,
     search: {},
     state: {},
   }),
   useNavigate: () => vi.fn(),
+  Link: ({ children, to }: { children: ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -102,6 +106,7 @@ vi.mock('@/app/components/navigation/tab-navigation', () => ({
       href: string;
       matchMode?: string;
       dirtyKeys?: readonly string[];
+      disabled?: boolean;
     }>;
     ariaLabel?: string;
     children?: ReactNode;
@@ -113,6 +118,7 @@ vi.mock('@/app/components/navigation/tab-navigation', () => ({
           key={item.href}
           href={item.href}
           data-match={item.matchMode}
+          data-disabled={item.disabled ? 'true' : 'false'}
           data-dirty={
             item.dirtyKeys?.some((key) => dirtyKeys?.has(key))
               ? 'true'
@@ -144,6 +150,7 @@ beforeEach(() => {
   fixtures.isPending = false;
   fixtures.error = undefined;
   fixtures.dirtyKeys = undefined;
+  fixtures.pathname = '/dashboard/org-1/automations/sync-emails';
 });
 
 describe('AutomationDetailShell', () => {
@@ -244,6 +251,79 @@ describe('AutomationDetailShell', () => {
   });
 
   it('passes an axe audit', async () => {
+    const { container } = renderShell();
+    await checkAccessibility(container);
+  });
+});
+
+/**
+ * A deleted automation keeps its runs until retention removes them, but the
+ * shell read the 404 as "not found" and a run link opened a blank page
+ * (2026-09-26 evaluation, D-14). The read now says AUTOMATION_DELETED with
+ * the date; the Runs pages render under a banner, the other tabs disable.
+ */
+describe('AutomationDetailShell — a deleted automation', () => {
+  beforeEach(() => {
+    fixtures.automation = undefined;
+    fixtures.error = {
+      data: { code: 'AUTOMATION_DELETED', deletedAt: 1789363170729 },
+    };
+  });
+
+  it('renders the run page under a deletion banner with Editor and Versions disabled', () => {
+    fixtures.pathname =
+      '/dashboard/org-1/automations/billing__dunning/runs/run-1';
+    renderShell();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /This automation was deleted on .*\. Its run history stays until retention removes it\./,
+    );
+    expect(screen.getByTestId('outlet')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Editor' })).toHaveAttribute(
+      'data-disabled',
+      'true',
+    );
+    expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
+      'data-disabled',
+      'true',
+    );
+    expect(screen.getByRole('link', { name: 'Runs' })).toHaveAttribute(
+      'data-disabled',
+      'false',
+    );
+    expect(
+      screen.queryByRole('heading', { name: 'Automation not found' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('points the editor tab at the run history instead of a dead page', () => {
+    fixtures.pathname = '/dashboard/org-1/automations/billing__dunning/editor';
+    renderShell();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Automation deleted' }),
+    ).toBeVisible();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Open the run history' }),
+    ).toHaveAttribute(
+      'href',
+      '/dashboard/$id/automations/$automationSlug/runs',
+    );
+  });
+
+  it('keeps plain not-found for a name that was never saved', () => {
+    fixtures.error = { data: { code: 'automation not found' } };
+    fixtures.pathname =
+      '/dashboard/org-1/automations/billing__dunning/runs/run-1';
+    renderShell();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Automation not found' }),
+    ).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('passes an axe audit', async () => {
+    fixtures.pathname =
+      '/dashboard/org-1/automations/billing__dunning/runs/run-1';
     const { container } = renderShell();
     await checkAccessibility(container);
   });

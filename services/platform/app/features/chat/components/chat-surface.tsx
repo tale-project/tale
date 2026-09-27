@@ -27,6 +27,7 @@ import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
+import { SkipLink } from '@tale/ui/skip-link';
 import { Text } from '@tale/ui/text';
 import { ThreadHeader, ThreadHeaderSeparator } from '@tale/ui/thread-header';
 import { useSwapFade } from '@tale/ui/use-swap-fade';
@@ -163,6 +164,8 @@ import { WelcomeView } from './welcome-view';
 const NO_SELECTION: ComposerSelection = {};
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
+/** The message field's DOM id — the chat skip link's target. */
+const COMPOSER_TEXTAREA_ID = 'chat-composer';
 
 /** How many sent-image previews stay alive for instant rendering before the
  * oldest are revoked — a compressed image is ≤1 MB, so this bounds the held
@@ -371,6 +374,15 @@ function ChatSurfaceInner({
   // The composer owns its draft (persisted per thread); the surface reaches
   // in for the starter fill and the failed-send restore.
   const composerRef = useRef<ComposerHandle>(null);
+  // A new chat starts in the message box for a pointer user: nothing else on
+  // the screen wants the focus, and the alternative was ~290 Tabs through the
+  // sidebar (2026-09-26 evaluation, G-11). A coarse pointer keeps the
+  // on-screen keyboard down until the user taps the box.
+  useEffect(() => {
+    if (threadId !== undefined) return;
+    if (!window.matchMedia('(pointer: fine)').matches) return;
+    composerRef.current?.focus();
+  }, [threadId]);
   const { data: currentUser } = useCurrentUser();
   const draftKey = chatDraftKey(currentUser?.userId, organizationId, threadId);
 
@@ -702,8 +714,25 @@ function ChatSurfaceInner({
       return;
     }
     if (verdict !== undefined) toast({ title: t('arena.verdictRecorded') });
-    // The surviving A is already on screen; only a winning B navigates.
+    // The surviving A is already on screen; only a winning B navigates — and
+    // the composer follows it to Model B, so the next message goes to the
+    // model the user just judged better, not to A's (2026-09-26 evaluation,
+    // A-06). Session-only, like the Auto pin on entering Arena: the sticky
+    // preference stays what the user last picked by hand.
     if (result.continueThreadId !== viewThreadId) {
+      const modelB = verdict === 'b_better' ? arenaModelBChoice : undefined;
+      if (modelB !== undefined) {
+        setSelection((previous) => {
+          const { modelSelection: _auto, providerSlug: _a, ...rest } = previous;
+          return {
+            ...rest,
+            modelId: modelB.id,
+            ...(modelB.providerSlug !== undefined
+              ? { providerSlug: modelB.providerSlug }
+              : {}),
+          };
+        });
+      }
       void navigate({
         to: '/dashboard/$id/chat/$threadId',
         params: { id: organizationId, threadId: result.continueThreadId },
@@ -1790,6 +1819,12 @@ function ChatSurfaceInner({
     // nothing; rows read the map during their own renders.
     <AttachmentPreviewProvider value={sentPreviewsRef.current}>
       <div className="flex min-h-0 flex-1 flex-row">
+        {/* The page's skip link lands on `main`, which begins with the
+            sidebar — every chat and project row a Tab stop. This one skips
+            the sidebar and lands in the message box. */}
+        <SkipLink targetId={COMPOSER_TEXTAREA_ID}>
+          {t('aria.skipToComposer')}
+        </SkipLink>
         <Stack
           ref={threadSwapRef}
           gap={0}
@@ -2145,6 +2180,7 @@ function ChatSurfaceInner({
                 )}
                 <Composer
                   ref={composerRef}
+                  textareaId={COMPOSER_TEXTAREA_ID}
                   draftKey={draftKey}
                   models={models}
                   selection={selection}

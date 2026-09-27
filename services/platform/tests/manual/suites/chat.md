@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 81 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 84 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -106,7 +106,11 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-F10` · **Stop generation** — Send, then click **Stop generating**
   (`chat.stopGenerating`) while it streams → The button shows **Stopping…**
   (`chat.stoppingGeneration`) then Send returns; the partial reply is retained
-  with a **Generation stopped** annotation (`chat.generationStopped`)
+  with a **Generation stopped** annotation (`chat.generationStopped`). Stop
+  about 1 s after the first text appears, wait 5 s, note the reply's length,
+  then reload → the reply on screen before the reload is the same text and
+  length as after it (the settled reply may be longer than the text shown at
+  the click, and it appears at once, without typing on).
 - [ ] `CHAT-F11` · **Copy reply** — Assistant toolbar → **Copy**
   (`common.actions.copy`) → The tooltip flips to **Copied**
   (`common.actions.copied`); the clipboard holds the reply as normalized plain
@@ -202,7 +206,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   column shows its error row without a reload; **A is better**
   (`chat.arena.aBetter`) records with **Verdict recorded**
   (`chat.arena.verdictRecorded`); the Share dialog for an arena thread
-  refuses (`chat.share.notShareable` / `chat.share.cannotShareArena`)
+  refuses (`chat.share.notShareable` / `chat.share.cannotShareArena`); in a
+  new round pick **B is better** (`chat.arena.bBetter`) → the chat continues
+  with column B and the composer's model picker
+  (`chat.picker.ariaLabel`) now reads **Model B**'s name, so
+  the next message goes to the model just judged better; reload → the
+  picker shows the model saved before the round again (the switch is not
+  saved as the sticky pick)
 - [ ] `CHAT-F25` · **Voice output (TTS)** — Toggle the composer's **Voice
   mode** (`chat.voice.voiceModeLabel`, `aria-pressed`; tooltips
   `chat.voice.voiceModeEnable` / `chat.voice.voiceModeDisable`); send (**mode
@@ -401,6 +411,26 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   cutting them off. The fresh composer shows the toggle alone. Moving the chat
   to another project (CHAT-F31) or stopping the share (CHAT-F22) updates the
   line without a reload.
+- [ ] `CHAT-F47` · **Task lookup by key** — Create a task in a project with a
+  key (the board shows it as e.g. `DOCS-12`), then in a chat ask "Find the
+  task DOCS-12 — title, project, status?" → The reply names that task's title,
+  project and status and quotes the key `DOCS-12` back; it never answers that
+  no task carries that ID, and never presents the internal reference as the
+  task's ID.
+- [ ] `CHAT-F48` · **The losing Arena column goes to Trash** — Copy the
+  chat's URL, run an arena round (CHAT-F24) and pick **B is better**
+  (`chat.arena.bBetter`) → The chat continues under a new URL; opening the
+  copied URL shows **This chat is not available** (`chat.notFound`) with
+  **New chat** (`chat.newChat`), never an archived read-only stub; the losing
+  chat is in neither the chat list nor the **Archived** group, and search does
+  not find it by title or content; as an admin,
+  `/dashboard/{org}/settings/governance/trash` lists it under **Chats**
+  (`governance.trash.tab.chatThread`) with its title and **Trashed**
+  (`governance.trash.status.trashed`); **Restore**
+  (`governance.trash.restore.label`) brings it back to the owner's chat list
+  as a chat of its own, and its **Conversation actions** menu offers
+  **Delete**. Repeat with **A is better** (`chat.arena.aBetter`): the URL
+  stays, and Trash shows one row for the discarded column B.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
@@ -560,6 +590,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   dots and the ticking
   `Thinking · Ns` shell are gone the moment the notice lands and the count
   does not keep running under it; a reload shows the same settled row.
+- [ ] `CHAT-B15` · **Dictation with the microphone denied** — Block the
+  microphone for the site in the browser, then click **Start dictation**
+  (`chat.dictation.start`) twice → Each click shows the **Microphone access
+  denied** toast (`chat.dictation.permissionDenied`) at once; the button never
+  flips to **Stop dictation** (`chat.dictation.stop`); with the site allowed but
+  the network offline, a click shows the **Dictation is unavailable** toast
+  (`chat.dictation.serviceUnavailable`) rather than "not supported".
 
 ## Accessibility (WCAG 2.1 AA)
 

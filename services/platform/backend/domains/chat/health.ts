@@ -49,6 +49,40 @@ function classifyStoredChatError(error: string): string {
   return decoded.code ?? classifyChatErrorCode(decoded.raw ?? error);
 }
 
+/** One row per model in the breakdown. A turn stores its provider only when
+ * the lane that wrote it knew one (a cancelled or errored turn, or an older
+ * row, carries the model alone), which used to list `deepseek-x` twice — once
+ * under its provider and once under none. A provider-less count joins the
+ * model's provider bucket when exactly one provider is known for it; with
+ * none or several it stays its own row, because guessing would misattribute
+ * it. Sorted by count, descending. */
+export function foldModelCounts(
+  entries: Array<{ provider: string; model: string; count: number }>,
+): Array<{ provider: string; model: string; count: number }> {
+  const rows = entries
+    .filter((entry) => entry.provider !== '')
+    .map((entry) => ({
+      provider: entry.provider,
+      model: entry.model,
+      count: entry.count,
+    }));
+  const byModel = new Map<string, typeof rows>();
+  for (const row of rows) {
+    byModel.set(row.model, [...(byModel.get(row.model) ?? []), row]);
+  }
+  for (const entry of entries) {
+    if (entry.provider !== '') continue;
+    const candidates = byModel.get(entry.model) ?? [];
+    const only = candidates[0];
+    if (candidates.length === 1 && only !== undefined) {
+      only.count += entry.count;
+    } else {
+      rows.push({ ...entry });
+    }
+  }
+  return rows.sort((a, b) => b.count - a.count);
+}
+
 export async function getOrgChatHealth(
   sql: Sql,
   organizationId: string,
@@ -188,9 +222,10 @@ export async function getOrgChatHealth(
       hasAnyData: sawAnyRow,
     },
     series: [...seriesMap.values()],
-    byModel: [...modelCounts.values()]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, CHAT_HEALTH_TOP_N),
+    byModel: foldModelCounts([...modelCounts.values()]).slice(
+      0,
+      CHAT_HEALTH_TOP_N,
+    ),
     byAgent: [...agentCounts]
       .map(([agentSlug, count]) => ({ agentSlug, count }))
       .sort((a, b) => b.count - a.count)

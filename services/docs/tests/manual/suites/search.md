@@ -50,7 +50,7 @@ index in its `dev` script). Clear the recents key for a clean SEARCH-F5 run.
   empty → **Recent searches** (`search.recent`) lists the query; the row's
   **Remove from recent** control (`search.removeRecent`) deletes one;
   **Clear** (`search.clearRecent`) empties the list; the store
-  `tale.docs.recentSearches.v1` reflects each step and survives a reload.
+  the localStorage entry tale.docs.recentSearches.v1 reflects each step and survives a reload.
 - [ ] `SEARCH-F6` · **Locale index** — On `{base}/de`, open search and type a
   German term from a translated page (e.g. `Schnellstart`) → Hits come from
   the **German** index (`search-index-de.json`) and link into `/de/…` pages;
@@ -63,6 +63,13 @@ index in its `dev` script). Clear the recents key for a clean SEARCH-F5 run.
   pages (e.g. **Episode 1 — Welcome to Tale**) that open `/tutorials/videos/…`
   correctly — the index is rebuilt with the corpus (`build-search-index.ts`
   runs on `dev`/`build`), never stale.
+- [ ] `SEARCH-F8` · **Deep-page terms** — Search `ORG_SLUG_REQUIRED`, then
+  `WEBDAV_MAX_PUT_BYTES`, then `Idempotency-Key` → Each returns hits and the
+  **API reference** (the develop → API reference page) or the **environment
+  reference** (the self-hosted → configuration → environment reference page)
+  is among the first three rows — the whole page body is indexed, not only its intro,
+  and inline-code words survive; a hit whose term sits past the stored
+  snippet still opens the page (the row shows the page's opening text).
 
 ## Boundary & error tests
 

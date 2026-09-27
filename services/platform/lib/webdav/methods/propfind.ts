@@ -1,5 +1,5 @@
 import { anyRefs } from '../../shared/handlers/function-refs';
-import { buildDavPath, lockKeyFromParsed } from '../paths';
+import { buildDavPath, buildDavRootPath, lockKeyFromParsed } from '../paths';
 import {
   WEBDAV_MAX_XML_BODY,
   WebDAVBodyTooLarge,
@@ -63,6 +63,47 @@ export async function handlePropfind(
     bodyText = '';
   }
   const propfindRequest = parsePropfindBody(bodyText);
+
+  // The organization root `/dav/<orgSlug>/` is a pseudo-collection with no
+  // backing row: it answers for itself (RFC 4918 §9.1 — the multistatus
+  // describes the resource the client asked for) and, at Depth 1, for its
+  // two namespaces. It used to fall through to the documents root, so a
+  // client mounting the root saw `documents/`' children under hrefs it
+  // never asked for and could not find `.trash/` at all. No tree or lock
+  // lookup: neither the root nor a namespace is ever locked.
+  if (parsed.isRoot) {
+    const now = new Date();
+    const rootProps: ResourceProps[] = [
+      {
+        href: buildDavRootPath(auth.orgSlug),
+        isCollection: true,
+        displayName: auth.orgSlug,
+        lastModified: now,
+        creationDate: now,
+      },
+    ];
+    if (depth === 1) {
+      for (const namespace of ['documents', '.trash'] as const) {
+        rootProps.push({
+          href: buildDavPath({
+            orgSlug: auth.orgSlug,
+            namespace,
+            segments: [],
+            isCollection: true,
+          }),
+          isCollection: true,
+          displayName: namespace,
+          lastModified: now,
+          creationDate: now,
+        });
+      }
+    }
+    return {
+      status: 207,
+      headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+      body: buildMultiStatus(rootProps, propfindRequest),
+    };
+  }
 
   // Resolve the URL to a node — root, folder, or document.
   const resolved = await ctx.backend.query(

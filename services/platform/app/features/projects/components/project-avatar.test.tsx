@@ -1,3 +1,4 @@
+import { PROJECT_ICONS } from '@tale/shared/schemas/projects';
 import { describe, it, expect } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -5,7 +6,31 @@ import { render, screen } from '@/tests/utils/render';
 
 import { ProjectAvatar } from './project-avatar';
 
+/** The `lucide-<name>` class lucide-react stamps on the icon it rendered. */
+function renderedIconClass(container: HTMLElement): string | undefined {
+  return [...(container.querySelector('svg')?.classList ?? [])].find(
+    (name) => name.startsWith('lucide-') && name !== 'lucide',
+  );
+}
+
 describe('ProjectAvatar', () => {
+  it('renders its own icon for every allowlisted name, never the fallback', () => {
+    // The avatar maps names explicitly instead of reading the whole lucide
+    // namespace (which kept every icon in the bundle); each entry of the
+    // allowlist must resolve to a distinct icon rather than the default.
+    const { container: fallback } = render(<ProjectAvatar name="A" />);
+    const fallbackClass = renderedIconClass(fallback);
+    expect(fallbackClass).toBe('lucide-folder');
+    for (const icon of PROJECT_ICONS) {
+      const { container } = render(<ProjectAvatar name="A" icon={icon} />);
+      const rendered = renderedIconClass(container);
+      expect(rendered, icon).toBeDefined();
+      if (icon !== 'Folder') {
+        expect(rendered, icon).not.toBe(fallbackClass);
+      }
+    }
+  });
+
   it('renders with the project name as aria-label', () => {
     const { container } = render(
       <ProjectAvatar name="Q2 Sales Hiring" icon="Briefcase" color="emerald" />,

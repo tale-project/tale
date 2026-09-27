@@ -26,6 +26,7 @@ import { loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
   ErasureError,
+  getErasureRequest,
   processErasure,
   requestErasure,
   retryErasure,
@@ -287,6 +288,9 @@ describe('retryErasure', () => {
     expect(rearm?.text).toContain(
       "WHERE id = ? AND org_id = ? AND status IN ('blocked', 'partial', 'failed') RETURNING id",
     );
+    // A re-armed receipt starts clean: the recorded stop reason (a hold
+    // token or the failed passes) must not follow it into `pending`.
+    expect(rearm?.text).toContain('error = NULL');
     expect(addJobInTx).not.toHaveBeenCalled();
     expect(createAuditLog).not.toHaveBeenCalled();
   });
@@ -322,6 +326,10 @@ describe('processErasure', () => {
       ),
     );
     expect(blocked?.text).toContain('started_at_ms = NULL');
+    // The receipt records WHICH hold stopped it, so the drawer's panel can
+    // name it instead of the generic line.
+    expect(blocked?.text).toContain('error = ?');
+    expect(blocked?.values).toEqual(['user_custodian_hold', 'req-1']);
     expect(createAuditLog).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -430,6 +438,119 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
+  });
+});
+
+describe('requestErasure — the hold gate at filing', () => {
+  it('files a durable blocked receipt that records the org-wide hold', async () => {
+    vi.mocked(checkOrganizationRateLimit).mockResolvedValue(undefined as never);
+    vi.mocked(loadActiveHolds).mockResolvedValue({
+      orgHeld: true,
+      userMembershipIds: new Set(),
+    });
+    const fake = fakeSql((text) => {
+      if (text.startsWith('SELECT "role" FROM "member"'))
+        return [{ role: 'admin' }];
+      if (text.startsWith('INSERT INTO app.gdpr_erasure_requests'))
+        return [{ id: 'req-1' }];
+      return undefined;
+    });
+
+    await expect(
+      requestErasure(fake.sql, {
+        organizationId: 'org_1',
+        actorId: 'admin-1',
+        targetUserId: 'subject',
+        reason: 'Consent withdrawn',
+        reasonCode: 'consent_withdrawn',
+      }),
+    ).rejects.toMatchObject({ code: 'LEGAL_HOLD_BLOCKS_ERASURE' });
+
+    const blocked = fake.statements.find((s) =>
+      s.text.startsWith(
+        "UPDATE app.gdpr_erasure_requests SET status = 'blocked'",
+      ),
+    );
+    expect(blocked?.text).toContain('error = ?');
+    expect(blocked?.values).toEqual(['org_hold', 'req-1']);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('getErasureRequest — the blocked receipt re-checks the hold', () => {
+  const blockedRow = (error: string) => ({
+    id: 'req-1',
+    targetUserId: 'subject',
+    reason: 'Consent withdrawn',
+    reasonCode: 'consent_withdrawn',
+    status: 'blocked',
+    requestedBy: 'filer',
+    requestedAt: 1,
+    slaDeadlineAt: 2,
+    effectiveAt: null,
+    approvalId: null,
+    extensionGrantedAt: null,
+    extensionGrantedBy: null,
+    extensionReason: null,
+    extensionDeadlineAt: null,
+    startedAt: null,
+    finishedAt: null,
+    cancelledBy: null,
+    cancellationReason: null,
+    threadsTargeted: [],
+    counts: null,
+    error,
+  });
+  const receiptOf = (error: string) =>
+    fakeSql((text) =>
+      text.startsWith('SELECT id, target_user_id') ? [blockedRow(error)] : [],
+    );
+
+  it('says the hold was released once no hold covers the subject any more', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+
+    const detail = await getErasureRequest(
+      receiptOf('user_custodian_hold').sql,
+      'org_1',
+      'req-1',
+    );
+
+    expect(detail?.request).toMatchObject({
+      status: 'blocked',
+      errorMessage: 'user_custodian_hold',
+      holdBlock: { orgHeld: false, userCustodianHeld: false, active: false },
+    });
+    expect(loadActiveHolds).toHaveBeenCalledWith(expect.anything(), 'org_1');
+  });
+
+  it('names the hold that still covers the subject', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue({
+      orgHeld: true,
+      userMembershipIds: new Set(),
+    });
+
+    const detail = await getErasureRequest(
+      receiptOf('org_hold').sql,
+      'org_1',
+      'req-1',
+    );
+
+    expect(detail?.request).toMatchObject({
+      holdBlock: { orgHeld: true, userCustodianHeld: false, active: true },
+    });
+  });
+
+  it('does not check holds for a receipt that is not blocked', async () => {
+    const fake = fakeSql((text) =>
+      text.startsWith('SELECT id, target_user_id')
+        ? [{ ...blockedRow(''), status: 'pending', error: null }]
+        : [],
+    );
+
+    const detail = await getErasureRequest(fake.sql, 'org_1', 'req-1');
+
+    expect(detail?.request).not.toHaveProperty('holdBlock');
+    expect(loadActiveHolds).not.toHaveBeenCalled();
   });
 });
 

@@ -9,7 +9,7 @@ Le SSO d’entreprise permet aux membres de se connecter via ton fournisseur d�
 
 Il te faut l’autorisation d’enregistrer une application chez ton IdP, ses identifiants client ou métadonnées SAML, ainsi que l’adresse publique de Tale utilisée par les membres. Garde une session admin fonctionnelle ouverte pendant les tests pour corriger la configuration si la connexion échoue.
 
-Choisis un **Nom affiché** reconnaissable. Il apparaît dans le choix d’organisation sur la page publique de connexion : évite les informations confidentielles ou purement internes.
+Choisis un **Nom affiché** reconnaissable. Lorsque plusieurs organisations du déploiement ont activé le SSO, il apparaît dans le choix d’organisation sur la page publique de connexion : évite les informations confidentielles ou purement internes.
 
 <Frame caption="Choisis d'abord le protocole. Tale affiche les champs utiles et l'adresse de rappel à enregistrer chez ton fournisseur d'identité.">
 
@@ -90,7 +90,7 @@ La clé détermine l’organisation : un membre est connecté, une adresse que T
 
 ## Vérifier et résoudre les problèmes
 
-Ouvre une session de navigateur séparée, choisis **Continuer avec SSO**, puis l’organisation grâce à son nom d’affichage. Termine la connexion et vérifie le rôle et les équipes obtenus. **Tester la connexion** vérifie les paramètres de connexion, sans prouver qu’une personne reçoit les bons accès.
+Ouvre une session de navigateur séparée et choisis **Continuer avec SSO**. Le choix d’organisation n’apparaît que si plusieurs organisations du déploiement ont activé le SSO ; sélectionnes-y l’organisation grâce à son nom d’affichage. Sinon, le bouton ouvre directement le fournisseur d’identité de la seule organisation activée, et une adresse saisie dans le champ e-mail n’est transmise que comme indice de connexion : Tale n’oriente pas selon le domaine de l’e-mail. Termine la connexion et vérifie le rôle et les équipes obtenus. **Tester la connexion** vérifie les paramètres de connexion, sans prouver qu’une personne reçoit les bons accès.
 
 | Symptôme | Points à vérifier |
 | --- | --- |

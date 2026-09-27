@@ -66,8 +66,9 @@ export function useDocumentsTableConfig({
         accessorKey: 'name',
         header: tTables('headers.document'),
         // The icon and controlled-record badge must leave room for a readable
-        // filename even at the table's minimum width (including long locales).
-        size: 360,
+        // filename even at the table's minimum width (including long locales);
+        // as the flex column it takes every px the card has beyond the floor.
+        size: 240,
         // The document name is the primary, longest column — opt it in as the
         // table's flex column so it absorbs all the container slack while the
         // fixed-width metadata columns keep their declared px. Without this the
@@ -129,7 +130,8 @@ export function useDocumentsTableConfig({
       {
         accessorKey: 'size',
         header: tTables('headers.size'),
-        size: 128,
+        // "999.9 KB" plus the cell padding, measured in Chromium.
+        size: 88,
         meta: { headerLabel: tTables('headers.size') },
         cell: ({ row }) => (
           <Text as="span" className="block whitespace-nowrap">
@@ -142,9 +144,9 @@ export function useDocumentsTableConfig({
       {
         id: 'source',
         header: tTables('headers.source'),
-        // Wide enough for the sync-health badge ("Reconnect needed" + dot),
-        // which used to spill into the RAG status column at 96.
-        size: 150,
+        // The provider mark, in the failure colour when a sync stopped — its
+        // "Reconnect needed" wording is the mark's tooltip, not cell text.
+        size: 104,
         meta: {
           headerLabel: tTables('headers.source'),
           skeleton: { type: 'icon', icon: <span className="block size-5" /> },
@@ -161,7 +163,8 @@ export function useDocumentsTableConfig({
       {
         id: 'ragStatus',
         header: tTables('headers.ragStatus'),
-        size: 160,
+        // The widest badge ("Not indexed") beside the OCR mark.
+        size: 144,
         meta: { skeleton: { type: 'badge', badge: { variant: 'blue' } } },
         cell: ({ row }) =>
           row.original.type === 'folder' ? (
@@ -240,7 +243,12 @@ export function useDocumentsTableConfig({
       {
         id: 'uploadedBy',
         header: tTables('headers.uploadedBy'),
-        size: 180,
+        // A name; an e-mail truncates at the cell (its full value is the
+        // title). Every size here is tuned so the floor (1160 px with the
+        // actions column) fits a 1440 px window beside the 14 rem sidebar —
+        // the columns used to sum to 1434 px and the card scrolled inside,
+        // clipping "Modified" (2026-09-26 evaluation, B-10).
+        size: 128,
         meta: { className: 'overflow-hidden' },
         cell: ({ row }) => {
           if (row.original.type === 'folder') {

@@ -23,7 +23,7 @@ API- und MCP-Clients können auch ohne Trigger starten. API-Schlüssel und Proje
 
 <Step title="Trigger-Einstellungen öffnen">
 
-Öffne die Automatisierung und ihren Bereich **Trigger**. Wähle unter **Trigger-Typ** den **Zeitplan**. Lass **Aktiv** ausgeschaltet, solange der Workflow noch nicht selbstständig starten soll.
+Öffne die Automatisierung und ihren Bereich **Trigger**. Ohne Bindung steht dort, dass die Automatisierung nur von Hand oder über die API läuft; wähle **Trigger hinzufügen** und dann unter **Trigger-Typ** den **Zeitplan**. Ein neuer Trigger ist zunächst nicht **Aktiv** — lass ihn ausgeschaltet, solange der Workflow noch nicht selbstständig starten soll.
 
 </Step>
 

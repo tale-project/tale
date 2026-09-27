@@ -8,7 +8,7 @@ Use **Settings > Governance > Trash** as an Admin or Owner to recover records th
 ## Restore a record
 
 1. Open Trash and use **Filter > Category** to narrow the list, or leave it unfiltered to see all supported types.
-2. Check the record's name, owner, type, and deletion time. These help distinguish records with similar names.
+2. Check the record's name, owner, type, and deletion time. These help distinguish records with similar names. A chat is listed under its title; the answer discarded in an [Arena](/platform/chat/arena-mode) comparison keeps the title of its conversation.
 3. Select **Restore** on the row and review the confirmation.
 4. For a retention-expired record, type `restore` exactly. Confirm the action, then look for the record in its original location: for example, its chat list or Knowledge.
 
@@ -23,7 +23,7 @@ The restored row disappears from Trash. Tale records the restoration in the audi
 
 **Expired** does not mean the recovery window has already ended. Retention marks records expired when their grace window starts; permanent cleanup follows once that window elapses.
 
-The category filter includes supported chats, documents, files, feedback, contacts, external conversations, workflow and automation runs, usage records, audit records, and chat-filter events. Some data is deleted directly or as part of a parent record's cleanup and has no separate restore action.
+The category filter lists the record types that pass through Trash: chats, documents, temporary files, message feedback, contacts, and external conversations. A chat's earlier versions travel with it: they are trashed and restored together with the chat and never appear as rows of their own. Other data, such as automation runs, usage records, audit records, and chat-filter events, is deleted directly or as part of a parent record's cleanup and has no restore action here.
 
 ## Check the recovery window
 

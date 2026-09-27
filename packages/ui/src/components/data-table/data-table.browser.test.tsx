@@ -9,6 +9,7 @@ import { cleanup } from '@testing-library/react';
 import { MoreVertical } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -412,4 +413,53 @@ describe('DataTable skeleton geometry (real layout)', () => {
     rerender(table(false));
     expect(measure()).toEqual(before);
   });
+});
+
+// Regression (2026-09-26 evaluation, B-10): a cell's `sr-only` live region is
+// `position: absolute`; with no positioned ancestor inside the table its
+// static position sat at the cell's x inside the wide table and the DOCUMENT
+// grew to it, so a phone scrolled sideways into a blank page while the
+// table's own scrollport did nothing. The scrollport is the containing block
+// now, in both layouts.
+describe('DataTable on a phone viewport (real layout)', () => {
+  const wideColumns: ColumnDef<Row>[] = [
+    { accessorKey: 'name', header: 'Name', size: 320 },
+    { accessorKey: 'status', header: 'Status', size: 320 },
+    {
+      accessorKey: 'note',
+      header: 'Copied at',
+      size: 320,
+      cell: () => (
+        <span className="inline-flex items-center gap-1">
+          <span>2026-09-26</span>
+          <span className="sr-only" role="status" aria-live="polite">
+            Copied
+          </span>
+        </span>
+      ),
+    },
+  ];
+
+  it.each([false, true])(
+    'keeps the page at the viewport width while the table scrolls inside (stickyLayout=%s)',
+    async (stickyLayout) => {
+      await page.viewport(390, 844);
+      render(
+        <DataTable
+          columns={wideColumns}
+          data={rows}
+          approxRowCount={1}
+          stickyLayout={stickyLayout}
+        />,
+      );
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+        window.innerWidth,
+      );
+      const table = screen.getByRole('table');
+      const scrollport = table.closest('.overflow-x-auto, .overflow-auto');
+      expect(scrollport).toBeInstanceOf(HTMLElement);
+      if (!(scrollport instanceof HTMLElement)) return;
+      expect(scrollport.scrollWidth).toBeGreaterThan(scrollport.clientWidth);
+    },
+  );
 });

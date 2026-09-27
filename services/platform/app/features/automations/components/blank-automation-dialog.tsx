@@ -12,7 +12,10 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
+import { CopyableField } from '@tale/ui/copyable-field';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
+import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { SearchableSelect } from '@tale/ui/searchable-select';
@@ -20,6 +23,7 @@ import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
+import { KeyRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -43,6 +47,8 @@ import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
+import { useCronPreview } from '../hooks/use-cron-preview';
+import { isValidTimezone, listTimezoneOptions } from '../lib/cron-preview';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
 import { DEFAULT_HARNESS } from './agent-node-fields';
 
@@ -63,6 +69,14 @@ function slugify(input: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 64);
+}
+
+/** The slug a name outside the Latin script gets — `发票提醒` slugifies to
+ * nothing, and the typed name lives in the presentation, not the slug. One
+ * per dialog opening, so the "Saved as" line is stable while the author
+ * types. */
+function fallbackSlug(): string {
+  return `automation-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 export function BlankAutomationDialog({
@@ -108,12 +122,23 @@ export function BlankAutomationDialog({
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [secretNames, setSecretNames] = useState<readonly string[]>([]);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
+  const [generatedSlug, setGeneratedSlug] = useState(fallbackSlug);
 
   // Step 2 — the trigger.
   const [triggerKind, setTriggerKind] = useState<TriggerKind>('schedule');
   const [cron, setCron] = useState('0 */6 * * *');
   const [timezone, setTimezone] = useState('UTC');
   const [eventName, setEventName] = useState('');
+  // Off by default: the trigger is created paused, the way the panel does
+  // it, so nothing starts before the author has looked at the result.
+  const [enableNow, setEnableNow] = useState(false);
+  // The webhook token the create minted — the server shows it exactly once,
+  // and this dialog is the only place that sees the mint, so it stays open
+  // on a copy screen until the author has taken the URL.
+  const [minted, setMinted] = useState<{
+    token: string;
+    automationSlug: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -125,10 +150,13 @@ export function BlankAutomationDialog({
     setBinding(EMPTY_BINDING);
     setSecretNames([]);
     setNameError(undefined);
+    setGeneratedSlug(fallbackSlug());
     setTriggerKind('schedule');
     setCron('0 */6 * * *');
     setTimezone('UTC');
     setEventName('');
+    setEnableNow(false);
+    setMinted(null);
   }, [open]);
 
   // The grantable platform tools, labelled per name with a read/write badge
@@ -182,12 +210,66 @@ export function BlankAutomationDialog({
     [offeredModels, tProjects],
   );
 
-  const slug = slugify(name);
+  // The schedule is judged here, before anything is written: the same
+  // validator the bind refuses on, so the wizard never creates an
+  // automation and then fails to set its trigger. The toast on a refused
+  // bind stays as the fallback for whatever the server alone can see.
+  const {
+    preview: cronPreview,
+    description: cronDescription,
+    invalidText: cronInvalidText,
+  } = useCronPreview(cron, timezone, triggerKind === 'schedule');
+  const timezoneOptions = useMemo(
+    () =>
+      listTimezoneOptions(timezone).map((zone) => ({
+        value: zone,
+        label: zone,
+      })),
+    [timezone],
+  );
+  const timezoneValid = isValidTimezone(timezone);
+
+  // The slug is addressing; the typed name is what people see. A name the
+  // slugifier empties (Chinese, emoji) still creates — under a generated
+  // slug the "Saved as" line shows before Create.
+  const typedSlug = slugify(name);
+  const slug =
+    name.trim() === '' ? '' : typedSlug === '' ? generatedSlug : typedSlug;
   const canSubmitStep1 =
     slug.length > 0 && model !== '' && prompt.trim() !== '';
   const canSubmitStep2 =
     triggerKind === 'webhook' ||
-    (triggerKind === 'schedule' ? cron.trim() !== '' : eventName.trim() !== '');
+    (triggerKind === 'schedule'
+      ? cronPreview.kind === 'ok' && timezoneValid
+      : eventName.trim() !== '');
+  const step2DisabledReason =
+    triggerKind === 'schedule'
+      ? (cronInvalidText ??
+        (cronPreview.kind === 'empty'
+          ? t('trigger.cronHint')
+          : timezoneValid
+            ? undefined
+            : t('blank.timezoneInvalid')))
+      : undefined;
+
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  const webhookUrl = (token: string): string =>
+    `${origin}/api/automations/webhook/${token}`;
+
+  const openAutomation = (automationSlug: string): void => {
+    onOpenChange(false);
+    if (projectId !== undefined) {
+      void navigate({
+        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
+        params: { id: organizationId, projectId, automationSlug },
+      });
+    } else {
+      void navigate({
+        to: '/dashboard/$id/automations/$automationSlug',
+        params: { id: organizationId, automationSlug },
+      });
+    }
+  };
 
   const doCreate = async (): Promise<void> => {
     if (creatingRef.current) return;
@@ -222,27 +304,33 @@ export function BlankAutomationDialog({
       const saved = await saveAutomation({
         organizationId,
         automation,
+        // The display name as typed — case, script and emoji intact; the
+        // slug only addresses the automation.
+        presentation: { name: name.trim() },
         message: t('blank.initialMessage'),
         // Create-only: refuse rather than append a version to (and rebind the
         // trigger of) a live automation that already holds this slug.
         create: true,
         ...(projectId !== undefined ? { projectId } : {}),
       });
-      // Set the trigger the wizard collected. A webhook mints a token shown
-      // once on the detail page's Trigger card, so it is not surfaced here.
+      // Set the trigger the wizard collected. A webhook mints its token
+      // HERE, and the server never shows it again — so the dialog holds it
+      // on a copy screen instead of navigating past it.
+      let token: string | undefined;
       try {
-        await setTrigger({
+        const bound = await setTrigger({
           organizationId,
           name: saved.name,
           trigger: {
             kind: triggerKind,
-            enabled: true,
+            enabled: enableNow,
             ...(triggerKind === 'schedule'
               ? { cron: cron.trim(), timezone: timezone.trim() || 'UTC' }
               : {}),
             ...(triggerKind === 'event' ? { event: eventName.trim() } : {}),
           },
         });
+        token = bound?.token;
       } catch (error) {
         // The automation exists; only the trigger failed — land on the detail
         // page (where the Trigger card lets them retry) with a warning.
@@ -254,18 +342,12 @@ export function BlankAutomationDialog({
         });
       }
       const automationSlug = automationSlugToParam(saved.name);
-      onOpenChange(false);
-      if (projectId !== undefined) {
-        void navigate({
-          to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
-          params: { id: organizationId, projectId, automationSlug },
-        });
-      } else {
-        void navigate({
-          to: '/dashboard/$id/automations/$automationSlug',
-          params: { id: organizationId, automationSlug },
-        });
+      if (triggerKind === 'webhook' && token !== undefined) {
+        setMinted({ token, automationSlug });
+        setSubmitting(false);
+        return;
       }
+      openAutomation(automationSlug);
     } catch (error) {
       // The store refuses a create whose name already has versions, or whose
       // first segment the platform keeps for its own pages, with a typed
@@ -287,6 +369,7 @@ export function BlankAutomationDialog({
 
   const handleSubmit = (event: React.FormEvent): void => {
     event.preventDefault();
+    if (minted !== null) return;
     if (step === 0) {
       if (canSubmitStep1) setStep(1);
       return;
@@ -295,47 +378,80 @@ export function BlankAutomationDialog({
     void doCreate();
   };
 
-  const footer = (
-    <>
-      {step === 0 ? (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onOpenChange(false)}
-          disabled={submitting}
-        >
-          {t('blank.cancel')}
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setStep(0)}
-          disabled={submitting}
-        >
-          {t('blank.back')}
-        </Button>
-      )}
-      {step === 0 ? (
-        <Button type="submit" disabled={!canSubmitStep1}>
-          {t('blank.next')}
-        </Button>
-      ) : (
-        <Button type="submit" disabled={!canSubmitStep2} isLoading={submitting}>
-          {submitting ? t('blank.submitting') : t('blank.submit')}
-        </Button>
-      )}
-    </>
-  );
+  const footer =
+    minted !== null ? (
+      <Button
+        type="button"
+        onClick={() => {
+          openAutomation(minted.automationSlug);
+        }}
+      >
+        {t('blank.openAutomation')}
+      </Button>
+    ) : (
+      <>
+        {step === 0 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            {t('blank.cancel')}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setStep(0)}
+            disabled={submitting}
+          >
+            {t('blank.back')}
+          </Button>
+        )}
+        {step === 0 ? (
+          <Button type="submit" disabled={!canSubmitStep1}>
+            {t('blank.next')}
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            disabled={!canSubmitStep2}
+            {...(step2DisabledReason !== undefined && !canSubmitStep2
+              ? { disabledReason: step2DisabledReason }
+              : {})}
+            isLoading={submitting}
+          >
+            {submitting ? t('blank.submitting') : t('blank.submit')}
+          </Button>
+        )}
+      </>
+    );
 
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        // Closing the copy screen any other way still lands on the
+        // automation — the URL is gone from the page either way.
+        if (!next && minted !== null) {
+          openAutomation(minted.automationSlug);
+          return;
+        }
+        onOpenChange(next);
+      }}
       title={t('blank.title')}
-      description={step === 0 ? t('blank.stepAgent') : t('blank.stepTrigger')}
+      description={
+        minted !== null
+          ? t('blank.stepWebhook')
+          : step === 0
+            ? t('blank.stepAgent')
+            : t('blank.stepTrigger')
+      }
       isSubmitting={submitting}
-      isDirty={name.trim().length > 0 || prompt.trim().length > 0}
+      isDirty={
+        minted === null && (name.trim().length > 0 || prompt.trim().length > 0)
+      }
       confirmDiscardOnDirty
       onSubmit={handleSubmit}
       customFooter={footer}
@@ -347,7 +463,23 @@ export function BlankAutomationDialog({
           label: step === 0 ? t('blank.stepAgent') : t('blank.stepTrigger'),
         })}
       </div>
-      {step === 0 ? (
+      {minted !== null ? (
+        <Stack gap={4}>
+          <Alert
+            variant="warning"
+            icon={KeyRound}
+            title={t('trigger.tokenTitle')}
+            description={t('trigger.tokenHint')}
+          />
+          <CopyableField
+            label={t('trigger.webhookEndpointLabel')}
+            value={webhookUrl(minted.token)}
+            mono
+            copyAriaLabel={t('blank.copyWebhookUrl')}
+            description={t('trigger.webhookHowto')}
+          />
+        </Stack>
+      ) : step === 0 ? (
         <Stack gap={4}>
           <Input
             id="blank-automation-name"
@@ -436,19 +568,32 @@ export function BlankAutomationDialog({
           />
           {triggerKind === 'schedule' ? (
             <>
-              <Input
-                id="blank-automation-cron"
+              <Field
                 label={t('trigger.cronLabel')}
-                placeholder="0 */6 * * *"
-                value={cron}
-                onChange={(e) => setCron(e.target.value)}
-              />
-              <Input
+                htmlFor="blank-automation-cron"
+                description={
+                  cronPreview.kind === 'invalid' ? undefined : cronDescription
+                }
+                error={cronInvalidText}
+              >
+                <Input
+                  id="blank-automation-cron"
+                  placeholder="0 */6 * * *"
+                  value={cron}
+                  onChange={(e) => setCron(e.target.value)}
+                  className="font-mono"
+                />
+              </Field>
+              <SearchableSelect
                 id="blank-automation-timezone"
                 label={t('trigger.timezoneLabel')}
+                options={timezoneOptions}
+                value={timezone || null}
+                onValueChange={setTimezone}
+                searchPlaceholder={t('trigger.timezoneSearch')}
+                emptyText={t('trigger.timezoneEmpty')}
                 placeholder="UTC"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
+                modal
               />
             </>
           ) : null}
@@ -470,6 +615,13 @@ export function BlankAutomationDialog({
           {triggerKind === 'webhook' ? (
             <Alert variant="info" description={t('blank.webhookHint')} />
           ) : null}
+          <Checkbox
+            id="blank-automation-enable-now"
+            label={t('blank.enableNow')}
+            description={t('blank.enableNowHint')}
+            checked={enableNow}
+            onCheckedChange={(checked) => setEnableNow(checked === true)}
+          />
         </Stack>
       )}
     </FormDialog>

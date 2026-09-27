@@ -26,12 +26,14 @@ Check factual accuracy against the source, whether the reply followed the instru
 | Verdict | Use it when | Conversation continues with |
 | --- | --- | --- |
 | **A is better** | A is more useful or accurate. | Column A. |
-| **B is better** | B is more useful or accurate. | Column B. |
+| **B is better** | B is more useful or accurate. | Column B, and the composer switches to Model B. |
 | **Tie** | Both meet the request equally well. | Column A. |
 | **Both bad** | Neither is acceptable. | Column A. |
 | **Exit without verdict** | You do not want to record a comparison. | Column A, without a verdict. |
 
 Every choice ends the two-column comparison. The next message goes to the remaining conversation. To compare again, enable Arena again; a tie does not keep both columns active.
+
+The other column's answer is discarded and goes to the organization's [Trash](/platform/admin/governance/trash), where an administrator can restore it as a chat of its own until the retention grace window ends. It no longer appears in your chat list or in search, and a link to it reports that the chat is not available.
 
 ## Find the recorded feedback
 

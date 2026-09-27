@@ -64,8 +64,39 @@ interface UseSpeechToTextReturn {
   isListening: boolean;
   isSupported: boolean;
   error: string | null;
+  /**
+   * Bumps on EVERY error, including a repeat of the same code — a second
+   * click on a denied microphone must announce the denial again, and a
+   * string that never changes cannot re-fire an effect.
+   */
+  errorNonce: number;
   startListening: () => void;
   stopListening: () => void;
+}
+
+/**
+ * The microphone permission state beside a starting session, or `undefined`
+ * where the browser cannot say (no Permissions API, or one that does not know
+ * the `microphone` descriptor — Safari throws). Web Speech only reports a
+ * denied microphone through a later `not-allowed` error and some builds
+ * never do, so a denial found here is surfaced at once instead of leaving
+ * the click without any visible effect.
+ */
+async function queryMicrophonePermission(): Promise<
+  PermissionState | undefined
+> {
+  if (typeof navigator === 'undefined' || !('permissions' in navigator)) {
+    return undefined;
+  }
+  try {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `microphone` is not in every lib.dom PermissionName union
+    const descriptor = { name: 'microphone' } as PermissionDescriptor;
+    const status = await navigator.permissions.query(descriptor);
+    return status.state;
+  } catch (error) {
+    console.warn('[dictation] microphone permission query unsupported', error);
+    return undefined;
+  }
 }
 
 export function useSpeechToText({
@@ -73,7 +104,12 @@ export function useSpeechToText({
   onTranscript,
 }: UseSpeechToTextOptions): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorCode] = useState<string | null>(null);
+  const [errorNonce, setErrorNonce] = useState(0);
+  const setError = useCallback((code: string) => {
+    setErrorCode(code);
+    setErrorNonce((nonce) => nonce + 1);
+  }, []);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
@@ -96,7 +132,7 @@ export function useSpeechToText({
       recognitionRef.current = null;
     }
 
-    setError(null);
+    setErrorCode(null);
 
     const recognition = new Recognition();
     recognition.continuous = true;
@@ -145,13 +181,33 @@ export function useSpeechToText({
       recognitionRef.current = null;
     });
 
+    // Start INSIDE the click: iOS Safari starts recognition only from a
+    // user gesture, and an await before `start()` would leave it. The
+    // permission query runs beside the session — a denial found there is
+    // surfaced at once (Web Speech reports it late, or in some builds
+    // never) and the session it would have stalled is aborted.
     try {
       recognition.start();
-    } catch {
+    } catch (startError) {
+      console.warn(
+        '[dictation] speech recognition failed to start',
+        startError,
+      );
+      recognitionRef.current = null;
       setError('not-allowed');
       setIsListening(false);
+      return;
     }
-  }, [lang]);
+    void queryMicrophonePermission().then((state) => {
+      // A newer click replaced this session while the query was pending.
+      if (recognitionRef.current !== recognition) return;
+      if (state !== 'denied') return;
+      recognitionRef.current = null;
+      recognition.abort();
+      setError('not-allowed');
+      setIsListening(false);
+    });
+  }, [lang, setError]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -167,6 +223,7 @@ export function useSpeechToText({
     isListening,
     isSupported,
     error,
+    errorNonce,
     startListening,
     stopListening,
   };

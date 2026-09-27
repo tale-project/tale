@@ -4,6 +4,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { stripMarkdown } from '@/app/features/shared/markdown/markdown-strip';
 import {
   synthesizeChunkRequest,
   voiceChunksQuery,
@@ -22,7 +23,6 @@ import {
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
 import { useChatQueryClient } from '../data/chat-backend';
-import { stripMarkdown } from './markdown-strip';
 import { useVoicePreReservationErrorSink } from './voice-output-context';
 
 // Codes the client retries on. Retry policy is intentionally client-owned

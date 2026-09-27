@@ -13,7 +13,7 @@ Tale fournit dix paquets d’automatisation : trois synchronisations de courrier
 
 ## Commencer avec un paquet
 
-Ouvre **Automatisations**, choisis un paquet et examine ses nœuds dans l’[éditeur de workflow](/fr/platform/automations/editor). Le connector requis doit être connecté, et le modèle de chaque nœud `llm` disponible. Un essai utilise des réponses simulées : il vérifie le déroulement sans prouver l’accès à ta boîte de réception ou à ton dépôt réel.
+Ouvre **Automatisations**, choisis un paquet et examine ses nœuds dans l’[éditeur de workflow](/fr/platform/automations/editor). Le connector requis doit être connecté, et le modèle de chaque nœud `llm` doit être un modèle que ton organisation sert — les paquets nomment un modèle que tes fournisseurs ne proposent peut-être pas ; la validation t’en avertit à l’enregistrement. Choisis un modèle servi dans le champ **Modèle** du nœud avant une exécution en direct. Un essai utilise des réponses simulées : il vérifie le déroulement sans prouver l’accès à ta boîte de réception ou à ton dépôt réel.
 
 Les paquets sont ajoutés à la création de l’organisation. Lorsque le paquet fourni évolue, tes versions existantes sont conservées ; seuls son nom et sa description fournis sont actualisés. Un paquet supprimé reste supprimé. Tes modifications créent de nouvelles versions, que tu mets en service séparément.
 

@@ -204,6 +204,12 @@ async function appendTaskComment(
   // Commenting is READ-level (0.4 `addTaskComment*`): anyone who can see
   // the task may join its discussion; edit/delete stay write-gated below.
   assertTaskReadable(project, auth);
+  // Archived = read-only for the whole project, its discussions included —
+  // the one code every write on it answers, so the app door and the
+  // mirrors refuse exactly as the REST comment door does.
+  if (project.archivedAt !== null) {
+    throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
+  }
   const body = args.body.trim();
   if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
     throw new TaskError('TASK_COMMENT_INVALID', 'Invalid comment body');

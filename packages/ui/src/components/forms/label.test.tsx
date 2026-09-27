@@ -22,6 +22,15 @@ describe('Label', () => {
       expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
+    // The suffix at 70 % opacity read 2.8:1 on a card (2026-09-26
+    // evaluation, B-08); the full muted token clears AA at 5:1.
+    it('renders the optional suffix at full muted contrast', () => {
+      render(<Label required={false}>Email</Label>);
+      const suffix = screen.getByText(/optional/i);
+      expect(suffix).toHaveClass('text-muted-foreground');
+      expect(suffix.className).not.toMatch(/muted-foreground\//);
+    });
+
     it('passes axe audit with error styling', async () => {
       const { container } = render(<Label error>Email</Label>);
       await checkAccessibility(container);

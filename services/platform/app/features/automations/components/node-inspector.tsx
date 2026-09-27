@@ -20,6 +20,7 @@ import { useDeselectOnEscape } from '../hooks/use-deselect-on-escape';
 import { controlFlowBadges } from '../lib/graph';
 import type { NodeRunView } from '../lib/run-view';
 import { AGENT_EQUIPMENT_FIELDS, AgentNodeFields } from './agent-node-fields';
+import { LlmModelField } from './llm-model-field';
 import { RunStepDetail } from './run-step-detail';
 
 /**
@@ -350,6 +351,7 @@ function NodeFields({
   const { t: tCommon } = useT('common');
   const badges = controlFlowBadges(node);
   const isAgent = node.type === 'agent';
+  const isLlm = node.type === 'llm';
   const declaredFields = (nodeType?.allowedFields ?? []).filter(
     (field) =>
       field !== 'input' && !(isAgent && AGENT_EQUIPMENT_FIELDS.includes(field)),
@@ -454,6 +456,22 @@ function NodeFields({
           return field;
         }
         const raw = readNodeField(node, fieldName);
+        if (isLlm && fieldName === 'model') {
+          // The models the organization serves, not a free box — the run
+          // would refuse anything else, and only at the first live run.
+          return (
+            <LlmModelField
+              key={fieldName}
+              organizationId={organizationId}
+              model={typeof raw === 'string' ? raw : ''}
+              required={required.has(fieldName)}
+              readOnly={readOnly}
+              onChange={(next) => {
+                onChange({ model: next });
+              }}
+            />
+          );
+        }
         return (
           <TextField
             key={fieldName}

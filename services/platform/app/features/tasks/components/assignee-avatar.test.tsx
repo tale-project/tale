@@ -76,3 +76,21 @@ describe('AssigneeAvatar', () => {
     expect(chip.className).not.toContain('text-primary-foreground');
   });
 });
+
+// A bare `<span aria-label>` names nothing (axe aria-prohibited-attr): the
+// chip is an image of the assignee, so it carries role="img".
+describe('AssigneeAvatar semantics', () => {
+  it('exposes a named assignee as an image', () => {
+    render(
+      <AssigneeAvatar assigneeType="user" assigneeId="user-2" name="Jordan" />,
+    );
+    expect(screen.getByRole('img', { name: 'Jordan' })).toBeInTheDocument();
+  });
+
+  it('exposes the unassigned placeholder as an image', () => {
+    render(<AssigneeAvatar />);
+    expect(
+      screen.getByRole('img', { name: 'assignee.unassigned' }),
+    ).toBeInTheDocument();
+  });
+});

@@ -3,7 +3,6 @@ import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import {
-  buildProductImageUrl,
   PRODUCT_IMAGE_MAX_BYTES,
   PRODUCT_IMAGE_TYPES,
 } from '../../../lib/shared/product-images.ts';
@@ -14,6 +13,11 @@ import {
   registerUploadedBytes,
 } from '../files/service.ts';
 import {
+  isProductImageUrl,
+  productImageId,
+  productImageUrl,
+} from './image-url.ts';
+import {
   assertProductAccess,
   ProductError,
   type ProductScope,
@@ -22,36 +26,7 @@ import {
 const IMAGE_ID = z.uuid();
 const SOURCE = 'product-image';
 
-/** Origin-relative like branding images: cookies follow the host being used. */
-export function productImageUrl(
-  organizationId: string,
-  fileId: string,
-): string {
-  return buildProductImageUrl(
-    organizationId,
-    fileId,
-    process.env.BASE_PATH ?? '',
-  );
-}
-
-/** Only the canonical app path is a binding. External URLs remain external. */
-export function productImageId(
-  value: string,
-  organizationId: string,
-): string | null {
-  if (!value.startsWith('/') || value.startsWith('//')) return null;
-  const parsed = new URL(value, 'http://product-image.invalid');
-  const fileId = parsed.pathname.split('/').at(-1);
-  if (!IMAGE_ID.safeParse(fileId).success || fileId === undefined) return null;
-  return value === productImageUrl(organizationId, fileId) ? fileId : null;
-}
-
-export function isProductImageUrl(value: string): boolean {
-  if (!value.startsWith('/') || value.startsWith('//')) return false;
-  const parsed = new URL(value, 'http://product-image.invalid');
-  const orgId = parsed.searchParams.get('orgId');
-  return orgId !== null && productImageId(value, orgId) !== null;
-}
+export { isProductImageUrl, productImageId, productImageUrl };
 
 function missingImage(): ProductError {
   return new ProductError(
@@ -135,13 +110,18 @@ async function imageFormat(
   } catch {
     throw new ProductError('PRODUCT_IMAGE_INVALID', 'Unsupported image bytes');
   }
-  if (/<svg(?:\s|>)/i.test(text) && !svgHasActiveContent(text)) {
-    return { mime: 'image/svg+xml', ext: 'svg' };
+  if (/<svg(?:\s|>)/i.test(text)) {
+    if (!svgHasActiveContent(text)) {
+      return { mime: 'image/svg+xml', ext: 'svg' };
+    }
+    // Its own code: a passive copy of the same drawing would be accepted,
+    // which a retry of the same file never is, so the form can say so.
+    throw new ProductError(
+      'PRODUCT_IMAGE_ACTIVE_CONTENT',
+      'SVG images must not contain scripts, event handlers or external references',
+    );
   }
-  throw new ProductError(
-    'PRODUCT_IMAGE_INVALID',
-    'Unsupported or active image content',
-  );
+  throw new ProductError('PRODUCT_IMAGE_INVALID', 'Unsupported image bytes');
 }
 
 /** Register server-validated bytes immediately; no unregistered raw ref escapes. */

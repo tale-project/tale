@@ -4,6 +4,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { JsonViewer } from '@tale/ui/json-viewer';
@@ -25,6 +26,7 @@ import {
   useRunPendingAsk,
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
+import { useRunStarterLabel } from '../hooks/use-run-starter-label';
 import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
@@ -36,6 +38,7 @@ import {
   readRunAgentRetry,
   readRunCursorNode,
   readRunStatus,
+  runReasonKey,
 } from '../lib/run-view';
 import {
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
@@ -59,6 +62,11 @@ import { RunBadge } from './run-status-badge';
  * redeploy since then cannot make the picture lie. Each node carries its status
  * from the trace, selecting one shows what that node received and returned, and
  * every effect the run performed is listed in full below.
+ *
+ * When no version document exists any more — the automation was deleted, and
+ * its runs are kept until retention removes them — the canvas is drawn from
+ * the run's own trace: the nodes it recorded, in the order it ran them. The
+ * page never goes blank over retained history (2026-09-26 evaluation, D-14).
  */
 export function RunDetail({
   organizationId,
@@ -84,6 +92,7 @@ export function RunDetail({
     }
   }, [selectedNodeId]);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [confirmStop, setConfirmStop] = useState(false);
 
   const runQuery = useAutomationRun(organizationId, runId);
   const run = runQuery.data ?? null;
@@ -96,11 +105,31 @@ export function RunDetail({
   );
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const cancel = useCancelAutomationRun();
+  const starterLabel = useRunStarterLabel(organizationId);
 
-  const automation = useMemo(
-    () => readDocument(versionQuery.data?.document),
-    [versionQuery.data?.document],
-  );
+  const projection = useMemo(() => projectRun(run), [run]);
+  // The version read has SETTLED with nothing to draw — the automation (or
+  // this version of it) is gone. Never true while the read is pending or on
+  // a transient failure, so the trace canvas below never flashes in front
+  // of the real document.
+  const versionMissing = isMissingAutomationRead(versionQuery);
+  const versionPending =
+    versionQuery.data === undefined && !versionQuery.isError;
+  const automation = useMemo(() => {
+    const document = readDocument(versionQuery.data?.document);
+    if (document !== null || run === null || !versionMissing) return document;
+    // No document to draw: the run's trace names every node it reached and
+    // its type, which is enough for a canvas of what happened. A node the
+    // run passed more than once (a repeat) is drawn once.
+    const seen = new Set<string>();
+    const nodes: { id: string; type: string }[] = [];
+    for (const entry of projection.trace) {
+      if (seen.has(entry.node)) continue;
+      seen.add(entry.node);
+      nodes.push({ id: entry.node, type: entry.type });
+    }
+    return readDocument({ name: run.name, nodes });
+  }, [versionQuery.data?.document, run, projection.trace, versionMissing]);
   // The heading names the automation the way the breadcrumb above it does,
   // not by the slug the store addresses it with.
   const { locale } = useLocale();
@@ -111,7 +140,6 @@ export function RunDetail({
   );
   const graph = useMemo(() => buildGraph(automation), [automation]);
   const positions = useMemo(() => readPositions(automation), [automation]);
-  const projection = useMemo(() => projectRun(run), [run]);
   const runStatusByNode = useMemo(
     () =>
       nodeStatusMap(
@@ -138,7 +166,7 @@ export function RunDetail({
       </ContentArea>
     );
   }
-  if (!run) {
+  if (!run || versionPending) {
     return (
       <ContentArea variant="narrow">
         <Text as="p" variant="muted" className="text-sm">
@@ -188,6 +216,9 @@ export function RunDetail({
           {t('versions.versionLabel', { version: run.version })}
         </span>
         <Text as="span" variant="muted" className="text-xs">
+          {starterLabel(run)}
+        </Text>
+        <Text as="span" variant="muted" className="text-xs">
           {t('runs.startedAt', {
             date: formatDate(new Date(run.startedAt), 'long'),
           })}
@@ -206,21 +237,38 @@ export function RunDetail({
             icon={Ban}
             isLoading={cancel.isPending}
             onClick={() => {
-              setRefusal(null);
-              cancel.mutate(
-                { organizationId, runId },
-                {
-                  onError: (error) => {
-                    setRefusal(automationErrorMessage(error));
-                  },
-                },
-              );
+              setConfirmStop(true);
             }}
           >
             {t('runs.cancel')}
           </Button>
         )}
       </div>
+
+      {/* A stop is irreversible and withdraws whatever the run waits on (an
+          approval card, a question), so it asks first — like the delete and
+          revoke doors do. */}
+      <ConfirmDialog
+        open={confirmStop}
+        onOpenChange={setConfirmStop}
+        title={t('runs.cancelConfirm.title')}
+        description={t('runs.cancelConfirm.body')}
+        confirmText={t('runs.cancel')}
+        variant="destructive"
+        isLoading={cancel.isPending}
+        onConfirm={() => {
+          setConfirmStop(false);
+          setRefusal(null);
+          cancel.mutate(
+            { organizationId, runId },
+            {
+              onError: (error) => {
+                setRefusal(automationErrorMessage(error));
+              },
+            },
+          );
+        }}
+      />
 
       {refusal !== null && (
         <Alert variant="destructive" description={refusal} />
@@ -242,12 +290,17 @@ export function RunDetail({
             />
           );
         }
-        if (run.detail == null) return null;
+        // The failure sentence of a failed run; the park of a waiting one
+        // in words (the ask card above already says what an ask waits on).
+        // The raw `repeat:<node>` / `agent:<node>` detail never renders.
+        const reason = runReasonKey(run);
+        if (reason === undefined) return null;
+        if (reason.kind === 'failed') {
+          return <Alert variant="destructive" description={reason.detail} />;
+        }
+        if (run.waitingFor === 'ask' && pendingAsk !== null) return null;
         return (
-          <Alert
-            variant={status === 'failed' ? 'destructive' : 'info'}
-            description={run.detail}
-          />
+          <Alert variant="info" description={t(reason.key, reason.values)} />
         );
       })()}
 

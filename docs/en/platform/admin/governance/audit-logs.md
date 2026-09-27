@@ -30,7 +30,7 @@ Treat the log as evidence of the events it records. It is not a complete copy of
 
 ## Choose the right tab
 
-**Audit logs** contains individual events. **Sign-in blocks** helps investigate authentication lockouts. **Activity logs** summarizes activity and outcomes over a period. **Error logs** focuses on failures; its category filter helps narrow the investigation.
+**Audit logs** contains individual events; the table loads more as you scroll, and its footer states how many events are loaded so far, so a count is never the whole history until the footer says so. **Sign-in blocks** helps investigate authentication lockouts. **Activity logs** summarizes activity and outcomes over a period: the period chosen in its **Filter** (7, 30, or 90 days) is named above the totals, and every number on the tab covers that period only. **Error logs** focuses on failures; its category filter helps narrow the investigation.
 
 When a member cannot sign in, begin with the sign-in blocks and the [account security guidance](/platform/admin/two-factor-authentication). When a configuration changed unexpectedly, use the audit event and its detail view.
 

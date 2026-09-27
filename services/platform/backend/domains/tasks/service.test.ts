@@ -120,6 +120,22 @@ describe('task guards — write access', () => {
       expect(() => assertTaskWritable(project(), auth({ role }))).not.toThrow();
     }
   });
+
+  it('an archived project is read-only for every role — its own code, not a permission one', () => {
+    // Archived = read-only for the whole project (the rule the docs and the
+    // REST door already stated); the app door used to let tasks through.
+    // The code is distinct from RBAC_FORBIDDEN so the UI can say "restore
+    // it first" rather than "you may not".
+    const archived = project({ archivedAt: 1_700_000_000_000 });
+    expect(() => assertTaskReadable(archived, auth())).not.toThrow();
+    for (const role of ['owner', 'admin', 'developer', 'editor']) {
+      const refused = thrown(() =>
+        assertTaskWritable(archived, auth({ role })),
+      );
+      expect(refused.code).toBe('PROJECT_ARCHIVED');
+      expect(refused.status).toBe(403);
+    }
+  });
 });
 
 describe('assigneeChanges — one transfer rule for the picker and the bulk bar', () => {

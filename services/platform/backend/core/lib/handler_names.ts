@@ -107,6 +107,7 @@ interface HandlerNames {
     };
     queries: FunctionRef & {
       listActiveCredentialsInternal: FunctionRef;
+      probeCredentialUsableInternal: FunctionRef;
       resolveCredentialRefInternal: FunctionRef;
     };
   };

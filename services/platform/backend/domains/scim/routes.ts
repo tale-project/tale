@@ -123,8 +123,9 @@ export function createScimRoutes(deps: { sql: Sql }): Hono {
 /**
  * Map a coded AppError from the provisioning layer to its RFC 7644 answer —
  * null for anything else (which stays a logged 500). The codes are the
- * refusals `domains/scim/service.ts` throws: a cross-tenant create or a
- * userName collision is a 409 `uniqueness`; deactivating the owner or
+ * refusals `domains/scim/service.ts` throws: a cross-tenant create, a
+ * userName collision or a Group displayName another team already reads as
+ * is a 409 `uniqueness`; deactivating the owner or
  * rewriting a shared account's identity is a 403 `mutability` (the answer
  * DELETE already gives for the owner); a Group member outside the org is a
  * 400 `invalidValue`.
@@ -136,6 +137,8 @@ export function scimResponseForAppError(error: unknown): Response | null {
   switch (code) {
     case 'scim_user_conflict':
       return scimError(409, detail ?? 'User already exists', 'uniqueness');
+    case 'scim_group_conflict':
+      return scimError(409, detail ?? 'Group already exists', 'uniqueness');
     case 'scim_owner_protected':
       return scimError(
         403,

@@ -474,6 +474,28 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         }),
     };
   },
+  // Keyed under the credential entity: a credential write (or the embedding
+  // settings' own hint) refetches it with the list.
+  'provider_credentials/queries:getCredentialDependents': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined || typeof args.credentialId !== 'string') {
+      return null;
+    }
+    const credentialId = args.credentialId;
+    return {
+      queryKey: backendKey(
+        orgId,
+        PROVIDER_CREDENTIAL_HINT_ENTITY,
+        'dependents',
+        credentialId,
+      ),
+      queryFn: () =>
+        backendFetch<{ usedBy: string[] }>(
+          `/provider-credentials/${encodeURIComponent(credentialId)}/dependents`,
+          { orgId },
+        ),
+    };
+  },
   'provider_credentials/queries:listCredentials': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

@@ -91,13 +91,24 @@ describe('private product image registration and access', () => {
     new Uint8Array(),
     new Uint8Array(5 * 1024 * 1024 + 1),
     new TextEncoder().encode('<html>not an image</html>'),
-    new TextEncoder().encode('<svg><script>alert(1)</script></svg>'),
+  ])('refuses invalid image bytes before object storage', async (bytes) => {
+    await expect(
+      uploadProductImage(db() as never, scope, bytes),
+    ).rejects.toMatchObject({ code: 'PRODUCT_IMAGE_INVALID' });
+    expect(putOrgBlobBytes).not.toHaveBeenCalled();
+  });
+
+  // Its own code: the form can say the drawing is refused for what it
+  // carries, where "unsupported" would send the user looking at the format.
+  it.each([
+    '<svg><script>alert(1)</script></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect/></svg>',
   ])(
-    'refuses invalid or active image bytes before object storage',
-    async (bytes) => {
+    'refuses an SVG with active content under its own code: %s',
+    async (svg) => {
       await expect(
-        uploadProductImage(db() as never, scope, bytes),
-      ).rejects.toMatchObject({ code: 'PRODUCT_IMAGE_INVALID' });
+        uploadProductImage(db() as never, scope, new TextEncoder().encode(svg)),
+      ).rejects.toMatchObject({ code: 'PRODUCT_IMAGE_ACTIVE_CONTENT' });
       expect(putOrgBlobBytes).not.toHaveBeenCalled();
     },
   );

@@ -8,13 +8,20 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { PRODUCT_CATEGORY_MAX } from '../../core/products/field_limits.ts';
+import { mergeBulkResult, partitionBulkRows } from '../../lib/bulk-rows.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { readBodyBounded } from '../files/bounded-body.ts';
-import { FileError, openFileContent } from '../files/service.ts';
+import {
+  deleteOrgBlobRefs,
+  FileError,
+  openFileContent,
+} from '../files/service.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   isProductImageUrl,
   readProductImage,
@@ -62,7 +69,11 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof RateLimitExceededError)
     return rateLimitedResponse(c, error);
-  if (error instanceof ProductError || error instanceof FileError) {
+  if (
+    error instanceof ProductError ||
+    error instanceof FileError ||
+    error instanceof LegalHoldError
+  ) {
     return c.json({ error: error.code }, error.status);
   }
   throw error;
@@ -172,7 +183,7 @@ export function createProductRoutes(deps: {
   app.post('/', async (c) => {
     const body = productAppInputSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);
@@ -188,14 +199,31 @@ export function createProductRoutes(deps: {
 
   app.post('/bulk', async (c) => {
     const body = z
-      .object({ products: z.array(productInputSchema).max(1000) })
+      .object({ products: z.array(z.unknown()).max(1000) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
+      // Row by row: a refused row names its field at the caller's index and
+      // the rest of the file still lands (the REST contacts-bulk semantics).
+      const { valid, refused } = partitionBulkRows(
+        body.data.products,
+        productInputSchema,
+      );
+      const landed = await bulkCreateProducts(
+        deps.sql,
+        scopeOf(c),
+        valid.map((entry) => entry.item),
+      );
       return c.json(
-        await bulkCreateProducts(deps.sql, scopeOf(c), body.data.products),
+        mergeBulkResult(
+          valid,
+          refused.map(({ input, ...refusal }) =>
+            Object.assign(refusal, { product: input }),
+          ),
+          landed,
+        ),
       );
     } catch (error) {
       return handleError(c, error);
@@ -219,14 +247,16 @@ export function createProductRoutes(deps: {
   app.post('/:productId', async (c) => {
     const body = productAppInputSchema.partial().safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const scope = scopeOf(c);
-      await transactSerializable(deps.sql, async (tx) => {
+      const released = await transactSerializable(deps.sql, async (tx) => {
         await validateProductImageBinding(tx, scope, body.data.imageUrl);
-        await updateProduct(tx, scope, c.req.param('productId'), body.data);
+        return updateProduct(tx, scope, c.req.param('productId'), body.data);
       });
+      // The superseded image's bytes go once the row is gone for good.
+      await deleteOrgBlobRefs(deps.sql, scope.organizationId, released);
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -236,9 +266,10 @@ export function createProductRoutes(deps: {
   app.delete('/:productId', async (c) => {
     try {
       const scope = scopeOf(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const released = await transactSerializable(deps.sql, (tx) =>
         deleteProduct(tx, scope, c.req.param('productId')),
       );
+      await deleteOrgBlobRefs(deps.sql, scope.organizationId, released);
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

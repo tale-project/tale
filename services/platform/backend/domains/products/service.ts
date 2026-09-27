@@ -12,6 +12,8 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { loadActiveHolds, LegalHoldError } from '../legal_holds/service.ts';
+import { productImageId } from './image-url.ts';
 
 /**
  * Products — the per-org catalog. A product's NAME is its identity (no
@@ -277,12 +279,74 @@ async function loadProductOrThrow(
  * `updatedAt` even within one millisecond, so the next precondition can
  * tell the write apart.
  */
+/**
+ * A product's managed image, once no product shows it, dies with the
+ * reference that held it: the `file_metadata` row goes inside the write
+ * transaction (the uploader's preview stops answering with it), and the
+ * blob refs come back for the caller to reclaim AFTER commit — never
+ * before, or a rolled-back delete would leave a row pointing at nothing.
+ * An upload another product still references stays; so does one under a
+ * legal hold (the organization's, or the uploader's as custodian): the
+ * hold keeps the bytes, the product edit goes through.
+ */
+async function releaseManagedImage(
+  tx: TransactionSql,
+  organizationId: string,
+  imageUrl: string | null,
+  exceptProductId: string,
+): Promise<string[]> {
+  if (imageUrl === null) return [];
+  const fileId = productImageId(imageUrl, organizationId);
+  if (fileId === null) return [];
+  const stillShown = await tx<{ id: string }[]>`
+    SELECT id FROM app.products
+    WHERE org_id = ${organizationId} AND image_url = ${imageUrl}
+      AND id <> ${exceptProductId}
+    LIMIT 1
+  `;
+  if (stillShown[0]) return [];
+  const image = await tx<{ storageRef: string; uploadedBy: string | null }[]>`
+    SELECT storage_ref AS "storageRef", uploaded_by AS "uploadedBy"
+    FROM app.file_metadata
+    WHERE id = ${fileId} AND org_id = ${organizationId}
+      AND source = 'product-image' AND document_id IS NULL
+    FOR UPDATE
+  `;
+  const row = image[0];
+  if (!row) return [];
+  const holds = await loadActiveHolds(tx, organizationId);
+  if (
+    holds.orgHeld ||
+    (row.uploadedBy !== null && holds.userMembershipIds.has(row.uploadedBy))
+  ) {
+    return [];
+  }
+  await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
+  // The files domain's rule: bytes another row or document still serves
+  // survive the row.
+  const referenced = await tx<{ referenced: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.file_metadata
+      WHERE org_id = ${organizationId} AND storage_ref = ${row.storageRef}
+    ) OR EXISTS (
+      SELECT 1 FROM app.documents
+      WHERE org_id = ${organizationId} AND file_ref = ${row.storageRef}
+    ) AS referenced
+  `;
+  return (referenced[0]?.referenced ?? false) ? [] : [row.storageRef];
+}
+
+/**
+ * Answers the blob refs the caller reclaims once the transaction commits
+ * (`deleteOrgBlobRefs`): the managed image a replace or a remove left
+ * behind, when nothing else shows it.
+ */
 export async function updateProduct(
   tx: TransactionSql,
   scope: ProductScope,
   productId: string,
   patch: Partial<ProductInput> & { expectedUpdatedAt?: number },
-): Promise<void> {
+): Promise<string[]> {
   assertProductAccess(scope, 'write');
   validateProductFields(patch);
   const locked = await tx<ProductRow[]>`
@@ -368,7 +432,7 @@ export async function updateProduct(
     next.tags.length !== product.tags.length ||
     next.tags.some((tag, index) => tag !== product.tags[index]) ||
     JSON.stringify(next.metadata) !== JSON.stringify(product.metadata);
-  if (!changed) return;
+  if (!changed) return [];
   await tx`
     UPDATE app.products SET
       name = ${next.name},
@@ -402,15 +466,33 @@ export async function updateProduct(
     entity: 'product',
     entityId: productId,
   });
+  // A replaced or removed managed image outlived the product that showed it
+  // (served to its uploader, stored for everyone): release it now.
+  return next.imageUrl === product.imageUrl
+    ? []
+    : releaseManagedImage(
+        tx,
+        scope.organizationId,
+        product.imageUrl,
+        productId,
+      );
 }
 
+/**
+ * Permanent — products have no trash. Refused under an active legal hold
+ * (the contact and document deletes' rule): the organization's, or the
+ * image uploader's as custodian. Answers the blob refs the caller reclaims
+ * once the transaction commits (`deleteOrgBlobRefs`): the product's managed
+ * image, when no other product shows the same upload.
+ */
 export async function deleteProduct(
   tx: TransactionSql,
   scope: ProductScope,
   productId: string,
-): Promise<void> {
+): Promise<string[]> {
   assertProductAccess(scope, 'write');
   const product = await loadProductOrThrow(tx, scope.organizationId, productId);
+  await assertProductNotHeld(tx, scope.organizationId, product);
   await tx`DELETE FROM app.products WHERE id = ${productId}`;
   await createAuditLog(tx, {
     organizationId: scope.organizationId,
@@ -429,6 +511,48 @@ export async function deleteProduct(
     entity: 'product',
     entityId: productId,
   });
+  return releaseManagedImage(
+    tx,
+    scope.organizationId,
+    product.imageUrl,
+    productId,
+  );
+}
+
+/** The destructive-path gate the document and contact deletes run: an
+ * org-wide hold refuses the delete outright; a custodian hold on the
+ * uploader of the product's managed image refuses it too, the bytes being
+ * that user's evidence. */
+async function assertProductNotHeld(
+  tx: TransactionSql,
+  organizationId: string,
+  product: ProductRow,
+): Promise<void> {
+  const holds = await loadActiveHolds(tx, organizationId);
+  if (holds.orgHeld) {
+    throw new LegalHoldError(
+      'LEGAL_HOLD_ACTIVE',
+      'This organization is under an active legal hold. Release the hold before deleting.',
+      409,
+    );
+  }
+  if (holds.userMembershipIds.size === 0 || product.imageUrl === null) return;
+  const fileId = productImageId(product.imageUrl, organizationId);
+  if (fileId === null) return;
+  const image = await tx<{ uploadedBy: string | null }[]>`
+    SELECT uploaded_by AS "uploadedBy" FROM app.file_metadata
+    WHERE id = ${fileId} AND org_id = ${organizationId}
+      AND source = 'product-image'
+    LIMIT 1
+  `;
+  const uploadedBy = image[0]?.uploadedBy ?? null;
+  if (uploadedBy !== null && holds.userMembershipIds.has(uploadedBy)) {
+    throw new LegalHoldError(
+      'LEGAL_HOLD_ACTIVE',
+      'This product is owned by a user on a custodian legal hold. Release the user-level hold before deleting.',
+      409,
+    );
+  }
 }
 
 export async function getProduct(

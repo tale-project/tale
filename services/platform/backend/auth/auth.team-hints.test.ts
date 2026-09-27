@@ -75,6 +75,11 @@ interface HookUser {
 }
 
 interface TeamLifecycleHooks {
+  beforeCreateTeam?: (data: {
+    team: { name: string; organizationId: string };
+    user?: HookUser;
+    organization: { id: string };
+  }) => Promise<void>;
   afterCreateTeam?: (data: {
     team: HookTeam;
     user?: HookUser;
@@ -385,5 +390,112 @@ describe('the plugin’s team-membership doors', () => {
     expect(auth.options.disabledPaths).not.toContain(
       '/organization/remove-team',
     );
+  });
+});
+
+/**
+ * A `postgres.js` stand-in that answers the team-name collision read with
+ * `taken` (the row another team holds) and everything else with nothing.
+ */
+function collidingSql(taken: { id: string; name: string }[]): {
+  sql: Sql;
+  statements: Statement[];
+} {
+  const statements: Statement[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+    statements.push({ text, values });
+    return Promise.resolve(
+      text.startsWith('SELECT "id", "name" FROM "team"') ? taken : [],
+    );
+  };
+  (tag as unknown as { begin: unknown }).begin = (
+    fn: (tx: unknown) => unknown,
+  ) => Promise.resolve(fn(tag));
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for postgres.js
+  return { sql: tag as unknown as Sql, statements };
+}
+
+/** The collision read a run of the hooks issued, or undefined. */
+function collisionRead(statements: Statement[]): Statement | undefined {
+  return statements.find((statement) =>
+    statement.text.startsWith('SELECT "id", "name" FROM "team"'),
+  );
+}
+
+// A team is shown by its name alone everywhere, so two teams that read the
+// same would put a restriction on the wrong one; Better Auth's table has no
+// unique constraint, so the before-hooks are the guard (E-01).
+describe('Better Auth team hooks — one name per organization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  it('refuses to create a team whose name another team already reads as', async () => {
+    const { sql, statements } = collidingSql([
+      { id: 'team-9', name: 'Finance' },
+    ]);
+
+    await expect(
+      teamHooks(sql).beforeCreateTeam?.({
+        team: { name: ' finance ', organizationId: 'org-1' },
+        user: ADMIN,
+        organization: { id: 'org-1' },
+      }),
+    ).rejects.toMatchObject({
+      status: 'CONFLICT',
+      body: { code: 'TEAM_NAME_TAKEN' },
+    });
+    // Compared case- and whitespace-insensitively, within the organization.
+    expect(collisionRead(statements)?.values).toEqual(['org-1', 'finance', '']);
+  });
+
+  it('lets a create through when no team reads the same', async () => {
+    const { sql } = collidingSql([]);
+
+    await expect(
+      teamHooks(sql).beforeCreateTeam?.({
+        team: { name: 'Treasury', organizationId: 'org-1' },
+        user: ADMIN,
+        organization: { id: 'org-1' },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses a rename onto another team's name, leaving its own row out", async () => {
+    const { sql, statements } = collidingSql([
+      { id: 'team-9', name: 'Finance' },
+    ]);
+
+    await expect(
+      teamHooks(sql).beforeUpdateTeam?.({
+        team: { id: 'team-1', name: 'Treasury' },
+        updates: { name: 'FINANCE' },
+        user: ADMIN,
+        organization: { id: 'org-1' },
+      }),
+    ).rejects.toMatchObject({ body: { code: 'TEAM_NAME_TAKEN' } });
+    expect(collisionRead(statements)?.values).toEqual([
+      'org-1',
+      'finance',
+      'team-1',
+    ]);
+  });
+
+  it('skips the check when the update carries no name', async () => {
+    const { sql, statements } = collidingSql([
+      { id: 'team-9', name: 'Finance' },
+    ]);
+
+    await expect(
+      teamHooks(sql).beforeUpdateTeam?.({
+        team: { id: 'team-1', name: 'Treasury' },
+        updates: {},
+        user: ADMIN,
+        organization: { id: 'org-1' },
+      }),
+    ).resolves.toBeUndefined();
+    expect(collisionRead(statements)).toBeUndefined();
   });
 });

@@ -30,7 +30,7 @@ Le journal atteste les événements qu’il enregistre. Il ne constitue pas une 
 
 ## Choisir le bon onglet
 
-**Journaux d'audit** contient les événements individuels. La vue des blocages de connexion aide à examiner les verrouillages. Les journaux d’activité résument les actions et leurs résultats sur une période. Les journaux d’erreurs se concentrent sur les échecs et peuvent être filtrés par catégorie.
+**Journaux d'audit** contient les événements individuels ; le tableau en charge davantage au défilement, et son pied de page indique combien d’événements sont chargés jusque-là, si bien qu’un total ne représente tout l’historique que lorsque le pied de page le dit. La vue des blocages de connexion aide à examiner les verrouillages. Les journaux d’activité résument les actions et leurs résultats sur une période : la période choisie dans le **Filtre** (7, 30 ou 90 jours) est nommée au-dessus des totaux, et chaque nombre de l’onglet ne couvre que cette période. Les journaux d’erreurs se concentrent sur les échecs et peuvent être filtrés par catégorie.
 
 Si un membre ne peut pas se connecter, commence par les blocages et le [guide de sécurité du compte](/fr/platform/admin/two-factor-authentication). Pour un changement de configuration inattendu, consulte l’événement d’audit et ses détails.
 

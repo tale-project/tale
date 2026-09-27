@@ -368,12 +368,13 @@ class NotDeployedError extends Error {
 /** The store's project-scope refusals, which the token door answers as ONE
  * 403 that names neither the automation nor the reason: a caller holding
  * only a URL must not learn which project ids exist in the organization,
- * whether one is archived (checked below, after the scope), or what the
- * automation behind the token is called (its slug used to ride in the "not
- * bound" sentence). */
+ * whether one is archived (the store refuses it with the scope, and the
+ * door checks again below), or what the automation behind the token is
+ * called (its slug used to ride in the "not bound" sentence). */
 const PROJECT_SCOPE_CODES: ReadonlySet<string> = new Set([
   'AUTOMATION_PROJECT_UNKNOWN',
   'AUTOMATION_PROJECT_FORBIDDEN',
+  'PROJECT_ARCHIVED',
 ]);
 
 function projectForbidden(): AutomationError {

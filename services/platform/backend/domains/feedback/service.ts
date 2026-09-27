@@ -28,36 +28,64 @@ export interface FeedbackScope {
   userId: string;
 }
 
+/** What the vote is ABOUT, read off the message itself: the model and
+ * provider that answered, and the assistant the thread runs under (NULL for
+ * a plain chat — the metrics page's "Unattributed" bucket). */
+export interface MessageAttribution {
+  model: string | null;
+  provider: string | null;
+  agentSlug: string | null;
+}
+
 /**
  * A vote lands only on a message the caller can READ: it exists in the
  * caller's organization, inside the thread the client named, and that thread
  * is the caller's own or one its owner shared with a project the caller can
  * read — the same two grants the chat surface reads through. Anything else
  * is one opaque "not found": the ids are client-supplied, and the answer must
- * not confirm that a foreign message exists.
+ * not confirm that a foreign message exists. The same read hands back the
+ * message's attribution, so the vote records what the server knows rather
+ * than what a client claims.
  */
 async function assertVotableMessage(
   tx: TransactionSql,
   scope: FeedbackScope,
   threadId: string,
   messageId: string,
-): Promise<void> {
+): Promise<MessageAttribution> {
   const refuse = (): FeedbackError =>
     new FeedbackError('MESSAGE_NOT_FOUND', 'Message not found.');
-  const rows = await tx<{ id: string }[]>`
-    SELECT id FROM app.messages
-    WHERE id = ${messageId} AND thread_id = ${threadId}
-      AND org_id = ${scope.organizationId}
+  const rows = await tx<
+    {
+      id: string;
+      model: string | null;
+      provider: string | null;
+      agentSlug: string | null;
+    }[]
+  >`
+    SELECT m.id, m.model, m.provider_slug AS provider,
+           tm.agent_slug AS "agentSlug"
+    FROM app.messages m
+    LEFT JOIN app.thread_metadata tm
+      ON tm.thread_id = m.thread_id AND tm.org_id = m.org_id
+    WHERE m.id = ${messageId} AND m.thread_id = ${threadId}
+      AND m.org_id = ${scope.organizationId}
     LIMIT 1
   `;
-  if (rows.length === 0) throw refuse();
+  const message = rows[0];
+  if (message === undefined) throw refuse();
+  const attribution: MessageAttribution = {
+    model: message.model ?? null,
+    provider: message.provider ?? null,
+    agentSlug: message.agentSlug ?? null,
+  };
   const owned = await loadOwnedThread(
     tx,
     scope.organizationId,
     scope.userId,
     threadId,
   );
-  if (owned !== null) return;
+  if (owned !== null) return attribution;
   const shared = await loadProjectSharedThread(
     tx,
     scope.organizationId,
@@ -65,16 +93,16 @@ async function assertVotableMessage(
     threadId,
   );
   if (shared === null) throw refuse();
+  return attribution;
 }
 
+/** A vote names the message and the rating; its attribution (model,
+ * provider, assistant) is derived from the message, never client-supplied. */
 export interface SubmitFeedbackArgs {
   threadId: string;
   messageId: string;
   rating: 'positive' | 'negative';
   comment?: string;
-  agentSlug?: string;
-  model?: string;
-  provider?: string;
 }
 
 export async function submitMessageFeedback(
@@ -82,11 +110,19 @@ export async function submitMessageFeedback(
   scope: FeedbackScope,
   args: SubmitFeedbackArgs,
 ): Promise<void> {
-  await assertVotableMessage(tx, scope, args.threadId, args.messageId);
+  const attribution = await assertVotableMessage(
+    tx,
+    scope,
+    args.threadId,
+    args.messageId,
+  );
   const now = Date.now();
   // `metadata` is written NULL unconditionally: it is the vote's upsert key
   // (the partial unique index is `WHERE metadata IS NULL`), so a value here
-  // would fork the key and let one member stack rows for one message.
+  // would fork the key and let one member stack rows for one message. A
+  // re-vote refreshes the attribution too: a message settles its model and
+  // provider after the stream, so the second vote may know more than the
+  // first.
   await tx`
     INSERT INTO app.message_feedback (
       org_id, thread_id, message_id, user_id, rating, comment, metadata,
@@ -94,12 +130,15 @@ export async function submitMessageFeedback(
     ) VALUES (
       ${scope.organizationId}, ${args.threadId}, ${args.messageId},
       ${scope.userId}, ${args.rating}, ${args.comment ?? null}, NULL,
-      ${args.agentSlug ?? null}, ${args.model ?? null},
-      ${args.provider ?? null}, ${now}
+      ${attribution.agentSlug}, ${attribution.model},
+      ${attribution.provider}, ${now}
     )
     ON CONFLICT (message_id, user_id) WHERE metadata IS NULL DO UPDATE SET
       rating = ${args.rating},
       comment = ${args.comment ?? null},
+      agent_slug = coalesce(EXCLUDED.agent_slug, app.message_feedback.agent_slug),
+      model = coalesce(EXCLUDED.model, app.message_feedback.model),
+      provider = coalesce(EXCLUDED.provider, app.message_feedback.provider),
       created_at_ms = ${now}
   `;
 }

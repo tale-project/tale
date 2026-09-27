@@ -42,6 +42,29 @@ interface TaskAgentRunEntryProps {
   taskId: string;
   assigneeId: string;
   canEdit: boolean;
+  /**
+   * Whether the task's assignee is an agent that still exists in the project
+   * (default `true`). A deleted agent's runs stay readable — Details is a
+   * read — but Start and Retry would only kick a run that cannot exist, so
+   * both are withheld until the task is reassigned.
+   */
+  assigneeLive?: boolean;
+}
+
+/** The start refusal's reason, as a sentence the user can act on. */
+function notStartedMessage(
+  t: (key: string) => string,
+  reason: string | undefined,
+): string {
+  switch (reason) {
+    case 'agent_missing':
+    case 'agent_unavailable':
+      return t('agentRun.agentMissing');
+    case 'no_agent_assignee':
+      return t('agentRun.noAgentAssignee');
+    default:
+      return t('agentRun.notStarted');
+  }
 }
 
 /**
@@ -113,8 +136,11 @@ export function TaskAgentRunEntry({
   taskId,
   assigneeId,
   canEdit,
+  assigneeLive = true,
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
+  // Kicking a run is for editors with an agent that can actually run it.
+  const canKick = canEdit && assigneeLive;
   const runQuery = useBackendQuery(
     'tasks/queries:getLatestTaskAgentRunForTask',
     { organizationId, taskId },
@@ -136,14 +162,12 @@ export function TaskAgentRunEntry({
       const result = await startRun({ taskId });
       if (result.started) {
         toast({ title: t('agentRun.started'), variant: 'success' });
+      } else if (result.reason === 'already_running') {
+        toast({ title: t('agentRun.alreadyRunning') });
       } else {
         toast({
-          title:
-            result.reason === 'already_running'
-              ? t('agentRun.alreadyRunning')
-              : t('agentRun.notStarted'),
-          variant:
-            result.reason === 'already_running' ? undefined : 'destructive',
+          title: notStartedMessage(t, result.reason),
+          variant: 'destructive',
         });
       }
     } catch (error) {
@@ -174,7 +198,7 @@ export function TaskAgentRunEntry({
   // board's drag-to-In-progress performs, as one small verb. Readers see
   // nothing until a run exists.
   if (run === null) {
-    if (!canEdit) return null;
+    if (!canKick) return null;
     return (
       <Row gap={2}>
         <Button
@@ -269,7 +293,7 @@ export function TaskAgentRunEntry({
             {t('agentRun.cancel')}
           </Button>
         ) : null}
-        {canEdit &&
+        {canKick &&
         !live &&
         (previousAssignee ||
           run.status === 'failed' ||

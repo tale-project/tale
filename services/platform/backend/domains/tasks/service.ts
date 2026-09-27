@@ -218,6 +218,25 @@ export function assertTaskWritable(
   if (!access.canEdit) {
     throw new TaskError('RBAC_FORBIDDEN', 'Editor role required', 403);
   }
+  // Archived = read-only for the whole project, tasks included; the code
+  // the project's own writes answer, so the UI can say "restore it first".
+  if (project.archivedAt !== null) {
+    throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
+  }
+}
+
+/** The board's `canEdit` flag: project edit access on an ACTIVE project. */
+function projectTasksEditable(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): boolean {
+  return (
+    checkProjectAccess(
+      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
+      auth.teamIds,
+      auth.role,
+    ).canEdit && project.archivedAt === null
+  );
 }
 
 function assertTaskNotArchived(task: TaskRow): void {
@@ -2606,11 +2625,7 @@ export async function listTasksByProject(
 }> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertTaskReadable(project, auth);
-  const canEdit = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-    auth.teamIds,
-    auth.role,
-  ).canEdit;
+  const canEdit = projectTasksEditable(project, auth);
   const rows = await sql<TaskRow[]>`
     SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
     WHERE project_id = ${projectId}
@@ -2758,11 +2773,7 @@ export async function getTask(
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
-  const canEdit = checkProjectAccess(
-    { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-    auth.teamIds,
-    auth.role,
-  ).canEdit;
+  const canEdit = projectTasksEditable(project, auth);
   const [decorated] = await decorateProjectPage(
     sql,
     auth.organizationId,

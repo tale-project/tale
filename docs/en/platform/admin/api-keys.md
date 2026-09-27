@@ -3,7 +3,7 @@ title: API keys
 description: Create, verify, rotate, and revoke credentials for software that calls Tale.
 ---
 
-Create an API key when a script or service needs to call Tale's REST API. The key acts as the person who created it and follows that person's current permissions in the organization. Owners, Admins, and Developers manage their keys under **Settings > API > REST**.
+Create an API key when a script or service needs to call Tale's REST API. A key belongs to the person who created it, not to the organization whose settings page created it: it acts as that person, follows their current permissions, and works in every organization they are a member of. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**.
 
 <Frame caption="Settings > API > REST — where keys are created, rotated, and revoked.">
 

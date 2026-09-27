@@ -37,13 +37,22 @@ export function EmbeddingSetupBanner({
 }: {
   organizationId: string;
 }) {
-  const { t } = useT('settings');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
+
+  // The gate sits OUTSIDE the component that reads: both reads are admin
+  // doors (`/knowledge/embedding`, `/provider-credentials`), and mounting
+  // them for a member fired two 403s on every dashboard page (2026-09-26
+  // evaluation, E-05).
+  if (abilityLoading || ability.cannot('read', 'orgSettings')) return null;
+  return <EmbeddingSetupNudge organizationId={organizationId} />;
+}
+
+function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
+  const { t } = useT('settings');
   const embeddingQuery = useOrgKnowledgeEmbedding(organizationId);
   const credentialsQuery = useProviderCredentials(organizationId);
 
-  if (abilityLoading || ability.cannot('read', 'orgSettings')) return null;
   // A failed or still-loading read is not evidence of a missing model. Saying
   // "knowledge search is off" on an unknown state is worse than saying nothing.
   if (embeddingQuery.data === undefined || embeddingQuery.isError) return null;
