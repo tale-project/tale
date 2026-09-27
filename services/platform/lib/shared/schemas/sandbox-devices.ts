@@ -14,7 +14,7 @@ export const SANDBOX_DEVICE_JOIN_TOKEN_TTL_MS = 60 * 60 * 1000;
 export const SANDBOX_DEVICES_PER_ORG_MAX = 50;
 /** Unspent, unexpired join tokens per organization. */
 export const SANDBOX_DEVICE_JOIN_TOKENS_LIVE_MAX = 20;
-export const SANDBOX_DEVICE_NAME_MAX = 64;
+const SANDBOX_DEVICE_NAME_MAX = 64;
 /** A device mints a new connect ticket this often; the hub closes a tunnel
  * whose ticket lapsed. */
 export const SANDBOX_DEVICE_TICKET_TTL_MS = 15 * 60 * 1000;

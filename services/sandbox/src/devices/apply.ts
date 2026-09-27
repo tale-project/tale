@@ -60,7 +60,7 @@ const defaultDeps: ApplyDeps = {
   now: Date.now,
 };
 
-export class DeviceApplyError extends Error {
+class DeviceApplyError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'DeviceApplyError';

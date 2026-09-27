@@ -70,7 +70,7 @@ export interface SandboxDeviceDeps extends StackDeps {
   json: () => boolean;
 }
 
-export const defaultSandboxDeviceDeps: SandboxDeviceDeps = {
+const defaultSandboxDeviceDeps: SandboxDeviceDeps = {
   ...defaultStackDeps,
   home: sandboxDeviceHome,
   fetch: (input, init) => fetch(input, init),

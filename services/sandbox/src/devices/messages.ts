@@ -60,7 +60,7 @@ export interface HubWelcome {
   statusIntervalMs: number;
 }
 
-export const IDLE_UPDATE: DeviceUpdateReport = {
+const IDLE_UPDATE: DeviceUpdateReport = {
   state: 'idle',
   targetVersion: null,
   error: null,
@@ -71,7 +71,7 @@ const MAX_REPORTED_SESSIONS = 512;
 /** The most sandboxes a device may offer — the device config's own bound,
  * enforced again here because the number raises its organization's quota
  * ceiling. */
-export const MAX_DEVICE_SESSIONS = 256;
+const MAX_DEVICE_SESSIONS = 256;
 
 function str(value: unknown, max = 128): string | null {
   return typeof value === 'string' && value.length <= max ? value : null;

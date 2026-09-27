@@ -74,9 +74,9 @@ export const TUNNEL_CLOSE = {
 } as const;
 
 /** Largest DATA payload a sender emits (and a receiver accepts). */
-export const MAX_DATA_BYTES = 64 * 1024;
+const MAX_DATA_BYTES = 64 * 1024;
 /** Largest JSON payload (OPEN, HEAD, RESET, control frames). */
-export const MAX_JSON_BYTES = 64 * 1024;
+const MAX_JSON_BYTES = 64 * 1024;
 /** Credit each direction of a new stream starts with. */
 export const INITIAL_WINDOW_BYTES = 256 * 1024;
 /** Streams one side may have open at once; the next open is refused. */
@@ -210,7 +210,7 @@ function parseHeaders(value: unknown): HeaderList | null {
   return out;
 }
 
-export function parseOpenHead(value: Record<string, unknown>): OpenHead | null {
+function parseOpenHead(value: Record<string, unknown>): OpenHead | null {
   const { method, path, relay } = value;
   const headers = parseHeaders(value.headers);
   if (

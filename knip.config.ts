@@ -141,8 +141,9 @@ export default {
     'services/sandbox': {
       // Standalone Bun HTTP service. `src/server.ts` is the runtime entry,
       // auto-detected from `dev`/`start` scripts; tests anchor the dead-code
-      // sweep for unit-only helpers.
-      entry: ['src/**/*.test.ts'],
+      // sweep for unit-only helpers. `src/devices/apply-cli.ts` is the
+      // image's `device-apply` helper, dispatched by entrypoint.sh.
+      entry: ['src/**/*.test.ts', 'src/devices/apply-cli.ts'],
       project: ['src/**/*.ts'],
     },
     'configs/platform/custom/skills/visual-aspect-analyzer': {

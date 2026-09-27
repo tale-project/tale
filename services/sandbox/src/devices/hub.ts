@@ -58,7 +58,7 @@ import {
 /** Where devices connect — the path the proxy forwards to the hub port. */
 export const TUNNEL_PATH = '/sandbox/tunnel';
 /** How often a device reports; three silent intervals close its tunnel. */
-export const STATUS_INTERVAL_MS = 15_000;
+const STATUS_INTERVAL_MS = 15_000;
 const TICKET_SWEEP_MS = 30_000;
 /** How long a removal outlives the device's tickets: none lives longer. */
 const REVOCATION_MEMORY_MS = 60 * 60 * 1000;

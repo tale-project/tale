@@ -13,9 +13,9 @@ import type { SandboxDeviceConfig } from './config';
  * (`services/sandbox/src/devices/device-config.ts`).
  */
 
-export const DEVICE_SANDBOX_CONTAINER = 'tale-device-sandbox';
-export const DEVICE_EGRESS_CONTAINER = 'tale-device-egress';
-export const DEVICE_UPDATER_CONTAINER = 'tale-device-updater';
+const DEVICE_SANDBOX_CONTAINER = 'tale-device-sandbox';
+const DEVICE_EGRESS_CONTAINER = 'tale-device-egress';
+const DEVICE_UPDATER_CONTAINER = 'tale-device-updater';
 const DEVICE_APPLY_CONTAINER = 'tale-device-apply';
 const DEVICE_NETWORKS = ['tale-device-net', 'tale-device-uplink'];
 /** Every session container a device's spawner started. */
@@ -41,7 +41,7 @@ export const defaultStackDeps: StackDeps = {
 };
 
 /** The images a device runs at a release; explicit references win. */
-export function deviceImages(
+function deviceImages(
   config: SandboxDeviceConfig,
   version: string,
 ): { sandbox: string; runtime: string; egress: string } {

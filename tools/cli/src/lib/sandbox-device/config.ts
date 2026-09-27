@@ -56,7 +56,7 @@ export function sandboxDeviceConfigPath(home = sandboxDeviceHome()): string {
   return join(home, 'device.json');
 }
 
-export class SandboxDeviceConfigError extends Error {
+class SandboxDeviceConfigError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'SandboxDeviceConfigError';
