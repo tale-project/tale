@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 40 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 41 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -337,6 +337,13 @@ projects-list row ⋯ menu.
   buttons); Tab into the list, **↓/↑** move between rows, **→** expands a
   folder (`aria-expanded`), the selected folder reads `aria-current="true"`;
   the same holds for an automation's **Uploads** settings tree.
+- [ ] `PROJ-A6` · **Projects rows open by keyboard** → On the Projects list,
+  Tab through a row → the stops are **Select row**, the project **name**
+  (a link, visible focus ring, `href` ending in
+  `/projects/<id>/tasks`), then **Open menu**; **Enter** on the name opens
+  the project's tasks, exactly like a pointer click on the row; the row
+  click still works and does not navigate twice when the name itself is
+  clicked.
 
 ## Performance
 

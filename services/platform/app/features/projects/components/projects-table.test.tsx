@@ -26,8 +26,24 @@ vi.mock('@tale/ui/i18n/client', () => ({
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ id: 'test-org-id' }),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
+  // Resolves `$param` segments from `params` the way the router would, so a
+  // test can read the row link's real destination off `href`.
+  Link: ({
+    children,
+    to,
+    params,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    to: string;
+    params?: Record<string, string>;
+  } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>) => (
+    <a
+      href={to.replace(/\$(\w+)/g, (_, key: string) => params?.[key] ?? key)}
+      {...rest}
+    >
+      {children}
+    </a>
   ),
   useLocation: () => ({ pathname: '/dashboard/test-org/projects' }),
 }));
@@ -323,6 +339,25 @@ describe('ProjectsTable', () => {
     renderTable([row({ name: 'Acme onboarding' })]);
 
     expect(screen.getByTestId('data-table-scrollport')).toBeInTheDocument();
+  });
+
+  // A row used to open on pointer click alone (`onRowClick` on the <tr>):
+  // its only focusable descendants were Select row and Open menu, so a
+  // keyboard or screen-reader user could not open a project from the list.
+  it('makes the project name a link a keyboard user can open', async () => {
+    const { user } = renderTable([
+      row({ name: 'Acme onboarding', key: 'TAL' }),
+    ]);
+    const link = screen.getByRole('link', { name: 'Acme onboarding' });
+    expect(link).toHaveAttribute(
+      'href',
+      '/dashboard/test-org-id/projects/project_1/tasks',
+    );
+    // Tab reaches it (after the toolbar and the row's Select checkbox).
+    for (let i = 0; i < 20 && document.activeElement !== link; i++) {
+      await user.tab();
+    }
+    expect(link).toHaveFocus();
   });
 
   it('has no accessibility violations', async () => {
