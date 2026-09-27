@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogTitle,
+} from '../overlays/responsive-dialog';
 import { DatePicker } from './date-picker';
 import { DATE_PICKER_POPPER_ATTR } from './date-picker-popper';
 
@@ -83,5 +89,38 @@ describe('DatePicker', () => {
     document.body.style.pointerEvents = 'none';
     expect(getComputedStyle(popper as HTMLElement).pointerEvents).toBe('auto');
     document.body.style.pointerEvents = '';
+  });
+});
+
+describe('DatePicker popper container', () => {
+  it('portals nothing while the calendar is closed', () => {
+    render(<DatePicker onChange={vi.fn()} />);
+    expect(document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`)).toBeNull();
+  });
+
+  it('names the open calendar as a dialog', async () => {
+    const { user } = render(<DatePicker onChange={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: /pick a date/i }));
+    const popper = document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`);
+    expect(popper).toHaveAttribute('role', 'dialog');
+    expect(popper).toHaveAccessibleName('Calendar');
+  });
+
+  it('stays perceivable inside a modal dialog', async () => {
+    const { user } = render(
+      <ResponsiveDialog open onOpenChange={vi.fn()}>
+        <ResponsiveDialogContent closeLabel="Close">
+          <ResponsiveDialogTitle>Task</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>Due date</ResponsiveDialogDescription>
+          <DatePicker onChange={vi.fn()} />
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>,
+    );
+    await user.click(screen.getByRole('button', { name: /pick a date/i }));
+    const popper = document.querySelector(`[${DATE_PICKER_POPPER_ATTR}]`);
+    expect(popper).not.toBeNull();
+    expect(popper).not.toHaveAttribute('aria-hidden');
+    expect(popper?.closest('[aria-hidden="true"]')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Calendar' })).toBeVisible();
   });
 });

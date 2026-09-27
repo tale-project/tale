@@ -402,6 +402,13 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   `aria-controls`; the round send button is named **Comment**
   (`tasks.actions.comment`); everything is reachable by keyboard in reading
   order, header first.
+- [ ] `TASK-A5` · **Due-date calendar inside the task dialog** → Open a task
+  (or **Create task**), click **Due date** → the calendar is a
+  `role="dialog"` named **Calendar** (`common.datePicker.calendar`) that
+  neither it nor any ancestor carries `aria-hidden="true"` (inspect the
+  accessibility tree: the month grid, day cells and month buttons are
+  listed); before the calendar opens, `document.body` holds no
+  `[data-tale-datepicker-popper]` node at all.
 
 ## Performance
 

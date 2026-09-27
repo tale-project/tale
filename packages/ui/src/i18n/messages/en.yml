@@ -160,6 +160,7 @@ common:
   dataTable:
     dateFilterUnavailable: Date filter unavailable
   datePicker:
+    calendar: Calendar
     nextMonth: Next month
     placeholder: Pick a date
     presets:
