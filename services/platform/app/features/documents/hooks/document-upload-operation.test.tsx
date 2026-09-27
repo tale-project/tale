@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   beginControlledDocumentReplacementUpload: vi.fn(),
   finalizeControlledDocumentReplacementUpload: vi.fn(),
   reconcileControlledDocumentReplacementUpload: vi.fn(),
-  registerControlledDocumentReplacementUpload: vi.fn(),
   cancelControlledDocumentReplacementUpload: vi.fn(),
   deleteRejectedUploadBlob: vi.fn(),
   toast: vi.fn(),
@@ -54,8 +53,6 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
     const mutateAsync = {
       'documents/mutations:createDocumentFromUpload':
         mocks.createDocumentFromUpload,
-      'documents/replacement_uploads:registerControlledDocumentReplacementUpload':
-        mocks.registerControlledDocumentReplacementUpload,
       'documents/replacement_uploads:cancelControlledDocumentReplacementUpload':
         mocks.cancelControlledDocumentReplacementUpload,
       'files/mutations:deleteRejectedUploadBlob':
@@ -177,7 +174,6 @@ beforeEach(() => {
     cleanupPending: false,
     updatedAt: Date.now(),
   });
-  mocks.registerControlledDocumentReplacementUpload.mockResolvedValue(null);
   mocks.cancelControlledDocumentReplacementUpload.mockResolvedValue({
     state: 'cancelled',
   });
@@ -388,103 +384,6 @@ describe('useDocumentUpload operation ownership', () => {
     });
   });
 
-  it('uses the intent protocol in order for a Convex POST replacement', async () => {
-    const onSuccess = vi.fn();
-    mocks.beginControlledDocumentReplacementUpload.mockImplementationOnce(
-      async () => {
-        protocolEvents.push('begin');
-        return {
-          intentId: 'intent-convex',
-          url: 'https://replacement.test/convex',
-          method: 'POST',
-          uploadContentType:
-            'application/pdf; tale-intent=nonce-for-this-upload',
-          uploadExpiresAt: Date.now() + 60_000,
-        };
-      },
-    );
-    mocks.registerControlledDocumentReplacementUpload.mockImplementationOnce(
-      async () => {
-        protocolEvents.push('register');
-        return null;
-      },
-    );
-    mocks.finalizeControlledDocumentReplacementUpload.mockImplementationOnce(
-      async () => {
-        protocolEvents.push('finalize');
-        return { version: 6 };
-      },
-    );
-    const { result } = renderHook(() =>
-      useDocumentUpload({
-        organizationId: 'org-1',
-        replacementTarget: {
-          documentId: 'doc-1',
-          expectedRecordState: 'approved',
-          expectedVersion: 5,
-          expectedFileId: 'storage-current',
-        },
-        onSuccess,
-      }),
-    );
-    const file = makeFile('procedure.pdf');
-    act(() => result.current.stageFiles([file]));
-    await waitFor(() => expect(result.current.trackedFiles).toHaveLength(1));
-
-    let upload!: Promise<{ success: boolean }>;
-    act(() => {
-      upload = result.current.uploadFiles();
-    });
-    await waitFor(() => expect(FakeXhr.instances).toHaveLength(1));
-    const xhr = FakeXhr.instances[0];
-    expect(xhr.method).toBe('POST');
-    expect(xhr.url).toBe('https://replacement.test/convex');
-    expect(xhr.requestHeaders.get('Content-Type')).toBe(
-      'application/pdf; tale-intent=nonce-for-this-upload',
-    );
-    expect(xhr.sentBody).toBe(file);
-
-    act(() => {
-      xhr.emitUploadDone();
-      xhr.emitResponse(200, JSON.stringify({ storageId: 'storage-new' }));
-    });
-    await act(async () => {
-      expect((await upload).success).toBe(true);
-    });
-
-    expect(protocolEvents).toEqual(['begin', 'upload', 'register', 'finalize']);
-    expect(mocks.beginControlledDocumentReplacementUpload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: 'org-1',
-        documentId: 'doc-1',
-        expectedRecordState: 'approved',
-        expectedVersion: 5,
-        expectedFileId: 'storage-current',
-        fileName: 'procedure.pdf',
-        contentType: 'application/pdf',
-      }),
-    );
-    expect(
-      mocks.registerControlledDocumentReplacementUpload,
-    ).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      intentId: 'intent-convex',
-      storageId: 'storage-new',
-    });
-    expect(
-      mocks.finalizeControlledDocumentReplacementUpload,
-    ).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      intentId: 'intent-convex',
-      storageId: 'storage-new',
-    });
-    expect(onSuccess).toHaveBeenCalledWith(
-      expect.objectContaining({ version: 6 }),
-    );
-    expect(mocks.generateBlobUpload).not.toHaveBeenCalled();
-    expect(mocks.deleteRejectedUploadBlob).not.toHaveBeenCalled();
-  });
-
   it('uses begin, upload, and finalize in order for an S3 replacement', async () => {
     mocks.beginControlledDocumentReplacementUpload.mockImplementationOnce(
       async () => {
@@ -533,14 +432,10 @@ describe('useDocumentUpload operation ownership', () => {
 
     expect(protocolEvents).toEqual(['begin', 'upload', 'finalize']);
     expect(
-      mocks.registerControlledDocumentReplacementUpload,
-    ).not.toHaveBeenCalled();
-    expect(
       mocks.finalizeControlledDocumentReplacementUpload,
     ).toHaveBeenCalledWith({
       organizationId: 'org-1',
       intentId: 'intent-s3',
-      storageId: undefined,
     });
   });
 

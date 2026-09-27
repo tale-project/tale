@@ -11,7 +11,7 @@ export interface FilesContract {
   'files/blob_actions:generateBlobUpload': {
     kind: 'action';
     args: { contentType?: string; organizationId: string };
-    returns: { url: string; method: 'POST' | 'PUT'; s3Ref?: string };
+    returns: { url: string; method: 'PUT'; s3Ref: string };
   };
   'files/mutations:deleteRejectedUploadBlob': {
     kind: 'mutation';

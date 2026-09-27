@@ -327,14 +327,14 @@ export interface DocumentsContract {
     returns: {
       intentId: string;
       url: string;
-      method: 'POST' | 'PUT';
+      method: 'PUT';
       uploadContentType: string;
       uploadExpiresAt: number;
     };
   };
   'documents/record_actions:finalizeControlledDocumentReplacementUpload': {
     kind: 'action';
-    args: { storageId?: string; organizationId: string; intentId: string };
+    args: { organizationId: string; intentId: string };
     returns: { version: number };
   };
   'documents/record_actions:reconcileControlledDocumentReplacementUpload': {
@@ -414,11 +414,6 @@ export interface DocumentsContract {
     returns:
       | { state: 'bound'; resultVersion: undefined | number }
       | { state: 'cancelled'; resultVersion?: undefined };
-  };
-  'documents/replacement_uploads:registerControlledDocumentReplacementUpload': {
-    kind: 'mutation';
-    args: { organizationId: string; storageId: string; intentId: string };
-    returns: null;
   };
   'documents/search:searchDocuments': {
     kind: 'query';

@@ -145,24 +145,22 @@ export function uploadWithProgress(
   url: string,
   file: File,
   contentType: string,
-  // `POST` → Convex `_storage` (the response JSON carries the storageId to
-  // bind); `PUT` → the org's S3 bucket (the presigned URL, no useful body — the
-  // ref was known up front and is bound by the caller).
-  method: 'POST' | 'PUT',
   signal: AbortSignal | undefined,
   onProgress: (loaded: number, total: number) => void,
   // Fires once when the upload phase ends (all bytes handed off) and the
   // response wait begins — the caller flips the row into its indeterminate
   // "confirming" state so a full bar never sits frozen at 100 %.
   onUploadPhaseDone?: () => void,
-): Promise<{ storageId?: string }> {
+): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(new DOMException('The operation was aborted.', 'AbortError'));
       return;
     }
     const xhr = new XMLHttpRequest();
-    xhr.open(method, url);
+    // A presigned PUT into the org's bucket: no useful body comes back — the
+    // ref was known up front and is bound by the caller.
+    xhr.open('PUT', url);
     xhr.setRequestHeader('Content-Type', contentType);
 
     // Two-phase watchdog: while bytes are flowing, (re)arm the short
@@ -202,17 +200,7 @@ export function uploadWithProgress(
     xhr.addEventListener('load', () => {
       clearWatchdog();
       if (xhr.status >= 200 && xhr.status < 300) {
-        if (method === 'PUT') {
-          // S3 PUT returns an empty body (ETag header only); the ref is bound
-          // by the caller from the handoff's `s3Ref`.
-          resolve({});
-          return;
-        }
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch {
-          reject(new Error('Failed to parse upload response'));
-        }
+        resolve();
       } else {
         reject(new Error(`Upload failed: ${xhr.statusText}`));
       }
@@ -285,11 +273,6 @@ export function useDocumentUpload(options: UploadOptions) {
   const { mutateAsync: reconcileControlledDocumentReplacementUpload } =
     useBackendAction(
       'documents/record_actions:reconcileControlledDocumentReplacementUpload',
-      { errorToast: false },
-    );
-  const { mutateAsync: registerControlledDocumentReplacementUpload } =
-    useBackendMutation(
-      'documents/replacement_uploads:registerControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: cancelControlledDocumentReplacementUpload } =
@@ -392,7 +375,6 @@ export function useDocumentUpload(options: UploadOptions) {
           ? undefined
           : await calculateFileHash(file);
         let uploadUrl: string;
-        let uploadMethod: 'POST' | 'PUT';
         let uploadContentType: string;
         let genericS3Ref: string | undefined;
 
@@ -432,7 +414,6 @@ export function useDocumentUpload(options: UploadOptions) {
           }
           replacementIntentId = handoff.intentId;
           uploadUrl = handoff.url;
-          uploadMethod = handoff.method;
           uploadContentType = handoff.uploadContentType;
         } else {
           const handoff = await withDeadline(
@@ -444,16 +425,14 @@ export function useDocumentUpload(options: UploadOptions) {
             signal,
           );
           uploadUrl = handoff.url;
-          uploadMethod = handoff.method;
           uploadContentType = resolvedType;
           genericS3Ref = handoff.s3Ref;
         }
 
-        const { storageId } = await uploadWithProgress(
+        await uploadWithProgress(
           uploadUrl,
           file,
           uploadContentType,
-          uploadMethod,
           signal,
           (loaded, total) => {
             updateFileStatus(fileId, {
@@ -481,25 +460,6 @@ export function useDocumentUpload(options: UploadOptions) {
           if (replacementIntentId === undefined) {
             throw new Error('Replacement upload intent was not created');
           }
-          const convexStorageId =
-            uploadMethod === 'POST' && storageId !== undefined
-              ? storageId
-              : undefined;
-          if (uploadMethod === 'POST') {
-            if (convexStorageId === undefined) {
-              throw new Error('Upload did not return a storage reference');
-            }
-            await withDeadline(
-              registerControlledDocumentReplacementUpload({
-                organizationId: options.organizationId,
-                intentId: replacementIntentId,
-                storageId: convexStorageId,
-              }),
-              MUTATION_TIMEOUT_MS,
-              signal,
-            );
-          }
-
           updateFileStatus(fileId, { status: 'binding' });
           replacementFinalizeStarted = true;
           let finalized: { version: number };
@@ -508,7 +468,6 @@ export function useDocumentUpload(options: UploadOptions) {
               finalizeControlledDocumentReplacementUpload({
                 organizationId: options.organizationId,
                 intentId: replacementIntentId,
-                storageId: convexStorageId,
               }),
               MUTATION_TIMEOUT_MS,
               undefined,
@@ -563,9 +522,8 @@ export function useDocumentUpload(options: UploadOptions) {
           });
           return { success: true, version: finalized.version };
         } else {
-          // Bind the S3 ref (known up front from the handoff) or the Convex id
-          // (returned in the POST response body).
-          const boundRef = genericS3Ref ?? storageId;
+          // Bind the S3 ref, known up front from the handoff.
+          const boundRef = genericS3Ref;
           if (!boundRef) {
             throw new Error('Upload did not return a storage reference');
           }
@@ -679,7 +637,6 @@ export function useDocumentUpload(options: UploadOptions) {
       beginControlledDocumentReplacementUpload,
       finalizeControlledDocumentReplacementUpload,
       reconcileControlledDocumentReplacementUpload,
-      registerControlledDocumentReplacementUpload,
       cancelControlledDocumentReplacementUpload,
       deleteRejectedUploadBlob,
       options.organizationId,

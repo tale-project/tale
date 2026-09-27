@@ -73,7 +73,6 @@ function startUpload(onUploadPhaseDone?: () => void) {
     'https://acc.r2.cloudflarestorage.com/bucket/key',
     file,
     'application/pdf',
-    'PUT',
     undefined,
     () => {},
     onUploadPhaseDone,
@@ -103,7 +102,6 @@ describe('uploadWithProgress two-phase watchdog', () => {
       'https://acc.r2.cloudflarestorage.com/bucket/key',
       new File(['x'], 'big.pdf', { type: 'application/pdf' }),
       'application/pdf',
-      'PUT',
       controller.signal,
       () => {},
     );
@@ -120,7 +118,7 @@ describe('uploadWithProgress two-phase watchdog', () => {
     xhr.emitUploadDone();
     expect(onUploadPhaseDone).toHaveBeenCalledTimes(1);
     xhr.emitResponse(200);
-    await expect(promise).resolves.toEqual({});
+    await expect(promise).resolves.toBeUndefined();
   });
 
   it('still aborts a transfer with no progress for the stall window', async () => {
@@ -143,7 +141,7 @@ describe('uploadWithProgress two-phase watchdog', () => {
     expect(xhr.aborted).toBe(false);
 
     xhr.emitResponse(200);
-    await expect(promise).resolves.toEqual({});
+    await expect(promise).resolves.toBeUndefined();
   });
 
   it('aborts when even the response deadline passes with no answer', async () => {
@@ -163,6 +161,6 @@ describe('uploadWithProgress two-phase watchdog', () => {
     vi.advanceTimersByTime(2 * 60_000);
     expect(xhr.aborted).toBe(false);
     xhr.emitResponse(200);
-    await expect(promise).resolves.toEqual({});
+    await expect(promise).resolves.toBeUndefined();
   });
 });
