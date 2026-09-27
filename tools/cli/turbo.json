@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/docs/*/self-hosted/install/cli-install.md"
+      ]
+    }
+  }
+}
