@@ -943,6 +943,59 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     expect(createMutation).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['', 'empty'],
+    ['   \n', 'whitespace-only'],
+  ])(
+    'task_create refuses the %j title (%s) as empty, naming the range',
+    async (title) => {
+      const createMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+        Promise.resolve({ taskId: 'task_99' }),
+      );
+      const { dispatch } = await getActions();
+      const { ctx, readQuery } = createCtx({
+        actionContext: PROJECT_CTX,
+        runMutation: vi.fn((ref: unknown, args: unknown) =>
+          fnName(ref).includes('agentCreateTask')
+            ? createMutation(ref, args)
+            : Promise.resolve(null),
+        ),
+      });
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_create',
+        callArgs: { title },
+      });
+      // The domain's own empty-title sentence — "empty", the 1-to-200 range
+      // and its unit — told apart from the over-long one, not a generic
+      // "needs a non-empty title".
+      expect(result).toEqual({
+        status: 'invalid_args',
+        message:
+          'The task title is empty — it takes 1 to ' +
+          `${taskLimitText(TASK_TITLE_MAX)}. Name the task in a short title.`,
+      });
+      expect(readQuery).not.toHaveBeenCalled();
+      expect(createMutation).not.toHaveBeenCalled();
+    },
+  );
+
+  it('task_create keeps the generic sentence for a missing or non-string title', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({ actionContext: PROJECT_CTX });
+    for (const callArgs of [{}, { title: 42 }]) {
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_create',
+        callArgs,
+      });
+      expect(result).toEqual({
+        status: 'invalid_args',
+        message: 'task_create needs a non-empty "title" string.',
+      });
+    }
+  });
+
   it('task_create passes a title of exactly the limit, measured trimmed, to the domain', async () => {
     const createMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve({ taskId: 'task_99' }),

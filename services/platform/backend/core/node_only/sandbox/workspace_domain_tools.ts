@@ -439,26 +439,29 @@ export async function runTaskTool(
     }
 
     if (args.tool === 'task_create') {
-      const title = readString(callArgs.title);
-      if (title === undefined) {
+      if (typeof callArgs.title !== 'string') {
         return {
           status: 'invalid_args',
           message: 'task_create needs a non-empty "title" string.',
         };
       }
-      // A blank title was answered above, so only an over-long one is
-      // refused here. The domain's validateTitle refuses it with the same
-      // sentence; refused at the boundary, nothing is read or written for a
-      // call that cannot land, and the model is told where the detail goes.
-      const titleRefusal = taskTitleRefusal(title);
+      // An empty (or whitespace-only) title and an over-long one are told
+      // apart in the very sentence the domain's validateTitle refuses them
+      // with, the range and its unit named. Refused at the boundary, nothing
+      // is read or written for a call that cannot land, and the model is
+      // told what to do about it.
+      const titleRefusal = taskTitleRefusal(callArgs.title);
       if (titleRefusal !== null) {
         return {
           status: 'invalid_args',
           message:
-            `${titleRefusal} Shorten it and put the detail in ` +
-            '"description".',
+            callArgs.title.trim() === ''
+              ? `${titleRefusal} Name the task in a short title.`
+              : `${titleRefusal} Shorten it and put the detail in ` +
+                '"description".',
         };
       }
+      const title = callArgs.title.trim();
       const target = resolveTargetProject(authority, callArgs);
       if ('refusal' in target) return target.refusal;
       if (target.projectId === undefined) {
