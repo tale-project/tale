@@ -59,6 +59,7 @@ import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
+import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
@@ -54493,6 +54494,10 @@ async function main(): Promise<void> {
       [
         'checkErasure',
         () => checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkErasureReviewHandoverRaces',
+        () => checkErasureReviewHandoverRaces(sql, authCtx, record),
       ],
       // Reliability batch probes (self-contained; each seeds and cleans its
       // own rows).
