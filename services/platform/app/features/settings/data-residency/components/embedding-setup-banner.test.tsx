@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -8,15 +8,18 @@ import { render, screen } from '@/tests/utils/render';
 // live region like its dashboard siblings — an assertive `alert` would
 // interrupt screen-reader users on every page of the shell.
 
-const { mockState } = vi.hoisted(() => ({
-  mockState: {
-    canRead: true,
-    abilityLoading: false,
-    embedding: undefined as unknown,
-    embeddingError: false,
-    credentials: undefined as unknown,
-  },
-}));
+const { mockState, useOrgKnowledgeEmbedding, useProviderCredentials } =
+  vi.hoisted(() => ({
+    mockState: {
+      canRead: true,
+      abilityLoading: false,
+      embedding: undefined as unknown,
+      embeddingError: false,
+      credentials: undefined as unknown,
+    },
+    useOrgKnowledgeEmbedding: vi.fn(),
+    useProviderCredentials: vi.fn(),
+  }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({
@@ -26,15 +29,10 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbilityLoading: () => mockState.abilityLoading,
 }));
 
-vi.mock('../hooks/queries', () => ({
-  useOrgKnowledgeEmbedding: () => ({
-    data: mockState.embedding,
-    isError: mockState.embeddingError,
-  }),
-}));
+vi.mock('../hooks/queries', () => ({ useOrgKnowledgeEmbedding }));
 
 vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
-  useProviderCredentials: () => ({ data: mockState.credentials }),
+  useProviderCredentials,
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -63,6 +61,17 @@ function readyToNudge() {
   mockState.embeddingError = false;
   mockState.credentials = [{ id: 'cred-1' }];
 }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  useOrgKnowledgeEmbedding.mockImplementation(() => ({
+    data: mockState.embedding,
+    isError: mockState.embeddingError,
+  }));
+  useProviderCredentials.mockImplementation(() => ({
+    data: mockState.credentials,
+  }));
+});
 
 describe('EmbeddingSetupBanner', () => {
   it('points a provider-configured org at the embedding model it still needs', () => {
@@ -102,13 +111,17 @@ describe('EmbeddingSetupBanner', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('stays quiet for a reader who cannot open the settings page', () => {
+  // E-05: both reads are admin doors; a member mounting the shell used to
+  // fire two 403s on every dashboard page before the ability gate ran.
+  it('stays quiet for a reader who cannot open the settings page, without asking the server', () => {
     readyToNudge();
     mockState.canRead = false;
 
     render(<EmbeddingSetupBanner organizationId="org-1" />);
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(useOrgKnowledgeEmbedding).not.toHaveBeenCalled();
+    expect(useProviderCredentials).not.toHaveBeenCalled();
   });
 
   it('says nothing while the state is still unknown', () => {
@@ -125,12 +138,14 @@ describe('EmbeddingSetupBanner', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('waits for the ability to resolve before deciding', () => {
+  it('waits for the ability to resolve before deciding — or reading', () => {
     readyToNudge();
     mockState.abilityLoading = true;
 
     render(<EmbeddingSetupBanner organizationId="org-1" />);
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(useOrgKnowledgeEmbedding).not.toHaveBeenCalled();
+    expect(useProviderCredentials).not.toHaveBeenCalled();
   });
 });

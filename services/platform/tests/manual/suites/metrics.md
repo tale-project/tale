@@ -159,10 +159,13 @@ rollups**, so figures may legitimately lag same-day activity.
 ## Boundary & error tests
 
 - [ ] `MET-B1` · **Role gating** — Sign in as a **developer** or **member**
-  account; hit `/dashboard/{org}/settings/metrics/usage` directly → The rail
-  shows no **Metrics** group; the direct URL renders the access-denied message
-  (`accessDenied.organization`) after the ability loads — never a partial page
-  or raw error.
+  account; hit `/dashboard/{org}/settings/metrics/usage` directly (then
+  `…/metrics/feedback`, `…/metrics/chat-health`, `…/metrics/external-turns`)
+  → The rail shows no **Metrics** group; the direct URL renders the
+  access-denied message (`accessDenied.organization`) **within 2 s** of the
+  navigation — never a partial page, a raw error, or a longer skeleton; the
+  network log shows each admin read refused once (no retried 403s), and the
+  shell asks neither the embedding-model nor the provider-credentials door.
 - [ ] `MET-B2` · **Legacy redirects & bad params** — Open
   `/dashboard/{org}/automations/metrics?period=90`,
   `/dashboard/{org}/settings/governance/usage`,

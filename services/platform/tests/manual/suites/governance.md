@@ -438,6 +438,13 @@ select lists only the current admin's keys (`useApiKeys`).
   mail its address → the conversation still arrives, unassigned. Adding a
   second rule for the same mailbox and address is refused inline
   (`governance.conversationRouting.duplicateRule`).
+- [ ] `GOV-B12` · **A member's deep link is refused fast** — Signed in as a
+  **member** in a fresh browser, open `policies-limits`, `content-models`,
+  `security-monitoring` and `data-subject-requests` by URL → Each renders
+  the access-denied message (`accessDenied.organization`) **within 2 s**, the
+  same as `/dashboard/{org}/settings/members`; the skeleton never sits
+  longer, and the network log shows every admin read refused once (no
+  retried 403s) — or, on a warm in-app navigation, not asked at all.
 
 ## Accessibility (WCAG 2.1 AA)
 

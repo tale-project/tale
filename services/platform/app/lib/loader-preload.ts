@@ -4,10 +4,17 @@ import {
   activeOrganizationId,
   projectAdaptedRead,
   READ_ADAPTERS,
+  retryAdaptedRead,
+  runAdapted,
 } from '@/app/lib/backend/adapters';
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
+import {
+  memberContextQuery,
+  type MemberContextView,
+} from '@/app/lib/backend/org';
 import type { RouterContext } from '@/app/router';
+import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 type QueryArgs<Name extends QueryName> =
@@ -37,16 +44,62 @@ export function ensureConvexQuery<Name extends QueryName>(
       organizationId !== undefined ? { organizationId } : {},
     );
     if (adapted === null) return Promise.resolve(undefined);
+    // The same lane as the component's hook and the non-blocking prefetch:
+    // a 4xx is normalized to a structured `AppError` and never retried. The
+    // raw `queryFn` used to ride the router's default retry, which cannot
+    // tell a bare 403 from a transport fault — a member deep-linking an
+    // admin page sat on the skeleton through three back-offs (~10 s)
+    // before the denied state (2026-09-26 evaluation, E-05).
     return context.queryClient
       .ensureQueryData({
         queryKey: adapted.queryKey,
-        queryFn: adapted.queryFn,
+        queryFn: () => runAdapted(adapted.queryFn),
+        ...(adapted.staleTime !== undefined
+          ? { staleTime: adapted.staleTime }
+          : {}),
+        retry: retryAdaptedRead,
       })
       .then((data) => projectAdaptedRead(adapted, data));
   }
   // A render-gating read with no row cannot degrade quietly: the route would
   // paint its denied/empty state as if that were the answer.
   throw new MissingBackendRowError(name);
+}
+
+/**
+ * The caller's ability in one organization, when the dashboard route's
+ * member-context read has already settled in the cache — null while it
+ * has not (a cold deep link), in which case a loader must not guess.
+ */
+export function cachedAbility(
+  context: RouterContext,
+  organizationId: string,
+): AppAbility | null {
+  const cached = context.queryClient.getQueryData<MemberContextView>(
+    memberContextQuery(organizationId).queryKey,
+  );
+  if (cached === undefined || cached === null) return null;
+  return defineAbilityFor(cached.status === 'ok' ? cached.role : null);
+}
+
+/**
+ * {@link ensureConvexQuery} for a read only an organization admin may make
+ * (`read orgSettings`): when the cached member context already says the
+ * caller cannot, the loader resolves at once and the page paints its
+ * denied state — instead of awaiting a 403 the server was always going
+ * to answer.
+ */
+export function ensureOrgSettingsQuery<Name extends QueryName>(
+  context: RouterContext,
+  organizationId: string,
+  name: Name,
+  ...args: QueryArgs<Name>
+) {
+  const ability = cachedAbility(context, organizationId);
+  if (ability !== null && ability.cannot('read', 'orgSettings')) {
+    return Promise.resolve(undefined);
+  }
+  return ensureConvexQuery(context, name, ...args);
 }
 
 /**
@@ -84,10 +137,15 @@ export function ensureGovernancePolicies(
 ) {
   return Promise.all(
     policyTypes.map((policyType) =>
-      ensureConvexQuery(context, 'governance/queries:getPolicy', {
+      ensureOrgSettingsQuery(
+        context,
         organizationId,
-        policyType,
-      }).catch((error: unknown) => {
+        'governance/queries:getPolicy',
+        {
+          organizationId,
+          policyType,
+        },
+      ).catch((error: unknown) => {
         // Pre-auth rejections are expected and self-heal via the reactive
         // subscription; swallow them so they never reach the caller's warning
         // log. Real errors still propagate.
