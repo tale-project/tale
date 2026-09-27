@@ -37,7 +37,9 @@ function context() {
   return { queryClient: new QueryClient() };
 }
 
-function memberContext(role: 'member' | 'admin'): MemberContextView {
+function memberContext(
+  role: 'member' | 'admin',
+): Exclude<MemberContextView, null> {
   return {
     status: 'ok',
     memberId: 'm-1',
