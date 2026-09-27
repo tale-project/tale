@@ -33,6 +33,6 @@ Owners and Admins manage organization settings. Developers can reach the technic
 
 Configure [enterprise SSO](/platform/admin/enterprise-sso) for your identity provider and [two-factor authentication](/platform/admin/two-factor-authentication) for account protection. Use [API keys](/platform/admin/api-keys) when software needs to call Tale.
 
-[Branding](/platform/admin/branding) changes the organization's logo and colors. [Sandboxes](/platform/admin/sandboxes) shows execution capacity and workload limits. For a project agent's access to these resources, read [Agents (admin view)](/platform/admin/agents).
+[Branding](/platform/admin/branding) changes the organization's logo and colors. [Sandboxes](/platform/admin/sandboxes) shows execution capacity and workload limits; with [sandbox devices](/platform/admin/sandbox-devices), your organization's sandboxes run on machines of your own. For a project agent's access to these resources, read [Agents (admin view)](/platform/admin/agents).
 
 After an upgrade, [What's new](/platform/admin/changelog) helps you check which platform changes affect your team.

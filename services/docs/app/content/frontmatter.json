@@ -372,6 +372,14 @@
       "description": "Verbinde Anbieter-Zugangsdaten, stelle Modelle bereit und prüfe fehlende Auswahlmöglichkeiten."
     }
   },
+  "de:platform/admin/sandbox-devices": {
+    "slug": "platform/admin/sandbox-devices",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Sandboxes auf eigenen Geräten ausführen",
+      "description": "Verbinde einen Linux- oder macOS-Rechner mit Docker, damit die Sandboxes deiner Agenten und Automatisierungen darauf laufen."
+    }
+  },
   "de:platform/admin/sandboxes": {
     "slug": "platform/admin/sandboxes",
     "locale": "de",
@@ -1508,6 +1516,14 @@
       "description": "Connect provider credentials, make models available, and diagnose missing model choices."
     }
   },
+  "en:platform/admin/sandbox-devices": {
+    "slug": "platform/admin/sandbox-devices",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Run sandboxes on your own devices",
+      "description": "Connect a Linux or macOS machine with Docker so your organization's agent and automation sandboxes run on it."
+    }
+  },
   "en:platform/admin/sandboxes": {
     "slug": "platform/admin/sandboxes",
     "locale": "en",
@@ -2642,6 +2658,14 @@
     "frontmatter": {
       "title": "Fournisseurs IA",
       "description": "Connecte les identifiants des fournisseurs, rends les modèles disponibles et résous les choix manquants."
+    }
+  },
+  "fr:platform/admin/sandbox-devices": {
+    "slug": "platform/admin/sandbox-devices",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Exécuter les sandboxes sur tes propres appareils",
+      "description": "Connecte une machine Linux ou macOS avec Docker pour que les sandboxes des agents et des automatisations de ton organisation s’y exécutent."
     }
   },
   "fr:platform/admin/sandboxes": {

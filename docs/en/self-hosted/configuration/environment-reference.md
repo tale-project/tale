@@ -306,6 +306,23 @@ Keep `sandbox`, `sandbox-egress` and `SANDBOX_RUNTIME_IMAGE` on the same release
 
 Kubernetes Pods do not receive unsafe sysctls automatically. The egress proxy needs working IPv6 firewall support or IPv6 disabled in its network namespace. If the IPv6 firewall is unavailable, the entrypoint attempts that local disable and verifies the default and every interface. A read-only `/proc/sys` or denied write can prevent it; enabled IPv6 without protection still stops startup. Configure the egress Pod according to the cluster’s permitted networking settings before deployment.
 
+## Sandbox devices
+
+Organizations can run their sandboxes on their own machines, which they connect under [Settings > Sandboxes](/platform/admin/sandbox-devices). A device connects out over HTTPS to `<SITE_URL><BASE_PATH>/sandbox/tunnel` and keeps one WebSocket open. The bundled proxy forwards that path, and only that path, to the spawner's device hub; the spawner's signed API stays on the internal network. Devices need the Docker backend: the hub is off with Kubernetes.
+
+| Name | Default | Description |
+| --- | --- | --- |
+| `SANDBOX_HUB_PORT` | `8004` | **Read by the spawner.** Port of the device hub, which answers only a ticket-authenticated WebSocket upgrade and a health check. `0` turns devices off: **Add device** is then unavailable. If you change the port, point `SANDBOX_HUB_UPSTREAM` at it too. |
+| `SANDBOX_DEVICE_TUNNEL_URL` | `<SITE_URL><BASE_PATH>/sandbox/tunnel` as `wss://` | **Optional, read by the backend.** Where devices connect, when a proxy in front of Tale publishes the hub under another host or path. An `https://` address is used as `wss://`. |
+| `SANDBOX_DEVICE_IMAGE_REGISTRY` | `GHCR_REGISTRY`, else `ghcr.io/tale-project/tale` | **Optional, read by the backend.** Where devices pull the sandbox images of the server's release. |
+| `SANDBOX_HUB_UPSTREAM` | `sandbox:8004` | **Optional, read by the proxy.** Where the proxy forwards `/sandbox/tunnel`, when the spawner is not the `sandbox` service. |
+
+A device always runs the server's release. It learns the release each time it renews its connection and replaces its own containers when the server moves on, unless it was connected with `--no-auto-update`. It keeps no data on the server: its workspaces stay on the machine. Sandboxes on a device call the backend's sandbox endpoints and the model gateway through the device's connection, along the same paths sessions use on the server; the gateway's management API is never reachable that way. A device keeps the backend and gateway addresses it received when it joined: after changing `SANDBOX_HTTP_API_BASE_URL` or `EXTERNAL_AGENT_GATEWAY_URL`, run `tale sandbox update` on each device.
+
+A device must trust the site's TLS certificate. A deployment with `TLS_MODE=selfsigned` cannot take devices.
+
+With a proxy of your own instead of the bundled one, forward `/sandbox/tunnel` to port `SANDBOX_HUB_PORT` of the spawner, keep WebSocket upgrades and the `Authorization` header intact, and allow connections that stay open for hours.
+
 ## Sandbox agent turns
 
 | Name                             | Default              | Description                                                                                                                                                                                                                                                                                       |

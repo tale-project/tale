@@ -88,7 +88,7 @@ Run `tale <command> --help` for the authoritative list at your installed version
 - `-q, --quiet` — only warnings and errors.
 - `-y, --yes` — assume "yes" for all prompts (non-interactive).
 - `--no-color` — disable ANSI colour (also honours `NO_COLOR` / `FORCE_COLOR`).
-- `--json`—machine-readable JSON on stdout; supported by `status`, every `config` subcommand and managed deployment commands.
+- `--json`—machine-readable JSON on stdout; supported by `status`, `sandbox status`, every `config` subcommand and managed deployment commands.
 - `--ci` — force non-interactive, append-only output (no cursor control).
 
 Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition (no project, Docker not running, port in use), `4` on a user abort (Ctrl-C, or a required prompt with no terminal), and `5` on an external-dependency failure — so scripts can branch on the cause.
@@ -530,10 +530,10 @@ The public `native.configuration` proof records each resource’s intended hash 
 - `-a, --all` — also remove the stateful infrastructure containers.
 - `--dry-run` — preview the reset without making changes.
 
-`tale uninstall` — remove the `tale` CLI binary from this system. It prompts before deleting anything and _offers_ to also remove the per-user config (`~/.tale-daemon`) and tear down a project's Docker resources and files. Without `--purge`, a project and its containers are left intact — run `tale reset --all` inside one to remove those.
+`tale uninstall` — remove the `tale` CLI binary from this system. It prompts before deleting anything and _offers_ to also disconnect this machine's [sandbox device](#sandbox-device), remove `~/.tale-daemon` left by the retired `tale daemon`, and tear down a project's Docker resources and files. Without `--purge`, a project and its containers are left intact — run `tale reset --all` inside one to remove those. If the sandbox device cannot be stopped, nothing is uninstalled.
 
 - `-f, --force` — skip the confirmation prompt (removes the binary only; the optional cleanups still need `--purge`).
-- `--purge` — also remove `~/.tale-daemon` and, for a project found from the current directory, tear down its Docker resources and delete its files. Irreversible.
+- `--purge` — also disconnect the sandbox device and delete its workspaces, remove `~/.tale-daemon` and, for a project found from the current directory, tear down its Docker resources and delete its files. Irreversible.
 - `--dry-run` — show what would be removed without removing anything.
 
 `tale config show`—print the resolved local project directory and CLI version. Outside a project, it reports that no project was found and exits successfully.
@@ -562,6 +562,31 @@ Native commands require `--stage <directory>`, `--url <origin>`, `--org <id>` an
 Both native commands accept exact expectations through `--config-ref`, `--source-repository`, `--artifact-sha256`, `--deployment-ref`, `--client` and `--automation`. Historical catalogue expectation flags remain available for compatibility. `verify-native` is read-only; `--allow-retained` verifies an explicitly selected retained version without claiming it is deployed. Without `--native-version`, verification selects the latest saved version. The native API exposes the task contract only for the deployed version, so retained verification cannot attest that field.
 
 Configuration commands have no `--dry-run`: use `stage`, `verify --rebuild` and `verify-native`. Success JSON is `{ok:true,command:"config <verb>",data}`. Build and verify data include `automationName`, `releaseRef`, `sourceCommit`, `artifactSha256`, `artifactPath` and `verified`; compatibility output uses `configVersion` instead of `releaseRef`. SHA stage and native receipts use schema 2. A deploy result includes `automationVersion` and `unchanged`; the explicit `verified` field belongs to verification output.
+
+### Sandbox device
+
+These commands run your Tale organization's sandboxes on the machine where you run them. [Run sandboxes on your own devices](/platform/admin/sandbox-devices) covers adding a device under **Settings > Sandboxes**, which hands out the `connect` command. The device keeps its configuration and workspaces in `~/.tale/sandbox`; `TALE_SANDBOX_HOME` moves them.
+
+`tale sandbox connect <site> --token <token>` — connect this machine to the organization that issued the token: it checks Docker (and offers to install it), registers the machine, and starts the device's containers at the server's release. `site` is your Tale site, such as `https://your-org.tale.dev`. The token (`tsdj_…`) works once, within an hour. Linux and macOS only.
+
+- `--name <name>` — the name Tale shows for the device (default: the machine's hostname). Characters other than `A`–`Z`, `a`–`z`, digits, `.`, `-` and `_` become dashes.
+- `--max-sessions <n>` — how many sandboxes run here at once, from 1 to 256 (default: one per two CPUs and per 4 GiB of memory Docker can use, at most 16).
+- `--no-auto-update` — do not follow the server's release automatically; run `tale sandbox update` after each Tale update instead.
+- `--docker-socket <path>` — the Docker socket the device's containers use, for rootless Docker (default: `/var/run/docker.sock`).
+
+`tale sandbox status` — show the device's connection, organization, release and containers, and the sandboxes running now. No arguments.
+
+`tale sandbox update` — move the device to the server's release now, and take the server's current addresses for its sandboxes (needed after the backend or model gateway address changed). No arguments.
+
+`tale sandbox logs` — show the device's log.
+
+- `-f, --follow` — keep printing new lines.
+- `--tail <lines>` — how many lines to show first (default: `200`).
+
+`tale sandbox disconnect` — remove the device from its organization, stop its sandboxes and delete their workspaces from this machine. It prompts first, and changes nothing while Docker is not running. If the server cannot be reached, the machine is cleaned up anyway, and an admin removes the device under **Settings > Sandboxes**.
+
+- `--keep-data` — keep the workspaces on this machine.
+- `-f, --force` — skip the confirmation prompt.
 
 ### Advanced
 

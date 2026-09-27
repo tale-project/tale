@@ -306,6 +306,23 @@ Garde `sandbox`, `sandbox-egress` et `SANDBOX_RUNTIME_IMAGE` sur la même versio
 
 Les Pods Kubernetes ne reçoivent pas automatiquement de sysctls non sûrs. Le proxy egress a besoin d’un pare-feu IPv6 fonctionnel ou d’IPv6 désactivé dans son namespace réseau. Si le pare-feu IPv6 est indisponible, l’entrypoint tente cette désactivation locale, puis vérifie la valeur par défaut et chaque interface. Un `/proc/sys` en lecture seule ou des droits insuffisants peuvent l’en empêcher ; IPv6 encore actif sans protection bloque le démarrage. Configure le Pod egress avant le déploiement avec les paramètres réseau autorisés par ton cluster.
 
+## Appareils de sandbox {#sandbox-devices}
+
+Les organisations peuvent exécuter leurs sandboxes sur leurs propres machines, qu’elles connectent dans [Paramètres > Sandboxes](/fr/platform/admin/sandbox-devices). Un appareil se connecte en HTTPS à `<SITE_URL><BASE_PATH>/sandbox/tunnel` et garde un WebSocket ouvert. Le proxy fourni transmet ce chemin, et uniquement celui-ci, au hub d’appareils du spawner ; l’API signée du spawner reste sur le réseau interne. Les appareils ont besoin du backend Docker : avec Kubernetes, le hub reste désactivé.
+
+| Nom | Défaut | Description |
+| --- | --- | --- |
+| `SANDBOX_HUB_PORT` | `8004` | **Lu par le spawner.** Port du hub d’appareils, qui ne répond qu’à une mise à niveau WebSocket authentifiée par ticket et à une vérification d’état. `0` désactive les appareils : **Ajouter un appareil** est alors indisponible. Si tu changes le port, fais aussi pointer `SANDBOX_HUB_UPSTREAM` dessus. |
+| `SANDBOX_DEVICE_TUNNEL_URL` | `<SITE_URL><BASE_PATH>/sandbox/tunnel` en `wss://` | **Facultatif, lu par le backend.** Où les appareils se connectent, lorsqu’un proxy placé devant Tale publie le hub sous un autre hôte ou chemin. Une adresse `https://` est utilisée comme `wss://`. |
+| `SANDBOX_DEVICE_IMAGE_REGISTRY` | `GHCR_REGISTRY`, sinon `ghcr.io/tale-project/tale` | **Facultatif, lu par le backend.** D’où les appareils téléchargent les images de sandbox de la version du serveur. |
+| `SANDBOX_HUB_UPSTREAM` | `sandbox:8004` | **Facultatif, lu par le proxy.** Où le proxy transmet `/sandbox/tunnel`, lorsque le spawner n’est pas le service `sandbox`. |
+
+Un appareil exécute toujours la version du serveur. Il apprend la version à chaque renouvellement de sa connexion et remplace ses propres conteneurs dès que le serveur change de version, sauf s’il a été connecté avec `--no-auto-update`. Il ne conserve aucune donnée sur le serveur : ses espaces de travail restent sur la machine. Les sandboxes d’un appareil joignent les points d’accès sandbox du backend et la passerelle de modèles par la connexion de l’appareil, sur les mêmes chemins que les sessions sur le serveur ; l’API d’administration de la passerelle n’est jamais accessible par cette voie. Un appareil conserve les adresses du backend et de la passerelle reçues lors de sa connexion : après avoir modifié `SANDBOX_HTTP_API_BASE_URL` ou `EXTERNAL_AGENT_GATEWAY_URL`, lance `tale sandbox update` sur chaque appareil.
+
+Un appareil doit faire confiance au certificat TLS du site. Un déploiement avec `TLS_MODE=selfsigned` ne peut pas accueillir d’appareils.
+
+Si tu utilises ton propre proxy au lieu du proxy fourni, transmets `/sandbox/tunnel` au port `SANDBOX_HUB_PORT` du spawner, conserve les mises à niveau WebSocket et l’en-tête `Authorization`, et autorise des connexions qui restent ouvertes pendant des heures.
+
 ## Tours d'agent en sandbox
 
 | Nom                              | Défaut               | Description                                                                                                                                                                                                                                                                                                                              |

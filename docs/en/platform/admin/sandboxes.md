@@ -28,7 +28,7 @@ These are concurrency limits, not a count of tasks or a spending budget. An agen
 3. Keep that total within deployment capacity, then select **Save** in the header. **Discard** restores the saved values.
 4. Reopen the page to confirm the saved limits and inspect whether new work can obtain an allocation.
 
-For example, the defaults total 6. If deployment capacity is 8, a total of 8 is valid and 9 is refused. The server rechecks capacity when saving, so another observation may differ from the one you first saw.
+For example, the defaults total 6. If deployment capacity is 8, a total of 8 is valid and 9 is refused. The server rechecks capacity when saving, so another observation may differ from the one you first saw. Your organization's connected [devices](/platform/admin/sandbox-devices) add the sandboxes they run to the ceiling: with one device that runs 4, the total may reach 12.
 
 Lowering a limit affects future admissions; it does not interrupt active work. If infrastructure data is unavailable, reductions remain possible but increases need a fresh capacity observation. If the operator lowered capacity below your existing total, reduce your limits before saving again. If organization allocation data itself cannot load, the fields remain unavailable instead of showing editable defaults.
 
@@ -71,6 +71,6 @@ Use stop when the current work should end but its files should remain. Before de
 
 ## Resolve a blocked start
 
-Raise a workload limit only when its allocations are full and the new total fits shared capacity. If the deployment itself is full, increasing an organization limit cannot create infrastructure. Ask the operator to inspect capacity and host resources; a free container slot alone does not guarantee enough CPU or memory.
+Raise a workload limit only when its allocations are full and the new total fits shared capacity. If the deployment itself is full, increasing an organization limit cannot create infrastructure. To add capacity of your own, [connect a device](/platform/admin/sandbox-devices): new workspaces start on it. Otherwise, ask the operator to inspect capacity and host resources; a free container slot alone does not guarantee enough CPU or memory.
 
 For a credential or model refusal, use [AI providers](/platform/admin/providers). For a spending refusal, use [Policies and limits](/platform/admin/governance/policies-and-limits). Self-hosted operators can inspect the deployment setting in the [environment reference](/self-hosted/configuration/environment-reference#sandbox-infrastructure).
