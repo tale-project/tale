@@ -1252,7 +1252,8 @@ export async function trashThread(
       await tx`
       UPDATE app.thread_metadata SET
         status = 'trashed', status_changed_at_ms = ${now}
-      WHERE branch_root_id = ${thread.id} AND status = 'active'
+      WHERE branch_root_id = ${thread.id} AND org_id = ${auth.organizationId}
+        AND status = 'active'
     `;
       await createAuditLog(tx, {
         organizationId: auth.organizationId,

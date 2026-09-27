@@ -524,7 +524,8 @@ export async function settleArenaPair(
       await tx`
         UPDATE app.thread_metadata
         SET status = 'trashed', status_changed_at_ms = ${now}
-        WHERE branch_root_id = ${loserId} AND status = 'active'
+        WHERE branch_root_id = ${loserId} AND org_id = ${args.organizationId}
+          AND status = 'active'
       `;
       await createAuditLog(tx, {
         organizationId: args.organizationId,

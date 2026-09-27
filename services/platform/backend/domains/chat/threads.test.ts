@@ -258,6 +258,12 @@ describe('trashThread with the turn fence', () => {
       ),
     ).toBe(false);
     expect(createAuditLog).toHaveBeenCalledTimes(1);
+    // The edit-sibling cascade is organization-scoped like the root write.
+    const cascade = statements.find(({ text }) =>
+      text.includes('WHERE branch_root_id = ?'),
+    );
+    expect(cascade?.text).toContain('AND org_id = ?');
+    expect(cascade?.values.slice(1)).toEqual(['thread_1', 'org_1']);
   });
 
   it('answers CHAT_TURN_IN_PROGRESS when a send claimed the row meanwhile, and true when it was trashed meanwhile', async () => {

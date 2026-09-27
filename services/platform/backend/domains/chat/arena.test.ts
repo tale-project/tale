@@ -266,7 +266,9 @@ describe('settleArenaPair discards the loser into Trash', () => {
     expect(loser?.text).toContain('hidden = NULL');
     expect(loser?.text).toContain("AND status = 'active'");
     expect(loser?.values.slice(1)).toEqual(['thread_a', 'org_1']);
-    expect(cascade?.values[1]).toBe('thread_a');
+    // The edit-sibling cascade is organization-scoped like every other
+    // thread_metadata write.
+    expect(cascade?.values.slice(1)).toEqual(['thread_a', 'org_1']);
     // B's graduation (`branch_root_id = NULL`) runs BEFORE A's cascade, so
     // the winner never travels to Trash with the loser.
     const graduation = statements.findIndex((s) =>
@@ -303,7 +305,7 @@ describe('settleArenaPair discards the loser into Trash', () => {
 
     const { loser, cascade } = trashWrites(statements);
     expect(loser?.values.slice(1)).toEqual(['thread_b', 'org_1']);
-    expect(cascade?.values[1]).toBe('thread_b');
+    expect(cascade?.values.slice(1)).toEqual(['thread_b', 'org_1']);
     expect(statements.some((s) => s.text.includes('hidden = true'))).toBe(
       false,
     );
