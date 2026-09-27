@@ -4,10 +4,11 @@
  * An inbound email's body is indexed for retrieval, and the queueing rides
  * the transaction that stores the message: a rolled-back insert — the loser
  * of an ingest race included — queues nothing. Deleting a conversation
- * queues the release of its bodies' corpus copies in the delete's own
- * transaction, because those copies live in the knowledge database where
- * the messages' cascade cannot reach. A spam verdict releases them the same
- * way, and lifting it queues them for indexing again.
+ * queues the release of its mail's corpus copies — the bodies' and the
+ * emailed attachments' — in the delete's own transaction, because those
+ * copies live in the knowledge database where the messages' cascade cannot
+ * reach. A spam verdict releases them the same way, and lifting it queues
+ * them for indexing again.
  */
 
 import type { Sql, TransactionSql } from 'postgres';
@@ -55,6 +56,8 @@ interface Statement {
 function txDouble(script: {
   conversation?: { channel?: string | null; status?: string | null } | null;
   indexedMessageIds?: string[];
+  /** The conversation's emailed attachments: unbound file rows bound to it. */
+  attachments?: { id: string; storageRef: string }[];
 }) {
   const statements: Statement[] = [];
   const events: string[] = [];
@@ -93,6 +96,9 @@ function txDouble(script: {
       return Promise.resolve(
         (script.indexedMessageIds ?? []).map((id) => ({ id })),
       );
+    }
+    if (text.startsWith('SELECT id, storage_ref AS "storageRef"')) {
+      return Promise.resolve(script.attachments ?? []);
     }
     return Promise.resolve([]);
   };
@@ -196,10 +202,37 @@ describe('deleteConversation — releasing the indexed bodies', () => {
     );
   });
 
-  it('queues no release for a conversation with no indexed body', async () => {
+  it('queues no release for a conversation with no indexed mail', async () => {
     const { tx } = txDouble({ indexedMessageIds: [] });
     await deleteConversation(tx, ORG, 'conv_1');
     expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('queues the release of its emailed attachments with its bodies', async () => {
+    // The attachments' file rows have no cascade from the conversation; the
+    // released copy is the corpus one — liveness reads an attachment whose
+    // conversation is gone as dead to the corpus, its bytes as kept.
+    const { tx, statements, events } = txDouble({
+      indexedMessageIds: ['msg_1'],
+      attachments: [{ id: 'file_1', storageRef: 's3:org_1/mail/cv.pdf' }],
+    });
+    await deleteConversation(tx, ORG, 'conv_1');
+    expect(addJobInTx).toHaveBeenCalledWith(tx, 'knowledge.release_refs', {
+      organizationId: ORG,
+      refs: ['msg:msg_1', 's3:org_1/mail/cv.pdf'],
+    });
+    const read = statements.find((s) =>
+      s.text.startsWith('SELECT id, storage_ref AS "storageRef"'),
+    );
+    expect(read?.text).toContain('document_id IS NULL');
+    expect(read?.values.slice(0, 2)).toEqual([ORG, ['conv_1']]);
+    // Read before the delete, queued after it.
+    expect(events.indexOf('SELECT id, storage_ref')).toBeLessThan(
+      events.indexOf('DELETE FROM app.conversations'),
+    );
+    expect(events.indexOf('enqueue knowledge.release_refs')).toBeGreaterThan(
+      events.indexOf('DELETE FROM app.conversations'),
+    );
   });
 });
 
@@ -210,6 +243,7 @@ describe('a spam verdict — the bulk verb', () => {
     const { tx, events } = txDouble({
       conversation: { status: 'open' },
       indexedMessageIds: ['msg_1'],
+      attachments: [{ id: 'file_1', storageRef: 's3:org_1/mail/cv.pdf' }],
     });
     await bulkSetConversationStatus(tx, {
       organizationId: ORG,
@@ -219,7 +253,7 @@ describe('a spam verdict — the bulk verb', () => {
     });
     expect(addJobInTx).toHaveBeenCalledWith(tx, 'knowledge.release_refs', {
       organizationId: ORG,
-      refs: ['msg:msg_1'],
+      refs: ['msg:msg_1', 's3:org_1/mail/cv.pdf'],
     });
     expect(events.indexOf('enqueue knowledge.release_refs')).toBeGreaterThan(
       events.indexOf('UPDATE app.conversations SET'),
@@ -230,6 +264,7 @@ describe('a spam verdict — the bulk verb', () => {
     const { tx, statements } = txDouble({
       conversation: { status: 'spam' },
       indexedMessageIds: ['msg_1', 'msg_2'],
+      attachments: [{ id: 'file_1', storageRef: 's3:org_1/mail/cv.pdf' }],
     });
     await bulkSetConversationStatus(tx, {
       organizationId: ORG,
@@ -253,6 +288,22 @@ describe('a spam verdict — the bulk verb', () => {
       s.text.startsWith('SELECT id FROM app.conversation_messages'),
     );
     expect(read?.values.at(-1)).toBe(false);
+    // And the attachment is queued as the bind queues one: marked, then a
+    // job — never one opted out of indexing.
+    expect(addJobInTx).toHaveBeenCalledWith(tx, 'rag.index_file', {
+      fileId: 'file_1',
+    });
+    const attachments = statements.find((s) =>
+      s.text.startsWith('SELECT id, storage_ref AS "storageRef"'),
+    );
+    expect(attachments?.text).toContain(
+      'skip_rag_indexing IS DISTINCT FROM true',
+    );
+    const marked = statements.find((s) =>
+      s.text.startsWith('UPDATE app.file_metadata SET'),
+    );
+    expect(marked?.text).toContain("rag_status = 'queued'");
+    expect(marked?.values).toContain('file_1');
   });
 
   it('leaves the corpus alone for a flip that is not about spam', async () => {
