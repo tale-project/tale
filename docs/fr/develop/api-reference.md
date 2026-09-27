@@ -193,7 +193,7 @@ Utilise une bibliothèque OIDC maintenue avec le flux Authorization Code, PKCE S
 
 Le jeton d’identité contient les claims standard des scopes demandés, avec les valeurs que renvoie Userinfo : tu n’as donc pas besoin d’appeler Userinfo pour les lire. `email` ajoute `email` et `email_verified`. `profile` ajoute `name`, ainsi que `given_name` (tous les mots sauf le dernier) et `family_name` (le dernier mot) quand le nom compte au moins deux mots, et `picture` si le compte a une image.
 
-Le jeton contient toujours `acr: "0"`. La découverte annonce `"0"` dans `acr_values_supported` et `acr` dans `claims_supported`. Elle ne prouve pas un niveau d’authentification plus fort, notamment une authentification MFA. N’en déduis aucune autorisation supplémentaire.
+Le jeton contient toujours `acr: "0"`. La découverte annonce `"0"` dans `acr_values_supported` et `acr` dans `claims_supported`. Elle ne prouve pas un niveau d’authentification plus fort, notamment une authentification MFA. N’en déduis aucune autorisation supplémentaire. Les versions à partir de v0.5.45 documentaient `urn:mace:incommon:iap:bronze` alors que le jeton portait déjà `"0"` ; une application cliente figée sur cette URN doit accepter `"0"`.
 
 La découverte annonce `none`, `login` et `consent` dans `prompt_values_supported`. `select_account` et `create` ne sont pas pris en charge. Tale vérifie l’appartenance actuelle à l’organisation et l’exigence MFA native avant d’émettre les jetons, puis à chaque appel à Userinfo. L’application applique sa propre politique d’accès.
 

@@ -283,6 +283,8 @@ describe('createOidcProvider — discovery', () => {
     // `acr_values_supported`; without the claim in `claims_supported` a
     // relying party that asked for it could not verify it was honoured.
     expect(OIDC_CLAIMS_SUPPORTED).toContain('acr');
+    // The library hard-codes `"0"` (no assurance level asserted) on the
+    // token and in discovery; the constant must say what the wire says.
     expect(OIDC_ACR_VALUE).toBe('0');
   });
 

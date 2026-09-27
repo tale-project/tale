@@ -157,6 +157,13 @@ compute codes from the enrollment secret.
 
 - [ ] `AUTH-F19` · **A new member reaches a connected application** — As an admin, add a colleague under **Settings > Members** with a new address and password, hand the credentials to a second browser profile, and start an OIDC authorization from a registered test application there (`AUTH-F18`'s flow) → the application receives the identity on the first attempt and its `email_verified` claim is true; no verification mail exists to wait for. The same account also receives its organization's notification mirror.
 
+- [ ] `AUTH-F28` · **OIDC acr agrees with discovery** — `curl
+  <site>/api/auth/.well-known/openid-configuration | jq
+  '.acr_values_supported, .claims_supported'` and, with `AUTH-F18`'s test
+  application, decode the ID token it receives → discovery lists
+  `acr_values_supported: ["0"]` and `acr` under `claims_supported`; the
+  token's `acr` is exactly `"0"` (never `urn:mace:incommon:iap:bronze`), so a
+  relying party cross-checking the two sees no mismatch.
 - [ ] `AUTH-F21` · **Trusted headers card** — As an admin open
   `/dashboard/{org}/settings/enterprise-sso` → below the SSO form the
   **Trusted headers** card (`settings.enterpriseSso.trustedHeaders.section`)

@@ -41,7 +41,16 @@ export const OIDC_CLAIMS_SUPPORTED = [
   OIDC_ORGANIZATION_CLAIM,
 ];
 
-/** The one authentication context class the library asserts. */
+/**
+ * The one authentication context class the library asserts. Since
+ * `@better-auth/oauth-provider` 1.7.5 that is the literal `"0"` — RFC 6711's
+ * "no assurance level asserted" — hard-coded on every ID token and under
+ * discovery's `acr_values_supported`; `acr` is a reserved ID-token claim
+ * there, so `customIdTokenClaims` cannot override it. The constant follows
+ * the library (the previous bronze URN made the docs and the integration
+ * assertions disagree with the wire from v0.5.45 on); it is what Tale
+ * documents and asserts, not a level Tale chooses.
+ */
 export const OIDC_ACR_VALUE = '0';
 
 /**
