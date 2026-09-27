@@ -130,6 +130,70 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
     expect(addJobInTx).not.toHaveBeenCalled();
   });
 
+  // The indexer made these terminal (`image_no_vision`, `empty`); a rescan
+  // used to flip them back to `queued` and download and refuse them again
+  // on every scan.
+  it.each([
+    ['an image', { title: 'photo.png', mimeType: 'image/png' }],
+    ['an empty text file', { title: 'blank.txt', mimeType: 'text/plain' }],
+  ])(
+    'never re-queues %s the indexer already made unsupported',
+    async (_label, doc) => {
+      const { sql, statements } = fakeSql(doc, { ragStatus: 'unsupported' });
+
+      await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+
+      expect(statusWrites(statements)).toEqual([]);
+      expect(hints(statements)).toEqual([]);
+      expect(addJobInTx).not.toHaveBeenCalled();
+    },
+  );
+
+  // A document title is renamed on its own (REST PATCH, the app's rename);
+  // the indexer reads the stored file name, so a title that merely looks
+  // like an unknown extension must never make a readable file terminal.
+  it.each([
+    [
+      'Minutes 27.09',
+      'Minutes 27.09.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    ['Board minutes 27.09.2026', 'minutes.pdf', 'application/pdf'],
+  ])(
+    'judges by the file name, not a renamed title (%s)',
+    async (title, fileName, mimeType) => {
+      const { sql, statements } = fakeSql(
+        { title, mimeType },
+        { fileName, ragStatus: 'failed' },
+      );
+
+      await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+
+      expect(statusWrites(statements)).toEqual([]);
+      expect(hints(statements)).toEqual([]);
+    },
+  );
+
+  it('names the stored file in the sentence, not the title', async () => {
+    const { sql, statements } = fakeSql(
+      { title: 'Standup', mimeType: 'application/octet-stream' },
+      { fileName: 'standup.loop' },
+    );
+
+    await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+
+    const writes = statusWrites(statements);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.values).toEqual(
+      expect.arrayContaining([
+        'unsupported',
+        'No text extractor exists for "standup.loop".',
+        RAG_ERROR_UNSUPPORTED_TYPE,
+      ]),
+    );
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
   it.each(['completed', 'running', 'queued'])(
     'leaves a %s file as it is',
     async (ragStatus) => {

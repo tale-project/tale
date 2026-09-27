@@ -580,10 +580,17 @@ async function scheduleDocumentRagIndexing(
   const file = files[0];
   if (!file) return false;
   if (file.threadId !== null || file.skipRagIndexing === true) return false;
+  // Every scan re-offers an unchanged file, so a status that needs no new
+  // run ends here — `unsupported` included: it is terminal (a retry
+  // reproduces the answer, and the retry door refuses it), so an image, an
+  // empty file or a scanned PDF is not queued, downloaded and refused again
+  // on every scan. Changed bytes arrive on a new file row, which starts
+  // with no status and is judged afresh.
   if (
     file.ragStatus === 'completed' ||
     file.ragStatus === 'running' ||
-    file.ragStatus === 'queued'
+    file.ragStatus === 'queued' ||
+    file.ragStatus === 'unsupported'
   ) {
     return false;
   }
@@ -596,12 +603,15 @@ async function scheduleDocumentRagIndexing(
     // A file no extractor reads — a Loop page (`.loop`, served as
     // `application/octet-stream`), a legacy `.doc` — gets the terminal state
     // the indexer would give it; its empty status used to read "Not indexed"
-    // with a Reindex that could never succeed. A file the indexer CAN read
-    // but the platform does not index by itself (`.log`) is not terminal: a
-    // Reindex of it succeeds, so it keeps the empty status. Written once —
-    // every scan re-offers an unchanged file.
-    if (!isSupported(fileName) && file.ragStatus !== 'unsupported') {
-      await markRagUnsupportedType(sql, file.id, fileName);
+    // with a Reindex that could never succeed. Judged by the stored file
+    // name, the one the indexer reads: the document title can be renamed on
+    // its own (a title of "Minutes 27.09" reads as extension `09`), and a
+    // readable file must never be made terminal by its title. A file the
+    // indexer CAN read but the platform does not index by itself (`.log`) is
+    // not terminal either: a Reindex of it succeeds, so it keeps the empty
+    // status.
+    if (!isSupported(file.fileName)) {
+      await markRagUnsupportedType(sql, file.id, file.fileName);
     }
     return false;
   }
