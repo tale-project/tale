@@ -218,13 +218,16 @@ export function OrganizationSettingsView({
         </Form>
       </SettingsSection>
 
-      {canDelete && (
+      {/* The type-to-confirm gate needs the real name: until the
+          organization is known there is nothing to type back, so the
+          danger zone waits (an empty phrase would enable Delete at once). */}
+      {canDelete && organization ? (
         <DangerZoneSection
           organizationId={organizationId}
-          organizationName={organization?.name ?? ''}
+          organizationName={organization.name.trim()}
           isCurrentOrganization={isCurrentOrganization}
         />
-      )}
+      ) : null}
     </SettingsPage>
   );
 }
@@ -241,6 +244,8 @@ function DangerZoneSection({
   isCurrentOrganization,
 }: {
   organizationId: string;
+  /** The organization's name, trimmed — the phrase typed back (the
+   *  dialog trims the input the same way, as the server does). */
   organizationName: string;
   isCurrentOrganization: boolean;
 }) {

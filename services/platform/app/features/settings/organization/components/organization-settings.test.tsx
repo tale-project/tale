@@ -250,7 +250,11 @@ describe('OrganizationSettingsView locale select', () => {
 // after a plain confirm; it now asks for the organization's name, like an
 // erasure asks for ERASE, and hands the typed name to the server.
 describe('OrganizationSettingsView danger zone', () => {
-  function DeleteHarness() {
+  function DeleteHarness({
+    organization = { _id: 'org1', name: 'Acme' },
+  }: {
+    organization?: { _id: string; name: string } | null;
+  }) {
     const editor = useFormEditor<Form>({
       data: { name: 'Acme', defaultLocale: 'en' },
       save,
@@ -258,13 +262,48 @@ describe('OrganizationSettingsView danger zone', () => {
     return (
       <OrganizationSettingsView
         controller={editor}
-        organization={{ _id: 'org1', name: 'Acme' }}
+        organization={organization}
         organizationId="org1"
         canDelete
         isCurrentOrganization
       />
     );
   }
+
+  // The client compared the trimmed input to the UNtrimmed name (the
+  // server trims both), and an unknown organization made the phrase ''
+  // — Delete enabled with nothing typed.
+  it('compares against the trimmed name and sends it trimmed', async () => {
+    const { user } = render(
+      <DeleteHarness organization={{ _id: 'org1', name: '  Acme  ' }} />,
+    );
+    const action = enMessages.settings.organization.deleteConfirmAction;
+    await user.click(screen.getByRole('button', { name: action }));
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: action });
+    await user.type(
+      within(dialog).getByLabelText(
+        enMessages.settings.organization.deleteTypeNameLabel,
+      ),
+      'Acme',
+    );
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(deleteOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({ confirmName: 'Acme' }),
+      ),
+    );
+  });
+
+  it('withholds the danger zone until the organization is known', () => {
+    render(<DeleteHarness organization={null} />);
+    expect(
+      screen.queryByRole('button', {
+        name: enMessages.settings.organization.deleteConfirmAction,
+      }),
+    ).toBeNull();
+  });
 
   it('keeps Delete disabled until the organization name is typed, then sends it', async () => {
     const { user } = render(<DeleteHarness />);
