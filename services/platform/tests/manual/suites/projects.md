@@ -432,9 +432,17 @@ projects-list row ⋯ menu.
   team-restricted project with an editor outside its teams, open a task's
   **Reviewer** (`tasks.fields.reviewer`) → neither is listed, and the footer
   reads **Only members who can edit this project can be the reviewer.**
-  (`tasks.reviewer.editorsOnly`). From the browser console, `POST
-  /api/app/tasks/{taskId}?orgId={org}` with `{"reviewerUserId": "<the
-  Member's user id>"}` → 400 `TASK_REVIEWER_NO_EDIT_ACCESS`, and after reload
+  (`tasks.reviewer.editorsOnly`). Stale list: in session 1 open a task on
+  the team-restricted project with editor E (in its team) listed under
+  **Reviewer**; in session 2 remove E from that team; in session 1 pick E →
+  a toast reads the same sentence (`tasks.reviewer.editorsOnly`), never
+  **Something went wrong** (`common.errors.generic`), and **Reviewer** keeps
+  its previous value. Hand-built: in DevTools → Network copy the `orgId` of
+  any `…?orgId=` request and the Member's `userId` from the
+  `/api/app/members?orgId=…` response, then in the console run
+  `fetch('/api/app/tasks/{taskId}?orgId={orgId}', {method: 'POST', headers:
+  {'content-type': 'application/json'}, body: JSON.stringify({reviewerUserId:
+  '{userId}'})})` → 400 `TASK_REVIEWER_NO_EDIT_ACCESS`, and after reload
   **Reviewer** still names the previous reviewer and the Member has no bell.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
