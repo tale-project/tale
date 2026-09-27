@@ -94,7 +94,9 @@ export function ColorPickerInput({
         tabIndex={-1}
         aria-hidden="true"
       />
-      <Row gap={0} justify="center" className="px-2 py-1.5">
+      {/* The field takes the frame's whole height: a 20px line inside a
+          36px frame left most of what looks like the field untappable. */}
+      <Row gap={0} justify="center" className="self-stretch px-2">
         <Text as="span" variant="muted" className="leading-5">
           #
         </Text>
@@ -105,7 +107,7 @@ export function ColorPickerInput({
           onChange={handleTextChange}
           maxLength={8}
           placeholder="6366F1"
-          className="text-foreground placeholder:text-muted-foreground w-[4.5rem] border-none bg-transparent text-base leading-5 font-normal outline-none md:text-sm"
+          className="text-foreground placeholder:text-muted-foreground h-full w-[4.5rem] border-none bg-transparent text-base leading-5 font-normal outline-none md:text-sm"
           aria-label={t('branding.hexValueAria', { label })}
         />
       </Row>

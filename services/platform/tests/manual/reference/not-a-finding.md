@@ -68,7 +68,12 @@ here the first time a round re-files it.
 Every message a round will see at `warn` or `error` level that is **not** a
 defect, with the reason. Anything not on this list is a finding, on any page.
 
-- A tab kept open across a deploy (`NAV-B12`, any page — the box uses
+- `The width(-1) and height(-1) of chart should be greater than 0` (warn,
+  several per page) on every metrics page that draws a chart — Settings →
+  Metrics → Usage, Projects with a picked project, and the others once they
+  have data. Recharts' responsive container logs it on its first measure
+  before the card has a size; the chart paints on the next frame. Benign.
+- A tab kept open across a deploy (`NAV-B13`, any page — the box uses
   `/dashboard/{org}/documents`): the browser's own `Failed to load module
   script: Expected a JavaScript-or-Wasm module script but the server responded
   with a MIME type of "text/html"` for the previous build's chunk, which the

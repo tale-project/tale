@@ -9,6 +9,40 @@ import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue
  * actually serve them.
  */
 
+/**
+ * One UTC day of a project's task metrics — the 0.3 `taskMetricsDaily` row
+ * shape, folded at read time by the backend (`domains/tasks/metrics.ts`).
+ * Sums + counts, so the page re-aggregates a window exactly.
+ */
+export interface ProjectTaskMetricsDay {
+  dateKey: string;
+  tasksCreated: number;
+  tasksCompleted: number;
+  tasksCancelled: number;
+  cycleTimeSumMs: number;
+  cycleTimeCount: number;
+  leadTimeSumMs: number;
+  leadTimeCount: number;
+  statusCountsEod: {
+    backlog: number;
+    todo: number;
+    in_progress: number;
+    in_review: number;
+  };
+  wipEod: number;
+  overdueEod: number;
+  staleEod: number;
+  agentCompleted: number;
+  humanCompleted: number;
+  agentRunsStarted: number;
+  agentRunsFailed: number;
+  totalCostCents: number;
+  reviewsPassed: number;
+  reviewsChangesRequested: number;
+  escalations: number;
+  capped: boolean;
+}
+
 export interface TasksContract {
   'tasks/mutations:addTaskComment': {
     kind: 'mutation';
@@ -231,6 +265,18 @@ export interface TasksContract {
       _id: string;
       status: 'queued' | 'running' | 'failed' | 'cancelled' | 'settled';
       agentId: string;
+    };
+  };
+  'tasks/queries:getProjectTaskMetrics': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      projectId: string;
+      periodDays: 7 | 30 | 90;
+    };
+    returns: {
+      daily: ProjectTaskMetricsDay[];
+      previousDaily: ProjectTaskMetricsDay[];
     };
   };
   'tasks/queries:getTask': {

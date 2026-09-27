@@ -65,7 +65,7 @@ When a `DataTableActionMenu` item opens a dialog, pass a stable button ref as `t
 
 ## Decide what scrolls
 
-`stickyLayout` turns the table into a fixed frame: the toolbar, the header row and the footer hold their place while the rows scroll in the table's own scrollport. It measures itself against its parent, so it needs a bounded one — `ContentArea variant="list"` on a collection screen. Without that bound the frame collapses.
+`stickyLayout` turns the table into a fixed frame: the toolbar, the header row and the footer hold their place while the rows scroll in the table's own scrollport. It measures itself against its parent, so it needs a bounded one — `ContentArea variant="list"` on a collection screen. Without that bound the frame collapses. On a short viewport (`short-viewport:`, under 30rem tall) the list variant lifts the bound, the frame grows with its rows and the page scrolls; the table's infinite loading then watches the page scroll instead of its own.
 
 Leave it off for a table embedded in a page that scrolls as a whole, such as a section of a settings page. Every collection screen takes it; see the [list-page pattern](/docs/patterns/list-page).
 

@@ -161,7 +161,7 @@ describe('ConversationAssigneePicker', () => {
     mutations.assignTeam.mockClear();
   });
 
-  it('shows a dual stack when both team and person are assigned (mobile keeps both)', () => {
+  it('shows a dual stack when both team and person are assigned (a narrow header keeps both)', () => {
     render(
       <ConversationAssigneePicker
         conversation={makeConversation({
@@ -172,15 +172,16 @@ describe('ConversationAssigneePicker', () => {
       />,
     );
 
-    // Mobile stack encodes both dimensions — do not drop team when person is set.
+    // The narrow header's stack encodes both dimensions — do not drop the team
+    // when a person is set; the labels wait for a wide header.
     const stack = screen.getByTestId('assign-dual-stack');
-    expect(stack).toHaveClass('md:hidden');
+    expect(stack).toHaveClass('@3xl/thread-header:hidden');
     expect(stack.querySelector('svg')).toBeInTheDocument();
     expect(
       stack.querySelector('[data-testid="avatar-user-1"]'),
     ).toBeInTheDocument();
 
-    // Desktop still lists both labelled chips.
+    // A wide header still lists both labelled chips.
     const trigger = within(screen.getByTestId('assign-trigger'));
     expect(trigger.getByText('Support')).toBeInTheDocument();
     expect(trigger.getAllByText('Ada Lovelace').length).toBeGreaterThanOrEqual(

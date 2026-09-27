@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { cn } from '@tale/ui/cn';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -92,10 +93,12 @@ export function ConversationAssigneePicker({
   // Trigger content for the assign control.
   //
   // Two independent dimensions (team queue + person claimer) can both be set —
-  // shared-inbox model. Labels are desktop-only; mobile stays icon-only but
-  // must still show BOTH dimensions when both are set (stacked pair), never
-  // drop one. Icons stay size-5 / avatar `md` for a usable hit target with the
-  // square trigger below.
+  // shared-inbox model. Labels show where the header has room for them — its
+  // own width, not the window's: a tablet's header beside the rail and a panel
+  // is as tight as a phone's. A narrow header stays icon-only but must still
+  // show BOTH dimensions when both are set (stacked pair), never drop one; the
+  // pair of labels waits for a wider header than a single one. Icons stay
+  // size-5 / avatar `md` for a usable hit target with the square trigger below.
   const bothAssigned = Boolean(assigneeTeamId && assigneeUserId);
 
   let chips: ReactNode;
@@ -104,7 +107,7 @@ export function ConversationAssigneePicker({
       <>
         <span
           data-testid="assign-dual-stack"
-          className="relative inline-flex size-7 items-center justify-center md:hidden"
+          className="relative inline-flex size-7 items-center justify-center @3xl/thread-header:hidden"
           aria-hidden="true"
         >
           <Users className="text-muted-foreground absolute top-0.5 left-0 size-4" />
@@ -116,7 +119,7 @@ export function ConversationAssigneePicker({
             className="border-background relative ml-2.5 border-2"
           />
         </span>
-        <span className="hidden items-center gap-2 md:flex">
+        <span className="hidden items-center gap-2 @3xl/thread-header:flex">
           <span className="flex items-center gap-1.5">
             <Users className="text-muted-foreground size-5 shrink-0" />
             <span className="max-w-[8rem] truncate text-sm">
@@ -141,7 +144,7 @@ export function ConversationAssigneePicker({
     chips = (
       <span className="flex items-center gap-1.5">
         <Users className="text-muted-foreground size-5 shrink-0" />
-        <span className="hidden max-w-[8rem] truncate text-sm md:inline">
+        <span className="hidden max-w-[8rem] truncate text-sm @xl/thread-header:inline">
           {teamName ?? t('header.assignedTeam')}
         </span>
       </span>
@@ -155,7 +158,7 @@ export function ConversationAssigneePicker({
           name={assigneeName}
           size="md"
         />
-        <span className="hidden max-w-[8rem] truncate text-sm md:inline">
+        <span className="hidden max-w-[8rem] truncate text-sm @xl/thread-header:inline">
           {assigneeName ?? t('header.assignee')}
         </span>
       </span>
@@ -164,7 +167,9 @@ export function ConversationAssigneePicker({
     chips = (
       <span className="flex items-center gap-1.5">
         <UserPlus className="text-muted-foreground size-5 shrink-0" />
-        <span className="hidden text-sm md:inline">{t('header.assign')}</span>
+        <span className="hidden text-sm @xl/thread-header:inline">
+          {t('header.assign')}
+        </span>
       </span>
     );
   }
@@ -290,9 +295,14 @@ export function ConversationAssigneePicker({
         <Button
           variant="ghost"
           size="sm"
-          // Mobile is icon-only: use a square ≥32px hit target. Desktop grows
-          // with the label (`md:w-auto md:px-3`).
-          className="size-8 shrink-0 gap-2 p-0 md:h-8 md:w-auto md:px-3"
+          // Icon-only, it is a square ≥32px hit target; it grows with its
+          // labels from the header width that shows them.
+          className={cn(
+            'size-8 shrink-0 gap-2 p-0',
+            bothAssigned
+              ? '@3xl/thread-header:w-auto @3xl/thread-header:px-3'
+              : '@xl/thread-header:w-auto @xl/thread-header:px-3',
+          )}
           aria-label={assignedLabel}
         >
           {chips}

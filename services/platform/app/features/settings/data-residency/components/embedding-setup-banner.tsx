@@ -70,10 +70,12 @@ function EmbeddingSetupNudge({ organizationId }: { organizationId: string }) {
         <span className="font-medium">
           {t('dataResidency.orgEmbedding.banner.title')}
         </span>
-        {/* On a phone the explanation is read out but not drawn: at that
-            width it wrapped the banner to four lines above every page, and
-            the title plus the link already say what to do. */}
-        <span className="sr-only sm:not-sr-only">
+        {/* On a phone, and on a viewport too short to spare the lines (a
+            phone held sideways, a laptop at 200 %), the explanation is read
+            out but not drawn: it wrapped the banner to three or four lines
+            above every page, and the title plus the link already say what
+            to do. */}
+        <span className="short-viewport:sr-only sr-only sm:not-sr-only">
           {' — '}
           {t('dataResidency.orgEmbedding.banner.body')}
         </span>

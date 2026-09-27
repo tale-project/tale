@@ -7428,9 +7428,13 @@ tasks:
   metrics:
     title: Project metrics
     description: Delivery, intervention, and cost metrics for this project's tasks.
-    cappedNotice: Some days hit the rollup scan cap — totals in this window may undercount.
+    cappedNotice: Showing the most recent 5,000 rows of each source in this window — older activity in the period is not counted.
     noData: No data
-    noDataDescription: Metrics appear after the first daily rollup.
+    noFlowDescription: No tasks were open at the end of any day in this period.
+    noThroughputDescription: No tasks were created or completed in this period.
+    noCycleTimeDescription: No task went from In progress to Done in this period.
+    noCompletionsDescription: No tasks were completed in this period.
+    noCostDescription: No agent runs started in this period.
     completed: Completed ({days}d)
     completedDetail: '{agent} by agents · {human} by humans'
     cycleTime: Avg cycle time

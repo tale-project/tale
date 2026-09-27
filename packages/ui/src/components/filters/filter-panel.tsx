@@ -217,7 +217,7 @@ export function FilterPanel({
       modal={false}
       align={align}
       onOpenAutoFocus={(e) => e.preventDefault()}
-      contentClassName="bg-card flex max-h-[min(32rem,calc(100dvh-2rem))] flex-col overflow-hidden p-0"
+      contentClassName="bg-card flex max-h-[min(32rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden p-0"
       trigger={
         <FilterButton
           hasActiveFilters={activeFilterCount > 0}

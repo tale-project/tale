@@ -2053,17 +2053,18 @@ export function EditTaskBody({
             }
             meta={
               <>
-                {/* On a phone the key and the status are what fit beside the
-                    header's actions; the project name steps aside. */}
+                {/* In a narrow header — a phone, or a tablet's column beside
+                    the rail and the panel — the key and the status are what
+                    fit beside the actions; the project name steps aside. */}
                 {project !== null && project !== undefined && (
-                  <span className="hidden min-w-0 truncate sm:inline">
+                  <span className="hidden min-w-0 truncate @xl/thread-header:inline">
                     {project.name}
                   </span>
                 )}
                 {identifier && (
                   <>
                     {project !== null && project !== undefined && (
-                      <span className="hidden sm:contents">
+                      <span className="hidden @xl/thread-header:contents">
                         <ThreadHeaderSeparator />
                       </span>
                     )}

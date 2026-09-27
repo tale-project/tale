@@ -343,6 +343,7 @@
     "./use-infinite-scroll": "./src/hooks/use-infinite-scroll.ts",
     "./use-is-mac": "./src/hooks/use-is-mac.ts",
     "./use-is-mobile": "./src/hooks/use-is-mobile.ts",
+    "./use-is-short-viewport": "./src/hooks/use-is-short-viewport.ts",
     "./use-list-page": "./src/hooks/use-list-page.ts",
     "./use-media-query": "./src/hooks/use-media-query.ts",
     "./use-sliding-indicator": "./src/hooks/use-sliding-indicator.ts",

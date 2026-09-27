@@ -25,6 +25,7 @@ import {
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { useInfiniteScroll } from '@tale/ui/use-infinite-scroll';
+import { useIsShortViewport } from '@tale/ui/use-is-short-viewport';
 import {
   flexRender,
   getCoreRowModel,
@@ -425,6 +426,14 @@ export function DataTable<TData, TValue = unknown>({
     return undefined;
   }, [data, getRowId]);
 
+  // A bounded table scrolls its rows inside its own scrollport, so the
+  // sentinel is watched against that; on a short viewport the frame grows
+  // with its rows and the page scrolls instead (`ContentArea` `list`), and a
+  // scrollport that never scrolls would report the sentinel in view at once
+  // and load every page.
+  const shortViewport = useIsShortViewport();
+  const rowsScrollInFrame = stickyLayout && !shortViewport;
+
   // Initialize infinite scroll hook for automatic loading
   const { sentinelRef } = useInfiniteScroll({
     onLoadMore: infiniteScroll?.onLoadMore ?? noop,
@@ -432,7 +441,7 @@ export function DataTable<TData, TValue = unknown>({
     isLoading: infiniteScroll?.isLoadingMore ?? false,
     threshold: infiniteScroll?.threshold ?? 1000,
     enabled: !!(infiniteScroll && infiniteScroll.autoLoad !== false),
-    root: stickyLayout ? scrollContainerRef : undefined,
+    root: rowsScrollInFrame ? scrollContainerRef : undefined,
   });
 
   // Use controlled or internal state

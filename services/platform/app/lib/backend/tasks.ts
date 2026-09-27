@@ -31,6 +31,8 @@ type TaskDependenciesResult = ReturnsOf<'tasks/queries:listTaskDependencies'>;
 type ProjectDependencyEdge = ItemOf<'tasks/queries:listProjectDependencies'>;
 type TaskDiscussionComment = PageItemOf<'tasks/queries:listTaskDiscussion'>;
 type TaskActivityItem = ItemOf<'tasks/queries:listTaskActivity'>;
+type ProjectTaskMetricsResult =
+  ReturnsOf<'tasks/queries:getProjectTaskMetrics'>;
 
 /** One task as the backend answers it (decorated: labels + folder facts). */
 interface TaskWire {
@@ -340,6 +342,29 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           `/tasks/dependencies/by-project/${encodeURIComponent(projectId)}`,
           { orgId },
         ).then((body) => body.edges),
+    };
+  },
+  'tasks/queries:getProjectTaskMetrics': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const projectId = args.projectId;
+    if (orgId === undefined || typeof projectId !== 'string') return null;
+    const periodDays =
+      typeof args.periodDays === 'number' ? args.periodDays : 30;
+    // Keyed under `task`: every task hint (a move, a settle, a comment)
+    // refreshes the figures the way it refreshes the board.
+    return {
+      queryKey: backendKey(
+        orgId,
+        'task',
+        'metrics',
+        projectId,
+        String(periodDays),
+      ),
+      queryFn: () =>
+        backendFetch<ProjectTaskMetricsResult>(
+          `/tasks/metrics/by-project/${encodeURIComponent(projectId)}?periodDays=${periodDays}`,
+          { orgId },
+        ),
     };
   },
   'tasks/queries:getTaskOpsIndicators': (args, ctx) => {

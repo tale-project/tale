@@ -26,8 +26,11 @@ interface PopoverProps {
   'aria-label'?: string;
 }
 
+// `max-h` from Radix's available height, and a scroll of its own: a popover
+// anchored low on a short viewport (a laptop at 200 %) ran past the bottom of
+// the window with its last controls out of reach.
 const CONTENT_CLASSES =
-  'z-50 min-w-[14.5rem] max-w-64 w-auto p-4 rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
+  'z-50 min-w-[14.5rem] max-w-64 w-auto max-h-(--radix-popover-content-available-height) overflow-y-auto p-4 rounded-lg ring-1 ring-border bg-popover text-popover-foreground dark:bg-muted shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[var(--radix-popover-content-transform-origin)] duration-[var(--duration-short)] motion-reduce:animate-none';
 
 export function Popover({
   trigger,
@@ -55,6 +58,7 @@ export function Popover({
           align={align}
           side={side}
           sideOffset={sideOffset}
+          collisionPadding={8}
           onOpenAutoFocus={onOpenAutoFocus}
           aria-labelledby={ariaLabelledby}
           aria-label={ariaLabel}

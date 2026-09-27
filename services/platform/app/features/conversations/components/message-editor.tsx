@@ -304,7 +304,11 @@ function MilkdownEditorInner({
       <div className={MESSAGE_EDITOR_FRAME_CLASS}>
         <div
           className={cn(
-            'overflow-y-auto transition-all duration-300 ease-in-out',
+            // On a short viewport (a phone held sideways, a laptop at 200 %)
+            // the focused 20rem was taller than the whole reading pane: it
+            // pushed its own Send off the screen and the thread out of view.
+            // There it keeps to 30 % of the height and scrolls inside.
+            'short-viewport:max-h-[30dvh] overflow-y-auto transition-all duration-300 ease-in-out',
             getHeightClass(),
           )}
         >

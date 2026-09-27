@@ -100,8 +100,9 @@ export function TaskDetailPage({
                 aria-label={t('detail.openBoard')}
                 className="text-muted-foreground hover:text-foreground"
               >
-                {/* Icon-only on a phone, where the header is tight. */}
-                <span className="hidden sm:inline">
+                {/* Icon-only where the header is tight — a phone, or a
+                    tablet's column beside the rail and the panel. */}
+                <span className="hidden @xl/thread-header:inline">
                   {t('detail.openBoard')}
                 </span>
               </Button>

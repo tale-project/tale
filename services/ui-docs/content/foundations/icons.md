@@ -69,4 +69,6 @@ An IconButton is 36px square by default or 32px with `size="sm"`. Keep that hit 
 
 WCAG 2.2 AA [Target Size (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) uses 24×24 CSS pixels with specified exceptions. WCAG 2.1's [Target Size criterion](https://www.w3.org/WAI/WCAG21/Understanding/target-size.html) is the 44×44 AAA criterion. These are different requirements; do not cite the latter as a 24px rule.
 
+A control drawn smaller than 24px keeps a 24px target without growing: `Checkbox` (a 16px box) and `Switch` (an 18px track) carry an invisible ring, `relative after:absolute after:-inset-[5px] after:content-['']`, that takes the tap too. Give a small control of your own the same ring, and mind that an absolute ring is laid out from inside the border — on a bordered box add the border's width to the inset.
+
 Check focus visibility in both themes and verify that an icon inside an overlay does not make Escape or focus restoration confusing. [Accessibility](/docs/foundations/accessibility) covers the full page review.

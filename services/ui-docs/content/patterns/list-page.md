@@ -52,6 +52,8 @@ Import these components from their `@tale/ui` subpaths — `useListPage` and `DE
 
 Omit either and the table grows to its content and the page scroller moves instead: search and the create action scroll off the top, and two collection screens in the same product start behaving differently. A short list is unaffected — the frame hugs its rows rather than stretching to fill the viewport. A screen that is nothing but its table, with no content below it, can ask for the other behaviour with [`fillHeight`](/docs/components/data-table).
 
+A short viewport is the one exception, and it is built in: under 30rem of height (the `short-viewport:` variant — a phone held sideways, a laptop zoomed to 200 %) the chrome would leave the bounded frame a sliver, so the variant lets the frame grow with its rows, the page scrolls instead, and the page header scrolls away with it. An infinite list follows on its own: it watches the page scroll there rather than the table's. Nothing to write — but don't bound a collection screen any other way, or it loses this.
+
 Content the page stacks above the table — a folder breadcrumb, a load-failure alert — is a sibling inside the same `ContentArea`, so it keeps the page inset and the table keeps the remaining height. Tables embedded in a scrolling settings page are the exception: they are not collection screens and take neither the variant nor the flag.
 
 ## Connect the controls to one data source

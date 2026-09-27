@@ -83,7 +83,7 @@ export function ConversationHeaderSkeleton({ before }: { before?: ReactNode }) {
             <div className="size-8 rounded-lg" />
           </SkeletonBox>
           <SkeletonBox asChild>
-            <div className="size-8 rounded-lg md:w-20" />
+            <div className="size-8 rounded-lg @xl/thread-header:w-20" />
           </SkeletonBox>
           <SkeletonBox asChild>
             <div className="size-8 rounded-lg" />
@@ -351,38 +351,41 @@ export function ConversationHeader({
         </h2>
       }
       meta={
-        <>
+        // The context line holds its items in the order they matter: who,
+        // when, their address, the inbox a reply goes out through. Each
+        // keeps its whole width, and one that no longer fits wraps onto a
+        // second line this row clips away — so a narrow header (a phone, or
+        // a tablet's column beside the rail and the panel) drops the least
+        // important items instead of cutting every one down to a letter.
+        // Only the name, always first, truncates, and only when it alone
+        // overflows. The padding keeps the name's focus ring inside the clip;
+        // each separator travels with the item it introduces.
+        <span className="-m-1 flex h-6 min-w-0 flex-1 flex-wrap content-start items-center gap-x-1.5 gap-y-2 overflow-hidden p-1">
           <button
             type="button"
-            className="text-foreground/80 min-w-0 shrink cursor-pointer truncate font-medium hover:underline"
+            className="text-foreground/80 focus-visible:ring-ring min-w-0 cursor-pointer truncate rounded-sm font-medium hover:underline focus-visible:ring-2 focus-visible:outline-none"
             onClick={() => setIsContactInfoOpen(true)}
           >
             {primaryLabel}
           </button>
-          {showEmailInMeta && (
-            // The email and its separator hide together on small screens —
-            // a lone dot would be left between the name and the time.
-            <span className="hidden min-w-0 items-center gap-1.5 md:inline-flex">
+          {lastMessageTime && (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
               <ThreadHeaderSeparator />
-              <span className="min-w-0 truncate">{contact.email}</span>
+              {lastMessageTime}
             </span>
           )}
-          {lastMessageTime && (
-            <>
+          {showEmailInMeta && (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
               <ThreadHeaderSeparator />
-              <span className="shrink-0 whitespace-nowrap">
-                {lastMessageTime}
-              </span>
-            </>
+              {contact.email}
+            </span>
           )}
           {sourceLabel !== null && (
-            // Like the email, the source steps aside on a phone: the name
-            // and the time are what fit beside the header's actions.
-            <span className="hidden min-w-0 items-center gap-1.5 md:inline-flex">
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
               <ThreadHeaderSeparator />
               <Tooltip content={sourceLabel}>
                 <span
-                  className="inline-flex min-w-0 items-center gap-1"
+                  className="inline-flex items-center gap-1"
                   aria-label={
                     source.lane === 'api'
                       ? sourceLabel
@@ -394,12 +397,12 @@ export function ConversationHeader({
                   ) : (
                     <Mail className="size-3 shrink-0" aria-hidden="true" />
                   )}
-                  <span className="truncate">{sourceLabel}</span>
+                  {sourceLabel}
                 </span>
               </Tooltip>
             </span>
           )}
-        </>
+        </span>
       }
       actions={
         <>

@@ -442,9 +442,11 @@ subject.
   (`common.aria.back`) to `/dashboard/{org}/home` on a phone; the contact's
   initials as a button (**Contact info**, `conversations.header.contactInfo`)
   that opens the contact card; the subject as the title; under it the
-  contact's name (which opens the card too) · their email · the last
-  message's relative time · the source (**{mailbox} · {address}**, or the API
-  source) — at 390 px only the name and the time; then **Copy link**
+  contact's name (which opens the card too) · the last message's relative
+  time · their email · the source (**{mailbox} · {address}**, or the API
+  source) — every item whole: where the line runs out of room the last ones
+  step aside (at 390 px the name and, where it fits, the time), and only a
+  name too long for the line alone truncates; then **Copy link**
   (`conversations.header.copyLink`, CONV-F31), the assignee picker
   (**Assign**, `conversations.header.assign`, while unassigned) and **More
   actions** (`conversations.header.moreActions`). The reply box under the

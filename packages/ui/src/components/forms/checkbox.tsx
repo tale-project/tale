@@ -79,6 +79,11 @@ const CheckboxBase = React.forwardRef<
           onClick={softDisabled ? blockActivation : onClick}
           onKeyDown={softDisabled ? blockActivation : onKeyDown}
           className={cn(
+            // A 16px box, but a 24px target (WCAG 2.5.8): the invisible ring
+            // around it takes the tap too, which a checkbox beside a clickable
+            // row needs on a touch screen. 5px, since the ring is laid out
+            // from inside the 1px border: 14 + 2 × 5 = 24.
+            "relative after:absolute after:-inset-[5px] after:content-['']",
             'peer border-border ring-offset-background focus-visible:ring-ring bg-background size-4 shrink-0 rounded-sm border transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[state=checked]:border-(--color-accent-base) data-[state=checked]:bg-(--color-accent-base) data-[state=checked]:text-(--color-accent-fg) data-[state=indeterminate]:border-(--color-accent-base) data-[state=indeterminate]:bg-(--color-accent-base) data-[state=indeterminate]:text-(--color-accent-fg)',
             className,
           )}

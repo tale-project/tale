@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 28 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -139,10 +139,11 @@ if you want to keep a write.
   above it and no account button (**Manage account**,
   `auth.userButton.manageAccount`); on a notched iPhone that header still
   clears the notch. The task's line under its title reads key ·
-  status (no project name), the conversation's contact · time (no email, no
-  source). The Home list, the project and Settings keep the shell bar with the
-  account button. The throttled reload's loading screen draws no bar
-  stand-in either (`<html>` carries the class `boot-thread-page`).
+  status (no project name), the conversation's contact's full name, then the
+  time where it fits (no email, no source). The Home list, the project and
+  Settings keep the shell bar with the account button. The throttled reload's
+  loading screen draws no bar stand-in either (`<html>` carries the class
+  `boot-thread-page`).
 - [ ] `RESP-F13` · **List tables scroll inside their card on a phone** — At
   390 px open `/dashboard/{org}/documents` (with at least one file) and
   `/dashboard/{org}/knowledge-entries` (with one entry) → read
@@ -171,6 +172,16 @@ if you want to keep a write.
   readable beside their bars; the editor's tab strip shows **Editor**,
   **Versions** and **Runs**, its verbs wrapping onto a second row.
   `scrollWidth === clientWidth` on each.
+- [ ] `RESP-F16` · **Thread headers in the tablet column** — At **768×1024**
+  open a task page and an email conversation whose contact has a name, in
+  English and again in German; then widen to 1280 px → At 768 px the task's
+  **Board** (`tasks.detail.openBoard`) and the conversation's **Assign**
+  (`conversations.header.assign`) are icons, the task's line reads key ·
+  status, and the conversation's line starts with the contact's full name —
+  never cut to a letter — followed only by items that fit whole (no half
+  e-mail, no lone "·"). At 1280 px the labels return, the task's line leads
+  with its project, and the conversation's reads name · time · e-mail ·
+  source.
 
 ## Boundary & error tests
 
@@ -196,6 +207,24 @@ if you want to keep a write.
   `/dashboard/{org}/settings/notifications` → Every toggle's label and
   description read in full (no ellipsis, no two-line clamp), the switch
   still beside them.
+- [ ] `RESP-B6` · **Collection screens on a short viewport** — At **844×390**
+  (a phone held sideways), then at 1280×720 zoomed to 200 %, open
+  `/dashboard/{org}/knowledge-entries`, `/dashboard/{org}/automations` and
+  `/dashboard/{org}/settings/governance/logs` (more than 30 entries) → The
+  rows are in view under the toolbar — never a table a few pixels tall; the
+  page scrolls as a whole, its header and tab strip scrolling away, and the
+  table does not scroll inside a frame of its own. Scrolling the logs page to
+  its end loads the next entries (the count footer grows), and nothing loads
+  before you scroll. With the embedding banner up it reads one line, its
+  title and **Choose an embedding model**
+  (`settings.dataResidency.orgEmbedding.banner.link`).
+- [ ] `RESP-B7` · **Composers on a short viewport** — At **844×390**, then
+  at 1280×720 zoomed to 200 %, open a conversation and click into its reply
+  box; then open a chat → The reply box grows to about a third of the
+  window and no further: its **Send** and its attachment controls stay in
+  view with the conversation's header above, and a long reply scrolls
+  inside the box. The chat's empty composer is two lines tall and the
+  thread shows above it.
 
 ## Accessibility (WCAG 2.1 AA)
 
