@@ -1,7 +1,8 @@
 import type { Sql } from 'postgres';
 
+import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
-import { AppError } from '../../../lib/shared/errors/app-error';
+import { NodeFailure } from '../../core/automations/failure.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { WORKFLOW_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
@@ -10,6 +11,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
+import {
+  ConnectorCredentialError,
+  resolveConnectorCredential,
+} from '../connector_credentials/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { listFilesByFolder } from '../documents/agent-list.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
@@ -92,6 +97,44 @@ function askRowOf(row: AskRowRecord): Record<string, unknown> {
  * ones with a named reason — outbound effects only exist on connector
  * nodes, which fail earlier anyway.
  */
+/** What {@link automationShimHandlers}' credential probe answers. */
+export type CredentialProbe =
+  | { usable: true }
+  | { usable: false; message: string; hint: string };
+
+/**
+ * A connector that authenticates as the platform needs no credential; any
+ * other resolves the organization's default the way the dispatcher will.
+ * A connector the catalog does not know is left to the dispatcher, which
+ * names it. Only a credential refusal is an answer — anything else (the
+ * database) is a real failure and propagates.
+ */
+export async function probeCredentialUsable(
+  sql: Sql,
+  args: { organizationId: string; connectorSlug: string },
+): Promise<CredentialProbe> {
+  const connector = loadConnectorDefinitions().find(
+    (entry) => entry.name === args.connectorSlug,
+  );
+  if (
+    connector === undefined ||
+    connector.auth.some((method) => method.method === 'platform')
+  ) {
+    return { usable: true };
+  }
+  try {
+    await resolveConnectorCredential(sql, args);
+    return { usable: true };
+  } catch (error) {
+    if (!(error instanceof ConnectorCredentialError)) throw error;
+    return {
+      usable: false,
+      message: `no usable credential for ${args.connectorSlug}: ${error.message}`,
+      hint: 'connect the connector, or mark one of its credentials as the default',
+    };
+  }
+}
+
 export function automationShimHandlers(sql: Sql): ShimHandlers {
   return {
     // The task-agent turn shim carries the chat + sandbox handler families
@@ -221,19 +264,31 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       try {
         return await runConnectorAction(sql, args);
       } catch (error) {
-        // The 0.4 wire carried coded refusals as AppError data; the
-        // stepper branches on `code` — keep that contract.
+        // A coded connector refusal reaches the stepper as the node failure
+        // it is — its sentence and its hint, classified `connector_error`.
+        // It used to be re-thrown as an `AppError`, whose `message` is the
+        // JSON of its data, so the run's failure detail printed a raw
+        // `{"code":…}` blob (2026-09-26 evaluation, D-09).
         if (error instanceof ConnectorError) {
-          throw new AppError({
-            code: error.code,
-            message: error.message,
-            connector: error.connector ?? args.connector,
-            action: error.action ?? args.action,
-            ...(error.hint !== undefined ? { hint: error.hint } : {}),
-          });
+          throw new NodeFailure('connector_error', error.message, error.hint);
         }
         throw error;
       }
+    },
+
+    /**
+     * Whether a live call of this connector could resolve a credential at
+     * all — asked by the stepper BEFORE it parks a run on an approval card,
+     * so nobody is asked to approve an action that cannot run. The same
+     * lookup the dispatcher performs (the org default; a run names no
+     * credential), with the dispatcher's own prose on failure.
+     */
+    'connector_credentials/queries:probeCredentialUsableInternal': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as { organizationId: string; connectorSlug: string };
+      return probeCredentialUsable(sql, args);
     },
 
     // ------------------------------------------- the agent node's run seams

@@ -17,6 +17,8 @@ Read the operation and **The step would call with** carefully. Check the recipie
 
 Choose **Approve** to allow the operation. The run resumes and attempts the write; check the node result and effects afterwards. Choose **Reject** if the request is wrong or should not happen. Rejection prevents that operation and fails the run.
 
+A live run checks that the connector has a usable credential before it asks for approval: when none is configured, the node fails with that reason instead of waiting for a decision.
+
 You cannot revise parameters on the approval card. Reject an incorrect request, fix the workflow or run input, and test the correction before starting a new live run. Changes to the approval policy do not release an already pending card. See [Approval concepts](/platform/approvals/concepts) for the decision lifecycle and [approval policy configuration](/self-hosted/configuration/approvals) for operator rules.
 
 ## Answer an agent’s question
