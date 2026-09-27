@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -291,7 +292,7 @@ describe('REST project agents use project resources and permissions', () => {
  * door, never stored.
  */
 describe('REST project agents — precondition and secret grants', () => {
-  it('hands the precondition to the domain on PUT only, and refuses a fractional one', async () => {
+  it('hands the precondition to the domain on PUT only, and refuses a fractional or out-of-range one', async () => {
     const { app } = mount();
     const saved = await send(app, 'PUT', '/projects/p-1/agents/a-1', {
       ...input,
@@ -308,17 +309,22 @@ describe('REST project agents — precondition and secret grants', () => {
         expectedUpdatedAt: 20,
       },
     );
-    const fractional = await send(app, 'PUT', '/projects/p-1/agents/a-1', {
-      ...input,
-      expectedUpdatedAt: 1.5,
-    });
-    expect(fractional.status).toBe(400);
-    expect(await fractional.json()).toMatchObject({
-      code: 'INVALID_BODY',
-      data: {
-        issues: [expect.objectContaining({ path: 'expectedUpdatedAt' })],
-      },
-    });
+    // A fractional stamp, and one no `Date` can hold: the precondition is
+    // an epoch-ms `updatedAt`, held to the one bound every door shares.
+    for (const expectedUpdatedAt of [1.5, 9e15, EPOCH_MS_MAX + 1]) {
+      const refused = await send(app, 'PUT', '/projects/p-1/agents/a-1', {
+        ...input,
+        expectedUpdatedAt,
+      });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({
+        code: 'INVALID_BODY',
+        data: {
+          issues: [expect.objectContaining({ path: 'expectedUpdatedAt' })],
+        },
+      });
+    }
+    expect(service.updateProjectAgent).toHaveBeenCalledTimes(1);
     const create = await send(app, 'POST', '/projects/p-1/agents', {
       ...input,
       expectedUpdatedAt: 20,

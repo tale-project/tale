@@ -250,6 +250,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       `;
       console.log(`[maintenance] rate_limit_gc removed ${deleted.count} rows`);
     },
+    'maintenance.expired_sessions': async (_payload, context) => {
+      const { reapExpiredSessions } =
+        await import('../auth/expired-sessions.ts');
+      const { deleted, drained } = await reapExpiredSessions(deps.sql, {
+        signal: context?.signal,
+      });
+      console.log(
+        `[maintenance] expired_sessions removed ${deleted} rows${drained ? '' : ' (stopped before draining; the next run carries on)'}`,
+      );
+    },
     'realtime.reclaim_outbox': async () => {
       const { OUTBOX_RECLAIM_CRON_MAX_BATCHES, reclaimOutbox } =
         await import('../realtime/outbox.ts');
@@ -309,6 +319,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // server, a queue of other jobs' batches). The run stops when pg-boss
       // gives up on it, and the retry resumes after the stored slices.
       await indexUploadedFile(deps.sql, input.fileId, {
+        signal: context?.signal,
+      });
+    },
+    'rag.index_message': async (payload, context) => {
+      const input = z.object({ messageId: z.string().min(1) }).parse(payload);
+      const { indexConversationMessage } =
+        await import('../domains/knowledge/message-index.ts');
+      await indexConversationMessage(deps.sql, input.messageId, {
         signal: context?.signal,
       });
     },

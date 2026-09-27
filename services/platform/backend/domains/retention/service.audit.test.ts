@@ -157,6 +157,8 @@ function givenPolicy(config: Record<string, unknown>): void {
   } as never);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const ids = (count: number, prefix: string) =>
   Array.from({ length: count }, (_, index) => ({ id: `${prefix}${index}` }));
 
@@ -250,6 +252,81 @@ describe('runRetentionCleanup — the run audit trail', () => {
         notifications: { deleted: 3 },
       },
     });
+  });
+
+  it('deletes guardrail events past the window plus the grace, held owners’ events filtered in SQL, its row in the delete’s transaction', async () => {
+    givenPolicy({
+      chatFilterEventsEnabled: true,
+      chatFilterEventsRetentionDays: 30,
+      deletionGraceDays: 7,
+    });
+    vi.mocked(loadActiveHolds).mockResolvedValue({
+      orgHeld: false,
+      userMembershipIds: new Set(['held-1']),
+    });
+    const fake = fakeSql(
+      orgRun({ 'DELETE FROM app.chat_filter_events': ids(4, 'event-') }),
+    );
+    const before = Date.now();
+
+    const results = await runRetentionCleanup(fake.sql);
+
+    expect(results.org_1?.chatFilterEvents).toBe(4);
+    expect(actions()).toEqual([
+      'retention.run_started',
+      'chat_filter_event.retention_deleted',
+      'retention.run_completed',
+    ]);
+    const deletes = fake.statements.filter((s) =>
+      s.text.startsWith('DELETE FROM app.chat_filter_events'),
+    );
+    expect(deletes).toHaveLength(1);
+    const [statement] = deletes;
+    // Older than the window plus the grace, in this org, a batch at a time.
+    expect(statement?.text).toContain('e.org_id = ?');
+    expect(statement?.text).toContain('e.created_at_ms < ?');
+    expect(statement?.text).toContain('LIMIT ?');
+    // The one timestamp among the values (the other number is the batch).
+    const cutoff = statement?.values.find(
+      (value): value is number => typeof value === 'number' && value > DAY_MS,
+    );
+    expect(cutoff).toBeGreaterThanOrEqual(before - 37 * DAY_MS);
+    expect(cutoff).toBeLessThanOrEqual(Date.now() - 37 * DAY_MS);
+    // The custodian is the owner of the chat that raised the event, and the
+    // filter is part of the candidate query, so held rows never fill it.
+    expect(statement?.text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM app.thread_metadata tm WHERE tm.thread_id = e.thread_id',
+    );
+    expect(statement?.text).toContain('tm.user_id = ANY(?)');
+    expect(statement?.values).toContainEqual(['held-1']);
+    const events = appendOf('chat_filter_event.retention_deleted');
+    expect(events.tx).not.toBeNull();
+    expect(events.tx).toBe(statement?.tx);
+    expect(events.row.metadata).toEqual({
+      category: 'chatFilterEvents',
+      deleted: 4,
+    });
+    expect(appendOf('retention.run_completed').row.metadata).toMatchObject({
+      deleted: 4,
+      categories: { chatFilterEvents: { deleted: 4 } },
+    });
+  });
+
+  it('leaves guardrail events alone while their category is off or has no window', async () => {
+    for (const policy of [
+      { chatFilterEventsEnabled: false, chatFilterEventsRetentionDays: 30 },
+      { chatFilterEventsEnabled: true, chatFilterEventsRetentionDays: 0 },
+      { chatFilterEventsEnabled: true },
+    ]) {
+      givenPolicy(policy);
+      const fake = fakeSql(orgRun());
+
+      await runRetentionCleanup(fake.sql);
+
+      expect(
+        fake.statements.some((s) => s.text.includes('app.chat_filter_events')),
+      ).toBe(false);
+    }
   });
 
   it('writes no destruction row for a category that destroyed nothing', async () => {
@@ -499,6 +576,8 @@ describe('runRetentionCleanup — the run audit trail', () => {
     givenPolicy({
       messageFeedbackEnabled: true,
       messageFeedbackRetentionDays: 30,
+      chatFilterEventsEnabled: true,
+      chatFilterEventsRetentionDays: 30,
       documentsEnabled: true,
     });
     vi.mocked(loadActiveHolds).mockResolvedValue({
@@ -531,8 +610,6 @@ describe('runRetentionCleanup — the run audit trail', () => {
 });
 
 describe('sweepOrgPhase2 — destruction rows', () => {
-  const DAY_MS = 24 * 60 * 60 * 1000;
-
   it('records the audit prefix’s cut in the transaction that removed it', async () => {
     const fake = fakeSql({
       'SELECT id, actor_id': [

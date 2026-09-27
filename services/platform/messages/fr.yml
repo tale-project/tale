@@ -1687,6 +1687,7 @@ common:
   errors:
     generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
     failedToCopy: Échec de la copie dans le presse-papiers
+    sessionEnded: Ta session a pris fin. Reconnecte-toi.
   notFound:
     title: Page introuvable
     description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
@@ -6507,6 +6508,7 @@ settings:
         notification.retention_deleted: Notification supprimée (rétention)
         file_metadata.retention_deleted: Fichier supprimé (rétention)
         sandbox_ledger.retention_deleted: Journal du sandbox supprimé (rétention)
+        chat_filter_event.retention_deleted: Événement de filtre de chat supprimé (rétention)
         policy_acknowledged: Politique reconnue
         login_attempt: Tentative de connexion
         login_lockout: Verrouillage de connexion

@@ -9,6 +9,7 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+import { ConnectorError } from '../../../../lib/connectors/errors';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 
 type Dispatch = (
@@ -165,6 +166,86 @@ describe('dispatchBridgeConnectorImpl', () => {
     expect(result.message).toContain('No credential is connected.');
     expect(result.message).toContain('Settings → Connectors');
   });
+
+  // The connector door throws ConnectorError, not AppError. Before the
+  // bridge read it, every coded refusal came back as "The connector call
+  // failed unexpectedly.", so an agent could neither fix its arguments nor
+  // tell the user what to reconnect.
+  it('hands malformed arguments back as invalid_args with the refusal and its hint', async () => {
+    const runDispatch = vi
+      .fn()
+      .mockRejectedValue(
+        new ConnectorError(
+          'INPUT_INVALID',
+          "input does not match the tavily.search schema: input must have required property 'query'",
+          { hint: 'you passed: {}' },
+        ),
+      );
+    const { dispatch } = await getActions();
+
+    const result = await dispatch(runDispatch as unknown as Dispatch, {
+      ...BASE,
+      slug: 'tavily',
+      operation: 'search',
+      callArgs: {},
+    });
+
+    expect(result).toEqual({
+      status: 'invalid_args',
+      message:
+        "input does not match the tavily.search schema: input must have required property 'query'. you passed: {}.",
+    });
+  });
+
+  it('reports a credential the door cannot resolve as the no_credential blocker', async () => {
+    const runDispatch = vi.fn().mockRejectedValue(
+      new ConnectorError(
+        'CREDENTIAL_UNRESOLVED',
+        'no usable credential for tavily: no active credential',
+        {
+          hint: 'connect the connector, or mark one of its credentials as the default',
+        },
+      ),
+    );
+    const { dispatch } = await getActions();
+
+    const result = await dispatch(runDispatch as unknown as Dispatch, {
+      ...BASE,
+      slug: 'tavily',
+      operation: 'search',
+      callArgs: { query: 'x' },
+    });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'no_credential' }],
+    });
+    const guidance = (result.blockers as Array<{ guidance: string }>)[0]
+      ?.guidance;
+    expect(guidance).toContain('no usable credential for tavily');
+    expect(guidance).toContain('Settings → Connectors');
+  });
+
+  it('surfaces a vendor or egress refusal with its sentence and hint', async () => {
+    const runDispatch = vi.fn().mockRejectedValue(
+      new ConnectorError('HOST_NOT_ALLOWED', 'api.example.com is not allowed', {
+        hint: 'Check the credential endpoint.',
+      }),
+    );
+    const { dispatch } = await getActions();
+
+    const result = await dispatch(runDispatch as unknown as Dispatch, {
+      ...BASE,
+      slug: 'tavily',
+      operation: 'search',
+      callArgs: { query: 'x' },
+    });
+
+    expect(result).toEqual({
+      status: 'error',
+      message: 'api.example.com is not allowed. Check the credential endpoint.',
+    });
+  });
 });
 
 describe('bridgeConnectorStatusImpl', () => {
@@ -215,5 +296,63 @@ describe('bridgeConnectorStatusImpl', () => {
       usable: false,
       blockers: [{ code: 'unknown_connector' }],
     });
+  });
+
+  it('puts a turn-wide caller refusal on every shipped connector, first', async () => {
+    const probe: Probe = ({ connectorSlug }) =>
+      Promise.resolve(connectorSlug === 'tavily');
+    const { status } = await getActions();
+    const callerBlocker = {
+      code: 'no_user_context',
+      guidance: 'This task run was not started by a member.',
+    };
+
+    const result = (await status(probe, {
+      organizationId: 'org_1',
+      grants: ['tavily', 'github', 'not-shipped'],
+      callerBlocker,
+    })) as {
+      connectors: Array<Record<string, unknown>>;
+    };
+
+    const bySlug = new Map(
+      result.connectors.map((entry) => [entry.slug, entry]),
+    );
+    expect(bySlug.get('tavily')).toMatchObject({
+      usable: false,
+      blockers: [callerBlocker],
+    });
+    expect(bySlug.get('github')).toMatchObject({
+      usable: false,
+      blockers: [callerBlocker, { code: 'no_credential' }],
+    });
+    // A connector that does not ship is refused for that reason alone.
+    expect(bySlug.get('not-shipped')).toMatchObject({
+      blockers: [{ code: 'unknown_connector' }],
+    });
+  });
+});
+
+describe('readTurnConnectorCaller', () => {
+  it('reads the task run a host binds a turn to', async () => {
+    const { readTurnConnectorCaller } = await import('./connectors_bridge');
+
+    expect(
+      readTurnConnectorCaller({ kind: 'task-run', execId: 'exec_1' }),
+    ).toEqual({ kind: 'task-run', execId: 'exec_1' });
+  });
+
+  it.each([
+    ['absent', undefined],
+    ['not an object', 'exec_1'],
+    ['a task run without an exec', { kind: 'task-run', execId: '' }],
+    // A person on the token is never a caller: the bridge reads the person
+    // from the live run, so a scope cannot name one.
+    ['a person named directly', { kind: 'user', userId: 'user_1' }],
+    ['a caller mode no host writes', { kind: 'system', reason: 'x' }],
+  ])('reads %s as no caller at all', async (_label, value) => {
+    const { readTurnConnectorCaller } = await import('./connectors_bridge');
+
+    expect(readTurnConnectorCaller(value)).toBeUndefined();
   });
 });

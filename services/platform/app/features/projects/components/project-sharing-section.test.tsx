@@ -1,3 +1,4 @@
+import { FIELD_ROW_FRAME } from '@tale/ui/field-shell';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor, within } from '@/tests/utils/render';
@@ -12,7 +13,15 @@ import { ProjectSharingSection } from './project-sharing-section';
  * to be mistaken for a narrowing: the removed team was "no longer in the
  * upcoming set", although everyone, that team included, keeps access.
  */
-const { updateSharing } = vi.hoisted(() => ({ updateSharing: vi.fn() }));
+const { updateSharing, orgTeams } = vi.hoisted(() => ({
+  updateSharing: vi.fn(),
+  orgTeams: {
+    current: [
+      { id: 't-one', name: 'Team One', memberCount: 2, createdAt: 0 },
+      { id: 't-two', name: 'Team Two', memberCount: 3, createdAt: 0 },
+    ],
+  },
+}));
 
 vi.mock('../hooks/mutations', () => ({
   useUpdateProjectSharing: () => ({
@@ -21,13 +30,7 @@ vi.mock('../hooks/mutations', () => ({
   }),
 }));
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => ({
-    teams: [
-      { id: 't-one', name: 'Team One', memberCount: 2, createdAt: 0 },
-      { id: 't-two', name: 'Team Two', memberCount: 3, createdAt: 0 },
-    ],
-    isLoading: false,
-  }),
+  useOrgTeams: () => ({ teams: orgTeams.current, isLoading: false }),
   useTeamNames: () => ({
     nameOf: (id: string) => ({ 't-one': 'Team One', 't-two': 'Team Two' })[id],
     isLoading: false,
@@ -108,5 +111,65 @@ describe('ProjectSharingSection accessibility', () => {
     expect(
       screen.getByRole('combobox', { name: 'Audience' }),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * The Sharing section sits under the Project section on the project's General
+ * page, so it takes the same chrome: a settings field row — label and help on
+ * the left, the control pinned in the shared control column on the right —
+ * inside the divided field list, not a free-standing (and unnamed) form group.
+ */
+describe('ProjectSharingSection chrome', () => {
+  /** The settings field row around `content`, and the label it names itself with. */
+  function fieldRowAround(content: HTMLElement) {
+    const row =
+      content.parentElement?.closest<HTMLElement>('[aria-labelledby]');
+    if (!row) throw new Error('no labelled row around the content');
+    const label = document.getElementById(
+      row.getAttribute('aria-labelledby') ?? '',
+    );
+    return { row, label };
+  }
+
+  it('puts the Audience picker in a field row with its help beside it', () => {
+    const { container } = renderSection(['t-one']);
+    const combobox = screen.getByRole('combobox', { name: 'Audience' });
+    const { row, label } = fieldRowAround(combobox);
+
+    expect(label).toHaveTextContent('Audience');
+    expect(row.className).toContain(FIELD_ROW_FRAME);
+    expect(
+      within(row).getByText(/The teams that can see this project/),
+    ).toBeInTheDocument();
+    // No `<label>` pointing at the combobox div, and no unnamed group.
+    expect(container.querySelector('label')).toBeNull();
+    expect(screen.queryByRole('group')).not.toBeInTheDocument();
+  });
+
+  it('shows a non-admin the effective audience in the same kind of row', () => {
+    renderSection(['t-two'], false);
+    const { row, label } = fieldRowAround(screen.getByText('Team Two'));
+
+    expect(label).toHaveTextContent('Effective audience');
+    expect(row.className).toContain(FIELD_ROW_FRAME);
+    expect(screen.queryByRole('group')).not.toBeInTheDocument();
+  });
+
+  it('offers the create-a-team link in the Audience row when there are no teams', () => {
+    const previous = orgTeams.current;
+    orgTeams.current = [];
+    try {
+      renderSection([]);
+      const link = screen.getByRole('link', { name: 'Create a team' });
+      const { row, label } = fieldRowAround(link);
+
+      expect(label).toHaveTextContent('Audience');
+      expect(row.className).toContain(FIELD_ROW_FRAME);
+      expect(within(row).getByText(/No teams yet\./)).toBeInTheDocument();
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    } finally {
+      orgTeams.current = previous;
+    }
   });
 });
