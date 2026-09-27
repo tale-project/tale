@@ -6852,13 +6852,14 @@ settings:
       modelCatalogCustomHint:
         Embedding models this provider's listing carries; pick Other model to
         type a tag it does not list.
-      modelUnlistedHint:
-        No listing can tell whether this provider serves embeddings, so enter
-        the tag exactly as the provider spells it.
-      modelNoneHint:
-        The {provider} catalog lists no embedding model. Choose a provider
-        that serves one.
-      modelNone: No embedding model
+      modelUncuratedHint:
+        Tale knows no vector width for {provider}'s embedding models. Enter
+        the model tag and its vector width exactly as the provider documents
+        them.
+      modelUnsupportedHint:
+        '{provider} offers no embedding model. Choose a provider that serves
+        one.'
+      modelUnsupported: Cannot embed
       modelCatalogUnavailableHint:
         The {provider} catalog could not be loaded. Refresh the catalogs under
         Settings → AI providers and try again.

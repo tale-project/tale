@@ -46515,7 +46515,12 @@ async function checkDataResidencyConfig(
       await (await get(`/api/app/knowledge/embedding?orgId=${orgId}`)).json(),
     );
   const recs = z
-    .object({ recommendations: z.array(z.object({}).loose()) })
+    .object({
+      recommendations: z.array(z.object({}).loose()),
+      providers: z.array(
+        z.object({ providerSlug: z.string(), support: z.string() }),
+      ),
+    })
     .safeParse(
       await (
         await get(`/api/app/knowledge/embedding/recommendations?orgId=${orgId}`)
@@ -46560,11 +46565,17 @@ async function checkDataResidencyConfig(
       embView.data.providerSlug === 'openai' &&
       embView.data.dimensions === 1536 &&
       recs.success &&
+      // Anthropic's connector declares it cannot embed (its docs are cited in
+      // provider.yml), so the form refuses it instead of failing at index time.
+      recs.data.providers.some(
+        (entry) =>
+          entry.providerSlug === 'anthropic' && entry.support === 'unsupported',
+      ) &&
       embGone.success &&
       !embGone.data.configured &&
       knGone.success &&
       !knGone.data.configured,
-    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? recs.data.recommendations.length : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
+    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? `${recs.data.recommendations.length}/${recs.data.providers.map((entry) => `${entry.providerSlug}:${entry.support}`).join(',')}` : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
   );
 }
 
