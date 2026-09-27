@@ -12,7 +12,9 @@ slug: claude-code
 displayName: Claude Code
 # An explicit choice for bounded workflows with their own domain guidance.
 # The pinned CLI keeps tools, hooks, MCP and appended instructions; only its
-# built-in system prompt and some tool descriptions become shorter.
+# built-in system prompt and some tool descriptions become shorter (a model
+# the CLI already gives its short prompt, e.g. Opus 4.8 or Opus 5.5 on
+# 2.1.283, sees no change).
 variants:
   - slug: claude-code-compact
     displayName: Claude Code (compact prompt)
@@ -78,8 +80,13 @@ exec:
     # whole turn). The managed default-slot pins carry the BARE id
     # (${model.raw}) so the CLI doesn't 404 resolving opus/sonnet/haiku/
     # fable aliases — or a subagent's frontmatter model — against the
-    # virtual key's single-model allowlist. byo has no such allowlist, so
-    # the alias + subagent slots are left to the CLI / credential defaults.
+    # virtual key's single-model allowlist. Since CLI 2.1.251 the subagent
+    # pin is only a DEFAULT: a full model id in an agent definition (a
+    # cloned repo's .claude/agents/*.md) wins over it — observed on 2.1.283:
+    # `model: claude-sonnet-4-6` requested that model — so the FORCE flag
+    # restores the override-everything pin 2.1.173 applied. byo has no such
+    # allowlist, so the alias + subagent slots are left to the CLI /
+    # credential defaults.
     - model:
         flag: '--model'
         transform: claude-max-context
@@ -91,6 +98,7 @@ exec:
           ANTHROPIC_DEFAULT_HAIKU_MODEL: '${model.raw}'
           ANTHROPIC_DEFAULT_FABLE_MODEL: '${model.raw}'
           CLAUDE_CODE_SUBAGENT_MODEL: '${model.raw}'
+          CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
     # The claude-house-rules transform prepends the baseline working rules
     # to the composed addendum (and delivers them alone when nothing was
     # composed), so the flag rides every session.
@@ -163,7 +171,9 @@ exec:
       # that serves one request at a time the copies queue behind each other
       # and the turn never completes. So both follow the gateway: the
       # request timeout is the gateway's own, which is at least its idle
-      # budget.
+      # budget. Re-checked on 2.1.283 against a gateway base URL: response
+      # headers withheld for 320 s were waited out and the request was sent
+      # once, with these values and with the CLI's own defaults alike.
       API_FORCE_IDLE_TIMEOUT: '0'
       API_TIMEOUT_MS: '${gateway.requestTimeoutMs}'
       # Compact inside the window the model actually serves. The CLI sizes

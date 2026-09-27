@@ -426,7 +426,10 @@ describe('claude reasoning levers scope to Claude models', () => {
     [undefined, true],
     ['default', true],
     ['claude-opus-4-6', true],
+    ['claude-opus-5-5', true],
+    ['claude-fable-5-1', true],
     ['openrouter/anthropic/claude-sonnet-4.6', true],
+    ['openrouter/anthropic/claude-opus-5.5', true],
     ['~anthropic/claude-fable-latest', true],
     ['openrouter/~deepseek/deepseek-v4-flash-latest', false],
     ['glm-4.7', false],
@@ -533,6 +536,65 @@ describe('claude reasoning levers scope to Claude models', () => {
     expect(exec.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING).toBeUndefined();
     expect(exec.env.CLAUDE_CODE_ATTRIBUTION_HEADER).toBeUndefined();
     expect(exec.stdin ?? '').toContain('Ultrathink');
+  });
+
+  // Claude Opus 5.5 and Claude Fable 5.1 answer a disabled or budgeted
+  // `thinking` with a 400 at every effort level, so nothing the exec sets
+  // may turn thinking off or cap it; effort (the image's max floor) is their
+  // only depth control. Their 1M window is native, so the marker is
+  // harmless, and every alias slot the CLI may resolve for a background or
+  // subagent call names the same bare id — the one the key allows.
+  it.each(['claude-opus-5-5', 'claude-fable-5-1'])(
+    '%s keeps adaptive thinking and pins every model slot to itself',
+    (model) => {
+      const exec = buildHarnessExec(
+        fact('claude-code'),
+        managedSpec({ model, contextWindow: 1_000_000 }),
+      );
+      expect(exec.argv).toContain(`${model}[1m]`);
+      for (const knob of [
+        'CLAUDE_CODE_DISABLE_THINKING',
+        'CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING',
+        'MAX_THINKING_TOKENS',
+        'CLAUDE_CODE_ATTRIBUTION_HEADER',
+      ]) {
+        expect(exec.env).not.toHaveProperty(knob);
+      }
+      expect(exec.stdin ?? '').toContain('Ultrathink');
+      expect(exec.env).toMatchObject({
+        ANTHROPIC_MODEL: `${model}[1m]`,
+        ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+        ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+        ANTHROPIC_DEFAULT_FABLE_MODEL: model,
+        CLAUDE_CODE_SUBAGENT_MODEL: model,
+        CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1',
+        // 1M is not below the CLI's own 200K assumption: it sizes itself.
+        CLAUDE_CODE_AUTO_COMPACT_WINDOW: '',
+      });
+    },
+  );
+
+  // Since CLI 2.1.251 CLAUDE_CODE_SUBAGENT_MODEL is only a default, and a
+  // full id in a repo's agent definition wins over it — against a managed
+  // key that serves one model. FORCE keeps every subagent on the pin; a byo
+  // credential has no such allowlist and pins nothing.
+  it('forces the subagent pin on a managed exec only', () => {
+    const managed = buildHarnessExec(
+      fact('claude-code'),
+      managedSpec({ model: 'openrouter/anthropic/claude-opus-5.5' }),
+    );
+    expect(managed.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE).toBe('1');
+    const unpinned = buildHarnessExec(fact('claude-code'), managedSpec());
+    expect(unpinned.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL_FORCE');
+    const byo = buildHarnessExec(fact('claude-code'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'claude-opus-5-5',
+    });
+    expect(byo.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL');
+    expect(byo.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL_FORCE');
   });
 
   it.each(['codex', 'qwen-code'])(

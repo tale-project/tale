@@ -112,6 +112,7 @@ managed-model-opus:
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
   cwd: /agent/workspace
@@ -176,6 +177,7 @@ managed-model-gateway-ref:
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: openrouter/anthropic/claude-sonnet-4.6
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
   cwd: /agent/workspace
@@ -240,6 +242,7 @@ managed-model-default:
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: default
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
   cwd: /agent/workspace
@@ -307,6 +310,7 @@ managed-model-context-window:
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_DISABLE_THINKING: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: golden-local/golden-small-model
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
   cwd: /agent/workspace
@@ -973,6 +977,7 @@ managed-kitchen-sink:
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
+    CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000'
     TALE_GATEWAY_TOKEN: golden-session-virtual-key

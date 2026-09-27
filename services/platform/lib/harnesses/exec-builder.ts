@@ -682,18 +682,21 @@ export function buildHarnessExec(
   // the reasoning request OFF for this exec: the explicit disable switches
   // are the levers the CLI honours regardless of value semantics (the
   // ALWAYS_ENABLE floor is set-means-on — overriding it to '0' was verified
-  // NOT to strip the effort param on 2.1.173). Per-exec env overrides the
-  // image floor; recognised Claude ids keep full adaptive thinking.
+  // NOT to strip the effort param on 2.1.173; on 2.1.283 the switches still
+  // leave `thinking` off the request). Per-exec env overrides the image
+  // floor; recognised Claude ids keep full adaptive thinking — which Opus 5.5
+  // and the Fable models require: they refuse a disabled `thinking`.
   //
   // The CLI also opens every system prompt with an attribution line
-  // (`x-anthropic-billing-header: …; cch=<checksum>;`) whose checksum changes
-  // on every request. Anthropic's API reads that line; a foreign model's
-  // server sees plain text at the top of the system prompt, so its prefix
-  // cache ends there and every turn prefills the whole conversation again
-  // (observed live on a split local GLM: 16,276 tokens cached per turn — the
-  // tool definitions its template renders first — at any context size). An
-  // explicit '0' drops the line (2.1.173); Claude models keep it, and the
-  // subscription lane only ever serves Claude.
+  // (`x-anthropic-billing-header: …`). On 2.1.173 it carried a checksum
+  // (`cch=…`) that changed on every request. Anthropic's API reads that
+  // line; a foreign model's server sees plain text at the top of the system
+  // prompt, so its prefix cache ended there and every turn prefilled the
+  // whole conversation again (observed live on a split local GLM: 16,276
+  // tokens cached per turn — the tool definitions its template renders first
+  // — at any context size). 2.1.283 sends no per-request checksum, and an
+  // explicit '0' still drops the line, which a foreign model never needs;
+  // Claude models keep it, and the subscription lane only ever serves Claude.
   // Env-only variants run the same CLI and need the same adaptations.
   // The parser family alone is not enough: Qwen shares its JSON dialect.
   if (exec.bin === 'claude' && !isClaudeModelRef(spec.model)) {

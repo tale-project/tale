@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 43 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 44 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -202,6 +202,18 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
   after unticking the unavailable skill in the agent dialog, **Retry**
   starts a run that reaches the harness.
+- [ ] `TASK-F30` · **A Claude Code agent on Claude Opus 5.5 and Fable 5.1** —
+  With a provider credential that serves `claude-opus-5-5` (the Anthropic
+  connector, or a Claude Code subscription broker), set a project agent's
+  **Agent type** (`projects.agents.harnessLabel`) to Claude Code and its model
+  to `claude-opus-5-5`, then **Start agent** (`tasks.agentRun.start`) on a
+  task that asks it to list the workspace, have a subagent summarise one file,
+  and report back; @mention the agent with a follow-up once it settles; repeat
+  both runs with `claude-fable-5-1` → Every run settles **Completed**
+  (`tasks.agentRuns.status.completed`); **Details** (`tasks.run.details`)
+  shows the tool calls, the subagent's call and the report; the follow-up
+  continues the same conversation; no step reads a provider 400 — env-gated:
+  mark **ENVIRONMENT** without a credential that serves the models.
 
 ### The task page
 

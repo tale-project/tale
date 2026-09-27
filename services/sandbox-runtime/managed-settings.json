@@ -3,6 +3,9 @@
   "includeCoAuthoredBy": false,
   "disableBundledSkills": true,
   "cleanupPeriodDays": 365,
+  "crossSessionInbound": "refuse",
+  "syncClaudeAiSkills": false,
+  "syncClaudeAiPlugins": false,
   "env": {
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "DISABLE_AUTOUPDATER": "1"
