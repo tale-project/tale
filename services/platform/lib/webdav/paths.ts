@@ -100,6 +100,13 @@ export function buildDavPath(parsed: {
   return s;
 }
 
+// The wire URL of the organization root `/dav/<orgSlug>/` — the pseudo-
+// collection above the two namespaces, which `buildDavPath` cannot name
+// because it has no namespace of its own.
+export function buildDavRootPath(orgSlug: string): string {
+  return `/dav/${encodeURIComponent(orgSlug.normalize('NFC'))}/`;
+}
+
 // Canonical wire path used as the lock key — strips the /dav/<orgSlug>
 // scope so the lock identity is org-internal. e.g.
 // "/dav/myorg/documents/foo/bar" → "/documents/foo/bar".

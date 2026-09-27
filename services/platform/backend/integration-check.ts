@@ -27971,6 +27971,23 @@ async function checkWebdav(
     method: 'PROPFIND',
     headers: { depth: '1' },
   });
+  // The organization root describes itself and exactly its two namespaces
+  // (it used to answer as the documents root, hiding `.trash/`).
+  const orgRoot = await dav('/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+  const orgRootXml = orgRoot.ok ? await orgRoot.text() : '';
+  const orgRootHrefs = [
+    ...orgRootXml.matchAll(/<D:href>([^<]*)<\/D:href>/g),
+  ].map((m) => m[1]);
+  record(
+    'webdav: PROPFIND on the organization root lists itself, documents/ and .trash/',
+    orgRoot.status === 207 &&
+      orgRootHrefs.join(' ') ===
+        `/dav/${orgSlug}/ /dav/${orgSlug}/documents/ /dav/${orgSlug}/.trash/`,
+    `status=${orgRoot.status} (want 207) hrefs=${orgRootHrefs.join(' ')} (want /dav/${orgSlug}/ /dav/${orgSlug}/documents/ /dav/${orgSlug}/.trash/)`,
+  );
 
   // MKCOL + double-MKCOL (405 per RFC 4918 §9.3.1).
   const mkcol = await dav('/documents/DavReports', { method: 'MKCOL' });

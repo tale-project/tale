@@ -419,6 +419,14 @@ any toggled setting after the run.
   raw `../` → both answer `404`; `PROPFIND Depth: 1` on `/dav/{org}/documents/`
   lists no `escape.txt`, and the Document Hub shows no stray file either;
   `dotprobe/` deletes cleanly afterwards.
+- [ ] `SET-F53` · **WebDAV organization root** — with a SET-F34
+  app-password, `curl --user <email>:<password> -X PROPFIND -H 'Depth: 1'
+  <site>/dav/{org}/` → `207` whose first `href` is `/dav/{org}/` (a
+  collection named after the org slug) followed by exactly
+  `/dav/{org}/documents/` and `/dav/{org}/.trash/`; `Depth: 0` answers the
+  root alone; mounting `/dav/{org}/` in Finder or Explorer shows the two
+  folders and nothing else; a `PROPPATCH` on `/dav/{org}/` answers `405`
+  with `Allow: OPTIONS, PROPFIND`.
 - [ ] `SET-F35` · **Enterprise SSO configure** —
   `/dashboard/{org}/settings/enterprise-sso` → pick a **Protocol**
   (`settings.enterpriseSso.protocolLabel`; options

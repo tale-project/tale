@@ -6,8 +6,9 @@ const DAV_METHODS =
   'OPTIONS, GET, HEAD, PROPFIND, PROPPATCH, PUT, DELETE, MKCOL, MOVE, COPY, LOCK, UNLOCK';
 /** A trashed document: readable, listable, never written or locked. */
 const TRASH_FILE_METHODS = 'OPTIONS, GET, HEAD, PROPFIND';
-/** The org root and the trash view: listable, nothing else. */
-const READ_ONLY_COLLECTION_METHODS = 'OPTIONS, PROPFIND';
+/** The org root and the trash view: listable, nothing else. Exported so
+ * a write method refusing the root answers 405 with the same `Allow`. */
+export const READ_ONLY_COLLECTION_METHODS = 'OPTIONS, PROPFIND';
 
 /**
  * The `Allow` for the target resource (RFC 9110 §10.2.1 — the methods THE
