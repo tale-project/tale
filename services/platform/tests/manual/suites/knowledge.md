@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 49 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 50 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -257,6 +257,21 @@ records and delete them after.
   reason (vendor unreachable) shows a red warning sign tipped **Sync failed**
   (`documents.syncHealth.badge.failed`), whose dialog carries the error text
   and says Tale retries about every 15 minutes.
+- [ ] `KNOW-F31` · **A synced Loop file reads Not supported** — Documents
+  with a Microsoft 365 **Sync import** (`documents.onedrive.syncImport`) of a
+  OneDrive folder holding a Microsoft Loop file (`.loop` — a Loop component
+  sent in a Teams chat is stored as one under the sender's **Microsoft Teams
+  Chat Files**) and a small `.txt` → after the sync run the Loop file's row
+  reads **Not supported** (`documents.rag.status.unsupported`), never **Not
+  indexed** (`documents.rag.status.notIndexed`), and its row **Open menu**
+  offers no **Reindex** (`documents.actions.reindex`). Activating the badge
+  opens **Document cannot be indexed**
+  (`documents.rag.dialog.unsupported.title`) with the reason **This file type
+  has no supported text extractor.**
+  (`documents.rag.dialog.unsupported.reasons.unsupported_type`). The `.txt`
+  row is **Queued** and moves on as any upload does. Let the next sync run
+  happen (≤ 15 min) and reload `/dashboard/{org}/documents` → the Loop row
+  still reads **Not supported**, with no **Reindex**.
 - [ ] `KNOW-F17` · **Record dialogs share one shape** — in a window at least
   768px wide, for each of Products, Contacts (a manually-created row), Websites
   and Knowledge entries: click a row and close the details, then open the same

@@ -8,6 +8,7 @@ import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { audienceMirror } from '../../core/lib/audience.ts';
+import { isSupported } from '../../core/lib/knowledge/extraction/router.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -29,7 +30,11 @@ import {
   getOrCreateHubFolderPath,
   reapEmptyAncestorFolders,
 } from '../folders/paths.ts';
-import { markRagQueued, syncRagDocumentScope } from '../knowledge/service.ts';
+import {
+  markRagQueued,
+  markRagUnsupportedType,
+  syncRagDocumentScope,
+} from '../knowledge/service.ts';
 import { assertNotHeld, LegalHoldError } from '../legal_holds/service.ts';
 import { purgeDocument } from '../retention/service.ts';
 import {
@@ -540,7 +545,9 @@ async function fetchVendorContentToStorage(
 }
 
 /** Queue RAG indexing for a hub document's current blob — the 0.4
- * `scheduleHubDocumentRagIndexing` gates over the pg file row. */
+ * `scheduleHubDocumentRagIndexing` gates over the pg file row. A file no
+ * extractor reads is not queued: it lands on the terminal `unsupported`
+ * state here instead. */
 async function scheduleDocumentRagIndexing(
   sql: Sql,
   documentId: string,
@@ -573,10 +580,17 @@ async function scheduleDocumentRagIndexing(
   const file = files[0];
   if (!file) return false;
   if (file.threadId !== null || file.skipRagIndexing === true) return false;
+  // Every scan re-offers an unchanged file, so a status that needs no new
+  // run ends here — `unsupported` included: it is terminal (a retry
+  // reproduces the answer, and the retry door refuses it), so an image, an
+  // empty file or a scanned PDF is not queued, downloaded and refused again
+  // on every scan. Changed bytes arrive on a new file row, which starts
+  // with no status and is judged afresh.
   if (
     file.ragStatus === 'completed' ||
     file.ragStatus === 'running' ||
-    file.ragStatus === 'queued'
+    file.ragStatus === 'queued' ||
+    file.ragStatus === 'unsupported'
   ) {
     return false;
   }
@@ -585,7 +599,22 @@ async function scheduleDocumentRagIndexing(
     fileName,
     doc.mimeType ?? file.contentType,
   );
-  if (!isRagIndexableFile(fileName, contentType)) return false;
+  if (!isRagIndexableFile(fileName, contentType)) {
+    // A file no extractor reads — a Loop page (`.loop`, served as
+    // `application/octet-stream`), a legacy `.doc` — gets the terminal state
+    // the indexer would give it; its empty status used to read "Not indexed"
+    // with a Reindex that could never succeed. Judged by the stored file
+    // name, the one the indexer reads: the document title can be renamed on
+    // its own (a title of "Minutes 27.09" reads as extension `09`), and a
+    // readable file must never be made terminal by its title. A file the
+    // indexer CAN read but the platform does not index by itself (`.log`) is
+    // not terminal either: a Reindex of it succeeds, so it keeps the empty
+    // status.
+    if (!isSupported(file.fileName)) {
+      await markRagUnsupportedType(sql, file.id, file.fileName);
+    }
+    return false;
+  }
   await sql.begin(async (tx) => {
     await markRagQueued(tx, file.id);
     await addJobInTx(tx, 'rag.index_file', { fileId: file.id });

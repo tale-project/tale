@@ -55,7 +55,7 @@ Above the reply, the timeline shows search and reading steps. A failed step expl
 
 **Sources** below the answer lists documents and pages the assistant loaded. Open a source and check that it supports the relevant claim. A citation establishes which material was used, not that every conclusion is correct. A reply without a retrieval step may rely on the model’s prior knowledge.
 
-The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, and accessible tasks. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, or produce file deliverables; assign that work to a [project task](/platform/projects/tasks).
+The assistant can search workspace information such as documents, knowledge entries, websites, contacts, products, accessible tasks, and the Inbox conversations you can see, including the text of the emails they received. A task can be named by its key, such as `DOCS-12`, as the board shows it. It can fetch the details behind a result and read a public web page. Chat does not run code, change connected systems, or produce file deliverables; assign that work to a [project task](/platform/projects/tasks).
 
 ## Continue, copy, or keep the conversation
 

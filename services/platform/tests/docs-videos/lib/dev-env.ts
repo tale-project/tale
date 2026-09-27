@@ -5,17 +5,24 @@
  *
  * Bun only auto-loads `.env*` from the invocation directory, and `.env.dev`
  * is deliberately not one of them — every dev tool that needs these vars
- * loads them explicitly through here. Real environment variables win over
- * file values, and a missing file is fine (CI, machines without the keys).
+ * loads them explicitly through here. A missing file is fine (CI, machines
+ * without the keys).
+ *
+ * A NON-EMPTY environment variable wins over the file value; an empty one
+ * counts as unset, the same reading `doctor.ts` and `tts.ts` give it. Bun
+ * loads the repo-root `.env` first, and a copy of an older root
+ * `.env.example` carries `ELEVENLABS_API_KEY=` — an empty value that would
+ * otherwise hide the `.env.dev` key.
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
 
-import { REPO_ROOT } from './paths';
+import { DEV_ENV_FILE } from './paths';
 
-export function loadDevEnv(): void {
-  const file = path.join(REPO_ROOT, '.env.dev');
+export function loadDevEnv(
+  file: string = DEV_ENV_FILE,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
   if (!existsSync(file)) return;
   for (const line of readFileSync(file, 'utf8').split('\n')) {
     const trimmed = line.trim();
@@ -24,6 +31,6 @@ export function loadDevEnv(): void {
     if (eq <= 0) continue;
     const key = trimmed.slice(0, eq).trim();
     const value = trimmed.slice(eq + 1).trim();
-    if (key && !(key in process.env)) process.env[key] = value;
+    if (key && !env[key]) env[key] = value;
   }
 }

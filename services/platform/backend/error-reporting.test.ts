@@ -1,4 +1,6 @@
+import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
+import { connect } from 'node:net';
 import { gunzipSync } from 'node:zlib';
 
 import { serve, type ServerType } from '@hono/node-server';
@@ -22,6 +24,7 @@ import {
   scrubEvent,
   scrubUrl,
 } from './error-reporting.ts';
+import { appJsonBody } from './lib/app-json-body.ts';
 
 /**
  * The module holds one process-wide SDK, so ordering is load-bearing: the
@@ -78,6 +81,49 @@ function reportedMessages(): string[] {
       | undefined;
     return (exception?.values ?? []).map((entry) => String(entry.value));
   });
+}
+
+/** The recorded path of every request error reported so far. */
+function reportedPaths(): string[] {
+  return capturedEvents().flatMap((event) => {
+    const extra = event.extra as Record<string, unknown> | undefined;
+    return typeof extra?.path === 'string' ? [extra.path] : [];
+  });
+}
+
+/** `app` behind a real Node listener, as `main.ts` serves it: only there
+ * does a client hanging up abort the request's signal and its body. */
+async function listen(
+  app: Hono,
+): Promise<{ port: number; close: () => Promise<void> }> {
+  let server: ServerType | undefined;
+  const port = await new Promise<number>((resolve) => {
+    server = serve(
+      { fetch: app.fetch, port: 0, hostname: '127.0.0.1' },
+      (info) => resolve(info.port),
+    );
+  });
+  return {
+    port,
+    close: () =>
+      new Promise<void>((resolve) => {
+        if (server === undefined) resolve();
+        else server.close(() => resolve());
+      }),
+  };
+}
+
+/** An app whose error handler is `appErrorHandler`, telling the test the
+ * status it answered — the client that would read it is gone. */
+function handledApp(): { app: Hono; handled: Promise<number> } {
+  const handled = Promise.withResolvers<number>();
+  const app = new Hono();
+  app.onError(async (err, c) => {
+    const res = await appErrorHandler(err, c);
+    handled.resolve(res.status);
+    return res;
+  });
+  return { app, handled: handled.promise };
 }
 
 describe('scrubUrl', () => {
@@ -465,6 +511,144 @@ describe('error reporting with a DSN', () => {
       expect(reportedMessages()).toContain('boom-bare-defect');
     } finally {
       warn.mockRestore();
+      consoleError.mockRestore();
+    }
+  });
+
+  it('answers a client that hung up mid-upload with an unreported 499', async () => {
+    // A closed tab or a cancelled upload: Node fails the body read with
+    // `Error: aborted` (ECONNRESET) and every one landed in the tracker as
+    // a 500. One debug line instead.
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const { app, handled } = handledApp();
+    const reading = Promise.withResolvers<void>();
+    app.post('/api/app/files/upload', async (c) => {
+      reading.resolve();
+      await c.req.arrayBuffer();
+      return c.json({ storageId: 'never' });
+    });
+    const server = await listen(app);
+    try {
+      const socket = connect(server.port, '127.0.0.1');
+      await once(socket, 'connect');
+      socket.write(
+        [
+          'POST /api/app/files/upload HTTP/1.1',
+          'Host: 127.0.0.1',
+          'Content-Type: application/octet-stream',
+          'Content-Length: 1048576',
+          '',
+          'x'.repeat(1024),
+        ].join('\r\n'),
+      );
+      await reading.promise;
+      socket.destroy();
+      expect(await handled).toBe(499);
+
+      await flushErrorReporting();
+      expect(reportedPaths()).not.toContain('/api/app/files/upload');
+      expect(debug).toHaveBeenCalledWith(
+        '[backend] client closed the request — 499 for POST /api/app/files/upload',
+      );
+    } finally {
+      debug.mockRestore();
+      await server.close();
+    }
+  });
+
+  it('still reports a defect thrown after the client left', async () => {
+    // The departure alone proves nothing about the error: only Node's own
+    // abort of the request is the client's doing.
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const { app, handled } = handledApp();
+    const waiting = Promise.withResolvers<void>();
+    app.get('/api/app/chat/threads/t1', async (c) => {
+      const signal = c.req.raw.signal;
+      const left = new Promise<void>((resolve) => {
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      waiting.resolve();
+      await left;
+      throw new Error('boom-after-departure');
+    });
+    const server = await listen(app);
+    try {
+      const socket = connect(server.port, '127.0.0.1');
+      await once(socket, 'connect');
+      socket.write(
+        'GET /api/app/chat/threads/t1 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n',
+      );
+      await waiting.promise;
+      socket.destroy();
+      expect(await handled).toBe(500);
+
+      await flushErrorReporting();
+      expect(reportedMessages()).toContain('boom-after-departure');
+    } finally {
+      consoleError.mockRestore();
+      await server.close();
+    }
+  });
+
+  it('still reports Node’s abort error while the client is there — an outbound read cut short', async () => {
+    // Node's HTTP client raises the same `Error: aborted` for a response
+    // cut mid-body (an object-store read): a failure of ours, the caller
+    // still waiting for an answer.
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const app = new Hono();
+      app.onError(appErrorHandler);
+      app.get('/api/app/documents/d1/content', () => {
+        throw Object.assign(new Error('aborted'), { code: 'ECONNRESET' });
+      });
+      const res = await app.request(
+        'http://localhost/api/app/documents/d1/content',
+      );
+      expect(res.status).toBe(500);
+
+      await flushErrorReporting();
+      expect(reportedPaths()).toContain('/api/app/documents/d1/content');
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('answers an empty or truncated app-door JSON body with 400 INVALID_JSON, unreported', async () => {
+    // Hono's `c.req.json()` is a bare JSON.parse: the SyntaxError of a
+    // body-less POST reached this handler as a reported 500.
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const app = new Hono();
+      app.onError(appErrorHandler);
+      app.use('/api/app/*', appJsonBody());
+      app.post('/api/app/users/notification-state/toast-shown', async (c) =>
+        c.json({ received: (await c.req.json()) as unknown }),
+      );
+      for (const body of ['', '{"version":"0.5']) {
+        const res = await app.request(
+          'http://localhost/api/app/users/notification-state/toast-shown',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body,
+          },
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({ code: 'INVALID_JSON' });
+      }
+
+      await flushErrorReporting();
+      expect(reportedPaths()).not.toContain(
+        '/api/app/users/notification-state/toast-shown',
+      );
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
       consoleError.mockRestore();
     }
   });

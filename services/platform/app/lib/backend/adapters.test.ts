@@ -138,6 +138,30 @@ describe('backendRefusalDetail', () => {
     ).toBe('thread not found');
   });
 
+  // The session door's flat 401 names `UNAUTHORIZED` beside a sentence for
+  // API clients (send a key to the REST API, in English). A person whose
+  // session ended reads the localized sentence instead, on the adapted lane
+  // and on a raw lane alike.
+  it("reads a lapsed session's 401 as the localized session-ended sentence", async () => {
+    const sentence =
+      'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1';
+    expect(
+      backendRefusalDetail(
+        new AppError({ code: 'UNAUTHORIZED', message: sentence }),
+      ),
+    ).toBe('Your session has ended. Sign in again.');
+    const raw = await backendErrorFromResponse(
+      new Response(JSON.stringify({ error: sentence, code: 'UNAUTHORIZED' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    expect(raw).toBeInstanceOf(AppError);
+    expect(backendRefusalDetail(raw)).toBe(
+      'Your session has ended. Sign in again.',
+    );
+  });
+
   it('says nothing for a fault or for an answer without a code', () => {
     expect(
       backendRefusalDetail(
