@@ -217,5 +217,10 @@
  * it. Chat never pauses a turn to ask the person a question, so no stored
  * or new message carries the part; a client drops a branch it could not
  * reach. Major because a named schema was removed.
+ *
+ * 3.1.0 — 2026-09-27: 404 `ORG_SLUG_INVALID` and 403 `ORG_FORBIDDEN` carry
+ * `data.organizations` — the slugs the key holder may send — the way 400
+ * `ORG_SLUG_REQUIRED` already did, so a mistyped or foreign
+ * `X-Organization-Slug` says what to send instead.
  */
-export const API_CONTRACT_VERSION = '3.0.0';
+export const API_CONTRACT_VERSION = '3.1.0';

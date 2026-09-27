@@ -25,7 +25,7 @@ Crée une [clé API](/fr/platform/admin/api-keys) et conserve-la dans la configu
 
 Le client doit accepter un point d'accès HTTP distant avec des en-têtes personnalisés. Il n'y a ni flux SSE, ni session à supprimer, ni parcours d'autorisation OAuth. Les URL de découverte OAuth renvoient du JSON avec `404` ; un client qui exige ce parcours doit être configuré autrement. Un client limité aux serveurs stdio locaux ne peut pas utiliser directement cette URL.
 
-Envoie toujours l'en-tête d'organisation dans une intégration réutilisable. Il n'est facultatif que si le titulaire de la clé appartient à une seule organisation. Avec plusieurs appartenances, son absence produit `400 ORG_SLUG_REQUIRED`. Un slug inconnu produit `404 ORG_SLUG_INVALID`, et une organisation dont le titulaire n'est pas membre produit `403 ORG_FORBIDDEN`.
+Envoie toujours l'en-tête d'organisation dans une intégration réutilisable. Il n'est facultatif que si le titulaire de la clé appartient à une seule organisation. Avec plusieurs appartenances, son absence produit `400 ORG_SLUG_REQUIRED`. Un slug inconnu produit `404 ORG_SLUG_INVALID`, et une organisation dont le titulaire n'est pas membre produit `403 ORG_FORBIDDEN`. Chacun de ces refus liste dans `data.organizations` les slugs que tu peux envoyer.
 
 ### Initialiser et récupérer la référence
 

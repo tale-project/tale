@@ -25,7 +25,7 @@ Erstelle einen [API-Schlüssel](/de/platform/admin/api-keys) und hinterlege ihn 
 
 Der Client muss entfernte HTTP-Endpunkte mit eigenen Headern unterstützen. Es gibt keinen SSE-Ereignisstrom, keine Sitzung zum Löschen und keinen OAuth-Anmeldeablauf. OAuth-Discovery-URLs antworten mit JSON und `404`; ein Client, der diesen Ablauf voraussetzt, braucht eine andere Authentifizierungskonfiguration. Ein reiner stdio-Client kann diese URL nicht direkt nutzen.
 
-Sende in wiederverwendbaren Integrationen immer den Organisations-Header. Er ist nur bei genau einer Mitgliedschaft optional. Ohne ihn führt ein Schlüsselinhaber mit mehreren Organisationen zu `400 ORG_SLUG_REQUIRED`. Ein unbekannter Slug liefert `404 ORG_SLUG_INVALID`, eine Organisation ohne Mitgliedschaft `403 ORG_FORBIDDEN`.
+Sende in wiederverwendbaren Integrationen immer den Organisations-Header. Er ist nur bei genau einer Mitgliedschaft optional. Ohne ihn führt ein Schlüsselinhaber mit mehreren Organisationen zu `400 ORG_SLUG_REQUIRED`. Ein unbekannter Slug liefert `404 ORG_SLUG_INVALID`, eine Organisation ohne Mitgliedschaft `403 ORG_FORBIDDEN`. Jede dieser Ablehnungen nennt in `data.organizations` die Slugs, die du senden kannst.
 
 ### Initialisieren und die Referenz abrufen
 

@@ -940,8 +940,8 @@ const orgSlugHeaderParam = {
     'slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the ' +
     'key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys ' +
     'may omit it; a blank or whitespace-only value reads as the header ' +
-    'absent. The 400 lists the slugs the key holder may send under ' +
-    '`data.organizations`; `GET /api/v1/me` answers them too.',
+    'absent. Each of the three refusals lists the slugs the key holder may ' +
+    'send under `data.organizations`; `GET /api/v1/me` answers them too.',
 };
 
 // ── The spec ─────────────────────────────────────────────────────────────────
@@ -6427,11 +6427,11 @@ export function buildSpec(): Json {
       }
       responses['403'] = withDoorRefusal(
         responses['403'],
-        '`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)',
+        '`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)',
       );
       responses['404'] = withDoorRefusal(
         responses['404'],
-        '`X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)',
+        '`X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)',
       );
       responses['405'] ??= errorResponse(
         'The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves',
@@ -6571,11 +6571,10 @@ every request, reads included — without it the request answers 400
 apart on purpose: a slug is the public path segment of every app URL, not a
 secret, and the probe is already authenticated and rate-limited; resource ids
 never get this treatment (an id you cannot see answers the same 404 as one
-that does not exist). The
-400 lists the slugs you may send under \`data.organizations\`; \`GET
-/api/v1/me\` lists them too, as its top-level \`organizations\`. The slug
-is matched without regard to case; a blank or whitespace-only header reads
-as absent.
+that does not exist). Each of the three refusals lists the slugs you may
+send under \`data.organizations\`; \`GET /api/v1/me\` lists them too, as its
+top-level \`organizations\`. The slug is matched without regard to case; a
+blank or whitespace-only header reads as absent.
 
 ## Requests
 
@@ -6890,7 +6889,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 organizations: {
                   type: 'array',
                   description:
-                    'For ORG_SLUG_REQUIRED, the organizations the key holder belongs to — send one of the slugs as `X-Organization-Slug`',
+                    'For ORG_SLUG_REQUIRED, ORG_SLUG_INVALID and ORG_FORBIDDEN, the organizations the key holder belongs to (a disabled membership is left out; the list is empty when none remains) — send one of the slugs as `X-Organization-Slug`',
                   items: {
                     type: 'object',
                     required: ['slug', 'name'],
