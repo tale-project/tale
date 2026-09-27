@@ -10,7 +10,7 @@
   prerequisite is a five-second fix instead of a confusing mid-boot crash.
 
   It validates:
-    - Bun >= 1.3      (the workspace runtime)
+    - Bun >= 1.4.1    (the workspace runtime)
     - Port 3000 free  (the Vite dev server binds it)
     - Port 3005 free  (the platform backend binds it)
 
@@ -46,8 +46,13 @@ export interface SetupCheckDeps {
   portInUse: (port: number) => Promise<boolean>;
 }
 
-const MIN_BUN_MAJOR = 1;
-const MIN_BUN_MINOR = 3;
+/** The oldest Bun the workspace runs on — the same floor the CI toolchain
+ *  keeps (`.github/actions/setup-turbo`). Older Bun ran N-API addon
+ *  finalizers inside `process.exit()`, which can stall a Vite build at exit,
+ *  and Bun 1.3 fails two sandbox daemon tests the pinned runtime passes. The
+ *  root `package.json` pins the exact version to match. */
+const MIN_BUN = { major: 1, minor: 4, patch: 1 } as const;
+const MIN_BUN_LABEL = `${MIN_BUN.major}.${MIN_BUN.minor}.${MIN_BUN.patch}`;
 const APP_PORT = 3000;
 const BACKEND_PORT = 3005;
 
@@ -66,36 +71,37 @@ export function parseSemver(
   };
 }
 
-/** True when `version` is >= the `major.minor` floor (patch ignored). */
+/** True when `version` is at or above `floor`. */
 function atLeast(
-  version: { major: number; minor: number },
-  major: number,
-  minor: number,
+  version: { major: number; minor: number; patch: number },
+  floor: { major: number; minor: number; patch: number },
 ): boolean {
-  if (version.major !== major) return version.major > major;
-  return version.minor >= minor;
+  if (version.major !== floor.major) return version.major > floor.major;
+  if (version.minor !== floor.minor) return version.minor > floor.minor;
+  return version.patch >= floor.patch;
 }
 
 function checkBun(bunVersion: string): CheckResult {
   const parsed = parseSemver(bunVersion);
+  const name = `Bun >= ${MIN_BUN_LABEL}`;
   if (!parsed) {
     return {
-      name: 'Bun >= 1.3',
+      name,
       ok: false,
       hard: true,
       detail: `could not parse Bun version "${bunVersion}"`,
-      remediation: 'Install Bun 1.3+: https://bun.sh/docs/installation',
+      remediation: `Install Bun ${MIN_BUN_LABEL}+: https://bun.sh/docs/installation`,
     };
   }
-  const ok = atLeast(parsed, MIN_BUN_MAJOR, MIN_BUN_MINOR);
+  const ok = atLeast(parsed, MIN_BUN);
   return {
-    name: 'Bun >= 1.3',
+    name,
     ok,
     hard: true,
     detail: `found ${parsed.major}.${parsed.minor}.${parsed.patch}`,
     remediation: ok
       ? undefined
-      : 'Upgrade Bun to 1.3+: run `bun upgrade` (https://bun.sh/docs/installation)',
+      : `Upgrade Bun to ${MIN_BUN_LABEL}+: run \`bun upgrade\` (https://bun.sh/docs/installation)`,
   };
 }
 

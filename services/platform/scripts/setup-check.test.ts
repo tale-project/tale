@@ -18,7 +18,7 @@ import {
  *  Individual tests override one field to exercise a failure. */
 function passingDeps(overrides: Partial<SetupCheckDeps> = {}): SetupCheckDeps {
   return {
-    bunVersion: '1.3.10',
+    bunVersion: '1.4.2',
     portInUse: async () => false,
     ...overrides,
   };
@@ -77,12 +77,25 @@ describe('runSetupChecks', () => {
     expect(allHardChecksPassed(results)).toBe(false);
   });
 
-  it('fails Bun when the version is below 1.3', async () => {
-    const results = await runSetupChecks(passingDeps({ bunVersion: '1.2.9' }));
+  it.each(['1.2.9', '1.3.10', '1.4.0'])(
+    'fails Bun %s, below the 1.4.1 floor',
+    async (bunVersion) => {
+      const results = await runSetupChecks(passingDeps({ bunVersion }));
 
-    const bun = find(results, 'Bun');
-    expect(bun.ok).toBe(false);
-    expect(bun.remediation).toContain('bun upgrade');
-    expect(allHardChecksPassed(results)).toBe(false);
-  });
+      const bun = find(results, 'Bun');
+      expect(bun.ok).toBe(false);
+      expect(bun.name).toBe('Bun >= 1.4.1');
+      expect(bun.remediation).toContain('bun upgrade');
+      expect(allHardChecksPassed(results)).toBe(false);
+    },
+  );
+
+  it.each(['1.4.1', '1.5.0', '2.0.0'])(
+    'passes Bun %s, at or above the floor',
+    async (bunVersion) => {
+      const results = await runSetupChecks(passingDeps({ bunVersion }));
+
+      expect(find(results, 'Bun').ok).toBe(true);
+    },
+  );
 });
