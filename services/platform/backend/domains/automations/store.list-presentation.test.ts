@@ -25,8 +25,10 @@ function recordingSql(): { sql: Sql; queries: string[] } {
   return { sql: tag as unknown as Sql, queries };
 }
 
+// Both absences are skipped: SQL NULL, and the JSON `null` an explicit
+// `presentation: null` in an older save body left behind as jsonb.
 const COALESCING =
-  /array_agg\(a\.presentation ORDER BY [^)]*\) FILTER \(WHERE a\.presentation IS NOT NULL\)/;
+  /array_agg\(a\.presentation ORDER BY [^)]*\) FILTER \(WHERE a\.presentation IS NOT NULL AND jsonb_typeof\(a\.presentation\) <> 'null'\)/;
 
 describe('the listings coalesce the presentation', () => {
   it('listAutomations takes the newest non-null presentation', async () => {

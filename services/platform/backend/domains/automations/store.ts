@@ -236,7 +236,7 @@ export async function saveVersion(
              ${args.testsPassed === undefined ? null : now},
              ${args.taskContract === undefined ? null : tx.json(toJson(args.taskContract))},
              ${args.settings === undefined ? null : tx.json(toJson(args.settings))},
-             ${args.presentation === undefined ? null : tx.json(toJson(args.presentation))},
+             ${args.presentation === undefined || args.presentation === null ? null : tx.json(toJson(args.presentation))},
              ${args.actor}, ${now}
       FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
@@ -545,6 +545,8 @@ export interface AutomationListing {
  * no presentation of its own, and reading the latest row alone made the
  * name the wizard stored vanish on the next save (2026-09-26 evaluation,
  * D-03). A declared name outlives the versions that did not restate it.
+ * A JSON `null` stored by an older save counts as absent too (the save
+ * writes SQL NULL for it now).
  */
 export async function listAutomations(
   sql: Sql,
@@ -569,7 +571,8 @@ export async function listAutomations(
               ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
              AS inputs,
            (array_agg(a.presentation ORDER BY a.version DESC)
-              FILTER (WHERE a.presentation IS NOT NULL))[1]
+              FILTER (WHERE a.presentation IS NOT NULL
+                        AND jsonb_typeof(a.presentation) <> 'null'))[1]
              AS presentation
     FROM app.automations a
     LEFT JOIN app.automation_deployments d
@@ -664,7 +667,8 @@ export async function listAutomationsForApp(
            (array_agg(a.settings ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
              AS settings,
            (array_agg(a.presentation ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC)
-              FILTER (WHERE a.presentation IS NOT NULL))[1]
+              FILTER (WHERE a.presentation IS NOT NULL
+                        AND jsonb_typeof(a.presentation) <> 'null'))[1]
              AS presentation
     FROM app.automations a
     LEFT JOIN app.automation_deployments d
