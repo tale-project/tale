@@ -180,6 +180,32 @@ describe('UploadAutomationDialog', () => {
     expect(invalidateQueries).toHaveBeenCalled();
   });
 
+  // A refused package POST used to read "uploading the package failed (HTTP
+  // 413)": the door's own sentence never reached the dialog.
+  it("says why the door refused the package's bytes", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'The file exceeds the 512 MiB limit',
+        },
+        { status: 413 },
+      ),
+    );
+    const { user } = await openDialogWith([
+      new File(['zipbytes'], 'pack.zip', { type: 'application/zip' }),
+    ]);
+    await user.click(
+      screen.getByRole('button', { name: 'automations.upload.submit' }),
+    );
+
+    expect(
+      await screen.findByText('The file exceeds the 512 MiB limit'),
+    ).toBeVisible();
+    expect(recordIntent).not.toHaveBeenCalled();
+    expect(uploadAction).not.toHaveBeenCalled();
+  });
+
   it('offers deploying the uploaded draft and closes on success', async () => {
     uploadAction.mockResolvedValue({
       ok: true,

@@ -889,6 +889,77 @@ describe('ProjectFilesTab — mixed upload summary', () => {
     }
   });
 
+  // A refused upload used to throw `upload failed: 400`, and the toast it
+  // raised was replaced by this summary in the same tick: the door's reason
+  // never reached the screen. It now rides the summary beside the file.
+  it("names a file the door refused beside the door's own reason", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      Response.json(
+        {
+          error: 'FILE_SIZE_INVALID',
+          message: 'The file exceeds the 512 MiB limit',
+        },
+        { status: 413 },
+      ),
+    );
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+    const junk = new File(['\u0000'], 'random.bin', {
+      type: 'application/octet-stream',
+    });
+
+    await user.upload(fileInput(), [brief, junk]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '0 files of 2 added',
+          variant: 'destructive',
+        }),
+      );
+    });
+    const calls = vi.mocked(toast).mock.calls.map(([arg]) => arg);
+    expect(calls).toHaveLength(1);
+    const description =
+      typeof calls[0]?.description === 'string' ? calls[0].description : '';
+    const [skipped, refused] = description.split(' · ');
+    expect(skipped).toMatch(/^Skipped: random\.bin — /);
+    expect(refused).toBe(
+      'Not added: brief.txt — The file exceeds the 512 MiB limit',
+    );
+  });
+
+  // The door answers a spent upload budget with its bare code; this tab's
+  // namespace has the sentence for it, in the reader's language.
+  it('reads a refusal it has a sentence for in the house words', async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      Response.json(
+        {
+          error: 'RATE_LIMITED',
+          code: 'RATE_LIMITED',
+          data: { retryAfterMs: 30_000 },
+        },
+        { status: 429 },
+      ),
+    );
+    renderTab();
+    const user = picker();
+    const brief = new File(['hello'], 'brief.txt', { type: 'text/plain' });
+
+    await user.upload(fileInput(), [brief]);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '0 files of 1 added',
+          description:
+            "Not added: brief.txt — You're doing that too often. Try again in a moment.",
+        }),
+      );
+    });
+  });
+
   it('keeps the plain success toast when nothing was skipped', async () => {
     renderTab();
     const user = picker();

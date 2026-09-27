@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  regenerateFailureToastContent,
   turnErrorToastDescription,
   turnRefusalToastContent,
   turnNamedFailureToastContent,
@@ -74,5 +75,47 @@ describe('turnNamedFailureToastContent', () => {
     );
     expect(content.titleKey).toBe('regenerateFailed');
     expect(content.description).toBe('errorHintAuthError');
+  });
+});
+
+/**
+ * A regenerate whose REQUEST the door refused used to toast a bare "Couldn't
+ * regenerate": the door's own words were dropped on the way. They are shown
+ * now — as they are, since a provider-error reading would misname a
+ * platform refusal.
+ */
+describe('regenerateFailureToastContent', () => {
+  const t = vi.fn((key: string) => key);
+
+  it("shows the door's own words for a request it refused", () => {
+    expect(
+      regenerateFailureToastContent({ reason: 'RBAC_FORBIDDEN' }, t),
+    ).toEqual({ titleKey: 'regenerateFailed', description: 'RBAC_FORBIDDEN' });
+    // The provider reading would have called this a rejected API key.
+    expect(
+      turnNamedFailureToastContent('RBAC_FORBIDDEN', 'regenerateFailed', t)
+        .description,
+    ).toBe('errorHintAuthError');
+  });
+
+  it('keeps the bare title when the failed request said nothing', () => {
+    expect(regenerateFailureToastContent({}, t)).toEqual({
+      titleKey: 'regenerateFailed',
+    });
+  });
+
+  it("still sanitizes a refused turn's reason", () => {
+    expect(
+      regenerateFailureToastContent(
+        {
+          reason: 'The model provider answered 401: {"type":"error"}',
+          persisted: false,
+        },
+        t,
+      ),
+    ).toEqual({
+      titleKey: 'regenerateFailed',
+      description: 'errorHintAuthError',
+    });
   });
 });
