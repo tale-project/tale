@@ -7,7 +7,7 @@ import {
 import { AppError } from '../../../../lib/shared/errors/app-error';
 /** One reason a connector (or call) cannot run, with guidance the agent
  * relays to the user verbatim. */
-interface BridgeBlocker {
+export interface BridgeBlocker {
   code: string;
   guidance: string;
 }
@@ -31,6 +31,76 @@ function readOperations(connectorSlug: string): string[] {
   return connector.actions
     .filter((action) => action.effects === 'read')
     .map((action) => action.name);
+}
+
+/**
+ * Whom a turn's connector calls act for. The host decides it when it
+ * provisions the turn and carries it on the turn's session token
+ * (`connectorCaller`). The session alone cannot say: a project agent's
+ * standing session serves every task the agent works, and each run was
+ * started by someone else.
+ *
+ *  - `user`: the member the calls act for, i.e. the run's starter, the person
+ *    its spend is booked under.
+ *  - `nobody`: the run's starter names no member (a trigger, or a form no
+ *    reader knows). `opKind` is the lane that decided so, and it picks the
+ *    remedy the refusal names.
+ */
+export type TurnConnectorCaller =
+  | { kind: 'user'; userId: string }
+  | { kind: 'nobody'; opKind: 'task-agent' };
+
+/** A token scope's `connectorCaller`, or undefined when it carries none
+ * (a token minted before the field existed, or a lane that sets none). */
+export function readTurnConnectorCaller(
+  value: unknown,
+): TurnConnectorCaller | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    value.kind === 'user' &&
+    typeof value.userId === 'string' &&
+    value.userId !== ''
+  ) {
+    return { kind: 'user', userId: value.userId };
+  }
+  if (value.kind === 'nobody' && value.opKind === 'task-agent') {
+    return { kind: 'nobody', opKind: 'task-agent' };
+  }
+  return undefined;
+}
+
+/** Why a turn's connector calls cannot run when they act for no member. The
+ * remedy is the lane's own; a token that records no decision (an
+ * automation's agent node, a turn minted before the field existed) is told
+ * both. */
+export function noConnectorCallerBlocker(
+  caller: Extract<TurnConnectorCaller, { kind: 'nobody' }> | undefined,
+): BridgeBlocker {
+  if (caller?.opKind === 'task-agent') {
+    return {
+      code: 'no_user_context',
+      guidance:
+        'This task run was not started by a member, so its connector calls act for nobody and cannot run. ' +
+        "Tell the user to have a project member start the run (Start agent on the task, or an @mention of the agent in a comment); the agent's connector calls then run for that member.",
+    };
+  }
+  return {
+    code: 'no_user_context',
+    guidance:
+      'This turn does not act for a member, so connector calls cannot run from it. ' +
+      "Tell the user: a project agent's task run acts for the member who starts it, so a member should start the run again from the task; " +
+      'an automation calls a connector from a connector node, not from its agent node.',
+  };
+}
+
+/** The refusal for a caller who is no longer an active member of the org. */
+export function connectorCallerNotAMemberBlocker(): BridgeBlocker {
+  return {
+    code: 'access_denied',
+    guidance:
+      'The member this turn acts for (the person who started its run) is no longer an active member of this organization, so connector calls cannot run for them. ' +
+      'Tell the user: a current member can start the run again, and its connector calls then run for that member. Do not retry.',
+  };
 }
 
 /**
@@ -152,7 +222,14 @@ export async function runBridgeConnectorImpl(
 
 export async function bridgeConnectorStatusImpl(
   hasActiveCredential: BridgeCredentialProbe,
-  args: { organizationId: string; grants: string[] },
+  args: {
+    organizationId: string;
+    grants: string[];
+    /** Why no connector call can run from this turn at all (it acts for no
+     * member, or for one who has left): every shipped connector reports it,
+     * so `usable` never promises a call `execute` refuses. */
+    callerBlocker?: BridgeBlocker;
+  },
 ): Promise<unknown> {
   {
     if (args.grants.length === 0) {
@@ -186,14 +263,17 @@ export async function bridgeConnectorStatusImpl(
         organizationId: args.organizationId,
         connectorSlug: slug,
       });
-      const blockers: BridgeBlocker[] = credentialActive
-        ? []
-        : [
-            {
-              code: 'no_credential',
-              guidance: `"${connector.displayName}" has no active credential. The user can connect one under Settings → Connectors.`,
-            },
-          ];
+      const blockers: BridgeBlocker[] = [
+        ...(args.callerBlocker !== undefined ? [args.callerBlocker] : []),
+        ...(credentialActive
+          ? []
+          : [
+              {
+                code: 'no_credential',
+                guidance: `"${connector.displayName}" has no active credential. The user can connect one under Settings → Connectors.`,
+              },
+            ]),
+      ];
       connectors.push({
         slug,
         name: connector.displayName,

@@ -216,4 +216,63 @@ describe('bridgeConnectorStatusImpl', () => {
       blockers: [{ code: 'unknown_connector' }],
     });
   });
+
+  it('puts a turn-wide caller refusal on every shipped connector, first', async () => {
+    const probe: Probe = ({ connectorSlug }) =>
+      Promise.resolve(connectorSlug === 'tavily');
+    const { status } = await getActions();
+    const callerBlocker = {
+      code: 'no_user_context',
+      guidance: 'This task run was not started by a member.',
+    };
+
+    const result = (await status(probe, {
+      organizationId: 'org_1',
+      grants: ['tavily', 'github', 'not-shipped'],
+      callerBlocker,
+    })) as {
+      connectors: Array<Record<string, unknown>>;
+    };
+
+    const bySlug = new Map(
+      result.connectors.map((entry) => [entry.slug, entry]),
+    );
+    expect(bySlug.get('tavily')).toMatchObject({
+      usable: false,
+      blockers: [callerBlocker],
+    });
+    expect(bySlug.get('github')).toMatchObject({
+      usable: false,
+      blockers: [callerBlocker, { code: 'no_credential' }],
+    });
+    // A connector that does not ship is refused for that reason alone.
+    expect(bySlug.get('not-shipped')).toMatchObject({
+      blockers: [{ code: 'unknown_connector' }],
+    });
+  });
+});
+
+describe('readTurnConnectorCaller', () => {
+  it('reads the two callers a host writes', async () => {
+    const { readTurnConnectorCaller } = await import('./connectors_bridge');
+
+    expect(readTurnConnectorCaller({ kind: 'user', userId: 'user_1' })).toEqual(
+      { kind: 'user', userId: 'user_1' },
+    );
+    expect(
+      readTurnConnectorCaller({ kind: 'nobody', opKind: 'task-agent' }),
+    ).toEqual({ kind: 'nobody', opKind: 'task-agent' });
+  });
+
+  it.each([
+    ['absent', undefined],
+    ['not an object', 'user_1'],
+    ['a user without an id', { kind: 'user', userId: '' }],
+    ['a caller mode no host writes', { kind: 'system', reason: 'x' }],
+    ['nobody from an unknown lane', { kind: 'nobody', opKind: 'chat' }],
+  ])('reads %s as no caller at all', async (_label, value) => {
+    const { readTurnConnectorCaller } = await import('./connectors_bridge');
+
+    expect(readTurnConnectorCaller(value)).toBeUndefined();
+  });
 });

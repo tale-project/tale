@@ -41,6 +41,8 @@ Sous **Skills, connectors & outils**, ajoute les bundles, services et opération
 
 Lis **Écrit des données** avant d’accorder un outil d’écriture : il autorise des opérations réelles selon ses règles d’accès. Le broker de connectors ne propose que des lectures aux agents. Les outils GitHub directs et les secrets explicitement accordés suivent d’autres voies.
 
+Les appels de connecteurs d’une exécution se font au nom du membre qui l’a démarrée, que ce soit avec **Démarrer l'agent**, **Relancer**, un passage à **En cours** ou une mention de l’agent avec @. Ils utilisent les [identifiants des connecteurs](/fr/platform/admin/connectors) de l’organisation et sont enregistrés au nom de ce membre. Si ce membre quitte l’organisation ou est désactivé, les appels sont refusés : redémarre alors l’exécution pour qu’elle se fasse en ton nom.
+
 Rédige des **Instructions** qui définissent responsabilité, preuves et limites. Pour la revue du lancement : « Lis le brief fourni. Signale les approbations manquantes et les dates contradictoires avec le passage correspondant. Ne termine pas la tâche. »
 
 </Step>

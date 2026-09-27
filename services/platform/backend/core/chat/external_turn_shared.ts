@@ -18,7 +18,8 @@
  * windows) keeps a JSONL line that straddles a window boundary from being
  * stranded by the fresh per-window parser. This module owns the lane-neutral
  * core: exec construction (`buildExternalTurnExec`, with the model window
- * `resolveHarnessTurnContextWindow` reads), the window drain
+ * `resolveHarnessTurnContextWindow` reads), whom a turn's connector calls act
+ * for (`resolveTurnConnectorCaller`), the window drain
  * (`drainHarnessWindow`), end classification (`classifyHarnessEnd`), and the
  * event→transcript projection (`timelineFromEvents`); each host wraps it
  * with its own token mint, progress sink, and settle.
@@ -35,10 +36,12 @@ import {
   type HarnessEvent,
   type HarnessExec,
 } from '../../../lib/harnesses/types';
+import { isAutomationSubject } from '../../../lib/shared/constants/usage';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
+import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import {
   drainSessionExecResilient,
   SessionNotFoundError,
@@ -219,6 +222,36 @@ export async function resolveHarnessTurnContextWindow(
     );
   }
   return resolveEffectiveWindow({ contextWindow, governanceMaxContext });
+}
+
+/**
+ * Whom a managed turn's connector calls act for: the person the turn's
+ * attribution names (the run's starter, whom its spend and context limit
+ * already bind), or nobody when the starter names no member. Nobody is never
+ * swapped for a stand-in such as the task's creator: a call booked under a
+ * person who did not start the run would say that person acted.
+ *
+ * A failed read fails the start, like the host's other start reads, rather
+ * than guess whom the turn acts for.
+ */
+export async function resolveTurnConnectorCaller(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    /** The exec the token serves (after a steer rotation, the new one). */
+    execId: string;
+    kind: 'task-agent';
+  },
+): Promise<TurnConnectorCaller> {
+  const attribution: unknown = await ctx.runQuery(
+    internal.sandbox.session_queries.getSessionOpAttribution,
+    args,
+  );
+  const userId = attributedUserId(attribution);
+  return userId === '' || isAutomationSubject(userId)
+    ? { kind: 'nobody', opKind: args.kind }
+    : { kind: 'user', userId };
 }
 
 /** Build the harness exec for a managed external turn. */

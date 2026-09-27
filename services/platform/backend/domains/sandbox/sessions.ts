@@ -1,6 +1,7 @@
 import type { SandboxQuotaConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { TurnConnectorCaller } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import {
   requireSessionBudgetForOwnerType,
   sessionBudgetForOwnerType,
@@ -433,7 +434,12 @@ export interface SessionTokenScope {
   toolGrants?: string[];
   agentSlug?: string;
   threadId?: string;
+  /** A user-keyed session: its connector calls act for this user, and its
+   * workspace tools may READ as them. */
   userId?: string;
+  /** Whom a run-scoped turn's connector calls act for (the connectors
+   * bridge reads it; the workspace tools never do). */
+  connectorCaller?: TurnConnectorCaller;
 }
 
 /** Persist a minted token's sha256 hash + scope (never the plaintext). */

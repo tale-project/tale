@@ -54,6 +54,7 @@ import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
@@ -54303,6 +54304,10 @@ async function main(): Promise<void> {
       [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
+      ],
+      [
+        'checkTaskRunConnectorCaller',
+        () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskExternalIssueSync',

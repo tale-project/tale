@@ -37,6 +37,7 @@ import {
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
   resolveHarnessTurnContextWindow,
+  resolveTurnConnectorCaller,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
@@ -618,6 +619,68 @@ async function mintTurnServing(
   };
 }
 
+/**
+ * Write the turn's session-token row: the capability the in-sandbox bridges
+ * authenticate. It carries the connectors and tools the agent was EQUIPPED
+ * with and, when it has connectors, the member its connector calls act for
+ * (the run's starter). The first start and a steer restart both write through
+ * here, so a restarted turn can never lose what its first exec could do.
+ */
+export async function insertTaskTurnSessionToken(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    /** The exec the token serves (a steer restart's rotated one). */
+    execId: string;
+    harness: string;
+    connectors: readonly string[];
+    tools: readonly string[];
+    deadlineAt: number;
+    prepared: Pick<
+      PreparedServing,
+      'tokenHash' | 'mintedKeyId' | 'allowedModels' | 'budgetCents'
+    >;
+  },
+): Promise<void> {
+  // Only a turn with connectors mounts the bridge that reads the caller.
+  const connectorCaller =
+    args.connectors.length > 0
+      ? await resolveTurnConnectorCaller(ctx, {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          execId: args.execId,
+          kind: 'task-agent',
+        })
+      : undefined;
+  await ctx.runMutation(internal.sandbox.session_mutations.insertSessionToken, {
+    organizationId: args.organizationId,
+    sessionId: args.sessionId,
+    tokenHash: args.prepared.tokenHash,
+    ...(args.prepared.mintedKeyId !== undefined
+      ? { llmGatewayKeyId: args.prepared.mintedKeyId }
+      : {}),
+    scope: {
+      agentKind: args.harness,
+      allowedModels: args.prepared.allowedModels,
+      connectorGrants: [...args.connectors],
+      budgetCents: args.prepared.budgetCents,
+      // Baseline knowledge retrieval (visibility derives from THIS
+      // session's project binding at dispatch, so the grant alone never
+      // widens what the run can read) PLUS the agent's configured tool
+      // grants — writes included, since an explicit grant IS the
+      // standing authorization on this async lane.
+      toolGrants: [...KNOWLEDGE_READ_TOOLS, ...normalizeToolGrants(args.tools)],
+      // Read by the connectors bridge alone. It is not `userId`: the
+      // workspace tools read that one as a user-keyed session, and would
+      // fall back to reading org-wide as the starter wherever this
+      // session's project binding stops resolving.
+      ...(connectorCaller !== undefined ? { connectorCaller } : {}),
+    },
+    expiresAt: args.deadlineAt,
+  });
+}
+
 /** How long a start waits for a cancelled predecessor to actually be gone
  * before launching beside it. runnerd's cancel is a process-group SIGTERM
  * with a 5 s SIGKILL grace, so a live predecessor is gone well inside this;
@@ -883,33 +946,16 @@ export async function startTaskAgentTurnImpl(
           brokerTokenHash: prepared.brokerTokenHash ?? null,
         },
       );
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.insertSessionToken,
-        {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          tokenHash: prepared.tokenHash,
-          ...(prepared.mintedKeyId !== undefined
-            ? { llmGatewayKeyId: prepared.mintedKeyId }
-            : {}),
-          scope: {
-            agentKind: args.harness,
-            allowedModels: prepared.allowedModels,
-            connectorGrants: [...args.connectors],
-            budgetCents: prepared.budgetCents,
-            // Baseline knowledge retrieval (visibility derives from THIS
-            // session's project binding at dispatch, so the grant alone never
-            // widens what the run can read) PLUS the agent's configured tool
-            // grants — writes included, since an explicit grant IS the
-            // standing authorization on this async lane.
-            toolGrants: [
-              ...KNOWLEDGE_READ_TOOLS,
-              ...normalizeToolGrants(args.tools),
-            ],
-          },
-          expiresAt: args.deadlineAt,
-        },
-      );
+      await insertTaskTurnSessionToken(ctx, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        harness: args.harness,
+        connectors: args.connectors,
+        tools: args.tools,
+        deadlineAt: args.deadlineAt,
+        prepared,
+      });
       await ctx.runMutation(
         internal.sandbox.session_mutations.upsertSessionOp,
         {
@@ -1990,30 +2036,17 @@ export async function steerTaskAgentTurnImpl(
         brokerTokenHash: prepared.brokerTokenHash ?? null,
       },
     );
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.insertSessionToken,
-      {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        tokenHash: prepared.tokenHash,
-        ...(prepared.mintedKeyId !== undefined
-          ? { llmGatewayKeyId: prepared.mintedKeyId }
-          : {}),
-        scope: {
-          agentKind: args.harness,
-          allowedModels: prepared.allowedModels,
-          connectorGrants: [...args.connectors],
-          budgetCents: prepared.budgetCents,
-          // Baseline knowledge retrieval + configured tool grants — same
-          // grant set as the first start.
-          toolGrants: [
-            ...KNOWLEDGE_READ_TOOLS,
-            ...normalizeToolGrants(args.tools),
-          ],
-        },
-        expiresAt: args.deadlineAt,
-      },
-    );
+    // The same grant set and caller as the first start, for the rotated exec.
+    await insertTaskTurnSessionToken(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId,
+      harness: args.harness,
+      connectors: args.connectors,
+      tools: args.tools,
+      deadlineAt: args.deadlineAt,
+      prepared,
+    });
 
     const outputDir = taskOutputDir(args.taskId);
     // Same handle hygiene as the kick lane: the id is parsed CLI stdout, so
