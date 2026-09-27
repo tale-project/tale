@@ -303,9 +303,19 @@ describe('Button', () => {
     });
 
     it('has visible focus ring class', () => {
-      render(<Button>Focus me</Button>);
+      render(<Button variant="secondary">Focus me</Button>);
       const button = screen.getByRole('button');
       expect(button.className).toContain('focus-visible:ring-1');
+    });
+
+    it('rings a focused primary button in its ink, drawn on the fill', () => {
+      // `button.browser.test.tsx` measures the painted ring; the shared
+      // `ring-ring` matched the fill and vanished.
+      render(<Button>Focus me</Button>);
+      const button = screen.getByRole('button');
+      expect(button.className).toContain('focus-visible:ring-2');
+      expect(button.className).toContain('focus-visible:ring-accent-fg');
+      expect(button.className).not.toContain('focus-visible:ring-ring');
     });
 
     it('disabled button has disabled attribute', () => {
