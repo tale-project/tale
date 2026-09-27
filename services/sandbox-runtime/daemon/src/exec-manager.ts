@@ -82,6 +82,9 @@ export class ExecManager {
   constructor(
     private readonly envStore: EnvStore,
     private readonly onActivity: () => void,
+    /** Runs just before each child spawns (runnerd: the built-in skill
+     * links, `baked-skills.ts`); must not throw. */
+    private readonly beforeSpawn: () => void = () => {},
   ) {}
 
   liveCount(): number {
@@ -222,6 +225,7 @@ export class ExecManager {
     const args = hasShell ? ['-lc', shell ?? ''] : (command?.slice(1) ?? []);
 
     this.onActivity();
+    this.beforeSpawn();
     const startedAtMs = Date.now();
     const child = spawn(cmd, args, {
       cwd,
