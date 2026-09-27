@@ -73,11 +73,14 @@ export function eventsUrl(orgId: string): string {
 
 /**
  * The `BackendApiError` a non-2xx answer's parsed body becomes — the one
- * reading of the app's error envelope (`{ error: <code>, message?, data? }`)
- * that {@link backendFetch} and the raw-fetch lanes (the chat turn, the
- * upload POSTs) share: the handler's `message`, else its `error`, as the
- * message; `error` as the code; `data` beside them. A body that is not an
- * object (a proxy page, an empty 502) keeps the status text.
+ * reading of the app's error envelopes that {@link backendFetch} and the
+ * raw-fetch lanes (the chat turn, the upload POSTs, the product image)
+ * share. Two envelopes answer: `{ error: <CODE>, message?, data? }`, and the
+ * flat `{ error: <sentence>, code: <CODE> }` (the session 401, the URL
+ * guards, the API 404). The handler's `message`, else its `error`, is the
+ * message; a non-empty string `code`, else `error`, is the code; `data`
+ * rides beside them. A body that is not an object (a proxy page, an empty
+ * 502) keeps the status text.
  */
 export function backendApiErrorFromBody(
   status: number,
@@ -94,7 +97,9 @@ export function backendApiErrorFromBody(
     } else if (typeof record.error === 'string') {
       message = record.error;
     }
-    if (typeof record.error === 'string') {
+    if (typeof record.code === 'string' && record.code.length > 0) {
+      code = record.code;
+    } else if (typeof record.error === 'string') {
       code = record.error;
     }
     if (record.data !== null && typeof record.data === 'object') {

@@ -15,6 +15,7 @@
 
 import type { QueryClient } from '@tanstack/react-query';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
 import {
   backendErrorCode,
@@ -273,9 +274,10 @@ export function isBackendRefusal(error: unknown): boolean {
  * What a refusal says about itself, for the description under a surface's
  * localized title: the sentence the handler wrote, else its bare code — a
  * door that answers only `{ error: <code> }` names why with nothing else.
- * Reads a raw-lane `BackendApiError` and an adapted `AppError` alike.
- * Undefined for a fault (a 5xx, a network failure) and for an answer that
- * carried no code (a proxy page).
+ * Reads a raw-lane `BackendApiError` and an adapted `AppError` alike. A
+ * lapsed session (`UNAUTHORIZED`) reads as the localized "session ended"
+ * sentence. Undefined for a fault (a 5xx, a network failure) and for an
+ * answer that carried no code (a proxy page).
  */
 export function backendRefusalDetail(error: unknown): string | undefined {
   if (error instanceof BackendApiError && error.status >= 500) {
@@ -284,6 +286,12 @@ export function backendRefusalDetail(error: unknown): string | undefined {
   const refusal = toBackendError(error);
   const code = backendErrorCode(refusal);
   if (code === undefined) return undefined;
+  // A lapsed session: the door's sentence is guidance for an API client
+  // (`backendRefusalReason` withholds it), so the person reads why in their
+  // own language instead of a bare `UNAUTHORIZED`.
+  if (code === 'UNAUTHORIZED') {
+    return i18n.t('errors.sessionEnded', { ns: 'common' });
+  }
   return backendRefusalReason(refusal) ?? code;
 }
 
