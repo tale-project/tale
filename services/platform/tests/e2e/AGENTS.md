@@ -52,7 +52,7 @@ The `lib/mocks` gateway (booted by `playwright.config.ts`, port 4141) stands in
 for every third-party API offline: a canned chat reply plus Prism-mocked AI
 endpoints and connector APIs. Keyword triggers in a message exercise specific
 chat paths — see [`lib/mocks` canned content](../../lib/mocks/overrides/canned.ts):
-`e2e:reasoning`, `e2e:humaninput`, `e2e:error`. Connector
+`e2e:reasoning`, `e2e:error`. Connector
 specs (`specs/connectors.spec.ts`) drive the real connector → gateway path via
 `TALE_MOCK_CONNECTORS_BASE`.
 

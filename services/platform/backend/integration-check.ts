@@ -63,6 +63,7 @@ import { checkBrokerAccountSelection } from './domains/provider_credentials/brok
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
+import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
@@ -53889,6 +53890,10 @@ async function main(): Promise<void> {
       [
         'checkTaskRunStartFence',
         () => checkTaskRunStartFence(sql, authCtx, record),
+      ],
+      [
+        'checkSessionOpTranscriptMerge',
+        () => checkSessionOpTranscriptMerge(sql, authCtx, record),
       ],
       [
         'checkTaskExternalIssueSync',

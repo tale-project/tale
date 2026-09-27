@@ -1,6 +1,10 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  mergeTimelineParts,
+  type TimelinePart,
+} from '../../../lib/harnesses/timeline';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
@@ -424,7 +428,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         kind: string;
         status: 'running' | 'completed' | 'failed' | 'cancelled';
         progressText?: string;
-        liveTimeline?: unknown[];
+        liveTimeline?: TimelinePart[];
         agentSessionId?: string;
         exitCode?: number;
         agentResultStatus?: string;
@@ -446,88 +450,115 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // its spend fact closes at the terminal stamp, which also releases the
       // budget reservation it may hold.
       const keyless = args.mintedKeyId === undefined;
-      const rows = await sql<{ id: string }[]>`
-        INSERT INTO app.sandbox_session_ops (
-          org_id, session_id, thread_id, exec_id, kind, status,
-          progress_text, live_timeline, agent_session_id, exit_code,
-          agent_result_status, user_id, model_ref, vision_model_ref,
-          agent_slug, deadline_ms, heartbeat_at_ms, last_event_at_ms,
-          last_seq, minted_key_id, spent_cents, budget_cents,
-          spend_settled_at_ms, started_at_ms, finished_at_ms
-        ) VALUES (
-          ${args.organizationId}, ${args.sessionId}, ${args.threadId ?? null},
-          ${args.execId}, ${args.kind}, ${args.status},
-          ${args.progressText ?? null},
-          ${args.liveTimeline === undefined ? null : sql.json(toJson(args.liveTimeline))},
-          ${args.agentSessionId ?? null}, ${args.exitCode ?? null},
-          ${args.agentResultStatus ?? null}, ${args.userId ?? null},
-          ${args.modelRef ?? null}, ${args.visionModelRef ?? null},
-          ${args.agentSlug ?? null}, ${args.deadlineMs ?? null},
-          ${args.heartbeatAt ?? now}, ${args.lastEventAt ?? null},
-          ${args.lastSeq ?? null}, ${args.mintedKeyId ?? null},
-          ${args.spentCents ?? null}, ${args.budgetCents ?? null},
-          ${terminal && keyless ? now : null}, ${now},
-          ${terminal ? now : null}
-        )
-        ON CONFLICT (session_id, exec_id) DO UPDATE SET
-          -- A settled op never returns to running (late racer flushes).
-          status = CASE
-            WHEN app.sandbox_session_ops.status <> 'running'
-              AND EXCLUDED.status = 'running'
-            THEN app.sandbox_session_ops.status
-            ELSE EXCLUDED.status END,
-          progress_text = coalesce(EXCLUDED.progress_text,
-            app.sandbox_session_ops.progress_text),
-          -- Transcript keeps the longer projection (a fresh window's first
-          -- flush must not wipe a long turn's transcript).
-          live_timeline = CASE
-            WHEN EXCLUDED.live_timeline IS NULL
-              THEN app.sandbox_session_ops.live_timeline
-            WHEN app.sandbox_session_ops.live_timeline IS NULL
-              THEN EXCLUDED.live_timeline
-            WHEN jsonb_array_length(EXCLUDED.live_timeline)
-              >= jsonb_array_length(app.sandbox_session_ops.live_timeline)
-              THEN EXCLUDED.live_timeline
-            ELSE app.sandbox_session_ops.live_timeline END,
-          agent_session_id = coalesce(EXCLUDED.agent_session_id,
-            app.sandbox_session_ops.agent_session_id),
-          exit_code = coalesce(EXCLUDED.exit_code,
-            app.sandbox_session_ops.exit_code),
-          agent_result_status = coalesce(EXCLUDED.agent_result_status,
-            app.sandbox_session_ops.agent_result_status),
-          model_ref = coalesce(EXCLUDED.model_ref,
-            app.sandbox_session_ops.model_ref),
-          vision_model_ref = coalesce(EXCLUDED.vision_model_ref,
-            app.sandbox_session_ops.vision_model_ref),
-          deadline_ms = coalesce(EXCLUDED.deadline_ms,
-            app.sandbox_session_ops.deadline_ms),
-          heartbeat_at_ms = coalesce(EXCLUDED.heartbeat_at_ms,
-            app.sandbox_session_ops.heartbeat_at_ms),
-          -- Monotonic: a stale in-flight racer must not regress it.
-          last_event_at_ms = greatest(
-            coalesce(EXCLUDED.last_event_at_ms, 0),
-            coalesce(app.sandbox_session_ops.last_event_at_ms, 0)),
-          last_seq = greatest(coalesce(EXCLUDED.last_seq, 0),
-            coalesce(app.sandbox_session_ops.last_seq, 0)),
-          minted_key_id = coalesce(EXCLUDED.minted_key_id,
-            app.sandbox_session_ops.minted_key_id),
-          spent_cents = coalesce(EXCLUDED.spent_cents,
-            app.sandbox_session_ops.spent_cents),
-          budget_cents = coalesce(EXCLUDED.budget_cents,
-            app.sandbox_session_ops.budget_cents),
-          spend_settled_at_ms = CASE
-            WHEN app.sandbox_session_ops.spend_settled_at_ms IS NOT NULL
-              THEN app.sandbox_session_ops.spend_settled_at_ms
-            WHEN EXCLUDED.status <> 'running'
-              AND coalesce(EXCLUDED.minted_key_id,
-                app.sandbox_session_ops.minted_key_id) IS NULL
-              THEN ${now}
-            ELSE NULL END,
-          finished_at_ms = CASE WHEN EXCLUDED.status <> 'running'
-            THEN ${now} ELSE app.sandbox_session_ops.finished_at_ms END
-        RETURNING id
-      `;
-      return rows[0]?.id ?? null;
+      const upsert = async (
+        db: Sql | TransactionSql,
+        liveTimeline: TimelinePart[] | undefined,
+      ): Promise<string | null> => {
+        const rows = await db<{ id: string }[]>`
+          INSERT INTO app.sandbox_session_ops (
+            org_id, session_id, thread_id, exec_id, kind, status,
+            progress_text, live_timeline, agent_session_id, exit_code,
+            agent_result_status, user_id, model_ref, vision_model_ref,
+            agent_slug, deadline_ms, heartbeat_at_ms, last_event_at_ms,
+            last_seq, minted_key_id, spent_cents, budget_cents,
+            spend_settled_at_ms, started_at_ms, finished_at_ms
+          ) VALUES (
+            ${args.organizationId}, ${args.sessionId}, ${args.threadId ?? null},
+            ${args.execId}, ${args.kind}, ${args.status},
+            ${args.progressText ?? null},
+            ${liveTimeline === undefined ? null : db.json(toJson(liveTimeline))},
+            ${args.agentSessionId ?? null}, ${args.exitCode ?? null},
+            ${args.agentResultStatus ?? null}, ${args.userId ?? null},
+            ${args.modelRef ?? null}, ${args.visionModelRef ?? null},
+            ${args.agentSlug ?? null}, ${args.deadlineMs ?? null},
+            ${args.heartbeatAt ?? now}, ${args.lastEventAt ?? null},
+            ${args.lastSeq ?? null}, ${args.mintedKeyId ?? null},
+            ${args.spentCents ?? null}, ${args.budgetCents ?? null},
+            ${terminal && keyless ? now : null}, ${now},
+            ${terminal ? now : null}
+          )
+          ON CONFLICT (session_id, exec_id) DO UPDATE SET
+            -- A settled op never returns to running (late racer flushes).
+            status = CASE
+              WHEN app.sandbox_session_ops.status <> 'running'
+                AND EXCLUDED.status = 'running'
+              THEN app.sandbox_session_ops.status
+              ELSE EXCLUDED.status END,
+            progress_text = coalesce(EXCLUDED.progress_text,
+              app.sandbox_session_ops.progress_text),
+            -- A transcript arrives already merged into the stored one (the
+            -- locked read below); a write without one keeps the stored one.
+            live_timeline = coalesce(EXCLUDED.live_timeline,
+              app.sandbox_session_ops.live_timeline),
+            agent_session_id = coalesce(EXCLUDED.agent_session_id,
+              app.sandbox_session_ops.agent_session_id),
+            exit_code = coalesce(EXCLUDED.exit_code,
+              app.sandbox_session_ops.exit_code),
+            agent_result_status = coalesce(EXCLUDED.agent_result_status,
+              app.sandbox_session_ops.agent_result_status),
+            model_ref = coalesce(EXCLUDED.model_ref,
+              app.sandbox_session_ops.model_ref),
+            vision_model_ref = coalesce(EXCLUDED.vision_model_ref,
+              app.sandbox_session_ops.vision_model_ref),
+            deadline_ms = coalesce(EXCLUDED.deadline_ms,
+              app.sandbox_session_ops.deadline_ms),
+            heartbeat_at_ms = coalesce(EXCLUDED.heartbeat_at_ms,
+              app.sandbox_session_ops.heartbeat_at_ms),
+            -- Monotonic: a stale in-flight racer must not regress it.
+            last_event_at_ms = greatest(
+              coalesce(EXCLUDED.last_event_at_ms, 0),
+              coalesce(app.sandbox_session_ops.last_event_at_ms, 0)),
+            last_seq = greatest(coalesce(EXCLUDED.last_seq, 0),
+              coalesce(app.sandbox_session_ops.last_seq, 0)),
+            minted_key_id = coalesce(EXCLUDED.minted_key_id,
+              app.sandbox_session_ops.minted_key_id),
+            spent_cents = coalesce(EXCLUDED.spent_cents,
+              app.sandbox_session_ops.spent_cents),
+            budget_cents = coalesce(EXCLUDED.budget_cents,
+              app.sandbox_session_ops.budget_cents),
+            spend_settled_at_ms = CASE
+              WHEN app.sandbox_session_ops.spend_settled_at_ms IS NOT NULL
+                THEN app.sandbox_session_ops.spend_settled_at_ms
+              WHEN EXCLUDED.status <> 'running'
+                AND coalesce(EXCLUDED.minted_key_id,
+                  app.sandbox_session_ops.minted_key_id) IS NULL
+                THEN ${now}
+              ELSE NULL END,
+            finished_at_ms = CASE WHEN EXCLUDED.status <> 'running'
+              THEN ${now} ELSE app.sandbox_session_ops.finished_at_ms END
+          RETURNING id
+        `;
+        return rows[0]?.id ?? null;
+      };
+      const incoming = args.liveTimeline;
+      if (incoming === undefined) return upsert(sql, undefined);
+      // The transcript MERGES instead of replacing: every drain window
+      // rebuilds its projection from scratch over the exec's bounded ring
+      // buffer, so a flush can be a short, overlapping or disjoint view of a
+      // long turn. Picking one side by length lost entries either way (a
+      // disjoint window as long as the row wiped it; a short one carrying a
+      // new tool call was dropped). The row lock orders concurrent flushes,
+      // so each folds into what the previous one wrote.
+      return sql.begin(async (tx) => {
+        const lockStored = () => tx<{ liveTimeline: TimelinePart[] | null }[]>`
+          SELECT live_timeline AS "liveTimeline"
+          FROM app.sandbox_session_ops
+          WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
+          FOR UPDATE
+        `;
+        let stored = await lockStored();
+        if (stored.length === 0) {
+          // No row to lock yet. Write it without the transcript first — that
+          // inserts it, or lands on the row a concurrent first write just
+          // inserted — so the merge below still folds into what is stored.
+          await upsert(tx, undefined);
+          stored = await lockStored();
+        }
+        return upsert(
+          tx,
+          mergeTimelineParts(stored[0]?.liveTimeline ?? undefined, incoming),
+        );
+      });
     },
 
     'sandbox/session_mutations:claimSessionOpFinalize': async (raw) => {

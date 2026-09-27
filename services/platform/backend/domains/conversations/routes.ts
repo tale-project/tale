@@ -1,3 +1,4 @@
+import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -270,7 +271,7 @@ export function createConversationRoutes(deps: {
         content: z.string().min(1).max(200_000),
         isCustomer: z.boolean().optional(),
         externalMessageId: z.string().max(512).optional(),
-        sentAt: z.number().optional(),
+        sentAt: epochMsSchema.optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
       })
       .safeParse(await c.req.json());

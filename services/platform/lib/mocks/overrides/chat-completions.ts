@@ -17,7 +17,7 @@
  *   - `response_format` of any other `json*` type → `{}` (router / title
  *     generation parse the content as JSON and must never choke).
  *   - A user message containing a `MOCK_TRIGGERS` substring switches into the
- *     matching scenario (reasoning / next-steps / human-input tool / error).
+ *     matching scenario (reasoning / error).
  *
  * The exact `delta` wire fields (`content`, `reasoning_content`, `tool_calls`)
  * match what `@ai-sdk/openai-compatible` reads in
@@ -26,13 +26,6 @@
 
 import {
   CANNED_ERROR_MESSAGE,
-  CANNED_FILE_WRITE_ACK,
-  CANNED_FILE_WRITE_FILES,
-  CANNED_HUMAN_INPUT_ACK,
-  CANNED_HUMAN_INPUT_FIELD_LABEL,
-  CANNED_HUMAN_INPUT_QUESTION,
-  CANNED_PLAN_ACK,
-  CANNED_PLAN_TODOS,
   CANNED_REASONING,
   CANNED_REASONING_ANSWER,
   CANNED_REPLY,
@@ -47,46 +40,9 @@ import {
 /** Canned content for structured-output requests (`response_format` json*). */
 const CANNED_JSON_REPLY = '{}';
 
-/** The `request_human_input` tool-call arguments (must satisfy its zod schema). */
+/** The tools a docs entry's scripted tool turn calls (`docsToolCallDeltas`). */
 const HUMAN_INPUT_TOOL_NAME = 'request_human_input';
-const HUMAN_INPUT_ARGS = JSON.stringify({
-  question: CANNED_HUMAN_INPUT_QUESTION,
-  fields: [
-    { type: 'text', label: CANNED_HUMAN_INPUT_FIELD_LABEL, required: true },
-  ],
-});
-
-/** `file_write` tool call — one per canned file (must satisfy its zod schema). */
 const FILE_WRITE_TOOL_NAME = 'file_write';
-const FILE_WRITE_TOOL_CALLS: ToolCallDelta[] = CANNED_FILE_WRITE_FILES.map(
-  (file, index) => ({
-    index,
-    id: `call_e2e_fw_${index}`,
-    type: 'function' as const,
-    function: {
-      name: FILE_WRITE_TOOL_NAME,
-      arguments: JSON.stringify({ path: file.path, content: file.content }),
-    },
-  }),
-);
-
-/** `update_todos` tool call — seed the plan, first todo in progress. */
-const UPDATE_TODOS_TOOL_NAME = 'update_todos';
-const PLAN_TOOL_ARGS = JSON.stringify({
-  opId: 'e2e-plan-seed-0001',
-  operations: [
-    ...CANNED_PLAN_TODOS.map((todo) => ({
-      type: 'add' as const,
-      id: todo.id,
-      content: todo.content,
-    })),
-    {
-      type: 'update' as const,
-      id: CANNED_PLAN_TODOS[0].id,
-      status: 'in_progress' as const,
-    },
-  ],
-});
 
 /** One parsed chat message — only the fields the scenario logic needs. */
 interface ParsedMessage {
@@ -175,12 +131,6 @@ type Scenario =
   | 'docsTool'
   | 'taskTriage'
   | 'reasoning'
-  | 'humanInputTool'
-  | 'humanInputAck'
-  | 'fileWriteTool'
-  | 'fileWriteAck'
-  | 'planTool'
-  | 'planAck'
   | 'error';
 
 function userTexts(messages: ParsedMessage[]): string[] {
@@ -242,10 +192,8 @@ function matchDocsReplyInConversation(
 /**
  * True once the conversation already carries a tool call / result (or the
  * injected `<human_response>` context) — i.e. a post-tool resume turn, where a
- * tool scenario must answer in plain text instead of re-emitting its tool call
- * (which would loop). Shared by every tool scenario (human-input, file-write,
- * plan): the trigger keyword lives in the pinned user message, so scenario
- * identity is chosen by the keyword and only the tool-vs-ack phase toggles here.
+ * tool-scripted docs entry must answer its `reply` in plain text instead of
+ * re-emitting its tool call (which would loop).
  */
 function isToolResume(messages: ParsedMessage[]): boolean {
   return messages.some(
@@ -283,15 +231,6 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   if ((body.response_format?.type ?? '').startsWith('json')) return 'canned';
   const users = userTexts(messages);
   const resume = isToolResume(messages);
-  if (users.some((text) => text.includes(MOCK_TRIGGERS.humanInput))) {
-    return resume ? 'humanInputAck' : 'humanInputTool';
-  }
-  if (users.some((text) => text.includes(MOCK_TRIGGERS.fileWrite))) {
-    return resume ? 'fileWriteAck' : 'fileWriteTool';
-  }
-  if (users.some((text) => text.includes(MOCK_TRIGGERS.plan))) {
-    return resume ? 'planAck' : 'planTool';
-  }
   const last = users[users.length - 1] ?? '';
   if (last.includes(MOCK_TRIGGERS.error)) return 'error';
   if (last.includes(MOCK_TRIGGERS.reasoning)) return 'reasoning';
@@ -349,12 +288,6 @@ function scenarioContent(
       return triageScore(body) ?? CANNED_JSON_REPLY;
     case 'reasoning':
       return CANNED_REASONING_ANSWER;
-    case 'humanInputAck':
-      return CANNED_HUMAN_INPUT_ACK;
-    case 'fileWriteAck':
-      return CANNED_FILE_WRITE_ACK;
-    case 'planAck':
-      return CANNED_PLAN_ACK;
     default: {
       const formatType = body.response_format?.type ?? '';
       return formatType.startsWith('json') ? CANNED_JSON_REPLY : CANNED_REPLY;
@@ -377,7 +310,7 @@ function completionId(): string {
  *    and a docs phrase that silently fell back to the canned reply would ship a
  *    fake-looking shot.
  *
- * The streaming-chat e2e scenarios (reasoning/humanInput) must NOT leak here:
+ * The streaming-chat e2e scenario (reasoning) must NOT leak here:
  * thread-title generation is a non-streamed `generateText` call whose prompt is
  * the user's first message, so routing it to a streaming scenario would put
  * that scenario's canned content in the thread title.
@@ -484,37 +417,6 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
       // Every stream opens with the assistant role delta.
       sendDelta({ role: 'assistant' }, null);
 
-      if (scenario === 'humanInputTool') {
-        // Tool-call: name MUST be on the first tool_calls delta; arguments are
-        // streamed and must parse as JSON by the end. finish_reason=tool_calls.
-        sendDelta(
-          {
-            tool_calls: [
-              {
-                index: 0,
-                id: `call_e2e_${Date.now().toString(36)}`,
-                type: 'function',
-                function: { name: HUMAN_INPUT_TOOL_NAME, arguments: '' },
-              },
-            ],
-          },
-          null,
-        );
-        await pause();
-        sendDelta(
-          {
-            tool_calls: [
-              { index: 0, function: { arguments: HUMAN_INPUT_ARGS } },
-            ],
-          },
-          null,
-        );
-        sendDelta({}, 'tool_calls', USAGE);
-        send('data: [DONE]\n\n');
-        controller.close();
-        return;
-      }
-
       // A docs entry's scripted tool turn: reasoning first (thinking before
       // acting reads naturally on camera), then the tool call(s). The agent
       // executes them and loops back; the resume turn streams the `reply`.
@@ -537,36 +439,6 @@ function streamedCompletion(body: ChatCompletionRequest): Response {
           }
         }
         for (const call of docsToolCallDeltas(docsTool.tool)) {
-          sendDelta({ tool_calls: [call] }, null);
-          await pause();
-        }
-        sendDelta({}, 'tool_calls', USAGE);
-        send('data: [DONE]\n\n');
-        controller.close();
-        return;
-      }
-
-      if (scenario === 'fileWriteTool' || scenario === 'planTool') {
-        // Batch tool call(s): every `file_write` executes server-side (no
-        // sandbox), landing files the Canvas/Workspace panes render; the single
-        // `update_todos` seeds the Plan pane. Names ride the first delta per
-        // index; arguments are pre-serialized and valid. finish=tool_calls, so
-        // the agent runs the tools and loops back for the plain-text ack turn.
-        const toolCalls =
-          scenario === 'fileWriteTool'
-            ? FILE_WRITE_TOOL_CALLS
-            : [
-                {
-                  index: 0,
-                  id: `call_e2e_plan_${Date.now().toString(36)}`,
-                  type: 'function' as const,
-                  function: {
-                    name: UPDATE_TODOS_TOOL_NAME,
-                    arguments: PLAN_TOOL_ARGS,
-                  },
-                },
-              ];
-        for (const call of toolCalls) {
           sendDelta({ tool_calls: [call] }, null);
           await pause();
         }

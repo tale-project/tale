@@ -1711,6 +1711,12 @@ connectivity:
   retry: Réessayer
   getApp: Obtenir l'application
   reachingServer: Connexion au serveur en cours
+  newVersion:
+    title: Une nouvelle version est disponible
+    description: Cet onglet utilise encore la version précédente, une partie de
+      la page n'a donc pas pu se charger. Recharge la page pour continuer.
+    reload: Recharger
+    later: Plus tard
 conversations:
   title: Boîte de réception
   unknownContact: Contact inconnu
