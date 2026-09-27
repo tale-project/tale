@@ -820,38 +820,41 @@ print("TALE_VISION_FUNCTIONAL_OK")
 
 console.log('');
 console.log('--- built-in skills reach every harness ---');
-// The daemon entrypoint links each image-baked skill (/opt/agents/skills) into
-// every harness's native user-level skill dir. Only Claude Code's was linked
-// before, so Codex, Gemini CLI, Qwen Code, Pi, Hermes and OpenClaw never listed
-// the built-in visual-aspect-analyzer (#2790). Against a booted session: every
-// registry harness has a dir in the table below, each dir holds the link, and
-// every managed harness — run with its golden managed exec against a stub model
-// endpoint that records each request — names the skill in its first model
-// request and, when the workspace repository ships a skill of the same name,
-// lists the copy the table (and the runtime README) states.
+// runnerd links each image-baked skill (/opt/agents/skills) into every
+// harness's native user-level skill dir. Only Claude Code's was linked before,
+// so Codex, Gemini CLI, Qwen Code, Pi, Hermes and OpenClaw never listed the
+// built-in visual-aspect-analyzer, and nothing withdrew the link when the
+// workspace repository shipped a skill of the same name (#2790). Against a
+// booted session: every registry harness has a dir in the table below, each dir
+// holds the link, and every managed harness — its golden managed exec run
+// through runnerd, as a platform turn is, against a stub model endpoint that
+// records each request — names the skill in its first model request and, when
+// the workspace repository ships a skill of the same name, lists the copy the
+// table (and the runtime README) states.
 {
   const SKILL = 'visual-aspect-analyzer';
   const HOME = '/agent/.runtime/home';
   /** Each harness's native user-level skill dir under the session HOME, and
-   * the copy it lists when the workspace repository ships a same-named skill;
-   * `null` where nothing is asserted: no project-level skills (Hermes), no
-   * managed lane to run (Cursor), or a loader that keeps whichever copy
-   * finishes loading last (OpenCode). Verified against the pinned CLIs; keep
-   * in step with services/sandbox-runtime/README.md "Built-in skills". */
+   * the copy it lists when the workspace repository ships a same-named skill
+   * in `.claude/skills` and `.agents/skills`; `null` for Cursor, which has no
+   * managed lane to run. Verified against the pinned CLIs; keep in step with
+   * services/sandbox-runtime/README.md "Built-in skills". */
   const SKILL_HOMES: Record<
     string,
-    { dir: string; repoCopy: 'repo' | 'baked' | 'both' | null }
+    { dir: string; repoCopy: 'repo' | 'baked' | null }
   > = {
-    'claude-code': { dir: '.claude/skills', repoCopy: 'baked' },
-    codex: { dir: '.agents/skills', repoCopy: 'both' },
+    'claude-code': { dir: '.claude/skills', repoCopy: 'repo' },
+    codex: { dir: '.agents/skills', repoCopy: 'repo' },
     cursor: { dir: '.agents/skills', repoCopy: null },
     gemini: { dir: '.agents/skills', repoCopy: 'repo' },
-    hermes: { dir: '.hermes/skills', repoCopy: null },
+    // Hermes reads no project-level skills, so it keeps the baked one.
+    hermes: { dir: '.hermes/skills', repoCopy: 'baked' },
     openclaw: { dir: '.agents/skills', repoCopy: 'repo' },
-    opencode: { dir: '.agents/skills', repoCopy: null },
+    opencode: { dir: '.agents/skills', repoCopy: 'repo' },
     pi: { dir: '.agents/skills', repoCopy: 'repo' },
     'qwen-code': { dir: '.agents/skills', repoCopy: 'repo' },
   };
+  const SKILL_DIRS = [...new Set(Object.values(SKILL_HOMES).map((h) => h.dir))];
   const REPO_MARKER = 'REPO-OWNED-SKILL-MARKER';
   // A plain-ASCII lead of the baked description: every harness lists it
   // verbatim (JSON escapes nothing in it), Hermes included, which truncates.
@@ -930,6 +933,40 @@ ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
       ],
       stdin === undefined ? {} : { stdin },
     );
+  /** One exec through runnerd's own door, the way a platform turn reaches a
+   * harness: runnerd reconciles the skill links before it spawns the child.
+   * Answers runnerd's last NDJSON event (the exit, or its refusal). */
+  const runnerdExec = async (body: {
+    execId: string;
+    command: string[];
+    cwd: string;
+    env?: Record<string, string>;
+    stdin?: string;
+  }): Promise<string> => {
+    const { stdout } = await inSession(
+      "curl -sS -N --max-time 180 -H 'content-type: application/json' --data-binary @- http://127.0.0.1:8200/execs",
+      JSON.stringify({
+        execId: body.execId,
+        command: body.command,
+        cwd: body.cwd,
+        env: body.env ?? {},
+        stdinBase64: Buffer.from(body.stdin ?? '').toString('base64'),
+        stdinMode: 'close',
+        timeoutMs: 120_000,
+        stdoutMaxBytes: 1_000_000,
+        stderrMaxBytes: 1_000_000,
+      }),
+    );
+    return stdout.trim().split('\n').at(-1) ?? '';
+  };
+  const linkState = async (dir: string): Promise<'linked' | 'absent'> =>
+    (
+      await inSession(
+        `test -L ${HOME}/${dir}/${SKILL} && test -f ${HOME}/${dir}/${SKILL}/SKILL.md`,
+      )
+    ).exitCode === 0
+      ? 'linked'
+      : 'absent';
   try {
     let ready = false;
     for (let i = 0; i < 20; i++) {
@@ -945,13 +982,10 @@ ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
     if (!ready) {
       fail('runnerd did not become ready for the built-in skills check');
     } else {
-      for (const dir of new Set(Object.values(SKILL_HOMES).map((h) => h.dir))) {
-        const link = `${HOME}/${dir}/${SKILL}`;
-        const { exitCode } = await inSession(
-          `test -L ${link} && test -f ${link}/SKILL.md`,
-        );
-        if (exitCode === 0) pass(`${dir}/${SKILL} links the baked skill`);
-        else fail(`${dir}/${SKILL} does not link the baked skill`);
+      for (const dir of SKILL_DIRS) {
+        if ((await linkState(dir)) === 'linked') {
+          pass(`${dir}/${SKILL} links the baked skill`);
+        } else fail(`${dir}/${SKILL} does not link the baked skill`);
       }
       await inSession('cat > /agent/.runtime/tmp/skill-stub.py', STUB);
       let port = 18100;
@@ -968,6 +1002,20 @@ ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
               'git init -q .',
             ].join('\n'),
           );
+          // The next exec withdraws the links whose harnesses read the
+          // repository's copy; Hermes reads none, so it keeps its link.
+          await runnerdExec({
+            execId: 'skills-withdraw',
+            command: ['true'],
+            cwd: '/agent/workspace',
+          });
+          for (const dir of SKILL_DIRS) {
+            const want = dir === '.hermes/skills' ? 'linked' : 'absent';
+            const got = await linkState(dir);
+            const verdict = `${dir}/${SKILL} is ${got} beside the repository's copy`;
+            if (got === want) pass(verdict);
+            else fail(`${verdict} (expected ${want})`);
+          }
         }
         for (const slug of slugs) {
           const home = SKILL_HOMES[slug];
@@ -1007,34 +1055,28 @@ ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
           await inSession(
             `for i in $(seq 50); do curl -s -o /dev/null ${stubUrl}/ready && exit 0; sleep 0.1; done; exit 1`,
           );
-          const env = { HOME, TMPDIR: '/agent/.runtime/tmp', ...exec.env };
-          await capture(
-            [
-              'docker',
-              'exec',
-              '-i',
-              '-w',
-              exec.cwd,
-              ...Object.entries(env).flatMap(([key, value]) => [
-                '-e',
-                `${key}=${sub(value)}`,
+          const ended = await runnerdExec({
+            execId: `skills-${phase}-${slug}`,
+            command: exec.argv.map(sub),
+            cwd: exec.cwd,
+            env: Object.fromEntries(
+              Object.entries(exec.env ?? {}).map(([key, value]) => [
+                key,
+                sub(value),
               ]),
-              cid,
-              'timeout',
-              '120',
-              ...exec.argv.map(sub),
-            ],
-            { stdin: sub(exec.stdin ?? '') },
-          );
+            ),
+            stdin: sub(exec.stdin ?? ''),
+          });
           const { stdout: seen } = await inSession(
             `cat ${recorded}/* 2>/dev/null`,
           );
+          const runnerdSaid = ` (runnerd: ${ended.slice(0, 200)})`;
           if (phase === 'baked') {
             if (seen.includes(SKILL) && seen.includes(BAKED_LEAD)) {
               pass(`${slug} lists the baked ${SKILL} in its model request`);
             } else {
               fail(
-                `${slug} does not list the baked ${SKILL} in its model request`,
+                `${slug} does not list the baked ${SKILL} in its model request${runnerdSaid}`,
               );
             }
             continue;
@@ -1051,7 +1093,31 @@ ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
           };
           const verdict = `${slug} lists ${copies[listed]} when the repository ships its own ${SKILL}`;
           if (listed === home.repoCopy) pass(verdict);
-          else fail(`${verdict} (expected ${copies[home.repoCopy ?? 'none']})`);
+          else {
+            fail(
+              `${verdict} (expected ${copies[home.repoCopy ?? 'none']})${runnerdSaid}`,
+            );
+          }
+        }
+      }
+      // The repository drops its copy: the next exec links the baked one again.
+      await inSession(
+        `rm -rf /agent/workspace/.agents/skills/${SKILL} /agent/workspace/.claude/skills/${SKILL}`,
+      );
+      await runnerdExec({
+        execId: 'skills-restore',
+        command: ['true'],
+        cwd: '/agent/workspace',
+      });
+      for (const dir of SKILL_DIRS) {
+        if ((await linkState(dir)) === 'linked') {
+          pass(
+            `${dir}/${SKILL} links the baked skill again without the repository's`,
+          );
+        } else {
+          fail(
+            `${dir}/${SKILL} stays unlinked after the repository dropped its copy`,
+          );
         }
       }
     }

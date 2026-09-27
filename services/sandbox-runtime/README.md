@@ -88,11 +88,11 @@ docker build -f services/sandbox-runtime/Dockerfile .
 
 The image bakes Tale's built-in skills under `/opt/agents/skills/<name>` — today
 the `visual-aspect-analyzer`, with its dependencies and the Playwright MCP's
-Chromium. At every session start the `daemon` dispatch links each one into
-every harness's native user-level skill directory under the session HOME, so
-whichever harness runs a turn lists the skill among its own and runs it in
-place. No agent needs to equip it and no turn stages it. Each directory is
-verified against the CLI version the Dockerfile pins:
+Chromium. runnerd links each one into every harness's native user-level skill
+directory under the session HOME, so whichever harness runs a turn lists the
+skill among its own and runs it in place. No agent needs to equip it and no
+turn stages it. Each directory is verified against the CLI version the
+Dockerfile pins:
 
 | Directory under HOME | Harnesses |
 | -------------------- | --------- |
@@ -100,29 +100,39 @@ verified against the CLI version the Dockerfile pins:
 | `.agents/skills` | Codex, Gemini CLI, Qwen Code, Pi, OpenClaw, OpenCode, Cursor |
 | `.hermes/skills` | Hermes (`HERMES_HOME`) |
 
-A directory or a live link someone put where a link would go is kept, so a
-user-level skill of the same name is never overwritten. Skills equipped on an
-agent are separate: a run stages them under `/agent/workspace/.tale/skills/`
-and names them in its instructions.
-
-When the workspace repository ships a skill of the same name at its root
-(`.agents/skills/<name>` or `.claude/skills/<name>`), each harness's own
-loader decides which copy the model sees:
+A skill the workspace repository ships wins over the baked one of the same
+name. The harnesses cannot settle that on their own — Claude Code ranks user
+skills above project skills, Codex lists both copies and OpenCode keeps
+whichever finishes loading last — so while
+`/agent/workspace/.claude/skills/<name>/SKILL.md` exists runnerd withdraws the
+`<name>` link from `.claude/skills` under HOME, and likewise for
+`.agents/skills`. It reconciles at boot and again before every exec, so a
+repository cloned during one turn decides the next, and a withdrawn link comes
+back once the repository no longer ships the skill. With the repository copy in
+both directories:
 
 | Harness | Lists |
 | ------- | ----- |
-| Gemini CLI, Qwen Code, Pi, OpenClaw | the repository's copy |
-| Claude Code | the baked copy: it ranks user skills above project skills |
-| Codex | both copies, each with its path |
-| OpenCode | either copy: it keeps whichever finishes loading last |
-| Hermes | the baked copy: it has no project-level skills |
+| Claude Code, Codex, Gemini CLI, Qwen Code, Pi, OpenClaw, OpenCode | the repository's copy |
+| Hermes | the baked copy: it reads no project-level skills |
 
-`tests/integration/container-sandbox-runtime-test.ts` holds both tables. It
-checks every link, then runs each managed harness's golden exec against a stub
-model endpoint and asserts the skill in the first model request and the copy
-listed beside a repository skill of the same name. A harness added to the
-registry without a row fails it. Cursor runs only on its own credentials, so
-its directory is checked against its source rather than run there.
+With the copy in one directory only, a harness that does not read that
+directory keeps the baked copy (Claude Code does not read `.agents/skills`),
+and OpenCode, which reads both, may list either.
+
+runnerd touches only its own links: a directory or a live link someone put
+where a link would go is kept, so a user-level skill of the same name is never
+overwritten. Skills equipped on an agent are separate: a run stages them under
+`/agent/workspace/.tale/skills/` and names them in its instructions.
+
+`daemon/src/baked-skills.test.ts` holds the reconcile.
+`tests/integration/container-sandbox-runtime-test.ts` holds both tables against
+a booted session: it checks every link, then runs each managed harness's golden
+exec through runnerd against a stub model endpoint and asserts the skill in the
+first model request, the copy listed beside a repository skill of the same
+name, and the links withdrawn and restored. A harness added to the registry
+without a row fails it. Cursor runs only on its own credentials, so its
+directory is checked against its source rather than run there.
 
 ### Vision lane environment
 

@@ -230,11 +230,11 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
 
 # --- visual-aspect-analyzer builtin skill -----------------------------------
 # Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
-# tool) into the image so a sandbox agent runs it with zero setup: the
-# entrypoint symlinks every `/opt/agents/skills/*/` into each harness's native
-# user-level skill dir (`link_baked_skills`; README "Built-in skills"), so
-# every harness discovers it as its own skill and runs it in place. Copied
-# from its `configs/platform/custom/skills/` source workspace — the dockerignore keeps
+# tool) into the image so a sandbox agent runs it with zero setup: runnerd
+# symlinks every `/opt/agents/skills/*/` into each harness's native user-level
+# skill dir (`daemon/src/baked-skills.ts`; README "Built-in skills"), so every
+# harness discovers it as its own skill and runs it in place. Copied from its
+# `configs/platform/custom/skills/` source workspace — the dockerignore keeps
 # node_modules out (deps install fresh below); guides, src, and tests all ship,
 # so `bun run e2e` works in the sandbox.
 #

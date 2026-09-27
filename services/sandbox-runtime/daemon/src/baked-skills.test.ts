@@ -1,12 +1,11 @@
-// The session entrypoint links every image-baked skill (/opt/agents/skills)
-// into each harness's native user-level skill directory. Only Claude Code's
-// directory was linked before, so Codex, Gemini CLI, Qwen Code, Pi, Hermes and
-// OpenClaw never saw the built-in visual-aspect-analyzer (#2790). Runs the real
-// `link_baked_skills` helper under sh against temporary roots — the helpers
-// above the dispatch have no side effect until called.
+// runnerd links every image-baked skill (/opt/agents/skills) into each
+// harness's native user-level skill directory. Only Claude Code's directory was
+// linked before, so Codex, Gemini CLI, Qwen Code, Pi, Hermes and OpenClaw never
+// saw the built-in visual-aspect-analyzer, and nothing withdrew the link when
+// the workspace repository shipped a skill of the same name (#2790). Runs the
+// real reconcile against temporary roots.
 
-import { afterAll, describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
+import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 import {
   existsSync,
   lstatSync,
@@ -19,121 +18,201 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+
+import {
+  reconcileBakedSkills,
+  SKILL_HOMES,
+  type BakedSkillPaths,
+} from './baked-skills.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'tale-baked-skills-'));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-const source = readFileSync(
-  resolve(import.meta.dir, '../../entrypoint.sh'),
-  'utf8',
-);
-const helpersEnd = source.indexOf('# K8s transparent-egress native sidecar.');
-if (helpersEnd < 0) throw new Error('entrypoint helpers marker not found');
-const helpers = source.slice(0, helpersEnd);
-
+const VAA = 'visual-aspect-analyzer';
 /** Every harness's native user-level skill directory, relative to HOME. */
 const SKILL_DIRS = ['.claude/skills', '.agents/skills', '.hermes/skills'];
 
 let caseNo = 0;
 
-/** A fresh baked root holding `skills` and an empty session HOME. */
-function fixture(skills: string[]): { baked: string; home: string } {
+/** A fresh bake holding `skills`, an empty session HOME and workspace. */
+function fixture(skills: string[]): BakedSkillPaths {
   caseNo += 1;
   const base = join(root, `case-${caseNo}`);
-  const baked = join(base, 'opt/agents/skills');
-  const home = join(base, 'agent/.runtime/home');
-  mkdirSync(home, { recursive: true });
+  const paths = {
+    baked: join(base, 'opt/agents/skills'),
+    home: join(base, 'agent/.runtime/home'),
+    workspace: join(base, 'agent/workspace'),
+  };
+  mkdirSync(paths.baked, { recursive: true });
+  mkdirSync(paths.home, { recursive: true });
+  mkdirSync(paths.workspace, { recursive: true });
   for (const name of skills) {
-    mkdirSync(join(baked, name), { recursive: true });
+    mkdirSync(join(paths.baked, name), { recursive: true });
     writeFileSync(
-      join(baked, name, 'SKILL.md'),
+      join(paths.baked, name, 'SKILL.md'),
       `---\nname: ${name}\ndescription: baked ${name}\n---\n`,
     );
   }
-  return { baked, home };
+  return paths;
 }
 
-function link(baked: string, home: string): void {
-  const script = helpers
-    .replaceAll('/opt/agents/skills', baked)
-    .replaceAll('/agent/.runtime/home', home);
-  const run = spawnSync('sh', ['-c', `${script}\nDROP=""\nlink_baked_skills`], {
-    encoding: 'utf8',
+/** The workspace repository ships its own `name` under `dir`. */
+function repoShips(paths: BakedSkillPaths, dir: string, name: string): string {
+  const skill = join(paths.workspace, dir, name);
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(join(skill, 'SKILL.md'), `---\nname: ${name}\n---\n`);
+  return skill;
+}
+
+function linksBake(paths: BakedSkillPaths, dir: string, name: string): boolean {
+  const entry = join(paths.home, dir, name);
+  return (
+    lstatSync(entry, { throwIfNoEntry: false })?.isSymbolicLink() === true &&
+    readlinkSync(entry) === join(paths.baked, name)
+  );
+}
+
+describe('reconcileBakedSkills', () => {
+  test('the table covers every directory the harnesses read', () => {
+    expect(SKILL_HOMES.map((home) => home.dir)).toEqual(SKILL_DIRS);
   });
-  expect(run.stderr).toBe('');
-  expect(run.status).toBe(0);
-}
 
-describe('link_baked_skills', () => {
   test('links every baked skill into every harness skill directory', () => {
-    const { baked, home } = fixture(['visual-aspect-analyzer', 'other-skill']);
-    link(baked, home);
+    const paths = fixture([VAA, 'other-skill']);
+    reconcileBakedSkills(paths);
     for (const dir of SKILL_DIRS) {
-      for (const name of ['visual-aspect-analyzer', 'other-skill']) {
-        const entry = join(home, dir, name);
-        expect(lstatSync(entry).isSymbolicLink()).toBe(true);
-        expect(readlinkSync(entry)).toBe(join(baked, name));
-        expect(readFileSync(join(entry, 'SKILL.md'), 'utf8')).toContain(
-          `name: ${name}`,
-        );
+      for (const name of [VAA, 'other-skill']) {
+        expect(linksBake(paths, dir, name)).toBe(true);
+        expect(
+          readFileSync(join(paths.home, dir, name, 'SKILL.md'), 'utf8'),
+        ).toContain(`name: ${name}`);
       }
     }
   });
 
-  test('a second start changes nothing and nests no link in the skill', () => {
-    const { baked, home } = fixture(['visual-aspect-analyzer']);
-    link(baked, home);
-    link(baked, home);
+  test('a second run changes nothing and nests no link in the skill', () => {
+    const paths = fixture([VAA]);
+    reconcileBakedSkills(paths);
+    reconcileBakedSkills(paths);
     for (const dir of SKILL_DIRS) {
-      expect(readlinkSync(join(home, dir, 'visual-aspect-analyzer'))).toBe(
-        join(baked, 'visual-aspect-analyzer'),
-      );
+      expect(linksBake(paths, dir, VAA)).toBe(true);
     }
-    expect(
-      existsSync(join(baked, 'visual-aspect-analyzer/visual-aspect-analyzer')),
-    ).toBe(false);
+    expect(existsSync(join(paths.baked, VAA, VAA))).toBe(false);
   });
 
-  test("keeps someone's own skill of the same name", () => {
-    const { baked, home } = fixture(['visual-aspect-analyzer']);
-    const own = join(home, '.agents/skills/visual-aspect-analyzer');
+  test('withdraws the links whose harnesses read the repository copy', () => {
+    const paths = fixture([VAA, 'other-skill']);
+    reconcileBakedSkills(paths);
+    repoShips(paths, '.claude/skills', VAA);
+    repoShips(paths, '.agents/skills', VAA);
+
+    reconcileBakedSkills(paths);
+
+    expect(existsSync(join(paths.home, '.claude/skills', VAA))).toBe(false);
+    expect(existsSync(join(paths.home, '.agents/skills', VAA))).toBe(false);
+    // Hermes reads no project-level skills, so it keeps the baked one.
+    expect(linksBake(paths, '.hermes/skills', VAA)).toBe(true);
+    for (const dir of SKILL_DIRS) {
+      expect(linksBake(paths, dir, 'other-skill')).toBe(true);
+    }
+  });
+
+  test('withdraws only the link beside the directory the repository uses', () => {
+    const paths = fixture([VAA]);
+    repoShips(paths, '.agents/skills', VAA);
+
+    reconcileBakedSkills(paths);
+
+    expect(existsSync(join(paths.home, '.agents/skills', VAA))).toBe(false);
+    // Claude Code reads no project `.agents/skills`: without the baked link it
+    // would list no copy at all.
+    expect(linksBake(paths, '.claude/skills', VAA)).toBe(true);
+    expect(linksBake(paths, '.hermes/skills', VAA)).toBe(true);
+  });
+
+  test('a repository directory without a SKILL.md withdraws nothing', () => {
+    const paths = fixture([VAA]);
+    mkdirSync(join(paths.workspace, '.claude/skills', VAA), {
+      recursive: true,
+    });
+
+    reconcileBakedSkills(paths);
+
+    expect(linksBake(paths, '.claude/skills', VAA)).toBe(true);
+  });
+
+  test('links again once the repository no longer ships the skill', () => {
+    const paths = fixture([VAA]);
+    const repoCopy = repoShips(paths, '.claude/skills', VAA);
+    reconcileBakedSkills(paths);
+    expect(existsSync(join(paths.home, '.claude/skills', VAA))).toBe(false);
+
+    rmSync(repoCopy, { recursive: true });
+    reconcileBakedSkills(paths);
+
+    expect(linksBake(paths, '.claude/skills', VAA)).toBe(true);
+  });
+
+  test("keeps someone's own skill of the same name, repository or not", () => {
+    const paths = fixture([VAA]);
+    const own = join(paths.home, '.agents/skills', VAA);
     mkdirSync(own, { recursive: true });
     writeFileSync(join(own, 'SKILL.md'), 'own copy');
-    const elsewhere = join(home, 'elsewhere/visual-aspect-analyzer');
+    const elsewhere = join(paths.home, 'elsewhere', VAA);
     mkdirSync(elsewhere, { recursive: true });
-    mkdirSync(join(home, '.claude/skills'), { recursive: true });
-    symlinkSync(elsewhere, join(home, '.claude/skills/visual-aspect-analyzer'));
+    mkdirSync(join(paths.home, '.claude/skills'), { recursive: true });
+    symlinkSync(elsewhere, join(paths.home, '.claude/skills', VAA));
 
-    link(baked, home);
+    reconcileBakedSkills(paths);
+    repoShips(paths, '.claude/skills', VAA);
+    repoShips(paths, '.agents/skills', VAA);
+    reconcileBakedSkills(paths);
 
     expect(lstatSync(own).isDirectory()).toBe(true);
     expect(readFileSync(join(own, 'SKILL.md'), 'utf8')).toBe('own copy');
-    expect(existsSync(join(own, 'visual-aspect-analyzer'))).toBe(false);
-    expect(
-      readlinkSync(join(home, '.claude/skills/visual-aspect-analyzer')),
-    ).toBe(elsewhere);
-    expect(
-      readlinkSync(join(home, '.hermes/skills/visual-aspect-analyzer')),
-    ).toBe(join(baked, 'visual-aspect-analyzer'));
+    expect(existsSync(join(own, VAA))).toBe(false);
+    expect(readlinkSync(join(paths.home, '.claude/skills', VAA))).toBe(
+      elsewhere,
+    );
+    expect(linksBake(paths, '.hermes/skills', VAA)).toBe(true);
   });
 
   test('replaces a dangling link left by an earlier image', () => {
-    const { baked, home } = fixture(['visual-aspect-analyzer']);
-    mkdirSync(join(home, '.agents/skills'), { recursive: true });
-    const stale = join(home, '.agents/skills/visual-aspect-analyzer');
-    symlinkSync(join(home, 'gone/visual-aspect-analyzer'), stale);
+    const paths = fixture([VAA]);
+    mkdirSync(join(paths.home, '.agents/skills'), { recursive: true });
+    symlinkSync(
+      join(paths.home, 'gone', VAA),
+      join(paths.home, '.agents/skills', VAA),
+    );
 
-    link(baked, home);
+    reconcileBakedSkills(paths);
 
-    expect(readlinkSync(stale)).toBe(join(baked, 'visual-aspect-analyzer'));
+    expect(linksBake(paths, '.agents/skills', VAA)).toBe(true);
+  });
+
+  test('a directory it cannot reconcile leaves the others linked', () => {
+    const paths = fixture([VAA]);
+    mkdirSync(join(paths.home, '.claude'), { recursive: true });
+    writeFileSync(join(paths.home, '.claude/skills'), 'not a directory');
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      reconcileBakedSkills(paths);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain('~/.claude/skills');
+    } finally {
+      warn.mockRestore();
+    }
+    expect(linksBake(paths, '.agents/skills', VAA)).toBe(true);
+    expect(linksBake(paths, '.hermes/skills', VAA)).toBe(true);
   });
 
   test('an image without baked skills creates nothing', () => {
-    const { baked, home } = fixture([]);
-    link(baked, home);
+    const paths = fixture([]);
+    reconcileBakedSkills(paths);
+    reconcileBakedSkills({ ...paths, baked: join(paths.baked, 'missing') });
     for (const dir of SKILL_DIRS) {
-      expect(existsSync(join(home, dir))).toBe(false);
+      expect(existsSync(join(paths.home, dir))).toBe(false);
     }
   });
 });
