@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -34,11 +35,21 @@ function setViewport(matches: Record<string, boolean>) {
  * board's card → task detail path. The opener holds focus when `open` flips.
  */
 function StateOpened({ open }: { open: boolean }) {
+  const contentRef = useRef<HTMLDivElement>(null);
   return (
     <>
       <button type="button">Opener</button>
       <ResponsiveDialog open={open} onOpenChange={vi.fn()}>
-        <ResponsiveDialogContent closeLabel="Close">
+        <ResponsiveDialogContent
+          ref={contentRef}
+          closeLabel="Close"
+          onOpenAutoFocus={(event) => {
+            // The task modal starts on its container, including the drawer
+            // whose default autofocus is disabled to avoid the soft keyboard.
+            event.preventDefault();
+            contentRef.current?.focus({ preventScroll: true });
+          }}
+        >
           <ResponsiveDialogTitle>Title</ResponsiveDialogTitle>
           <ResponsiveDialogDescription>Body text</ResponsiveDialogDescription>
         </ResponsiveDialogContent>
@@ -52,9 +63,18 @@ async function expectFocusReturnsToOpener() {
   const opener = screen.getByRole('button', { name: 'Opener' });
   opener.focus();
   rerender(<StateOpened open />);
-  expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveFocus();
   expect(opener).not.toHaveFocus();
   rerender(<StateOpened open={false} />);
+  if (dialog.hasAttribute('data-vaul-drawer')) {
+    // Vaul ships CSS animations, but jsdom never emits their completion.
+    const animationEnd = new Event('animationend', { bubbles: true });
+    Object.defineProperty(animationEnd, 'animationName', {
+      value: window.getComputedStyle(dialog).animationName,
+    });
+    fireEvent(dialog, animationEnd);
+  }
   await waitFor(() =>
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
   );
@@ -78,8 +98,7 @@ describe('ResponsiveDialog', () => {
   describe('desktop variant', () => {
     beforeEach(() => {
       setViewport({
-        '(min-width: 768px)': true,
-        '(min-width: 1024px)': true,
+        '(max-width: 767px)': false,
       });
     });
 
@@ -134,14 +153,14 @@ describe('ResponsiveDialog', () => {
   describe('mobile variant', () => {
     beforeEach(() => {
       setViewport({
-        '(min-width: 768px)': false,
-        '(min-width: 1024px)': false,
+        '(max-width: 767px)': true,
       });
     });
 
     it('renders the drawer content with title', () => {
       render(<Example />);
       // vaul wraps title in role="dialog" too.
+      expect(screen.getByRole('dialog')).toHaveAttribute('data-vaul-drawer');
       expect(screen.getByText('Title')).toBeInTheDocument();
       expect(screen.getByText('Body text')).toBeInTheDocument();
     });
@@ -164,8 +183,7 @@ describe('ResponsiveDialog', () => {
   describe('accessibility', () => {
     beforeEach(() => {
       setViewport({
-        '(min-width: 768px)': true,
-        '(min-width: 1024px)': true,
+        '(max-width: 767px)': false,
       });
     });
 
