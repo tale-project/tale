@@ -423,13 +423,26 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       }
       // The emailed attachments' conversation stamp: the backfill of every
       // attachment indexed before the indexer stamped one, then the backstop.
+      // The same walk releases the corpus copy of every attachment whose
+      // conversation is gone or marked spam — those a delete or a verdict
+      // left behind before its lane queued the release, which the bounded
+      // blob walk above may never reach.
+      const orgRef = { organizationId: org.id, orgSlug: org.slug };
       const mail = await reconcileMailAttachmentStamps(sql, {
-        organizationId: org.id,
-        orgSlug: org.slug,
+        ...orgRef,
+        releaseCorpus: async (refs) => {
+          const outcome = await releaseCorpusRefs(sql, { ...orgRef, refs });
+          for (const failure of outcome.failures) {
+            console.warn(
+              `[knowledge] reconcile release failed for ${failure.ref} (${failure.stage}): ${failure.message}`,
+            );
+          }
+          return outcome;
+        },
       });
-      if (mail.corrected > 0) {
+      if (mail.corrected > 0 || mail.released > 0 || mail.failures > 0) {
         console.info(
-          `[knowledge] stamped the conversation on ${mail.corrected} emailed attachment(s) for ${org.slug} (of scanned=${mail.scanned})`,
+          `[knowledge] emailed attachments for ${org.slug}: stamped=${mail.corrected} released=${mail.released} failures=${mail.failures} (of scanned=${mail.scanned})`,
         );
       }
     } catch (error) {

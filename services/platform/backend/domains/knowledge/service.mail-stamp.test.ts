@@ -200,11 +200,16 @@ describe('emailedAttachmentConversation', () => {
 });
 
 describe('reconcileMailAttachmentStamps — the backfill', () => {
+  interface AttachmentRow {
+    id: string;
+    storageRef: string;
+    conversationId: string;
+    /** Its conversation exists and is not marked spam; default yes. */
+    conversationLive?: boolean;
+  }
+
   /** The app side: attachment rows served a keyset page at a time. */
-  function attachmentsSql(
-    rows: { id: string; storageRef: string; conversationId: string }[],
-    log: Query[],
-  ): Sql {
+  function attachmentsSql(rows: AttachmentRow[], log: Query[]): Sql {
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('$');
       log.push({ text, values });
@@ -214,20 +219,30 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
       return Promise.resolve(
         rows
           .filter((row) => typeof afterId !== 'string' || row.id > afterId)
-          .slice(0, limit),
+          .slice(0, limit)
+          .map((row) => Object.assign({ conversationLive: true }, row)),
       );
     };
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
     return tag as unknown as Sql;
   }
 
-  /** The corpus side: records each statement and answers a row count. */
-  function corpusPool(corrected: number[]) {
+  /** The corpus side: records each statement; an UPDATE answers the next
+   * row count, a SELECT the refs of `held` it was asked about. */
+  function corpusPool(corrected: number[], held: string[] = []) {
     const statements: { text: string; params: unknown[] }[] = [];
     const pool = {
       json: (value: unknown) => ({ json: value }),
       unsafe: (text: string, params: unknown[]) => {
         statements.push({ text, params });
+        if (text.trimStart().startsWith('SELECT')) {
+          const asked = params[1] as string[];
+          return Promise.resolve(
+            held
+              .filter((ref) => asked.includes(ref))
+              .map((ref) => ({ fileId: ref })),
+          );
+        }
         return Promise.resolve({ count: corrected.shift() ?? 0 });
       },
     };
@@ -238,7 +253,23 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
     return statements;
   }
 
-  const rows = [
+  /** `releaseCorpusRefs` as the reconcile hands it in: releases what it is
+   * handed, recording each call. */
+  function releaser(failing: string[] = []) {
+    const calls: string[][] = [];
+    const releaseCorpus = (refs: string[]) => {
+      calls.push(refs);
+      return Promise.resolve({
+        released: refs.filter((ref) => !failing.includes(ref)),
+        failures: refs
+          .filter((ref) => failing.includes(ref))
+          .map((ref) => ({ ref, stage: 'corpus' as const, message: 'down' })),
+      });
+    };
+    return { calls, releaseCorpus };
+  }
+
+  const rows: AttachmentRow[] = [
     { id: 'f1', storageRef: 's3:org-1/a.pdf', conversationId: 'conv-1' },
     { id: 'f2', storageRef: 's3:org-1/b.pdf', conversationId: 'conv-1' },
     { id: 'f3', storageRef: 's3:org-1/c.pdf', conversationId: 'conv-2' },
@@ -247,11 +278,17 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
   it('stamps every attachment row past the first page, and counts what changed', async () => {
     const log: Query[] = [];
     const statements = corpusPool([2, 0]);
+    const { calls, releaseCorpus } = releaser();
     const result = await reconcileMailAttachmentStamps(
       attachmentsSql(rows, log),
-      { organizationId: 'org-1', orgSlug: 'acme', limit: 2 },
+      { organizationId: 'org-1', orgSlug: 'acme', limit: 2, releaseCorpus },
     );
-    expect(result).toEqual({ scanned: 3, corrected: 2 });
+    expect(result).toEqual({
+      scanned: 3,
+      corrected: 2,
+      released: 0,
+      failures: 0,
+    });
     expect(statements).toHaveLength(2);
     expect(statements.map((statement) => statement.params[1])).toEqual([
       {
@@ -272,6 +309,8 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
       // A stamp is not an edit of the attachment: its time stays.
       expect(statement.text).not.toContain('updated_at');
     }
+    // Every conversation is live: nothing to release.
+    expect(calls).toEqual([]);
   });
 
   it('walks only live attachments — unbound file rows bound to a conversation', async () => {
@@ -280,22 +319,118 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
     await reconcileMailAttachmentStamps(attachmentsSql([], log), {
       organizationId: 'org-1',
       orgSlug: 'acme',
+      releaseCorpus: releaser().releaseCorpus,
     });
     const read = log[0];
     expect(read?.values[0]).toBe('org-1');
-    expect(read?.text).toContain('document_id IS NULL');
-    expect(read?.text).toContain('conversation_id IS NOT NULL');
-    expect(read?.text).toContain("lifecycle_status = 'active'");
-    expect(read?.text).toContain('ORDER BY id');
+    expect(read?.text).toContain('fm.document_id IS NULL');
+    expect(read?.text).toContain('fm.conversation_id IS NOT NULL');
+    expect(read?.text).toContain("fm.lifecycle_status = 'active'");
+    expect(read?.text).toContain('ORDER BY fm.id');
+  });
+
+  it('reads each attachment with its conversation, as corpus-liveness does', async () => {
+    const log: Query[] = [];
+    corpusPool([]);
+    await reconcileMailAttachmentStamps(attachmentsSql([], log), {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      releaseCorpus: releaser().releaseCorpus,
+    });
+    const read = log[0]?.text ?? '';
+    expect(read).toContain('LEFT JOIN app.conversations c');
+    expect(read).toContain('c.org_id = fm.org_id');
+    expect(read).toContain(
+      "(c.id IS NOT NULL AND c.status IS DISTINCT FROM 'spam')",
+    );
+  });
+
+  it('leaves a ref an active document holds to the document', async () => {
+    // Filed into a document, the ref indexes as that document; the scope
+    // pass clears any conversation stamp it still carries, so stamping it
+    // here would only flip it back and forth every night.
+    const log: Query[] = [];
+    corpusPool([]);
+    await reconcileMailAttachmentStamps(attachmentsSql([], log), {
+      organizationId: 'org-1',
+      orgSlug: 'acme',
+      releaseCorpus: releaser().releaseCorpus,
+    });
+    const read = log[0]?.text ?? '';
+    expect(read).toContain('NOT EXISTS');
+    expect(read).toContain('d.file_ref = fm.storage_ref');
+  });
+
+  it('releases the corpus copy of an attachment whose conversation is gone or spam, and stamps only the live', async () => {
+    // A conversation deleted or marked spam before its lane queued the
+    // release: the blob walk restarts at its head each night and may never
+    // reach these rows, so this pass — which visits every attachment — does.
+    const statements = corpusPool([1], ['s3:org-1/b.pdf']);
+    const { calls, releaseCorpus } = releaser();
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql(
+        [
+          rows[0] as AttachmentRow,
+          { ...(rows[1] as AttachmentRow), conversationLive: false },
+          { ...(rows[2] as AttachmentRow), conversationLive: false },
+        ],
+        [],
+      ),
+      { organizationId: 'org-1', orgSlug: 'acme', releaseCorpus },
+    );
+    // Only the live attachment is stamped.
+    const update = statements.find((statement) =>
+      statement.text.includes('UPDATE'),
+    );
+    expect(update?.params[1]).toEqual({
+      json: [{ file_id: 's3:org-1/a.pdf', conversation_id: 'conv-1' }],
+    });
+    // The dead ones are looked up in the corpus, and only a ref it still
+    // holds is released — c.pdf went on an earlier night.
+    const lookup = statements.find((statement) =>
+      statement.text.trimStart().startsWith('SELECT'),
+    );
+    expect(lookup?.params).toEqual([
+      'acme',
+      ['s3:org-1/b.pdf', 's3:org-1/c.pdf'],
+    ]);
+    expect(calls).toEqual([['s3:org-1/b.pdf']]);
+    expect(result).toEqual({
+      scanned: 3,
+      corrected: 1,
+      released: 1,
+      failures: 0,
+    });
+  });
+
+  it('counts a failed release, for the next night to retry', async () => {
+    corpusPool([], ['s3:org-1/a.pdf']);
+    const { releaseCorpus } = releaser(['s3:org-1/a.pdf']);
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql(
+        [{ ...(rows[0] as AttachmentRow), conversationLive: false }],
+        [],
+      ),
+      { organizationId: 'org-1', orgSlug: 'acme', releaseCorpus },
+    );
+    expect(result).toMatchObject({ released: 0, failures: 1 });
   });
 
   it('writes nothing to the corpus for an organization with no emailed attachment', async () => {
     const statements = corpusPool([]);
+    const { calls, releaseCorpus } = releaser();
     const result = await reconcileMailAttachmentStamps(attachmentsSql([], []), {
       organizationId: 'org-1',
       orgSlug: 'acme',
+      releaseCorpus,
     });
-    expect(result).toEqual({ scanned: 0, corrected: 0 });
+    expect(result).toEqual({
+      scanned: 0,
+      corrected: 0,
+      released: 0,
+      failures: 0,
+    });
     expect(statements).toEqual([]);
+    expect(calls).toEqual([]);
   });
 });

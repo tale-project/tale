@@ -8,8 +8,9 @@
  * a mail-attachment wrapped as untrusted (a row the stamp has not reached
  * included, its provenance read from the file row) and the backfill stamps
  * such a row, a spam verdict releases the corpus copy and keeps the bytes
- * while lifting it indexes the file again, and deleting the conversation
- * releases the corpus copy. Needs the object store `checkFiles` seeds: an
+ * while lifting it indexes the file again — the nightly stamp pass releasing
+ * the copy a verdict left behind with no release queued (every verdict before
+ * this release) — and deleting the conversation releases the corpus copy. Needs the object store `checkFiles` seeds: an
  * attachment has bytes. */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -36,7 +37,7 @@ import {
   deleteCredential,
   resolveProviderCredential,
 } from '../provider_credentials/service.ts';
-import { releaseRefs } from './release.ts';
+import { releaseCorpusRefs, releaseRefs } from './release.ts';
 import {
   ensureDefaultCorpusSchema,
   fetchKnowledgeDocument,
@@ -403,10 +404,15 @@ export async function checkEmailedAttachments(
     );
     const unstamped = await doors();
     const unstampedFetch = await chatFetch(userId);
-    const backfill = await reconcileMailAttachmentStamps(sql, {
-      organizationId: orgId,
-      orgSlug,
-    });
+    /** The nightly pass, wired as `runCorpusReconcile` wires it. */
+    const stampPass = () =>
+      reconcileMailAttachmentStamps(sql, {
+        organizationId: orgId,
+        orgSlug,
+        releaseCorpus: (refs) =>
+          releaseCorpusRefs(sql, { organizationId: orgId, orgSlug, refs }),
+      });
+    const backfill = await stampPass();
     const restamped = await corpusRow();
     record(
       'emailed attachment: an unstamped row stays behind every other door, reads wrapped in chat, and the backfill stamps it',
@@ -454,6 +460,39 @@ export async function checkEmailedAttachments(
         bytesKept !== null &&
         reindexed,
       `released=${spamReleased} found=${spamSearch.found} (want false) fileKept=${fileKept[0]?.count} (want 1) bytesKept=${bytesKept !== null} reindexed=${reindexed}`,
+    );
+
+    // A verdict that queued no release — every one before this release —
+    // leaves the corpus copy behind; the nightly stamp pass, which visits
+    // every attachment, releases it and keeps the file and its bytes.
+    await sql`
+      UPDATE app.conversations SET status = 'spam' WHERE id = ${conversationId}
+    `;
+    const leftBehind = (await corpusRow()) !== undefined;
+    const swept = await stampPass();
+    const sweptGone = (await corpusRow()) === undefined;
+    const sweptFileKept = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.file_metadata WHERE id = ${fileId}
+    `;
+    const sweptBytesKept = await statOrgBlob(sql, orgId, ref);
+    await flip('open');
+    const sweptReindexed = await waitFor(async () => {
+      const current = await corpusRow();
+      return (
+        current?.status === 'completed' &&
+        current.conversationId === conversationId
+      );
+    }, 20_000);
+    record(
+      'emailed attachment: the nightly stamp pass releases the corpus copy a spam verdict left behind, and keeps the file',
+      leftBehind &&
+        swept.released >= 1 &&
+        swept.failures === 0 &&
+        sweptGone &&
+        sweptFileKept[0]?.count === '1' &&
+        sweptBytesKept !== null &&
+        sweptReindexed,
+      `leftBehind=${leftBehind} (want true) released=${swept.released} (want >= 1) failures=${swept.failures} gone=${sweptGone} fileKept=${sweptFileKept[0]?.count} (want 1) bytesKept=${sweptBytesKept !== null} reindexedOnLift=${sweptReindexed}`,
     );
 
     // Deleting the conversation releases the corpus copy.

@@ -91,6 +91,7 @@ import {
 } from '../folders/paths.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { isCorpusRefLive } from './liveness.ts';
+import type { ReleaseOutcome } from './release.ts';
 import {
   decideMessageRetrievable,
   decideRetrievable,
@@ -1602,8 +1603,8 @@ const SCOPE_RECONCILE_PAGE = 1000;
  * subset — the drift it missed stayed missed forever.
  *
  * One statement per page: the guard is `IS DISTINCT FROM` on all four stamped
- * columns, so the row count IS the drift count and an in-sync corpus writes
- * nothing.
+ * columns (and a conversation stamp, which no document carries), so the row
+ * count IS the drift count and an in-sync corpus writes nothing.
  */
 export async function reconcileDocumentScopeStamps(
   sql: Sql,
@@ -1693,11 +1694,15 @@ async function reconcileScopeStampPage(
   // pre-serialized string would be JSON-encoded a second time once the server
   // reports the parameter as jsonb, and `jsonb_to_recordset` then refuses the
   // resulting JSON string ("cannot call jsonb_to_recordset on a non-array").
+  // A document is never mail: a conversation stamp on its ref — an emailed
+  // attachment's, left by a stamp that raced the file being filed into this
+  // document — would hide it in the mail partition from every document door,
+  // so it is cleared with the rest (the stamp pass skips such refs).
   const result = await pool.unsafe(
     `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         SET team_ids = v.team_ids, team_id = v.team_id,
             project_id = v.project_id, folder_path = v.folder_path,
-            updated_at = NOW()
+            conversation_id = NULL, updated_at = NOW()
        FROM jsonb_to_recordset($2::jsonb)
             AS v(file_id text, team_ids text[], team_id text,
                  project_id text, folder_path text)
@@ -1705,7 +1710,8 @@ async function reconcileScopeStampPage(
         AND (d.team_ids IS DISTINCT FROM v.team_ids
           OR d.team_id IS DISTINCT FROM v.team_id
           OR d.project_id IS DISTINCT FROM v.project_id
-          OR d.folder_path IS DISTINCT FROM v.folder_path)`,
+          OR d.folder_path IS DISTINCT FROM v.folder_path
+          OR d.conversation_id IS NOT NULL)`,
     [args.orgSlug, pool.json(intended)],
   );
   return {
@@ -1717,6 +1723,18 @@ async function reconcileScopeStampPage(
 
 /** Emailed attachments compared per corpus statement in the stamp pass. */
 const ATTACHMENT_STAMP_PAGE = 1000;
+
+/** What the stamp pass reports for one organization. */
+export interface MailAttachmentStampStats {
+  /** Attachment rows walked. */
+  scanned: number;
+  /** Corpus rows whose conversation stamp was missing or wrong. */
+  corrected: number;
+  /** Corpus rows of dead attachments released (see `releaseCorpus`). */
+  released: number;
+  /** Refs whose release failed; the next run retries them. */
+  failures: number;
+}
 
 /**
  * Stamp the conversation on the corpus rows of emailed attachments that lack
@@ -1731,61 +1749,124 @@ const ATTACHMENT_STAMP_PAGE = 1000;
  * until it is stamped, and a door that labels mail by the corpus stamp
  * would read it as a document.
  *
+ * The same walk RELEASES the corpus rows of attachments whose conversation
+ * is gone or marked spam — dead by corpus-liveness (`liveness.ts`), the
+ * verdict an email body gets. Every lane that kills a conversation queues
+ * that release itself now, but none did before, and the reconcile's blob
+ * walk restarts at its head each night with a bounded budget, so in a large
+ * corpus it would never reach those rows: this pass visits every attachment
+ * every night. Only refs the corpus still holds are handed to
+ * `releaseCorpus` (`releaseCorpusRefs`, which re-decides each by liveness
+ * and leaves the bytes to the file row), so a dead attachment costs one
+ * release, not one a night.
+ *
  * Walks the organization's attachment rows — unbound file rows bound to a
- * conversation, live — a keyset page at a time, one corpus statement per
- * page; the guard is `IS DISTINCT FROM`, so the row count IS the number
- * corrected and an in-sync corpus writes nothing. `updated_at` is left
- * alone: it is the hit's modification time for a row with no source time,
- * and a stamp is not an edit of the attachment.
+ * conversation, live, and not a ref an active document holds (that ref
+ * indexes as the document, and the scope pass clears any stamp it carries)
+ * — a keyset page at a time, one corpus statement per page; the guard is
+ * `IS DISTINCT FROM`, so the row count IS the number corrected and an
+ * in-sync corpus writes nothing. `updated_at` is left alone: it is the hit's
+ * modification time for a row with no source time, and a stamp is not an
+ * edit of the attachment.
  */
 export async function reconcileMailAttachmentStamps(
   sql: Sql,
-  args: { organizationId: string; orgSlug: string; limit?: number },
-): Promise<{ scanned: number; corrected: number }> {
+  args: {
+    organizationId: string;
+    orgSlug: string;
+    limit?: number;
+    /** De-index the corpus rows of these refs, reporting what went and what
+     * failed — `releaseCorpusRefs` (`release.ts`), handed in so this module
+     * does not import the release seam that imports it. */
+    releaseCorpus: (
+      refs: string[],
+    ) => Promise<Pick<ReleaseOutcome, 'released' | 'failures'>>;
+  },
+): Promise<MailAttachmentStampStats> {
   const pageSize = args.limit ?? ATTACHMENT_STAMP_PAGE;
-  let scanned = 0;
-  let corrected = 0;
+  const stats: MailAttachmentStampStats = {
+    scanned: 0,
+    corrected: 0,
+    released: 0,
+    failures: 0,
+  };
   let afterId: string | null = null;
   for (;;) {
-    const page: { id: string; storageRef: string; conversationId: string }[] =
-      await sql<{ id: string; storageRef: string; conversationId: string }[]>`
-        SELECT id, storage_ref AS "storageRef",
-               conversation_id AS "conversationId"
-        FROM app.file_metadata
-        WHERE org_id = ${args.organizationId}
-          AND document_id IS NULL
-          AND conversation_id IS NOT NULL
-          AND storage_ref IS NOT NULL
-          AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-          AND (${afterId}::text IS NULL OR id > ${afterId})
-        ORDER BY id
-        LIMIT ${pageSize}
-      `;
+    const page: AttachmentStampRow[] = await sql<AttachmentStampRow[]>`
+      SELECT fm.id, fm.storage_ref AS "storageRef",
+             fm.conversation_id AS "conversationId",
+             (c.id IS NOT NULL AND c.status IS DISTINCT FROM 'spam')
+               AS "conversationLive"
+      FROM app.file_metadata fm
+      LEFT JOIN app.conversations c
+        ON c.id = fm.conversation_id AND c.org_id = fm.org_id
+      WHERE fm.org_id = ${args.organizationId}
+        AND fm.document_id IS NULL
+        AND fm.conversation_id IS NOT NULL
+        AND fm.storage_ref IS NOT NULL
+        AND (fm.lifecycle_status IS NULL OR fm.lifecycle_status = 'active')
+        AND NOT EXISTS (
+          SELECT 1 FROM app.documents d
+          WHERE d.org_id = fm.org_id AND d.file_ref = fm.storage_ref
+            AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
+        )
+        AND (${afterId}::text IS NULL OR fm.id > ${afterId})
+      ORDER BY fm.id
+      LIMIT ${pageSize}
+    `;
     if (page.length === 0) break;
-    scanned += page.length;
+    stats.scanned += page.length;
     const pool = await getKnowledgePoolForOrg(args.orgSlug);
-    const result = await pool.unsafe(
-      `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
-          SET conversation_id = v.conversation_id
-         FROM jsonb_to_recordset($2::jsonb)
-              AS v(file_id text, conversation_id text)
-        WHERE d.org_slug = $1 AND d.file_id = v.file_id
-          AND d.conversation_id IS DISTINCT FROM v.conversation_id`,
-      [
-        args.orgSlug,
-        pool.json(
-          page.map((row) => ({
-            file_id: row.storageRef,
-            conversation_id: row.conversationId,
-          })),
-        ),
-      ],
-    );
-    corrected += result.count ?? 0;
+    const live = page.filter((row) => row.conversationLive);
+    if (live.length > 0) {
+      const result = await pool.unsafe(
+        `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+            SET conversation_id = v.conversation_id
+           FROM jsonb_to_recordset($2::jsonb)
+                AS v(file_id text, conversation_id text)
+          WHERE d.org_slug = $1 AND d.file_id = v.file_id
+            AND d.conversation_id IS DISTINCT FROM v.conversation_id`,
+        [
+          args.orgSlug,
+          pool.json(
+            live.map((row) => ({
+              file_id: row.storageRef,
+              conversation_id: row.conversationId,
+            })),
+          ),
+        ],
+      );
+      stats.corrected += result.count ?? 0;
+    }
+    const dead = page
+      .filter((row) => !row.conversationLive)
+      .map((row) => row.storageRef);
+    if (dead.length > 0) {
+      const held = await pool.unsafe<{ fileId: string }[]>(
+        `SELECT DISTINCT file_id AS "fileId"
+           FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+          WHERE org_slug = $1 AND file_id = ANY($2::text[])`,
+        [args.orgSlug, dead],
+      );
+      if (held.length > 0) {
+        const outcome = await args.releaseCorpus(held.map((row) => row.fileId));
+        stats.released += outcome.released.length;
+        stats.failures += outcome.failures.length;
+      }
+    }
     if (page.length < pageSize) break;
     afterId = page.at(-1)?.id ?? null;
   }
-  return { scanned, corrected };
+  return stats;
+}
+
+/** One emailed attachment as the stamp pass reads it. */
+interface AttachmentStampRow {
+  id: string;
+  storageRef: string;
+  conversationId: string;
+  /** Its conversation exists and is not marked spam — corpus-liveness. */
+  conversationLive: boolean;
 }
 
 /**
