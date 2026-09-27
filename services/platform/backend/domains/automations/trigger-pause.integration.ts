@@ -324,6 +324,46 @@ export async function checkTriggerPauseAfterFailures(
         reset.lastFailureCode === 'node_error',
       `run → ${success.status} (want success), streak=${reset.consecutiveFailures} (want 0), enabled=${reset.enabled}, last failure kept=${reset.lastFailureCode}`,
     );
+
+    // A scan can already have read its page when a landing run pauses one
+    // of its schedules. Commit that pause immediately before the real
+    // claim transaction starts: the stale page must neither create a run
+    // nor clear the pause reason with a fire stamp.
+    await backdate();
+    const beforeRacingPause = await triggerRuns();
+    let pausedBeforeClaim = false;
+    const racingScan = new Proxy(sql, {
+      get(target, property, receiver) {
+        if (property !== 'begin') {
+          return Reflect.get(target, property, receiver);
+        }
+        const begin = target.begin.bind(target);
+        return async (...args: unknown[]) => {
+          if (!pausedBeforeClaim) {
+            pausedBeforeClaim = true;
+            await sql`
+              UPDATE app.automation_triggers SET enabled = false,
+                consecutive_failures = ${PERMANENT_FAILURES_BEFORE_PAUSE},
+                last_skip_reason = 'paused_after_failures',
+                last_skipped_at_ms = ${Date.now()}
+              WHERE org_id = ${orgId} AND name = ${name}
+            `;
+          }
+          return Reflect.apply(begin, target, args);
+        };
+      },
+    });
+    await scanScheduledTriggers(racingScan);
+    const raced = await trigger();
+    const racedRuns = (await triggerRuns()) - beforeRacingPause;
+    record(
+      'a schedule paused after the scan reads its page is not claimed or fired',
+      pausedBeforeClaim &&
+        racedRuns === 0 &&
+        !raced.enabled &&
+        raced.lastSkipReason === 'paused_after_failures',
+      `pause before claim=${pausedBeforeClaim}, new runs=${racedRuns} (want 0), enabled=${raced.enabled}, reason=${raced.lastSkipReason} (want paused_after_failures)`,
+    );
   } finally {
     // Leave nothing armed for the lanes after this one.
     await deleteTrigger(sql, orgId, name);

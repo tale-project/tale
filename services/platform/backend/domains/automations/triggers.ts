@@ -240,10 +240,15 @@ export async function scanScheduledTriggers(
       // precede the run it names and a start that fails to commit takes
       // its claim with it. What the deployed version refuses keeps its
       // claim — rolling it back would retry the same refusal every minute.
+      // Re-check the binding as well as the cursor: a run may have paused
+      // it, or a person may have saved it, since this page was read. That
+      // stale occurrence has no authority to start another run.
       const outcome = await sql.begin(async (tx) => {
         const claimed = await tx<{ id: string }[]>`
           UPDATE app.automation_triggers SET last_due_at_ms = ${due}
           WHERE id = ${trigger.id}
+            AND kind = 'schedule' AND enabled = true
+            AND updated_at_ms = ${trigger.updatedAt}
             AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
                  OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${due})
           RETURNING id
