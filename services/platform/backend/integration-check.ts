@@ -69,6 +69,7 @@ import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.i
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
+import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -54560,6 +54561,10 @@ async function main(): Promise<void> {
         () => checkTaskAgentCompletionFence(sql, baseUrl, authCtx),
       ],
       ['checkWatchdogs', () => checkWatchdogs(sql, baseUrl, authCtx)],
+      [
+        'checkRenderFailedCreate',
+        () => checkRenderFailedCreate(sql, authCtx, record),
+      ],
       [
         'checkDocumentWriteGuards',
         () => checkDocumentWriteGuards(sql, baseUrl, authCtx),
