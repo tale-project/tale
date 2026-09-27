@@ -1,3 +1,4 @@
+import { QueryClient, useQuery } from '@tanstack/react-query';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -31,6 +32,7 @@ vi.mock('@/app/hooks/use-backend-connection-state', () => ({
 const { OnlineGate } = await import('./online-gate');
 const { reportBackendReachable } =
   await import('@/app/lib/backend/connection-state');
+const { backendFetch } = await import('@/app/lib/backend/api-client');
 
 // Matches the grace window in online-gate.tsx; bumped a few ms here to
 // dodge timer-rounding flakiness across vitest's fake-timer backends.
@@ -230,6 +232,62 @@ describe('OnlineGate', () => {
         vi.advanceTimersByTime(GRACE_MS);
       });
       expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+  });
+
+  describe('cancelled reads', () => {
+    // Leaving a page unmounts its queries, and TanStack Query aborts every
+    // read still in flight. Under a slow network that is most reads, and none
+    // of them says anything about the server.
+    it('keeps the overlay hidden when a navigation cancels in-flight reads', async () => {
+      useRealConnectionState = true;
+      window.__ENV__ = { BASE_PATH: '' };
+      const fetchMock = vi.spyOn(window, 'fetch').mockImplementation(
+        (_input, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              reject(init.signal?.reason);
+            });
+          }),
+      );
+      vi.useFakeTimers();
+      const queryClient = new QueryClient();
+      function ChatPage() {
+        useQuery(
+          {
+            queryKey: ['chat-threads'],
+            queryFn: ({ signal }) =>
+              backendFetch('/chat/threads', { orgId: 'org1', signal }),
+          },
+          queryClient,
+        );
+        return <p>Chat</p>;
+      }
+      const { rerender } = render(
+        <OnlineGate>
+          <ChatPage />
+        </OnlineGate>,
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Navigating away unmounts the page: TanStack Query aborts its read.
+      rerender(
+        <OnlineGate>
+          <p>Documents</p>
+        </OnlineGate>,
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(GRACE_MS);
+      });
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      queryClient.clear();
     });
   });
 
