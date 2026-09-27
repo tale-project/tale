@@ -7023,6 +7023,7 @@ tasks:
     uploading: Wird hochgeladen…
     dropHint: Dateien hier ablegen oder klicken zum Auswählen
     uploadFailed: Der Upload ist fehlgeschlagen — versuche es erneut.
+    uploadFailedDetail: '{name}: {reason}'
     remove: '{name} löschen'
     removeTitle: Diese Datei löschen?
     removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'

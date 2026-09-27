@@ -7149,6 +7149,7 @@ tasks:
     uploading: Uploading…
     dropHint: Drop files here, or click to browse
     uploadFailed: Couldn't finish the upload — try again.
+    uploadFailedDetail: '{name}: {reason}'
     remove: 'Delete {name}'
     removeTitle: Delete this file?
     removeDescription: This deletes "{name}" from the project permanently — it can't be undone.

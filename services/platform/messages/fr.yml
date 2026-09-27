@@ -7126,6 +7126,7 @@ tasks:
     uploading: Téléversement…
     dropHint: Dépose des fichiers ici, ou clique pour parcourir
     uploadFailed: Le téléversement a échoué — réessaie.
+    uploadFailedDetail: '{name} : {reason}'
     remove: 'Supprimer {name}'
     removeTitle: Supprimer ce fichier ?
     removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
