@@ -12,6 +12,7 @@
 
 import { useCallback, useMemo } from 'react';
 
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import {
   regenerateChatTurn,
@@ -226,9 +227,11 @@ export function useBranchActions(organizationId: string): BranchActions {
         };
       } catch (error) {
         // The request failed, not the turn: whether it landed is unknown,
-        // so `persisted` stays absent and the caller keeps the sibling.
+        // so `persisted` stays absent and the caller keeps the sibling. A
+        // door that refused the request says why.
         console.error('[chat] the regenerate turn failed', error);
-        return { refused: true };
+        const reason = backendRefusalDetail(error);
+        return { refused: true, ...(reason !== undefined ? { reason } : {}) };
       }
     },
     [queryClient, organizationId],

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
+import { BackendApiError } from './api-client';
 import {
   sendChatTurn,
   videoJobsForThreadQuery,
@@ -38,6 +39,55 @@ describe('sendChatTurn', () => {
         reason: 'Usage limit reached.',
         code: 'BUDGET_EXCEEDED',
         persisted: false,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // A 4xx that is no turn refusal — the door refusing the request itself —
+  // used to become "Turn request failed with status 400", dropping the
+  // door's own code and message.
+  it("throws a request the door refused with the door's code and message", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: 'invalid body',
+            message: 'text: the message is longer than a turn takes',
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    try {
+      const error: unknown = await sendChatTurn('org1', 't1', {
+        text: 'hello',
+        modelId: 'model-a',
+      }).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(BackendApiError);
+      expect(error).toMatchObject({
+        status: 400,
+        code: 'invalid body',
+        message: 'text: the message is longer than a turn takes',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the status text for an answer that is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('Bad Gateway', { status: 502 })),
+    );
+    try {
+      await expect(
+        sendChatTurn('org1', 't1', { text: 'hello', modelId: 'model-a' }),
+      ).rejects.toMatchObject({
+        status: 502,
+        message: 'Request failed with status 502',
       });
     } finally {
       vi.unstubAllGlobals();

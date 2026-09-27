@@ -62,6 +62,7 @@ import {
 import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
@@ -131,8 +132,8 @@ import {
 import { primeAudio } from '../utils/prime-audio';
 import { transcriptionNeedsRetry } from '../utils/transcription-availability';
 import {
+  regenerateFailureToastContent,
   turnRefusalToastContent,
-  turnNamedFailureToastContent,
 } from '../utils/turn-error-toast';
 import { ArchivedBanner } from './archived-banner';
 import type { ArenaRound } from './arena/arena-column';
@@ -1364,7 +1365,16 @@ function ChatSurfaceInner({
                 fork.restoreTo,
               );
             }
-            toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+            // A request the door refused outright (a body it would not
+            // take, a thread it cannot find) says why in its own words —
+            // they are the platform's, not a provider's, so they are shown
+            // as they are. A fault says nothing.
+            const detail = backendRefusalDetail(error);
+            toast({
+              title: t('toast.sendFailed'),
+              ...(detail !== undefined ? { description: detail } : {}),
+              variant: 'destructive',
+            });
           },
         );
         if (threadId === undefined) {
@@ -1523,9 +1533,8 @@ function ChatSurfaceInner({
           refusalToast(outcome.reason, outcome.code);
           return;
         }
-        const { titleKey, description } = turnNamedFailureToastContent(
-          outcome.reason,
-          'regenerateFailed',
+        const { titleKey, description } = regenerateFailureToastContent(
+          outcome,
           t,
         );
         toast({

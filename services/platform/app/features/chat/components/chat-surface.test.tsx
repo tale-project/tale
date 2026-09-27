@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { Toaster } from '@tale/ui/toaster';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
@@ -1316,6 +1318,61 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       ).not.toBeInTheDocument(),
     );
     await waitFor(() => expect(input).toHaveValue('read this file for me'));
+  });
+
+  // A request the door refused outright (no turn refusal: a body it would
+  // not take, a thread it cannot find) used to toast a bare "Couldn't send
+  // message" — the door's own words were dropped on the way.
+  it('names why the door refused the send request', async () => {
+    let failTurn!: (error: Error) => void;
+    const outcome = new Promise<never>((_resolve, reject) => {
+      failTurn = reject;
+    });
+    outcome.catch(() => undefined);
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(() =>
+        Promise.resolve({ threadId: 't-1', boundVideoJobIds: [], outcome }),
+      ),
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-1' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    vi.mocked(useThreadView).mockImplementation(() => ({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    }));
+
+    const { user } = render(
+      <>
+        <ChatSurface organizationId="org-1" threadId="t-1" />
+        <Toaster />
+      </>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'read this file for me');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await act(async () => {
+      failTurn(
+        new BackendApiError(
+          400,
+          'text: the message is longer than a turn takes',
+          'invalid body',
+        ),
+      );
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('text: the message is longer than a turn takes'),
+      ).not.toHaveLength(0),
+    );
+    expect(screen.getAllByText("Couldn't send message")).not.toHaveLength(0);
   });
 
   it('offers a working Stop for any in-flight generation', async () => {
