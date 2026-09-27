@@ -10,12 +10,13 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WebDAVCtx } from '../types';
+import type { WebDAVCtx, WebDAVRequest, WebDAVResponse } from '../types';
 import { fetchAdapter } from './fetch';
 
 const { dispatch } = vi.hoisted(() => ({
-  dispatch: vi.fn(() =>
-    Promise.resolve({ status: 207, headers: {}, body: 'ok' }),
+  dispatch: vi.fn(
+    (_req: WebDAVRequest, _ctx: WebDAVCtx): Promise<WebDAVResponse> =>
+      Promise.resolve({ status: 207, headers: {}, body: 'ok' }),
   ),
 }));
 vi.mock('../handler', () => ({ dispatch }));
