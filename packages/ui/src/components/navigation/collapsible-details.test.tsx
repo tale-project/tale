@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
@@ -102,6 +102,56 @@ describe('CollapsibleDetails', () => {
         </CollapsibleDetails>,
       );
       await checkAccessibility(container);
+    });
+  });
+  describe('defaultOpen', () => {
+    it('opens at mount', () => {
+      const { container } = render(
+        <CollapsibleDetails summary="Details" defaultOpen>
+          <p>Content</p>
+        </CollapsibleDetails>,
+      );
+      expect(container.querySelector('details')).toHaveProperty('open', true);
+    });
+
+    it('stays closed without it', () => {
+      const { container } = render(
+        <CollapsibleDetails summary="Details">
+          <p>Content</p>
+        </CollapsibleDetails>,
+      );
+      expect(container.querySelector('details')).toHaveProperty('open', false);
+    });
+
+    it('leaves the reader’s toggle alone on a later render', () => {
+      const { container, rerender } = render(
+        <CollapsibleDetails summary="Details" defaultOpen>
+          <p>Content</p>
+        </CollapsibleDetails>,
+      );
+      const details = container.querySelector('details');
+      if (details === null) throw new Error('no details element');
+      details.open = false;
+      rerender(
+        <CollapsibleDetails summary="Details" defaultOpen>
+          <p>Changed content</p>
+        </CollapsibleDetails>,
+      );
+      expect(details.open).toBe(false);
+    });
+
+    it('is not passed to the DOM as an unknown attribute', () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { container } = render(
+        <CollapsibleDetails summary="Details" defaultOpen>
+          <p>Content</p>
+        </CollapsibleDetails>,
+      );
+      expect(container.querySelector('details')).not.toHaveAttribute(
+        'defaultopen',
+      );
+      expect(error).not.toHaveBeenCalled();
+      error.mockRestore();
     });
   });
 });
