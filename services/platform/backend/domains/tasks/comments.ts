@@ -253,7 +253,8 @@ async function appendTaskComment(
       mentions,
       authorType: author.actorType,
       authorId: author.actorId,
-      feedback: body,
+      text: body,
+      source: 'comment',
     });
   }
   await notifyTaskComment(tx, {

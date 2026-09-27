@@ -29,6 +29,11 @@ export interface ResolvedMention {
   id: string;
 }
 
+/** Which text named the agent on a `mention` kick or steer: a posted
+ * comment, whose body the run carries as its feedback, or the task
+ * description, which the turn reads as it stands when it starts. */
+export type MentionSource = 'comment' | 'description';
+
 /**
  * Extract raw `@token` handles from a comment body (without the leading `@`),
  * de-duped and lowercased, preserving first-seen order.

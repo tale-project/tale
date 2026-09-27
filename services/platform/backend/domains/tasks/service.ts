@@ -21,7 +21,10 @@ import {
   TASK_LABELS_MAX,
   TASK_TITLE_MAX,
 } from '../../core/tasks/helpers.ts';
-import { parseMentionTokens } from '../../core/tasks/mentions.ts';
+import {
+  type MentionSource,
+  parseMentionTokens,
+} from '../../core/tasks/mentions.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -3109,7 +3112,8 @@ async function fanOutDescriptionMentions(
     mentions: added,
     authorType: 'user',
     authorId: auth.userId,
-    feedback: args.description,
+    text: args.description,
+    source: 'description',
   });
   await notifyTaskMentions(tx, {
     task,
@@ -3123,12 +3127,13 @@ async function fanOutDescriptionMentions(
  * The @mention work dispatcher for the project's agent INSTANCES — the 0.4
  * `triggerMentionedProjectAgent` wire, shared by the two texts that name
  * someone on a task: a posted comment, and the description (on create, and
- * the mentions an edit adds). `feedback` is that text. The FIRST mentioned
- * instance belonging to THIS project picks the lane:
+ * the mentions an edit adds). `text` is that text and `source` says which
+ * it is. The FIRST mentioned instance belonging to THIS project picks the
+ * lane:
  *
  * - the task's live run is RUNNING and its agent is mentioned → STEER the
  *   live turn with the text (the steer host injects it over the harness's
- *   held-open stdin, or restarts the exec around it);
+ *   held-open stdin, or restarts the exec around it), phrased by its source;
  * - the live run is QUEUED → nothing: its start reads the brief AFTER this
  *   write commits;
  * - another engine holds the task (a different instance's live run, a live
@@ -3136,9 +3141,11 @@ async function fanOutDescriptionMentions(
  *   it never reassigns under a live run;
  * - the task is idle → (re)assign it to the instance when it isn't the
  *   assignee yet (`assignTask` — the picker's own choreography) and kick a
- *   fresh 'mention' run carrying the text as feedback; the kick moves the
- *   card to In progress. A resumed conversation does not re-read the brief,
- *   so the feedback is how an edited description reaches it.
+ *   fresh 'mention' run; the kick moves the card to In progress. A comment
+ *   rides the run as its feedback. A description does not: the run reads
+ *   it as it stands when it starts, so an edit made while the run waits is
+ *   never contradicted by the text it replaced (a resumed conversation,
+ *   which does not re-read the brief, is handed that current text).
  *
  * Every refusal is quiet — the text is saved and its humans are notified
  * either way. The gate is WRITE access: commenting is read-level, but
@@ -3155,7 +3162,8 @@ export async function dispatchMentionedProjectAgent(
     mentions: { type: string; id: string }[];
     authorType: string;
     authorId: string;
-    feedback: string;
+    text: string;
+    source: MentionSource;
   },
 ): Promise<void> {
   if (args.authorType !== 'user') return;
@@ -3248,7 +3256,8 @@ export async function dispatchMentionedProjectAgent(
       connectors: agent.connectors,
       tools: agent.tools,
       secrets: agent.secrets,
-      feedback: args.feedback,
+      feedback: args.text,
+      mentionSource: args.source,
       author,
       authorId: args.authorId,
       attempt: 0,
@@ -3320,7 +3329,8 @@ export async function dispatchMentionedProjectAgent(
       : {}),
     startedBy: args.auth.userId,
     trigger: 'mention',
-    feedback: args.feedback,
+    mentionSource: args.source,
+    ...(args.source === 'comment' ? { feedback: args.text } : {}),
   });
   if (kicked.reused) {
     // A racing kick landed between this transaction's live-run probe and

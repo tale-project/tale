@@ -178,6 +178,11 @@ function fakeTx(task: TaskRow, state: { liveRun?: LiveRun } = {}) {
     if (text.startsWith('SELECT ? FROM app.tasks WHERE id = ?')) {
       return Promise.resolve([task]);
     }
+    // The kick's move, so a later read of the card sees it.
+    if (text.startsWith("UPDATE app.tasks SET status = 'in_progress'")) {
+      task.status = 'in_progress';
+      return Promise.resolve([]);
+    }
     if (text.startsWith('UPDATE app.projects SET task_counter')) {
       return Promise.resolve([{ taskCounter: 7 }]);
     }
@@ -314,9 +319,14 @@ describe('createTask — description @mentions fan out', () => {
         taskId: 't-new',
         agentId: WRITER.id,
         trigger: 'mention',
-        feedback: description,
+        mentionSource: 'description',
         startedBy: 'u-owner',
       }),
+    );
+    // No copy of the text rides the run: its start reads the description as
+    // it stands then, so an edit made while it waits is not contradicted.
+    expect(vi.mocked(kickAgentRun).mock.calls[0]?.[1]).not.toHaveProperty(
+      'feedback',
     );
     expect(movedToInProgress(statements)).toHaveLength(1);
   });
@@ -504,6 +514,7 @@ describe('updateTask — only the mentions an edit adds fan out', () => {
         runId: 'run-9',
         execId: 'exec-9',
         feedback: description,
+        mentionSource: 'description',
         author: 'Olive Owner',
         authorId: 'u-owner',
       }),
