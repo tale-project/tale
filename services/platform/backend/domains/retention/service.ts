@@ -4,6 +4,12 @@ import type { RetentionPolicyConfig } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  INDEXED_MESSAGE_CHANNEL,
+  INDEXED_MESSAGE_DIRECTION,
+  isMessageId,
+  messageRef,
+} from '../../../lib/knowledge/message-ref.ts';
+import {
   retentionDefaultsConfigSchema,
   type RetentionCategory,
 } from '../../../lib/shared/schemas/retention.ts';
@@ -1162,6 +1168,11 @@ async function sweepContacts(
  * window makes. A file promoted into a Document is left alone: the
  * `documents` category owns that lifecycle, the same `document_id IS NULL`
  * guard `sweepTempFiles` uses.
+ *
+ * Nor do the corpus copies of the inbound email bodies (`rag.index_message`,
+ * keyed by `msg:` ref): they live in the knowledge database, so they are
+ * released through the same seam before the conversation goes, and a failed
+ * release keeps the conversation for the next sweep.
  */
 async function sweepExternalConversations(
   sql: Sql,
@@ -1250,9 +1261,55 @@ async function sweepExternalConversations(
       trail.tally.deleted += 1;
     }
   }
+  // The inbound email bodies the corpus indexed (`rag.index_message`): their
+  // copies live in the knowledge database, where the messages' own cascade
+  // cannot reach, so they are released BEFORE the rows that keep them live —
+  // the same seam, run synchronously like the attachments above, with the
+  // conversations being purged excluded from the liveness answer. A failed
+  // release keeps its conversation, and so the message, for the next sweep:
+  // the window must never delete a body while its indexed copy lives on.
+  const releasable = doomedIds.filter((id) => !stranded.has(id));
+  const indexed =
+    releasable.length === 0
+      ? []
+      : await sql<{ id: string; conversationId: string }[]>`
+          SELECT id, conversation_id AS "conversationId"
+          FROM app.conversation_messages
+          WHERE org_id = ${org.organizationId}
+            AND conversation_id IN ${sql(releasable)}
+            AND direction = ${INDEXED_MESSAGE_DIRECTION}
+            AND channel = ${INDEXED_MESSAGE_CHANNEL}
+        `;
+  const conversationByRef = new Map(
+    indexed
+      .filter((message) => isMessageId(message.id))
+      .map((message) => [messageRef(message.id), message.conversationId]),
+  );
+  if (conversationByRef.size > 0) {
+    const orgSlug = await resolveOrgSlug(sql, org.organizationId);
+    if (orgSlug !== null) {
+      const outcome = await releaseRefs(sql, {
+        organizationId: org.organizationId,
+        orgSlug,
+        refs: [...conversationByRef.keys()],
+        excludeConversationIds: releasable,
+      });
+      if (outcome.failures.length > 0) {
+        console.warn(
+          `[retention] conversation-message release failed — keeping those conversations for the next sweep:`,
+          outcome.failures,
+        );
+        for (const failure of outcome.failures) {
+          const conversationId = conversationByRef.get(failure.ref);
+          if (conversationId !== undefined) stranded.add(conversationId);
+        }
+      }
+    }
+  }
   trail.tally.failed += stranded.size;
-  // A conversation whose attachment could not be released stays too: deleting
-  // the parent would orphan the file row behind a dangling pointer, which is
+  // A conversation whose attachment or indexed body could not be released
+  // stays too: deleting the parent would orphan the file row behind a
+  // dangling pointer, or leave the body's copy answering searches, which is
   // the failure this cascade exists to prevent.
   const deletable = doomedIds.filter((id) => !stranded.has(id));
   if (deletable.length === 0 && attachmentsDeleted === 0) return;

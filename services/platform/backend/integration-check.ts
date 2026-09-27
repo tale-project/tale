@@ -56,6 +56,7 @@ import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
+import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
@@ -54090,6 +54091,15 @@ async function main(): Promise<void> {
             authCtx,
             `itest-${orgSuffix}`,
           ),
+      ],
+      [
+        'checkInboundEmailBodies',
+        () =>
+          checkInboundEmailBodies(sql, authCtx, `itest-${orgSuffix}`, {
+            record,
+            waitFor,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
       ],
       [
         'checkChat',

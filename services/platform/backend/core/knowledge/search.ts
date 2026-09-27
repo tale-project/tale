@@ -151,6 +151,12 @@ export async function searchKnowledge(
                         args.access.includeConversationScoped,
                     }
                   : {}),
+                ...(args.access.includeConversationMessages !== undefined
+                  ? {
+                      includeConversationMessages:
+                        args.access.includeConversationMessages,
+                    }
+                  : {}),
                 ...(args.access.threadIds !== undefined
                   ? { threadIds: [...args.access.threadIds] }
                   : {}),

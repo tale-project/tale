@@ -18,7 +18,9 @@
  *  - **Content-hash dedup.** Re-uploading, re-syncing, and retrying are all
  *    normal, and indexing is the expensive part of the system. Unchanged
  *    content is skipped; content already embedded elsewhere in the SAME
- *    organization is copied rather than re-embedded.
+ *    organization is copied rather than re-embedded — except an email body,
+ *    whose chunks carry its mail's subject and sender and so are never
+ *    copied to or from another row.
  *  - **Slices resume.** A large document is committed in slices, and the
  *    committed prefix is the checkpoint: a crash resumes after it instead of
  *    starting over. Preparing the text — the secret scan, the PII policy,
@@ -53,6 +55,10 @@ import {
 } from '../../../lib/knowledge/chunking';
 import { planIngest, sliceToStore } from '../../../lib/knowledge/ingest-plan';
 import { logger } from '../../../lib/knowledge/logger';
+import {
+  isMessageRef,
+  MESSAGE_REF_LIKE_PATTERN,
+} from '../../../lib/knowledge/message-ref';
 import { sanitizeExtractedText } from '../../../lib/knowledge/sanitize-text';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../../lib/knowledge/types';
@@ -353,12 +359,12 @@ export async function indexDocument(
     );
     return released(args.fileId, chunks.length);
   }
-  const duplicate = await findDuplicate(
-    args.sql,
-    args.orgSlug,
-    contentHash,
-    args.fileId,
-  );
+  // An email body never borrows another row's chunks (see `findDuplicate`):
+  // they would carry that row's header, not the mail's own subject and
+  // sender.
+  const duplicate = isMessageRef(args.fileId)
+    ? null
+    : await findDuplicate(args.sql, args.orgSlug, contentHash, args.fileId);
   const plan = planIngest({
     contentHash,
     totalChunks: chunks.length,
@@ -626,6 +632,12 @@ async function readStoredState(
  * Scoped by `org_slug` like every other statement: reusing another
  * organization's embeddings would both copy its content and reveal that it has
  * the same file.
+ *
+ * Never an email body (`msg:` ref). A clone copies the source's chunks
+ * verbatim, contextual header included, and a body's header names its
+ * subject and sender — a conversation the reader of the copy may have no
+ * right to see. Nor does a body clone from anything (the caller's check):
+ * two identical bodies in two conversations each carry their own mail.
  */
 async function findDuplicate(
   sql: Sql,
@@ -636,9 +648,9 @@ async function findDuplicate(
   const rows = await sql.unsafe<{ id: string }[]>(
     `SELECT id FROM ${SCHEMA}.documents
      WHERE org_slug = $1 AND content_hash = $2 AND status = 'completed'
-       AND file_id <> $3
+       AND file_id <> $3 AND file_id NOT LIKE $4
      LIMIT 1`,
-    [orgSlug, contentHash, exceptFileId],
+    [orgSlug, contentHash, exceptFileId, MESSAGE_REF_LIKE_PATTERN],
   );
   return rows[0]?.id ?? null;
 }

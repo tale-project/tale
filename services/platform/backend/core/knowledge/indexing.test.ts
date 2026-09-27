@@ -287,6 +287,40 @@ describe('unchanged content is not re-embedded', () => {
     expect(db.statements.join('\n')).toContain('WITH copied AS');
   });
 
+  it('never clones an email body from another row', async () => {
+    // A clone copies the source's chunks header and all: an email whose body
+    // matched another row's text would announce that row's name instead of
+    // its own subject and sender.
+    const db = fakeDb({ duplicateId: 'doc-original' });
+    const embedder = stubEmbedder();
+    await indexDocument({
+      ...ARGS,
+      fileId: 'msg:6f3c2a1e-8b7d-4e5f-9a0b-1c2d3e4f5a6b',
+      title: 'Application — from Bob Example <bob@example.test>',
+      conversationId: 'conv_1',
+      sql: db.sql,
+      embedder,
+    });
+    const text = db.statements.join('\n');
+    expect(text).not.toContain('WITH copied AS');
+    expect(text).not.toMatch(/content_hash = \$2 AND status = 'completed'/);
+    expect(embedder.embedded.length).toBeGreaterThan(0);
+  });
+
+  it('never offers an email body as the source of a clone', async () => {
+    // Its header names a correspondent in a conversation the reader of the
+    // copy — a hub document, another inbox row — may have no right to see.
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+    const index = db.statements.findIndex(
+      (statement) =>
+        statement.includes('content_hash = $2') &&
+        statement.includes('completed'),
+    );
+    expect(db.statements[index]).toContain('file_id NOT LIKE $4');
+    expect(db.params[index]?.[3]).toBe('msg:%');
+  });
+
   it('looks for a duplicate only inside the same organization', async () => {
     // Reusing another organization's embeddings would copy its content and
     // reveal that it holds the same file.

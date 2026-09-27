@@ -196,6 +196,18 @@ export interface KnowledgeAccessScope {
    */
   readonly includeConversationScoped?: boolean;
   /**
+   * Whether indexed EMAIL BODIES (`msg:` refs, `message-ref.ts`) are in play —
+   * a narrowing of the conversation-scoped rows above, never a widening.
+   *
+   * A body is text anyone who can email the organization chose, so it may
+   * reach only a door that labels it as mail and wraps it as untrusted: the
+   * chat assistant's `rag_search` / `rag_fetch`, which set this when the
+   * caller's role reads conversations. Absent — every other door, the org-wide
+   * callers included — message rows are excluded from the SQL candidates and
+   * refused by the re-check, so a new corpus class reaches no door by default.
+   */
+  readonly includeConversationMessages?: boolean;
+  /**
    * Who is asking. Carried because a conversation-scoped row is decided by the
    * conversation's live assignment, which needs an identity rather than a set —
    * the sets above cannot express "the assignee". Absent denies those rows.

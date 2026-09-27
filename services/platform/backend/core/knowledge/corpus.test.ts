@@ -317,6 +317,64 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
+  it('keeps email bodies out of every statement for a door that did not ask', async () => {
+    // A body is text an outsider wrote; only a door that wraps it may take
+    // one, so for every other — the org-wide callers included — no message
+    // row may even win a candidate slot. The dense leg's scope count reads
+    // the same predicates, or it would size the plan on rows it never
+    // returns.
+    const scopes = [
+      undefined,
+      {
+        teamIds: [],
+        projectIds: [],
+        includeHub: true,
+        includeConversationScoped: true,
+      },
+    ];
+    for (const access of scopes) {
+      const { sql, sent } = recorder();
+      const reader = new DocumentCorpusReader(sql, 'acme');
+      await reader.keyword({ ...LEG, ...(access ? { access } : {}) });
+      await reader.dense({
+        ...LEG,
+        ...(access ? { access } : {}),
+        embedding: EMBEDDING,
+      });
+      const statements = sent.filter(
+        (entry) =>
+          entry.text.includes('.chunks') && !entry.text.startsWith('SET LOCAL'),
+      );
+      expect(statements.length).toBe(3);
+      for (const statement of statements) {
+        const clause = /d\.file_id NOT LIKE \$(\d+)/.exec(statement.text);
+        expect(clause).not.toBeNull();
+        expect(statement.params[Number(clause?.[1]) - 1]).toBe('msg:%');
+      }
+    }
+  });
+
+  it('lets email bodies compete for a door that asked for them', async () => {
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme');
+    const access = {
+      teamIds: [],
+      projectIds: [],
+      includeHub: true,
+      includeConversationScoped: true,
+      includeConversationMessages: true,
+    };
+    await reader.keyword({ ...LEG, access });
+    await reader.dense({ ...LEG, access, embedding: EMBEDDING });
+    const statements = corpusStatements(sent);
+    expect(statements.length).toBe(2);
+    for (const statement of statements) {
+      expect(statement.text).not.toContain('NOT LIKE');
+      // They enter through the conversation disjunct, for the re-check.
+      expect(statement.text).toContain('d.conversation_id IS NOT NULL');
+    }
+  });
+
   it('adds no scope clause for an org-wide caller', async () => {
     // Absent access = the admin-keyed surfaces (org REST key, MCP lane):
     // exactly the pre-scoping statement, so nothing changes for them.

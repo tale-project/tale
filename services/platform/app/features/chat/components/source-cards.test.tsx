@@ -64,6 +64,20 @@ describe('extractSources', () => {
     ]);
   });
 
+  it('offers no file preview for a fetched email', () => {
+    // An email ref names no file: a document chip would open a preview of
+    // bytes that do not exist. It answers as the conversation it cites.
+    const sources = extractSources([
+      result('rag_fetch', {
+        status: 'ok',
+        kind: 'conversation',
+        ref: 'msg:6f3c2a1e-8b7d-4e5f-9a0b-1c2d3e4f5a6b',
+        filename: 'Application: field sales agent',
+      }),
+    ]);
+    expect(sources).toEqual([]);
+  });
+
   it('never sources a failure or a bare search', () => {
     const sources = extractSources([
       result('web_fetch', { status: 'error', message: 'nope' }),

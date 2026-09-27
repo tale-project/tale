@@ -311,6 +311,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         signal: context?.signal,
       });
     },
+    'rag.index_message': async (payload, context) => {
+      const input = z.object({ messageId: z.string().min(1) }).parse(payload);
+      const { indexConversationMessage } =
+        await import('../domains/knowledge/message-index.ts');
+      await indexConversationMessage(deps.sql, input.messageId, {
+        signal: context?.signal,
+      });
+    },
     'knowledge.release_refs': async (payload) => {
       const input = z
         .object({

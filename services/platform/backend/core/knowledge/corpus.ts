@@ -30,6 +30,7 @@
 import type { Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger';
+import { MESSAGE_REF_LIKE_PATTERN } from '../../../lib/knowledge/message-ref';
 import type {
   CorpusLegQuery,
   CorpusReader,
@@ -217,7 +218,8 @@ export class DocumentCorpusReader implements CorpusReader {
       // team_ids, team_id, and project_id all NULL — which is also what every
       // row ingested before scoping existed reads as, so unstamped rows keep
       // today's org-wide visibility until the backfill stamps them. Absent
-      // access means org-wide (admin-keyed surfaces) and adds no clause.
+      // access means org-wide (admin-keyed surfaces) and adds no scope clause
+      // — only the message-row exclusion below.
       const disjuncts: string[] = [];
       if (query.access.includeHub) {
         // `conversation_id IS NULL` is part of being a hub row. Without it an
@@ -264,6 +266,15 @@ export class DocumentCorpusReader implements CorpusReader {
       params.push([...query.access.projectIds]);
       disjuncts.push(`d.project_id = ANY($${offset + params.length})`);
       conditions.push(`(${disjuncts.join(' OR ')})`);
+    }
+    // Email bodies (`msg:` refs) are candidates only for a door that asked for
+    // them (`KnowledgeAccessScope.includeConversationMessages`) — the org-wide
+    // callers included. The re-check refuses them for every other door anyway;
+    // excluding them here too means a door that cannot serve one never spends
+    // a candidate slot on it.
+    if (query.access?.includeConversationMessages !== true) {
+      params.push(MESSAGE_REF_LIKE_PATTERN);
+      conditions.push(`d.file_id NOT LIKE $${offset + params.length}`);
     }
     return {
       clause: conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '',

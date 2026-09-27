@@ -18,6 +18,9 @@
  *     skips indexing by default, and "may not be indexed yet" was the wrong
  *     answer for a `.txt` whose bytes were right there.
  *
+ * An email body (a `msg:` ref) has only the first: what the indexer stored,
+ * after its secret scan and the organization's PII policy.
+ *
  * When none serves, the miss states the TRUE indexing state of the file —
  * skipped, queued, running, failed with its error, unsupported, or indexed
  * with no text — and names the file, so the model relays a fact and the
@@ -32,6 +35,7 @@
  * caller may read — nothing wider.
  */
 
+import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
@@ -131,6 +135,15 @@ const MISSING: DocumentTextRead = {
     'rag_search and use a ref from its results.',
 };
 
+/** The same, for an email ref: denied, deleted, or not indexed — one
+ * sentence for every case, so a fetch cannot probe for a message. */
+const MISSING_EMAIL: DocumentTextRead = {
+  status: 'not_found',
+  message:
+    'No readable email with that ref in this organization. Re-run ' +
+    'rag_search and use a ref from its results.',
+};
+
 const SAY_SO = 'Say so instead of guessing at its contents.';
 
 /** The remedy for a file that will never index on its own. */
@@ -200,6 +213,12 @@ export async function readDocumentText(
       source: 'corpus',
     };
   }
+
+  // An email body is served from the corpus or not at all. It has no
+  // document row and no stored bytes for the lanes below, and reading the
+  // message row instead would serve the very text the indexer's secret scan
+  // or the organization's PII policy refused.
+  if (isMessageRef(args.fileId)) return MISSING_EMAIL;
 
   // The document row: its scope stamp gates its inline content exactly as
   // the corpus row's stamp gated the chunks — `teamTags` is the FULL team

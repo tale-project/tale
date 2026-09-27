@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 82 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 84 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -418,6 +418,20 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   as a chat of its own, and its **Conversation actions** menu offers
   **Delete**. Repeat with **A is better** (`chat.arena.aBetter`): the URL
   stays, and Trash shows one row for the discarded column B.
+- [ ] `CHAT-F49` · **An email is found by what it says** — **Mode B + Docker
+  stack** with an embedding model configured, and an Inbox holding one
+  inbound email whose body alone names a phrase: subject `Application`, body
+  "I am applying for the field sales agent role" (a synced mailbox, or the
+  seeding pattern in [conversations.md](conversations.md) with `channel`
+  `email` and `direction` `inbound`). As an admin, ask "Who applied for the
+  field sales agent role?" → The search step
+  (`chat.thinking.searchingKnowledgeBase`) finds the email; the reply names
+  the sender and cites the conversation by its subject. Ask for the whole
+  email → A reading step (`chat.thinking.readingDocument`) names
+  **Application**, never a `msg:` id, and **Sources** (`chat.sources.label`)
+  shows no document card for it. Our own replies, and mail that arrived before
+  the embedding model was configured, are found only by the conversation's
+  subject, sender or recent message text.
 ### Attachments
 - [ ] `CHAT-AT1` · **Attach a document** — **Open chat menu**
   (`composer.openMenu`) → **Add photos & files** (`composer.addFiles`) → pick
@@ -584,6 +598,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   flips to **Stop dictation** (`chat.dictation.stop`); with the site allowed but
   the network offline, a click shows the **Dictation is unavailable** toast
   (`chat.dictation.serviceUnavailable`) rather than "not supported".
+- [ ] `CHAT-B16` · **An email stays inside its Inbox** — With CHAT-F49's email
+  on a conversation assigned to nobody, ask the same question as a plain
+  member → Nothing of the email is found, quoted or named. Assign the
+  conversation to that member and ask again → It is found. Mark it as spam →
+  It is no longer found. Delete the conversation → A new search finds nothing
+  of it, for the admin too.
 
 ## Accessibility (WCAG 2.1 AA)
 

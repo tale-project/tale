@@ -1,5 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  INDEXED_MESSAGE_CHANNEL,
+  INDEXED_MESSAGE_DIRECTION,
+  isIndexedMessage,
+  isMessageId,
+  messageRef,
+} from '../../../lib/knowledge/message-ref.ts';
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
@@ -10,6 +17,7 @@ import {
 } from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -347,6 +355,18 @@ export async function addMessageToConversation(
   `;
   const messageId = inserted[0]?.id;
   if (!messageId) throw new Error('conversation message insert failed');
+  // An inbound email's body is indexed for retrieval, queued in THIS
+  // transaction: a rolled-back insert queues nothing, and the loser of an
+  // ingest race (the unique Message-ID refusal) rolls its job back with it.
+  // Which messages qualify is `isIndexedMessage` — the same answer the
+  // indexer, the retrievable filter and the ref release give. An empty body
+  // is never queued; the indexer re-checks after reading HTML down to text.
+  if (
+    isIndexedMessage({ direction, channel: conversation.channel }) &&
+    args.content.trim() !== ''
+  ) {
+    await addJobInTx(tx, 'rag.index_message', { messageId });
+  }
 
   const lastMessageAt = nextConversationLastMessageAt(
     conversation.lastMessageAt ?? undefined,
@@ -1283,7 +1303,16 @@ export async function bulkSetConversationStatus(
 
 // ---------------------------------------------------------------- delete
 
-/** Hard delete (0.4 semantics): messages cascade; org-level holds block. */
+/**
+ * Hard delete (0.4 semantics): messages cascade; org-level holds block.
+ *
+ * The corpus copies of its inbound email bodies live in another database, so
+ * no cascade reaches them: the ref release is queued in THIS transaction and
+ * runs once the rows are gone, when `assessMessageRefLiveness` reads the
+ * refs as dead (the network I/O never runs inside the delete). A job that
+ * exhausts its retries is the daily corpus reconcile's to finish, and the
+ * retrievable filter refuses a deleted message's rows meanwhile.
+ */
 export async function deleteConversation(
   sql: Sql,
   organizationId: string,
@@ -1302,7 +1331,22 @@ export async function deleteConversation(
       );
     }
     await assertNotHeld(tx, organizationId, 'conversation', conversationId);
+    const indexed = await tx<{ id: string }[]>`
+      SELECT id FROM app.conversation_messages
+      WHERE conversation_id = ${conversationId} AND org_id = ${organizationId}
+        AND direction = ${INDEXED_MESSAGE_DIRECTION}
+        AND channel = ${INDEXED_MESSAGE_CHANNEL}
+    `;
     await tx`DELETE FROM app.conversations WHERE id = ${conversationId}`;
+    const refs = indexed
+      .filter((message) => isMessageId(message.id))
+      .map((message) => messageRef(message.id));
+    if (refs.length > 0) {
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId,
+        refs,
+      });
+    }
   });
 }
 
