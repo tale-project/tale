@@ -3,18 +3,26 @@
 /**
  * The app door names the limit a task field broke. It answered a domain
  * refusal as `{error: <code>}` alone, so an empty title and an over-long one
- * reached the dialog as the same bare `TASK_TITLE_INVALID`; and an empty
- * title on create never reached the domain at all, refused first as a bare
- * `invalid body`. Both now answer the code with the domain's own sentence.
- * The domain runs for real here, on a stub connection.
+ * reached the dialog as the same bare `TASK_TITLE_INVALID`; and its schema
+ * carried caps of its own (an empty title or comment, a title over 500, a
+ * description over 50,000, more than 100 labels, a comment over 10,000) that
+ * answered a bare `invalid body`. Every one now answers the domain's code
+ * with the domain's own sentence. The domain runs for real here, on a stub
+ * connection.
  */
 
 import type { Context } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
-import { TASK_TITLE_MAX } from '../../core/tasks/helpers.ts';
+import {
+  TASK_COMMENT_MAX,
+  TASK_DESCRIPTION_MAX,
+  TASK_LABELS_MAX,
+  TASK_TITLE_MAX,
+} from '../../core/tasks/helpers.ts';
+import { checkUserRateLimit } from '../../lib/rate-limit.ts';
 
 vi.mock('../../lib/rate-limit.ts', () => ({
   checkUserRateLimit: vi.fn(),
@@ -118,6 +126,8 @@ const OVER_LONG = {
     'as 2); this one has 201.',
 };
 
+beforeEach(() => vi.clearAllMocks());
+
 describe('POST /api/app/tasks names the refused title limit', () => {
   it.each(['', '   '])(
     'answers the empty title %j as empty, with the range',
@@ -126,6 +136,9 @@ describe('POST /api/app/tasks names the refused title limit', () => {
       expect(sent.status).toBe(400);
       expect(sent.json).toEqual(EMPTY);
       expect(writes(sent.statements)).toEqual([]);
+      // Refused at the schema with the domain's sentence: no create slot of
+      // the author's rate limit is spent on a call that cannot land.
+      expect(checkUserRateLimit).not.toHaveBeenCalled();
     },
   );
 
@@ -137,6 +150,77 @@ describe('POST /api/app/tasks names the refused title limit', () => {
     expect(sent.status).toBe(400);
     expect(sent.json).toEqual(OVER_LONG);
     expect(writes(sent.statements)).toEqual([]);
+  });
+
+  it('names the cap for a title past the old schema guard of 500 too', async () => {
+    const sent = await send('/', { projectId: 'p1', title: 'x'.repeat(501) });
+    expect(sent.status).toBe(400);
+    expect(sent.json).toEqual({
+      error: 'TASK_TITLE_INVALID',
+      message:
+        'The task title is capped at 200 UTF-16 code units (most emoji ' +
+        'count as 2); this one has 501.',
+    });
+  });
+});
+
+describe('POST /api/app/tasks names the refused description and label limits', () => {
+  it.each([TASK_DESCRIPTION_MAX + 1, 50_001])(
+    'answers a description of %i code units with the cap',
+    async (length) => {
+      const sent = await send('/', {
+        projectId: 'p1',
+        title: 'Fits',
+        description: 'd'.repeat(length),
+      });
+      expect(sent.status).toBe(400);
+      expect(sent.json).toEqual({
+        error: 'TASK_DESCRIPTION_INVALID',
+        message:
+          'The task description is capped at 20,000 UTF-16 code units (most ' +
+          `emoji count as 2); this one has ${length.toLocaleString('en-US')}.`,
+      });
+      expect(writes(sent.statements)).toEqual([]);
+    },
+  );
+
+  it.each([TASK_LABELS_MAX + 1, 101])(
+    'answers %i labels with the count cap',
+    async (count) => {
+      const sent = await send('/', {
+        projectId: 'p1',
+        title: 'Fits',
+        labels: Array.from({ length: count }, (_, index) => `label-${index}`),
+      });
+      expect(sent.status).toBe(400);
+      expect(sent.json).toEqual({
+        error: 'TASK_LABELS_INVALID',
+        message: `A task carries at most 50 labels; ${count} were given.`,
+      });
+      expect(writes(sent.statements)).toEqual([]);
+    },
+  );
+
+  it('answers a label name over 50 code units with its cap, from the domain', async () => {
+    const sent = await send('/', {
+      projectId: 'p1',
+      title: 'Fits',
+      labels: ['l'.repeat(51)],
+    });
+    expect(sent.status).toBe(400);
+    expect(sent.json).toEqual({
+      error: 'TASK_LABELS_INVALID',
+      message:
+        'A label name is capped at 50 UTF-16 code units (most emoji count ' +
+        'as 2); this one has 51.',
+    });
+    expect(writes(sent.statements)).toEqual([]);
+  });
+
+  it('keeps the bare invalid body for a malformed field no cap covers', async () => {
+    const sent = await send('/', { projectId: 'p1', title: 42 });
+    expect(sent.status).toBe(400);
+    expect(sent.json).toEqual({ error: 'invalid body' });
   });
 });
 
@@ -152,6 +236,40 @@ describe('POST /api/app/tasks/:taskId names the refused title limit', () => {
     const sent = await send('/t1', { title: 'x'.repeat(TASK_TITLE_MAX + 1) });
     expect(sent.status).toBe(400);
     expect(sent.json).toEqual(OVER_LONG);
+    expect(writes(sent.statements)).toEqual([]);
+  });
+});
+
+const COMMENT_EMPTY = {
+  error: 'TASK_COMMENT_INVALID',
+  message: 'The comment is empty — it takes 1 to 10,000 UTF-16 code units.',
+};
+const COMMENT_OVER_LONG = {
+  error: 'TASK_COMMENT_INVALID',
+  message:
+    'The comment is capped at 10,000 UTF-16 code units (most emoji count ' +
+    'as 2); this one has 10,001.',
+};
+
+describe.each([
+  ['POST /api/app/tasks/:taskId/comments', '/t1/comments'],
+  ['POST /api/app/tasks/comments/:messageId', '/comments/m1'],
+])('%s names the refused comment limit', (_door, route) => {
+  it.each(['', '   '])(
+    'answers the empty body %j as empty, with the range',
+    async (body) => {
+      const sent = await send(route, { body });
+      expect(sent.status).toBe(400);
+      expect(sent.json).toEqual(COMMENT_EMPTY);
+      expect(writes(sent.statements)).toEqual([]);
+      expect(checkUserRateLimit).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers an over-long body as over-long, with the cap', async () => {
+    const sent = await send(route, { body: 'c'.repeat(TASK_COMMENT_MAX + 1) });
+    expect(sent.status).toBe(400);
+    expect(sent.json).toEqual(COMMENT_OVER_LONG);
     expect(writes(sent.statements)).toEqual([]);
   });
 });

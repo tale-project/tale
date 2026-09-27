@@ -6,7 +6,13 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { TASK_ATTACHMENTS_MAX } from '../../core/tasks/helpers.ts';
+import {
+  TASK_ATTACHMENTS_MAX,
+  taskCommentRefusal,
+  taskDescriptionRefusal,
+  taskLabelCountRefusal,
+  taskTitleRefusal,
+} from '../../core/tasks/helpers.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
@@ -36,7 +42,6 @@ import {
   deleteTaskComment,
   editTaskComment,
   listTaskComments,
-  TASK_COMMENT_MAX,
   TASK_COMMENT_PAGE_MAX,
   taskCommentCursorSchema,
 } from './comments.ts';
@@ -107,16 +112,84 @@ const attachmentsSchema = z
   .max(TASK_ATTACHMENTS_MAX)
   .optional();
 
+/** The param a {@link refusedAsDomain} issue carries its domain code in. */
+const DOMAIN_REFUSAL_CODE = 'domainRefusalCode';
+
+/**
+ * A field the domain caps, checked AT THE SCHEMA with the domain's own
+ * refusal: the sentence, under the code, that `validateTitle`,
+ * `validateDescription`, `normalizeLabelNames` and the comment writers throw
+ * (the shared `task*Refusal` helpers). The door answers it as the domain
+ * does ({@link invalidBody}) — before a rate-limit slot is charged or a row
+ * is read, and however far past the cap the value is. The schema used to
+ * carry caps of its own above the domain's (a title ≤ 500, a description ≤
+ * 50,000, ≤ 100 labels, a comment `.min(1)`), and a value one of those
+ * refused answered a bare `invalid body` that named no limit and could not
+ * tell an empty title or comment from an over-long one. The domain keeps its
+ * own check: the REST and agent doors reach it without this schema.
+ */
+function refusedAsDomain<T>(
+  schema: z.ZodType<T>,
+  code: string,
+  refusal: (value: T) => string | null,
+): z.ZodType<T> {
+  return schema.superRefine((value, ctx) => {
+    const message = refusal(value);
+    if (message !== null) {
+      ctx.addIssue({
+        code: 'custom',
+        message,
+        params: { [DOMAIN_REFUSAL_CODE]: code },
+      });
+    }
+  });
+}
+
+const titleSchema = refusedAsDomain(
+  z.string(),
+  'TASK_TITLE_INVALID',
+  taskTitleRefusal,
+);
+const descriptionSchema = refusedAsDomain(
+  z.string(),
+  'TASK_DESCRIPTION_INVALID',
+  taskDescriptionRefusal,
+);
+// How MANY labels; each name's length is the domain's to refuse, with its
+// own sentence (`normalizeLabelNames`), which `handleError` relays.
+const labelsSchema = refusedAsDomain(
+  z.array(z.string()),
+  'TASK_LABELS_INVALID',
+  (labels) => taskLabelCountRefusal(labels.length),
+);
+const commentBodySchema = z.object({
+  body: refusedAsDomain(z.string(), 'TASK_COMMENT_INVALID', taskCommentRefusal),
+});
+
+/** A body the schema refused: the domain's code and sentence when a field
+ * broke one of its caps ({@link refusedAsDomain}), else `invalid body`. */
+function invalidBody<E extends OrgEnv>(
+  c: Context<E>,
+  error: z.ZodError,
+): Response {
+  for (const issue of error.issues) {
+    const code: unknown =
+      issue.code === 'custom' ? issue.params?.[DOMAIN_REFUSAL_CODE] : undefined;
+    if (typeof code === 'string') {
+      return c.json({ error: code, message: issue.message }, 400);
+    }
+  }
+  return c.json({ error: 'invalid body' }, 400);
+}
+
 const createTaskSchema = z.object({
   projectId: z.string().min(1),
-  // No `.min(1)`: an empty title is the domain's to refuse, with the same
-  // named sentence a whitespace-only one gets, not a bare `invalid body`.
-  title: z.string().max(500),
-  description: z.string().max(50_000).optional(),
+  title: titleSchema,
+  description: descriptionSchema.optional(),
   attachments: attachmentsSchema,
   status: statusSchema.optional(),
   priority: prioritySchema.optional(),
-  labels: z.array(z.string()).max(100).optional(),
+  labels: labelsSchema.optional(),
   assigneeType: assigneeTypeSchema.optional(),
   assigneeId: z.string().optional(),
   parentTaskId: z.string().optional(),
@@ -125,11 +198,11 @@ const createTaskSchema = z.object({
 });
 
 const updateTaskSchema = z.object({
-  title: z.string().max(500).optional(),
-  description: z.string().max(50_000).nullable().optional(),
+  title: titleSchema.optional(),
+  description: descriptionSchema.nullable().optional(),
   attachments: attachmentsSchema,
   priority: prioritySchema.nullable().optional(),
-  labels: z.array(z.string()).max(100).optional(),
+  labels: labelsSchema.optional(),
   startDate: z.number().int().positive().nullable().optional(),
   dueDate: z.number().int().positive().nullable().optional(),
   reviewerUserId: z.string().nullable().optional(),
@@ -700,7 +773,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/', async (c) => {
     const body = createTaskSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBody(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -779,11 +852,9 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.post('/:taskId/comments', async (c) => {
-    const body = z
-      .object({ body: z.string().min(1).max(TASK_COMMENT_MAX) })
-      .safeParse(await c.req.json());
+    const body = commentBodySchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBody(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -801,11 +872,9 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.post('/comments/:messageId', async (c) => {
-    const body = z
-      .object({ body: z.string().min(1).max(TASK_COMMENT_MAX) })
-      .safeParse(await c.req.json());
+    const body = commentBodySchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBody(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -884,7 +953,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId', async (c) => {
     const body = updateTaskSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBody(c, body.error);
     }
     try {
       const auth = await authCtx(c);
