@@ -310,11 +310,11 @@ export function knowledgeScopeAllows(
   );
 }
 
-/** What a caller asks for. */
 /** The two kinds of mail the documents corpus holds (see
  * `KnowledgeAccessScope.includeConversationMessages`). */
 export type MailKind = 'bodies' | 'attachments';
 
+/** What a caller asks for. */
 export interface KnowledgeQuery {
   readonly query: string;
   /** Defaults to `all`. */
