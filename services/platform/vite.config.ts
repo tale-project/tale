@@ -72,6 +72,71 @@ const devFsAllow = [
     : []),
 ];
 
+/**
+ * The chunk every route loads first: React, the router and query stack,
+ * and Vite's dynamic-import helper (`\0vite/preload-helper.js`), which every
+ * module that lazy-loads imports statically. Its own group at a higher
+ * priority than the other vendor chunks: rolldown captures a grouped
+ * module's dependencies recursively and works same-priority groups in name
+ * order, so `vendor-codemirror` (which sorts first) used to swallow the
+ * helper and the entry preloaded the whole editor stack — 550 KB gzip on
+ * the sign-in page — just to reach it (2026-09-26 evaluation, G-08).
+ */
+function coreChunk(id: string): string | null {
+  if (id.includes('vite/preload-helper')) {
+    return 'vendor-core';
+  }
+  if (
+    id.includes('node_modules') &&
+    (id.includes('/react/') ||
+      id.includes('react-dom') ||
+      id.includes('react-is') ||
+      id.includes('scheduler') ||
+      id.includes('@tanstack') ||
+      id.includes('convex'))
+  ) {
+    return 'vendor-core';
+  }
+  return null;
+}
+
+/** The vendor chunk a dependency belongs to; `null` leaves it to the default chunking. */
+function vendorChunk(id: string): string | null {
+  if (!id.includes('node_modules')) {
+    return null;
+  }
+  if (id.includes('@radix-ui')) {
+    return 'vendor-radix';
+  }
+  if (id.includes('xlsx')) {
+    return 'vendor-xlsx';
+  }
+  if (id.includes('pdfjs-dist')) {
+    return 'vendor-pdf';
+  }
+  if (id.includes('katex')) {
+    return 'vendor-katex';
+  }
+  if (
+    id.includes('codemirror') ||
+    id.includes('@codemirror') ||
+    id.includes('@lezer')
+  ) {
+    return 'vendor-codemirror';
+  }
+  if (id.includes('lucide-react')) {
+    return 'vendor-icons';
+  }
+  if (
+    id.includes('libphonenumber-js') ||
+    id.includes('validator/lib') ||
+    id.includes('validator/es')
+  ) {
+    return 'vendor-pii';
+  }
+  return null;
+}
+
 export default defineConfig({
   base: './',
   resolve: {
@@ -178,50 +243,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Group React core + tightly coupled dependencies together to avoid circular deps
-            if (
-              id.includes('/react/') ||
-              id.includes('react-dom') ||
-              id.includes('react-is') ||
-              id.includes('scheduler') ||
-              id.includes('@tanstack') ||
-              id.includes('convex')
-            ) {
-              return 'vendor-core';
-            }
-            if (id.includes('@radix-ui')) {
-              return 'vendor-radix';
-            }
-            if (id.includes('xlsx')) {
-              return 'vendor-xlsx';
-            }
-            if (id.includes('pdfjs-dist')) {
-              return 'vendor-pdf';
-            }
-            if (id.includes('katex')) {
-              return 'vendor-katex';
-            }
-            if (
-              id.includes('codemirror') ||
-              id.includes('@codemirror') ||
-              id.includes('@lezer')
-            ) {
-              return 'vendor-codemirror';
-            }
-            if (id.includes('lucide-react')) {
-              return 'vendor-icons';
-            }
-            if (
-              id.includes('libphonenumber-js') ||
-              id.includes('validator/lib') ||
-              id.includes('validator/es')
-            ) {
-              return 'vendor-pii';
-            }
-          }
-          return undefined;
+        // Rolldown's native chunk groups rather than the `manualChunks`
+        // shim, which cannot order them — see `coreChunk`.
+        codeSplitting: {
+          groups: [{ name: coreChunk, priority: 1 }, { name: vendorChunk }],
         },
       },
     },
