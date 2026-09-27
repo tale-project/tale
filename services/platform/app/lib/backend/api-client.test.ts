@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   BackendApiError,
+  backendApiErrorFromBody,
   backendFetch,
   backendUrl,
   eventsUrl,
@@ -275,6 +276,21 @@ describe('readBackendApiError', () => {
     });
   });
 
+  // The raw lanes meet the flat envelope too (a lapsed session on an upload
+  // POST or the chat turn): the code rides in `code`, the sentence in `error`.
+  it("reads a flat envelope's code from `code` off a raw answer", async () => {
+    const sentence =
+      'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1';
+    const error = await readBackendApiError(
+      jsonResponse(401, { error: sentence, code: 'UNAUTHORIZED' }),
+    );
+    expect(error).toMatchObject({
+      status: 401,
+      code: 'UNAUTHORIZED',
+      message: sentence,
+    });
+  });
+
   it('keeps the status text, and says so, for a body that is not JSON', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = await readBackendApiError(
@@ -286,6 +302,32 @@ describe('readBackendApiError', () => {
     });
     expect(error.code).toBeUndefined();
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The one reading of both envelopes, called directly by the lane that parses
+ * its body itself (the chat turn).
+ */
+describe('backendApiErrorFromBody', () => {
+  it.each([
+    [
+      {
+        error: 'The request URL contains a NUL character',
+        code: 'INVALID_URL',
+      },
+      'INVALID_URL',
+      'The request URL contains a NUL character',
+    ],
+    [{ error: 'PROJECT_FORBIDDEN' }, 'PROJECT_FORBIDDEN', 'PROJECT_FORBIDDEN'],
+    [{ error: 'RBAC_FORBIDDEN', code: '' }, 'RBAC_FORBIDDEN', 'RBAC_FORBIDDEN'],
+    [{ error: 'RBAC_FORBIDDEN', code: 42 }, 'RBAC_FORBIDDEN', 'RBAC_FORBIDDEN'],
+  ])('reads %j as code %s', (body, code, message) => {
+    expect(backendApiErrorFromBody(400, body)).toMatchObject({
+      status: 400,
+      code,
+      message,
+    });
   });
 });
 
