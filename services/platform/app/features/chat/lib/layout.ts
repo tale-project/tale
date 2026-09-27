@@ -11,4 +11,7 @@ export const CHAT_USER_BUBBLE_CLASS =
 export const CHAT_COMPOSER_FRAME_CLASS =
   'border-border sm:border-muted-foreground/50 bg-background relative w-full rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]';
 
-export const CHAT_COMPOSER_FIELD_CLASS = 'min-h-[72px] sm:min-h-[100px]';
+/** Two lines on a short viewport (a phone held sideways, a laptop at 200 %),
+ * where 100px of empty field left the thread above it no room at all. */
+export const CHAT_COMPOSER_FIELD_CLASS =
+  'min-h-[72px] sm:min-h-[100px] short-viewport:min-h-12';

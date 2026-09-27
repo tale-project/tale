@@ -1,6 +1,6 @@
 # Responsive (cross-cutting)
 
-> **Prefix** `RESP-` · **Reset** none · **Cost** 27 boxes
+> **Prefix** `RESP-` · **Reset** none · **Cost** 28 boxes
 
 Verify the app adapts across viewports — the mobile in-flow bottom tab bar,
 the phone's Home list and its way back, the mobile floating Save cluster, and
@@ -218,6 +218,13 @@ if you want to keep a write.
   before you scroll. With the embedding banner up it reads one line, its
   title and **Choose an embedding model**
   (`settings.dataResidency.orgEmbedding.banner.link`).
+- [ ] `RESP-B7` · **Composers on a short viewport** — At **844×390**, then
+  at 1280×720 zoomed to 200 %, open a conversation and click into its reply
+  box; then open a chat → The reply box grows to about a third of the
+  window and no further: its **Send** and its attachment controls stay in
+  view with the conversation's header above, and a long reply scrolls
+  inside the box. The chat's empty composer is two lines tall and the
+  thread shows above it.
 
 ## Accessibility (WCAG 2.1 AA)
 
