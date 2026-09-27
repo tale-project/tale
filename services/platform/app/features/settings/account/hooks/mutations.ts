@@ -1,15 +1,36 @@
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
-import { passwordExpiryQuery } from '@/app/lib/backend/account';
+import {
+  invalidateMyPasswordPolicy,
+  passwordExpiryQuery,
+} from '@/app/lib/backend/account';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 export function useUpdateUserName() {
   return useBackendMutation('users/mutations:updateUserName');
 }
 
+/** The password write refused the new password under the user's effective
+ * policy — the verdict the forms defer to whenever they had no rules. */
+export function isPasswordPolicyViolation(error: unknown): boolean {
+  return backendErrorCode(error) === 'password_policy_violation';
+}
+
 export function useUpdatePassword() {
   const queryClient = useQueryClient();
   return useBackendMutation('users/mutations:updateUserPassword', {
+    // Every caller reports its own failure — inline on the field a refusal
+    // names, or its own toast — so the generic toast would only repeat it.
+    errorToast: false,
+    // A refusal under the policy means the form checked other rules, or none
+    // (the read was still loading or had failed): read them again, so the
+    // checklist shows the ones the server applies.
+    onError: (error) => {
+      if (isPasswordPolicyViolation(error)) {
+        invalidateMyPasswordPolicy(queryClient);
+      }
+    },
     // The forced-change page navigates the moment this resolves, and the
     // dashboard gate redirects straight back on a cached `expired: true`.
     // The write answers the recomputed status, so publish it rather than

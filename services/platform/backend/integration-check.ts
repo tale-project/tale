@@ -42288,6 +42288,159 @@ async function checkChangelogAndAccounts(
 }
 
 /**
+ * A member reads the password rules they are held to. The per-org policy
+ * door is admin-only, so the member-facing password forms used to fall back
+ * to the built-in default: a member of an organization stricter than the
+ * default was shown the default's rules, then refused by the write.
+ * `GET /users/me/password-policy` answers the strictest policy across the
+ * member's organizations — what `update-password` enforces — and the admin
+ * door, which the admin dialogs keep reading, answers as it did.
+ */
+async function checkMemberPasswordPolicy(
+  sql: Sql,
+  base: string,
+): Promise<void> {
+  const suffix = randomUUID().slice(0, 8);
+  const owner = await signUpUser(base, 'pw-policy-owner');
+  const createOrg = async (label: string): Promise<string> => {
+    const response = await fetch(`${base}/api/auth/organization/create`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: owner.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({
+        name: `Password policy ${label} ${suffix}`,
+        slug: `itest-pw-${label}-${suffix}`,
+      }),
+    });
+    const body = z.object({ id: z.string() }).safeParse(await response.json());
+    return body.success ? body.data.id : '';
+  };
+  const strictOrgId = await createOrg('strict');
+  const plainOrgId = await createOrg('plain');
+  // Stricter than the built-in default (12 characters) on length; the plain
+  // org keeps the default, so the member's rules are the merge of the two.
+  const saved = await fetch(
+    `${base}/api/app/governance/policies/password_policy?orgId=${strictOrgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: owner.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({
+        config: {
+          minLength: 20,
+          requireUpper: true,
+          requireLower: true,
+          requireDigit: true,
+          requireSpecial: true,
+          rotationDays: 0,
+        },
+      }),
+    },
+  );
+  const member = await signUpOrgMember(
+    sql,
+    base,
+    strictOrgId,
+    'pw-policy-member',
+    'member',
+  );
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (gen_random_uuid(), ${plainOrgId}, ${member.userId}, 'member', ${new Date()})
+  `;
+  const outsider = await signUpUser(base, 'pw-policy-outsider');
+
+  // The effective read answers `{policy}`; the admin door `{policy: {config}}`.
+  const minLengthOf = async (
+    cookie: string,
+    route: string,
+  ): Promise<{ status: number; minLength: number | null }> => {
+    const response = await fetch(`${base}${route}`, { headers: { cookie } });
+    const body: unknown = await response.json().catch(() => null);
+    const effective = z
+      .object({ policy: z.object({ minLength: z.number() }).loose() })
+      .safeParse(body);
+    const perOrg = z
+      .object({
+        policy: z.object({
+          config: z.object({ minLength: z.number() }).loose(),
+        }),
+      })
+      .safeParse(body);
+    return {
+      status: response.status,
+      minLength: effective.success
+        ? effective.data.policy.minLength
+        : perOrg.success
+          ? perOrg.data.policy.config.minLength
+          : null,
+    };
+  };
+  const adminDoor = `/api/app/governance/policies/password_policy?orgId=${strictOrgId}`;
+  const ownerAdminRead = await minLengthOf(owner.cookie, adminDoor);
+  const memberAdminRead = await minLengthOf(member.cookie, adminDoor);
+  const memberRead = await minLengthOf(
+    member.cookie,
+    '/api/app/users/me/password-policy',
+  );
+  const outsiderRead = await minLengthOf(
+    outsider.cookie,
+    '/api/app/users/me/password-policy',
+  );
+  const anonymousRead = await fetch(`${base}/api/app/users/me/password-policy`);
+  record(
+    'password policy: a member reads the strictest rules of their organizations, the admin door is unchanged',
+    strictOrgId.length > 0 &&
+      plainOrgId.length > 0 &&
+      saved.status === 200 &&
+      ownerAdminRead.status === 200 &&
+      ownerAdminRead.minLength === 20 &&
+      memberAdminRead.status === 403 &&
+      memberRead.status === 200 &&
+      memberRead.minLength === 20 &&
+      outsiderRead.status === 200 &&
+      outsiderRead.minLength === 12 &&
+      anonymousRead.status === 401,
+    `orgs=${strictOrgId.length > 0 && plainOrgId.length > 0 ? 'created' : 'MISSING'}, save → ${saved.status} (want 200), admin door: owner → ${ownerAdminRead.status}/${ownerAdminRead.minLength} (want 200/20), member → ${memberAdminRead.status} (want 403); /users/me/password-policy: member → ${memberRead.status}/${memberRead.minLength} (want 200/20), no-org user → ${outsiderRead.status}/${outsiderRead.minLength} (want 200/12), anonymous → ${anonymousRead.status} (want 401)`,
+  );
+
+  const change = (newPassword: string): Promise<Response> =>
+    fetch(`${base}/api/app/users/update-password`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: member.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({
+        currentPassword: 'itest-password-1',
+        newPassword,
+      }),
+    });
+  // Fifteen characters and every character class: the default accepts it.
+  const refused = await change('Itest-Passw0rd!2');
+  const refusedBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await refused.json());
+  const accepted = await change('Itest-Passw0rd!-strict-2');
+  record(
+    'password policy: update-password holds a member to the rules the read answers',
+    refused.status === 400 &&
+      refusedBody.success &&
+      refusedBody.data.error === 'password_policy_violation' &&
+      accepted.status === 200,
+    `default-grade (15 chars) → ${refused.status}/${refusedBody.success ? refusedBody.data.error : 'ERR'} (want 400/password_policy_violation), 24 chars → ${accepted.status} (want 200)`,
+  );
+}
+
+/**
  * Legal holds: the custodian cascade freezes an owner's thread trash and a
  * document trash; placement dedupes on the active-per-target index; release
  * is maker-checker (self-approval blocked without the escape hatch, the
@@ -53744,6 +53897,10 @@ async function main(): Promise<void> {
       [
         'checkChangelogAndAccounts',
         () => checkChangelogAndAccounts(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkMemberPasswordPolicy',
+        () => checkMemberPasswordPolicy(sql, baseUrl),
       ],
       [
         'checkAccountAuthzHardening',

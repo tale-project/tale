@@ -71,6 +71,28 @@ describe('governance adapters', () => {
     });
   });
 
+  it('re-reads the saver’s own password rules when a password policy is saved', () => {
+    // User-scoped, so no organization's hint reaches it.
+    const client = new QueryClient();
+    const mine = backendKey('me', 'account', 'password-policy');
+    client.setQueryData(mine, {});
+    const adapter =
+      settingsWriteAdapters['governance/file_actions:saveGovernancePolicy'];
+    adapter?.invalidate?.(
+      client,
+      { organizationId: 'org-a', policyType: 'upload_policy' },
+      {},
+    );
+    expect(client.getQueryState(mine)?.isInvalidated).toBe(false);
+    adapter?.invalidate?.(
+      client,
+      { organizationId: 'org-a', policyType: 'password_policy' },
+      {},
+    );
+    expect(client.getQueryState(mine)?.isInvalidated).toBe(true);
+    client.clear();
+  });
+
   it('refreshes the DSAR receipt after an approval decision in this organization only', () => {
     const client = new QueryClient();
     const own = backendKey('org-a', 'gdpr_erasure', 'detail', 'request-a');

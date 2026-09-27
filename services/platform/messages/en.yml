@@ -443,8 +443,10 @@ auth:
     validation:
       currentRequired: Current password is required
       currentIncorrect: Current password is incorrect
+      newRequired: New password is required
       confirmRequired: Confirm your new password
       mismatch: Passwords don't match
+      policyViolation: This password doesn't meet your organization's password policy.
     warning:
       description:
         Changing your password signs you out of all devices. You'll need to

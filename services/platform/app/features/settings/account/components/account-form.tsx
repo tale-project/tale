@@ -20,17 +20,22 @@ import { useHasCredentialAccount } from '@/app/features/auth/hooks/queries';
 import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { usePasswordValidation } from '@/app/hooks/use-password-validation';
+import {
+  useNewPasswordSchema,
+  usePasswordValidation,
+} from '@/app/hooks/use-password-validation';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
-import { createPasswordSchema } from '@/lib/shared/schemas/password';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
-import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
+import {
+  isPasswordPolicyViolation,
+  useUpdatePassword,
+  useUpdateUserName,
+} from '../hooks/mutations';
+import { useMyPasswordPolicy } from '../hooks/queries';
 import { ChatsSection } from './chats-section';
 import { PasskeySection } from './passkey-section';
 import { RoleSection } from './role-section';
@@ -262,8 +267,8 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const { mutateAsync: updatePassword } = useUpdatePassword();
   const { signOut } = useAuth();
   const { toast } = useToast();
-  const organizationId = useOrganizationId();
-  const policy = usePasswordPolicy(organizationId);
+  const policy = useMyPasswordPolicy();
+  const newPasswordSchema = useNewPasswordSchema(policy);
 
   const changePasswordSchema = useMemo(
     () =>
@@ -272,18 +277,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           currentPassword: z
             .string()
             .min(1, tAuth('changePassword.validation.currentRequired')),
-          newPassword: createPasswordSchema(
-            {
-              minLength: tAuth('validation.passwordMinLength', {
-                n: policy.minLength,
-              }),
-              lowercase: tAuth('validation.passwordLowercase'),
-              uppercase: tAuth('validation.passwordUppercase'),
-              number: tAuth('validation.passwordNumber'),
-              specialChar: tAuth('validation.passwordSpecial'),
-            },
-            policy,
-          ),
+          newPassword: newPasswordSchema,
           confirmPassword: z
             .string()
             .min(1, tAuth('changePassword.validation.confirmRequired')),
@@ -292,7 +286,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           message: tAuth('changePassword.validation.mismatch'),
           path: ['confirmPassword'],
         }),
-    [tAuth, policy],
+    [tAuth, newPasswordSchema],
   );
 
   const {
@@ -329,6 +323,15 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         setError('currentPassword', {
           type: 'manual',
           message: tAuth('changePassword.validation.currentIncorrect'),
+        });
+        return;
+      }
+      // The server holds the new password to the effective policy; its
+      // refusal is the only check when the policy never loaded.
+      if (isPasswordPolicyViolation(error)) {
+        setError('newPassword', {
+          type: 'manual',
+          message: tAuth('changePassword.validation.policyViolation'),
         });
         return;
       }
@@ -399,7 +402,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           errorMessage={errors.newPassword?.message}
           {...register('newPassword')}
         />
-        {newPassword && (
+        {newPassword && passwordValidationItems.length > 0 && (
           <ValidationCheckList
             items={passwordValidationItems}
             className="text-xs"
@@ -427,25 +430,14 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const { t: tToast } = useT('toast');
   const { mutateAsync: updatePassword } = useUpdatePassword();
   const { toast } = useToast();
-  const organizationId = useOrganizationId();
-  const policy = usePasswordPolicy(organizationId);
+  const policy = useMyPasswordPolicy();
+  const newPasswordSchema = useNewPasswordSchema(policy);
 
   const setPasswordSchema = useMemo(
     () =>
       z
         .object({
-          newPassword: createPasswordSchema(
-            {
-              minLength: tAuth('validation.passwordMinLength', {
-                n: policy.minLength,
-              }),
-              lowercase: tAuth('validation.passwordLowercase'),
-              uppercase: tAuth('validation.passwordUppercase'),
-              number: tAuth('validation.passwordNumber'),
-              specialChar: tAuth('validation.passwordSpecial'),
-            },
-            policy,
-          ),
+          newPassword: newPasswordSchema,
           confirmPassword: z
             .string()
             .min(1, tAuth('changePassword.validation.confirmRequired')),
@@ -454,7 +446,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           message: tAuth('changePassword.validation.mismatch'),
           path: ['confirmPassword'],
         }),
-    [tAuth, policy],
+    [tAuth, newPasswordSchema],
   );
 
   const {
@@ -462,6 +454,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
     handleSubmit,
     formState: { errors, isSubmitting, isDirty, isValid },
     reset,
+    setError,
     watch,
   } = useForm<SetPasswordFormData>({
     resolver: zodResolver(setPasswordSchema),
@@ -488,7 +481,16 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
 
       reset();
       onOpenChange(false);
-    } catch {
+    } catch (error) {
+      // The server holds the new password to the effective policy; its
+      // refusal is the only check when the policy never loaded.
+      if (isPasswordPolicyViolation(error)) {
+        setError('newPassword', {
+          type: 'manual',
+          message: tAuth('changePassword.validation.policyViolation'),
+        });
+        return;
+      }
       toast({
         title: tToast('error.passwordChangeFailed.title'),
         description: tToast('error.passwordChangeFailed.description'),
@@ -528,7 +530,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           errorMessage={errors.newPassword?.message}
           {...register('newPassword')}
         />
-        {newPassword && (
+        {newPassword && passwordValidationItems.length > 0 && (
           <ValidationCheckList
             items={passwordValidationItems}
             className="text-xs"

@@ -121,11 +121,21 @@ export const accountActionQueryAdapters: Record<string, ActionQueryAdapter> = {
 
 type NotificationStateResult =
   ReturnsOf<'users/notification_state:getUserNotificationState'>;
+type MyPasswordPolicyResult = ReturnsOf<'users/queries:getMyPasswordPolicy'>;
+
+const MY_PASSWORD_POLICY_KEY = backendKey(
+  ACCOUNT_SCOPE,
+  'account',
+  'password-policy',
+);
 
 /**
  * The changelog dot/toast state — per-USER and org-free, so it keys under
  * the `me` scope like the rest of this module and no `/events` hint lane
  * invalidates it (its two writers invalidate locally).
+ *
+ * The effective password policy is per-user too: the strictest across every
+ * organization the user belongs to, so no single org's hint names it.
  */
 export const accountReadAdapters: Record<string, ReadAdapter> = {
   'users/notification_state:getUserNotificationState': () => ({
@@ -135,7 +145,25 @@ export const accountReadAdapters: Record<string, ReadAdapter> = {
         '/users/notification-state',
       ).then((body) => body.state),
   }),
+  'users/queries:getMyPasswordPolicy': () => ({
+    queryKey: MY_PASSWORD_POLICY_KEY,
+    queryFn: () =>
+      backendFetch<{ policy: MyPasswordPolicyResult }>(
+        '/users/me/password-policy',
+      ).then((body) => body.policy),
+  }),
 };
+
+/**
+ * Re-read the effective password policy. The read has no hint lane, so the
+ * two moments that can leave it stale invalidate it where they happen: an
+ * admin saving a password policy (their own rules may have moved with it),
+ * and a password change the server refused under rules the form did not
+ * have.
+ */
+export function invalidateMyPasswordPolicy(client: QueryClient): void {
+  void client.invalidateQueries({ queryKey: MY_PASSWORD_POLICY_KEY });
+}
 
 function invalidateNotificationState(client: QueryClient): void {
   void client.invalidateQueries({

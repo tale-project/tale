@@ -470,8 +470,10 @@ auth:
     validation:
       currentRequired: Aktuelles Passwort ist erforderlich
       currentIncorrect: Aktuelles Passwort ist falsch
+      newRequired: Neues Passwort ist erforderlich
       confirmRequired: Neues Passwort bestätigen
       mismatch: Passwörter stimmen nicht überein
+      policyViolation: Dieses Passwort erfüllt die Passwort-Richtlinie deiner Organisation nicht.
     warning:
       description:
         Beim Ändern deines Passworts wirst du auf allen Geräten abgemeldet.

@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { passwordExpiryQuery, twoFactorStatusQuery } from './account';
+import {
+  accountReadAdapters,
+  passwordExpiryQuery,
+  twoFactorStatusQuery,
+} from './account';
 import { BackendApiError } from './api-client';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -70,5 +74,38 @@ describe('account query options', () => {
     );
     expect(retry(0, new TypeError('Failed to fetch'))).toBe(true);
     expect(retry(3, new TypeError('Failed to fetch'))).toBe(false);
+  });
+});
+
+describe('the effective password policy row', () => {
+  it('reads the caller’s own rules under the account scope, whatever org is open', async () => {
+    const policy = {
+      minLength: 20,
+      requireUpper: true,
+      requireLower: true,
+      requireDigit: true,
+      requireSpecial: true,
+      rotationDays: 0,
+    };
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { policy }));
+    const adapted = accountReadAdapters['users/queries:getMyPasswordPolicy']?.(
+      {},
+      { organizationId: 'org-1' },
+    );
+
+    expect(adapted?.queryKey).toEqual([
+      'backend',
+      'me',
+      'account',
+      'password-policy',
+    ]);
+    await expect(adapted?.queryFn()).resolves.toEqual(policy);
+    // The strictest policy across every org the user belongs to: no org scope.
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/app/users/me/password-policy',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 });

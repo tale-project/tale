@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 46 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 47 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -306,6 +306,17 @@ compute codes from the enrollment secret.
   after **Revoke** on the key → 401 again, the list is empty, and **Settings >
   Logs** shows `trusted_header_key_created`, `trusted_headers_sign_in` and
   `trusted_header_key_revoked` rows.
+- [ ] `AUTH-B11` · **A member held to a stricter organization** — As an admin,
+  `/dashboard/{org}/settings/governance/security-monitoring` → **Password
+  policy → Minimum length** (`governance.passwordPolicy.minLength`) = 20 →
+  **Save**; in a second browser profile sign in as a **Member** of that
+  organization → `/dashboard/{org}/settings/account` → **Change password**
+  (`auth.changePassword.title`) → type `Tale-Passw0rd!2` as the new password →
+  the list shows **At least 20 characters**
+  (`auth.changePassword.requirements.length`) unmet and the submit stays
+  disabled; a new password of 20 or more characters that meets every listed
+  rule enables it, and the change succeeds. Set the minimum length back
+  afterwards.
 
 ## Accessibility (WCAG 2.1 AA)
 

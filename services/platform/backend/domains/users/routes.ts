@@ -10,6 +10,7 @@ import {
   computePasswordExpiry,
   createMember,
   getCurrentUser,
+  getEffectivePasswordPolicy,
   getLastActiveOrganizationId,
   getUserNotificationState,
   hasAnyUsers,
@@ -105,6 +106,17 @@ export function createUserRoutes(deps: {
   app.get('/password-expiry', async (c) => {
     const userId = c.get('sessionBundle').user.id;
     return c.json(await computePasswordExpiry(deps.sql, userId));
+  });
+
+  // The rules the caller's own password is held to — what `/update-password`
+  // enforces. Session-scoped, so any member can read theirs: the per-org
+  // policy door is admin-only, and without this the member-facing forms
+  // could only guess with the built-in default.
+  app.get('/me/password-policy', async (c) => {
+    const userId = c.get('sessionBundle').user.id;
+    return c.json({
+      policy: await getEffectivePasswordPolicy(deps.sql, userId),
+    });
   });
 
   app.get('/last-active-org', async (c) => {

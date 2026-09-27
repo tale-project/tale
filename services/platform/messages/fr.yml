@@ -472,8 +472,10 @@ auth:
     validation:
       currentRequired: Le mot de passe actuel est requis
       currentIncorrect: Le mot de passe actuel est incorrect
+      newRequired: Le nouveau mot de passe est requis
       confirmRequired: Confirme ton nouveau mot de passe
       mismatch: Les mots de passe ne correspondent pas
+      policyViolation: Ce mot de passe ne respecte pas la politique de mot de passe de ton organisation.
     warning:
       description:
         Changer ton mot de passe te déconnecte de tous les appareils. Tu

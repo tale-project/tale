@@ -1,4 +1,5 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import type { PasswordPolicyConfig } from '@tale/shared/schemas/governance';
 import { APIError } from 'better-auth/api';
 import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
@@ -351,10 +352,29 @@ export function forcedResetEligible(
 }
 
 /**
+ * The rules the user's OWN password is held to: the strictest password
+ * policy across every organization they belong to. `updateUserPassword`
+ * refuses a password that fails it, and `GET /users/me/password-policy`
+ * hands it to the member-facing password forms, so what a form checks and
+ * what the write enforces are one rule set.
+ */
+export async function getEffectivePasswordPolicy(
+  sql: Sql,
+  userId: string,
+): Promise<PasswordPolicyConfig> {
+  const orgs = await getUserOrganizations(sql, userId);
+  const { policy } = await getStrictestPasswordPolicyForUser(
+    sql,
+    orgs.map((o) => o.organizationId),
+  );
+  return policy;
+}
+
+/**
  * Update the CALLER's password (see 0.4 doc: voluntary credential change
  * re-authenticates via Better Auth `changePassword`; forced rotation skips
  * currentPassword but revokes other sessions; OAuth-only users get
- * `setPassword`). Policy = strictest across the caller's orgs.
+ * `setPassword`). Policy = `getEffectivePasswordPolicy`.
  *
  * Answers the credential's RECOMPUTED expiry status: the forced-change wall
  * is a client-side gate over that status, and the write is the only moment
@@ -370,11 +390,7 @@ export async function updateUserPassword(
   args: UpdateUserPasswordArgs,
 ): Promise<PasswordExpiryStatus> {
   const { sql, auth } = deps;
-  const orgs = await getUserOrganizations(sql, actor.userId);
-  const { policy } = await getStrictestPasswordPolicyForUser(
-    sql,
-    orgs.map((o) => o.organizationId),
-  );
+  const policy = await getEffectivePasswordPolicy(sql, actor.userId);
   if (!isPasswordValid(args.newPassword, policy)) {
     const violations = passwordPolicyViolations(args.newPassword, policy);
     throw new UserServiceError(
@@ -383,6 +399,9 @@ export async function updateUserPassword(
       400,
     );
   }
+  // The organizations the change is audited in — read before the credential
+  // moves, so a failed read leaves the password as it was.
+  const orgs = await getUserOrganizations(sql, actor.userId);
 
   const hasPassword = await hasCredentialAccount(sql, actor.userId);
   // Forced eligibility is derived from the credential's real state, NOT the
