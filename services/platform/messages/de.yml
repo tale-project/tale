@@ -7388,6 +7388,7 @@ toast:
   error:
     profileUpdateFailed:
       title: Profil konnte nicht aktualisiert werden
+      withReason: 'Profil konnte nicht aktualisiert werden: {reason}'
     passwordChangeFailed:
       title: Passwort konnte nicht geändert werden
       description: Prüf dein aktuelles Passwort und versuch es nochmal.

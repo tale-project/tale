@@ -25,6 +25,7 @@ import {
   usePasswordValidation,
 } from '@/app/hooks/use-password-validation';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { USER_NAME_MAX_LENGTH } from '@/lib/shared/constants/user-name';
@@ -137,8 +138,9 @@ function ProfileSection() {
 
   // Save feedback belongs to the settings header's Save/Discard cluster: it
   // flashes "Saved" on success and raises the single destructive toast on
-  // failure. The password, two-factor and passkey dialogs below own their own
-  // submits and keep their toasts.
+  // failure — naming why when the server refused the save (its sentence,
+  // else its code); a fault keeps the bare line. The password, two-factor
+  // and passkey dialogs below own their own submits and keep their toasts.
   const save = useCallback(
     async (values: ProfileFormData) => {
       const name = values.name.trim();
@@ -146,9 +148,13 @@ function ProfileSection() {
         await updateUserName({ name });
       } catch (err) {
         console.error('[account] profile save failed', err);
-        throw new Error(tToast('error.profileUpdateFailed.title'), {
-          cause: err,
-        });
+        const reason = backendRefusalDetail(err);
+        throw new Error(
+          reason === undefined
+            ? tToast('error.profileUpdateFailed.title')
+            : tToast('error.profileUpdateFailed.withReason', { reason }),
+          { cause: err },
+        );
       }
     },
     [tToast, updateUserName],

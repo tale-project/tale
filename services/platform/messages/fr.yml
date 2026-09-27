@@ -7491,6 +7491,7 @@ toast:
   error:
     profileUpdateFailed:
       title: Impossible de mettre à jour le profil
+      withReason: 'Impossible de mettre à jour le profil : {reason}'
     passwordChangeFailed:
       title: Impossible de changer le mot de passe
       description: Vérifie ton mot de passe actuel et réessaie.
