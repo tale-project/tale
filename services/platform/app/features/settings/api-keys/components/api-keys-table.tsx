@@ -7,7 +7,7 @@ import { Stack } from '@tale/ui/layout';
 import { useListPage } from '@tale/ui/use-list-page';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { BookOpen, Key, Plus } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -48,6 +48,7 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [createOpen, setCreateOpen] = useState(false);
+  const createTriggerRef = useRef<HTMLButtonElement>(null);
   const revokeApiKey = useRevokeApiKey(organizationId);
 
   const handleClearSelection = useCallback(() => {
@@ -87,6 +88,7 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
         // DataTable puts it in the empty state while there are no keys and in
         // the toolbar once there are — one Create button either way.
         addAction={{
+          triggerRef: createTriggerRef,
           label: tSettings('apiKeys.createKey'),
           icon: Plus,
           onClick: () => setCreateOpen(true),
@@ -110,6 +112,7 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
           empty state and the list. */}
       <ApiDocsLink />
       <ApiKeyCreateDialog
+        restoreFocusRef={createTriggerRef}
         open={createOpen}
         onOpenChange={setCreateOpen}
         organizationId={organizationId}
