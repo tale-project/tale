@@ -544,7 +544,7 @@ const triggerHealthProperties: Json = {
   },
 };
 
-/** A trigger's failure streak (0123) — read on `Trigger` only. */
+/** A trigger's failure streak (0124) — read on `Trigger` only. */
 const triggerFailureProperties: Json = {
   consecutiveFailures: {
     type: 'integer',

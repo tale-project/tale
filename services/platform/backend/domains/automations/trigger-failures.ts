@@ -9,7 +9,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { notifyTriggerPaused } from '../collab/service.ts';
 
 /**
- * A trigger's failure streak (migration 0123), kept by `finishRun` in the
+ * A trigger's failure streak (migration 0124), kept by `finishRun` in the
  * transaction that lands a run the trigger started (`trigger:<id>`):
  *
  * - a success sets the streak back to 0;
@@ -113,7 +113,7 @@ async function countFailure(
   // A save moves `updated_at_ms` past the last counted failure; the streak
   // before it is stale and this failure starts a new one. `setTrigger`
   // resets the counter itself — this also covers a save by an image that
-  // predates the counter, mid-roll (0123).
+  // predates the counter, mid-roll (0124).
   const counted = await tx<CountedTrigger[]>`
     UPDATE app.automation_triggers SET
       consecutive_failures = CASE

@@ -4,7 +4,7 @@
  * completes the streak turns the trigger off, audits the pause and notifies
  * the owner; a paused schedule fires nothing more. Saving it again resumes
  * it with a fresh streak and reads the notice, and a success resets the
- * streak (migration 0123, `trigger-failures.ts`). */
+ * streak (migration 0124, `trigger-failures.ts`). */
 import type { Sql } from 'postgres';
 
 import { PERMANENT_FAILURES_BEFORE_PAUSE } from '../../core/automations/failure.ts';

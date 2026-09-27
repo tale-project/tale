@@ -1173,7 +1173,7 @@ export async function deleteTrigger(
 }
 
 /** Why a binding started nothing — the skip ledger's closed set (the
- * column's CHECK, migrations 0096 and 0123). `paused_after_failures` is the
+ * column's CHECK, migrations 0096 and 0124). `paused_after_failures` is the
  * one that is a state, not an occurrence: the schedule turned itself off. */
 export type TriggerSkipReason =
   | 'not_deployed'
@@ -1185,7 +1185,7 @@ export type TriggerSkipReason =
  * it. The fire ledger (0096) is the binding's health: `lastFiredAt` and
  * `lastRunId` name the last run it started, `lastSkippedAt` and
  * `lastSkipReason` the last time it came due and started nothing (or when a
- * schedule paused itself). The failure streak (0123) counts the permanent
+ * schedule paused itself). The failure streak (0124) counts the permanent
  * failures in a row among the runs it started since its last save;
  * `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of
  * them. */
