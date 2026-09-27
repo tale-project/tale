@@ -4,6 +4,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { ContentArea } from '@tale/ui/content-area';
+import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { JsonViewer } from '@tale/ui/json-viewer';
@@ -86,6 +87,7 @@ export function RunDetail({
     }
   }, [selectedNodeId]);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [confirmStop, setConfirmStop] = useState(false);
 
   const runQuery = useAutomationRun(organizationId, runId);
   const run = runQuery.data ?? null;
@@ -212,21 +214,38 @@ export function RunDetail({
             icon={Ban}
             isLoading={cancel.isPending}
             onClick={() => {
-              setRefusal(null);
-              cancel.mutate(
-                { organizationId, runId },
-                {
-                  onError: (error) => {
-                    setRefusal(automationErrorMessage(error));
-                  },
-                },
-              );
+              setConfirmStop(true);
             }}
           >
             {t('runs.cancel')}
           </Button>
         )}
       </div>
+
+      {/* A stop is irreversible and withdraws whatever the run waits on (an
+          approval card, a question), so it asks first — like the delete and
+          revoke doors do. */}
+      <ConfirmDialog
+        open={confirmStop}
+        onOpenChange={setConfirmStop}
+        title={t('runs.cancelConfirm.title')}
+        description={t('runs.cancelConfirm.body')}
+        confirmText={t('runs.cancel')}
+        variant="destructive"
+        isLoading={cancel.isPending}
+        onConfirm={() => {
+          setConfirmStop(false);
+          setRefusal(null);
+          cancel.mutate(
+            { organizationId, runId },
+            {
+              onError: (error) => {
+                setRefusal(automationErrorMessage(error));
+              },
+            },
+          );
+        }}
+      />
 
       {refusal !== null && (
         <Alert variant="destructive" description={refusal} />

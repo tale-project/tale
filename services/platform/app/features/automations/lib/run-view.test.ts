@@ -6,6 +6,7 @@ import {
   projectRun,
   readEffects,
   readRunAgentRetry,
+  readRunCursorNode,
   readRunStatus,
 } from './run-view';
 
@@ -74,6 +75,75 @@ describe('projectRun', () => {
     const projection = projectRun(null);
     expect(projection.byNode.size).toBe(0);
     expect(projection.effects).toEqual([]);
+  });
+});
+
+/**
+ * A stopped run is finished without a trace: the cancel leaves the
+ * checkpoints (and the stepper's cursor) where they were. Reading only
+ * `trace` for finished runs made every node of a stopped run "not reached
+ * yet" and left the stale cursor "running now" (2026-09-26 evaluation, D-07).
+ */
+describe('a stopped run', () => {
+  const stoppedRun = {
+    status: 'cancelled',
+    trace: null,
+    effects: [],
+    checkpoints: {
+      executions: 2,
+      cursor: { node: 'send' },
+      nodes: {
+        draft: {
+          trace: {
+            node: 'draft',
+            type: 'llm',
+            status: 'ok',
+            output: 'Hello',
+          },
+          effects: [],
+        },
+      },
+    },
+  };
+
+  it('keeps what ran and marks the node it was stopped on', () => {
+    const projection = projectRun(stoppedRun);
+    expect(projection.byNode.get('draft')?.status).toBe('ok');
+    expect(projection.byNode.get('draft')?.output).toBe('Hello');
+    expect(projection.byNode.get('send')?.status).toBe('stopped');
+    const statuses = nodeStatusMap(
+      projection,
+      ['draft', 'send', 'archive'],
+      readRunCursorNode(stoppedRun),
+    );
+    expect(statuses.get('draft')).toBe('ok');
+    expect(statuses.get('send')).toBe('stopped');
+    expect(statuses.get('archive')).toBe('pending');
+  });
+
+  it('never overrides a recorded outcome with the stale cursor', () => {
+    const projection = projectRun({
+      ...stoppedRun,
+      checkpoints: { ...stoppedRun.checkpoints, cursor: { node: 'draft' } },
+    });
+    expect(projection.byNode.get('draft')?.status).toBe('ok');
+  });
+
+  it('answers no cursor node for any finished run', () => {
+    expect(readRunCursorNode(stoppedRun)).toBeNull();
+    expect(readRunCursorNode({ ...stoppedRun, status: 'running' })).toBe(
+      'send',
+    );
+    expect(readRunCursorNode({ ...stoppedRun, status: 'failed' })).toBeNull();
+  });
+
+  it('leaves a run that failed or succeeded to its trace', () => {
+    const projection = projectRun({
+      ...finishedRun,
+      checkpoints: stoppedRun.checkpoints,
+    });
+    expect(projection.byNode.has('send')).toBe(false);
+    expect(projection.byNode.get('fetch')?.status).toBe('ok');
   });
 });
 

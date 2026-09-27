@@ -104,8 +104,9 @@ export function runReasonKey(run: {
 /** What the overlay shows on one node. `running` is the node the stepper is ON
  * right now (a live run's cursor); `pending` is a node the run has not reached
  * yet — distinct from the engine's `not_run`, which is a node the run finished
- * without reaching. */
-export type NodeRunStatus = NodeStatus | 'pending' | 'running';
+ * without reaching; `stopped` is the node a cancelled run was on when it was
+ * stopped — reached, never finished. */
+export type NodeRunStatus = NodeStatus | 'pending' | 'running' | 'stopped';
 
 export interface NodeRunView {
   status: NodeRunStatus;
@@ -170,7 +171,8 @@ export function readEffects(value: unknown): Effect[] {
 }
 
 /** The trace entries the stepper has written so far, read out of the durable
- * checkpoints of a run that has not finished. */
+ * checkpoints — of a run that has not finished, or of a stopped one, which
+ * keeps its checkpoints and never gets a trace. */
 function traceFromCheckpoints(value: unknown): {
   trace: NodeTrace[];
   effects: Effect[];
@@ -186,17 +188,8 @@ function traceFromCheckpoints(value: unknown): {
   return { trace, effects };
 }
 
-/**
- * The step a LIVE run is on, straight from the stepper's own cursor — the only
- * honest answer while a run is in flight. The per-node projection cannot supply
- * it: a live run is read from `checkpoints`, whose keys arrive in whatever order
- * the store serialises them (alphabetical in practice), so "the last one" is a
- * lie. A finished run has no cursor; its ordered `trace` ends at its last step.
- */
-export function readRunCursorNode(
-  run: RunLike | null | undefined,
-): string | null {
-  if (!run) return null;
+/** The node the stepper's cursor names, whatever the run's status. */
+function rawCursorNode(run: RunLike): string | null {
   const checkpoints = run.checkpoints;
   if (!isRecord(checkpoints)) return null;
   const cursor = checkpoints.cursor;
@@ -204,6 +197,22 @@ export function readRunCursorNode(
   return typeof cursor.node === 'string' && cursor.node !== ''
     ? cursor.node
     : null;
+}
+
+/**
+ * The step a LIVE run is on, straight from the stepper's own cursor — the only
+ * honest answer while a run is in flight. The per-node projection cannot supply
+ * it: a live run is read from `checkpoints`, whose keys arrive in whatever order
+ * the store serialises them (alphabetical in practice), so "the last one" is a
+ * lie. A finished run has no cursor: its ordered `trace` ends at its last step,
+ * and a stopped run's stale cursor is read by {@link projectRun} as the node
+ * it was stopped on — never as "running now".
+ */
+export function readRunCursorNode(
+  run: RunLike | null | undefined,
+): string | null {
+  if (!run || isRunFinished(readRunStatus(run.status))) return null;
+  return rawCursorNode(run);
 }
 
 /**
@@ -247,16 +256,18 @@ interface RunLike {
 
 /**
  * Read one run into its per-node projection. A finished run is read from its
- * `trace`/`effects`; a live one from the checkpoints written so far, so the
- * overlay fills in node by node while the run is still going.
+ * `trace`/`effects`; a run without one — live, or stopped, which is finished
+ * without ever getting a trace — from the checkpoints written so far, so the
+ * overlay fills in node by node while the run is still going and keeps what
+ * ran once it is stopped. The node a stopped run was on reads `stopped`.
  */
 export function projectRun(run: RunLike | null | undefined): RunProjection {
   if (!run) return { byNode: new Map(), effects: [], trace: [] };
-  const finished = isRunFinished(readRunStatus(run.status));
+  const status = readRunStatus(run.status);
   const traced = readTrace(run.trace);
   const recorded = readEffects(run.effects);
   const fromCheckpoints =
-    traced.length === 0 && !finished
+    traced.length === 0
       ? traceFromCheckpoints(run.checkpoints)
       : { trace: [], effects: [] };
   const trace = traced.length > 0 ? traced : fromCheckpoints.trace;
@@ -287,6 +298,18 @@ export function projectRun(run: RunLike | null | undefined): RunProjection {
     if (entry.note !== undefined) view.note = entry.note;
     if (entry.ms !== undefined) view.ms = entry.ms;
     byNode.set(entry.node, view);
+  }
+  // A stop leaves the cursor where the stepper was: that node was reached
+  // and never finished — neither "running now" nor "not reached yet". A node
+  // the checkpoints already recorded keeps its recorded outcome.
+  if (status === 'cancelled') {
+    const stoppedOn = rawCursorNode(run);
+    if (stoppedOn !== null && !byNode.has(stoppedOn)) {
+      byNode.set(stoppedOn, {
+        status: 'stopped',
+        effects: effectsByNode.get(stoppedOn) ?? [],
+      });
+    }
   }
   return { byNode, effects, trace };
 }

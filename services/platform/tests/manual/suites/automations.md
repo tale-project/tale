@@ -491,6 +491,18 @@ output:
       (`automations.blank.openAutomation`) lands in the editor, whose Trigger
       card says a token is active (`automations.trigger.hasToken`) — no
       Rotate needed. Closing the dialog with Escape also lands there.
+- [ ] `AUTO-F48` · **Stopping a run asks first and keeps what ran** — On a
+      live run parked on an approval (AUTO-F25) whose first node already ran,
+      **Stop the run** (`automations.runs.cancel`) → a confirm dialog
+      (`automations.runs.cancelConfirm.title`); Cancel leaves the run Waiting
+      and the approval card in place; confirm → the run reads **Stopped**
+      (`automations.runs.status.cancelled`), the approval card is gone, the
+      node that ran still reads **Ran** with its output in the inspector's
+      run section, the node the run was on reads **Stopped here**
+      (`automations.runs.nodeStatus.stopped`) — never **Running now** — and
+      later nodes **Not reached yet**; the same after a hard reload. Settings
+      › Audit log lists the run’s cancelled action with YOUR name as the
+      actor (not the starter's, when another member started it).
 
 ## Boundary & error tests
 

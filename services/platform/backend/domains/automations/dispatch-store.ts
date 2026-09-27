@@ -410,14 +410,14 @@ export function pgAutomationStore(
         const projectId = row.projectId;
         return transactSerializable(sql, async (tx) => {
           await writableActorProject(tx, auth, projectId);
-          return cancelRunInTx(tx, organizationId, runId);
+          return cancelRunInTx(tx, organizationId, runId, auth.userId);
         });
       }
       // The store answers `{ cancelled: false }` for a missing or terminal
       // run and never null; a throw here is a real failure (audit write,
       // session stop, the database) and must surface as such, not be
       // laundered into `no run`.
-      return cancelRun(sql, organizationId, runId);
+      return cancelRun(sql, organizationId, runId, auth.userId);
     },
     deleteTrigger: async (name) => {
       await authorizeActorRun(sql, organizationId, actor, 'developer');

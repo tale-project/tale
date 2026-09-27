@@ -251,6 +251,7 @@ describe('project automation REST scope', () => {
       expect.anything(),
       'org-1',
       'run-1',
+      'user-1',
     );
   });
 

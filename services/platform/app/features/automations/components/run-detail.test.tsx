@@ -50,8 +50,9 @@ vi.mock('../hooks/queries', () => ({
     };
   },
 }));
+const cancelRun = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
-  useCancelAutomationRun: () => ({ mutate: vi.fn(), isPending: false }),
+  useCancelAutomationRun: () => ({ mutate: cancelRun, isPending: false }),
   useResolveRunApproval: () => ({ mutate: resolveApproval, isPending: false }),
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
@@ -193,5 +194,41 @@ describe('RunDetail starter and reason', () => {
     renderRun();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/repeat/)).toBeNull();
+  });
+});
+
+/**
+ * A stop is final and withdraws whatever the run waits on, so it asks first
+ * (2026-09-26 evaluation, D-07).
+ */
+describe('RunDetail stop', () => {
+  it('asks before stopping and stops only on confirm', async () => {
+    const { user } = renderRun();
+    await user.click(screen.getByRole('button', { name: 'Stop the run' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Stop this run?');
+    expect(cancelRun).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(cancelRun).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Stop the run' }));
+    const confirm = (
+      await screen.findAllByRole('button', { name: 'Stop the run' })
+    ).at(-1);
+    if (confirm === undefined) throw new Error('no confirm button');
+    await user.click(confirm);
+    expect(cancelRun).toHaveBeenCalledWith(
+      { organizationId: 'org-proof', runId: 'run-proof' },
+      expect.any(Object),
+    );
+  });
+
+  it('offers no stop on a finished run', () => {
+    state.status = 'cancelled';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    renderRun();
+    expect(screen.queryByRole('button', { name: 'Stop the run' })).toBeNull();
   });
 });

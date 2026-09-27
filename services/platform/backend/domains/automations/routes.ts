@@ -388,7 +388,12 @@ export function createAutomationRoutes(deps: {
   app.post('/runs/:runId/cancel', async (c) => {
     try {
       return c.json(
-        await cancelRun(deps.sql, c.get('orgId'), c.req.param('runId')),
+        await cancelRun(
+          deps.sql,
+          c.get('orgId'),
+          c.req.param('runId'),
+          c.get('sessionBundle').user.id,
+        ),
       );
     } catch (error) {
       // cancelRun is now a terminal door (audit row + session stop) — surface

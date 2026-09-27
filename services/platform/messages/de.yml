@@ -884,6 +884,14 @@ automations:
     # wiederholt — damit klar ist, dass nicht du es warst.
     autoRetrying: 'Automatischer Versuch {n} von {max}'
     cancel: Lauf stoppen
+    # Wird vor dem Stoppen gefragt: Es ist endgültig und zieht zurück, worauf
+    # der Lauf wartet (eine Freigabekarte, eine Frage).
+    cancelConfirm:
+      title: Diesen Lauf stoppen?
+      body:
+        Der Lauf stoppt an der nächsten Schrittgrenze und lässt sich nicht
+        fortsetzen. Bereits Erledigtes bleibt; eine offene Freigabe oder Frage
+        wird zurückgezogen.
     # Wer oder was den Lauf gestartet hat — nie die `user:<id>`- /
     # `trigger:<id>`-Tür, die der Datensatz trägt.
     starter:
@@ -929,6 +937,7 @@ automations:
       not_run: Nie erreicht
       pending: Noch nicht erreicht
       running: Läuft gerade
+      stopped: Hier gestoppt
     effects:
       title: '{count, plural, one {# Auswirkung} other {# Auswirkungen}}'
       description:

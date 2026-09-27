@@ -1698,6 +1698,10 @@ export async function cancelRunInTx(
   tx: TransactionSql,
   organizationId: string,
   runId: string,
+  /** The user who asked for the stop — the audit row names them. Absent
+   * only on a system-driven stop (a retired task's live run), which the
+   * row attributes to the run's starter as `system`. */
+  actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
   {
     const now = Date.now();
@@ -1728,22 +1732,30 @@ export async function cancelRunInTx(
     // does: the provenance audit row (live runs) that must never be missing,
     // and freeing the run's sandbox sessions so cancelled agents stop holding
     // org slot capacity until a late settle or the turn deadline.
+    const approvalsWithdrawn = await closeRunApprovals(
+      tx,
+      organizationId,
+      runId,
+    );
     if (row.mode === 'live') {
+      // The person who stopped the run is the actor; the starter is not
+      // (they may be someone else entirely). A stop nobody asked for — a
+      // retired task taking its live run with it — stays `system`.
       await createAuditLog(tx, {
         organizationId,
-        actorId: row.startedBy,
-        actorType: 'system',
+        ...(actor === undefined
+          ? { actorId: row.startedBy, actorType: 'system' }
+          : { actorId: actor, actorType: 'user' }),
         action: 'automation.run.cancelled',
         category: 'ai',
         resourceType: 'automation_run',
         resourceId: runId,
         resourceName: `${row.name}@${row.version}`,
         status: 'failure',
-        metadata: {},
+        metadata: { approvalsWithdrawn },
       });
     }
     await stopRunSandboxSessions(tx, organizationId, runId);
-    await closeRunApprovals(tx, organizationId, runId);
     await closePendingAsksForRun(
       tx,
       organizationId,
@@ -1759,8 +1771,9 @@ export async function cancelRun(
   sql: Sql,
   organizationId: string,
   runId: string,
+  actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
-  return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId));
+  return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId, actor));
 }
 
 // ---------------------------------------------------- idempotent starts

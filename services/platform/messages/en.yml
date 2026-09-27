@@ -844,6 +844,13 @@ automations:
     # to tell the platform's retry from their own rerun.
     autoRetrying: 'Auto-retry {n} of {max}'
     cancel: Stop the run
+    # Asked before a stop: it is final, and it withdraws whatever the run is
+    # waiting on (an approval card, a question).
+    cancelConfirm:
+      title: Stop this run?
+      body:
+        The run stops at its next step boundary and cannot be resumed. Work
+        already done stays; a pending approval or question is withdrawn.
     # Who or what started the run — never the `user:<id>` / `trigger:<id>`
     # door the record carries.
     starter:
@@ -889,6 +896,7 @@ automations:
       not_run: Never reached
       pending: Not reached yet
       running: Running now
+      stopped: Stopped here
     effects:
       title: '{count, plural, one {# effect} other {# effects}}'
       description:

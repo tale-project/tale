@@ -890,6 +890,14 @@ automations:
     # pour distinguer sa relance de la tienne.
     autoRetrying: 'Tentative automatique {n} sur {max}'
     cancel: Arrêter l’exécution
+    # Demandé avant l’arrêt : il est définitif et retire ce que l’exécution
+    # attend (une carte d’approbation, une question).
+    cancelConfirm:
+      title: Arrêter cette exécution ?
+      body:
+        L’exécution s’arrête à la prochaine limite d’étape et ne peut pas
+        reprendre. Le travail déjà fait reste ; une approbation ou une
+        question en attente est retirée.
     # Qui ou quoi a lancé l’exécution — jamais la porte `user:<id>` /
     # `trigger:<id>` que porte l’enregistrement.
     starter:
@@ -936,6 +944,7 @@ automations:
       not_run: Jamais atteint
       pending: Pas encore atteint
       running: En cours
+      stopped: Arrêté ici
     effects:
       title: '{count, plural, one {# effet} other {# effets}}'
       description:

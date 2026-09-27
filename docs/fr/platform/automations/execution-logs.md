@@ -24,7 +24,7 @@ Une approbation ou une question attend une personne ; un agent au travail ou un
 
 Sélectionne un nœud sur le canvas de l’exécution. **Entrée résolue** montre les valeurs après évaluation des expressions, et **Sortie** le résultat de l’étape. Ces champs distinguent une mauvaise référence d’une défaillance du service.
 
-Les états comprennent **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint** et **Pas encore atteint**. Une condition fausse, une dépendance, une branche alternative ou une règle de poursuite après erreur peut expliquer un nœud ignoré. Ce n’est pas toujours un problème.
+Les états comprennent **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint**, **Pas encore atteint** et, pour une exécution arrêtée, **Arrêté ici** pour le nœud sur lequel elle se trouvait au moment de l’arrêt. Une condition fausse, une dépendance, une branche alternative ou une règle de poursuite après erreur peut expliquer un nœud ignoré. Ce n’est pas toujours un problème.
 
 Par exemple, un rappel peut recevoir le nom du client mais un identifiant de facture vide. Examine la sortie précédente. Si le champ a été renommé, corrige la référence plutôt que les identifiants de messagerie. Vérifie ensuite l’entrée résolue dans un nouvel essai.
 
@@ -48,7 +48,7 @@ L’épuisement de la fenêtre totale d’exécution, l’expiration d’une que
 
 ## Arrêter ou corriger le workflow
 
-Choisis **Arrêter l’exécution** pour annuler une exécution inachevée. Le moteur empêche la poursuite aux limites de ses étapes ; il n’annule pas les effets déjà produits. Si l’exécution se termine avant de recevoir l’annulation, elle conserve son résultat final.
+Choisis **Arrêter l’exécution** pour annuler une exécution inachevée, puis confirme. Le moteur empêche la poursuite aux limites de ses étapes ; il n’annule pas les effets déjà produits. Si l’exécution se termine avant de recevoir l’annulation, elle conserve son résultat final.
 
 Pour corriger le document, reviens à l’éditeur, modifie l’entrée ou le nœud concerné et enregistre une version avec un message utile. Fais un essai avec des données représentatives et lis les valeurs et la sortie, au-delà du statut de réussite. Mets la version vérifiée en service. Les prochains démarrages planifiés ou par webhook l’utiliseront ; l’ancien échec reste le journal de l’ancienne version.
 

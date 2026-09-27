@@ -958,7 +958,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           await loadRestProject(tx, auth, projectId, { write: true });
           const run = await getRun(tx, auth.organizationId, runId);
           if (run === null || run.projectId !== projectId) return null;
-          return cancelRunInTx(tx, auth.organizationId, runId);
+          return cancelRunInTx(tx, auth.organizationId, runId, auth.userId);
         });
         return result === null
           ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
@@ -968,7 +968,14 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (run === null || run.projectId !== null) {
         return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
       }
-      return c.json(await cancelRun(deps.sql, c.get('organizationId'), runId));
+      return c.json(
+        await cancelRun(
+          deps.sql,
+          c.get('organizationId'),
+          runId,
+          c.get('userId'),
+        ),
+      );
     } catch (error) {
       return domainErrorResponse(c, error);
     }

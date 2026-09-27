@@ -63,8 +63,9 @@ export function RunBadge({ status }: { status: RunStatus }) {
 
 /**
  * What a run did to one node. `pending` means the run has not reached the node
- * yet; the engine's `not_run` means it finished without ever reaching it —
- * different facts, so they read differently.
+ * yet; the engine's `not_run` means it finished without ever reaching it;
+ * `stopped` means the run was stopped while on it — different facts, so they
+ * read differently.
  */
 const NODE_STATUS_STYLE: Record<
   NodeRunStatus,
@@ -76,6 +77,7 @@ const NODE_STATUS_STYLE: Record<
   not_run: { variant: 'slate', icon: CircleDashed },
   pending: { variant: 'blue', icon: Clock },
   running: { variant: 'blue', icon: RunningIcon },
+  stopped: { variant: 'slate', icon: Ban },
 };
 
 export function RunStatusBadge({ status }: { status: NodeRunStatus }) {
