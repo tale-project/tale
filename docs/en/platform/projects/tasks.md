@@ -87,4 +87,6 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 
 Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep proposals in [Backlog](/platform/projects/backlog) until they are ready to start; use labels for distinctions that do not need another status.
 
+In **Board** and **List**, press **Tab** until the task title is focused, then press **Enter** to open the task.
+
 If a change is refused, check the task’s current state before trying again: a live agent run blocks reassignment, open subtasks block closure, and project access determines whether you can edit at all.

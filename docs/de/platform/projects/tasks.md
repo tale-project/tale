@@ -87,4 +87,6 @@ Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ei
 
 Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu überfliegen. Lass Vorschläge im [Backlog](/de/platform/projects/backlog), bis sie begonnen werden sollen. Nutze Labels für Unterscheidungen, die keinen eigenen Status brauchen.
 
+In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Tab**. Drücke dann **Enter**, um die Aufgabe zu öffnen.
+
 Prüfe bei einer abgelehnten Änderung zuerst den Zustand der Aufgabe: Ein aktiver Agentenlauf verhindert die Neuzuweisung, offene Teilaufgaben verhindern den Abschluss, und der Projektzugriff entscheidet über deine Bearbeitungsrechte.

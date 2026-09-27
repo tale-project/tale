@@ -33,6 +33,7 @@ import {
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 import { TaskStatusBadge } from './task-status-badge';
+import { TaskTitleButton } from './task-title-button';
 
 /**
  * Linear-style single-column list grouped by status. Each status is a
@@ -272,6 +273,7 @@ function TaskListRow({
   const hasSubtasks = (subtasks?.length ?? 0) > 0;
   const { done, total } = subtaskProgress(subtasks);
   const editable = canEdit && task.archivedAt == null;
+  const draggable = !nested && editable;
 
   // Subtask rows are not draggable; only top-level rows participate in the DnD
   // sortable context. `useSortable` is still called unconditionally to respect
@@ -282,7 +284,7 @@ function TaskListRow({
   const sortable = useSortable({
     id: task._id,
     data: { status: task.status },
-    disabled: nested || !editable,
+    disabled: !draggable,
   });
   const style = nested
     ? undefined
@@ -291,45 +293,22 @@ function TaskListRow({
         transition: sortable.transition,
       };
 
-  const dragProps = nested
-    ? {}
-    : {
-        ref: sortable.setNodeRef,
-        style,
-        ...sortable.attributes,
-        ...sortable.listeners,
-      };
-
   return (
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/prefer-tag-over-role -- clickable row wraps the priority/assignee buttons so it can't be a real <button>; top-level rows get role/tabIndex from dnd-kit, nested rows declare them here; keyboard handled via onKeyDown
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- pointer convenience for sibling metadata; the native title button owns keyboard opening
     <div
-      {...dragProps}
-      role={nested ? 'button' : undefined}
-      tabIndex={nested ? 0 : undefined}
+      ref={nested ? undefined : sortable.setNodeRef}
+      style={style}
       onClick={() => onOpen?.(task)}
-      onKeyDown={(e) => {
-        // Enter always opens the task. Space starts a keyboard drag via
-        // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`) for
-        // draggable rows; nested and read-only rows have no drag, so Space opens.
-        const draggable = !nested && editable;
-        if (e.key === 'Enter' || (e.key === ' ' && !draggable)) {
-          e.preventDefault();
-          onOpen?.(task);
-          return;
-        }
-        sortable.listeners?.onKeyDown?.(e);
-      }}
       className={cn(
-        'group focus-visible:ring-ring/50 flex w-full cursor-pointer items-center gap-2.5 py-1.5 pr-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+        // Keep raised inline controls below the sticky section header.
+        'group relative isolate flex w-full cursor-pointer items-center gap-2.5 py-1.5 pr-3 text-left transition-colors',
         // Hairline between rows, like a regular table; the floating drag clone
         // keeps its card chrome instead.
         !dragging && 'border-border/60 border-b',
         task.archivedAt != null && 'opacity-70',
         // Indent so row content lines up just past the section header's chevron.
         nested ? 'pl-12' : 'pl-9',
-        nested
-          ? 'hover:bg-muted/30 focus-visible:bg-muted/30'
-          : 'hover:bg-muted/40 focus-visible:bg-muted/40',
+        nested ? 'hover:bg-muted/30' : 'hover:bg-muted/40',
         !nested && sortable.isDragging && 'opacity-40',
         dragging &&
           'bg-card ring-border rounded-lg shadow-lg ring-1 backdrop-blur',
@@ -340,9 +319,9 @@ function TaskListRow({
           type="button"
           aria-label={t('detail.subtasks')}
           aria-expanded={isExpanded}
-          className="text-muted-foreground hover:text-foreground -ml-5 shrink-0 rounded p-0.5"
-          onClick={(e) => {
-            e.stopPropagation();
+          className="text-muted-foreground hover:text-foreground relative z-10 -ml-5 shrink-0 rounded p-0.5"
+          onClick={(event) => {
+            event.stopPropagation();
             onToggleExpanded(task._id);
           }}
         >
@@ -356,14 +335,16 @@ function TaskListRow({
         </button>
       ) : null}
       {/* Priority leads the row (Linear-style); the picker is icon-only here. */}
-      <PriorityPicker
-        priority={task.priority ?? null}
-        align="start"
-        disabled={!editable}
-        onChange={(priority) =>
-          updateTask.mutate({ taskId: task._id, priority })
-        }
-      />
+      <span className="relative z-10 inline-flex shrink-0">
+        <PriorityPicker
+          priority={task.priority ?? null}
+          align="start"
+          disabled={!editable}
+          onChange={(priority) =>
+            updateTask.mutate({ taskId: task._id, priority })
+          }
+        />
+      </span>
       {identifier && (
         <Text
           as="span"
@@ -373,21 +354,23 @@ function TaskListRow({
           {identifier}
         </Text>
       )}
-      <Text
-        as="span"
-        variant="body"
+      {/* The title owns opening and dragging, with the same stretched hit
+          area as Board. Pickers and expanders remain sibling controls. */}
+      <TaskTitleButton
+        title={task.title}
+        sortable={sortable}
+        draggable={draggable}
+        onOpen={() => onOpen?.(task)}
         className={cn(
-          'line-clamp-1 flex-1 text-sm',
+          'text-foreground line-clamp-1 min-w-0 flex-1 text-left text-sm focus-visible:after:ring-inset',
           nested && 'text-muted-foreground',
         )}
-      >
-        {task.title}
-      </Text>
+      />
       {task.archivedAt != null && (
         <TaskArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
       )}
       {task.labels && task.labels.length > 0 && (
-        <span className="hidden shrink-0 items-center gap-1 md:flex">
+        <span className="relative z-10 hidden shrink-0 items-center gap-1 md:flex">
           {task.labels.slice(0, 3).map((label) => (
             <TaskLabelBadge
               key={label.id ?? label.name}
@@ -400,28 +383,37 @@ function TaskListRow({
         </span>
       )}
       {hasSubtasks && (
-        <SubtaskProgress done={done} total={total} className="shrink-0" />
+        <SubtaskProgress
+          done={done}
+          total={total}
+          className="relative z-10 shrink-0"
+        />
       )}
-      <BlockedIndicator blocked={blocked} className="shrink-0" />
-      <CommentCountIndicator count={task.commentCount} className="shrink-0" />
+      <BlockedIndicator blocked={blocked} className="relative z-10 shrink-0" />
+      <CommentCountIndicator
+        count={task.commentCount}
+        className="relative z-10 shrink-0"
+      />
       <DueDateIndicator
         dueDate={task.dueDate}
         status={task.status}
-        className="shrink-0"
+        className="relative z-10 shrink-0"
       />
-      <AssigneePicker
-        organizationId={task.organizationId}
-        projectId={task.projectId}
-        taskId={task._id}
-        assigneeType={task.assigneeType}
-        assigneeId={task.assigneeId}
-        align="end"
-        disabled={!editable}
-        onAssign={(assigneeType, assigneeId) =>
-          assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
-        }
-        onUnassign={() => assignTask.mutate({ taskId: task._id })}
-      />
+      <span className="relative z-10 inline-flex shrink-0">
+        <AssigneePicker
+          organizationId={task.organizationId}
+          projectId={task.projectId}
+          taskId={task._id}
+          assigneeType={task.assigneeType}
+          assigneeId={task.assigneeId}
+          align="end"
+          disabled={!editable}
+          onAssign={(assigneeType, assigneeId) =>
+            assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
+          }
+          onUnassign={() => assignTask.mutate({ taskId: task._id })}
+        />
+      </span>
     </div>
   );
 }
