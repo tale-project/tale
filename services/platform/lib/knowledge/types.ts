@@ -205,6 +205,9 @@ export interface KnowledgeAccessScope {
    * caller's role reads conversations. Absent — every other door, the org-wide
    * callers included — message rows are excluded from the SQL candidates and
    * refused by the re-check, so a new corpus class reaches no door by default.
+   * Present, bodies are searched as a partition with a candidate pool of its
+   * own (`DocumentCorpusReader`), so bodies the re-check refuses never take
+   * a document's slot.
    */
   readonly includeConversationMessages?: boolean;
   /**
@@ -319,6 +322,14 @@ export interface KnowledgeQuery {
    * is org-level). Absent = org-wide. See {@link KnowledgeAccessScope}.
    */
   readonly access?: KnowledgeAccessScope;
+  /**
+   * Search the indexed email bodies alone (documents corpus only) — the chat
+   * assistant's `conversation` narrow, where a document or an attachment
+   * could only take a candidate slot and then be dropped. Bodies still need
+   * `access.includeConversationMessages`; without it the documents corpus
+   * answers nothing.
+   */
+  readonly onlyEmailBodies?: boolean;
   /** Drop dense hits below this cosine similarity before fusing. */
   readonly minSimilarity?: number;
 }

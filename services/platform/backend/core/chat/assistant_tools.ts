@@ -993,7 +993,11 @@ export function createChatToolExecutor(
     /** Email-body hits leg 1 returned — conversation rows, which leg 8's
      * source label has to count as matches. */
     let emailBodyHits = 0;
-    if (runLeg('document', 'mail-attachment', 'web-page', 'conversation')) {
+    // Bodies are conversation content: the role that gates the inbox gates
+    // them. A `conversation` narrow for a role that cannot read the inbox
+    // has nothing leg 1 could return, so it runs no embedding and no query.
+    const wantEmailBodies = conversationsAllowed && runLeg('conversation');
+    if (runLeg('document', 'mail-attachment', 'web-page') || wantEmailBodies) {
       // One corpus leg serves four kinds; a narrow selects within it. An
       // emailed attachment and an email body live in the documents corpus
       // (their conversation is what marks them), so every kind but a web
@@ -1025,12 +1029,16 @@ export function createChatToolExecutor(
             // (which the admission re-check decides). This door labels and
             // wraps them as mail, so it is the one door that asks for them —
             // and only when conversation rows are wanted, or a narrow to
-            // another kind would spend its page on hits it then drops.
+            // another kind would spend its page on hits it then drops. They
+            // are searched with a candidate pool of their own, so bodies the
+            // caller may not read never push a document out of the page.
             access: {
               ...docAccess,
-              includeConversationMessages:
-                conversationsAllowed && runLeg('conversation'),
+              includeConversationMessages: wantEmailBodies,
             },
+            // A `conversation` narrow reads bodies alone: a document or an
+            // attachment could only take a slot and then be dropped below.
+            ...(kindFilter === 'conversation' && { onlyEmailBodies: true }),
           });
           const found = { document: 0, mailAttachment: 0, webPage: 0 };
           let corpusSnippetLeft = CORPUS_SNIPPET_TOTAL_CHARS;

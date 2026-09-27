@@ -81,12 +81,30 @@ interface CorpusRow {
 }
 
 /**
+ * The two row classes the documents corpus holds, searched apart:
+ *
+ *  - `files` — uploaded documents, thread uploads, emailed attachments;
+ *  - `messages` — indexed email BODIES (`msg:` refs), for a door that asked
+ *    for them (`KnowledgeAccessScope.includeConversationMessages`).
+ */
+type DocumentRows = 'files' | 'messages';
+
+/**
  * Uploaded documents.
  *
  * The optional `refs`, `folder`, and `access` filters restrict WITHIN the
  * organization; they can only ever narrow what the org_slug filter already
  * allowed. `access` is the caller's team/project visibility, derived
  * server-side by the calling surface — see {@link KnowledgeAccessScope}.
+ *
+ * Email bodies are searched as a partition of their own, each leg with its
+ * own candidate pool, and the two lists are merged by the leg's score. A
+ * body is decided by its conversation's live assignment, which only the
+ * admission re-check can read (see `scope`): a member of a shared inbox —
+ * where an unassigned conversation is admin triage — would otherwise see
+ * every candidate slot of a leg taken by bodies the re-check then refuses,
+ * and a document they could read, ranked just behind them, never return.
+ * Apart, a refused body can only displace another body.
  */
 export class DocumentCorpusReader implements CorpusReader {
   readonly corpus = 'documents' as const;
@@ -102,7 +120,47 @@ export class DocumentCorpusReader implements CorpusReader {
     query: CorpusLegQuery,
   ): Promise<readonly KnowledgeHit[] | null> {
     if (!(await bm25Available(this.sql))) return null;
-    const scope = this.scope(query, 2);
+    return mergeByScore(
+      await Promise.all(
+        this.partitions(query).map((rows) => this.keywordFor(query, rows)),
+      ),
+    );
+  }
+
+  async dense(
+    query: CorpusLegQuery & { readonly embedding: readonly number[] },
+  ): Promise<readonly KnowledgeHit[] | null> {
+    return mergeByScore(
+      await Promise.all(
+        this.partitions(query).map((rows) => this.denseFor(query, rows)),
+      ),
+    );
+  }
+
+  /**
+   * Which row classes this leg searches. Bodies only for a door that asked
+   * for them, never under a folder filter (a message is filed nowhere) nor
+   * for a caller refused every conversation-scoped row — the re-check
+   * would refuse each one anyway. Files unless the caller narrowed to bodies.
+   */
+  private partitions(query: CorpusLegQuery): readonly DocumentRows[] {
+    const rows: DocumentRows[] = [];
+    if (query.onlyEmailBodies !== true) rows.push('files');
+    if (
+      query.access?.includeConversationMessages === true &&
+      query.access.includeConversationScoped !== false &&
+      (query.folder === undefined || query.folder === '')
+    ) {
+      rows.push('messages');
+    }
+    return rows;
+  }
+
+  private keywordFor(
+    query: CorpusLegQuery,
+    rows: DocumentRows,
+  ): Promise<readonly KnowledgeHit[] | null> {
+    const scope = this.scope(query, 2, rows);
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
@@ -132,10 +190,11 @@ export class DocumentCorpusReader implements CorpusReader {
     ]);
   }
 
-  async dense(
+  private denseFor(
     query: CorpusLegQuery & { readonly embedding: readonly number[] },
+    rows: DocumentRows,
   ): Promise<readonly KnowledgeHit[] | null> {
-    const scope = this.scope(query, 2);
+    const scope = this.scope(query, 2, rows);
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
@@ -159,7 +218,7 @@ export class DocumentCorpusReader implements CorpusReader {
     `;
     // The scope's size decides the plan (see `runDenseLeg`): the same
     // predicates, no ORDER BY, no vector.
-    const scopeCount = this.scope(query, 1);
+    const scopeCount = this.scope(query, 1, rows);
     const countStatement = `
       SELECT count(*)::text AS n
       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
@@ -197,12 +256,26 @@ export class DocumentCorpusReader implements CorpusReader {
   private scope(
     query: CorpusLegQuery,
     offset: number,
+    rows: DocumentRows,
   ): { clause: string; params: SqlParam[] } {
     const conditions: string[] = [];
     const params: SqlParam[] = [];
     if (query.refs !== undefined && query.refs.length > 0) {
       params.push([...query.refs]);
       conditions.push(`d.file_id = ANY($${offset + params.length})`);
+    }
+    if (rows === 'messages') {
+      // Email bodies (`msg:` refs) alone. Each carries its conversation and
+      // no other scope, and is DECIDED by the admission re-check against
+      // that conversation's current assignment — the same admit-then-decide
+      // the conversation disjunct below explains. `partitions` runs this
+      // only for a door that asked for bodies and admits conversation rows.
+      params.push(MESSAGE_REF_LIKE_PATTERN);
+      conditions.push(
+        `d.file_id LIKE $${offset + params.length}`,
+        'd.conversation_id IS NOT NULL',
+      );
+      return { clause: `AND ${conditions.join(' AND ')}`, params };
     }
     if (query.folder !== undefined && query.folder !== '') {
       params.push(query.folder);
@@ -267,17 +340,14 @@ export class DocumentCorpusReader implements CorpusReader {
       disjuncts.push(`d.project_id = ANY($${offset + params.length})`);
       conditions.push(`(${disjuncts.join(' OR ')})`);
     }
-    // Email bodies (`msg:` refs) are candidates only for a door that asked for
-    // them (`KnowledgeAccessScope.includeConversationMessages`) — the org-wide
-    // callers included. The re-check refuses them for every other door anyway;
-    // excluding them here too means a door that cannot serve one never spends
-    // a candidate slot on it.
-    if (query.access?.includeConversationMessages !== true) {
-      params.push(MESSAGE_REF_LIKE_PATTERN);
-      conditions.push(`d.file_id NOT LIKE $${offset + params.length}`);
-    }
+    // Email bodies are never file rows: the `messages` partition serves
+    // them, to a door that asked, from a candidate pool of its own. Every
+    // other door — the org-wide callers included — never sees one, and no
+    // body ever takes a document's candidate slot.
+    params.push(MESSAGE_REF_LIKE_PATTERN);
+    conditions.push(`d.file_id NOT LIKE $${offset + params.length}`);
     return {
-      clause: conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '',
+      clause: `AND ${conditions.join(' AND ')}`,
       params,
     };
   }
@@ -554,6 +624,25 @@ async function runDenseLeg(
     }
     throw err;
   }
+}
+
+/**
+ * One leg's hits over several row classes, merged by the leg's own score —
+ * a BM25 weight or a cosine similarity, both higher-is-better and comparable
+ * within one leg, since every class is ranked by the same index for the
+ * same query. Not cut back to one pool: a class refused at admission must
+ * not have pushed the other's candidates out. `null` — the leg could not
+ * run — only when no class ran.
+ */
+function mergeByScore(
+  lists: readonly (readonly KnowledgeHit[] | null)[],
+): readonly KnowledgeHit[] | null {
+  const ran = lists.filter(
+    (list): list is readonly KnowledgeHit[] => list !== null,
+  );
+  if (ran.length === 0) return lists.length === 0 ? [] : null;
+  if (ran.length === 1) return ran[0] ?? [];
+  return ran.flat().sort((a, b) => b.score - a.score);
 }
 
 function toHits(

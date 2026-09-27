@@ -182,6 +182,7 @@ export async function searchKnowledge(
       // The caller surface derives this server-side (never from a sandbox or
       // user request); absent means org-wide — the admin-keyed surfaces.
       ...(args.access !== undefined && { access: args.access }),
+      ...(args.onlyEmailBodies === true && { onlyEmailBodies: true }),
       ...(minSimilarity !== undefined && { minSimilarity }),
     },
   );

@@ -3479,14 +3479,46 @@ describe('email bodies cite their conversation', () => {
       input: { action: 'search', query: 'field sales', kind: 'conversation' },
     });
 
+    // Bodies alone: a document or an attachment could only take a slot of
+    // the page and then be dropped by the narrow.
     expect(searchKnowledgeMock).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ corpus: 'documents' }),
+      expect.objectContaining({ corpus: 'documents', onlyEmailBodies: true }),
     );
     expect(result.results?.map((entry) => entry.kind)).toEqual([
       'conversation',
     ]);
     expect(result.sources).toEqual({ conversations: 'searched' });
+  });
+
+  it('spends no search on a conversation narrow the role cannot read', async () => {
+    // Every body would be dropped: no embedding call, no corpus query.
+    const { ctx } = createCtx({
+      access: (subject) => ({
+        allowed: subject !== 'conversations',
+        role: 'member',
+      }),
+    });
+    const executor = await makeExecutor(ctx);
+    await executor.execute({
+      id: 'e2-denied',
+      name: 'rag_search',
+      input: { action: 'search', query: 'field sales', kind: 'conversation' },
+    });
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps documents in the page beside bodies when no kind is named', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
+    const executor = await makeExecutor(createCtx().ctx);
+    await executor.execute({
+      id: 'e2-all',
+      name: 'rag_search',
+      input: { action: 'search', query: 'field sales' },
+    });
+    expect(lastArgsOf(searchKnowledgeMock)).not.toHaveProperty(
+      'onlyEmailBodies',
+    );
   });
 
   it('asks for no email bodies when the role cannot read conversations', async () => {

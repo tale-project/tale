@@ -3,6 +3,7 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
+import { retrieve } from '../../../lib/knowledge/retrieve';
 import { DocumentCorpusReader, WebCorpusReader } from './corpus';
 import { markBm25Unavailable } from './pool';
 
@@ -58,6 +59,69 @@ function corpusStatements(sent: readonly Recorded[]): Recorded[] {
       !entry.text.includes('count(*)') &&
       !entry.text.startsWith('SET LOCAL'),
   );
+}
+
+/** A chat caller whose role reads the inbox: the one door that asks for
+ * email bodies. */
+const BODIES_ACCESS = {
+  teamIds: [],
+  projectIds: [],
+  includeHub: true,
+  includeConversationScoped: true,
+  includeConversationMessages: true,
+};
+
+function corpusRow(
+  id: string,
+  ref: string,
+  score: number,
+  conversationId: string | null = null,
+): Record<string, unknown> {
+  return {
+    id,
+    chunk_content: `passage ${id}`,
+    chunk_index: 0,
+    ref,
+    title: ref,
+    url: null,
+    project_id: null,
+    conversation_id: conversationId,
+    modified_at: null,
+    hit_offset: null,
+    score,
+  };
+}
+
+/**
+ * A corpus that answers each partition from its own rows, best first and
+ * cut to the statement's LIMIT — the shape the two statements return.
+ */
+function partitionedCorpus(rows: {
+  files: Record<string, unknown>[];
+  bodies: Record<string, unknown>[];
+}): Sql {
+  const sql = ((_strings: TemplateStringsArray) =>
+    Promise.resolve([{ '?column?': 1 }])) as unknown as Sql & {
+    unsafe: unknown;
+  };
+  sql.unsafe = ((text: string, params: unknown[] = []) => {
+    if (!text.includes('.chunks') || text.includes('count(*)')) {
+      return Promise.resolve([]);
+    }
+    const limit = Number(params.at(-1));
+    const pool = text.includes('NOT LIKE') ? rows.files : rows.bodies;
+    return Promise.resolve(
+      [...pool]
+        .sort((a, b) => Number(b.score) - Number(a.score))
+        .slice(0, limit),
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- postgres.js types `unsafe` as returning a rich PendingQuery; the readers only await it
+  }) as unknown as Sql['unsafe'];
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the double stands in for the transaction handle
+  (sql as unknown as { begin: unknown }).begin = (
+    fn: (tx: Sql) => Promise<unknown>,
+  ) => fn(sql as Sql);
+  return sql as Sql;
 }
 
 /**
@@ -354,25 +418,98 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('lets email bodies compete for a door that asked for them', async () => {
+  it('searches email bodies as a partition of their own for a door that asked', async () => {
+    // A body is decided by its conversation's live assignment, which only
+    // the admission re-check reads: searched with the files, the bodies a
+    // member may not read would take a leg's every candidate slot.
     const { sql, sent } = recorder();
     const reader = new DocumentCorpusReader(sql, 'acme');
-    const access = {
-      teamIds: [],
-      projectIds: [],
-      includeHub: true,
-      includeConversationScoped: true,
-      includeConversationMessages: true,
-    };
-    await reader.keyword({ ...LEG, access });
-    await reader.dense({ ...LEG, access, embedding: EMBEDDING });
+    await reader.keyword({ ...LEG, access: BODIES_ACCESS });
+    await reader.dense({ ...LEG, access: BODIES_ACCESS, embedding: EMBEDDING });
     const statements = corpusStatements(sent);
-    expect(statements.length).toBe(2);
-    for (const statement of statements) {
-      expect(statement.text).not.toContain('NOT LIKE');
-      // They enter through the conversation disjunct, for the re-check.
+    // Keyword and dense, each once for files and once for bodies.
+    expect(statements.length).toBe(4);
+    const files = statements.filter((st) => st.text.includes('NOT LIKE'));
+    const bodies = statements.filter((st) => !st.text.includes('NOT LIKE'));
+    expect(files.length).toBe(2);
+    expect(bodies.length).toBe(2);
+    for (const statement of bodies) {
+      const clause = /d\.file_id LIKE \$(\d+)/.exec(statement.text);
+      expect(clause).not.toBeNull();
+      expect(statement.params[Number(clause?.[1]) - 1]).toBe('msg:%');
+      // Admitted for the re-check, which decides each by its conversation.
       expect(statement.text).toContain('d.conversation_id IS NOT NULL');
+      // Each partition fetches a full candidate pool of its own.
+      expect(statement.params.at(-1)).toBe(LEG.limit);
+      expect(statement.params).toContain('acme');
     }
+    for (const statement of files) {
+      expect(statement.params.at(-1)).toBe(LEG.limit);
+    }
+  });
+
+  it('searches bodies alone for a conversation narrow, and never under a folder', async () => {
+    const only = recorder();
+    const reader = new DocumentCorpusReader(only.sql, 'acme');
+    await reader.keyword({
+      ...LEG,
+      access: BODIES_ACCESS,
+      onlyEmailBodies: true,
+    });
+    await reader.dense({
+      ...LEG,
+      access: BODIES_ACCESS,
+      onlyEmailBodies: true,
+      embedding: EMBEDDING,
+    });
+    const narrowed = corpusStatements(only.sent);
+    expect(narrowed.length).toBe(2);
+    for (const statement of narrowed) {
+      expect(statement.text).not.toContain('NOT LIKE');
+      expect(statement.text).toMatch(/d\.file_id LIKE \$\d+/);
+    }
+
+    // A message is filed nowhere; a caller refused conversation rows gets
+    // none of them: the partition does not run at all.
+    for (const query of [
+      { ...LEG, folder: '/reports', access: BODIES_ACCESS },
+      {
+        ...LEG,
+        access: { ...BODIES_ACCESS, includeConversationScoped: false },
+      },
+    ]) {
+      const { sql, sent } = recorder();
+      await new DocumentCorpusReader(sql, 'acme').keyword(query);
+      const statements = corpusStatements(sent);
+      expect(statements.length).toBe(1);
+      expect(statements[0]?.text).toContain('NOT LIKE');
+    }
+
+    // Narrowed to bodies without asking for them: nothing to search.
+    const none = recorder();
+    expect(
+      await new DocumentCorpusReader(none.sql, 'acme').keyword({
+        ...LEG,
+        onlyEmailBodies: true,
+      }),
+    ).toEqual([]);
+    expect(corpusStatements(none.sent)).toEqual([]);
+  });
+
+  it('merges the partitions by the leg’s own score, cutting neither', async () => {
+    const sql = partitionedCorpus({
+      files: [corpusRow('doc-1', 'handbook.pdf', 0.4)],
+      bodies: [
+        corpusRow('body-1', 'msg:m1', 0.9, 'conv-1'),
+        corpusRow('body-2', 'msg:m2', 0.2, 'conv-2'),
+      ],
+    });
+    const hits = await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      access: BODIES_ACCESS,
+      embedding: EMBEDDING,
+    });
+    expect(hits?.map((hit) => hit.id)).toEqual(['body-1', 'doc-1', 'body-2']);
   });
 
   it('adds no scope clause for an org-wide caller', async () => {
@@ -598,5 +735,42 @@ describe('rows become hits', () => {
       embedding: EMBEDDING,
     });
     expect(hits?.[0]?.offset).toBe(12480);
+  });
+});
+
+describe('email bodies a member may not read never displace a document', () => {
+  it('still returns the member’s hub document when unreadable bodies fill a whole pool', async () => {
+    // A shared inbox: every conversation unassigned (admin triage only), and
+    // each email outranks the one document the member asked about on both
+    // legs. The page is 8, so each leg's pool is 24 — and there are 40
+    // bodies. Searched with the files, the pool held bodies alone, the
+    // re-check refused them all, and the member got "no matches".
+    const bodies = Array.from({ length: 40 }, (_v, i) =>
+      corpusRow(`body-${i}`, `msg:m${i}`, 0.99 - i * 0.001, `conv-${i}`),
+    );
+    const sql = partitionedCorpus({
+      files: [corpusRow('doc-1', 'refund-policy.pdf', 0.5)],
+      bodies,
+    });
+    const result = await retrieve(
+      {
+        readers: [new DocumentCorpusReader(sql, 'acme')],
+        embedder: { embed: () => Promise.resolve(EMBEDDING) },
+        // The re-check for a plain member: no conversation is theirs.
+        admit: (hits) =>
+          Promise.resolve(
+            hits.filter((hit) => !hit.source.ref.startsWith('msg:')),
+          ),
+      },
+      {
+        query: 'refund policy',
+        corpus: 'documents',
+        limit: 8,
+        access: BODIES_ACCESS,
+      },
+    );
+    expect(result.hits.map((hit) => hit.source.ref)).toEqual([
+      'refund-policy.pdf',
+    ]);
   });
 });
