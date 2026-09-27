@@ -33,10 +33,7 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
-import {
-  backendErrorFromResponse,
-  backendRefusalDetail,
-} from '@/app/lib/backend/adapters';
+import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -129,8 +126,12 @@ export function ComposeEmailPane({
   const assignTriggerId = useId();
   const { emailConnectors, isLoading: connectorsLoading } =
     useEmailConnectors(organizationId);
-  const { mutateAsync: composeEmail } = useComposeEmailConversation();
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const { mutateAsync: composeEmail } = useComposeEmailConversation({
+    errorToast: false,
+  });
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl({
+    errorToast: false,
+  });
   // Matching connectors settings: anyone who can open the page gets the
   // deep-link; everyone else is told to ask an admin.
   const canOpenConnectors = ability.can('read', 'developerSettings');
@@ -377,7 +378,7 @@ export function ComposeEmailPane({
           headers: { 'Content-Type': file.type || 'application/octet-stream' },
           body: file,
         });
-        // The door's own refusal, so the toast below can say why.
+        // Keep the door's refusal for the editor's failure toast.
         if (!result.ok) throw await backendErrorFromResponse(result);
         const { storageId } = await result.json();
         if (typeof storageId !== 'string') throw new Error('upload failed');
@@ -398,20 +399,11 @@ export function ComposeEmailPane({
   ) => {
     if (!contactId || !selectedConnector || !subject.trim()) return;
 
-    let uploaded: UploadedAttachment[] | undefined;
-    if (attachments && attachments.length > 0) {
-      try {
-        uploaded = await uploadAttachments(attachments);
-      } catch (error) {
-        console.error('Error uploading attachments:', error);
-        toast({
-          title: t('compose.uploadFailed'),
-          description: backendRefusalDetail(error),
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
+    // Let upload failures reject the editor's onSave, just like send failures:
+    // it keeps the body/files and reports the error once.
+    const uploaded = attachments?.length
+      ? await uploadAttachments(attachments)
+      : undefined;
 
     try {
       const result = await composeEmail({

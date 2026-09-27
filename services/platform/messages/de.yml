@@ -1783,7 +1783,6 @@ conversations:
       title: Entwurf verwerfen?
       description: Dieser Entwurf wird endgültig verworfen.
     sent: E-Mail gesendet
-    uploadFailed: Anhang konnte nicht hochgeladen werden
   updating: Konversationen werden aktualisiert...
   bulk:
     sendMessages: Nachrichten senden
