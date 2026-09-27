@@ -14,7 +14,10 @@ import {
   RAG_ERROR_UNSUPPORTED_TYPE,
 } from '../../core/knowledge/rag_error_codes.ts';
 import { ExtractionError } from '../../core/lib/knowledge/extraction/errors.ts';
-import { indexUploadedFile } from './service.ts';
+import {
+  indexUploadedFile,
+  markRagUnsupportedIfNoExtractor,
+} from './service.ts';
 
 /**
  * Every real indexing failure lands with a stable `errorCode` and an honest
@@ -255,4 +258,33 @@ describe('indexUploadedFile — one stable code per failure', () => {
       expect.objectContaining({ fileId: 'file-1' }),
     );
   });
+});
+
+describe('markRagUnsupportedIfNoExtractor — a lane that stores a file without queueing it', () => {
+  it.each(['standup.loop', 'minutes.doc', 'bundle.zip'])(
+    'lands %s on `unsupported` with the indexer’s sentence and code',
+    async (fileName) => {
+      const log: Query[] = [];
+      await markRagUnsupportedIfNoExtractor(fakeSql(log), 'file-1', fileName);
+      expect(lastStatusWrite(log)).toEqual(
+        expect.arrayContaining([
+          'unsupported',
+          `No text extractor exists for "${fileName}".`,
+          RAG_ERROR_UNSUPPORTED_TYPE,
+          'file-1',
+        ]),
+      );
+    },
+  );
+
+  // A `.log` is read by the text extractor but not indexed by itself: a
+  // Reindex of it succeeds, so it must never read as terminal on any lane.
+  it.each(['server.log', 'minutes.docx'])(
+    'writes nothing for %s, which an extractor reads',
+    async (fileName) => {
+      const log: Query[] = [];
+      await markRagUnsupportedIfNoExtractor(fakeSql(log), 'file-1', fileName);
+      expect(log).toEqual([]);
+    },
+  );
 });

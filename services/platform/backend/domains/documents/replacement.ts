@@ -32,6 +32,7 @@ import {
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { markRagUnsupportedIfNoExtractor } from '../knowledge/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 import {
@@ -762,13 +763,20 @@ async function bindReplacement(
       ${intent.organizationId}, ${intent.finalRef}, ${intent.documentId},
       'user', ${intent.fileName}, ${verifiedContentType}, ${size},
       ${contentHash}, ${intent.actorUserId},
-      ${shouldIndex ? 'queued' : 'unsupported'},
+      ${shouldIndex ? 'queued' : null},
       ${shouldIndex ? now : null}, ${now}
     ) RETURNING id
   `;
   const fileMetadataId = insertedMeta[0]?.id;
   if (fileMetadataId === undefined) {
     throw invalidIntent('The replacement file row insert failed.');
+  }
+  if (!shouldIndex) {
+    // The state every lane gives a file it does not queue, so REST
+    // `indexing.errorCode` and the retry door read a replaced `.doc` as they
+    // read an uploaded or synced one; a bare `unsupported` used to carry no
+    // code and no sentence.
+    await markRagUnsupportedIfNoExtractor(tx, fileMetadataId, intent.fileName);
   }
 
   let resultVersion = record.version;
