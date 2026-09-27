@@ -27,9 +27,19 @@ interface TrendLineChartProps {
   allowDecimals?: boolean;
 }
 
+/** How many rows carry a number for the series — gaps (`null`) don't. */
+function plottedPoints(data: ChartRow[], key: string): number {
+  let count = 0;
+  for (const row of data) {
+    if (typeof row[key] === 'number') count += 1;
+  }
+  return count;
+}
+
 /**
  * Generic multi-series line trend (e.g. cycle time). Chart BODY only — wrap in
- * `<ChartCard>` for chrome. Fills its parent.
+ * `<ChartCard>` for chrome. Fills its parent. A series with a single plotted
+ * point shows it as a dot, since a line alone would paint nothing.
  */
 export function TrendLineChart({
   data,
@@ -72,7 +82,9 @@ export function TrendLineChart({
             name={s.label}
             stroke={s.color}
             strokeWidth={2}
-            dot={false}
+            // A line needs two points; a series with one plotted value would
+            // otherwise paint nothing while its KPI card shows the figure.
+            dot={plottedPoints(data, s.key) <= 1 ? { r: 3 } : false}
             activeDot={{ r: 3 }}
             connectNulls
           />
