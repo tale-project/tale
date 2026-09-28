@@ -128,9 +128,10 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
   pages. Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
-These guards ask `turbo --dry=json` whether the files are hashed; the docs and CLI guards also
-hold the two-entry prefix. A suite that starts reading another outside file adds it to both
-the task's inputs and its guard.
+These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
+`turbo.json` to hold the two-entry prefix, since the dry run hashes the same files with or
+without `$TURBO_EXTENDS$` while no root task declares inputs. A suite that starts reading
+another outside file adds it to both the task's inputs and its guard.
 
 Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
 `test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a

@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,6 +19,12 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * `services/platform/turbo.json` lists every such file as a `$TURBO_ROOT$`
  * input; this asks turbo itself (`--dry=json`) which files the task hashes,
  * so an input list that drops one fails here instead of replaying green.
+ *
+ * Every input list opens with `$TURBO_EXTENDS$` (the root task's inputs,
+ * which a workspace list otherwise replaces) and `$TURBO_DEFAULT$` (this
+ * workspace's own files). The root `test` task declares no inputs yet, so
+ * the dry run hashes the same files without `$TURBO_EXTENDS$`; the guard
+ * reads that prefix from `turbo.json` itself.
  *
  * A suite that starts reading another file outside the workspace adds it to
  * `turbo.json` and to `OUTSIDE_READS`. The sources of the workspace packages
@@ -86,6 +93,14 @@ const dryRunSchema = z.object({
   ),
 });
 
+/** The slice of `services/platform/turbo.json` this guard reads. */
+const turboJsonSchema = z.object({
+  tasks: z.record(
+    z.string(),
+    z.object({ inputs: z.array(z.string()).optional() }),
+  ),
+});
+
 function run(command: string, args: string[]): string {
   const result = spawnSync(command, args, {
     cwd: REPO_ROOT,
@@ -139,7 +154,27 @@ describe('@tale/platform#test turbo inputs', () => {
 
   it('still hashes its own workspace', () => {
     // `$TURBO_DEFAULT$` stays in the list, or the suite's own sources drop out.
-    expect(hashed.has('services/platform/package.json')).toBe(true);
+    // Probe this file: turbo hashes `package.json` and `turbo.json` either way.
+    const self = toRepoPath(fileURLToPath(import.meta.url));
+    expect(hashed.has(self), `@tale/platform#test does not hash ${self}`).toBe(
+      true,
+    );
+  });
+
+  it('every input list keeps the root task inputs and the workspace sources', () => {
+    const { tasks } = turboJsonSchema.parse(
+      JSON.parse(readFileSync(path.join(PLATFORM_ROOT, 'turbo.json'), 'utf8')),
+    );
+    const lists = Object.entries(tasks).flatMap(([task, { inputs }]) =>
+      inputs ? [{ task, inputs }] : [],
+    );
+    expect(lists.length).toBeGreaterThan(0);
+    for (const { task, inputs } of lists) {
+      expect(
+        inputs.slice(0, 2),
+        `services/platform/turbo.json tasks.${task}.inputs`,
+      ).toEqual(['$TURBO_EXTENDS$', '$TURBO_DEFAULT$']);
+    }
   });
 
   it('declares the system catalog where its readers find it', () => {
