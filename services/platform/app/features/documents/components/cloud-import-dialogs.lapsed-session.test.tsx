@@ -30,13 +30,9 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => ({ teams: [], isLoading: false }),
 }));
-// A connected account whose top folder holds one file: selecting it needs no
-// sub-listing, so the import is the only request.
+// A connected account whose top folder holds the one item a case selects.
 const listing = vi.hoisted(() => ({
-  data: {
-    items: [{ id: 'file-1', name: 'notes.docx', size: 10, isFolder: false }],
-    truncated: false,
-  },
+  data: { items: [] as unknown[], truncated: false },
   isLoading: false,
   error: null,
 }));
@@ -79,6 +75,12 @@ afterEach(async () => {
   await forgetSavedLocale();
 });
 
+/** Imported as it is: the import is the only request. */
+const FILE = { id: 'file-1', name: 'notes.docx', size: 10, isFolder: false };
+/** Walked first: its listing is the first request, and meets the lapse
+ * before the import starts. */
+const FOLDER = { id: 'folder-1', name: 'Meetings', size: 0, isFolder: true };
+
 const DIALOGS = [
   {
     provider: 'Google Drive',
@@ -89,13 +91,20 @@ const DIALOGS = [
 ] as const;
 
 // The import hook's default toast reported the refusal a second time,
-// between the dialog's "Import started" and its own failure toast.
+// between the dialog's "Import started" and its own failure toast, and so did
+// the folder walk's listing action.
 describe.each(DIALOGS)(
   'the $provider import after a lapsed session',
   ({ Dialog, ns }) => {
-    it.each(SHIPPED_LOCALES)(
-      'says once that the session ended (%s)',
-      async (locale) => {
+    it.each(
+      SHIPPED_LOCALES.flatMap((locale) => [
+        { locale, selection: 'a file', item: FILE, walked: false },
+        { locale, selection: 'a folder', item: FOLDER, walked: true },
+      ]),
+    )(
+      'says once that the session ended, for $selection ($locale)',
+      async ({ locale, item, walked }) => {
+        listing.data.items = [item];
         saveLocale(locale);
         await i18n.changeLanguage(locale);
         const { user } = render(
@@ -105,8 +114,9 @@ describe.each(DIALOGS)(
           </QueryClientProvider>,
         );
 
-        const [, fileRow] = screen.getAllByRole('checkbox');
-        await user.click(fileRow as HTMLElement);
+        // The rows' checkboxes carry no name; the first is "select all".
+        const [, row] = screen.getAllByRole('checkbox');
+        await user.click(row as HTMLElement);
         await user.click(
           screen.getByRole('button', {
             name: documents(`${ns}.importCount`, { count: 1 }),
@@ -126,11 +136,15 @@ describe.each(DIALOGS)(
             variant: shown.variant,
           })),
         ).toEqual([
-          {
-            title: documents(`${ns}.importStarted`),
-            description: documents(`${ns}.importingItems`, { count: 1 }),
-            variant: undefined,
-          },
+          ...(walked
+            ? []
+            : [
+                {
+                  title: documents(`${ns}.importStarted`),
+                  description: documents(`${ns}.importingItems`, { count: 1 }),
+                  variant: undefined,
+                },
+              ]),
           {
             title: documents(`${ns}.importFailed`),
             description: SESSION_ENDED[locale],
