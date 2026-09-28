@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ComparisonResults } from '@/app/features/documents/components/document-comparison/comparison-results';
 import { useDocumentComparison } from '@/app/features/documents/hooks/use-document-comparison';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 
@@ -125,11 +126,9 @@ export function DocumentHistoryDialog({
       });
       setShowResults(true);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : t('history.compareFailed');
       toast({
         title: t('history.compareFailed'),
-        description: message,
+        description: failureDetail(err),
         variant: 'destructive',
       });
     }

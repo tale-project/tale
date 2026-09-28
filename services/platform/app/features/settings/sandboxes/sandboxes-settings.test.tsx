@@ -1,19 +1,27 @@
 import { ActiveEditorProvider, EditorGroup } from '@tale/ui/editor';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, within } from '@/tests/utils/render';
+import { i18n } from '@/lib/i18n/i18n';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { SandboxesSettings } from './sandboxes-settings';
 
-const { state, query, mutate, refreshCapacity, refreshLimits } = vi.hoisted(
-  () => ({
+const { state, query, mutate, refreshCapacity, refreshLimits, toast } =
+  vi.hoisted(() => ({
     state: { canRead: true, canManage: false, abilityLoading: false },
     query: vi.fn(),
     mutate: vi.fn(),
     refreshCapacity: vi.fn(),
     refreshLimits: vi.fn(),
-  }),
-);
+    toast: vi.fn(),
+  }));
 
 /** One project-agent op as the view lists it. */
 function taskOp(execId: string, taskId: string, startedAt: number) {
@@ -82,7 +90,7 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => ({ mutateAsync: mutate, isPending: false }),
 }));
 vi.mock('@tale/ui/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast }),
 }));
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
@@ -95,6 +103,7 @@ beforeEach(() => {
   state.canRead = true;
   state.canManage = false;
   state.abilityLoading = false;
+  toast.mockReset();
   mutate.mockReset();
   refreshCapacity.mockReset();
   refreshLimits.mockReset();
@@ -285,3 +294,51 @@ describe('SandboxesSettings workspace rows', () => {
     expect(screen.queryByText('Actions')).not.toBeInTheDocument();
   });
 });
+
+// An `AppError`'s own `message` is its serialized payload: a refused stop
+// used to read `{"code":"UNAUTHORIZED",…}` under "Action failed".
+describe.each(SHIPPED_LOCALES)(
+  'SandboxesSettings after a lapsed session (%s)',
+  (locale) => {
+    beforeEach(() => {
+      state.canManage = true;
+      saveLocale(locale);
+    });
+    afterEach(forgetSavedLocale);
+
+    it.each(['stop', 'pin'] as const)(
+      'says the session ended when a %s is refused',
+      async (action) => {
+        mutate.mockImplementation((args: { sessionId?: string }) =>
+          args.sessionId === undefined
+            ? Promise.resolve(undefined)
+            : lapsedSessionRefusal(),
+        );
+        const { user } = renderSettings();
+        await waitFor(() => expect(i18n.language).toBe(locale));
+        const tSandboxes = i18n.getFixedT(locale, 'sandboxes');
+
+        const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+        await user.click(
+          within(row).getByRole('button', {
+            name: i18n.getFixedT(locale, 'common')('actions.openMenu'),
+          }),
+        );
+        await user.click(
+          await screen.findByRole('menuitem', {
+            name: tSandboxes(`actions.${action}`),
+          }),
+        );
+
+        await waitFor(() =>
+          expect(toast).toHaveBeenCalledWith({
+            title: tSandboxes('toast.error'),
+            description: SESSION_ENDED[locale],
+            variant: 'destructive',
+          }),
+        );
+        expect(JSON.stringify(toast.mock.calls)).not.toContain('"code"');
+      },
+    );
+  },
+);

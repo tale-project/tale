@@ -6,6 +6,7 @@ import { Stack } from '@tale/ui/layout';
 import { Textarea } from '@tale/ui/textarea';
 import { useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useTestModerationProvider } from '../hooks/mutations';
@@ -34,12 +35,11 @@ export function TestConnectionPanel({
       });
       setResult(r);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       setResult({
         ok: false,
         kind: 'step_error',
         errorClass: 'unknown',
-        hint: message,
+        hint: failureDetail(err),
       });
     }
   };

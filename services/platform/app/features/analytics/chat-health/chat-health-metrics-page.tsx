@@ -25,6 +25,7 @@ import { useCallback } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 import { UNATTRIBUTED_AGENT_SLUG } from '@/lib/shared/constants/usage';
@@ -607,7 +608,7 @@ export function ChatHealthMetricsPage({
         variant="destructive"
         icon={AlertTriangle}
         title={t('chatHealth.errors.loadFailed')}
-        description={error.message}
+        description={failureDetail(error)}
       />
     );
   }

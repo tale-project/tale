@@ -1,3 +1,4 @@
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 import { formatBytes } from '@/lib/utils/format/number';
 
 /**
@@ -154,6 +155,12 @@ export function mapUploadError(
     code === 'UNSUPPORTED_FILE_TYPE'
   ) {
     return t('upload.unsupportedFileType');
+  }
+  // A lapsed session: the app's error normalization (`toBackendError`) words
+  // it in the person's language, so the row says the session ended instead
+  // of blaming the connection for a refusal no retry can pass.
+  if (code === 'UNAUTHORIZED') {
+    return backendRefusalReason(err) ?? t('upload.uploadFailedRetry');
   }
   return t('upload.uploadFailedRetry');
 }
