@@ -26,9 +26,10 @@
  * with no text — and names the file, so the model relays a fact and the
  * timeline shows a filename instead of a raw `s3:` ref. It names a remedy
  * only where one exists: a document can be indexed by hand, an attachment
- * cannot. A ref the caller may not read answers the SAME miss as a ref that
- * does not exist: the file name and its state are only ever spoken for an
- * admitted ref.
+ * cannot, and a file an index run could not read (a `.doc`, an image) is not
+ * worth indexing. A ref the caller may not read answers the SAME miss as a
+ * ref that does not exist: the file name and its state are only ever spoken
+ * for an admitted ref.
  *
  * Admission for the on-demand lane is the live-truth check every corpus hit
  * already passes (`filterRetrievableRagFileIds`): a project file inside the
@@ -97,6 +98,11 @@ export type OnDemandFileRead =
        * (Index now, Reindex, a REST bind). False for an attachment — a
        * chat, task or email file — which no door indexes. */
       readonly heldByDocument: boolean;
+      /** An index run could read the file. False when its name alone
+       * decides the run's answer (`unsupportedByName`): no extractor reads
+       * the type, or it is an image and no vision lane reads images — then
+       * no door that indexes it helps. */
+      readonly extractable: boolean;
       /** `binary`: not a text-like name (needs the indexer's extractors);
        * `too_large`: text-like but over the cap; `no_text`: the bytes are
        * empty or gone. */
@@ -184,6 +190,11 @@ function describeUnreadable(
     return unindexed && file.heldByDocument
       ? `${size} ${INDEX_IT}`
       : `${size} ${SAY_SO}`;
+  }
+  // An index run on this file could only end `unsupported`, so the miss
+  // names no door that starts one — not for a document either.
+  if (!file.extractable && (unindexed || status === 'failed')) {
+    return `${name} is a file type indexing cannot read, so its content cannot be read here. ${SAY_SO}`;
   }
   switch (status) {
     case 'skipped':

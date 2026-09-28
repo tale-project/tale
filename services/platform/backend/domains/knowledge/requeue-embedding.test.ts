@@ -37,16 +37,38 @@ vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
 }));
 
 const { requeueEmbeddingBlockedDocuments } = await import('./service.ts');
+const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
+
+interface ReturnedRow {
+  id: string;
+  orgId: string;
+  /** A document holds the file, so a document list shows its status. */
+  listed: boolean;
+}
+
+const doc = (id: string): ReturnedRow => ({
+  id,
+  orgId: 'org-1',
+  listed: true,
+});
+const attachment = (id: string): ReturnedRow => ({
+  id,
+  orgId: 'org-1',
+  listed: false,
+});
 
 /** Captures the UPDATE and answers with the rows it "returned". */
-function fakeSql(returned: Array<{ id: string }>) {
+function fakeSql(returned: ReturnedRow[]) {
   const statements: string[] = [];
   const values: unknown[][] = [];
-  const tx = (strings: TemplateStringsArray, ...args: unknown[]) => {
-    statements.push(strings.join('?'));
-    values.push(args);
-    return Promise.resolve(returned);
-  };
+  const tx = Object.assign(
+    (strings: TemplateStringsArray, ...args: unknown[]) => {
+      statements.push(strings.join('?'));
+      values.push(args);
+      return Promise.resolve(returned);
+    },
+    { unsafe: (raw: string) => raw },
+  );
   return {
     statements,
     values,
@@ -64,7 +86,7 @@ describe('requeueEmbeddingBlockedDocuments', () => {
   });
 
   it('re-queues each blocked document and reports the count', async () => {
-    const { sql } = fakeSql([{ id: 'f1' }, { id: 'f2' }]);
+    const { sql } = fakeSql([doc('f1'), doc('f2')]);
 
     const out = await requeueEmbeddingBlockedDocuments(sql, {
       organizationId: 'org-1',
@@ -136,7 +158,7 @@ describe('requeueEmbeddingBlockedDocuments', () => {
   });
 
   it('tells the document lists the rows moved, in the same transaction', async () => {
-    const { sql } = fakeSql([{ id: 'f1' }, { id: 'f2' }]);
+    const { sql } = fakeSql([doc('f1'), doc('f2')]);
 
     await requeueEmbeddingBlockedDocuments(sql, { organizationId: 'org-1' });
 
@@ -152,8 +174,32 @@ describe('requeueEmbeddingBlockedDocuments', () => {
     });
   });
 
+  // Chat, task and email attachments fail on the embedding model too, and
+  // no list shows them: a requeue of nothing else tells no one.
+  it('tells no document list when only attachments were re-queued', async () => {
+    const { sql, values } = fakeSql([attachment('f1'), attachment('f2')]);
+
+    const out = await requeueEmbeddingBlockedDocuments(sql, {
+      organizationId: 'org-1',
+    });
+
+    expect(out).toEqual({ requeued: 2 });
+    expect(addJobInTx).toHaveBeenCalledTimes(2);
+    // The write asks, per row, whether a document holds the file.
+    expect(values[0]).toContain(HELD_BY_DOCUMENT_SQL);
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('tells the lists once when a listed row is among the attachments', async () => {
+    const { sql } = fakeSql([attachment('f1'), doc('f2'), attachment('f3')]);
+
+    await requeueEmbeddingBlockedDocuments(sql, { organizationId: 'org-1' });
+
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
   it('enqueues at default priority — a drain must not outrank an upload', async () => {
-    const { sql } = fakeSql([{ id: 'f1' }]);
+    const { sql } = fakeSql([doc('f1')]);
 
     await requeueEmbeddingBlockedDocuments(sql, { organizationId: 'org-1' });
 

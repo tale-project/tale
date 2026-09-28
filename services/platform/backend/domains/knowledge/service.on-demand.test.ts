@@ -145,6 +145,7 @@ describe('readFileTextOnDemand', () => {
       sizeBytes: 42,
       indexing: { status: 'failed', error: 'Embedding provider refused' },
       heldByDocument: true,
+      extractable: true,
       reason: 'binary',
     });
     expect(locateOrgObjectStoreMock).not.toHaveBeenCalled();
@@ -162,9 +163,31 @@ describe('readFileTextOnDemand', () => {
       heldByDocument: false,
       reason: 'binary',
     });
-    const { HELD_BY_DOCUMENT_SQL } = await import('./service.ts');
+    const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
     expect(values[0]).toContain(HELD_BY_DOCUMENT_SQL);
   });
+
+  // An index run on a `.doc` or an image can only end `unsupported`, so the
+  // miss must not send the model to one — a document's included.
+  it.each([
+    ['minutes.doc', false],
+    ['bundle.zip', false],
+    ['photo.png', false],
+    ['SCAN.JPG', false],
+    ['deck.pptx', true],
+    ['scan.pdf', true],
+  ])(
+    'says whether an index run could read %s: %s',
+    async (fileName, extractable) => {
+      const { result } = await readOnDemand([row({ fileName })]);
+      expect(result).toMatchObject({
+        kind: 'unreadable',
+        heldByDocument: true,
+        extractable,
+        reason: 'binary',
+      });
+    },
+  );
 
   it('holds the cap on the recorded size before fetching', async () => {
     const { result } = await readOnDemand([
