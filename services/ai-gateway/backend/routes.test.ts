@@ -40,6 +40,7 @@ const claude: TokenHandout = {
   scopes: 'user:inference',
   available: false,
   availableAt: '2026-09-23T10:00:00.000Z',
+  hold: 'quota',
   usage: {
     checkedAt: '2026-09-21T10:00:00.000Z',
     windows: [
@@ -67,6 +68,7 @@ const chatgpt: TokenHandout = {
   scopes: null,
   available: true,
   availableAt: null,
+  hold: null,
   usage: null,
 };
 
@@ -341,6 +343,7 @@ describe('the token endpoints', () => {
           scopes: 'user:inference',
           available: false,
           available_at: '2026-09-23T10:00:00.000Z',
+          hold: 'quota',
           usage: {
             checked_at: '2026-09-21T10:00:00.000Z',
             limited: null,
@@ -379,6 +382,51 @@ describe('the token endpoints', () => {
     ]);
   });
 
+  it('says why an account waits, so a consumer can tell the floor from a spent quota', async () => {
+    const floorHeld: TokenHandout = {
+      ...claude,
+      id: 'account-3',
+      accessToken: 'sk-ant-oat01-access-3',
+      available: false,
+      availableAt: '2026-10-21T07:12:30.000Z',
+      hold: 'refresh',
+      usage: null,
+    };
+    const { call } = build({
+      handOutTokens: vi.fn(() => Promise.resolve([claude, floorHeld])),
+    });
+    const response = await call('/api/tokens/anthropic', { headers: withKey });
+    const body = z
+      .object({
+        tokens: z.array(
+          z.object({
+            id: z.string(),
+            available: z.boolean(),
+            available_at: z.string().nullable(),
+            hold: z.enum(['quota', 'refresh']).nullable(),
+          }),
+        ),
+      })
+      .parse(await response.json());
+    // `available` keeps its meaning for a consumer that reads nothing else;
+    // `hold` tells the refresh floor, which a consumer may fall back to,
+    // from a spent quota, which it may not.
+    expect(body.tokens).toEqual([
+      {
+        id: 'account-1',
+        available: false,
+        available_at: '2026-09-23T10:00:00.000Z',
+        hold: 'quota',
+      },
+      {
+        id: 'account-3',
+        available: false,
+        available_at: '2026-10-21T07:12:30.000Z',
+        hold: 'refresh',
+      },
+    ]);
+  });
+
   it('hands out only Claude tokens on the Anthropic endpoint', async () => {
     const { call, handOutTokens } = build();
     const response = await call('/api/tokens/anthropic', { headers: withKey });
@@ -408,6 +456,7 @@ describe('the token endpoints', () => {
           scopes: null,
           available: true,
           available_at: null,
+          hold: null,
           usage: null,
         },
       ],
@@ -463,6 +512,7 @@ describe('the token endpoints', () => {
           scopes: 'user:inference',
           available: false,
           available_at: '2026-09-23T10:00:00.000Z',
+          hold: 'quota',
           usage: {
             checked_at: '2026-09-21T10:00:00.000Z',
             limited: null,
@@ -490,6 +540,7 @@ describe('the token endpoints', () => {
           scopes: null,
           available: true,
           available_at: null,
+          hold: null,
           usage: null,
         },
       ],
