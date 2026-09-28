@@ -11,10 +11,13 @@ import { createPortal } from 'react-dom';
 const toastVariants = cva(
   // shadcn-style: one horizontal row, items-center, equal padding. Action sits
   // beside the copy when it fits (not under it). `flex-wrap` lets a wide
-  // action (e.g. a two-button "Later" / "Update now" group marked `w-full`)
-  // drop to its own line below the copy instead of squeezing beside it on a
-  // narrow viewport. No close control — toasts auto-dismiss (and pause on
-  // hover/focus); swipe still dismisses.
+  // action (marked `w-full`, see `toastActionGroupClassName`) drop to its own
+  // line below the copy. This isn't a narrow-viewport fix: the toast's width
+  // is fixed (`max-w-sm`) regardless of screen size, so a multi-button
+  // action assumed to always fit beside arbitrary-length copy is the actual
+  // defect — it squeezes at any width once the copy is long enough. No close
+  // control — toasts auto-dismiss (and pause on hover/focus); swipe still
+  // dismisses.
   'group data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full bg-background text-foreground pointer-events-auto relative flex w-fit max-w-sm flex-wrap items-center gap-3 overflow-hidden rounded-xl border p-4 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none',
   {
     variants: {

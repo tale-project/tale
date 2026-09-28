@@ -27,6 +27,7 @@
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { Button } from '@tale/ui/button';
+import { toastActionGroupClassName } from '@tale/ui/toast';
 import { toast } from '@tale/ui/use-toast';
 
 import { probeBackend } from '@/app/lib/backend/connection-state';
@@ -131,12 +132,7 @@ function showNewVersionToast(reload: () => void): void {
     title: i18n.t('newVersion.title', { ns: 'connectivity' }),
     description: i18n.t('newVersion.description', { ns: 'connectivity' }),
     action: (
-      // `w-full` forces this group onto its own wrapped line below the
-      // title/description (see toaster.tsx's `flex-wrap`) instead of
-      // squeezing beside a two-line description on a phone-width toast.
-      // The top border reads as a footer (matches filter-panel.tsx /
-      // searchable-select.tsx) instead of floating whitespace.
-      <div className="border-border flex w-full items-center justify-end gap-2 border-t pt-2">
+      <div className={toastActionGroupClassName}>
         <ToastPrimitives.Close asChild>
           <Button type="button" variant="ghost" size="sm">
             {i18n.t('newVersion.later', { ns: 'connectivity' })}
