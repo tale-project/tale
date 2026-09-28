@@ -16,7 +16,8 @@ import { describe, expect, it } from 'vitest';
  * without anyone deciding it may travel.
  *
  * This guard reads every `new TaskError(…)` and `new TaskReviewError(…)` in
- * the backend, and every `new ProjectError(…)` and `new AutomationError(…)`
+ * the backend, every `new RestRefusal(…)` and `new FolderError(…)` a door's
+ * own file builds, and every `new ProjectError(…)` and `new AutomationError(…)`
  * a task door can relay: those every door's own file builds ({@link
  * TASK_DOORS} — the task domain, the REST task door, the natives' store, the
  * write shim, the intake folder), and those of each projects- or
@@ -195,7 +196,7 @@ function scanRefusals(): { judged: string[]; pieces: string[] } {
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     if (
-      !/new (TaskError|TaskReviewError|ProjectError|AutomationError)\(/.test(
+      !/new (TaskError|TaskReviewError|ProjectError|AutomationError|RestRefusal|FolderError)\(/.test(
         source,
       )
     ) {
@@ -217,17 +218,29 @@ function scanRefusals(): { judged: string[]; pieces: string[] } {
       ts.ScriptTarget.Latest,
       true,
     );
+    /** Whether this constructor's refusal is one a task door answers. */
+    const judges = (node: ts.Node, error: string): boolean => {
+      if (error === 'TaskError' || error === 'TaskReviewError') return true;
+      if (error === 'ProjectError' || error === 'AutomationError') {
+        return relayed(node, error);
+      }
+      // REST's own refusal and the folder domain's: read where a door's own
+      // file builds them (the REST task door, the intake folder).
+      return (error === 'RestRefusal' || error === 'FolderError') && inDoor;
+    };
     const visit = (node: ts.Node): void => {
       if (
         ts.isNewExpression(node) &&
         ts.isIdentifier(node.expression) &&
-        (node.expression.text === 'TaskError' ||
-          node.expression.text === 'TaskReviewError' ||
-          ((node.expression.text === 'ProjectError' ||
-            node.expression.text === 'AutomationError') &&
-            relayed(node, node.expression.text)))
+        judges(node, node.expression.text)
       ) {
-        const [code, message] = node.arguments ?? [];
+        // `RestRefusal` takes its sentence first and its code third; every
+        // other refusal takes the code, then the sentence.
+        const args = node.arguments ?? [];
+        const [code, message] =
+          node.expression.text === 'RestRefusal'
+            ? [args[2], args[0]]
+            : [args[0], args[1]];
         judged.push(`${relative} ${code?.getText(tree) ?? '?'}`);
         if (message !== undefined && !isStaticText(message)) {
           const parts = ts.isTemplateExpression(message)
@@ -267,6 +280,16 @@ const ADMITTED = [
   // REST intake cannot word it apart again.
   "domains/automations/store.ts 'AUTOMATION_PROJECT_FORBIDDEN' AUTOMATION_NOT_BOUND_SENTENCE",
   "rest/v1-tasks.ts 'AUTOMATION_PROJECT_FORBIDDEN' AUTOMATION_NOT_BOUND_SENTENCE",
+  // The task's own status (`TaskStatus`, a fixed vocabulary), told to the
+  // caller deciding its review: the state it is in, never a value it sent.
+  "rest/v1-tasks.ts 'TASK_NOT_IN_REVIEW' task.status",
+  // The folder domain re-throws two static sentences under its own class:
+  // `FolderNameError`'s "Folder name <rule>", the rule one of the fixed
+  // phrases of `FOLDER_NAME_RULES` (`domains/folders/paths.ts`), never the
+  // name; and `TeamAssignmentError`'s literals (`core/lib/audience.ts`),
+  // whose team ids ride in `data`.
+  "domains/folders/service.ts 'FOLDER_NAME_INVALID' error.message",
+  'domains/folders/service.ts error.code error.message',
   // The competences a review policy requires and the responder lacks: the
   // organization's own governance names, told to the PERSON approving so
   // they know what to acquire. Only a user's approve runs that check
@@ -330,12 +353,15 @@ describe('task refusal sentences', () => {
   it("read every refusal a door's own file builds", () => {
     // The REST task door's not-deployed sentence repeated the slug the
     // caller sent while only `domains/tasks/` was read (TALE-75 review):
-    // each door file's `AutomationError`s and `ProjectError`s are judged.
+    // each door file's `AutomationError`s and `ProjectError`s are judged,
+    // and so are its `RestRefusal`s and the intake folder's `FolderError`s.
     expect(scanRefusals().judged).toEqual(
       expect.arrayContaining([
         "rest/v1-tasks.ts 'AUTOMATION_NOT_DEPLOYED'",
         "rest/v1-tasks.ts 'AUTOMATION_NOT_FOUND'",
         "rest/v1-tasks.ts 'AUTOMATION_PROJECT_FORBIDDEN'",
+        "rest/v1-tasks.ts 'TASK_NOT_IN_REVIEW'",
+        "domains/folders/service.ts 'FOLDER_NAME_INVALID'",
       ]),
     );
   });
