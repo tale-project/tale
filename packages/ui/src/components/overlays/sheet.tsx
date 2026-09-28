@@ -96,8 +96,8 @@ interface SheetProps extends VariantProps<typeof sheetVariants> {
   /**
    * Drag-to-resize behavior. Default-on for `side="right"`. Pass `false`
    * to disable, or an options object to tune width range / persistence.
-   * Resize is silently a no-op on `side !== 'right'` (the hook's geometry
-   * assumes a right-anchored panel).
+   * Resize is silently a no-op on `side !== 'right'`; other sheet variants
+   * keep their static width.
    */
   resize?: false | SheetResizeOptions;
   /**
@@ -179,9 +179,8 @@ export function Sheet({
   // contract `Dialog` carries.
   const restoreFocus = useRestoreFocus(open, restoreFocusRef);
 
-  // Resize is meaningful only for side="right" (the hook geometry assumes
-  // a right-anchored panel). Anything else falls through to the size
-  // variant's static width.
+  // Sheet exposes resize only for side="right". Other sides keep the size
+  // variant's static width; the shared hook defaults to this left edge.
   const effectiveResize = side === 'right' && resize !== false;
   const resizeOpts: SheetResizeOptions =
     typeof resize === 'object' && resize !== null ? resize : {};

@@ -1,3 +1,5 @@
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
@@ -115,6 +117,71 @@ describe('Textarea', () => {
       expect(textarea).toHaveAccessibleDescription(
         'Too long Shown to teammates.',
       );
+    });
+  });
+
+  describe('counter', () => {
+    it('counts the value against the max in the UI language’s format', () => {
+      render(
+        <Textarea
+          aria-label="Notes"
+          counterMax={20_000}
+          defaultValue={'d'.repeat(1_234)}
+        />,
+      );
+      expect(screen.getByText('1,234 / 20,000')).toBeInTheDocument();
+    });
+
+    it('groups the digits the German way for a German UI', async () => {
+      const de = createInstance();
+      await de.init({ lng: 'de', resources: {} });
+      render(
+        <I18nextProvider i18n={de}>
+          <Textarea
+            aria-label="Notizen"
+            counterMax={20_000}
+            readOnly
+            value=""
+          />
+        </I18nextProvider>,
+      );
+      expect(screen.getByText('0 / 20.000')).toBeInTheDocument();
+    });
+
+    // A caller that saves the value trimmed counts it trimmed: the raw
+    // length overstated how much was left to delete past the cap.
+    it('shows the length the caller measured instead of the raw one', () => {
+      render(
+        <Textarea
+          aria-label="Notes"
+          counterMax={10}
+          counterValue={11}
+          readOnly
+          value={`  ${'d'.repeat(11)}\n\n`}
+        />,
+      );
+      const counter = screen.getByText('11 / 10');
+      expect(counter).toHaveClass('text-destructive');
+    });
+
+    // The count describes the field, read when it takes focus, and is no
+    // live region: a running length there was announced on every keystroke.
+    it('describes the field without announcing each keystroke', () => {
+      render(
+        <Textarea
+          aria-label="Notes"
+          counterMax={200}
+          errorMessage="Too long"
+          readOnly
+          value="abc"
+        />,
+      );
+      const counter = screen.getByText('3 / 200');
+      expect(
+        screen.getByRole('textbox', { name: 'Notes' }),
+      ).toHaveAccessibleDescription('Too long 3 / 200');
+      expect(counter).not.toHaveAttribute('role');
+      expect(counter).not.toHaveAttribute('aria-live');
     });
   });
 

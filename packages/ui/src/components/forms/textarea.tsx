@@ -5,6 +5,7 @@ import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Info } from 'lucide-react';
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   DisabledReasonTooltip,
@@ -22,9 +23,17 @@ export interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'
    * Render a `used / max` character counter under the control, owned by the
    * field itself so every surface places it identically. Display-only — it
    * does not cap input (pair with validation); the count turns destructive
-   * past the max.
+   * past the max. Both numbers print in the UI language's format, and the
+   * counter describes the field (`aria-describedby`) without being a live
+   * region, so it is read on focus rather than on every keystroke.
    */
   counterMax?: number;
+  /**
+   * The length the counter shows, when the caller measures it differently
+   * from the raw value — e.g. trimmed, as the save sends it. Defaults to the
+   * textarea value's length.
+   */
+  counterValue?: number;
   /**
    * Span the full row in the settings row layout instead of the standard
    * control column — for a tall textarea that IS the section's whole body.
@@ -58,6 +67,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       required,
       errorMessage,
       counterMax,
+      counterValue,
       wideControl,
       fillHeight,
       wrapperClassName,
@@ -85,16 +95,30 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     const [charCount, setCharCount] = React.useState(0);
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- deliberately deps-less: it reconciles the counter with the DOM value after EVERY render, because form resets change the value without an event; the setState equality bail-out keeps it loop-free
     React.useEffect(() => {
-      if (counterMax === undefined) return;
+      if (counterMax === undefined || counterValue !== undefined) return;
       setCharCount(innerRef.current?.value.length ?? 0);
     });
+    const counted = counterValue ?? charCount;
+    const counterId = `${id}-counter`;
+    // The UI language decides the grouping ("20,000", "20.000", "20 000"),
+    // as it does for the sentence a caller's error names the cap in.
+    const { i18n } = useTranslation();
+    const counts = new Intl.NumberFormat(
+      i18n?.resolvedLanguage ?? i18n?.language ?? 'en',
+    );
+    const formatCount = (value: number) => counts.format(value);
     const descriptionId = `${id}-description`;
     const hasError = !!errorMessage;
     // Merge a caller's `aria-describedby` (help shown elsewhere, e.g. a
     // settings row's description) with the ids the field owns, so it never
     // clobbers the description and error associations (mirrors `Input`).
     const describedBy =
-      [description && descriptionId, hasError && errorId, callerDescribedBy]
+      [
+        description && descriptionId,
+        hasError && errorId,
+        counterMax !== undefined && counterId,
+        callerDescribedBy,
+      ]
         .filter(Boolean)
         .join(' ') || undefined;
     const [showShake, setShowShake] = React.useState(false);
@@ -181,12 +205,13 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         </DisabledReasonTooltip>
         {counterMax !== undefined && (
           <p
+            id={counterId}
             className={cn(
               'text-muted-foreground text-xs',
-              charCount > counterMax && 'text-destructive',
+              counted > counterMax && 'text-destructive',
             )}
           >
-            {charCount} / {counterMax}
+            {formatCount(counted)} / {formatCount(counterMax)}
           </p>
         )}
       </FieldShell>

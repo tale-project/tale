@@ -130,6 +130,9 @@ export function TaskRepeatField({
   const { t } = useT('tasks');
   const { day } = useRecurrenceFormat();
   const [announcement, setAnnouncement] = useState('');
+  const [dateRangeError, setDateRangeError] = useState<TaskRepeatDates | null>(
+    null,
+  );
 
   if (state.kind === 'hidden') return null;
   if (state.kind === 'locked' && state.reason === 'subtask') {
@@ -146,6 +149,14 @@ export function TaskRepeatField({
     ...rule,
     timezone: timeZone,
   });
+  const preview = (rule: RecurrenceRule) => {
+    try {
+      return upcomingTaskRepeatDates(withZone(rule), dates, now);
+    } catch (error) {
+      if (error instanceof RangeError) return null;
+      throw error;
+    }
+  };
   // The rule as it would be stored; `null` for one the schema refuses.
   const toTaskRepeat = (
     rule: RecurrenceRule,
@@ -177,7 +188,15 @@ export function TaskRepeatField({
         </p>
       ) : null;
     }
-    const due = upcomingTaskRepeatDates(withZone(rule), dates, now).dueDate;
+    const upcoming = preview(rule);
+    if (upcoming === null) {
+      return (
+        <p className="text-muted-foreground text-xs">
+          {t('repeat.dateOutOfRange')}
+        </p>
+      );
+    }
+    const due = upcoming.dueDate;
     const dueDay = taskDateIn(due, timeZone);
     // The due date has begun: a due-date series would continue right away.
     const dueNow = startOfCalendarDate(dueDay, timeZone) <= now;
@@ -231,9 +250,7 @@ export function TaskRepeatField({
             : undefined
         }
         nextDates={(rule) =>
-          upcomingTaskRepeatDates(withZone(rule), dates, now).next.map((ms) =>
-            taskDateIn(ms, timeZone),
-          )
+          (preview(rule)?.next ?? []).map((ms) => taskDateIn(ms, timeZone))
         }
         nextDatesLabel={t('repeat.nextDueDates')}
         maxInterval={TASK_REPEAT_MAX_INTERVAL}
@@ -254,7 +271,15 @@ export function TaskRepeatField({
             return;
           }
           if (sameTaskRepeat(next, value)) return;
-          const patch = taskRepeatPatch(next, dates, Date.now());
+          let patch: { repeat: TaskRepeat | null; dueDate?: number };
+          try {
+            patch = taskRepeatPatch(next, dates, Date.now());
+          } catch (error) {
+            if (!(error instanceof RangeError)) throw error;
+            setDateRangeError(dates);
+            return;
+          }
+          setDateRangeError(null);
           onChange(patch);
           if (patch.dueDate !== undefined) {
             setAnnouncement(
@@ -263,6 +288,13 @@ export function TaskRepeatField({
           }
         }}
       />
+      {dateRangeError !== null &&
+        dateRangeError.dueDate === dueDate &&
+        dateRangeError.startDate === startDate && (
+          <p role="alert" className="text-destructive text-xs">
+            {t('repeat.dateOutOfRange')}
+          </p>
+        )}
       <span role="status" className="sr-only">
         {announcement}
       </span>

@@ -6,6 +6,7 @@ import {
   AccountError,
   createAccountService,
   loopbackRedirectUri,
+  refreshStaggerShare,
 } from './accounts';
 import { createTokenCipher } from './crypto';
 import {
@@ -17,7 +18,11 @@ import {
   type Subscription,
   type UsageWindow,
 } from './providers/types';
-import { createMemoryAccountStore, type AccountStore } from './store';
+import {
+  createMemoryAccountStore,
+  type AccountStore,
+  type StoredAccount,
+} from './store';
 
 const cipher = createTokenCipher(randomBytes(32));
 
@@ -43,6 +48,7 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
   refusals: { refresh?: RefreshRefusal; usage?: boolean; exchange?: boolean };
   gates: { refresh?: Promise<void>; usage?: Promise<void> };
   refreshCount: number;
+  refreshedExpiresAt: string;
   usageCount: number;
   identityCount: number;
   offersDevice: boolean;
@@ -68,6 +74,8 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
     },
     gates: {} as { refresh?: Promise<void>; usage?: Promise<void> },
     refreshCount: 0,
+    /** The expiry a refreshed token comes back with. */
+    refreshedExpiresAt: '2026-09-21T12:00:00.000Z',
     usageCount: 0,
     identityCount: 0,
     /** Whether this vendor signs in with a device code, as OpenAI's does. */
@@ -146,7 +154,7 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
         tokens: {
           accessToken: `access-${count + 1}`,
           refreshToken: `refresh-${count + 1}`,
-          expiresAt: '2026-09-21T12:00:00.000Z',
+          expiresAt: state.refreshedExpiresAt,
           scopes: 'scope',
         },
         identity: null,
@@ -188,8 +196,12 @@ describe('createAccountService', () => {
       providers: { anthropic, openai },
       cipher,
       tokenRefreshSkewSeconds: 300,
+      // The lifecycle below runs on the skew alone; the stagger and the
+      // hand-out floor have their own block.
+      tokenMinHandoutSeconds: 0,
       usageMinIntervalSeconds: 180,
       now: () => now,
+      refreshStagger: () => 0,
     });
   });
 
@@ -1054,6 +1066,405 @@ describe('createAccountService', () => {
       expect(account.status).toBe('active');
     });
   });
+});
+
+/**
+ * Observed live (2026-09-28): every Anthropic account was refreshed at
+ * 11:00:58 with an eight-hour token, so all of them were due — and revoked —
+ * at the same instant; a turn cut two minutes after a refresh failed with
+ * "401 OAuth access token has been revoked". These run on the real stagger
+ * and a one-hour floor, over that pool.
+ */
+describe('staggered refreshes and the hand-out floor', () => {
+  const ISSUED = '2026-09-28T11:00:58.000Z';
+  const EXPIRES = '2026-09-28T19:00:58.000Z';
+  const HOUR = 60 * 60 * 1000;
+  /** The skew point: five minutes before the vendor's expiry. */
+  const SKEW_POINT = Date.parse(EXPIRES) - 5 * 60 * 1000;
+  /** Half the window between the token's issue and the skew point. */
+  const SPREAD = (SKEW_POINT - Date.parse(ISSUED)) / 2;
+  const plannedRefresh = (id: string) =>
+    new Date(SKEW_POINT - SPREAD * refreshStaggerShare(id)).toISOString();
+
+  let store: AccountStore;
+  let anthropic: ReturnType<typeof fakeProvider>;
+  let now: Date;
+
+  /** Two accounts refreshed together, as the incident's pool was. `early`
+   * and `late` are ids whose stagger shares sit near either end. */
+  async function alignedPool() {
+    for (const id of ['early', 'late']) {
+      await store.putAccount(storedAccount(id));
+    }
+  }
+
+  function storedAccount(
+    id: string,
+    overrides: Partial<StoredAccount> = {},
+  ): StoredAccount {
+    return {
+      id,
+      provider: 'anthropic',
+      label: id,
+      accountEmail: `${id}@example.com`,
+      accountId: null,
+      plan: null,
+      subscription: { plan: 'max', tier: '20x' },
+      identityCheckedAt: ISSUED,
+      accessToken: cipher.seal(`${id}-access`),
+      refreshToken: cipher.seal(`${id}-refresh`),
+      expiresAt: EXPIRES,
+      scopes: 'user:inference',
+      status: 'active',
+      createdAt: ISSUED,
+      lastRefreshedAt: ISSUED,
+      usage: null,
+      usageAttemptedAt: null,
+      ...overrides,
+    };
+  }
+
+  function service(tokenMinHandoutSeconds = 3600) {
+    return createAccountService({
+      store,
+      providers: { anthropic, openai: fakeProvider('openai') },
+      cipher,
+      tokenRefreshSkewSeconds: 300,
+      tokenMinHandoutSeconds,
+      usageMinIntervalSeconds: 180,
+      now: () => now,
+    });
+  }
+
+  beforeEach(() => {
+    store = createMemoryAccountStore();
+    anthropic = fakeProvider('anthropic');
+    now = new Date(ISSUED);
+  });
+
+  it('plans a different refresh for each of two accounts that expire together', async () => {
+    await alignedPool();
+    const handouts = await service().handOutTokens('anthropic');
+    const refreshAt = Object.fromEntries(
+      handouts.map((handout) => [handout.id, handout.refreshAt]),
+    );
+    expect(refreshAt).toEqual({
+      early: plannedRefresh('early'),
+      late: plannedRefresh('late'),
+    });
+    // Hours apart, not seconds: the pool is never revoked all at once.
+    expect(
+      Date.parse(plannedRefresh('late')) - Date.parse(plannedRefresh('early')),
+    ).toBeGreaterThan(3 * HOUR);
+    // Neither is later than the skew alone would have it.
+    for (const at of Object.values(refreshAt)) {
+      expect(Date.parse(at ?? '')).toBeLessThanOrEqual(SKEW_POINT);
+    }
+  });
+
+  it('refreshes on a hand-out only the account that is due under its own threshold', async () => {
+    await alignedPool();
+    anthropic.refreshedExpiresAt = '2026-09-29T00:00:00.000Z';
+    // Past the early account's planned refresh, well before the late one's.
+    now = new Date(Date.parse(plannedRefresh('early')) + 60_000);
+    expect(now.getTime()).toBeLessThan(Date.parse(plannedRefresh('late')));
+
+    const handouts = await service().handOutTokens('anthropic');
+
+    expect(anthropic.refreshCount).toBe(1);
+    const byId = Object.fromEntries(handouts.map((h) => [h.id, h]));
+    expect(byId.early?.accessToken).toBe('access-2');
+    expect(byId.late?.accessToken).toBe('late-access');
+    // The refresh restarts the early account's own cycle from now on.
+    expect((await store.getAccount('early'))?.lastRefreshedAt).toBe(
+      now.toISOString(),
+    );
+  });
+
+  it('never refreshes two accounts refreshed together in one pass, over a month of passes', async () => {
+    await alignedPool();
+    const gateway = service();
+    const refreshedAt: Record<string, string[]> = { early: [], late: [] };
+    // A background pass every five minutes for thirty days, each refresh
+    // handing out a fresh eight-hour token. Cycles of different lengths
+    // meet now and then; the spacing keeps them in different passes.
+    for (let at = Date.parse(ISSUED); at < Date.parse(ISSUED) + 720 * HOUR;) {
+      at += 5 * 60 * 1000;
+      now = new Date(at);
+      anthropic.refreshedExpiresAt = new Date(at + 8 * HOUR).toISOString();
+      await gateway.refreshAll();
+      for (const id of ['early', 'late']) {
+        const stored = await store.getAccount(id);
+        const last = stored?.lastRefreshedAt ?? '';
+        if (last !== ISSUED && !refreshedAt[id]?.includes(last)) {
+          refreshedAt[id]?.push(last);
+        }
+      }
+    }
+    expect(refreshedAt.early?.length).toBeGreaterThan(50);
+    expect(refreshedAt.late?.length).toBeGreaterThan(50);
+    // No pass refreshed both: one refresh never cuts the runs of the pool.
+    const both = refreshedAt.early?.filter((at) =>
+      refreshedAt.late?.includes(at),
+    );
+    expect(both).toEqual([]);
+  });
+
+  it('refreshes two due accounts of one vendor ten minutes apart', async () => {
+    // `account-a` plans its refresh at about 15:02, `early` at about 15:10.
+    await store.putAccount(storedAccount('early'));
+    await store.putAccount(storedAccount('account-a'));
+    anthropic.refreshedExpiresAt = '2026-09-29T00:00:00.000Z';
+    const gateway = service();
+    const tokens = async () =>
+      Object.fromEntries(
+        (await gateway.handOutTokens('anthropic')).map((h) => [
+          h.id,
+          h.accessToken,
+        ]),
+      );
+
+    now = new Date('2026-09-28T15:10:00.000Z');
+    const first = await tokens();
+    expect(anthropic.refreshCount).toBe(1);
+    // One of the two waits for its turn, still on its own token.
+    expect(
+      [first.early, first['account-a']].filter((token) =>
+        token?.endsWith('-access'),
+      ),
+    ).toHaveLength(1);
+
+    now = new Date('2026-09-28T15:15:00.000Z');
+    await tokens();
+    expect(anthropic.refreshCount).toBe(1);
+
+    now = new Date('2026-09-28T15:20:01.000Z');
+    const later = await tokens();
+    expect(anthropic.refreshCount).toBe(2);
+    expect(Object.values(later).some((t) => t.endsWith('-access'))).toBe(false);
+  });
+
+  it('refreshes a token at its skew point even inside the spacing', async () => {
+    await alignedPool();
+    anthropic.refreshedExpiresAt = '2026-09-29T03:00:00.000Z';
+    // Past both skew points (18:55:58): neither token can wait any longer.
+    now = new Date('2026-09-28T18:56:30.000Z');
+    await service().handOutTokens('anthropic');
+    expect(anthropic.refreshCount).toBe(2);
+  });
+
+  it('serves an account inside the floor as unavailable until its planned refresh', async () => {
+    await alignedPool();
+    // Forty minutes before the early account's planned refresh.
+    now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+
+    const handouts = await service().handOutTokens('anthropic');
+
+    const byId = Object.fromEntries(handouts.map((h) => [h.id, h]));
+    expect(byId.early).toMatchObject({
+      status: 'active',
+      accessToken: 'early-access',
+      available: false,
+      availableAt: plannedRefresh('early'),
+      refreshAt: plannedRefresh('early'),
+      // The vendor's expiry is still reported, and still later.
+      expiresAt: EXPIRES,
+    });
+    expect(byId.late).toMatchObject({ available: true, availableAt: null });
+    expect(anthropic.refreshCount).toBe(0);
+  });
+
+  it('hands the account out again once its planned refresh has renewed the token', async () => {
+    await alignedPool();
+    now = new Date(Date.parse(plannedRefresh('early')) + 1_000);
+    anthropic.refreshedExpiresAt = new Date(
+      now.getTime() + 8 * HOUR,
+    ).toISOString();
+
+    const early = (await service().handOutTokens('anthropic')).find(
+      (handout) => handout.id === 'early',
+    );
+
+    expect(early).toMatchObject({
+      accessToken: 'access-2',
+      available: true,
+      availableAt: null,
+    });
+    expect(Date.parse(early?.refreshAt ?? '')).toBeGreaterThan(
+      now.getTime() + HOUR,
+    );
+  });
+
+  it('holds back a token whose planned refresh is overdue while the refresh keeps failing', async () => {
+    await alignedPool();
+    anthropic.refusals.refresh = 'failed';
+    now = new Date(Date.parse(plannedRefresh('early')) + 1_000);
+    const gateway = service();
+
+    const early = (await gateway.handOutTokens('anthropic')).find(
+      (handout) => handout.id === 'early',
+    );
+
+    // The token still works — the usage read says so — but the retried
+    // refresh may end it any minute, so no time can be promised.
+    expect(anthropic.refreshCount).toBe(1);
+    expect(early).toMatchObject({
+      status: 'active',
+      accessToken: 'early-access',
+      available: false,
+      availableAt: null,
+      refreshAt: plannedRefresh('early'),
+    });
+
+    // A minute on, the retry fails too and no usage read is due: the
+    // account reads `error`, and is still held back.
+    now = new Date(Date.parse(plannedRefresh('early')) + 62_000);
+    const retried = (await gateway.handOutTokens('anthropic')).find(
+      (handout) => handout.id === 'early',
+    );
+    expect(anthropic.refreshCount).toBe(2);
+    expect(retried).toMatchObject({ status: 'error', available: false });
+  });
+
+  it('leaves an account the vendor refused to its status, not the floor', async () => {
+    await alignedPool();
+    anthropic.refusals.refresh = 'rejected';
+    now = new Date(Date.parse(plannedRefresh('early')) + 1_000);
+
+    const early = (await service().handOutTokens('anthropic')).find(
+      (handout) => handout.id === 'early',
+    );
+
+    // The consumer's status check says why; `available` stays the quota's.
+    expect(early).toMatchObject({ status: 'expired', available: true });
+  });
+
+  it('never holds back a vendor’s only account', async () => {
+    // A pool of one: refusing all work for the hour before each refresh
+    // would fail every start in it. The turn may be cut by the refresh and
+    // resume on a fresh token instead.
+    await store.putAccount(storedAccount('early'));
+    now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+    const [early] = await service().handOutTokens('anthropic');
+    expect(early).toMatchObject({ available: true, availableAt: null });
+  });
+
+  it('hands out the account with the most life left when every one is inside the floor', async () => {
+    // `account-a` plans its refresh at about 15:02, `early` at about 15:10.
+    await store.putAccount(storedAccount('early'));
+    await store.putAccount(storedAccount('account-a'));
+    now = new Date('2026-09-28T14:30:00.000Z');
+    const byId = Object.fromEntries(
+      (await service().handOutTokens('anthropic')).map((h) => [h.id, h]),
+    );
+    expect(byId.early).toMatchObject({ available: true, availableAt: null });
+    expect(byId['account-a']).toMatchObject({
+      available: false,
+      availableAt: new Date(
+        SKEW_POINT - SPREAD * refreshStaggerShare('account-a'),
+      ).toISOString(),
+    });
+  });
+
+  it('counts only an account with quota left as one that can take the work', async () => {
+    await store.putAccount(storedAccount('early'));
+    // `late` is outside its floor, but a fresh reading shows its session
+    // window spent, so it cannot take the work either.
+    await store.putAccount(
+      storedAccount('late', {
+        usage: {
+          checkedAt: '2026-09-28T14:29:00.000Z',
+          windows: [
+            {
+              kind: 'session',
+              label: null,
+              utilization: 100,
+              resetsAt: '2026-09-28T16:00:00.000Z',
+              windowSeconds: 18_000,
+            },
+          ],
+          limited: null,
+        },
+        usageAttemptedAt: '2026-09-28T14:29:00.000Z',
+      }),
+    );
+    now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+    const byId = Object.fromEntries(
+      (await service().handOutTokens('anthropic')).map((h) => [h.id, h]),
+    );
+    expect(byId.late).toMatchObject({ available: false });
+    expect(byId.early).toMatchObject({ available: true, availableAt: null });
+  });
+
+  it('hands out every token when the floor is off', async () => {
+    await alignedPool();
+    now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+    const handouts = await service(0).handOutTokens('anthropic');
+    expect(handouts.map((handout) => handout.available)).toEqual([true, true]);
+  });
+
+  it('does not hold back a token whose whole planned life is shorter than the floor', async () => {
+    // A one-hour token: the next one would be no longer.
+    await store.putAccount(
+      storedAccount('early', { expiresAt: '2026-09-28T12:00:58.000Z' }),
+    );
+    // Twenty minutes before its planned refresh, inside the hour.
+    now = new Date('2026-09-28T11:10:00.000Z');
+    const [handout] = await service().handOutTokens('anthropic');
+    expect(anthropic.refreshCount).toBe(0);
+    expect(handout).toMatchObject({ available: true, availableAt: null });
+  });
+
+  it('holds an overdue short-lived token while a healthy account can serve', async () => {
+    await store.putAccount(
+      storedAccount('early', { expiresAt: '2026-09-28T12:00:58.000Z' }),
+    );
+    await store.putAccount(storedAccount('late'));
+    const gateway = service();
+    const [fresh] = await gateway.handOutTokens('anthropic');
+    expect(fresh?.available).toBe(true);
+    now = new Date(Date.parse(fresh?.refreshAt ?? '') + 1_000);
+    anthropic.refusals.refresh = 'failed';
+
+    const overdue = (await gateway.handOutTokens('anthropic')).find(
+      (handout) => handout.id === 'early',
+    );
+
+    expect(anthropic.refreshCount).toBe(1);
+    expect(overdue).toMatchObject({
+      status: 'active',
+      accessToken: 'early-access',
+      available: false,
+      availableAt: null,
+    });
+  });
+
+  it.each([
+    ['a quota reset before the refresh', '2026-09-28T14:45:00.000Z', 'refresh'],
+    ['a quota reset after the refresh', '2026-09-28T20:00:00.000Z', 'quota'],
+  ] as const)(
+    'names the later release when %s also blocks',
+    async (_label, resetsAt, later) => {
+      anthropic.usage = [
+        {
+          kind: 'session',
+          label: null,
+          utilization: 100,
+          resetsAt,
+          windowSeconds: 18_000,
+        },
+      ];
+      await alignedPool();
+      now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+      const early = (await service().handOutTokens('anthropic')).find(
+        (handout) => handout.id === 'early',
+      );
+      expect(early).toMatchObject({
+        available: false,
+        availableAt: later === 'quota' ? resetsAt : plannedRefresh('early'),
+      });
+    },
+  );
 });
 
 describe('loopbackRedirectUri', () => {

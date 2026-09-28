@@ -281,7 +281,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       };
     },
     async updateStatus({ organizationId, taskId, status }) {
-      const result = await sql.begin((tx) =>
+      const result = await transactSerializable(sql, (tx) =>
         agentUpdateTaskStatusTrusted(tx, {
           organizationId,
           actorId: 'workflow',

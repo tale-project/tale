@@ -1,3 +1,6 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -42,6 +45,59 @@ const weekly = (weekdays: number[], interval = 1): TaskRepeat => ({
 });
 
 describe('nextTaskRepeatOccurrence', () => {
+  it.each([10000, 10001, 275759, 275760])(
+    'refuses unsupported extended year %i instead of moving midnight',
+    (year) => {
+      expect(() =>
+        startOfCalendarDate({ year, month: 1, day: 1 }, 'UTC'),
+      ).toThrow('The repeat date is outside the supported calendar range');
+    },
+  );
+  it.each<TaskRepeat>([
+    { frequency: 'daily', interval: 99, timezone: 'UTC' },
+    { frequency: 'weekly', interval: 99, weekdays: [1], timezone: 'UTC' },
+    { frequency: 'monthly', interval: 99, monthDay: 31, timezone: 'UTC' },
+    {
+      frequency: 'yearly',
+      interval: 99,
+      month: 12,
+      monthDay: 31,
+      timezone: 'UTC',
+    },
+  ])('bounds calendar overflow for $frequency without hanging', (rule) => {
+    // A process boundary owns the timeout: an infinite synchronous calendar
+    // loop would prevent an in-process test timer from ever firing.
+    const moduleUrl = new URL('./task-repeat.ts', import.meta.url).href;
+    const child = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        fileURLToPath(
+          new URL('../../backend/node-loader.mjs', import.meta.url),
+        ),
+        '--input-type=module',
+        '-e',
+        `import { nextTaskRepeatOccurrence } from ${JSON.stringify(moduleUrl)};
+         try {
+           console.log(JSON.stringify({ value: nextTaskRepeatOccurrence(
+             ${JSON.stringify(rule)}, Date.UTC(275760, 7, 31), Date.now()
+           ) }));
+         } catch (error) {
+           console.log(JSON.stringify({ name: error.name, message: error.message }));
+         }`,
+      ],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+    expect(child.error).toBeUndefined();
+    expect(child.status).toBe(0);
+    expect(child.stdout).toContain(
+      JSON.stringify({
+        name: 'RangeError',
+        message: 'The repeat date is outside the supported calendar range',
+      }),
+    );
+  });
+
   it('steps a daily rule by its interval', () => {
     const rule: TaskRepeat = {
       frequency: 'daily',
