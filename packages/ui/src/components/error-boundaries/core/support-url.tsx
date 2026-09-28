@@ -62,7 +62,8 @@ export function supportUrlFor(url: string, organizationId?: string): string {
           .split('&')
           .filter(
             (param) =>
-              param !== '' && param.split('=', 1)[0] !== 'organizationId',
+              param !== '' &&
+              !new URLSearchParams(`?${param}`).has('organizationId'),
           );
   params.push(`organizationId=${encodeURIComponent(organizationId)}`);
   return `${path}?${params.join('&')}${hash}`;

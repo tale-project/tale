@@ -7,7 +7,7 @@
 
 /**
  * `value` as a JavaScript literal for an inline `<script>`: its JSON, with
- * `<`, `>` and `&` written as `<`, `>` and `&`. No value — an
+ * `<`, `>` and `&` written as Unicode escapes. No value — an
  * operator's URL, a request's Accept-Language — can then end the script
  * early with `</script>` or open an HTML comment in it, and the script still
  * reads the value back unchanged.
