@@ -407,8 +407,9 @@ export function createAccountService(
    * The hand-out floor: an active account whose planned refresh is closer
    * than `tokenMinHandoutSeconds` waits for that refresh instead of handing
    * out a token the refresh would end mid-work. A token whose whole planned
-   * life is shorter than the floor is handed out anyway — the next one would
-   * be no longer, and holding them all back would retire the account.
+   * life is shorter than the floor is handed out until its refresh is due —
+   * the next one would be no longer, and holding them all back would retire
+   * the account. An overdue refresh still withholds it until renewal.
    */
   function lifetimeAvailability(
     account: StoredAccount,
@@ -421,7 +422,7 @@ export function createAccountService(
       account.status !== 'active' ||
       refreshAt === null ||
       refreshAt - nowMs >= floorMs ||
-      refreshAt - issuedAtMs(account) <= floorMs
+      (refreshAt > nowMs && refreshAt - issuedAtMs(account) <= floorMs)
     ) {
       return AVAILABLE;
     }

@@ -1304,6 +1304,27 @@ describe('staggered refreshes and the hand-out floor', () => {
     expect(handout).toMatchObject({ available: true, availableAt: null });
   });
 
+  it('holds a short-lived token once its planned refresh is overdue and failing', async () => {
+    await store.putAccount(
+      storedAccount('early', { expiresAt: '2026-09-28T12:00:58.000Z' }),
+    );
+    const gateway = service();
+    const [fresh] = await gateway.handOutTokens('anthropic');
+    expect(fresh?.available).toBe(true);
+    now = new Date(Date.parse(fresh?.refreshAt ?? '') + 1_000);
+    anthropic.refusals.refresh = 'failed';
+
+    const [overdue] = await gateway.handOutTokens('anthropic');
+
+    expect(anthropic.refreshCount).toBe(1);
+    expect(overdue).toMatchObject({
+      status: 'active',
+      accessToken: 'early-access',
+      available: false,
+      availableAt: null,
+    });
+  });
+
   it.each([
     ['a quota reset before the refresh', '2026-09-28T14:45:00.000Z', 'refresh'],
     ['a quota reset after the refresh', '2026-09-28T20:00:00.000Z', 'quota'],
