@@ -45,7 +45,7 @@ Decide what should happen if the provider is unavailable: fail-open allows the m
 
 ## Set organization instructions
 
-**Custom instructions** adds organization instructions ahead of agent instructions. Members cannot edit this organization policy. Use it for shared behavior and terminology; use access rules and filters for restrictions that must be enforced independently of a model following prose instructions.
+**Custom instructions** adds organization instructions ahead of the chat assistant's instructions and ahead of every agent's own: project agents working tasks and agent steps in automations. Members cannot edit this organization policy. Use it for shared behavior and terminology; use access rules and filters for restrictions that must be enforced independently of a model following prose instructions.
 
 ## Review and tune
 

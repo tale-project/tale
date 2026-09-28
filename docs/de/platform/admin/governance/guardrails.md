@@ -45,7 +45,7 @@ Lege das Verhalten bei Nichterreichbarkeit fest: Fail-open lässt die Nachricht 
 
 ## Organisationsanweisungen festlegen
 
-Benutzerdefinierte Organisationsanweisungen werden vor den Agentenanweisungen eingefügt. Mitglieder können diese Organisationsrichtlinie nicht bearbeiten. Nutze sie für gemeinsames Verhalten und Begriffe. Für unabhängig durchzusetzende Einschränkungen verwendest du Zugriffsregeln und Filter, statt dich auf die Befolgung von Textanweisungen zu verlassen.
+Benutzerdefinierte Organisationsanweisungen werden vor den Anweisungen des Chat-Assistenten und vor den eigenen Anweisungen jedes Agenten eingefügt: bei Projekt-Agenten, die Aufgaben bearbeiten, und bei Agenten-Schritten in Automatisierungen. Mitglieder können diese Organisationsrichtlinie nicht bearbeiten. Nutze sie für gemeinsames Verhalten und Begriffe. Für unabhängig durchzusetzende Einschränkungen verwendest du Zugriffsregeln und Filter, statt dich auf die Befolgung von Textanweisungen zu verlassen.
 
 ## Prüfen und abstimmen
 
