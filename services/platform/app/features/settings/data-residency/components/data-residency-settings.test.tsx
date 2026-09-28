@@ -1876,6 +1876,48 @@ describe('DataResidencySettings', () => {
     expect(testKnowledge).not.toHaveBeenCalled();
   });
 
+  it('keeps Save open for a storage edit after a Test on the untouched knowledge form', async () => {
+    // The Test named the empty form's fields through `setError`, which marks
+    // the (clean) knowledge form invalid; the group AND-ed every section's
+    // validity, so the header Save locked on a storage edit the admin had
+    // made — until Host was blurred.
+    setStorageFixture({
+      configured: true,
+      region: 'eu-central-1',
+      forcePathStyle: false,
+      bucket: 'org-blobs',
+      hasCredentials: true,
+    });
+    saveStorage.mockResolvedValue(null);
+    const { user, capture } = renderWithController();
+
+    const bucket = screen.getByRole('textbox', { name: 'Bucket' });
+    await user.clear(bucket);
+    await user.type(bucket, 'org-blobs-eu');
+
+    const knowledge = sectionByHeading('Knowledge database');
+    await user.click(
+      within(knowledge).getByRole('switch', { name: 'External Postgres' }),
+    );
+    await user.click(
+      within(knowledge).getByRole('button', { name: 'Test connection' }),
+    );
+    expect(
+      await within(knowledge).findByText('Enter the database host.'),
+    ).toBeInTheDocument();
+    expect(testKnowledge).not.toHaveBeenCalled();
+
+    expect(capture.current?.isDirty).toBe(true);
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
+    await act(async () => {
+      await capture.current?.save();
+    });
+    expect(saveStorage).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: 'org-blobs-eu' }),
+    );
+    expect(saveKnowledge).not.toHaveBeenCalled();
+  });
+
   it('explains the bucket CORS requirement next to the org storage form', () => {
     setStorageFixture({
       configured: true,
