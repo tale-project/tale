@@ -5037,6 +5037,7 @@ skills:
     description: Beschreibung
     visibility: Sichtbarkeit
     labels: Labels
+    createdBy: Erstellt von
     loadError: SKILL.md konnte nicht gelesen werden
   loadErrorDetail:
     title:
@@ -5124,6 +5125,15 @@ skills:
       skillMdTooLarge: SKILL.md überschreitet die Grenze von {max} pro Datei.
       assetTooLarge: '"{path}" überschreitet die Grenze von {max} pro Datei.'
       totalTooLarge: Das entpackte Bundle überschreitet {max}.
+  attribution:
+    createdBy: Erstellt von
+    lastEditedBy: Zuletzt bearbeitet von
+    builtin: Mitgeliefert
+    release: Konfigurations-Release
+    releaseBy: Konfigurations-Release · {name}
+    formerMember: Ehemaliges Mitglied
+    byMember: Von {name}
+    byFormerMember: Von einem ehemaligen Mitglied
   addMenu:
     label: Skill hinzufügen
   createMenu:
@@ -6329,6 +6339,9 @@ settings:
         api: API
         workflow: Automatisierung
       actionLabels:
+        skill.created: Skill erstellt
+        skill.updated: Skill aktualisiert
+        skill.sharing_changed: Freigabe eines Skills geändert
         skill.deleted: Skill gelöscht
         team.created: Team erstellt
         team.updated: Team aktualisiert

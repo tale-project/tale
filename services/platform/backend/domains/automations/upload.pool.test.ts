@@ -4,10 +4,14 @@ import type { Sql, TransactionSql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import { uploadAutomationImpl } from '../../core/automations/upload_impl.ts';
+import { auditSkillWrite } from '../skills/audit.ts';
 import { uploadAutomationPg } from './upload.ts';
 
 vi.mock('../../core/automations/upload_impl.ts', () => ({
   uploadAutomationImpl: vi.fn(),
+}));
+vi.mock('../skills/audit.ts', () => ({
+  auditSkillWrite: vi.fn(async () => undefined),
 }));
 
 /** A one-connection pool: while begin reserves its only connection, a
@@ -77,4 +81,62 @@ describe('package audience reads under the writer lock', () => {
       }
     },
   );
+});
+
+describe('carried skills in the audit log', () => {
+  it('records each installed skill as the uploader, on the connection holding the lock', async () => {
+    let lockConnection: unknown;
+    const revision = (etag: string) => ({
+      meta: {
+        name: 'triage',
+        description: 'Sorts',
+        visibility: 'org' as const,
+        extra: {},
+      },
+      body: 'x\n',
+      etag,
+    });
+    vi.mocked(uploadAutomationImpl).mockImplementationOnce(async (host) => {
+      await host.withSkillWriterLocks(['triage'], async (writer) => {
+        await writer.recordSkillWrite({
+          slug: 'triage',
+          previous: revision('"t1"'),
+          current: revision('"t2"'),
+          filesChanged: true,
+        });
+      });
+      return { ok: true, name: 'flow', version: 1, warnings: [], skills: [] };
+    });
+    const pool = oneConnectionPool();
+    const begin = pool.begin.bind(pool);
+    Object.assign(pool, {
+      begin: (work: (tx: TransactionSql) => Promise<unknown>) =>
+        begin(async (tx: TransactionSql) => {
+          lockConnection = tx;
+          return work(tx);
+        }),
+    });
+
+    await uploadAutomationPg(
+      pool,
+      {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        userId: 'user-1',
+        email: 'dev@example.com',
+        role: 'developer',
+      },
+      { storageId: 's3:acme/staged.zip' },
+    );
+
+    expect(auditSkillWrite).toHaveBeenCalledWith(lockConnection, {
+      organizationId: 'org-1',
+      slug: 'triage',
+      actor: { id: 'user-1', email: 'dev@example.com', role: 'developer' },
+      via: 'automation_package',
+      previous: revision('"t1"'),
+      current: revision('"t2"'),
+      filesChanged: true,
+    });
+  });
 });

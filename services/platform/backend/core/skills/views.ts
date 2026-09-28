@@ -10,6 +10,15 @@
 
 import type { SkillVisibility } from '@tale/shared/schemas/skills';
 
+/**
+ * Where a skill came from, which decides how its "Created by" reads:
+ * `release` — a managed configuration release installed it (its frontmatter
+ * carries the release compiler's `metadata.tale-release` marker); `builtin`
+ * — no owner is recorded, as on the catalog copies an organization starts
+ * with; `member` — the member named by `owner` created it.
+ */
+export type SkillOrigin = 'builtin' | 'release' | 'member';
+
 /** The fields every skill view carries. */
 export interface SkillSummaryView {
   slug: string;
@@ -23,7 +32,26 @@ export interface SkillSummaryView {
   visibility: SkillVisibility;
   /** Team ids a `team` skill is shared with; absent otherwise. */
   teams?: string[];
+  /** The user id of the member who created the bundle; absent when none is
+   * recorded. */
   owner?: string;
+  origin: SkillOrigin;
+  /**
+   * The owner's display name, resolved by the door when the owner is still
+   * a member of the organization. Absent for a former member — and always
+   * absent when no owner is recorded.
+   */
+  ownerName?: string;
+  /**
+   * The member whose write through Tale produced the stored `SKILL.md`,
+   * read off the audit trail: present only when the newest recorded write
+   * of the skill is an edit whose resulting tag is still `etag`. A skill
+   * nobody edited since it was created, or whose file changed outside Tale
+   * since, carries none.
+   */
+  updatedBy?: string;
+  /** `updatedBy`'s display name while they are still a member. */
+  updatedByName?: string;
   icon?: string;
   labels?: string[];
   /** True when the model must not reach for the skill on its own. */

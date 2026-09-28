@@ -13,6 +13,7 @@ import {
 } from '../../core/lib/providers/load_system_config.ts';
 import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { listSkillsForViewer } from '../../core/skills/file_actions.ts';
+import type { SkillOrigin, SkillSummaryView } from '../../core/skills/views.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
@@ -21,6 +22,7 @@ import {
   listServingCredentialFacts,
   resolveCatalogBearer,
 } from '../provider_credentials/service.ts';
+import { withSkillAttribution } from '../skills/attribution.ts';
 import { chatShimHandlers } from './shim.ts';
 import { projectChatAccess, ChatThreadError } from './threads.ts';
 
@@ -41,15 +43,35 @@ export interface ComposerCapability {
   icon?: string;
 }
 
-function toSkillCapability(skill: {
-  slug: string;
-  description: string;
-  icon?: string;
-}): ComposerCapability {
-  const option: ComposerCapability = { slug: skill.slug, label: skill.slug };
+/** A skill on offer, with who created it — the picker names the creator on
+ * each row, the moment an editor decides whether to trust a skill. */
+export interface SkillCapability extends ComposerCapability {
+  origin: SkillOrigin;
+  /** The creator's name while they are a member (see `attribution.ts`). */
+  ownerName?: string;
+}
+
+function toSkillCapability(skill: SkillSummaryView): SkillCapability {
+  const option: SkillCapability = {
+    slug: skill.slug,
+    label: skill.slug,
+    origin: skill.origin,
+  };
   if (skill.description !== '') option.description = skill.description;
   if (skill.icon !== undefined) option.icon = skill.icon;
+  if (skill.ownerName !== undefined) option.ownerName = skill.ownerName;
   return option;
+}
+
+/** The equippable skills of a listing, attributed and sorted by label. */
+async function toSkillCapabilities(
+  sql: Sql,
+  organizationId: string,
+  skills: readonly SkillSummaryView[],
+): Promise<SkillCapability[]> {
+  return (await withSkillAttribution(sql, organizationId, skills))
+    .map(toSkillCapability)
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 /** The connectors an agent can be equipped with: the org's CONNECTED set —
@@ -187,7 +209,7 @@ async function projectTeamIds(sql: Sql, projectId: string): Promise<string[]> {
 export async function listProjectCapabilities(
   sql: Sql,
   args: { organizationId: string; userId: string; projectId: string },
-): Promise<{ skills: ComposerCapability[]; connectors: ComposerCapability[] }> {
+): Promise<{ skills: SkillCapability[]; connectors: ComposerCapability[] }> {
   const access = await projectChatAccess(sql, {
     projectId: args.projectId,
     organizationId: args.organizationId,
@@ -210,9 +232,7 @@ export async function listProjectCapabilities(
     },
   });
   return {
-    skills: listing.skills
-      .map(toSkillCapability)
-      .sort((a, b) => a.label.localeCompare(b.label)),
+    skills: await toSkillCapabilities(sql, args.organizationId, listing.skills),
     connectors: await listConnectorCapabilities(sql, args.organizationId),
   };
 }
@@ -226,7 +246,7 @@ export async function listProjectCapabilities(
 export async function listAutomationCapabilities(
   sql: Sql,
   args: { organizationId: string; projectId?: string },
-): Promise<{ skills: ComposerCapability[]; connectors: ComposerCapability[] }> {
+): Promise<{ skills: SkillCapability[]; connectors: ComposerCapability[] }> {
   const orgSlug = await resolveOrgSlug(sql, args.organizationId);
   if (orgSlug === null) return { skills: [], connectors: [] };
   const listing = await listSkillsForViewer({
@@ -240,9 +260,7 @@ export async function listAutomationCapabilities(
         : { kind: 'org' },
   });
   return {
-    skills: listing.skills
-      .map(toSkillCapability)
-      .sort((a, b) => a.label.localeCompare(b.label)),
+    skills: await toSkillCapabilities(sql, args.organizationId, listing.skills),
     connectors: await listConnectorCapabilities(sql, args.organizationId),
   };
 }

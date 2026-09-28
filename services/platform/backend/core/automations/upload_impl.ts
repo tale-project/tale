@@ -33,8 +33,10 @@ import { isRecord } from '../../../lib/utils/type-utils';
 import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
 import type { ParsedBundle } from '../skills/bundle_zip';
 import {
+  describeBundleWrite,
   normalizedBundleFiles,
   prepareBundleWrite,
+  type SkillRevision,
 } from '../skills/file_actions';
 import {
   createOrgSkillReader,
@@ -81,9 +83,20 @@ export interface UploadArgs {
   overwriteSkills?: string[];
 }
 
-/** The audience reader bound to the connection holding the writer lock. */
+/** One carried skill as it was installed, for the host's audit record. */
+export interface CarriedSkillWrite {
+  slug: string;
+  previous: SkillRevision | null;
+  current: SkillRevision;
+  filesChanged: boolean;
+}
+
+/** The audience reader bound to the connection holding the writer lock, and
+ * the audit record of each carried skill it installed, written on the same
+ * connection. */
 export interface UploadSkillWriter {
   assertTeamsAssignable(teamIds: string[]): Promise<void>;
+  recordSkillWrite(write: CarriedSkillWrite): Promise<void>;
 }
 
 /** The host half of the lane — auth already checked by the caller. */
@@ -285,6 +298,8 @@ interface SkillWrite {
   files: Array<{ path: string; content: Buffer }>;
   /** The skill it replaces, for the audience rule's "changed teams". */
   existing: OrgSkill | null;
+  /** The bundle's files as stored before the upload, `null` when none. */
+  stored: Array<{ path: string; contentBase64: string }> | null;
 }
 
 /**
@@ -322,6 +337,7 @@ async function planSkillWrites(
         action: 'created',
         files: normalizedBundleFiles(parsed, viewer, null),
         existing: null,
+        stored: null,
       });
       continue;
     }
@@ -354,6 +370,7 @@ async function planSkillWrites(
         action: 'unchanged',
         files,
         existing: current,
+        stored,
       });
       continue;
     }
@@ -365,7 +382,14 @@ async function planSkillWrites(
       unconfirmed.push(skill.slug);
       continue;
     }
-    plan.push({ skill, parsed, action: 'replaced', files, existing: current });
+    plan.push({
+      skill,
+      parsed,
+      action: 'replaced',
+      files,
+      existing: current,
+      stored,
+    });
   }
   if (forbidden.length > 0) {
     refuse(
@@ -550,7 +574,9 @@ export async function uploadAutomationImpl(
 
         // Skills first: they are org config with their own history trail, and a
         // save refusal after them leaves nothing broken — re-uploading reports
-        // them `unchanged`.
+        // them `unchanged`. A failed install stops the loop but is refused
+        // only once the lock's transaction has committed: the skills written
+        // before it stay installed, so their audit rows must stay too.
         for (const entry of planned.plan) {
           if (entry.action === 'unchanged') continue;
           try {
@@ -560,11 +586,20 @@ export async function uploadAutomationImpl(
               entry.files,
             );
           } catch (error) {
-            refuse(
-              'SKILL_WRITE_FAILED',
-              `could not install the carried skill "${entry.skill.slug}": ${error instanceof Error ? error.message : String(error)}`,
-            );
+            return {
+              kind: 'write_failed' as const,
+              message: `could not install the carried skill "${entry.skill.slug}": ${error instanceof Error ? error.message : String(error)}`,
+            };
           }
+          await writer.recordSkillWrite({
+            slug: entry.skill.slug,
+            ...describeBundleWrite({
+              slug: entry.skill.slug,
+              existing: entry.existing,
+              stored: entry.stored,
+              files: entry.files,
+            }),
+          });
         }
         return planned;
       },
@@ -575,6 +610,9 @@ export async function uploadAutomationImpl(
         status: 'needs_confirm',
         skillConflicts: outcome.slugs,
       };
+    }
+    if (outcome.kind === 'write_failed') {
+      refuse('SKILL_WRITE_FAILED', outcome.message);
     }
 
     const taskContract = manifest?.subjects?.task;

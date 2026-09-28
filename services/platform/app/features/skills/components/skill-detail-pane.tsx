@@ -11,6 +11,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useSkillAttribution } from '@/app/components/skills/use-skill-attribution';
 import {
   SettingsFieldList,
   SettingsFieldRow,
@@ -53,6 +54,7 @@ export function SkillDetailPane({
 }) {
   const { t } = useT('skills');
   const { t: tCommon } = useT('common');
+  const attribution = useSkillAttribution();
 
   const skillQuery = useSkill(organizationId, slug);
   const skill = skillQuery.data ?? null;
@@ -164,6 +166,8 @@ export function SkillDetailPane({
   const savedSharing: SkillSharingValue | undefined = savedForm
     ? savedForm.metadata.sharing
     : undefined;
+  const createdBy = attribution.createdBy(skill, { detailed: true });
+  const lastEditedBy = attribution.lastEditedBy(skill);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -184,6 +188,16 @@ export function SkillDetailPane({
               {!canEdit && <Alert variant="info" description={t('readOnly')} />}
               {form && (
                 <SettingsFieldList className="w-full max-w-3xl">
+                  <SettingsFieldRow label={t('attribution.createdBy')}>
+                    <p className="text-muted-foreground text-sm">{createdBy}</p>
+                  </SettingsFieldRow>
+                  {lastEditedBy !== null && (
+                    <SettingsFieldRow label={t('attribution.lastEditedBy')}>
+                      <p className="text-muted-foreground text-sm">
+                        {lastEditedBy}
+                      </p>
+                    </SettingsFieldRow>
+                  )}
                   <SkillMetadataFields
                     values={form.metadata}
                     savedSharing={savedSharing}

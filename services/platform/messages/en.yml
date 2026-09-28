@@ -4873,6 +4873,7 @@ skills:
     description: Description
     visibility: Visibility
     labels: Labels
+    createdBy: Created by
     loadError: Couldn't read SKILL.md
   loadErrorDetail:
     title:
@@ -4954,6 +4955,15 @@ skills:
       skillMdTooLarge: SKILL.md exceeds the per-file cap of {max}.
       assetTooLarge: '"{path}" exceeds the per-file cap of {max}.'
       totalTooLarge: The unpacked bundle exceeds {max}.
+  attribution:
+    createdBy: Created by
+    lastEditedBy: Last edited by
+    builtin: Built-in
+    release: Configuration release
+    releaseBy: Configuration release · {name}
+    formerMember: Former member
+    byMember: By {name}
+    byFormerMember: By a former member
   addMenu:
     label: Add skill
   createMenu:
@@ -6475,6 +6485,9 @@ settings:
         api: API
         workflow: Automation
       actionLabels:
+        skill.created: Skill created
+        skill.updated: Skill updated
+        skill.sharing_changed: Skill sharing changed
         skill.deleted: Skill deleted
         team.created: Team created
         team.updated: Team updated

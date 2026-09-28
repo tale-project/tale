@@ -22,6 +22,8 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createAuditLog } from '../domains/audit_logs/service.ts';
+import type { CreateAuditLogArgs } from '../domains/audit_logs/types.ts';
 import { getDocumentById } from '../domains/documents/service.ts';
 import {
   KnowledgeError,
@@ -170,6 +172,36 @@ function fakeSql(options: FixtureOptions = {}): {
     }
     if (text.includes('INSERT INTO app.rate_limits')) {
       return Promise.resolve(options.rateLimited ? [] : [{ value: '1' }]);
+    }
+    // The skill attribution reads: the member directory knows the key's
+    // user, and the audit log answers from what the doors appended to it
+    // (`createAuditLog` is mocked), newest skill write per slug.
+    if (text.includes('FROM "user" u JOIN "member" m')) {
+      return Promise.resolve([
+        { id: 'user-1', name: 'Ada Lovelace', email: 'user@example.com' },
+      ]);
+    }
+    if (text.includes('FROM app.audit_logs') && text.includes('DISTINCT ON')) {
+      const newest = new Map<string, CreateAuditLogArgs>();
+      for (const call of vi.mocked(createAuditLog).mock.calls) {
+        const row = call[1];
+        if (
+          row.resourceType === 'skill' &&
+          ['skill.created', 'skill.updated', 'skill.deleted'].includes(
+            row.action,
+          )
+        ) {
+          newest.set(row.resourceId ?? '', row);
+        }
+      }
+      return Promise.resolve(
+        [...newest.values()].map((row) => ({
+          slug: row.resourceId,
+          action: row.action,
+          actorId: row.actorId,
+          etag: row.metadata?.etag ?? null,
+        })),
+      );
     }
     return Promise.resolve([]);
   };
@@ -933,6 +965,100 @@ describe('the skills door over the file layer', () => {
     expect(await reserved.json()).toMatchObject({
       code: 'INVALID_SKILL_SLUG',
       error: expect.stringContaining('reserved'),
+    });
+  });
+
+  describe('who created and who last edited a skill', () => {
+    beforeEach(() => {
+      vi.mocked(createAuditLog).mockClear();
+    });
+
+    const skillRows = () =>
+      vi
+        .mocked(createAuditLog)
+        .mock.calls.map((call) => call[1])
+        .filter((row) => row.category === 'skill');
+
+    it('audits a create as the key user and names them as its creator', async () => {
+      const { app } = mount();
+      const created = await put(app, 'probe', {
+        description: 'First',
+        body: '# First',
+      });
+      expect(created.status).toBe(201);
+      const view: Record<string, unknown> = await created.json();
+      expect(view).toMatchObject({
+        owner: 'user-1',
+        origin: 'member',
+        ownerName: 'Ada Lovelace',
+      });
+      // Nobody has edited it since it was created.
+      expect(view).not.toHaveProperty('updatedBy');
+      expect(skillRows()).toEqual([
+        expect.objectContaining({
+          action: 'skill.created',
+          actorId: 'user-1',
+          actorEmail: 'user@example.com',
+          resourceId: 'probe',
+          newState: { visibility: 'org', teams: [] },
+          metadata: { etag: view.etag, via: 'api' },
+        }),
+      ]);
+    });
+
+    it('audits an edit and names the editor while the tag holds', async () => {
+      const { app } = mount();
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      const edited = await put(app, 'probe', {
+        description: 'Second',
+        body: '# First',
+        labels: ['tone'],
+      });
+      expect(edited.status).toBe(200);
+      const view: Record<string, unknown> = await edited.json();
+      expect(view).toMatchObject({
+        updatedBy: 'user-1',
+        updatedByName: 'Ada Lovelace',
+      });
+      expect(skillRows().map((row) => row.action)).toEqual([
+        'skill.created',
+        'skill.updated',
+      ]);
+      expect(skillRows()[1]).toMatchObject({
+        changedFields: ['description', 'labels'],
+        metadata: { etag: view.etag, via: 'api' },
+      });
+
+      const listing = await app.request('http://localhost/skills');
+      const body: { skills: Array<Record<string, unknown>> } =
+        await listing.json();
+      expect(body.skills).toContainEqual(
+        expect.objectContaining({ slug: 'probe', updatedBy: 'user-1' }),
+      );
+    });
+
+    it('records nothing for a save that writes nothing', async () => {
+      const { app } = mount();
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      expect(skillRows().map((row) => row.action)).toEqual(['skill.created']);
+    });
+
+    it('names no editor once the file changed outside Tale', async () => {
+      const { app } = mount();
+      await put(app, 'probe', { description: 'First', body: '# First' });
+      await put(app, 'probe', { description: 'Second', body: '# First' });
+      const file = path.join(configRoot, 'acme', 'skills', 'probe', 'SKILL.md');
+      await writeFile(
+        file,
+        (await readFile(file, 'utf-8')).replace('# First', '# Hand-edited'),
+      );
+
+      const read = await app.request('http://localhost/skills/probe');
+      const view: Record<string, unknown> = await read.json();
+      expect(view.body).toBe('# Hand-edited\n');
+      expect(view).not.toHaveProperty('updatedBy');
+      expect(view.ownerName).toBe('Ada Lovelace');
     });
   });
 });

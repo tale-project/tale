@@ -17,14 +17,20 @@ import {
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { parseSkillBundleZip } from '../../core/skills/bundle_zip.ts';
-import { prepareBundleWrite } from '../../core/skills/file_actions.ts';
+import {
+  describeBundleWrite,
+  prepareBundleWrite,
+} from '../../core/skills/file_actions.ts';
 import {
   createOrgSkillReader,
   listSkillBundleFileEntries,
+  readSkillBundleFiles,
+  SkillBundleError,
   writeSkillBundleFiles,
 } from '../../core/skills/file_utils.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
+import { auditSkillWrite, type SkillWriteAudit } from './audit.ts';
 import { withSkillWriterLock } from './writer-lock.ts';
 
 /**
@@ -49,6 +55,8 @@ export async function uploadSkillBundlePg(
     organizationId: string;
     orgSlug: string;
     viewer: UserSkillViewer;
+    /** Who the write's audit row names. */
+    actor: SkillWriteAudit['actor'];
     storageId: string;
     force?: boolean;
     /** The audience rule for a team skill's `teams`, answered in the skill
@@ -180,6 +188,16 @@ export async function uploadSkillBundlePg(
           assertTeamsAssignable: (teamIds) =>
             args.assertTeamsAssignable(teamIds, tx),
         });
+        // What the write changes, read before it replaces the bundle.
+        const change = describeBundleWrite({
+          slug: parsed.slug,
+          existing,
+          stored:
+            existing === null
+              ? null
+              : await storedBundleForAudit(args.orgSlug, parsed.slug),
+          files,
+        });
         try {
           await writeSkillBundleFiles(args.orgSlug, parsed.slug, files);
         } catch (err) {
@@ -192,6 +210,13 @@ export async function uploadSkillBundlePg(
                 : 'Failed to write skill bundle',
           });
         }
+        await auditSkillWrite(tx, {
+          organizationId: args.organizationId,
+          slug: parsed.slug,
+          actor: args.actor,
+          via: 'upload',
+          ...change,
+        });
         return { ok: true, slug: parsed.slug };
       },
     );
@@ -200,4 +225,26 @@ export async function uploadSkillBundlePg(
   }
 
   return outcome;
+}
+
+/**
+ * The stored bundle's files, for the audit record's "did another file
+ * change". A bundle the file layer refuses to walk (a planted symlink, a
+ * file over the staging cap) is exactly what a replacing upload repairs, so
+ * it must not fail the upload: it reads as absent, and the write records
+ * its files as changed.
+ */
+async function storedBundleForAudit(
+  orgSlug: string,
+  slug: string,
+): Promise<Awaited<ReturnType<typeof readSkillBundleFiles>>> {
+  try {
+    return await readSkillBundleFiles(orgSlug, slug);
+  } catch (error) {
+    if (!(error instanceof SkillBundleError)) throw error;
+    console.warn(
+      `[skills] ${orgSlug}: the replaced bundle "${slug}" could not be read for its audit record — ${error.message}`,
+    );
+    return null;
+  }
 }

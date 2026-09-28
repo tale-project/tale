@@ -20,6 +20,7 @@ import {
   writeSkillBundleFiles,
 } from '../skills/file_utils';
 import {
+  type CarriedSkillWrite,
   uploadAutomationImpl,
   type UploadHost,
   type UploadSkillWriter,
@@ -70,10 +71,12 @@ function hostFor(
   bytes: Uint8Array,
   assertTeamsAssignable: UploadSkillWriter['assertTeamsAssignable'] = async () =>
     undefined,
-): UploadHost & { cleaned: string[] } {
+): UploadHost & { cleaned: string[]; recorded: CarriedSkillWrite[] } {
   const cleaned: string[] = [];
+  const recorded: CarriedSkillWrite[] = [];
   return {
     cleaned,
+    recorded,
     orgSlug: 'acme',
     userId: 'user_dev',
     isOrgAdmin: false,
@@ -86,7 +89,12 @@ function hostFor(
     },
     getViewerContext: async () => ({ teamIds: ['t-mine'], isOrgAdmin: false }),
     withSkillWriterLocks: async (_slugs, work) =>
-      work({ assertTeamsAssignable }),
+      work({
+        assertTeamsAssignable,
+        recordSkillWrite: async (write) => {
+          recorded.push(write);
+        },
+      }),
   };
 }
 
@@ -245,5 +253,98 @@ describe('an automation package carrying a skill', () => {
       });
       expect(writeSkillBundleFiles).not.toHaveBeenCalled();
     });
+  });
+
+  describe('records each installed skill for the audit log', () => {
+    it('a new slug as a creation, stamped with the uploader', async () => {
+      const host = hostFor(await pack(skillMd('')));
+      await uploadAutomationImpl(host, { storageId: 's3:x' });
+
+      expect(host.recorded).toHaveLength(1);
+      const [write] = host.recorded;
+      expect(write?.slug).toBe('triage');
+      expect(write?.previous).toBeNull();
+      expect(write?.current.meta.owner).toBe('user_dev');
+      expect(write?.current.etag).toMatch(/^"[0-9a-f]{64}"$/);
+    });
+
+    it('nothing for a skill the package leaves unchanged', async () => {
+      const first = hostFor(await pack(skillMd('')));
+      await uploadAutomationImpl(first, { storageId: 's3:x' });
+      const installed = vi.mocked(writeSkillBundleFiles).mock.calls[0]?.[2];
+      if (installed === undefined) throw new Error('nothing installed');
+      vi.mocked(readSkillBundleFiles).mockResolvedValue(
+        installed.map((file) => ({
+          path: file.path,
+          contentBase64: file.content.toString('base64'),
+        })),
+      );
+
+      const again = hostFor(await pack(skillMd('')));
+      await uploadAutomationImpl(again, { storageId: 's3:y' });
+      expect(again.recorded).toEqual([]);
+    });
+
+    it('a confirmed replacement against the revision it replaced', async () => {
+      const stored = skillMd('owner: user_dev\n');
+      vi.mocked(readSkillBundleFiles).mockResolvedValue([
+        {
+          path: 'SKILL.md',
+          contentBase64: Buffer.from(stored).toString('base64'),
+        },
+      ]);
+      vi.mocked(readOrgSkill).mockResolvedValue({
+        slug: 'triage',
+        path: 'skills/triage/SKILL.md',
+        ...parseSkillMd(stored, 'SKILL.md'),
+        etag: '"stored"',
+        updatedAt: 1,
+      });
+
+      const host = hostFor(
+        await pack(skillMd('').replace('# Triage', '# Changed')),
+      );
+      await uploadAutomationImpl(host, {
+        storageId: 's3:y',
+        overwriteSkills: ['triage'],
+      });
+
+      expect(host.recorded).toHaveLength(1);
+      expect(host.recorded[0]?.previous?.etag).toBe('"stored"');
+      expect(host.recorded[0]?.current.body).toContain('# Changed');
+      expect(host.recorded[0]?.filesChanged).toBe(false);
+    });
+  });
+
+  it('keeps the audit rows of skills installed before a later install fails', async () => {
+    const zip = new JSZip();
+    zip.file('workflow.yml', WORKFLOW);
+    zip.file(
+      'automation.yml',
+      'name: Triage flow\nskills:\n  - alpha\n  - triage\n',
+    );
+    zip.file(
+      'skills/alpha/SKILL.md',
+      skillMd('').replace('name: triage', 'name: alpha'),
+    );
+    zip.file('skills/triage/SKILL.md', skillMd(''));
+    const host = hostFor(await zip.generateAsync({ type: 'uint8array' }));
+    let committed = false;
+    const locks = host.withSkillWriterLocks;
+    host.withSkillWriterLocks = async (slugs, work) => {
+      const result = await locks(slugs, work);
+      committed = true;
+      return result;
+    };
+    vi.mocked(writeSkillBundleFiles)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('disk full'));
+
+    expect(
+      await refusalCode(uploadAutomationImpl(host, { storageId: 's3:x' })),
+    ).toBe('SKILL_WRITE_FAILED');
+    // The lock's transaction commits: `alpha` is on disk, so its row stays.
+    expect(committed).toBe(true);
+    expect(host.recorded.map((write) => write.slug)).toEqual(['alpha']);
   });
 });

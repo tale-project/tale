@@ -16,6 +16,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
+import { useSkillAttribution } from '@/app/components/skills/use-skill-attribution';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useTeamDirectory } from '@/app/features/settings/teams/hooks/queries';
@@ -36,6 +37,8 @@ interface SkillSummary {
   description: string;
   visibility: 'private' | 'team' | 'org';
   teams?: string[];
+  origin: 'builtin' | 'release' | 'member';
+  ownerName?: string;
   icon?: string;
   labels?: string[];
   canEdit: boolean;
@@ -45,6 +48,9 @@ interface SkillSummary {
 interface SkillRow extends SkillSummary {
   /** Space-joined labels, so the managed search covers them as a field. */
   labelText: string;
+  /** Who created it, as the Created by column reads — searchable too, so
+   * an admin can find everything one member published. */
+  createdByText: string;
 }
 
 /**
@@ -64,6 +70,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
   const { t } = useT('skills');
   const { t: tNav } = useT('navigation');
   const { t: tEmpty } = useT('emptyStates');
+  const { createdBy } = useSkillAttribution();
   type ActivePane =
     | { view: 'create' }
     | { view: 'upload'; mode: 'zip' | 'folder' }
@@ -112,10 +119,14 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       // to carry EVERY selected label, not merely one of them.
       const labels = skill.labels ?? [];
       if (!labelFilter.every((label) => labels.includes(label))) continue;
-      matching.push({ ...skill, labelText: labels.join(' ') });
+      matching.push({
+        ...skill,
+        labelText: labels.join(' '),
+        createdByText: createdBy(skill),
+      });
     }
     return matching;
-  }, [labelFilter, scopes, skills]);
+  }, [createdBy, labelFilter, scopes, skills]);
 
   const filters: FilterConfig[] = [
     {
@@ -145,7 +156,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       : []),
   ];
 
-  // The four sizes add up to the settings column's width, so every column
+  // The five sizes add up to the settings column's width, so every column
   // shows at once: summed past it, the table ran wider than the page and cut
   // the Labels column off at the frame while the name truncated to a stub.
   const columns = useMemo<ColumnDef<SkillRow>[]>(
@@ -154,7 +165,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         id: 'slug',
         accessorKey: 'slug',
         header: t('columns.name'),
-        size: 200,
+        size: 180,
         meta: { skeleton: tableIconCellSkeleton() },
         cell: ({ row }) => (
           <TableIconCell
@@ -183,7 +194,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         id: 'description',
         accessorKey: 'description',
         header: t('columns.description'),
-        size: 290,
+        size: 200,
         cell: ({ row }) => (
           <span className="text-muted-foreground line-clamp-2 text-sm">
             {row.original.description}
@@ -191,9 +202,22 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         ),
       },
       {
+        id: 'createdBy',
+        header: t('columns.createdBy'),
+        size: 140,
+        cell: ({ row }) => (
+          <span
+            className="text-muted-foreground block truncate text-sm"
+            title={row.original.createdByText}
+          >
+            {row.original.createdByText}
+          </span>
+        ),
+      },
+      {
         id: 'visibility',
         header: t('columns.visibility'),
-        size: 140,
+        size: 130,
         meta: { skeleton: { type: 'badge' } },
         cell: ({ row }) => {
           const skill = row.original;
@@ -219,7 +243,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       {
         id: 'labels',
         header: t('columns.labels'),
-        size: 136,
+        size: 116,
         cell: ({ row }) => (
           <CatalogLabels labels={row.original.labels} tone="quiet" />
         ),
@@ -235,7 +259,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
     },
     pageSize: DEFAULT_LIST_PAGE_SIZE,
     search: {
-      fields: ['slug', 'description', 'labelText'],
+      fields: ['slug', 'description', 'labelText', 'createdByText'],
       placeholder: t('searchPlaceholder'),
     },
     filters: {
