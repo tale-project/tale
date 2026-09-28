@@ -30,6 +30,7 @@ import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-p
 import { HomePanelPlaceholder } from '@/app/components/layout/home-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { MobileBottomNavPlaceholder } from '@/app/components/layout/mobile-bottom-nav-placeholder';
+import { SessionLapseNotice } from '@/app/components/session-lapse-recovery';
 import { UserButton } from '@/app/components/user-button';
 import {
   AbilityContext,
@@ -313,6 +314,7 @@ function DashboardLayout() {
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
                   inside #main-content pushed those headers down and looked broken. */}
                     <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
+                      <SessionLapseNotice />
                       {hasRole && (
                         <TwoFactorGraceBanner organizationId={organizationId} />
                       )}

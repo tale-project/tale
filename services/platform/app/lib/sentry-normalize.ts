@@ -25,6 +25,7 @@
  */
 
 import { isBackendRefusal } from '@/app/lib/backend/adapters';
+import { TRANSPORT_FAILURE_RE } from '@/app/lib/backend/transport-failure';
 import { isAbortError } from '@/lib/utils/abort-error';
 
 /** `[Request ID: …]` plus the whitespace that follows it. */
@@ -189,16 +190,7 @@ function isFromBrowserExtension(event: NormalizableSentryEvent): boolean {
   );
 }
 
-/**
- * The TypeError `fetch` rejects with when a request gets no answer, in its
- * Chromium, WebKit and Firefox wording. The SDK's fetch instrumentation
- * appends the host (`Failed to fetch (tale.example.com)`). A longer message
- * such as `Failed to fetch dynamically imported module: …` is a stale bundle,
- * a different failure, and does not match.
- */
-const TRANSPORT_FAILURE_RE =
-  /^(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.)(?: \([^)]*\))?$/;
-
+/** The event of a request that got no answer ({@link TRANSPORT_FAILURE_RE}). */
 function isTransportFailure(event: NormalizableSentryEvent): boolean {
   const thrown = thrownException(event);
   return (

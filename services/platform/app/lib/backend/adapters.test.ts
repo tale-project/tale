@@ -217,10 +217,27 @@ describe('failureDetail', () => {
     expect(failureDetail(new Error('Team name is too long'))).toBe(
       'Team name is too long',
     );
-    expect(failureDetail(new TypeError('Failed to fetch'))).toBe(
-      'Failed to fetch',
-    );
   });
+
+  // The browser words a request that got no answer in English, differently
+  // per engine; the person reads that the connection failed, in their
+  // language.
+  it.each(SHIPPED_LOCALES)(
+    'reads a request that got no answer as the localized connection sentence (%s)',
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const connectionLost = i18n.t('errors.connectionLost', { ns: 'common' });
+      expect(connectionLost).not.toBe('errors.connectionLost');
+      for (const message of [
+        'Failed to fetch',
+        'Failed to fetch (tale.example.com)',
+        'Load failed',
+        'NetworkError when attempting to fetch resource.',
+      ]) {
+        expect(failureDetail(new TypeError(message))).toBe(connectionLost);
+      }
+    },
+  );
 
   it('says nothing for a fault, a structured error without a code, or a non-error', () => {
     expect(
@@ -230,6 +247,25 @@ describe('failureDetail', () => {
     expect(failureDetail(new Error(''))).toBeUndefined();
     expect(failureDetail('boom')).toBeUndefined();
     expect(failureDetail(undefined)).toBeUndefined();
+  });
+
+  // A runtime error is a fault in the code or in an answer, worded for its
+  // developer: a stale bundle's import, a property read on nothing, a body
+  // that is not JSON.
+  it("never reads a runtime error's own message", () => {
+    for (const fault of [
+      new TypeError(
+        'Failed to fetch dynamically imported module: https://tale.example/a.js',
+      ),
+      new TypeError("Cannot read properties of undefined (reading 'id')"),
+      new SyntaxError(
+        'Unexpected token \'<\', "<!DOCTYPE "... is not valid JSON',
+      ),
+      new RangeError('Invalid time value'),
+      new ReferenceError('x is not defined'),
+    ]) {
+      expect(failureDetail(fault)).toBeUndefined();
+    }
   });
 });
 

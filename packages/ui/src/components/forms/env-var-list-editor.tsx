@@ -14,6 +14,7 @@ import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { useRegisterDirtySource } from '@tale/ui/editor/use-dirty-source';
+import { readableErrorMessage } from '@tale/ui/error-message';
 import { useT } from '@tale/ui/i18n/client';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
@@ -171,6 +172,7 @@ export function EnvVarListEditor({
   onDelete,
 }: EnvVarListEditorProps) {
   const { t } = useT('envEditor');
+  const { t: tCommon } = useT('common');
 
   const [localRows, setLocalRows] = useState<Row[]>(() =>
     !isLoading && rows ? rows.map(toRow) : [],
@@ -339,11 +341,13 @@ export function EnvVarListEditor({
       if (!externalSave) toast({ title: t('saved'), variant: 'success' });
     } catch (err) {
       // External mode: rethrow so EditorActions owns the (single) failure
-      // toast; inline mode keeps the local toast.
+      // toast; inline mode keeps the local toast. The host's own sentence
+      // goes under the title, never a structured error's payload.
       if (externalSave) throw err;
       toast({
         title: t('saveError'),
-        description: err instanceof Error ? err.message : String(err),
+        description:
+          readableErrorMessage(err) ?? tCommon('errors.somethingWentWrong'),
         variant: 'destructive',
       });
     } finally {

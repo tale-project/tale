@@ -75,6 +75,7 @@ import {
   taskReadAdapters,
   taskWriteAdapters,
 } from './tasks';
+import { isTransportFailure } from './transport-failure';
 
 export interface AdapterContext {
   /** The active org from the route (`$id`) — the org scope for rows whose
@@ -307,18 +308,43 @@ export function backendRefusalDetail(error: unknown): string | undefined {
   return backendRefusalReason(refusal) ?? code;
 }
 
+/** The error types the JavaScript runtime raises itself: a fault in the code
+ * or in an answer, never words someone wrote for the person. */
+const RUNTIME_ERRORS = [
+  TypeError,
+  SyntaxError,
+  RangeError,
+  ReferenceError,
+  EvalError,
+  URIError,
+];
+
 /**
  * What a surface puts under its localized title for whatever a call threw:
- * a refusal's own words ({@link backendRefusalDetail}), else the message of
- * a plain `Error` the app or a library raised (the auth client's refusal, a
- * lost connection's "Failed to fetch"). Never a structured error's
- * `message`: an `AppError` serializes its whole payload there, for logs,
- * and a fault's (a 5xx) is not the person's to read.
+ * a refusal's own words ({@link backendRefusalDetail}); for a request that
+ * got no answer (the browser's "Failed to fetch"), the localized "couldn't
+ * reach Tale" sentence; else the message of a plain `Error` the app or a
+ * library raised (the auth client's refusal, a translated line a surface
+ * threw). Never a structured error's `message`: an `AppError` serializes its
+ * whole payload there, for logs. Nor a fault's: a 5xx, or a `TypeError` the
+ * runtime raised, is not the person's to read.
+ *
+ * The rule for every surface: a toast's or an Alert's description reads a
+ * failure through this function, never through `error.message`.
+ * `tests/guards/error-message-description.guard.test.ts` fails on the shapes
+ * that broke it.
  */
 export function failureDetail(error: unknown): string | undefined {
   const refusal = backendRefusalDetail(error);
   if (refusal !== undefined) return refusal;
-  if (!(error instanceof Error) || error instanceof BackendApiError) {
+  if (isTransportFailure(error)) {
+    return i18n.t('errors.connectionLost', { ns: 'common' });
+  }
+  if (
+    !(error instanceof Error) ||
+    error instanceof BackendApiError ||
+    RUNTIME_ERRORS.some((type) => error instanceof type)
+  ) {
     return undefined;
   }
   if ('data' in error || error.message.length === 0) return undefined;

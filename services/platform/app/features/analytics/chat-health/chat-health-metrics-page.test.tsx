@@ -1,7 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
+import { cleanup, render, screen } from '@/tests/utils/render';
 
 import { ChatHealthMetricsPage } from './chat-health-metrics-page';
 
@@ -40,6 +48,8 @@ const fixtures = vi.hoisted(() => ({
       },
     ],
   },
+  /** What the chat-health read rejected with, when a test makes it fail. */
+  healthError: undefined as unknown,
   guardrails: {
     byKind: [
       { key: 'detected', count: 6 },
@@ -54,12 +64,12 @@ const fixtures = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (name: string) => ({
-    data: name.includes('getGuardrailStats')
-      ? fixtures.guardrails
-      : fixtures.health,
-    isLoading: false,
-  }),
+  useBackendQuery: (name: string) =>
+    name.includes('getGuardrailStats')
+      ? { data: fixtures.guardrails, isLoading: false }
+      : fixtures.healthError === undefined
+        ? { data: fixtures.health, isLoading: false }
+        : { data: undefined, isLoading: false, error: fixtures.healthError },
 }));
 
 describe('ChatHealthMetricsPage', () => {
@@ -145,4 +155,43 @@ describe('ChatHealthMetricsPage', () => {
     );
     await checkAccessibility(container);
   });
+});
+
+// The refusal's own `message` is its serialized payload; the error Alert used
+// to show `{"code":"UNAUTHORIZED",…}` under its title.
+describe('ChatHealthMetricsPage after a lapsed session', () => {
+  afterEach(async () => {
+    // Unmount first: the app shell still applying the saved language would
+    // otherwise switch it back after the reset.
+    cleanup();
+    fixtures.healthError = undefined;
+    await forgetSavedLocale();
+  });
+
+  it.each(SHIPPED_LOCALES)(
+    'shows the session sentence instead of the serialized refusal (%s)',
+    async (locale) => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      fixtures.healthError = await lapsedSessionRefusal().catch(
+        (refusal: unknown) => refusal,
+      );
+
+      render(
+        <ChatHealthMetricsPage
+          organizationId="org-1"
+          period="7"
+          onChangePeriod={() => undefined}
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          i18n.t('chatHealth.errors.loadFailed', { ns: 'analytics' }),
+        ),
+      ).toBeVisible();
+      expect(screen.getByText(SESSION_ENDED[locale])).toBeVisible();
+      expect(screen.queryByText(/"code"/)).not.toBeInTheDocument();
+    },
+  );
 });

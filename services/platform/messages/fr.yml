@@ -1703,6 +1703,7 @@ common:
     generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
     failedToCopy: Échec de la copie dans le presse-papiers
     sessionEnded: Ta session a pris fin. Reconnecte-toi.
+    connectionLost: Impossible de joindre Tale. Vérifie ta connexion et réessaie.
   notFound:
     title: Page introuvable
     description: La page que tu cherches n'existe pas ou a peut-être été déplacée.
@@ -2623,6 +2624,7 @@ documents:
     compareSelected: Comparer la sélection
     comparing: Comparaison…
     compareFailed: Impossible de comparer les versions
+    compareOffline: La comparaison de versions n'est pas disponible pour le moment.
     backToList: Retour aux versions
     versionLabel: Version du {date}
     selectAsCompare: Sélectionner pour comparer

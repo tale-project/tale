@@ -1,7 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
+import { cleanup, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type { Team } from '../hooks/queries';
 import { TeamDeleteDialog } from './team-delete-dialog';
@@ -157,6 +165,55 @@ describe('TeamDeleteDialog', () => {
         />,
       );
       await checkAccessibility(container);
+    });
+  });
+
+  // The refusal's own `message` is its serialized payload
+  // (`{"code":"UNAUTHORIZED",…}`); the toast reads its words instead.
+  describe.each(SHIPPED_LOCALES)('after a lapsed session (%s)', (locale) => {
+    // Unmount first: the app shell still applying the saved language would
+    // otherwise switch it back after the reset.
+    afterEach(async () => {
+      cleanup();
+      await forgetSavedLocale();
+    });
+
+    it('says the session ended', async () => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      impactState.impact = IMPACT;
+      toast.mockClear();
+      deleteTeam.mockImplementationOnce(lapsedSessionRefusal);
+      const settings = i18n.getFixedT(locale, 'settings');
+      const { user } = render(
+        <TeamDeleteDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          team={makeTeam()}
+          organizationId="org-1"
+        />,
+      );
+
+      await user.click(
+        within(
+          screen.getByRole('dialog', { name: settings('teams.deleteTeam') }),
+        ).getByRole('button', {
+          name: i18n.t('actions.delete', { ns: 'common' }),
+        }),
+      );
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith({
+          title: settings('teams.teamDeleteFailed'),
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+      expect(toast).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: expect.stringContaining('"code"'),
+        }),
+      );
     });
   });
 });

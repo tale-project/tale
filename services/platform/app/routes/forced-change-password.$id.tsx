@@ -28,6 +28,7 @@ import {
 } from '@/app/hooks/use-password-validation';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { passwordExpiryQuery } from '@/app/lib/backend/account';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -67,7 +68,7 @@ export function ForcedChangePasswordPage() {
       console.error(e);
       toast({
         title: tAuth('userButton.toast.signOutFailed'),
-        description: e instanceof Error ? e.message : undefined,
+        description: failureDetail(e),
         variant: 'destructive',
       });
     }

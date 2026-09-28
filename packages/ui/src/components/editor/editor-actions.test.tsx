@@ -83,6 +83,33 @@ describe('EditorActions — suppressServerErrorToast', () => {
     );
   });
 
+  // `AppError.message` is its serialized payload: a controller that rethrew
+  // a refusal as-is used to put `{"code":…}` under the Save title.
+  it("never shows a structured error's payload", async () => {
+    const data = { code: 'UNAUTHORIZED', message: 'Your session has ended.' };
+    const controller = makeController({
+      save: vi
+        .fn()
+        .mockRejectedValue(
+          Object.assign(new Error(JSON.stringify(data)), { data }),
+        ),
+    });
+    render(<EditorActions controller={controller} />);
+    clickSave();
+    await waitFor(() => expect(toastMock).toHaveBeenCalledTimes(1));
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'errors.somethingWentWrong',
+        variant: 'destructive',
+      }),
+    );
+    expect(toastMock.mock.calls.flat()).not.toContainEqual(
+      expect.objectContaining({
+        description: expect.stringContaining('"code"'),
+      }),
+    );
+  });
+
   it('suppresses the generic server-error toast when set (caller toasts its own)', async () => {
     const controller = makeController({
       save: vi.fn().mockRejectedValue(new Error('Server boom')),

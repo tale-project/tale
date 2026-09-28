@@ -83,6 +83,14 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   in `packages/ui`; marketing frames own theirs in `packages/marketing-ui`. Service catalogs
   override package keys per leaf. The product docs ship EN/DE/FR; `services/ui-docs/content` is
   an English-only guide with complete EN/DE/FR chrome catalogs.
+- **A failure shows its words, never its payload** — a toast or an Alert reads what a call threw
+  through `failureDetail` (`services/platform/app/lib/backend/adapters.ts`: a refusal's own words,
+  a lapsed session and a lost connection as localized sentences, nothing for a fault) or, in
+  `packages/ui`, through `readableErrorMessage` (`@tale/ui/error-message`); never through
+  `error.message`, where an `AppError` serializes its whole payload.
+  `services/platform/tests/guards/error-message-description.guard.test.ts` fails on a
+  `description` or `title` built from an error's message under `services/platform/app` and
+  `packages/ui/src`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
 - **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
@@ -122,8 +130,8 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
-  knowledge-db migrations and other outside files. Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
+  knowledge-db migrations, `packages/ui/src` (two suites read it as text) and other outside
+  files. Its guard is `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
@@ -138,9 +146,11 @@ another outside file adds it to both the task's inputs and its guard.
 Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
 `test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
 package change is judged only by that package's own tasks until the consumer's own files
-change. The i18n suites of `services/platform`, `services/web`, `services/ui-docs`,
+change. `@tale/platform#test` is the exception for `@tale/ui`: it hashes `packages/ui/src` whole,
+so a design-system change re-runs it, its i18n suite included, while the platform's `test:ui`
+and `test:browser` still replay. The i18n suites of `services/web`, `services/ui-docs`,
 `services/ai-gateway` and `packages/marketing-ui` are still in that gap: they run `@tale/ui`'s
-i18n test framework (the first three also read the package catalogs) unhashed.
+i18n test framework (the first two also read the package catalogs) unhashed.
 
 ## Skills index
 

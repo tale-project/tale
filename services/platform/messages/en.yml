@@ -1642,6 +1642,7 @@ common:
     generic: Something went wrong — try again, or reload the page if it keeps happening.
     failedToCopy: Couldn't copy to clipboard
     sessionEnded: Your session has ended. Sign in again.
+    connectionLost: Couldn't reach Tale. Check your connection and try again.
   notFound:
     title: Page not found
     description: The page you're looking for doesn't exist or may have been moved.
@@ -2500,6 +2501,7 @@ documents:
     compareSelected: Compare selected
     comparing: Comparing…
     compareFailed: Couldn't compare versions
+    compareOffline: Comparing versions is currently unavailable.
     backToList: Back to versions
     versionLabel: Version from {date}
     selectAsCompare: Select to compare

@@ -11,6 +11,7 @@ import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { i18n } from '@/lib/i18n/i18n';
 import { MEMBER_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import type { DocumentSyncHealth } from '@/types/documents';
 
@@ -725,16 +726,17 @@ export const documentActionQueryAdapters: Record<string, ActionQueryAdapter> = {
 export const documentWriteAdapters: Record<string, WriteAdapter> = {
   /**
    * Document comparison is OFFLINE in 0.4 too — the action runs its gates
-   * and then refuses with this exact message, which the comparison view
-   * shows. Answering it here keeps that behaviour after cutover instead of
-   * leaving the button on a lane that will not exist.
+   * and then refuses, and the comparison view shows the refusal's words.
+   * Answering it here keeps that behaviour after cutover instead of leaving
+   * the button on a lane that will not exist. No server words it, so the
+   * refusal carries the person's own language.
    */
   'documents/compare_documents:compareDocuments': {
     run: () =>
       Promise.reject(
         new BackendApiError(
           400,
-          'Document comparison is offline while the platform AI backend is rewritten.',
+          i18n.t('history.compareOffline', { ns: 'documents' }),
           'COMPARISON_OFFLINE',
         ),
       ),

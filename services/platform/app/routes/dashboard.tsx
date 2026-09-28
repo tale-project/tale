@@ -217,12 +217,11 @@ function DashboardRedirect() {
   // password-expiry) for the whole dashboard subtree and let the 2FA gate
   // read them.
   return (
-    <>
+    <SessionLapseRecovery recovery={recovery}>
       <AccountBootstrapProvider>
         <DashboardTwoFactorGate />
       </AccountBootstrapProvider>
-      <SessionLapseRecovery recovery={recovery} />
-    </>
+    </SessionLapseRecovery>
   );
 }
 

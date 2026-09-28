@@ -18,6 +18,7 @@ import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -103,7 +104,7 @@ export function AccountStep() {
       console.error('Sign up error:', error);
       toast({
         title: tCommon('errors.somethingWentWrong'),
-        description: error instanceof Error ? error.message : undefined,
+        description: failureDetail(error),
         variant: 'destructive',
       });
       return false;
