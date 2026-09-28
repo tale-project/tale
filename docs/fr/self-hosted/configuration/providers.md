@@ -168,7 +168,7 @@ L’exemple ci-dessous est le document d’identifiants du courtier construit pa
   },
   "targetEnvVar": "CLAUDE_CODE_OAUTH_TOKEN",
   "selection": "round-robin",
-  "expirySkewMs": 3600000
+  "expirySkewMs": 0
 }
 ```
 
@@ -185,8 +185,8 @@ En plus des champs de jeton, de statut et d’expiration configurés, chaque ent
 | `id` | Identifiant du courtier |
 | `provider` | Fournisseur |
 | `account_id` | Compte du fournisseur |
-| `available` | Quota disponible |
-| `available_at` | Renouvellement du quota |
+| `available` | Disponibilité pour une nouvelle exécution |
+| `available_at` | Prochaine disponibilité |
 | `usage` | Relevé d’usage |
 
 L’`id` doit rester stable lorsque le jeton d’accès change, afin de reconnaître le compte lors des nouvelles tentatives. Il est distinct de l’`account_id` du fournisseur requis par OpenAI. Si `provider` désigne un autre fournisseur que celui des identifiants, l’entrée est exclue.
@@ -195,7 +195,7 @@ L’`id` doit rester stable lorsque le jeton d’accès change, afin de reconna�
 
 Les anciens courtiers peuvent omettre ces métadonnées facultatives. Sans `id`, Tale utilise une empreinte du jeton pour identifier le compte lors des nouvelles tentatives ; il ne peut donc pas le reconnaître après un changement de jeton. L’absence de données de quota laisse le compte sélectionnable, sans prouver qu’il reste du quota.
 
-Tale AI Gateway exclut un compte lorsqu’un relevé récent indique qu’une fenêtre globale de session ou hebdomadaire est utilisée à 100 % et que son renouvellement n’a pas encore eu lieu. Un signal explicite de limite du fournisseur (`usage.limited: true`) rend aussi le compte indisponible, même si le taux d’utilisation affiché est inférieur ou absent. Les limites propres à un modèle n’excluent pas le compte entier. Un relevé devient périmé après 15 minutes : des données inconnues ou périmées laissent donc le compte sélectionnable. Une fenêtre épuisée sans horodatage de renouvellement bloque le compte uniquement tant que le relevé est récent. La demande de jetons suivante actualise les données périmées lorsque le fournisseur le permet. Après le renouvellement du quota concerné, le compte peut rejoindre le pool. Le fournisseur peut encore refuser une requête entre deux actualisations. Tale AI Gateway signale aussi un compte comme indisponible jusqu’à l’actualisation prévue de son jeton (`refresh_at`) dès qu’elle est à moins d’une heure, soit la durée de validité qu’il garantit par défaut à un jeton distribué. Ainsi, aucune exécution ne démarre avec un jeton sur le point d’être révoqué.
+Tale AI Gateway exclut un compte lorsqu’un relevé récent indique qu’une fenêtre globale de session ou hebdomadaire est utilisée à 100 % et que son renouvellement n’a pas encore eu lieu. Un signal explicite de limite du fournisseur (`usage.limited: true`) rend aussi le compte indisponible, même si le taux d’utilisation affiché est inférieur ou absent. Les limites propres à un modèle n’excluent pas le compte entier. Un relevé devient périmé après 15 minutes : des données inconnues ou périmées laissent donc le compte sélectionnable. Une fenêtre épuisée sans horodatage de renouvellement bloque le compte uniquement tant que le relevé est récent. La demande de jetons suivante actualise les données périmées lorsque le fournisseur le permet. Après le renouvellement du quota concerné, le compte peut rejoindre le pool. Le fournisseur peut encore refuser une requête entre deux actualisations. Tale AI Gateway retient aussi un compte lorsque l’actualisation prévue de son jeton (`refresh_at`) est plus proche que la durée minimale restante configurée, soit une heure par défaut. Les jetons dont la durée totale prévue est plus courte restent utilisables jusqu’à leur actualisation : retenir chaque remplacement rendrait le compte inutilisable. L’opérateur peut modifier ou désactiver ce minimum.
 
 ### Sélection et résolution des erreurs
 
@@ -203,11 +203,11 @@ Tale AI Gateway exclut un compte lorsqu’un relevé récent indique qu’une fe
 
 Lorsqu’un compte répond HTTP 429, Tale l’exclut des nouvelles sélections pendant 60 secondes pour cette organisation et ces identifiants. Les nouvelles tentatives privilégient les comptes encore inutilisés pendant la série d’échecs de l’exécution. Si tous les comptes autrement utilisables ont été essayés, une tentative peut en réutiliser un ; les exclusions liées au quota et au délai d’attente restent applicables.
 
-Lorsque le fournisseur répond HTTP 401 pendant une exécution servie par un jeton du courtier, ce jeton a été révoqué pendant que l’agent travaillait. C’est l’effet de l’actualisation propre à Tale AI Gateway : Anthropic révoque le jeton d’accès que chaque actualisation remplace. Tale obtient alors un nouveau jeton du courtier et poursuit la même conversation. Deux interruptions de ce type d’affilée ne comptent pas parmi les nouvelles tentatives automatiques de l’exécution et n’excluent pas le compte, qui dispose déjà d’un nouveau jeton. Une troisième d’affilée compte comme n’importe quel autre échec, pour qu’une autorisation devenue invalide ne soit pas retentée indéfiniment. Une interruption survenue après au moins quinze minutes de travail relance le décompte.
+Un HTTP 401 pendant une exécution utilisant un jeton du courtier peut indiquer que ce jeton a changé pendant le travail. Tale redemande des identifiants au courtier et reprend la conversation si sa référence et sa session sandbox sont encore disponibles ; sinon, un nouveau tour commence. Les deux premières interruptions de ce type d’affilée ne consomment pas de tentative automatique et n’excluent pas le compte, pour permettre l’utilisation d’un jeton de remplacement du même compte. La troisième compte comme n’importe quel autre échec. Cette limite couvre aussi un 401 dû à une autorisation invalide plutôt qu’à un changement de jeton. Après au moins quinze minutes de travail, le décompte repart de zéro.
 
-Sans valeur personnalisée, une demande de pool expire après 10 secondes et accepte au plus 262 144 octets. L’expiration d’un jeton, lorsqu’un champ est configuré pour la lire, doit se situer au-delà de la marge de sécurité `expirySkewMs`, de cinq minutes par défaut. Avec Tale AI Gateway, conserve le champ de statut et configure `refresh_at` comme champ d’expiration : c’est le moment où l’actualisation propre à la passerelle met fin au jeton, avant l’`expires_at` du fournisseur. Règle `expirySkewMs` sur la durée de validité minimale de la passerelle, soit 3 600 000 ms pour l’heure par défaut, afin qu’aucune exécution ne démarre avec un jeton valable moins d’une heure. Les dates d’expiration peuvent être des horodatages ISO ou Unix, en secondes ou en millisecondes.
+Sans valeur personnalisée, une demande de pool expire après 10 secondes et accepte au plus 262 144 octets. L’expiration d’un jeton, lorsqu’un champ est configuré pour la lire, doit se situer au-delà de la marge de sécurité `expirySkewMs`, de cinq minutes par défaut. Avec Tale AI Gateway, conserve le champ de statut, configure `refresh_at` comme champ d’expiration et règle `expirySkewMs` sur `0`. Les métadonnées `available` de la passerelle appliquent déjà la durée minimale restante configurée, avec l’exception pour les jetons à durée courte. Une seconde marge annulerait cette exception. Le champ d’expiration refuse toujours un jeton dont l’actualisation prévue est échue. Les dates d’expiration peuvent être des horodatages ISO ou Unix, en secondes ou en millisecondes.
 
-La marge protège le démarrage d’une exécution, pas toute sa durée. Un agent de tâche ou d’automatisation peut travailler jusqu’à 12 heures, alors qu’un jeton d’accès Anthropic reste valable huit heures. Attends-toi à ce qu’une exécution plus longue soit interrompue par un 401 lors de l’actualisation de son jeton, puis se poursuive avec un nouveau jeton comme décrit ci-dessus.
+La durée minimale restante protège le démarrage d’une exécution, pas toute sa durée. Une longue tâche ou automatisation peut dépasser la durée d’un jeton et nécessiter la reprise limitée décrite ci-dessus. Une nouvelle demande au courtier ne garantit pas que le compte fournira des identifiants valides.
 
 Si aucun compte n’est utilisable, vérifie l’authentification auprès du courtier, le statut des comptes, les expirations et les actualisations prévues des jetons, les renouvellements de quota et les champs de réponse configurés. Renouvelle l’autorisation du compte, ou attends le renouvellement du quota ou l’actualisation du jeton selon le cas, puis vérifie qu’une tâche ou automatisation termine sa réponse avec le fournisseur et l’environnement prévus. Une requête réussie auprès du courtier ne teste pas à elle seule la connexion au fournisseur.
 

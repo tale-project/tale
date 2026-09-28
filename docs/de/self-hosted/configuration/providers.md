@@ -168,7 +168,7 @@ Das folgende Beispiel zeigt das Broker-Dokument, das das [Formular für KI-Anbie
   },
   "targetEnvVar": "CLAUDE_CODE_OAUTH_TOKEN",
   "selection": "round-robin",
-  "expirySkewMs": 3600000
+  "expirySkewMs": 0
 }
 ```
 
@@ -185,8 +185,8 @@ Neben den zugeordneten Token-, Status- und Ablauffeldern kann jeder Token-Eintra
 | `id` | Broker-Kontokennung |
 | `provider` | Anbieterkennung |
 | `account_id` | Anbieter-Kontokennung |
-| `available` | Verfügbares Kontingent |
-| `available_at` | Erneuerungszeitpunkt |
+| `available` | Verfügbarkeit für neue Arbeit |
+| `available_at` | Frühester Zeitpunkt für neue Arbeit |
 | `usage` | Nutzungsstand |
 
 Die `id` muss bei einem Tokenwechsel gleich bleiben, damit Tale das Konto bei Wiederholungsversuchen erkennt. Sie ist unabhängig von der `account_id` des Anbieters, die OpenAI benötigt. Nennt `provider` einen anderen Anbieter als den der Zugangsdaten, wird der Eintrag ausgeschlossen.
@@ -195,7 +195,7 @@ Die `id` muss bei einem Tokenwechsel gleich bleiben, damit Tale das Konto bei Wi
 
 Ältere Broker können die optionalen Metadaten weglassen. Ohne `id` verwendet Tale bei Wiederholungsversuchen einen Hash des Tokens. Nach einem Tokenwechsel lässt sich das Konto damit nicht wiedererkennen. Fehlen Kontingentdaten, bleibt das Konto auswählbar. Daraus folgt nicht, dass es noch freies Kontingent hat.
 
-Das Tale AI Gateway schließt ein Konto aus, wenn ein aktueller Nutzungsstand ein globales Sitzungs- oder Wochenfenster mit 100 % Auslastung meldet und dessen Erneuerungszeitpunkt noch nicht erreicht ist. Meldet der Anbieter ausdrücklich eine erreichte Grenze (`usage.limited: true`), ist das Konto ebenfalls nicht verfügbar, auch wenn der angezeigte Auslastungswert niedriger ist oder fehlt. Modellspezifische Grenzen sperren nicht das ganze Konto. Nach 15 Minuten gilt ein Nutzungsstand als veraltet. Unbekannte oder veraltete Werte lassen das Konto daher auswählbar; ein ausgeschöpftes Fenster ohne Erneuerungszeitpunkt sperrt es nur, solange die Meldung aktuell ist. Die nächste Token-Anfrage aktualisiert veraltete Nutzungsdaten, soweit der Anbieter das unterstützt. Nach der betreffenden Kontingent-Erneuerung kann das Konto wieder in den Pool aufgenommen werden. Zwischen den Aktualisierungen kann der Anbieter weiterhin eine Anfrage ablehnen. Außerdem meldet das Gateway ein Konto bis zur geplanten Token-Erneuerung (`refresh_at`) als nicht verfügbar, sobald diese weniger als eine Stunde entfernt ist – so lange muss ein ausgegebenes Token standardmäßig mindestens noch gelten. So beginnt kein Durchlauf mit einem Token, das kurz darauf widerrufen wird.
+Das Tale AI Gateway schließt ein Konto aus, wenn ein aktueller Nutzungsstand ein globales Sitzungs- oder Wochenfenster mit 100 % Auslastung meldet und dessen Erneuerungszeitpunkt noch nicht erreicht ist. Meldet der Anbieter ausdrücklich eine erreichte Grenze (`usage.limited: true`), ist das Konto ebenfalls nicht verfügbar, auch wenn der angezeigte Auslastungswert niedriger ist oder fehlt. Modellspezifische Grenzen sperren nicht das ganze Konto. Nach 15 Minuten gilt ein Nutzungsstand als veraltet. Unbekannte oder veraltete Werte lassen das Konto daher auswählbar; ein ausgeschöpftes Fenster ohne Erneuerungszeitpunkt sperrt es nur, solange die Meldung aktuell ist. Die nächste Token-Anfrage aktualisiert veraltete Nutzungsdaten, soweit der Anbieter das unterstützt. Nach der betreffenden Kontingent-Erneuerung kann das Konto wieder in den Pool aufgenommen werden. Zwischen den Aktualisierungen kann der Anbieter weiterhin eine Anfrage ablehnen. Außerdem hält das Gateway ein Konto zurück, wenn seine geplante Token-Erneuerung (`refresh_at`) näher liegt als die eingestellte Mindestrestlaufzeit, standardmäßig eine Stunde. Tokens, deren gesamte geplante Laufzeit kürzer ist, bleiben bis zur fälligen Erneuerung nutzbar: Würde auch jeder Ersatz zurückgehalten, wäre das Konto nie nutzbar. Der Betreiber kann diese Mindestrestlaufzeit ändern oder ausschalten.
 
 ### Auswahl und Fehlerbehebung
 
@@ -203,11 +203,11 @@ Das Tale AI Gateway schließt ein Konto aus, wenn ein aktueller Nutzungsstand ei
 
 Antwortet ein Konto mit HTTP 429, schließt Tale es für diese Organisation und diese Zugangsdaten 60 Sekunden lang von neuen Auswahlen aus. Bei Wiederholungsversuchen werden Konten bevorzugt, die während der aktuellen Fehlerfolge des Durchlaufs noch nicht versucht wurden. Wurden alle ansonsten nutzbaren Konten versucht, darf ein Konto erneut gewählt werden. Kontingentsperren und die Wartezeit gelten weiterhin.
 
-Antwortet der Anbieter während eines Durchlaufs, der ein Broker-Token nutzt, mit HTTP 401, wurde dieses Token widerrufen, während der Agent arbeitete. Genau das bewirkt die Token-Erneuerung des Tale AI Gateway: Anthropic widerruft bei jeder Erneuerung das ersetzte Zugriffstoken. Tale holt dann ein neues Token vom Broker und setzt dieselbe Konversation fort. Zwei solche Unterbrechungen in Folge zählen nicht zu den automatischen Wiederholungen des Durchlaufs und schließen das Konto nicht aus, denn es hat bereits ein neues Token. Eine dritte in Folge zählt wie jeder andere Fehler, damit eine ungültig gewordene Autorisierung keine endlosen Wiederholungen auslöst. Kommt eine Unterbrechung erst nach mindestens fünfzehn Minuten Arbeit, beginnt die Zählung von vorn.
+Ein HTTP 401 während eines Durchlaufs mit Broker-Token kann bedeuten, dass das Token während der Arbeit erneuert wurde. Tale fragt die Zugangsdaten erneut beim Broker ab und setzt die Konversation fort, sofern ihre Kennung und die Sandbox-Sitzung noch vorhanden sind. Andernfalls beginnt ein neuer Durchgang. Die ersten beiden solchen Unterbrechungen in Folge verbrauchen keinen automatischen Wiederholungsversuch und schließen das Konto nicht aus, damit ein Ersatz-Token desselben Kontos genutzt werden kann. Die dritte zählt wie jeder andere Fehler. Diese Grenze greift auch, wenn der 401 durch eine ungültige Autorisierung statt durch einen Tokenwechsel entsteht. Nach mindestens fünfzehn Minuten Arbeit beginnt die Zählung von vorn.
 
-Ohne andere Vorgabe beträgt das Zeitlimit einer Pool-Anfrage 10 Sekunden, die maximale Antwortgröße 262.144 Bytes. Ein zugeordnetes Ablaufdatum muss weiter in der Zukunft liegen als der Sicherheitsabstand `expirySkewMs`, standardmäßig fünf Minuten. Behalte beim Tale AI Gateway die Statuszuordnung bei und ordne `refresh_at` als Ablauffeld zu: Zu diesem Zeitpunkt beendet die Erneuerung des Gateways das Token, früher als das `expires_at` des Anbieters. Setze `expirySkewMs` auf die Mindestrestlaufzeit des Gateways, bei der voreingestellten Stunde also auf 3.600.000 ms. So beginnt kein Durchlauf mit einem Token, das weniger als eine Stunde gilt. Ablaufwerte dürfen ISO-Zeitstempel oder Unix-Zeitstempel in Sekunden oder Millisekunden sein.
+Ohne andere Vorgabe beträgt das Zeitlimit einer Pool-Anfrage 10 Sekunden, die maximale Antwortgröße 262.144 Bytes. Ein zugeordnetes Ablaufdatum muss weiter in der Zukunft liegen als der Sicherheitsabstand `expirySkewMs`, standardmäßig fünf Minuten. Behalte beim Tale AI Gateway die Statuszuordnung bei, ordne `refresh_at` als Ablauffeld zu und setze `expirySkewMs` auf `0`. Die `available`-Metadaten des Gateways berücksichtigen bereits die eingestellte Mindestrestlaufzeit samt Ausnahme für kurzlebige Tokens. Ein zusätzlicher Abstand würde diese Ausnahme aufheben. Tokens, deren geplante Erneuerung fällig ist, werden durch das Ablauffeld weiterhin abgelehnt. Ablaufwerte dürfen ISO-Zeitstempel oder Unix-Zeitstempel in Sekunden oder Millisekunden sein.
 
-Der Sicherheitsabstand schützt den Start eines Durchlaufs, nicht seine ganze Dauer. Aufgaben- und Automatisierungsagenten dürfen bis zu 12 Stunden arbeiten, ein Anthropic-Zugriffstoken gilt dagegen acht Stunden. Rechne damit, dass eine Token-Erneuerung einen längeren Durchlauf mit einem 401 unterbricht und er wie oben beschrieben mit einem neuen Token weiterläuft.
+Die Mindestrestlaufzeit schützt den Start eines Durchlaufs, nicht seine gesamte Dauer. Lange Aufgaben- oder Automatisierungsdurchläufe können ein Token überdauern und die oben beschriebene, begrenzte Wiederholung benötigen. Eine erneute Broker-Anfrage garantiert keine funktionierenden Zugangsdaten.
 
 Ist kein Konto nutzbar, prüfe Broker-Anmeldung, Kontostatus, Token-Ablauf und geplante Token-Erneuerungen, Kontingent-Erneuerungen und die Feldzuordnung. Erneuere gegebenenfalls die Kontoautorisierung oder warte, bis das Kontingent frei oder das Token erneuert ist. Prüfe anschließend eine abgeschlossene Aufgaben- oder Automatisierungsantwort mit dem vorgesehenen Anbieter und der passenden Laufzeit. Eine erfolgreiche Broker-Anfrage allein prüft die Verbindung zum Anbieter nicht.
 

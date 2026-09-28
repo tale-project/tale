@@ -165,14 +165,14 @@ blocking even if the next usage read has not happened yet.
 `available` also turns false while an active account's planned refresh is
 closer than `AI_GATEWAY_TOKEN_MIN_HANDOUT_SECONDS` (an hour by default), with
 `available_at` set to `refresh_at`: new work waits for the fresh token rather
-than taking one that would be revoked under it. Once the refresh lands, the
-account is available again. When a due refresh keeps failing, the token still
-works but its end cannot be promised, so the account stays unavailable with
+than taking one close to its planned refresh. Once the refresh lands, this
+restriction ends; quota restrictions still apply. When a due refresh keeps
+failing, the token may still work but its end cannot be promised, so the account stays unavailable with
 `available_at: null` until a refresh succeeds. A token whose whole planned life
-is shorter than the floor is handed out anyway, since the next one would be no
-longer. The floor covers the start of the work, not a run longer than the
-floor: a consumer still holding a token after its `refresh_at` should expect
-the vendor to answer 401, and fetch a fresh token when it does.
+is shorter than the floor is handed out until its refresh is due, since the
+next one would be no longer. The floor covers the start of the work, not a
+run longer than the floor: a consumer still holding a token after its
+`refresh_at` may receive a 401 and should request credentials again.
 
 Usage is refreshed on token requests subject to
 `AI_GATEWAY_USAGE_MIN_INTERVAL_SECONDS`. The gateway ignores exhaustion from
