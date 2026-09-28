@@ -574,9 +574,12 @@ async function resolveUserDisplayName(
   return row?.name ?? row?.email ?? null;
 }
 
+/** Who asks for the review. `system` is a hand-over no person made (an
+ * erasure moving a review off its subject): the request reads impersonally. */
 export type TaskReviewSubmitter =
   | { kind: 'agent'; name?: string }
-  | { kind: 'user'; userId: string };
+  | { kind: 'user'; userId: string }
+  | { kind: 'system' };
 
 /** Actionable review request to the designated reviewer (pref gate skipped —
  * the review group is locked on). */
@@ -629,10 +632,12 @@ export async function notifyTaskReviewRequested(
     taskId: args.task.id,
     ...(args.submitter.kind === 'user'
       ? { actorType: 'user' as const, actorId: args.submitter.userId }
-      : {
-          actorType: 'agent' as const,
-          ...(agentName !== undefined ? { actorId: agentName } : {}),
-        }),
+      : args.submitter.kind === 'system'
+        ? { actorType: 'system' as const }
+        : {
+            actorType: 'agent' as const,
+            ...(agentName !== undefined ? { actorId: agentName } : {}),
+          }),
   });
 }
 
@@ -699,6 +704,33 @@ export async function dismissReviewRequestNotifications(
     args.organizationId,
     rows.map((row) => row.userId),
   );
+  return rows.length;
+}
+
+/**
+ * Mark a former designee's unread "You're the reviewer" heads-up on this
+ * task read — the designation moved off them before the review opened, so
+ * the bell must stop telling them they are on the hook. Only the heads-up:
+ * a request the open review sent them is `dismissReviewRequestNotifications`'
+ * (per approval), and a read row is history and stays as it is.
+ */
+export async function dismissReviewerAssignedNotifications(
+  db: Db,
+  args: { organizationId: string; taskId: string; userId: string },
+): Promise<number> {
+  const rows = await db<{ id: string }[]>`
+    UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+      AND type = 'task_reviewer_assigned' AND read = false
+      AND task_id = ${args.taskId}
+    RETURNING id
+  `;
+  if (rows.length > 0) {
+    await emitBellHint(db, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    });
+  }
   return rows.length;
 }
 

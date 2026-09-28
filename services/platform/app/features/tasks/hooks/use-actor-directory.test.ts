@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useActorDirectory } from './use-actor-directory';
+import { useActorDirectory, useAssignableActors } from './use-actor-directory';
 
 // The directory serves members from the org roster and agents from the
 // PROJECT's user-created instances (`projectAgents` rows): with a project the
@@ -54,8 +54,16 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   }),
 }));
 
+/** What `listAccessibleUserIds` answers — undefined while it loads. */
+let accessScope: { orgWide: boolean; userIds: string[] } | undefined;
+
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: undefined }),
+  useBackendQuery: (name: string, args: unknown) => ({
+    data:
+      name === 'projects/queries:listAccessibleUserIds' && args !== 'skip'
+        ? accessScope
+        : undefined,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -141,5 +149,39 @@ describe('useActorDirectory — members + project-agent instances', () => {
     expect(result.current.resolveAssigneeId('user-1')).toBe('Alex Doe');
     expect(result.current.resolveAssigneeId('pa_2')).toBe('Docs Writer');
     expect(result.current.resolveAssigneeId('unknown-id')).toBe('unknown-id');
+  });
+});
+
+/**
+ * The candidate lists are narrowed to the project's audience, and say when
+ * that narrowing has happened: until it has, the members are org-wide, so a
+ * picker that must offer only who the server takes (the reviewer's) waits.
+ */
+describe('useAssignableActors — the project audience', () => {
+  beforeEach(() => {
+    accessScope = undefined;
+  });
+
+  it('drops members outside a team-restricted project', () => {
+    accessScope = { orgWide: false, userIds: ['user-1'] };
+    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(result.current.scopeReady).toBe(true);
+    expect(result.current.assignableMembers.map((m) => m.id)).toEqual([
+      'user-1',
+    ]);
+  });
+
+  it('is not ready while the audience loads, and falls back to the whole org', () => {
+    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(result.current.scopeReady).toBe(false);
+    expect(result.current.assignableMembers.map((m) => m.id)).toEqual([
+      'user-1',
+      'user-2',
+    ]);
+  });
+
+  it('is ready at once without a project — the org is the audience', () => {
+    const { result } = renderHook(() => useAssignableActors('org-1'));
+    expect(result.current.scopeReady).toBe(true);
   });
 });

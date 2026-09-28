@@ -20,6 +20,8 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Perso
 
 L’effacement supprime définitivement les données couvertes ; il ne les déplace pas vers la corbeille. Le reçu indique les catégories et les nombres concernés : chats, documents et imports, préférences, retours, notifications, usage et nettoyage des identifiants personnels dans l’audit.
 
+Les tâches qui désignent la personne comme **Relecteur** perdent cette désignation. Une demande de revue qui l’attend encore passe, comme avec **Retirer le relecteur**, à la personne qui a créé la tâche ou le projet, et celle-ci en est notifiée. Pour une tâche archivée, la demande passe sans notification. Les décisions de revue que la personne a déjà prises restent enregistrées sans son nom.
+
 ## Vérifier la règle avant le dépôt
 
 | Réglage | Effet |

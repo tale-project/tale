@@ -68,6 +68,7 @@ import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
+import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
@@ -21642,20 +21643,29 @@ async function checkTasksCollabIntegrity(
   // ---- designating a reviewer tells them -----------------------------------
   // The designee is subscribed (reason 'reviewer') and gets the heads-up
   // bell on the wire entity the app keys the bell on; designating yourself
-  // rings nothing, and a non-member cannot be put on the hook at all.
+  // rings nothing, a non-member cannot be put on the hook at all, and
+  // neither can a member who cannot edit the project — the gate would only
+  // route past them.
   const reviewer = 'integrity-reviewer-1';
-  await sql`
-    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
-                        "updatedAt")
-    VALUES (${reviewer}, 'Integrity Reviewer', ${`${reviewer}@example.com`},
-            true, ${new Date()}, ${new Date()})
-    ON CONFLICT ("id") DO NOTHING
-  `;
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
-    VALUES (${`m-${reviewer}`}, ${orgId}, ${reviewer}, 'member', ${new Date()})
-    ON CONFLICT ("id") DO NOTHING
-  `;
+  const readOnlyMember = 'integrity-reviewer-readonly';
+  for (const [id, role] of [
+    [reviewer, 'editor'],
+    [readOnlyMember, 'member'],
+  ] as const) {
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (${id}, ${id}, ${`${id}@example.com`}, true, ${new Date()},
+              ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-${orgId}-${id}`}, ${orgId}, ${id}, ${role}, ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+  }
   const reviewedTask = await newTask('Needs a reviewer');
   const designated = await post(
     `/api/app/tasks/${reviewedTask}?orgId=${orgId}`,
@@ -21694,8 +21704,24 @@ async function checkTasksCollabIntegrity(
     .object({ error: z.string() })
     .loose()
     .safeParse(await bogus.json());
+  const readOnly = await post(`/api/app/tasks/${reviewedTask}?orgId=${orgId}`, {
+    reviewerUserId: readOnlyMember,
+  });
+  const readOnlyBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await readOnly.json());
+  const stillDesignated = await sql<{ reviewerUserId: string | null }[]>`
+    SELECT reviewer_user_id AS "reviewerUserId" FROM app.tasks
+    WHERE id = ${reviewedTask}
+  `;
+  const readOnlyBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${readOnlyMember}
+      AND task_id = ${reviewedTask}
+  `;
   record(
-    'tasks/collab: designating a reviewer subscribes and bells them (never yourself, never a non-member)',
+    'tasks/collab: designating a reviewer subscribes and bells them (never yourself, never a non-member, never someone who cannot edit)',
     designated.ok &&
       reviewerBell[0]?.count === '1' &&
       reviewerFollows[0]?.count === '1' &&
@@ -21703,8 +21729,13 @@ async function checkTasksCollabIntegrity(
       selfBell[0]?.count === '0' &&
       bogus.status === 400 &&
       bogusBody.success &&
-      bogusBody.data.error === 'TASK_REVIEWER_INVALID',
-    `designate → ${designated.status}, bell=${reviewerBell[0]?.count} (want 1), follows=${reviewerFollows[0]?.count} (want 1), hint=${reviewerHint[0]?.count} (want ≥1); self bell=${selfBell[0]?.count} (want 0); non-member → ${bogus.status}/${bogusBody.success ? bogusBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_INVALID)`,
+      bogusBody.data.error === 'TASK_REVIEWER_INVALID' &&
+      readOnly.status === 400 &&
+      readOnlyBody.success &&
+      readOnlyBody.data.error === 'TASK_REVIEWER_NO_EDIT_ACCESS' &&
+      stillDesignated[0]?.reviewerUserId === reviewer &&
+      readOnlyBell[0]?.count === '0',
+    `designate → ${designated.status}, bell=${reviewerBell[0]?.count} (want 1), follows=${reviewerFollows[0]?.count} (want 1), hint=${reviewerHint[0]?.count} (want ≥1); self bell=${selfBell[0]?.count} (want 0); non-member → ${bogus.status}/${bogusBody.success ? bogusBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_INVALID); read-only member → ${readOnly.status}/${readOnlyBody.success ? readOnlyBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_NO_EDIT_ACCESS), designation=${stillDesignated[0]?.reviewerUserId === reviewer ? 'kept' : String(stillDesignated[0]?.reviewerUserId)} (want kept), their bells=${readOnlyBell[0]?.count} (want 0)`,
   );
 
   // ---- a reviewer changed mid-review takes the open review along ----------
@@ -21865,6 +21896,47 @@ async function checkTasksCollabIntegrity(
       bellsBCleared.every((bell) => bell.read) &&
       bellsCreator.length === 0,
     `clear → ${clearedOver.status}, gate=${clearedGate.length} same=${clearedGate[0]?.id === handedApproval} for creator=${clearedGate[0]?.metadata?.requestedFor === userId} (want 1/true/true); chip=${viewCleared.chip === userId ? 'creator' : String(viewCleared.chip)} (want creator), waiting on B=${viewCleared.waitsOn(reviewerB)} (want false); bells B=${bellText(bellsBCleared)} (want all read), creator=${bellText(bellsCreator)} (want none: they cleared it themselves)`,
+  );
+  // ---- a reviewer changed BEFORE review lets the previous designee off ----
+  // No review is open yet, so there is no request to move — but A's unread
+  // "You're the reviewer" heads-up kept telling A they were on the hook.
+  const earlyTask = await newTask('Reviewer changed before review');
+  const headsUps = (user: string): Promise<{ read: boolean }[]> => sql<
+    { read: boolean }[]
+  >`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${user} AND task_id = ${earlyTask}
+      AND type = 'task_reviewer_assigned'
+  `;
+  await post(`/api/app/tasks/${earlyTask}?orgId=${orgId}`, {
+    reviewerUserId: reviewerA,
+  });
+  const earlyA = await headsUps(reviewerA);
+  const movedEarly = await post(`/api/app/tasks/${earlyTask}?orgId=${orgId}`, {
+    reviewerUserId: reviewerB,
+  });
+  const movedA = await headsUps(reviewerA);
+  const movedB = await headsUps(reviewerB);
+  const earlyCleared = await post(
+    `/api/app/tasks/${earlyTask}?orgId=${orgId}`,
+    { reviewerUserId: null },
+  );
+  const clearedB = await headsUps(reviewerB);
+  const readText = (rows: { read: boolean }[]): string =>
+    rows.map((row) => (row.read ? 'read' : 'unread')).join(',') || 'none';
+  record(
+    "tasks/collab: changing the reviewer before review dismisses the previous designee's heads-up",
+    earlyA.length === 1 &&
+      earlyA.every((row) => !row.read) &&
+      movedEarly.ok &&
+      movedA.length === 1 &&
+      movedA.every((row) => row.read) &&
+      movedB.length === 1 &&
+      movedB.every((row) => !row.read) &&
+      earlyCleared.ok &&
+      clearedB.length === 1 &&
+      clearedB.every((row) => row.read),
+    `A designated: ${readText(earlyA)} (want unread); → B ${movedEarly.status}: A=${readText(movedA)} (want read), B=${readText(movedB)} (want unread); clear ${earlyCleared.status}: B=${readText(clearedB)} (want read)`,
   );
   // ---- a mention directory that cannot be listed fails the surface -------
   // Against the real schema: the same resolution with the agent-instance
@@ -43931,6 +44003,46 @@ async function checkErasure(
               ${sql.json({ requestedFor: subject, response: { respondedBy: subject } })},
               ${now})
   `;
+  // A review still WAITING on the subject is routing, not history: it must
+  // move on to the task creator (here the owner) rather than wait on the
+  // pseudonym, where no board and no bell would ever find it.
+  const waitingProject = z
+    .object({ projectId: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, {
+          name: 'Erasure review hand-over',
+        })
+      ).json(),
+    );
+  const waitingTask = z
+    .object({ taskId: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/tasks?orgId=${orgId}`, {
+          projectId: waitingProject.success
+            ? waitingProject.data.projectId
+            : '',
+          title: 'Waiting on the subject',
+          status: 'in_review',
+        })
+      ).json(),
+    );
+  const waitingTaskId = waitingTask.success ? waitingTask.data.taskId : '';
+  // The subject held the designation and the open review when the erasure
+  // was filed (written directly: a read-only member can no longer be named).
+  await sql`
+    UPDATE app.tasks SET reviewer_user_id = ${subject}
+    WHERE id = ${waitingTaskId}
+  `;
+  await sql`
+    UPDATE app.approvals SET
+      metadata = metadata || ${sql.json({ requestedFor: subject })}
+    WHERE resource_type = 'task_review' AND resource_id = ${waitingTaskId}
+      AND status = 'pending'
+  `;
   await sql`
     INSERT INTO app.login_attempts (email, consecutive_failures,
                                     last_failure_at)
@@ -43955,6 +44067,12 @@ async function checkErasure(
       created_at_ms, updated_at_ms
     ) VALUES (${orgId}, ${subject}, 'folder', ${`gd-${subject}`}, 'Reports',
               'documents', 'active', ${now}, ${now})
+  `;
+  // Nothing above hints the task (the designation and the review were
+  // written directly), so a `task` hint past this cursor is the erasure's:
+  // the board, **Needs my review** and the Reviewer field refresh on it.
+  const outboxBefore = await sql<{ max: string | null }[]>`
+    SELECT max(id)::text AS max FROM app_realtime.outbox
   `;
   const filed = z
     .object({ requestId: z.string(), threadsTargeted: z.number() })
@@ -44029,6 +44147,41 @@ async function checkErasure(
   const receiptCounts = await sql<{ counts: Record<string, number> | null }[]>`
     SELECT counts FROM app.gdpr_erasure_requests WHERE id = ${requestId}
   `;
+  const waitingAfter = await sql<
+    { id: string; status: string; requestedFor: string | null }[]
+  >`
+    SELECT id, status, metadata->>'requestedFor' AS "requestedFor"
+    FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${waitingTaskId}
+  `;
+  const waitingDesignation = await sql<{ reviewerUserId: string | null }[]>`
+    SELECT reviewer_user_id AS "reviewerUserId" FROM app.tasks
+    WHERE id = ${waitingTaskId}
+  `;
+  const handedBell = await sql<{ read: boolean; actorType: string }[]>`
+    SELECT read, actor_type AS "actorType" FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_review_requested'
+      AND resource_id = ${waitingAfter[0]?.id ?? ''}
+  `;
+  const boardHints = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'task'
+      AND entity_id = ${waitingTaskId}
+      AND id > ${outboxBefore[0]?.max ?? '0'}::bigint
+  `;
+  record(
+    'erasure: a review still waiting on the subject moves on to the task creator, not to the pseudonym',
+    waitingTask.success &&
+      waitingAfter.length === 1 &&
+      waitingAfter[0]?.status === 'pending' &&
+      waitingAfter[0]?.requestedFor === userId &&
+      waitingDesignation[0]?.reviewerUserId === null &&
+      handedBell.length === 1 &&
+      handedBell.every((bell) => !bell.read && bell.actorType === 'system') &&
+      Number(boardHints[0]?.count ?? '0') > 0,
+    `task=${waitingTask.success ? 'ok' : 'ERR'}; reviews=${waitingAfter.length} ${waitingAfter[0]?.status}/${waitingAfter[0]?.requestedFor === userId ? 'creator' : String(waitingAfter[0]?.requestedFor)} (want 1 pending/creator); designation=${String(waitingDesignation[0]?.reviewerUserId)} (want null); creator bell=${handedBell.map((bell) => `${bell.read ? 'read' : 'unread'}:${bell.actorType}`).join(',') || 'none'} (want unread:system); task hints=${boardHints[0]?.count} (want >0)`,
+  );
   record(
     'erasure: the uploads pass deletes the blob behind the ledger row',
     receiptStatus === 'done' &&
@@ -54725,6 +54878,10 @@ async function main(): Promise<void> {
       [
         'checkErasure',
         () => checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkErasureReviewHandoverRaces',
+        () => checkErasureReviewHandoverRaces(sql, authCtx, record),
       ],
       // Reliability batch probes (self-contained; each seeds and cleans its
       // own rows).
