@@ -229,20 +229,17 @@ describe('ProjectOverview', () => {
 
   // The Instructions section IS its one field: the section header is the
   // textarea's label and hint, so the body is the bare textarea and its
-  // counter — no nested, unnamed form group between the two.
+  // counter — no nested, unnamed form group between the two. Asked of the
+  // accessibility tree, so an implicit group (a `<fieldset>`) fails it too;
+  // the page's own `<fieldset className="contents">` sits outside the section.
   it('frames the instructions textarea by its section alone', () => {
     renderOverview();
 
     const textarea = screen.getByRole('textbox', { name: 'Instructions' });
-    const section = textarea.closest('[data-settings-section]');
+    const section = textarea.closest<HTMLElement>('[data-settings-section]');
+    if (!section) throw new Error('no settings section around the textarea');
     expect(section).toHaveAccessibleName('Instructions');
-    for (
-      let el = textarea.parentElement;
-      el && el !== section;
-      el = el.parentElement
-    ) {
-      expect(el).not.toHaveAttribute('role', 'group');
-    }
+    expect(within(section).queryByRole('group')).toBeNull();
   });
 
   describe('save feedback', () => {
