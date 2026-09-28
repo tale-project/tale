@@ -7,9 +7,11 @@
  * though the blob is still stored and the retry re-ingests it. The corpus's
  * own error, when it has one, always wins over the generic text, and an
  * already-failed row is never overwritten with it. Each organization's
- * document lists hear a sweep once, and only for rows a document holds. The
- * stale-window scan and the adopt/revive rules ride the real-Postgres probe
- * in `integration-check.ts`.
+ * document lists hear a sweep once, and only for rows a document holds —
+ * also when a later write of the organization throws, which defers its
+ * unsettled rows and never the organizations after it. The stale-window
+ * scan and the adopt/revive rules ride the real-Postgres probe in
+ * `integration-check.ts`.
  */
 
 import type { Sql } from 'postgres';
@@ -55,11 +57,16 @@ interface CorpusRow {
 /**
  * Scripted `sql`: the candidate read is a snapshot, while the ownership
  * read sees the current state. A bind or deletion may land between that
- * snapshot and the status write, as the real-Postgres lane proves too.
+ * snapshot and the status write, as the real-Postgres lane proves too. The
+ * status write of `failWrite` throws, as a lock timeout would.
  */
 function fakeSql(
   candidates: Candidate[],
-  options: { bindBeforeWrite?: string; deleteBeforeWrite?: string } = {},
+  options: {
+    bindBeforeWrite?: string;
+    deleteBeforeWrite?: string;
+    failWrite?: string;
+  } = {},
 ): {
   sql: Sql;
   statements: Statement[];
@@ -74,6 +81,11 @@ function fakeSql(
     }
     if (text.startsWith('UPDATE app.file_metadata')) {
       const id = candidates.find((row) => values.includes(row.id))?.id;
+      if (id !== undefined && id === options.failWrite) {
+        return Promise.reject(
+          new Error('canceling statement due to lock timeout'),
+        );
+      }
       const row = id === undefined ? undefined : current.get(id);
       if (row === undefined || row.id === options.deleteBeforeWrite) {
         if (id !== undefined) current.delete(id);
@@ -304,5 +316,84 @@ describe('recoverStuckRagIndexing — who hears a sweep', () => {
       entity: 'document',
       entityId: null,
     });
+  });
+});
+
+describe('recoverStuckRagIndexing — a fault mid-sweep', () => {
+  // Each write commits on its own: a later one that throws must neither
+  // leave the rows already settled unheard by an open list, nor stop the
+  // sweep of the organizations after this one.
+  it('tells the lists about the rows settled before a write threw, and sweeps the next organization', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql, statements } = fakeSql(
+      [
+        candidate('fm_a'),
+        candidate('fm_b'),
+        candidate('fm_c'),
+        candidate('fm_d', 'running', { orgId: 'org_2' }),
+      ],
+      { failWrite: 'fm_b' },
+    );
+    corpusAnswering([]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    // fm_a and fm_d settled; fm_b threw, and fm_c waits for the next tick.
+    expect(result).toEqual({ adopted: 0, failed: 2, revived: 0 });
+    expect(failWriteFor(statements, 'fm_c')).toBeUndefined();
+    expect(failWriteFor(statements, 'fm_d')).toBeDefined();
+    expect(vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint)).toEqual([
+      { orgId: 'org_1', entity: 'document', entityId: null },
+      { orgId: 'org_2', entity: 'document', entityId: null },
+    ]);
+    expect(warned).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'rag settle failed for org acme after moving 1 row(s)',
+      ),
+      'canceling statement due to lock timeout',
+    );
+    warned.mockRestore();
+  });
+
+  it('tells no list when the first write threw, and still sweeps the next organization', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql } = fakeSql(
+      [candidate('fm_a'), candidate('fm_d', 'running', { orgId: 'org_2' })],
+      { failWrite: 'fm_a' },
+    );
+    corpusAnswering([]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    expect(result).toEqual({ adopted: 0, failed: 1, revived: 0 });
+    expect(vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint)).toEqual([
+      { orgId: 'org_2', entity: 'document', entityId: null },
+    ]);
+    warned.mockRestore();
+  });
+
+  it('still sweeps the next organization when a hint cannot be written', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(emitHintInTx).mockRejectedValueOnce(new Error('outbox down'));
+    const { sql } = fakeSql([
+      candidate('fm_a'),
+      candidate('fm_d', 'running', { orgId: 'org_2' }),
+    ]);
+    corpusAnswering([]);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 1000 });
+
+    expect(result).toEqual({ adopted: 0, failed: 2, revived: 0 });
+    expect(vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint)).toEqual([
+      { orgId: 'org_1', entity: 'document', entityId: null },
+      { orgId: 'org_2', entity: 'document', entityId: null },
+    ]);
+    expect(warned).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "could not tell org acme's document lists about 1 settled row(s)",
+      ),
+      'outbox down',
+    );
+    warned.mockRestore();
   });
 });
