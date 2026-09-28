@@ -10,13 +10,15 @@ export const Route = createFileRoute(
 });
 
 function ProjectAutomationGeneralPage() {
-  const { id: organizationId, automationSlug } = Route.useParams();
+  const { id: organizationId, projectId, automationSlug } = Route.useParams();
   // The settings belong to the automation, not to the project it is shown
-  // in: the same Trigger and Projects as on the organization's route.
+  // in: the same Trigger and Projects as on the organization's route — only
+  // a run the tab links opens under the project.
   return (
     <AutomationGeneralTab
       organizationId={organizationId}
       automationSlug={paramToAutomationSlug(automationSlug)}
+      projectId={projectId}
     />
   );
 }

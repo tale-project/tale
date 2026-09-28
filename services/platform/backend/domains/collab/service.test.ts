@@ -3,16 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import { coalesceKeyFor } from '../../core/collab/coalesce.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { CollabNotificationInput } from './service.ts';
 import {
   dismissReviewerAssignedNotifications,
   dismissReviewRequestNotifications,
+  dismissTriggerPausedNotifications,
   markAllNotificationsRead,
   notifyTaskComment,
   notifyTaskMentions,
   notifyTaskReviewerAssigned,
   notifyTaskReviewRequested,
+  notifyTriggerPaused,
   writeCoalescedNotification,
 } from './service.ts';
 
@@ -536,5 +539,139 @@ describe('the mention bell, per surface', () => {
     expect(bells[0]?.values).toEqual(
       expect.arrayContaining(['u-recipient', 'mention', 'comment', 'msg-1']),
     );
+  });
+});
+
+describe('the paused-schedule notice (automation_failed)', () => {
+  /** Like `fakeDb`, but the answer also sees the statement's values — the
+   * preference read answers per recipient. */
+  function fakeDbWithValues(
+    answer: (text: string, values: unknown[]) => Row[],
+  ): { db: Sql; calls: { text: string; values: unknown[] }[] } {
+    const calls: { text: string; values: unknown[] }[] = [];
+    const tag = (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<Row[]> => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      calls.push({ text, values });
+      return Promise.resolve(answer(text, values));
+    };
+    const db = Object.assign(tag, { json: (value: unknown) => value });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+    return { db: db as unknown as Sql, calls };
+  }
+
+  const PAUSE = {
+    organizationId: 'org-1',
+    triggerId: 'trg-1',
+    name: 'ops/nightly',
+    failures: 5,
+    code: 'connector_error',
+  };
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  it('writes one actionable row per owner and admin who has not muted automation alerts', async () => {
+    const fake = fakeDbWithValues((text, values) => {
+      if (text.startsWith('SELECT "userId" FROM "member"')) {
+        return [{ userId: 'owner-1' }, { userId: 'admin-muted' }];
+      }
+      if (text.includes('FROM app.notification_preferences')) {
+        return values[0] === 'admin-muted'
+          ? [{ automation_alerts: false }]
+          : [];
+      }
+      if (text.startsWith('INSERT INTO app.user_notifications')) {
+        return [{ id: 'n-1' }];
+      }
+      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
+        return [{ emailEpoch: 1 }];
+      }
+      return [];
+    });
+
+    await expect(notifyTriggerPaused(fake.db, PAUSE)).resolves.toBe(2);
+
+    const members = fake.calls.find((c) =>
+      c.text.startsWith('SELECT "userId" FROM "member"'),
+    );
+    expect(members?.text).toContain(`lower("role") IN ('owner', 'admin')`);
+    expect(members?.values).toEqual(['org-1']);
+    // The preference read names the column the toggle writes.
+    expect(
+      fake.calls.find((c) =>
+        c.text.includes('FROM app.notification_preferences'),
+      )?.text,
+    ).toContain('automation_alerts');
+
+    const inserts = fake.calls.filter((c) =>
+      c.text.startsWith('INSERT INTO app.user_notifications'),
+    );
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]?.values).toEqual(
+      expect.arrayContaining([
+        'owner-1',
+        'org-1',
+        'automation_failed',
+        'automationTriggerPaused',
+        'automationTriggerPausedBody',
+        {
+          name: 'ops/nightly',
+          failures: 5,
+          code: 'connector_error',
+          trigger: true,
+        },
+        'automation_trigger',
+        'trg-1',
+        'system',
+        // A second pause while the row is unread rewrites it in place.
+        'automation_trigger:trg-1:paused',
+      ]),
+    );
+    // Actionable: it leaves the app by email too.
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.db,
+      'notification.email',
+      { notificationId: 'n-1', epoch: 1 },
+      expect.anything(),
+    );
+  });
+
+  it('marks every unread notice of the trigger read and hints each recipient', async () => {
+    const fake = fakeDbWithValues((text) =>
+      text.startsWith('UPDATE app.user_notifications SET read = true')
+        ? [{ userId: 'owner-1' }, { userId: 'admin-1' }]
+        : [],
+    );
+
+    await expect(
+      dismissTriggerPausedNotifications(fake.db, {
+        organizationId: 'org-1',
+        triggerId: 'trg-1',
+      }),
+    ).resolves.toBe(2);
+
+    const dismissal = fake.calls[0];
+    expect(dismissal?.text).toContain(
+      "type = 'automation_failed' AND read = false",
+    );
+    expect(dismissal?.values).toEqual([expect.any(Number), 'org-1', 'trg-1']);
+    expect(vi.mocked(emitHintInTx).mock.calls.map((call) => call[1])).toEqual([
+      {
+        orgId: 'org-1',
+        userId: 'owner-1',
+        entity: NOTIFICATION_HINT_ENTITY,
+        entityId: null,
+      },
+      {
+        orgId: 'org-1',
+        userId: 'admin-1',
+        entity: NOTIFICATION_HINT_ENTITY,
+        entityId: null,
+      },
+    ]);
   });
 });

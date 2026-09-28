@@ -62,6 +62,8 @@ import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
+import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
@@ -77,6 +79,7 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
@@ -54817,8 +54820,16 @@ async function main(): Promise<void> {
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
       [
+        'checkTriggerPauseAfterFailures',
+        () => checkTriggerPauseAfterFailures(sql, authCtx, record),
+      ],
+      [
         'checkDeletedOrgSchedules',
         () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
+      [
+        'checkTriggerStreakLockOrder',
+        () => checkTriggerStreakLockOrder(sql, authCtx, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
@@ -55118,6 +55129,10 @@ async function main(): Promise<void> {
         },
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
+      [
+        'checkSandboxRetiredTablesDropped',
+        () => checkSandboxRetiredTablesDropped(sql, record),
+      ],
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),

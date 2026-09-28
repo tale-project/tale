@@ -217,5 +217,15 @@
  * it. Chat never pauses a turn to ask the person a question, so no stored
  * or new message carries the part; a client drops a branch it could not
  * reach. Major because a named schema was removed.
+ *
+ * 3.1.0 — 2026-09-27: a schedule pauses itself after five runs in a row
+ * fail for a reason the next occurrence would repeat (`node_error`,
+ * `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`,
+ * `credit_exhausted`, `model_not_found`): `enabled` turns false and
+ * `lastSkipReason` — on `Trigger` and on `AutomationSummary.trigger` —
+ * gains `paused_after_failures` until the trigger is saved again. `Trigger`
+ * carries the streak: `consecutiveFailures`, and the last counted failure's
+ * `lastFailedAt`, `lastFailureCode` and `lastFailedRunId`. Saving a trigger
+ * resets the streak.
  */
-export const API_CONTRACT_VERSION = '3.0.0';
+export const API_CONTRACT_VERSION = '3.1.0';

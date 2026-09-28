@@ -17,16 +17,9 @@ const PLACEHOLDER_TABS = 4;
  * chat composer on a chat route — sits where it will stay once the live bar
  * mounts.
  *
- * On Mobile Safari outside an installed app the live bar adds `pb-12` to clear
- * the browser's bottom toolbar. The pre-hydration script in `index.html` marks
- * that same case with `boot-safari-toolbar` on `<html>`, so the stand-in
- * reserves the clearance too.
+ * The pre-hydration `boot-safari-toolbar` class applies the same external
+ * dock offset as the live shell; the capsule itself never grows taller.
  */
 export function MobileBottomNavPlaceholder() {
-  return (
-    <BottomTabBarPlaceholder
-      tabs={PLACEHOLDER_TABS}
-      className="[.boot-safari-toolbar_&]:pb-12"
-    />
-  );
+  return <BottomTabBarPlaceholder tabs={PLACEHOLDER_TABS} />;
 }

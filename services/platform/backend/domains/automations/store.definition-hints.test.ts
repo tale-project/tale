@@ -34,6 +34,9 @@ interface Statement {
 function fakeSql(script: {
   versionRow?: { testsPassed: boolean | null };
   triggerDeleted?: boolean;
+  /** The removed trigger's skip reason, as the DELETE's RETURNING reads it
+   * (only when `triggerDeleted`). */
+  triggerSkipReason?: string | null;
   bindingInserted?: boolean;
 }): { sql: Sql; statements: Statement[]; inTx: boolean[] } {
   const statements: Statement[] = [];
@@ -68,8 +71,13 @@ function fakeSql(script: {
     }
     if (text.includes('DELETE FROM app.automation_triggers')) {
       return Promise.resolve(
-        script.triggerDeleted === true ? [{ id: 'trg_1' }] : [],
+        script.triggerDeleted === true
+          ? [{ id: 'trg_1', lastSkipReason: script.triggerSkipReason ?? null }]
+          : [],
       );
+    }
+    if (text.includes('UPDATE app.user_notifications')) {
+      return Promise.resolve([{ userId: 'admin_1' }]);
     }
     if (text.includes('FROM app.projects')) {
       return Promise.resolve([{ id: 'proj_1' }]);
@@ -199,5 +207,92 @@ describe('definition doors emit the automation hint in their transaction', () =>
       actor: 'user_1',
     });
     expect(hints(fake)).toEqual([{ values: HINT, inTx: true }]);
+  });
+});
+
+/** The paused-schedule notices a door marked read — the dismissal
+ * `dismissTriggerPausedNotifications` writes. */
+function dismissals(fake: { statements: Statement[]; inTx: boolean[] }): {
+  values: unknown[];
+  inTx: boolean;
+}[] {
+  return fake.statements
+    .map((statement, index) => ({ statement, inTx: fake.inTx[index] ?? false }))
+    .filter(
+      ({ statement }) =>
+        statement.text.includes('UPDATE app.user_notifications') &&
+        statement.text.includes("type = 'automation_failed'"),
+    )
+    .map(({ statement, inTx }) => ({ values: statement.values, inTx }));
+}
+
+describe('removing a schedule its failures paused reads the admins’ notices of it', () => {
+  it('deleteTrigger — for a paused schedule, in its transaction', async () => {
+    const paused = fakeSql({
+      triggerDeleted: true,
+      triggerSkipReason: 'paused_after_failures',
+    });
+    await expect(deleteTrigger(paused.sql, 'org_1', 'ops/greet')).resolves.toBe(
+      true,
+    );
+    expect(dismissals(paused)).toEqual([
+      { values: [expect.any(Number), 'org_1', 'trg_1'], inTx: true },
+    ]);
+    // The recipients' bells refresh.
+    expect(
+      paused.statements.some(
+        (statement) =>
+          statement.text.includes('INSERT INTO app_realtime.outbox') &&
+          statement.values.includes('admin_1'),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([null, 'not_deployed', 'start_refused'])(
+    'deleteTrigger — none for a trigger whose skip reason is %s',
+    async (triggerSkipReason) => {
+      const fake = fakeSql({ triggerDeleted: true, triggerSkipReason });
+      await deleteTrigger(fake.sql, 'org_1', 'ops/greet');
+      expect(dismissals(fake)).toEqual([]);
+    },
+  );
+
+  it('deleteTrigger — none when no trigger was removed', async () => {
+    const fake = fakeSql({ triggerDeleted: false });
+    await deleteTrigger(fake.sql, 'org_1', 'ops/greet');
+    expect(dismissals(fake)).toEqual([]);
+  });
+
+  it('deleteAutomationCascade — for its paused schedule, in its transaction', async () => {
+    const paused = fakeSql({
+      triggerDeleted: true,
+      triggerSkipReason: 'paused_after_failures',
+    });
+    await deleteAutomationCascade(paused.sql, {
+      organizationId: 'org_1',
+      name: 'ops/greet',
+      actor: 'user_1',
+    });
+    expect(dismissals(paused)).toEqual([
+      { values: [expect.any(Number), 'org_1', 'trg_1'], inTx: true },
+    ]);
+  });
+
+  it('deleteAutomationCascade — none for a trigger that is not paused', async () => {
+    const running = fakeSql({ triggerDeleted: true, triggerSkipReason: null });
+    await deleteAutomationCascade(running.sql, {
+      organizationId: 'org_1',
+      name: 'ops/greet',
+      actor: 'user_1',
+    });
+    expect(dismissals(running)).toEqual([]);
+
+    const none = fakeSql({ triggerDeleted: false });
+    await deleteAutomationCascade(none.sql, {
+      organizationId: 'org_1',
+      name: 'ops/greet',
+      actor: 'user_1',
+    });
+    expect(dismissals(none)).toEqual([]);
   });
 });

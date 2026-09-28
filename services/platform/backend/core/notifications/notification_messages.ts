@@ -85,6 +85,8 @@ export const ACTIONABLE_INBOX_KEYS = [
   'cloudSyncNeedsReauthBody',
   'usageCreditsRequested',
   'usageCreditsRequestedBody',
+  'automationTriggerPaused',
+  'automationTriggerPausedBody',
   'email.cta',
   'email.footer',
 ] as const;
@@ -155,6 +157,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     usageCreditsRequested: 'Usage credits requested',
     usageCreditsRequestedBody:
       '{name} reached a usage limit and asked for more credits.',
+    automationTriggerPaused: 'Schedule paused',
+    automationTriggerPausedBody:
+      '"{name}" failed {failures} runs in a row ({code}), so its schedule is paused. Fix the automation, then turn its trigger back on.',
     'email.cta': 'Open in Tale',
     'email.footer':
       'You received this email because you have notifications enabled in Tale.',
@@ -225,6 +230,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     usageCreditsRequested: 'Nutzungskontingent angefragt',
     usageCreditsRequestedBody:
       '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.',
+    automationTriggerPaused: 'Zeitplan pausiert',
+    automationTriggerPausedBody:
+      '"{name}" ist {failures}-mal in Folge fehlgeschlagen ({code}), deshalb ist der Zeitplan pausiert. Behebe den Fehler in der Automatisierung und schalte ihren Trigger dann wieder ein.',
     'email.cta': 'In Tale öffnen',
     'email.footer':
       'Du erhältst diese E-Mail, weil du Benachrichtigungen in Tale aktiviert hast.',
@@ -294,6 +302,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     usageCreditsRequested: 'Crédits d’utilisation demandés',
     usageCreditsRequestedBody:
       '{name} a atteint une limite d’utilisation et demande plus de crédits.',
+    automationTriggerPaused: 'Planification en pause',
+    automationTriggerPausedBody:
+      '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.',
     'email.cta': 'Ouvrir dans Tale',
     'email.footer':
       'Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.',
