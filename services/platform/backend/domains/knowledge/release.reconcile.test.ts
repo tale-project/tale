@@ -20,7 +20,9 @@ import {
  * releases the row, and the bytes nothing else would ever reach again.
  * A reconcile that stopped calling that pass would leave every attachment
  * indexed before the stamp as an unstamped hub row for good, and nothing
- * else would notice.
+ * else would notice. Bytes a release of the reconcile could not delete once
+ * their corpus rows were gone go to the durable release job, since no walk
+ * would ever list their ref again.
  */
 
 const { deleteKnowledgeDocumentsBatch, listKnowledgeDocumentRefs } = vi.hoisted(
@@ -38,12 +40,18 @@ const { reconcileDocumentScopeStamps, reconcileMailAttachmentStamps } =
     reconcileDocumentScopeStamps: vi.fn(),
     reconcileMailAttachmentStamps: vi.fn(),
   }));
+const { addJobInTx } = vi.hoisted(() => ({
+  addJobInTx: vi.fn(
+    async (_sql: unknown, _name: string, _payload: unknown) => 'job-1',
+  ),
+}));
 
 vi.mock('../../core/legacy/knowledge_delete.ts', () => ({
   deleteKnowledgeDocumentsBatch,
   listKnowledgeDocumentRefs,
 }));
 vi.mock('../../lib/object-store.ts', () => ({ deleteOrgObject }));
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx }));
 vi.mock('./service.ts', () => ({
   reconcileDocumentScopeStamps,
   reconcileMailAttachmentStamps,
@@ -132,6 +140,7 @@ let warn: MockInstance<typeof console.warn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  deleteOrgObject.mockReset();
   info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
   warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   listKnowledgeDocumentRefs.mockResolvedValue([]);
@@ -220,6 +229,82 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
     // keeps its bytes: its refs always have a live file row.
     await releaseCorpus(['s3:org-1/mail/cv.pdf']);
     expect(deleteOrgObject).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('queues the release job for bytes the stamp pass could not delete once their corpus rows went', async () => {
+    deleteOrgObject.mockRejectedValue(new Error('s3 down'));
+    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    const { releaseUnbacked } = await wiredReleases(sql);
+    const outcome = await releaseUnbacked(['s3:org-1/mail/orphan.pdf']);
+    expect(outcome.failures).toEqual([
+      { ref: 's3:org-1/mail/orphan.pdf', stage: 'blob', message: 's3 down' },
+    ]);
+    // Nothing lists the ref again: the second walk reads stamped corpus
+    // rows, and that row is gone.
+    expect(deleteKnowledgeDocumentsBatch).toHaveBeenCalledWith({
+      orgSlug: 'acme',
+      fileIds: ['s3:org-1/mail/orphan.pdf'],
+    });
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(sql, 'knowledge.release_refs', {
+      organizationId: 'org-1',
+      refs: ['s3:org-1/mail/orphan.pdf'],
+    });
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (blob): s3 down',
+    ]);
+  });
+
+  it('queues nothing for a ref whose corpus delete failed: its row lists it for the next night', async () => {
+    deleteKnowledgeDocumentsBatch.mockRejectedValue(new Error('corpus down'));
+    deleteOrgObject.mockRejectedValue(new Error('s3 down'));
+    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    const { releaseUnbacked } = await wiredReleases(sql);
+    const outcome = await releaseUnbacked(['s3:org-1/mail/orphan.pdf']);
+    // The bytes stay with the row, for a retry that releases both.
+    expect(outcome.failures).toEqual([
+      {
+        ref: 's3:org-1/mail/orphan.pdf',
+        stage: 'corpus',
+        message: 'corpus down',
+      },
+    ]);
+    expect(deleteOrgObject).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('logs a re-queue that fails and hands the outcome on, for the pass to go on', async () => {
+    deleteOrgObject.mockRejectedValue(new Error('s3 down'));
+    addJobInTx.mockRejectedValueOnce(new Error('queue down'));
+    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    const { releaseUnbacked } = await wiredReleases(sql);
+    const outcome = await releaseUnbacked(['s3:org-1/mail/orphan.pdf']);
+    expect(outcome.failures).toHaveLength(1);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (blob): s3 down',
+      '[knowledge] could not re-queue a byte release for org org-1 (refs=1), their bytes stay:',
+    ]);
+  });
+
+  it('queues the bytes it could not delete in jobs of at most 500 refs', async () => {
+    deleteOrgObject.mockRejectedValue(new Error('s3 down'));
+    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    const { releaseUnbacked } = await wiredReleases(sql);
+    const refs = Array.from(
+      { length: 501 },
+      (_, at) => `s3:org-1/mail/orphan-${String(at).padStart(3, '0')}.pdf`,
+    );
+    await releaseUnbacked(refs);
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => ({
+        name,
+        refs: (payload as { refs: string[] }).refs,
+      })),
+    ).toEqual([
+      { name: 'knowledge.release_refs', refs: refs.slice(0, 500) },
+      { name: 'knowledge.release_refs', refs: refs.slice(500) },
+    ]);
   });
 
   it('logs each failed release of either walk', async () => {
@@ -232,6 +317,31 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
       '[knowledge] reconcile release failed for s3:org-1/mail/cv.pdf (corpus): corpus down',
       '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (corpus): corpus down',
     ]);
+  });
+
+  it('queues the release job for bytes the blob walk could not delete, its corpus-stage failures aside', async () => {
+    // The blob walk lists corpus refs: once a dead ref's rows are gone it is
+    // never listed again, so bytes it failed to delete would stay for good.
+    listKnowledgeDocumentRefs.mockResolvedValueOnce([
+      's3:org-1/docs/rotated.pdf',
+    ]);
+    deleteOrgObject.mockRejectedValue(new Error('s3 down'));
+    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    await runCorpusReconcile(sql);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(sql, 'knowledge.release_refs', {
+      organizationId: 'org-1',
+      refs: ['s3:org-1/docs/rotated.pdf'],
+    });
+
+    // A failed corpus delete keeps the row, which the next night lists.
+    addJobInTx.mockClear();
+    listKnowledgeDocumentRefs.mockResolvedValueOnce([
+      's3:org-1/docs/rotated.pdf',
+    ]);
+    deleteKnowledgeDocumentsBatch.mockRejectedValue(new Error('corpus down'));
+    await runCorpusReconcile(sql);
+    expect(addJobInTx).not.toHaveBeenCalled();
   });
 
   it('keeps going for the next organization when one pass fails', async () => {
