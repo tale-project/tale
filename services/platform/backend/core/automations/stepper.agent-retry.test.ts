@@ -180,6 +180,43 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     expect(cursor).not.toHaveProperty('credentialRotations');
   });
 
+  it('carries a progress reset across a free rotation into the next ordinary retry', async () => {
+    const rotated = harness(
+      parkedAttempt({
+        attempt: AUTO_RETRY_MAX_ATTEMPTS,
+        launchedAt: Date.now() - 20 * 60_000,
+        result: {
+          errored: true,
+          failureCode: 'credential_rotated',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    await stepRunImpl(rotated.ctx, RUN);
+    expect(rotated.kicks).toHaveLength(1);
+    const continued = parkedCursor(rotated.suspended);
+    expect(continued).toMatchObject({ attempt: 0, credentialRotations: 1 });
+
+    const failed = harness(
+      parkedAttempt({
+        ...continued,
+        launchedAt: Date.now() - 60_000,
+        result: {
+          errored: true,
+          failureCode: 'harness_error',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    await stepRunImpl(failed.ctx, RUN);
+    expect(failed.kicks).toHaveLength(1);
+    expect(parkedCursor(failed.suspended)).toMatchObject({ attempt: 1 });
+  });
+
   it('fails the run once the budget is spent on ordinary failures', async () => {
     const { ctx, kicks, finished } = harness(
       parkedAttempt({

@@ -171,10 +171,11 @@ export interface WorkflowAgentRetryPlan {
  * unless the attempt executed past the progress threshold — and burns its
  * broker account. A credential rotation — the broker refreshed the account
  * under the turn — is free up to `CREDENTIAL_ROTATION_FREE_RETRIES` in a row:
- * the attempt number stays, the account stays in the pool, since it holds a
- * fresh token. A rotation after a quarter of an hour of work starts a new
- * streak; the third short one in a row takes the ordinary path, so a grant
- * that is truly dead cannot loop.
+ * the attempt number stays unless progress resets the budget, and the
+ * account stays in the pool, since it holds a fresh token. A rotation after
+ * a quarter of an hour of work also starts a new rotation streak; the third
+ * short one in a row takes the ordinary path, so a grant that is truly dead
+ * cannot loop.
  */
 export function planWorkflowAgentRetry(
   parked: WorkflowAgentAttempt,
@@ -195,7 +196,9 @@ export function planWorkflowAgentRetry(
   ) {
     return {
       retry: true,
-      attempt,
+      // Progress resets the ordinary budget even when the interruption
+      // itself is free; a later short failure gets the full allowance.
+      attempt: executedMs >= AUTO_RETRY_PROGRESS_MS ? 0 : attempt,
       burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
       credentialRotations,
     };

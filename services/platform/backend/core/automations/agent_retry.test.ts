@@ -154,6 +154,25 @@ describe('planWorkflowAgentRetry', () => {
     expect(plans[2]?.burnedBrokerTokenHashes).toEqual(['account-a']);
   });
 
+  it('restores the ordinary retry allowance when a free rotation follows sustained work', () => {
+    const rotated = planWorkflowAgentRetry(
+      { attempt: AUTO_RETRY_MAX_ATTEMPTS, launchedAt: LONG },
+      'credential_rotated',
+      NOW,
+    );
+    let parked: WorkflowAgentAttempt = {
+      ...rotated,
+      launchedAt: SHORT,
+    };
+    const retries = [];
+    for (let index = 0; index <= AUTO_RETRY_MAX_ATTEMPTS; index += 1) {
+      const plan = planWorkflowAgentRetry(parked, 'harness_error', NOW);
+      retries.push(plan.retry);
+      parked = { ...plan, launchedAt: SHORT };
+    }
+    expect(retries).toEqual([true, true, true, false]);
+  });
+
   it('starts a new rotation streak after progress or any other failure', () => {
     expect(
       planWorkflowAgentRetry(
@@ -165,7 +184,7 @@ describe('planWorkflowAgentRetry', () => {
         'credential_rotated',
         NOW,
       ),
-    ).toMatchObject({ retry: true, attempt: 2, credentialRotations: 1 });
+    ).toMatchObject({ retry: true, attempt: 0, credentialRotations: 1 });
     expect(
       planWorkflowAgentRetry(
         {
