@@ -226,6 +226,23 @@ describe('app automation door — runs follow the project read rule', () => {
     expect(response.status).toBe(404);
     expect(store.beginRun).not.toHaveBeenCalled();
   });
+
+  it('refuses a missing question without opening an unscoped answer race', async () => {
+    store.getAskRunId.mockResolvedValue(null);
+    const response = await post('/asks/new-question/answer', { answer: 'yes' });
+    expect(response.status).toBe(404);
+    expect(store.answerAsk).not.toHaveBeenCalled();
+  });
+
+  it('carries readable projects into admission when the request omits its project', async () => {
+    store.beginRun.mockResolvedValue({ runId: 'r-new', version: 1 });
+    const response = await post('/ops/sync/start', { mode: 'mock' });
+    expect(response.status).toBe(201);
+    expect(store.beginRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ visibleProjectIds: [SHARED] }),
+    );
+  });
 });
 
 describe('app automation door — bindings name readable projects only', () => {

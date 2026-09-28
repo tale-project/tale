@@ -16,7 +16,7 @@ vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
 import { beginRun, setAutomationProjects } from './store.ts';
 
-function fakeStore(options: { archivedAt: number | null }) {
+function fakeStore(options: { archivedAt: number | null; bound?: boolean }) {
   const writes: string[] = [];
   const tag = async (strings: TemplateStringsArray) => {
     const text = strings.join('?');
@@ -26,7 +26,8 @@ function fakeStore(options: { archivedAt: number | null }) {
     if (text.includes('FROM app.automations')) {
       return [{ document: {}, createdAt: 1 }];
     }
-    if (text.includes('FROM app.automation_project_bindings')) return [];
+    if (text.includes('FROM app.automation_project_bindings'))
+      return options.bound ? [{ projectId: 'p-1' }] : [];
     if (text.includes('FROM app.projects')) {
       return [{ id: 'p-1', archivedAt: options.archivedAt }];
     }
@@ -99,5 +100,15 @@ describe('beginRun with a projectId', () => {
       version: 1,
     });
     expect(fake.writes).toContain('INSERT INTO app.automation_runs');
+  });
+
+  it('also refuses an archived project inferred from its sole binding', async () => {
+    const fake = fakeStore({ archivedAt: 1, bound: true });
+    const { projectId: _projectId, ...unscoped } = args;
+    await expect(beginRun(fake.sql, unscoped)).rejects.toMatchObject({
+      code: 'PROJECT_ARCHIVED',
+      status: 403,
+    });
+    expect(fake.writes).toEqual([]);
   });
 });

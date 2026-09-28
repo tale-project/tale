@@ -268,13 +268,21 @@ export function pgAutomationStore(
     // The deployed version and the installations ride along: `latest` alone
     // hid whether an automation was live at all, and the bindings are the
     // one thing a caller needs to start a project-bound automation.
-    list: async () =>
-      (await listAutomations(sql, organizationId)).map((row) => ({
+    list: async () => {
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        'membership',
+      );
+      const visible = new Set(await readableProjectIds(sql, auth));
+      return (await listAutomations(sql, organizationId)).map((row) => ({
         name: row.name,
         latest: row.latestVersion,
         deployedVersion: row.deployedVersion,
-        projectIds: row.projectIds,
-      })),
+        projectIds: row.projectIds.filter((id) => visible.has(id)),
+      }));
+    },
     get: async (name, version) => {
       const row = await versionRow(sql, organizationId, name, version);
       return row

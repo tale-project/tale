@@ -1648,6 +1648,10 @@ export interface BeginRunArgs {
   requireOrgScope?: boolean;
   /** A token authorizes installed projects, not arbitrary same-org projects. */
   requireProjectBinding?: boolean;
+  /** The app member's readable projects. Check the resolved binding inside
+   * admission too: omitting projectId must not infer a hidden project, nor
+   * start an organization run able to operate in hidden bound projects. */
+  visibleProjectIds?: string[];
 }
 
 /** The same project admission for durable and in-process run artifacts.
@@ -1662,9 +1666,17 @@ export async function resolveRunProject(
     | 'projectId'
     | 'requireOrgScope'
     | 'requireProjectBinding'
+    | 'visibleProjectIds'
   >,
 ): Promise<string | null> {
   const bindings = await bindingProjectIds(sql, args.organizationId, args.name);
+  if (args.visibleProjectIds !== undefined) {
+    const visible = new Set(args.visibleProjectIds);
+    const selected = args.projectId === undefined ? bindings : [args.projectId];
+    if (selected.some((id) => !visible.has(id))) {
+      throw new AutomationError('PROJECT_NOT_FOUND', 'Project not found.', 404);
+    }
+  }
   if (
     args.requireOrgScope === true &&
     (args.projectId !== undefined || bindings.length > 0)
@@ -1675,10 +1687,12 @@ export async function resolveRunProject(
       409,
     );
   }
-  if (args.projectId !== undefined) {
+  const projectId =
+    args.projectId ?? (bindings.length === 1 ? bindings[0] : undefined);
+  if (projectId !== undefined) {
     const owned = await sql<{ id: string; archivedAt: number | null }[]>`
       SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
-      WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+      WHERE org_id = ${args.organizationId} AND id = ${projectId}
       LIMIT 1
     `;
     const project = owned[0];
@@ -1701,7 +1715,7 @@ export async function resolveRunProject(
     }
     if (
       (args.requireProjectBinding === true || bindings.length > 0) &&
-      !bindings.includes(args.projectId)
+      !bindings.includes(projectId)
     ) {
       // Static, like every refusal a task door relays: the name is what the
       // caller sent (a task start's `workflowSlug`) or what a run carries,
@@ -1713,9 +1727,7 @@ export async function resolveRunProject(
       );
     }
   }
-  return (
-    args.projectId ?? (bindings.length === 1 ? (bindings[0] ?? null) : null)
-  );
+  return projectId ?? null;
 }
 
 export async function beginRun(

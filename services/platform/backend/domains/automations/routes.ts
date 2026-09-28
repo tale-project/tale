@@ -249,9 +249,6 @@ export function createAutomationRoutes(deps: {
     if (run === null) return null;
     return (await canReadRun(deps.sql, await projectAuth(c), run)) ? run : null;
   };
-  const projectVisible = async (c: Context<OrgEnv>, projectId: string) =>
-    (await readableProject(deps.sql, await projectAuth(c), projectId)) !== null;
-
   // The APP listing (0.4 wire): deployed-version behaviour fields + scope.
   app.get('/listing', async (c) => {
     const projectId = c.req.query('projectId');
@@ -408,7 +405,7 @@ export function createAutomationRoutes(deps: {
     try {
       const askId = c.req.param('askId');
       const runId = await getAskRunId(deps.sql, c.get('orgId'), askId);
-      if (runId !== null && (await visibleRun(c, runId)) === null) {
+      if (runId === null || (await visibleRun(c, runId)) === null) {
         throw new AutomationError(
           'HUMAN_ASK_NOT_FOUND',
           'this question does not exist',
@@ -421,7 +418,7 @@ export function createAutomationRoutes(deps: {
         answer: body.data.answer,
         answeredBy: c.get('sessionBundle').user.id,
         // Pin the answer to the run whose visibility was just checked.
-        ...(runId !== null ? { runId } : {}),
+        runId,
       });
     } catch (error) {
       return handleError(c, error);
@@ -655,9 +652,13 @@ export function createAutomationRoutes(deps: {
       const denied = requireAuthor(c);
       if (denied) return denied;
     }
+    const visibleProjectIds = await readableProjectIds(
+      deps.sql,
+      await projectAuth(c),
+    );
     if (
       body.data.projectId !== undefined &&
-      !(await projectVisible(c, body.data.projectId))
+      !visibleProjectIds.includes(body.data.projectId)
     ) {
       return c.json({ error: 'PROJECT_NOT_FOUND' }, 404);
     }
@@ -668,6 +669,9 @@ export function createAutomationRoutes(deps: {
         input: body.data.input === undefined ? {} : body.data.input,
         mode,
         startedBy: `user:${c.get('sessionBundle').user.id}`,
+        // Admission checks the binding it actually resolves, including a
+        // sole inferred project and all bindings of an organization run.
+        visibleProjectIds,
         ...(body.data.version !== undefined
           ? { version: body.data.version }
           : {}),
