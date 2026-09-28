@@ -41,20 +41,29 @@ export function useSupportUrl(override?: string): string {
 }
 
 /**
- * `url` with the organization appended as the `organizationId` query
- * parameter, so the support desk knows whose deployment the report came from.
- * An existing query string and fragment are kept; without an organization the
- * URL is returned unchanged.
+ * `url` with the organization as its `organizationId` query parameter, so the
+ * support desk knows whose deployment the report came from. The parameter
+ * goes last, replacing any `organizationId` the URL already carries; the rest
+ * of the query and the fragment are kept as written. Without an organization
+ * the URL is returned unchanged.
  */
 export function supportUrlFor(url: string, organizationId?: string): string {
   if (!organizationId) return url;
   const hashAt = url.indexOf('#');
   const beforeHash = hashAt === -1 ? url : url.slice(0, hashAt);
   const hash = hashAt === -1 ? '' : url.slice(hashAt);
-  const separator = !beforeHash.includes('?')
-    ? '?'
-    : beforeHash.endsWith('?') || beforeHash.endsWith('&')
-      ? ''
-      : '&';
-  return `${beforeHash}${separator}organizationId=${encodeURIComponent(organizationId)}${hash}`;
+  const queryAt = beforeHash.indexOf('?');
+  const path = queryAt === -1 ? beforeHash : beforeHash.slice(0, queryAt);
+  const params =
+    queryAt === -1
+      ? []
+      : beforeHash
+          .slice(queryAt + 1)
+          .split('&')
+          .filter(
+            (param) =>
+              param !== '' && param.split('=', 1)[0] !== 'organizationId',
+          );
+  params.push(`organizationId=${encodeURIComponent(organizationId)}`);
+  return `${path}?${params.join('&')}${hash}`;
 }

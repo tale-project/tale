@@ -88,6 +88,27 @@ describe('supportUrlFor', () => {
     );
   });
 
+  it('replaces an organizationId the page already carries', () => {
+    expect(
+      supportUrlFor(
+        'https://help.example.com/new?organizationId=x&source=tale',
+        'org_1',
+      ),
+    ).toBe('https://help.example.com/new?source=tale&organizationId=org_1');
+    expect(
+      supportUrlFor(
+        'https://help.example.com/?organizationId=x&organizationId=y#top',
+        'org_1',
+      ),
+    ).toBe('https://help.example.com/?organizationId=org_1#top');
+  });
+
+  it('keeps a parameter that only starts with organizationId', () => {
+    expect(
+      supportUrlFor('https://help.example.com/?organizationIds=a', 'org_1'),
+    ).toBe('https://help.example.com/?organizationIds=a&organizationId=org_1');
+  });
+
   it('encodes the organization', () => {
     expect(supportUrlFor('https://help.example.com/', 'a&b=c')).toBe(
       'https://help.example.com/?organizationId=a%26b%3Dc',
