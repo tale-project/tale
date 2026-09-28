@@ -169,6 +169,21 @@ describe('Wizard onBeforeNext', () => {
   });
 });
 
+describe('Wizard progress marks', () => {
+  it("checks a completed step in the accent's text shade on its tint", async () => {
+    // A host's accent (an organization's brand) lands in `--primary` as a
+    // shade legible on its own tint. `accent-base` is a surface held only to
+    // 3:1 on the page, so on its own 15 % tint it can read ≈2.5:1.
+    const { user } = render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Content two');
+
+    const done = screen.getByRole('button', { name: /One/ });
+    expect(done).toHaveClass('bg-primary/15', 'text-primary');
+    expect(done.className).not.toMatch(/\btext-accent-base\b/);
+  });
+});
+
 describe('Wizard accessibility', () => {
   it('has no axe violations and marks the active step', async () => {
     const { container } = render(<Harness />);

@@ -1,4 +1,5 @@
 import type { ColumnDef } from '@tanstack/react-table';
+import { createRef } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { render, screen, within } from '@/tests/utils/render';
@@ -451,6 +452,42 @@ describe('DataTable addAction contract', () => {
       screen.getAllByRole('button', { name: 'New customer' }),
     ).toHaveLength(1);
     expect(screen.getByText('No customers')).toBeInTheDocument();
+  });
+
+  // A dialog opened from the add button hands focus back through this ref, so
+  // it has to follow the button wherever DataTable renders it: the empty state
+  // while there are no rows, the toolbar once there are (a remount).
+  it('points triggerRef at the add button in the empty state and in the toolbar', () => {
+    const triggerRef = createRef<HTMLButtonElement>();
+    const addAction = { triggerRef, label: 'New customer', onClick: vi.fn() };
+    const { rerender } = render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        approxRowCount={0}
+        emptyState={{ title: 'No customers' }}
+        addAction={addAction}
+      />,
+    );
+
+    const inEmptyState = screen.getByRole('button', { name: 'New customer' });
+    expect(screen.getByRole('table')).toContainElement(inEmptyState);
+    expect(triggerRef.current).toBe(inEmptyState);
+
+    rerender(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        approxRowCount={3}
+        emptyState={{ title: 'No customers' }}
+        addAction={addAction}
+      />,
+    );
+
+    const inToolbar = screen.getByRole('button', { name: 'New customer' });
+    expect(screen.getByRole('table')).not.toContainElement(inToolbar);
+    expect(inToolbar).not.toBe(inEmptyState);
+    expect(triggerRef.current).toBe(inToolbar);
   });
 
   describe('row selection', () => {

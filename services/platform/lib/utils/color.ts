@@ -259,6 +259,24 @@ interface AccentPalette {
  * whole HSL parts, so the hex and the `--primary` HSL string name the same
  * color — a rounded HSL string of an arbitrary hex could land below a
  * threshold its hex cleared.
+ *
+ * "The page" is the theme's `--background` ({@link THEME_BACKGROUND}); the
+ * guarantee is judged there and nowhere else. Measured over an 8,000-pick
+ * grid (20 steps a channel), elsewhere it holds as follows:
+ *
+ * - the light `--card` (`#FFFFFF`): everywhere, up to the `/20` hover;
+ * - the dark `--sidebar` and the light `--muted`: plain and up to a selected
+ *   row's `…26` tint, but ≈4.3:1 and ≈4.2:1 under a `/20` hover;
+ * - the dark `--card` (`#171717`, lighter than the page): plain only — a
+ *   hair under it (4.498:1) beneath a `/10` tint, ≈4.2:1 beneath `…26` and
+ *   ≈3.9:1 beneath `/20`;
+ * - the dark `--muted` and `--accent`: not even plain (≈4.0:1 and ≈3.8:1),
+ *   so a `text-primary` row over `hover:bg-accent` reads below 4.5:1 there.
+ *
+ * (The dark `--popover` is the page itself.) Judging the dark walk against
+ * `#171717` instead would lift 57 % of dark text shades, most by 3–6
+ * lightness points (up to 15); against `--muted` or `--accent`, 68–72 %, most
+ * by 8–19 (up to 29). Either is a design call.
  */
 function deriveAccentText(
   hex: string,

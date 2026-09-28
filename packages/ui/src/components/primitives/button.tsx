@@ -25,7 +25,10 @@ export const buttonVariants = cva(
       },
       variant: {
         // The 1px edge is the fill's own colour (the accent, not a fixed
-        // near-black that ringed every branded button in ink). The focus
+        // near-black that ringed every branded button in ink) — in the light
+        // theme: `.dark` sets `--tw-shadow-color` (globals.css), which
+        // recolours every layer of an arbitrary shadow, so there the edge is
+        // the same faint white glow as every other dark shadow. The focus
         // ring stays inset like the highlight it replaces, so it is drawn on
         // the fill — in the fill's ink, the one colour guaranteed to read
         // there; the shared `ring-ring` matched the fill and vanished.

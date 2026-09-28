@@ -72,6 +72,75 @@ describe('ApiKeysTable', () => {
   // — and only there: the empty state used to carry a second, hand-made
   // Create button under the toolbar's own.
   describe('create action', () => {
+    it('withholds the opener until an initially unknown list is known empty', () => {
+      const { rerender } = render(
+        <ApiKeysTable apiKeys={undefined} organizationId="org-1" />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'No API keys yet' }),
+      ).not.toBeInTheDocument();
+
+      rerender(<ApiKeysTable apiKeys={[]} organizationId="org-1" />);
+      const emptyTitle = screen.getByRole('heading', {
+        name: 'No API keys yet',
+      });
+      expect(
+        within(emptyTitle.parentElement as HTMLElement).getByRole('button', {
+          name: 'Create API key',
+        }),
+      ).toBeEnabled();
+    });
+
+    it('offers retry after a failed cold read, then creates from the empty state', async () => {
+      const retry = vi.fn();
+      const { user, rerender } = render(
+        <ApiKeysTable
+          apiKeys={undefined}
+          organizationId="org-1"
+          error={new Error('Initial list unavailable')}
+          onRetry={retry}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(retry).toHaveBeenCalledTimes(1);
+
+      rerender(<ApiKeysTable apiKeys={undefined} organizationId="org-1" />);
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).not.toBeInTheDocument();
+      rerender(<ApiKeysTable apiKeys={[]} organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: 'Create API key' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('keeps the known-empty opener mounted when its refetch fails', () => {
+      const { rerender } = render(
+        <ApiKeysTable apiKeys={[]} organizationId="org-1" />,
+      );
+      const opener = screen.getByRole('button', { name: 'Create API key' });
+      opener.focus();
+
+      rerender(
+        <ApiKeysTable
+          apiKeys={[]}
+          organizationId="org-1"
+          error={new Error('Refresh after creation failed')}
+          onRetry={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('button', { name: 'Create API key' })).toBe(
+        opener,
+      );
+      expect(opener).toHaveFocus();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
     it.each([
       ['with keys', [makeApiKey()]],
       ['when empty', []],
@@ -105,9 +174,10 @@ describe('ApiKeysTable', () => {
         name: 'No API keys yet',
       });
       const emptyState = emptyTitle.parentElement as HTMLElement;
-      expect(
-        within(emptyState).getByRole('button', { name: 'Create API key' }),
-      ).toBeInTheDocument();
+      // Only there: no toolbar button above the empty table as well.
+      expect(screen.getAllByRole('button', { name: 'Create API key' })).toEqual(
+        [within(emptyState).getByRole('button', { name: 'Create API key' })],
+      );
     });
 
     it.each([
@@ -116,7 +186,16 @@ describe('ApiKeysTable', () => {
     ])('links the API docs below the table %s', (_, apiKeys) => {
       render(<ApiKeysTable apiKeys={apiKeys} organizationId="org-1" />);
 
-      expect(screen.getAllByRole('link', { name: 'API docs' })).toHaveLength(1);
+      const links = screen.getAllByRole('link', { name: 'API docs' });
+      expect(links).toHaveLength(1);
+      const link = links[0] as HTMLElement;
+      // Outside the table — so outside the empty state, where it used to sit —
+      // and after it.
+      const table = screen.getByRole('table');
+      expect(table).not.toContainElement(link);
+      expect(
+        table.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
   });
 

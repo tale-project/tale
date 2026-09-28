@@ -19,6 +19,8 @@ import { ApiKeyCreateDialog } from './api-key-create-dialog';
 interface ApiKeysTableProps {
   apiKeys: ApiKey[] | undefined;
   organizationId: string;
+  error?: Error | null;
+  onRetry?: () => void;
 }
 
 function ApiDocsLink() {
@@ -39,7 +41,12 @@ function ApiDocsLink() {
   );
 }
 
-export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
+export function ApiKeysTable({
+  apiKeys,
+  organizationId,
+  error,
+  onRetry,
+}: ApiKeysTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { columns, stickyLayout, pageSize } =
     useApiKeysTableConfig(organizationId);
@@ -67,7 +74,15 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
   // No search box: an org holds a handful of keys, named deliberately —
   // the list is scannable at a glance and a query field would be chrome.
   const list = useListPage<ApiKey>({
-    dataSource: { type: 'query', data: apiKeys },
+    dataSource: {
+      type: 'query',
+      data: apiKeys,
+      // A cold failure needs recovery. A failed refresh of a known-empty
+      // list must keep its Create opener mounted: creation can still reveal
+      // the one-time secret and restore focus there when Done is pressed.
+      error: apiKeys === undefined ? error : null,
+      retry: onRetry,
+    },
     pageSize,
     getRowId: (row) => row.id,
     entityLabel: {
@@ -86,13 +101,18 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
         onRowSelectionChange={setRowSelection}
         // The standard create affordance. With no search box on this table,
         // DataTable puts it in the empty state while there are no keys and in
-        // the toolbar once there are — one Create button either way.
-        addAction={{
-          triggerRef: createTriggerRef,
-          label: tSettings('apiKeys.createKey'),
-          icon: Plus,
-          onClick: () => setCreateOpen(true),
-        }}
+        // the toolbar once there are. Wait for the initial read so a focused
+        // toolbar opener cannot be removed when that read comes back empty.
+        addAction={
+          apiKeys === undefined
+            ? undefined
+            : {
+                triggerRef: createTriggerRef,
+                label: tSettings('apiKeys.createKey'),
+                icon: Plus,
+                onClick: () => setCreateOpen(true),
+              }
+        }
         emptyState={{
           icon: Key,
           title: tEmpty('apiKeys.title'),

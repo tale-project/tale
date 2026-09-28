@@ -77,6 +77,10 @@ describe('SearchableSelect', () => {
         'span[aria-hidden="true"]',
       );
       expect(radioIndicators.length).toBeGreaterThan(0);
+      // The ring and its dot wear the accent (`--primary`), not a fixed blue.
+      const dot = appleOption.querySelector('svg.lucide-circle');
+      expect(dot).toHaveClass('fill-primary', 'text-primary');
+      expect(dot?.parentElement).toHaveClass('border-primary');
     });
 
     it('renders option action when provided', async () => {
@@ -133,6 +137,10 @@ describe('SearchableSelect', () => {
       expect(appleOption.getAttribute('aria-selected')).toBe('true');
       expect(appleOption.className).toContain('bg-muted/60');
       expect(appleOption.querySelector('span.bg-primary')).toBeInTheDocument();
+      // …and leads it with a check in the same accent.
+      expect(appleOption.querySelector('svg.lucide-check')).toHaveClass(
+        'text-primary',
+      );
     });
   });
 

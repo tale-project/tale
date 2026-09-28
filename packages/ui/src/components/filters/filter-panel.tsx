@@ -374,10 +374,8 @@ export function FilterPanel({
                           >
                             <span
                               className={cn(
-                                'flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
-                                isSelected
-                                  ? 'border-primary text-primary'
-                                  : 'border-primary',
+                                'border-primary flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-150',
+                                isSelected && 'text-primary',
                               )}
                               aria-hidden="true"
                             >

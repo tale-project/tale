@@ -70,9 +70,11 @@ import {
 
 /**
  * A task text cap in the house voice, its unit named: every task limit
- * counts UTF-16 code units (`String.length`, most emoji counting 2), as the
- * domain's refusals and the reference state it — not the "characters" the
- * formatter's default sentence claims (the chat `content` cap's J2-1 fix).
+ * counts UTF-16 code units (`String.length`, most emoji counting 2), and
+ * the count prints grouped (`20,000`) as the domain's refusals and the
+ * reference state it. The formatter's default sentence names the same unit
+ * now (`describeQuantity`), but it said "characters" when this was written
+ * (the chat `content` cap's J2-1 fix) and prints the count ungrouped.
  */
 function atMostTaskLimit(max: number): string {
   return `must be at most ${taskLimitText(max)}`;

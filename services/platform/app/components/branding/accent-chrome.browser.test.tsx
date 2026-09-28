@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { FilterButton } from '@tale/ui/filters/filter-button';
 import { SubPanelRowLink } from '@tale/ui/sub-panel-list';
 import { ThemeContext } from '@tale/ui/theme';
 import type { AnchorHTMLAttributes, ReactNode } from 'react';
@@ -20,9 +21,9 @@ import '@/app/globals.css';
  * The accent audit (TALE-8), kept: an organization's accent painted by a
  * real browser into the chrome that carries it, for picks that each broke
  * something — a near-white, a near-black navy and a mid-tone magenta — in
- * both themes. Unread dots wear the accent rather than a fixed blue, and
- * where the accent is the ink itself (a citation, the open row) it reads at
- * 4.5:1 on the tint behind it.
+ * both themes. Unread and active-filter dots wear the accent rather than a
+ * fixed blue, and where the accent is the ink itself (a citation, the open
+ * row) it reads at 4.5:1 on the tint behind it.
  */
 
 const org = vi.hoisted(() => ({ accent: '#FF00FF' }));
@@ -88,6 +89,7 @@ function Chrome({ theme }: { theme: 'light' | 'dark' }) {
               { view: 'chats', attention: 2 },
             ]}
           />
+          <FilterButton hasActiveFilters onClick={() => {}} />
           <NotificationRow
             title="Review requested"
             body="Ada asked you to review a task."
@@ -126,11 +128,15 @@ describe.each(['#F5F5F0', '#0B0B2A', '#FF00FF'])('accent %s', (accent) => {
         getComputedStyle(screen.getByTestId('page')).backgroundColor,
       );
 
-      // Unread dots: the Home switcher's attention mark and a notification's.
+      // Accent dots: the Home switcher's attention mark, a notification's
+      // unread mark and the filter button's active-filter mark.
       const chats = screen.getByRole('radio', { name: /Chats/ });
       const attention = chats.querySelector('.rounded-full');
       const unread = screen.getByText('Unread').nextElementSibling;
-      for (const dot of [attention, unread]) {
+      const filtered = screen
+        .getByRole('button', { name: 'Filter' })
+        .querySelector('[data-slot="active-filter-dot"]');
+      for (const dot of [attention, unread, filtered]) {
         expect(dot).toBeInstanceOf(HTMLElement);
         expect(
           painted(getComputedStyle(dot as HTMLElement).backgroundColor),

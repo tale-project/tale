@@ -55,6 +55,18 @@ describe('primary Button chrome', () => {
     expect(layers).not.toContain('rgb(3, 7, 18) 0px 0px 0px 1px');
   });
 
+  it('leaves the rim to the faint white of every dark-theme shadow', () => {
+    // `.dark` sets `--tw-shadow-color`, which recolours each layer of an
+    // arbitrary shadow: the accent rim is a light-theme edge only.
+    document.documentElement.classList.add('dark');
+    brand('#ff00ff', '#030712');
+    render(<Button>Save</Button>);
+
+    const layers = shadowLayers(screen.getByRole('button', { name: 'Save' }));
+    expect(layers).toContain('rgba(255, 255, 255, 0.06) 0px 0px 0px 1px');
+    expect(layers).not.toContain('rgb(255, 0, 255) 0px 0px 0px 1px');
+  });
+
   describe.each([
     ['light', undefined],
     ['dark', undefined],
