@@ -27,6 +27,7 @@ export default defineConfig({
   optimizeDeps: {
     entries: ['**/*.browser.test.{ts,tsx}'],
     include: [
+      '@milkdown/kit/plugin/listener',
       '@radix-ui/react-toast',
       '@radix-ui/react-toggle-group',
       '@sentry/browser',
