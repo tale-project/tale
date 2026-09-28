@@ -58,10 +58,21 @@ const USAGE_AVAILABILITY_MAX_AGE_MS = 15 * 60 * 1000;
  * outage) are revoked together, and stay together: each refresh restarts the
  * same lifetime. Each account instead plans its refresh earlier by its own
  * share of this spread, so accounts refreshed together fall due at different
- * moments and — each on a cycle of its own length — do not fall back into
- * step.
+ * moments and, each on a cycle of its own length, do not stay in step: they
+ * meet again only by chance, and `REFRESH_SPACING_MS` keeps those apart.
  */
 const REFRESH_SPREAD_SHARE = 0.5;
+
+/**
+ * The least time between two refreshes of one vendor's accounts. The spread
+ * keeps accounts out of step, but accounts on cycles of different lengths
+ * still fall due together now and then — and the first pass after an outage
+ * or an upgrade finds many due at once. Spacing their refreshes keeps one
+ * moment from ending the running work of two accounts. A due account waits
+ * for its turn only until its skew point: past it, its own token is about to
+ * expire and the refresh cannot wait.
+ */
+const REFRESH_SPACING_MS = 10 * 60 * 1000;
 
 /**
  * Where in the refresh spread an account falls: a fraction in [0, 1) read
@@ -157,9 +168,9 @@ export interface TokenHandout {
   usage: StoredAccount['usage'];
   /**
    * Whether the account may be handed to new work: false while a fresh
-   * reading shows its quota spent, or while an active account's token is
-   * closer to its planned refresh than the hand-out floor. Status is a
-   * separate check.
+   * reading shows its quota spent, or while its token is closer to its
+   * planned refresh than the hand-out floor and another account of the
+   * vendor can take the work instead. Status is a separate check.
    */
   available: boolean;
   /**
@@ -186,6 +197,48 @@ function combineAvailability(...parts: Availability[]): Availability {
       ? new Date(Math.max(...lifts)).toISOString()
       : null,
   };
+}
+
+/** One account of a hand-out, before the pool settles its floor. */
+interface AssessedHandout {
+  handout: Omit<TokenHandout, 'available' | 'availableAt'>;
+  quota: Availability;
+  lifetime: Availability;
+  refreshAtMs: number | null;
+}
+
+/**
+ * The hand-out floor holds an account back only while another account of
+ * its vendor can take new work — an active one whose quota and planned
+ * refresh both allow it. When none can, the held-back account with the
+ * latest planned refresh, the most life left, is handed out anyway: a turn
+ * the refresh may cut, and that then resumes on a fresh token, beats a pool
+ * that refuses all work until the refresh lands. A pool of one account is
+ * never held back by the floor.
+ */
+function releaseLastServable(entries: readonly AssessedHandout[]): void {
+  const byVendor = new Map<ProviderId, AssessedHandout[]>();
+  for (const entry of entries) {
+    const group = byVendor.get(entry.handout.provider) ?? [];
+    group.push(entry);
+    byVendor.set(entry.handout.provider, group);
+  }
+  for (const group of byVendor.values()) {
+    const servable = group.filter(
+      (entry) => entry.handout.status === 'active' && entry.quota.available,
+    );
+    if (servable.some((entry) => entry.lifetime.available)) continue;
+    let best: AssessedHandout | undefined;
+    for (const entry of servable) {
+      if (
+        best === undefined ||
+        (entry.refreshAtMs ?? -Infinity) > (best.refreshAtMs ?? -Infinity)
+      ) {
+        best = entry;
+      }
+    }
+    if (best !== undefined) best.lifetime = AVAILABLE;
+  }
 }
 
 function quotaAvailability(
@@ -361,6 +414,10 @@ export function createAccountService(
   const readingUsage = new Map<string, Promise<StoredAccount>>();
   /** When each account's last refresh failed for a reason that passes. */
   const refreshFailedAt = new Map<string, number>();
+  /** Refreshes in flight, and when the vendor last answered one, by vendor:
+   * what `REFRESH_SPACING_MS` counts from. */
+  const vendorRefreshing = new Map<ProviderId, number>();
+  const vendorRefreshedAt = new Map<ProviderId, number>();
 
   /** When the account's current access token was issued, if known. */
   function issuedAtMs(account: StoredAccount): number {
@@ -404,12 +461,13 @@ export function createAccountService(
   }
 
   /**
-   * The hand-out floor: an active account whose planned refresh is closer
-   * than `tokenMinHandoutSeconds` waits for that refresh instead of handing
-   * out a token the refresh would end mid-work. A token whose whole planned
-   * life is shorter than the floor is handed out until its refresh is due —
-   * the next one would be no longer, and holding them all back would retire
-   * the account. An overdue refresh still withholds it until renewal.
+   * The hand-out floor: an account whose planned refresh is closer than
+   * `tokenMinHandoutSeconds` waits for that refresh instead of handing out a
+   * token the refresh would end mid-work — unless no other account of the
+   * vendor can serve (`releaseLastServable`). A token whose whole planned
+   * life is shorter than the floor is handed out until its refresh is due:
+   * the next one would be no longer. An `expired` account is left to its status, which already
+   * says it cannot serve.
    */
   function lifetimeAvailability(
     account: StoredAccount,
@@ -419,7 +477,7 @@ export function createAccountService(
     const refreshAt = plannedRefreshMs(account);
     if (
       floorMs <= 0 ||
-      account.status !== 'active' ||
+      account.status === 'expired' ||
       refreshAt === null ||
       refreshAt - nowMs >= floorMs ||
       (refreshAt > nowMs && refreshAt - issuedAtMs(account) <= floorMs)
@@ -433,8 +491,28 @@ export function createAccountService(
   }
 
   /**
+   * Whether a due refresh waits for its turn: another account of the vendor
+   * is being refreshed, or was moments ago (`REFRESH_SPACING_MS`). Never past
+   * the skew point, and never for a token with no stated expiry.
+   */
+  function waitsForSpacing(account: StoredAccount, nowMs: number): boolean {
+    const refreshedAt = vendorRefreshedAt.get(account.provider);
+    const busy =
+      (vendorRefreshing.get(account.provider) ?? 0) > 0 ||
+      (refreshedAt !== undefined && nowMs - refreshedAt < REFRESH_SPACING_MS);
+    if (!busy) return false;
+    const expiresAt = account.expiresAt
+      ? Date.parse(account.expiresAt)
+      : Number.NaN;
+    return (
+      Number.isFinite(expiresAt) &&
+      expiresAt - options.tokenRefreshSkewSeconds * 1000 > nowMs
+    );
+  }
+
+  /**
    * Refresh the access token when its planned refresh has come, or it is
-   * gone.
+   * gone — one account of a vendor at a time (`waitsForSpacing`).
    *
    * Both vendors ROTATE the refresh token: every refresh answers a new one
    * and retires the old. So a refresh never runs twice for one account at
@@ -453,8 +531,14 @@ export function createAccountService(
     if (!needsRefresh(account)) return Promise.resolve(account);
     const inFlight = refreshing.get(account.id);
     if (inFlight) return inFlight;
+    if (waitsForSpacing(account, now().getTime())) {
+      return Promise.resolve(account);
+    }
+    const vendor = account.provider;
+    vendorRefreshing.set(vendor, (vendorRefreshing.get(vendor) ?? 0) + 1);
     const run = refreshStored(account).finally(() => {
       refreshing.delete(account.id);
+      vendorRefreshing.set(vendor, (vendorRefreshing.get(vendor) ?? 1) - 1);
     });
     refreshing.set(account.id, run);
     return run;
@@ -470,6 +554,8 @@ export function createAccountService(
       const exchange = await providerFor(account).refresh(
         cipher.open(account.refreshToken),
       );
+      // The vendor has answered — and revoked the token it replaced.
+      vendorRefreshedAt.set(account.provider, now().getTime());
       refreshFailedAt.delete(account.id);
       const updated = await store.updateAccount(account.id, (row) => {
         // Reauthorization may have replaced this grant while the vendor was
@@ -1084,8 +1170,8 @@ export function createAccountService(
       const accounts = (await store.listAccounts()).filter(
         (account) => provider === undefined || account.provider === provider,
       );
-      const handouts = await Promise.all(
-        accounts.map(async (account): Promise<TokenHandout | null> => {
+      const assessed = await Promise.all(
+        accounts.map(async (account): Promise<AssessedHandout | null> => {
           // Keep token rotation independent of an already-running usage read.
           // Once it finishes, use the stored row so neither an old token nor a
           // concurrently removed account can escape from a held snapshot.
@@ -1107,31 +1193,36 @@ export function createAccountService(
             return null;
           }
           const nowMs = now().getTime();
-          const { available, availableAt } = combineAvailability(
-            quotaAvailability(fresh.usage, nowMs),
-            lifetimeAvailability(fresh, nowMs),
-          );
-          const refreshAt = plannedRefreshMs(fresh);
+          const refreshAtMs = plannedRefreshMs(fresh);
           return {
-            id: fresh.id,
-            provider: fresh.provider,
-            label: fresh.label,
-            accountEmail: fresh.accountEmail,
-            accountId: fresh.accountId,
-            status: fresh.status,
-            accessToken,
-            expiresAt: fresh.expiresAt,
-            refreshAt:
-              refreshAt === null ? null : new Date(refreshAt).toISOString(),
-            scopes: fresh.scopes,
-            usage: fresh.usage,
-            available,
-            availableAt,
+            handout: {
+              id: fresh.id,
+              provider: fresh.provider,
+              label: fresh.label,
+              accountEmail: fresh.accountEmail,
+              accountId: fresh.accountId,
+              status: fresh.status,
+              accessToken,
+              expiresAt: fresh.expiresAt,
+              refreshAt:
+                refreshAtMs === null
+                  ? null
+                  : new Date(refreshAtMs).toISOString(),
+              scopes: fresh.scopes,
+              usage: fresh.usage,
+            },
+            quota: quotaAvailability(fresh.usage, nowMs),
+            lifetime: lifetimeAvailability(fresh, nowMs),
+            refreshAtMs,
           };
         }),
       );
-      return handouts.filter(
-        (handout): handout is TokenHandout => handout !== null,
+      const pool = assessed.filter(
+        (entry): entry is AssessedHandout => entry !== null,
+      );
+      releaseLastServable(pool);
+      return pool.map(({ handout, quota, lifetime }) =>
+        Object.assign(handout, combineAvailability(quota, lifetime)),
       );
     },
   };

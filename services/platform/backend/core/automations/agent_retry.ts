@@ -196,8 +196,8 @@ export function planWorkflowAgentRetry(
   ) {
     return {
       retry: true,
-      // Progress resets the ordinary budget even when the interruption
-      // itself is free; a later short failure gets the full allowance.
+      // Work past the progress threshold refreshes the budget, as it does
+      // for any failure — and the free re-kick then spends none of it.
       attempt: executedMs >= AUTO_RETRY_PROGRESS_MS ? 0 : attempt,
       burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
       credentialRotations,

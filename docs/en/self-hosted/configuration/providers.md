@@ -164,11 +164,10 @@ The following example is the broker credential document built by the [AI provide
     "tokenField": "access_token",
     "statusField": "status",
     "activeValue": "active",
-    "expiresField": "refresh_at"
+    "expiresField": "expires_at"
   },
   "targetEnvVar": "CLAUDE_CODE_OAUTH_TOKEN",
-  "selection": "round-robin",
-  "expirySkewMs": 0
+  "selection": "round-robin"
 }
 ```
 
@@ -186,7 +185,7 @@ Alongside the mapped token, status and expiry fields, a broker may provide these
 | `provider` | Provider identifier |
 | `account_id` | Vendor account identifier |
 | `available` | Availability for new work |
-| `available_at` | Quota reset time |
+| `available_at` | Time it becomes available again |
 | `usage` | Usage snapshot |
 
 Keep `id` stable when the account's access token rotates, so retries recognize the same account. It is distinct from the vendor's `account_id` required by OpenAI. If `provider` names a different provider than the credential, the item is excluded.
@@ -195,7 +194,7 @@ Keep `id` stable when the account's access token rotates, so retries recognize t
 
 Older brokers can omit the optional metadata. Without `id`, retry identity falls back to a hash of the token, so it cannot recognize an account after its token changes. Missing quota information leaves an account eligible; it does not establish that quota remains.
 
-Tale AI gateway excludes an account when a fresh usage snapshot reports a global session or weekly window at 100% and its reset has not passed. A vendor's explicit limit signal (`usage.limited: true`) also makes the account unavailable, even when its displayed utilization is lower or missing. Model-specific limits do not exclude the whole account. Usage is considered stale after 15 minutes, so unknown or stale readings leave the account eligible; an exhausted window with no reset time is held only while its reading is fresh. The next token request refreshes stale usage where the vendor supports it. After the applicable reset, the account can rejoin the pool. Provider-side rejection is still possible between usage refreshes. The gateway also withholds an account when its planned token refresh, `refresh_at`, is less than the configured minimum remaining lifetime away (one hour by default). Tokens whose entire planned lifetime is shorter remain usable until their refresh is due, since withholding every replacement would make the account unusable. The operator can adjust or disable this minimum.
+Tale AI gateway excludes an account when a fresh usage snapshot reports a global session or weekly window at 100% and its reset has not passed. A vendor's explicit limit signal (`usage.limited: true`) also makes the account unavailable, even when its displayed utilization is lower or missing. Model-specific limits do not exclude the whole account. Usage is considered stale after 15 minutes, so unknown or stale readings leave the account eligible; an exhausted window with no reset time is held only while its reading is fresh. The next token request refreshes stale usage where the vendor supports it. After the applicable reset, the account can rejoin the pool. Provider-side rejection is still possible between usage refreshes. The gateway also reports an account as unavailable until its planned token refresh, `refresh_at`, once that refresh is less than an hour away (its default hand-out floor) and another account can take the work. A turn therefore starts on a token that is about to be revoked only when the pool has nothing better, and a pool of one account is never held back this way.
 
 ### Selection and recovery
 
@@ -205,7 +204,7 @@ When an account returns HTTP 429, Tale excludes it from new selections for this 
 
 An HTTP 401 during a turn served by a broker token can mean the token rotated while the agent worked. Tale requests credentials from the broker again and resumes the conversation when its handle and sandbox session remain available; otherwise it starts a fresh turn. The first two consecutive interruptions of this kind do not spend an automatic retry or exclude the account, so a replacement token on the same account can be used. A third counts like any other failure. This bound also handles a 401 caused by invalid authorization rather than rotation. An interruption after at least fifteen minutes of work starts the count again.
 
-Unless overridden, pool requests time out after 10 seconds and accept at most 262,144 bytes. A mapped token expiry must be further away than the expiry safety margin, `expirySkewMs`, which defaults to five minutes. With Tale AI gateway, retain the status mapping, map `refresh_at` as the expiry and set `expirySkewMs` to `0`. The gateway's `available` metadata already applies its configured minimum remaining lifetime, including the short-lived-token exception. Adding another margin here would defeat that exception. The expiry mapping still rejects tokens whose planned refresh is due. Expiry values may be ISO timestamps or Unix timestamps in seconds or milliseconds.
+Unless overridden, pool requests time out after 10 seconds and accept at most 262,144 bytes. A mapped token expiry must be further away than the expiry safety margin, `expirySkewMs`, which defaults to five minutes. Keep the status and expiry mappings when using Tale AI gateway so inactive or nearly expired tokens are skipped; its own hand-out floor already holds back accounts that are about to be refreshed. The gateway's `refresh_at` field is the moment its refresh ends a token, earlier than the vendor's `expires_at`. Mapping `refresh_at` as the expiry and raising `expirySkewMs` (at most 3,600,000 ms) makes that rule strict: no turn starts on a token with less than the margin left, but while every account is that close to its refresh, the pool refuses new work, and a pool of one account does so before every refresh. Expiry values may be ISO timestamps or Unix timestamps in seconds or milliseconds.
 
 The minimum remaining lifetime protects the start of a turn, not its full length. Long task or automation runs can outlast a token and need the bounded recovery described above. A broker retry does not guarantee that the account will provide working credentials.
 

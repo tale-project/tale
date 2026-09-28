@@ -201,9 +201,9 @@ describe('diagnoseTokenMapping', () => {
   });
 
   it('drops a Tale AI gateway token inside the hand-out floor when refresh_at is the mapped expiry', () => {
-    // The documented mapping: `refresh_at` — when the gateway's refresh
-    // revokes the token — with a safety margin of the gateway's hour-long
-    // floor. The vendor's later `expires_at` no longer decides.
+    // The strict mapping the broker reference describes: `refresh_at` —
+    // when the gateway's refresh revokes the token — with an hour's safety
+    // margin. The vendor's later `expires_at` no longer decides.
     const HOUR = 3_600_000;
     const diagnostics = diagnoseTokenMapping(
       pool([

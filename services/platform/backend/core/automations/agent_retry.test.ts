@@ -174,10 +174,13 @@ describe('planWorkflowAgentRetry', () => {
   });
 
   it('starts a new rotation streak after progress or any other failure', () => {
+    // Two hours of work, then the broker's refresh: the progress refreshes
+    // the budget and the free re-kick spends none of it — never worse than
+    // the same attempt failing any other way (which parks under attempt 1).
     expect(
       planWorkflowAgentRetry(
         {
-          attempt: 2,
+          attempt: AUTO_RETRY_MAX_ATTEMPTS,
           launchedAt: LONG,
           credentialRotations: CREDENTIAL_ROTATION_FREE_RETRIES,
         },
