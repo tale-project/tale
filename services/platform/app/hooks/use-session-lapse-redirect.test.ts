@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ getSession: vi.fn() }));
@@ -61,14 +61,17 @@ afterEach(() => {
 });
 
 describe('useSessionLapseRedirect', () => {
-  it('takes the tab to sign-in once Better Auth confirms nobody is signed in', async () => {
+  it('asks before taking the tab to sign-in after Better Auth confirms nobody is signed in', async () => {
     h.getSession.mockResolvedValue({ data: null, error: null });
-    renderHook(() => useSessionLapseRedirect(true));
+    const { result } = renderHook(() => useSessionLapseRedirect(true));
 
     await requestAfterTheSessionEnded();
 
+    await waitFor(() => expect(result.current.open).toBe(true));
+    expect(page.href).not.toContain('/log-in');
+    act(() => result.current.continueToLogIn());
     await waitFor(() => expect(page.href).toBe(SIGN_IN));
-    expect(h.getSession).toHaveBeenCalledTimes(1);
+    expect(h.getSession).toHaveBeenCalledTimes(2);
   });
 
   // A request that raced a session rotation (a TOTP verify replaces the
@@ -196,17 +199,67 @@ describe('useSessionLapseRedirect', () => {
 
   // The unsaved-changes prompt can call a leave off; the tab then stays, and
   // a later lapsed-session answer still leads to sign-in.
-  it('redirects again once a leave that was called off is past', async () => {
+  it('asks again once a leave that was called off is past', async () => {
     const realNow = Date.now.bind(Date);
     let later = 0;
     vi.spyOn(Date, 'now').mockImplementation(() => realNow() + later);
     h.getSession.mockResolvedValue({ data: null, error: null });
-    renderHook(() => useSessionLapseRedirect(true));
+    const { result } = renderHook(() => useSessionLapseRedirect(true));
 
     window.dispatchEvent(new Event('beforeunload'));
     later = 10_001;
     await requestAfterTheSessionEnded();
 
+    await waitFor(() => expect(result.current.open).toBe(true));
+    expect(page.href).not.toContain('/log-in');
+  });
+
+  it('clears an obsolete confirmation when explicit sign-in finds a restored session', async () => {
+    h.getSession
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null });
+    const { result } = renderHook(() => useSessionLapseRedirect(true));
+    await requestAfterTheSessionEnded();
+    await waitFor(() => expect(result.current.open).toBe(true));
+    act(() => result.current.continueToLogIn());
+    await waitFor(() => expect(result.current.isLapsed).toBe(false));
+    expect(page.href).not.toContain('/log-in');
+  });
+
+  it('keeps a failed explicit recheck retryable without leaving', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    h.getSession
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: { status: 503 } })
+      .mockResolvedValue({ data: null, error: null });
+    const { result } = renderHook(() => useSessionLapseRedirect(true));
+    await requestAfterTheSessionEnded();
+    await waitFor(() => expect(result.current.open).toBe(true));
+    act(() => result.current.continueToLogIn());
+    await waitFor(() => expect(result.current.checkFailed).toBe(true));
+    expect(result.current.open).toBe(true);
+    expect(page.href).not.toContain('/log-in');
+    act(() => result.current.continueToLogIn());
     await waitFor(() => expect(page.href).toBe(SIGN_IN));
+  });
+
+  it('lets Stay here cancel a pending explicit sign-in recheck', async () => {
+    let finish = (_value: { data: null; error: null }) => {};
+    h.getSession
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+    const { result } = renderHook(() => useSessionLapseRedirect(true));
+    await requestAfterTheSessionEnded();
+    await waitFor(() => expect(result.current.open).toBe(true));
+    act(() => result.current.continueToLogIn());
+    act(() => result.current.setOpen(false));
+    await act(async () => finish({ data: null, error: null }));
+    expect(result.current.open).toBe(false);
+    expect(result.current.isLapsed).toBe(true);
+    expect(page.href).not.toContain('/log-in');
   });
 });

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
 import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
 import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
@@ -136,8 +137,13 @@ function stubBackend(answers: {
 }
 
 function AccountWithLapseRecovery() {
-  useSessionLapseRedirect(true);
-  return <AccountForm />;
+  const recovery = useSessionLapseRedirect(true);
+  return (
+    <>
+      <AccountForm />
+      <SessionLapseRecovery recovery={recovery} />
+    </>
+  );
 }
 
 function renderAccountForm(withLapseRecovery = false) {
@@ -291,9 +297,8 @@ describe('Change password session revocation', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_001);
     await act(async () => {});
     reportSessionLapsed();
-    await waitFor(() =>
-      expect(navigations.at(-1)).toContain('reason=session-ended'),
-    );
+    await screen.findByRole('button', { name: 'Stay here' });
+    expect(navigations).toEqual(['/']);
   });
 });
 

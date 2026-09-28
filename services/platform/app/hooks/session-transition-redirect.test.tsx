@@ -106,8 +106,8 @@ async function authHooks() {
   const { reportSessionLapsed } = await import('../lib/auth/session-lapse');
   const hook = renderHook(() => {
     const auth = useAuth();
-    useSessionLapseRedirect(auth.isAuthenticated);
-    return auth;
+    const recovery = useSessionLapseRedirect(auth.isAuthenticated);
+    return { ...auth, recovery };
   });
   return { ...hook, reportSessionLapsed };
 }
@@ -116,7 +116,7 @@ describe('intentional sign-out and session lapse overlap', () => {
   it('rechecks a stale live answer after a transition releases a deferred lapse', async () => {
     const checked = deferred<{ data: { user: { id: string } }; error: null }>();
     h.getSession.mockReturnValueOnce(checked.promise);
-    const { reportSessionLapsed } = await authHooks();
+    const { result, reportSessionLapsed } = await authHooks();
     const { holdSessionLapseRedirects } =
       await import('../lib/auth/session-lapse');
     reportSessionLapsed();
@@ -130,9 +130,8 @@ describe('intentional sign-out and session lapse overlap', () => {
     });
     await settle();
     expect(h.getSession).toHaveBeenCalledTimes(2);
-    expect(navigations).toEqual([
-      '/tale/log-in?redirectTo=%2Fdashboard%2Forg-1%2Fsettings%2Faccount&reason=session-ended',
-    ]);
+    expect(result.current.recovery.open).toBe(true);
+    expect(navigations).toEqual([]);
   });
 
   it('lets explicit sign-out finish its cleanup and own the navigation', async () => {
@@ -164,7 +163,8 @@ describe('intentional sign-out and session lapse overlap', () => {
     });
     reportSessionLapsed();
     await settle();
-    expect(navigations.at(-1)).toContain('reason=session-ended');
+    expect(result.current.recovery.open).toBe(true);
+    expect(navigations).toEqual(['/tale']);
   });
 
   it('discards a lapse recheck already in flight when sign-out starts', async () => {
@@ -200,9 +200,8 @@ describe('intentional sign-out and session lapse overlap', () => {
 
       reportSessionLapsed();
       await settle();
-      expect(navigations).toEqual([
-        '/tale/log-in?redirectTo=%2Fdashboard%2Forg-1%2Fsettings%2Faccount&reason=session-ended',
-      ]);
+      expect(result.current.recovery.open).toBe(true);
+      expect(navigations).toEqual([]);
     },
   );
 
@@ -214,9 +213,9 @@ describe('intentional sign-out and session lapse overlap', () => {
     const { useSessionLapseRedirect } =
       await import('./use-session-lapse-redirect');
     const { reportSessionLapsed } = await import('../lib/auth/session-lapse');
-    renderHook(() => {
+    const { result } = renderHook(() => {
       useSessionIdleWatchdog();
-      useSessionLapseRedirect(true);
+      return useSessionLapseRedirect(true);
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
@@ -239,6 +238,7 @@ describe('intentional sign-out and session lapse overlap', () => {
     });
     reportSessionLapsed();
     await settle();
-    expect(navigations.at(-1)).toContain('reason=session-ended');
+    expect(result.current.open).toBe(true);
+    expect(navigations).toEqual(['/tale/log-in?reason=idle']);
   });
 });

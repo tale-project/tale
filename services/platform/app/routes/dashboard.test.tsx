@@ -1,4 +1,10 @@
-import { act, render, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -51,6 +57,7 @@ function renderDashboard() {
 
 beforeEach(() => {
   h.getSession.mockReset();
+  vi.useRealTimers();
   page = {
     href: 'http://localhost/dashboard/org-1/products',
     pathname: '/dashboard/org-1/products',
@@ -59,11 +66,22 @@ beforeEach(() => {
   };
   Object.defineProperty(window, 'location', {
     configurable: true,
-    value: page,
+    value: {
+      ...page,
+      get href() {
+        return page.href;
+      },
+      set href(value: string) {
+        page.href = value;
+      },
+      reload: vi.fn(),
+    },
   });
 });
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   Object.defineProperty(window, 'location', {
     configurable: true,
     value: realLocation,
@@ -81,6 +99,11 @@ describe('the dashboard after a session ends', () => {
       reportSessionLapsed();
     });
 
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'sessionLapse.signIn',
+      }),
+    );
     await waitFor(() =>
       expect(page.href).toBe(`/log-in?redirectTo=${HERE}&reason=session-ended`),
     );
@@ -100,4 +123,30 @@ describe('the dashboard after a session ends', () => {
     await waitFor(() => expect(page.href).toBe(`/log-in?redirectTo=${HERE}`));
     expect(h.getSession).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['retry', 'recovery reload'] as const)(
+    'cancels the cold-entry %s when the dashboard unmounts',
+    async (mode) => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      sessionStorage.clear();
+      h.session = { isAuthenticated: false, isLoading: false };
+      h.getSession.mockResolvedValue(
+        mode === 'retry'
+          ? { data: null, error: { status: 503 } }
+          : { data: { user: { id: 'u-1' } }, error: null },
+      );
+      const view = renderDashboard();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      view.unmount();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(40_000);
+      });
+      expect(h.getSession).toHaveBeenCalledTimes(1);
+      expect(window.location.reload).not.toHaveBeenCalled();
+      expect(page.href).not.toContain('/log-in');
+    },
+  );
 });

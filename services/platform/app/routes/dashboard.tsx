@@ -7,12 +7,14 @@ import {
 import { useEffect, useState } from 'react';
 
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
+import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
 import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
 import { useSessionUser } from '@/app/hooks/use-session-user';
 import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
+import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import {
   passwordExpiryQuery,
@@ -54,15 +56,15 @@ export const Route = createFileRoute('/dashboard')({
 
 function DashboardRedirect() {
   const { isAuthenticated, isLoading } = useSessionUser();
+  const [hasAuthenticated, setHasAuthenticated] = useState(isAuthenticated);
 
   // Idle-timeout UX: warn and sign out proactively when the deployment sets
   // SESSION_IDLE_TIMEOUT_MINUTES. The authenticated layout is the right mount
   // point — it wraps every signed-in page and is gated on a live session.
   useSessionIdleWatchdog();
-  // A session that ends under the open tab (signed out elsewhere, expired,
-  // revoked): the first answer that says so leads to sign-in, re-checked
-  // the same way as the probe below.
-  useSessionLapseRedirect(isAuthenticated);
+  // Once content has mounted, preserve its drafts through any later session
+  // lapse. The initial signed-out probe below still owns cold entry.
+  const recovery = useSessionLapseRedirect(isAuthenticated || hasAuthenticated);
 
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
@@ -70,8 +72,14 @@ function DashboardRedirect() {
   useEffect(() => {
     if (isLoading) return undefined;
     if (isAuthenticated) {
+      setHasAuthenticated(true);
       // Healthy (or recovered) — re-arm the one-shot recovery reload below.
       sessionStorage.removeItem(CONVEX_AUTH_RELOAD_GUARD);
+      return undefined;
+    }
+
+    if (hasAuthenticated) {
+      reportSessionLapsed();
       return undefined;
     }
 
@@ -150,24 +158,27 @@ function DashboardRedirect() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, hasAuthenticated]);
 
   useEffect(() => {
-    if (sessionVerified && !hasValidSession) {
+    if (!hasAuthenticated && sessionVerified && !hasValidSession) {
       redirectToLogIn();
     }
-  }, [sessionVerified, hasValidSession]);
+  }, [sessionVerified, hasValidSession, hasAuthenticated]);
 
   // Paint the dashboard shell immediately while the Convex websocket
   // authenticates (was a blank `null` — the main cause of the cold-load
   // "nothing on screen for seconds" feel).
-  if (isLoading || (!isAuthenticated && !sessionVerified)) {
+  if (
+    !hasAuthenticated &&
+    (isLoading || (!isAuthenticated && !sessionVerified))
+  ) {
     return <DashboardShellFrame />;
   }
 
   // Hard-redirecting to /log-in (effect above) — keep the shell up so the
   // transition doesn't flash blank.
-  if (sessionVerified && !hasValidSession) {
+  if (!hasAuthenticated && sessionVerified && !hasValidSession) {
     return <DashboardShellFrame />;
   }
 
@@ -175,9 +186,12 @@ function DashboardRedirect() {
   // password-expiry) for the whole dashboard subtree and let the 2FA gate
   // read them.
   return (
-    <AccountBootstrapProvider>
-      <DashboardTwoFactorGate />
-    </AccountBootstrapProvider>
+    <>
+      <AccountBootstrapProvider>
+        <DashboardTwoFactorGate />
+      </AccountBootstrapProvider>
+      <SessionLapseRecovery recovery={recovery} />
+    </>
   );
 }
 

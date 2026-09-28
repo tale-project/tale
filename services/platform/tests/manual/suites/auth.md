@@ -363,17 +363,24 @@ compute codes from the enrollment secret.
   fin. Reconnecte-toi.** or **Your session has ended. Sign in again.**
   (`common.errors.sessionEnded`) beneath, never "send an API key" and never
   English under a German or French title.
-- [ ] `AUTH-B14` · **A lapsed session leads to sign-in and back** — As an
-  admin, open `/dashboard/{org}/products` in tab 1 with nothing blocked; in a
-  second tab **Log out** (`auth.userButton.logOut`). In tab 1 → **Add
-  product** (`products.addButton`) → **From your device**
-  (`products.importMenu.fromDevice`) → a one-row CSV → **Import** → the tab
-  moves to `/log-in` by itself (the import's toast may only flash first),
-  showing **Your session has ended. Sign in again.**
-  (`common.errors.sessionEnded`) above the form, with `redirectTo` naming the
-  products page in the address; sign in → back on
-  `/dashboard/{org}/products`. Repeat without the log-out → the import lands
-  and the tab stays.
+- [ ] `AUTH-B14` · **A lapsed session preserves drafts until you choose sign-in** — As an
+  admin, open `/dashboard/{org}/products` in tab 1, choose **Add product** →
+  **Manual entry**, and type a name and description without saving. In tab 2,
+  **Log out** (`auth.userButton.logOut`). Trigger a request in tab 1, including
+  a background refresh → **Your session has ended** (`auth.sessionLapse.title`)
+  asks before leaving and warns that signing in may lose unsaved changes.
+  Choose **Stay here** (`auth.sessionLapse.stayHere`) → both values remain and
+  focus returns to the field you were editing, where the text can be copied;
+  repeated refused requests do not reopen the confirmation. Copy the work,
+  close the product dialog, then reach **Sign in** (`auth.sessionLapse.signIn`)
+  in the standing notice by keyboard → the confirmation reopens. Confirm →
+  `/log-in?redirectTo=<products page>&reason=session-ended` shows
+  **Your session has ended. Sign in again.** (`common.errors.sessionEnded`);
+  sign in → back on the products page, where copied input can be re-entered.
+  Repeat with Deutsch and Français → the decision and standing notice are
+  localized. Repeat while delaying the session recheck and typing before its
+  answer → the new draft is also retained. Restore the session in another tab
+  before confirming → the recheck keeps the page open and removes the notice.
 
 ## Accessibility (WCAG 2.1 AA)
 
