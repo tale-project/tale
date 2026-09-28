@@ -123,7 +123,7 @@ actions:
       impl: task.list_comments
     exampleInput: { taskId: 'tsk_1', authorTypes: [user], limit: 20 }
   - name: upsert
-    description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. Does not start an agent.
+    description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. A title over 200 or a description over 20,000 UTF-16 code units is cut to that length, ending in "…". Does not start an agent.
     effects: write
     input:
       type: object
@@ -167,7 +167,7 @@ actions:
       impl: task.list_external_issues
     exampleInput: { projectId: proj_mock, externalSystem: github, repositoryId: 1 }
   - name: upsert_issues
-    description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Returns one result per source, with taskId null when a closed source has no task.
+    description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Titles and descriptions are cut to 200 and 20,000 UTF-16 code units, ending in "…". Returns one result per source, with taskId null when a closed source has no task.
     effects: write
     input:
       type: object
