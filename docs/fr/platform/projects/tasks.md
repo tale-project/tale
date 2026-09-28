@@ -19,6 +19,8 @@ Une tâche regroupe le but d’un travail, son responsable, son statut, ses fich
 4. Choisis au besoin **Statut**, **Priorité** et **Assigné à**. Une nouvelle tâche commence à **À faire**. Utilise **Backlog** pour une proposition qui n’a pas encore été retenue.
 5. Clique sur **Créer une tâche**, puis ouvre la carte pour compléter ses détails.
 
+Un titre compte jusqu’à 200 caractères et une description jusqu’à 20 000 ; la plupart des emojis comptent double. Une description plus longue, collée ou laissée sur une tâche par un import antérieur, n’est pas coupée : le champ indique la limite et compte la longueur, et **Créer une tâche** ou **Enregistrer** reste indisponible tant que tu ne l’as pas raccourcie.
+
 Tale attribue un identifiant à partir de la clé du projet, par exemple `WEB-1`. Utilise-le pour désigner le travail sans confondre des tâches aux titres proches.
 
 <Tip>
