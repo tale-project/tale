@@ -360,8 +360,11 @@ const QUIET = {
   failures: 0,
   stampsScanned: 0,
   cleared: 0,
+  restamped: 0,
   unbackedReleased: 0,
   unbackedFailures: 0,
+  recheckReleased: 0,
+  recheckFailures: 0,
 };
 
 const isStamp = (statement: Statement) =>
@@ -617,8 +620,8 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
     expect(restamp?.text).toContain(
       'd.conversation_id IS DISTINCT FROM v.conversation_id',
     );
-    // The stamp did not stay off: nothing counts as cleared.
-    expect(result).toEqual({ ...QUIET, stampsScanned: 1 });
+    // The stamp did not stay off: it counts as put back, not as cleared.
+    expect(result).toEqual({ ...QUIET, stampsScanned: 1, restamped: 1 });
   });
 
   it.each([false, true])(
@@ -676,11 +679,14 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
       expect(
         statements.findIndex((statement) => statement.text === 'BEGIN'),
       ).toBeLessThan(statements.findIndex(isClear));
+      // The recheck's release, apart from the walk's own: its stamp was
+      // put back first.
       expect(result).toEqual({
         ...QUIET,
         stampsScanned: 1,
-        unbackedReleased: fails ? 0 : 1,
-        unbackedFailures: fails ? 1 : 0,
+        restamped: 1,
+        recheckReleased: fails ? 0 : 1,
+        recheckFailures: fails ? 1 : 0,
       });
     },
   );

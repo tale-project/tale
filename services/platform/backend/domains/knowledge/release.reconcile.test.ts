@@ -131,8 +131,11 @@ const QUIET = {
   failures: 0,
   stampsScanned: 0,
   cleared: 0,
+  restamped: 0,
   unbackedReleased: 0,
   unbackedFailures: 0,
+  recheckReleased: 0,
+  recheckFailures: 0,
 };
 
 let info: MockInstance<typeof console.info>;
@@ -373,22 +376,25 @@ describe('runCorpusReconcile — what the log says', () => {
     ]);
   });
 
-  it('reports the stale stamps apart from drift, with what the second walk released and failed', async () => {
+  it('reports the stale stamps apart from drift, each outcome of the second walk apart', async () => {
     reconcileMailAttachmentStamps.mockResolvedValue({
       ...QUIET,
       scanned: 4,
       stampsScanned: 9,
       cleared: 3,
+      restamped: 1,
       unbackedReleased: 2,
       unbackedFailures: 1,
+      recheckReleased: 1,
+      recheckFailures: 1,
     });
     await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
     // No sync failed: no drift line.
     expect(lines(warn)).toEqual([]);
-    // A cleared row is held by a document — filed into it, or one in any
-    // lifecycle — or is a thread or chat file; the line names no one cause.
+    // Cleared, released, or back to an attachment by the time the clear
+    // landed: the line names what the rows have in common, no one cause.
     expect(lines(info)).toEqual([
-      '[knowledge] stale conversation stamps for acme: cleared=3 released=2 failures=1 (of stamped=9) — rows no emailed attachment backs any more (filed into or held by a document, or a thread/chat file), not a failed sync',
+      '[knowledge] stale conversation stamps for acme: cleared=3 restamped=1 released=2 failures=1 recheckReleased=1 recheckFailures=1 (of stamped=9) — rows no emailed attachment backed when the walk read them, not a failed sync',
     ]);
   });
 
@@ -401,8 +407,23 @@ describe('runCorpusReconcile — what the log says', () => {
     });
     await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
     expect(lines(info)).toEqual([
-      '[knowledge] stale conversation stamps for acme: cleared=0 released=2 failures=0 (of stamped=3) — rows no emailed attachment backs any more (filed into or held by a document, or a thread/chat file), not a failed sync',
+      '[knowledge] stale conversation stamps for acme: cleared=0 restamped=0 released=2 failures=0 recheckReleased=0 recheckFailures=0 (of stamped=3) — rows no emailed attachment backed when the walk read them, not a failed sync',
     ]);
+  });
+
+  it.each([
+    ['a stamp the recheck put back', { restamped: 1 }],
+    ['an attachment the recheck released', { recheckReleased: 1 }],
+    ['a release of the recheck that failed', { recheckFailures: 1 }],
+  ])('reports %s even when nothing stayed cleared', async (_name, counts) => {
+    reconcileMailAttachmentStamps.mockResolvedValue({
+      ...QUIET,
+      stampsScanned: 1,
+      ...counts,
+    });
+    await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
+    expect(lines(info)).toHaveLength(1);
+    expect(lines(info)[0]).toContain('stale conversation stamps for acme');
   });
 
   it('keeps the stamp line to what the first walk stamped, released and failed of the attachments it walked', async () => {

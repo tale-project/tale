@@ -511,17 +511,22 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       }
       if (
         mail.cleared > 0 ||
+        mail.restamped > 0 ||
         mail.unbackedReleased > 0 ||
-        mail.unbackedFailures > 0
+        mail.unbackedFailures > 0 ||
+        mail.recheckReleased > 0 ||
+        mail.recheckFailures > 0
       ) {
-        // Not drift: no sync failed. These rows stopped being emailed
-        // attachments and kept a stamp — one that hid them from every
-        // document door while something still holds the ref, or one on a
-        // row nothing holds any more — so they are reported apart from the
+        // Not drift: no sync failed. Each of these rows carried a stamp no
+        // emailed attachment backed when the second walk read it: the stamp
+        // came off a row something else keeps, the row went when nothing
+        // did, or the ref was an attachment again by the time the clear
+        // landed — its stamp put back, and the attachment released when its
+        // conversation is gone or spam. They are reported apart from the
         // scope drift above, and apart from the attachments line, whose
         // counts are of attachment rows.
         console.info(
-          `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} released=${mail.unbackedReleased} failures=${mail.unbackedFailures} (of stamped=${mail.stampsScanned}) — rows no emailed attachment backs any more (filed into or held by a document, or a thread/chat file), not a failed sync`,
+          `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} restamped=${mail.restamped} released=${mail.unbackedReleased} failures=${mail.unbackedFailures} recheckReleased=${mail.recheckReleased} recheckFailures=${mail.recheckFailures} (of stamped=${mail.stampsScanned}) — rows no emailed attachment backed when the walk read them, not a failed sync`,
         );
       }
     } catch (error) {

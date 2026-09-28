@@ -1782,12 +1782,22 @@ export interface MailAttachmentStampStats {
    * conversation (a thread or chat file) — whose stamp came off. No sync
    * failed for these; they are not scope drift. */
   cleared: number;
-  /** Second walk: refs no attachment backs and nothing keeps in the corpus,
-   * released — their bytes too when nothing references those (see
-   * `releaseUnbacked`). */
+  /** Second walk: rows whose stamp the backing recheck after the clear put
+   * back, since the ref was an emailed attachment again by then — a dead
+   * one's too, before its release (`recheckReleased`). */
+  restamped: number;
+  /** Second walk: refs no attachment backs and nothing keeps, released —
+   * their bytes too when nothing references those (see `releaseUnbacked`). */
   unbackedReleased: number;
-  /** Second walk: refs whose release failed. */
+  /** Second walk: those refs whose release failed. */
   unbackedFailures: number;
+  /** Second walk: attachments the backing recheck found on a conversation
+   * that is gone or marked spam, whose corpus rows were released once their
+   * stamp was back; the file row keeps their bytes. */
+  recheckReleased: number;
+  /** Second walk: those attachments whose release failed; the stamp put
+   * back keeps them isolated until the next night retries them. */
+  recheckFailures: number;
 }
 
 /**
@@ -2026,14 +2036,23 @@ async function clearUnbackedMailStamps(
 ): Promise<
   Pick<
     MailAttachmentStampStats,
-    'stampsScanned' | 'cleared' | 'unbackedReleased' | 'unbackedFailures'
+    | 'stampsScanned'
+    | 'cleared'
+    | 'restamped'
+    | 'unbackedReleased'
+    | 'unbackedFailures'
+    | 'recheckReleased'
+    | 'recheckFailures'
   >
 > {
   const counts = {
     stampsScanned: 0,
     cleared: 0,
+    restamped: 0,
     unbackedReleased: 0,
     unbackedFailures: 0,
+    recheckReleased: 0,
+    recheckFailures: 0,
   };
   const pool = await getKnowledgePoolForOrg(args.orgSlug);
   let afterRef: string | null = null;
@@ -2070,8 +2089,9 @@ async function clearUnbackedMailStamps(
       if (stale.length > 0) {
         const cleared = await clearMailStamps(sql, pool, args, stale);
         counts.cleared += cleared.cleared;
-        counts.unbackedReleased += cleared.unbackedReleased;
-        counts.unbackedFailures += cleared.unbackedFailures;
+        counts.restamped += cleared.restamped;
+        counts.recheckReleased += cleared.recheckReleased;
+        counts.recheckFailures += cleared.recheckFailures;
       }
     }
     if (stamped.length < pageSize) break;
@@ -2103,10 +2123,15 @@ async function clearMailStamps(
 ): Promise<
   Pick<
     MailAttachmentStampStats,
-    'cleared' | 'unbackedReleased' | 'unbackedFailures'
+    'cleared' | 'restamped' | 'recheckReleased' | 'recheckFailures'
   >
 > {
-  const counts = { cleared: 0, unbackedReleased: 0, unbackedFailures: 0 };
+  const counts = {
+    cleared: 0,
+    restamped: 0,
+    recheckReleased: 0,
+    recheckFailures: 0,
+  };
   // A restored stamp must commit with the clear: another indexer must
   // never see its temporary NULL and clone mail context into an ordinary file.
   const { cleared: clearedRows, backedAgain: currentAttachments } =
@@ -2152,13 +2177,12 @@ async function clearMailStamps(
     .map((row) => row.storageRef);
   if (dead.length > 0) {
     const outcome = await args.releaseUnbacked(dead);
-    counts.unbackedReleased += outcome.released.length;
-    counts.unbackedFailures += outcome.failures.length;
+    counts.recheckReleased += outcome.released.length;
+    counts.recheckFailures += outcome.failures.length;
   }
-  const restamped = new Set(currentAttachments.map((row) => row.storageRef));
-  counts.cleared = clearedRows.filter(
-    (row) => !restamped.has(row.fileId),
-  ).length;
+  const backed = new Set(currentAttachments.map((row) => row.storageRef));
+  counts.restamped = clearedRows.filter((row) => backed.has(row.fileId)).length;
+  counts.cleared = clearedRows.length - counts.restamped;
   return counts;
 }
 
