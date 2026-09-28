@@ -268,12 +268,7 @@ const DictationButtonComponent = forwardRef<
           {isTranscribing ? (
             <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
           ) : (
-            <Mic
-              className={cn(
-                'size-4',
-                isListening && 'animate-pulse motion-reduce:animate-none',
-              )}
-            />
+            <Mic className="size-4" />
           )}
           {isListening && (
             <span

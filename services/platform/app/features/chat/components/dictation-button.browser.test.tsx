@@ -3,7 +3,8 @@ import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 
-import { deriveAccentPalette } from '@/lib/utils/color';
+import { contrastRatio, deriveAccentPalette } from '@/lib/utils/color';
+import { inkContrast, painted } from '@/tests/utils/paint';
 import { render, screen } from '@/tests/utils/render';
 
 import { DictationButton } from './dictation-button';
@@ -16,6 +17,8 @@ import '@/app/globals.css';
 // 1.3:1 on the light fill and 1.5:1 on the dark. The ring takes the fill's
 // ink instead. Only a real engine computes the painted ring.
 
+const { stopListening } = vi.hoisted(() => ({ stopListening: vi.fn() }));
+
 vi.mock('../hooks/use-speech-to-text', () => ({
   useSpeechToText: () => ({
     isListening: true,
@@ -23,7 +26,7 @@ vi.mock('../hooks/use-speech-to-text', () => ({
     error: null,
     errorNonce: 0,
     startListening: vi.fn(),
-    stopListening: vi.fn(),
+    stopListening,
   }),
 }));
 vi.mock('../hooks/use-media-recorder-dictation', () => ({
@@ -49,6 +52,7 @@ vi.mock('../utils/dictation-sounds', () => ({
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   document.documentElement.removeAttribute('style');
   document.documentElement.classList.remove('dark');
 });
@@ -92,7 +96,37 @@ describe.each([
       // it has landed.
       const style = getComputedStyle(button);
       await expect.poll(() => focusRingColor(button)).toBe(style.color);
-      expect(style.color).not.toBe(style.backgroundColor);
+      for (const state of ['focused', 'hovered'] as const) {
+        if (state === 'hovered') await userEvent.hover(button);
+        await expect
+          .poll(() => inkContrast(button), { message: `${state} foreground` })
+          .toBeGreaterThanOrEqual(4.5);
+        await expect
+          .poll(
+            () => {
+              const fill = painted(getComputedStyle(button).backgroundColor);
+              return contrastRatio(
+                painted(focusRingColor(button) ?? 'transparent', fill),
+                fill,
+              );
+            },
+            { message: `${state} inset focus ring` },
+          )
+          .toBeGreaterThanOrEqual(3);
+      }
+      const mic = button.querySelector('svg');
+      expect(mic).toBeInstanceOf(SVGElement);
+      for (const animation of mic?.getAnimations() ?? []) {
+        animation.pause();
+        const duration = Number(animation.effect?.getComputedTiming().duration);
+        animation.currentTime = duration / 2;
+      }
+      expect(
+        inkContrast(mic as SVGElement),
+        'dimmest microphone frame',
+      ).toBeGreaterThanOrEqual(3);
+      await userEvent.keyboard('{Enter}');
+      expect(stopListening).toHaveBeenCalledOnce();
     });
   },
 );

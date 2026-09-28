@@ -272,8 +272,9 @@ interface AccentPalette {
  *   ≈3.9:1 beneath `/20`;
  * - the dark `--muted` and `--accent`: not even plain (≈4.0:1 and ≈3.8:1),
  *   so a `text-primary` row over `hover:bg-accent` reads below 4.5:1 there;
- *   accent text hovers on its own tint instead (debt `BL-5` in the manual
- *   layer's `reference/not-a-finding.md`).
+ *   a tint alone does not repair that backdrop. Text on a raised surface
+ *   needs ink that clears contrast there (see `BL-5` in the manual layer's
+ *   `reference/not-a-finding.md`).
  *
  * (The dark `--popover` is the page itself.) Judging the dark walk against
  * `#171717` instead would lift 57 % of dark text shades, most by 3–6

@@ -71,10 +71,9 @@ describe('ActiveHoldsSection — place-hold dialog', () => {
     });
   });
 
-  it('hovers the create-matter action on the accent tint, not the gray', async () => {
-    // The action is set in `--primary`, the accent's text shade, which the
-    // palette keeps at 4.5:1 on its own tint; on the dark `--accent` gray it
-    // reads below that.
+  it('keeps foreground ink over the create-matter action’s accent tint', async () => {
+    // The browser companion judges the painted contrast: this picker is
+    // dark:bg-muted, where even a page-safe accent text shade can fail.
     const { user } = render(<ActiveHoldsSection organizationId="org-1" />);
     await user.click(screen.getByRole('button', { name: /Place legal hold/i }));
     await screen.findByRole('dialog');
@@ -83,7 +82,7 @@ describe('ActiveHoldsSection — place-hold dialog', () => {
     const create = await screen.findByRole('button', {
       name: 'Create new matter…',
     });
-    expect(create).toHaveClass('text-primary', 'hover:bg-primary/10');
+    expect(create).toHaveClass('text-foreground', 'hover:bg-primary/10');
     expect(create).not.toHaveClass('hover:bg-accent');
   });
 
