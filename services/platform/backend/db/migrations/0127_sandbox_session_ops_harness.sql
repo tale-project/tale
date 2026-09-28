@@ -16,31 +16,27 @@
 -- and the reads prefer it to the session's stamp, which stays only as the
 -- fallback for rows written before this column.
 --
--- Backfill: a task-agent op is one project-agent run, whose row records the
--- harness the run was kicked on — the per-turn truth. A workflow-agent op
--- runs in a per-execution session torn down with the run, so its session's
--- stamp is the best record the schema holds (an agent node that opened the
--- session named its harness; a run whose script node opened it has none,
--- and stays `unknown` rather than guessed). Idempotent and bounded: a re-run
--- finds no NULL it can fill. Rolling-deploy safe: a nullable column the
--- previous image neither writes nor reads.
+-- Backfill: task-agent ops have an exact org/session/exec run record. As
+-- in the op-attribution resolver, the newest matching run wins when more
+-- than one historical row shares that identity. Workflow nodes can choose
+-- different harnesses while sharing a session, so its create-time stamp
+-- cannot identify a historical node's turn: leave that op NULL rather than
+-- promote the read's approximate fallback into an authoritative stamp.
+-- Idempotent and bounded: a re-run finds no NULL it can fill. Rolling-deploy
+-- safe: a nullable column the previous image neither writes nor reads.
 
 ALTER TABLE app.sandbox_session_ops
   ADD COLUMN IF NOT EXISTS harness text;
 
 UPDATE app.sandbox_session_ops o SET harness = r.harness
-FROM app.project_agent_runs r
+FROM (
+  SELECT DISTINCT ON (org_id, session_id, exec_id)
+         org_id, session_id, exec_id, harness
+  FROM app.project_agent_runs
+  ORDER BY org_id, session_id, exec_id, seq DESC
+) r
 WHERE o.harness IS NULL
   AND o.kind = 'task-agent'
   AND r.org_id = o.org_id
   AND r.session_id = o.session_id
   AND r.exec_id = o.exec_id;
-
-UPDATE app.sandbox_session_ops o SET harness = s.agent_kind
-FROM app.sandbox_sessions s
-WHERE o.harness IS NULL
-  AND o.kind = 'workflow-agent'
-  AND s.org_id = o.org_id
-  AND s.session_id = o.session_id
-  AND s.owner_type = 'workflow_run'
-  AND s.agent_kind IS NOT NULL;

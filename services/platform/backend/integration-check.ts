@@ -18870,7 +18870,7 @@ async function checkTurnReattach(
   const abandoned = await mkRun('stale', {
     withOp: true,
     heartbeatAgoMs: 10 * 60_000,
-    harness: 'codex',
+    harness: 'pi',
   });
   const live = await mkRun('live', { withOp: true, heartbeatAgoMs: 5_000 });
   const noOp = await mkRun('noop', { withOp: false, harness: 'pi' });
@@ -18957,13 +18957,31 @@ async function checkTurnReattach(
 
   // Migration 0127 names the ops written before the column existed. A
   // task-agent op takes the harness of ITS RUN — here `codex`, under a
-  // session stamped `claude-code`; an op that already records one keeps it;
-  // a workflow-agent op takes its per-run session's stamp, and one whose
-  // session has none stays unnamed rather than guessed.
+  // session stamped `claude-code`; an op that already records one keeps it.
+  // Workflow nodes can choose different harnesses while sharing a session,
+  // so the create-time stamp cannot name an old node's turn: leave it NULL.
   await sql`
     UPDATE app.sandbox_session_ops SET harness = 'pi'
     WHERE session_id = ${live.sessionId} AND exec_id = ${live.execId}
   `;
+  // Like the existing op-attribution resolver, take the newest exact
+  // session/exec run record. A matching foreign-tenant record is irrelevant.
+  for (const [runOrg, harness] of [
+    [orgId, 'codex'],
+    [`${orgId}-other`, 'foreign-harness'],
+  ] as const) {
+    await sql`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id,
+        status, harness, model, started_by, started_at_ms,
+        deadline_at_ms, updated_at_ms
+      )
+      SELECT ${runOrg}, project_id, task_id, agent_id, exec_id, session_id,
+             'failed', ${harness}, model, started_by, started_at_ms,
+             deadline_at_ms, updated_at_ms
+      FROM app.project_agent_runs WHERE id = ${abandoned.runId}
+    `;
+  }
   for (const [suffix, agentKind] of [
     ['wf-stamped', 'codex'],
     ['wf-bare', null],
@@ -19008,7 +19026,7 @@ async function checkTurnReattach(
     [noOp.execId, 'pi'],
     [abandoned.execId, 'codex'],
     ['reattach-exec-wf-bare', null],
-    ['reattach-exec-wf-stamped', 'codex'],
+    ['reattach-exec-wf-stamped', null],
   ]);
   record(
     'harness turns: migration 0127 names an op by its run, keeps a recorded harness, and is idempotent',
@@ -47790,6 +47808,31 @@ async function checkMetricsSurface(
        0, 'pi', ${now - 13_000}, ${now - 12_000})
   `;
 
+  // A session id is reusable: neither a previous incarnation nor another
+  // tenant's row may multiply this org's turns or supply a foreign harness.
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      agent_kind, created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'mx-sess', 'destroyed', 'user', ${userId}, ${userId},
+       'old-incarnation', ${now - 3_600_000}, ${now}),
+      (${`${orgId}-other`}, 'mx-sess', 'active', 'user', 'other', 'other',
+       'other-tenant', ${now + 1000}, ${now + 3_600_000})
+  `;
+  // Workflow scheduling writes an op before provisioning a session. A
+  // failed provision must remain visible under the harness that was tried.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, harness,
+      started_at_ms, finished_at_ms
+    ) VALUES
+      (${orgId}, 'mx-no-session', 'mx-e9', 'workflow-agent', 'failed',
+       'codex', ${now - 2000}, ${now - 1000}),
+      (${`${orgId}-other`}, 'mx-sess', 'mx-other-op', 'task-agent',
+       'completed', 'other-tenant', ${now - 2000}, ${now - 1000})
+  `;
+
   // ---- probes ------------------------------------------------------------
   const usage = z
     .object({
@@ -48006,19 +48049,19 @@ async function checkMetricsSurface(
     : undefined;
   const turnsOk =
     turns.success &&
-    turns.data.total === 7 &&
+    turns.data.total === 8 &&
     turns.data.completed === 2 &&
-    turns.data.failed === 3 &&
+    turns.data.failed === 4 &&
     turns.data.cancelled === 1 &&
     turns.data.timeout === 1 &&
     turns.data.recovered === 1 &&
     turns.data.successRate !== null &&
-    Math.abs(turns.data.successRate - 2 / 6) < 1e-9 &&
+    Math.abs(turns.data.successRate - 2 / 7) < 1e-9 &&
     turns.data.durationP95Ms === 15_000 &&
     turns.data.spentCents === 10 &&
     // The six ops that record no harness fall back to the session's stamp;
     // the one that records `pi` is a pi turn, whatever its session says.
-    turns.data.byHarness.length === 2 &&
+    turns.data.byHarness.length === 3 &&
     turns.data.byHarness[0]?.harness === 'claude-code' &&
     turns.data.byHarness[0].total === 6 &&
     piTurns?.total === 1 &&
@@ -48039,9 +48082,17 @@ async function checkMetricsSurface(
     : undefined;
   record(
     'metrics: external-turn outcomes + percentiles, named by the harness the op records',
-    turnsOk && piHealth?.recentTotal === 1,
+    turnsOk &&
+      piHealth?.recentTotal === 1 &&
+      harnessHealthAfter.success &&
+      harnessHealthAfter.data.health.length === 3 &&
+      harnessHealthAfter.data.health.find((row) => row.harness === 'codex')
+        ?.recentTotal === 1 &&
+      harnessHealthAfter.data.health.find(
+        (row) => row.harness === 'claude-code',
+      )?.recentTotal === 6,
     turns.success
-      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
       : 'shape-fail',
   );
 

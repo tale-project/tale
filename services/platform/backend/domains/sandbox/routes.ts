@@ -144,8 +144,10 @@ export function createSandboxRoutes(deps: {
    * a continued turn). A turn is named by the harness its op row records —
    * the session's `agent_kind` is a create-time stamp a standing session
    * keeps across the agent's harness switches, so it is only the fallback
-   * for rows written before the op carried its own. Developer-gated like
-   * the 0.4 read. */
+   * for rows written before the op carried its own. Session ids may have
+   * several incarnations: the fallback reads one latest row in this tenant.
+   * An op whose start failed before a session existed still counts.
+   * Developer-gated like the 0.4 read. */
   app.get('/external-turn-metrics', async (c) => {
     if (!isAdminOrDeveloperRole(c.get('orgMember').role)) {
       return c.json({ error: 'developer role required' }, 403);
@@ -171,7 +173,13 @@ export function createSandboxRoutes(deps: {
              o.spent_cents AS "spentCents",
              coalesce(o.continuation_count, 0) > 0 AS recovered
       FROM app.sandbox_session_ops o
-      JOIN app.sandbox_sessions s ON s.session_id = o.session_id
+      LEFT JOIN LATERAL (
+        SELECT agent_kind FROM app.sandbox_sessions
+        WHERE org_id = o.org_id AND session_id = o.session_id
+          AND o.harness IS NULL
+        ORDER BY created_at_ms DESC, id DESC
+        LIMIT 1
+      ) s ON true
       WHERE o.org_id = ${c.get('orgId')}
         AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.finished_at_ms IS NOT NULL
@@ -257,7 +265,8 @@ export function createSandboxRoutes(deps: {
   });
 
   /** Recent per-harness failure ratios (the 0.4 `getHarnessHealth` hint) —
-   * pg derives it from settled agent ops joined to their session's kind. */
+   * pg derives it from settled agent ops, with the same optional session
+   * fallback as the metrics read. */
   /** The agent-node op behind one automation run (its execution log). */
   app.get('/agent-node-op', async (c) => {
     return c.json({
@@ -278,7 +287,13 @@ export function createSandboxRoutes(deps: {
              count(*)::text AS total,
              count(*) FILTER (WHERE o.status = 'failed')::text AS failures
       FROM app.sandbox_session_ops o
-      JOIN app.sandbox_sessions s ON s.session_id = o.session_id
+      LEFT JOIN LATERAL (
+        SELECT agent_kind FROM app.sandbox_sessions
+        WHERE org_id = o.org_id AND session_id = o.session_id
+          AND o.harness IS NULL
+        ORDER BY created_at_ms DESC, id DESC
+        LIMIT 1
+      ) s ON true
       WHERE o.org_id = ${organizationId}
         AND o.kind = ANY(${[...SANDBOX_AGENT_OP_KINDS]})
         AND o.started_at_ms >= ${since}
