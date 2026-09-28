@@ -426,7 +426,8 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       // The same walk releases the corpus copy of every attachment whose
       // conversation is gone or marked spam — those a delete or a verdict
       // left behind before its lane queued the release, which the bounded
-      // blob walk above may never reach.
+      // blob walk above may never reach — and takes the stamp off every row
+      // no attachment backs any more, or releases it when nothing keeps it.
       const orgRef = { organizationId: org.id, orgSlug: org.slug };
       const mail = await reconcileMailAttachmentStamps(sql, {
         ...orgRef,
@@ -443,6 +444,15 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       if (mail.corrected > 0 || mail.released > 0 || mail.failures > 0) {
         console.info(
           `[knowledge] emailed attachments for ${org.slug}: stamped=${mail.corrected} released=${mail.released} failures=${mail.failures} (of scanned=${mail.scanned})`,
+        );
+      }
+      if (mail.cleared > 0) {
+        // Not drift: no sync failed. These rows stopped being emailed
+        // attachments (a file filed into a document, whose stamp raced the
+        // filing) and kept a stamp that hid them from every document door,
+        // so they are reported apart from the scope drift above.
+        console.info(
+          `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} — rows no longer an emailed attachment (filed into a document), not a failed sync`,
         );
       }
     } catch (error) {
