@@ -6730,9 +6730,9 @@ settings:
         Embedding-Modelle aus der Modellliste dieses Anbieters; wähle „Anderes
         Modell“, um ein Tag einzugeben, das dort nicht steht.
       modelUncuratedHint:
-        Tale kennt keine Vektorbreite für die Embedding-Modelle von
-        {provider}. Gib das Modell-Tag und seine Vektorbreite exakt so ein,
-        wie der Anbieter sie dokumentiert.
+        Tale kennt keine Vektorbreite für {provider}. Gib das Modell-Tag (oder
+        den Namen deines Deployments) und die Vektorbreite ein, die dieses
+        Modell erzeugt.
       modelUnsupportedHint:
         '{provider} bietet kein Embedding-Modell an. Wähle einen Anbieter, der
         eines bedient.'
@@ -6741,6 +6741,14 @@ settings:
         Der Katalog von {provider} konnte nicht geladen werden. Aktualisiere
         die Kataloge unter Einstellungen → KI-Anbieter und versuche es erneut.
       modelUnavailable: Katalog nicht verfügbar
+      modelUncheckedHint:
+        Tale konnte nicht prüfen, ob {provider} Embeddings bietet, daher lässt
+        sich noch kein Modell wählen. Nutze oben „Erneut versuchen“.
+      modelUnchecked: Prüfung fehlgeschlagen
+      supportReadFailed:
+        Tale konnte nicht prüfen, welche Anbieter Embeddings bieten. Bis die
+        Prüfung antwortet, lässt sich kein Modell wählen.
+      supportReadRetry: Erneut versuchen
       modelPlaceholder: Modell wählen
       modelCustom: Anderes Modell…
       modelTag: Modell-Tag
@@ -6776,6 +6784,7 @@ settings:
         credentialNotFound: Die gewählten Zugangsdaten existieren nicht mehr — wähle andere.
         credentialMismatch: Die gewählten Zugangsdaten gehören zu einem anderen Anbieter.
         credentialDisabled: Die gewählten Zugangsdaten sind deaktiviert — aktiviere sie wieder oder wähle andere.
+        providerUnsupported: Dieser Anbieter bietet kein Embedding-Modell an — wähle einen Anbieter, der eines bedient.
     orgStorage:
       title: Objektspeicher
       description: Der S3-kompatible Bucket mit den hochgeladenen Dateien dieser

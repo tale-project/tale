@@ -6875,9 +6875,8 @@ settings:
         Embedding models this provider's listing carries; pick Other model to
         type a tag it does not list.
       modelUncuratedHint:
-        Tale knows no vector width for {provider}'s embedding models. Enter
-        the model tag and its vector width exactly as the provider documents
-        them.
+        Tale knows no vector width for {provider}. Enter the model tag (or
+        your deployment name) and the vector width that model produces.
       modelUnsupportedHint:
         '{provider} offers no embedding model. Choose a provider that serves
         one.'
@@ -6886,6 +6885,14 @@ settings:
         The {provider} catalog could not be loaded. Refresh the catalogs under
         Settings → AI providers and try again.
       modelUnavailable: Catalog unavailable
+      modelUncheckedHint:
+        Tale could not check whether {provider} can embed, so no model can be
+        chosen yet. Use Try again above.
+      modelUnchecked: Could not check
+      supportReadFailed:
+        Tale could not check which providers can embed. No model can be
+        chosen until the check answers.
+      supportReadRetry: Try again
       modelPlaceholder: Choose a model
       modelCustom: Other model…
       modelTag: Model tag
@@ -6919,6 +6926,7 @@ settings:
         credentialNotFound: The selected credential no longer exists — choose another.
         credentialMismatch: The selected credential belongs to a different provider.
         credentialDisabled: The selected credential is disabled — re-enable it or pick another.
+        providerUnsupported: This provider offers no embedding model — choose a provider that serves one.
     orgStorage:
       title: Object storage
       description:
