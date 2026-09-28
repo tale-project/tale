@@ -871,7 +871,7 @@ input[type='text']:-webkit-autofill {
   :root {
     --mobile-nav-height: 3.75rem;
     --mobile-nav-height-compact: 3.25rem;
-    --mobile-nav-bottom: calc(0.5rem + var(--safe-bottom));
+    --mobile-nav-bottom: calc(0.25rem + var(--safe-bottom));
     --mobile-nav-bottom-compact: calc(var(--mobile-nav-bottom) - 0.25rem);
     --mobile-nav-clearance: 0px;
     /* Tracks the pill's REAL current footprint (compact or not), unlike
@@ -889,7 +889,7 @@ input[type='text']:-webkit-autofill {
 
   @media (width < 48rem) {
     :root.boot-safari-toolbar {
-      --mobile-nav-bottom: calc(0.5rem + max(var(--safe-bottom), 3rem));
+      --mobile-nav-bottom: calc(0.25rem + max(var(--safe-bottom), 1rem));
     }
 
     :root:has(.mobile-nav-shell):not([data-mobile-keyboard]) {

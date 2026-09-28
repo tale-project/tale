@@ -8,6 +8,18 @@ body,
   overflow: clip;
 }
 
+/* The shared 100vh height fills the home-indicator area in installed iOS
+   apps. In a browser tab it also includes space behind Safari's expanded
+   toolbar, leaving the document scrollable after an input loses focus.
+   Fit the browser's current viewport so the title cannot stay scrolled off
+   screen. Keep the installed-app height and its safe-area handling intact. */
+@media (display-mode: browser) {
+  html,
+  body {
+    height: 100dvh;
+  }
+}
+
 /* Suppress the document-level rubber-band / pull-to-refresh so the app shell
    feels native. Inner overflow-y-auto regions still scroll normally.
    Platform-only: the docs and web sites want native rubber-band scroll. */
