@@ -273,7 +273,13 @@ const ADMITTED = [
   // broke ("is required", "must be string") — never an input's value. At a
   // task door the input is the door's own task subject
   // (`taskWorkflowSubjectInput`), so the path is one of its fixed keys or one
-  // the automation's schema requires. Every problem rides `data.issues`.
+  // the automation's schema requires. The rule is Ajv's own, and can quote
+  // that stored schema: a pattern (`must match pattern "^[A-Z]"`), a bound
+  // (`must be <= 10`). It is admitted because the schema is the automation
+  // author's contract with whoever starts it — the rule the task must meet
+  // to start, which the starter needs to fix it — and names no person, no
+  // other task and nothing the caller sent (`schema.test.ts` pins both
+  // halves). Every problem rides `data.issues`.
   "domains/automations/store.ts 'AUTOMATION_INPUT_INVALID' named",
 ].sort();
 
