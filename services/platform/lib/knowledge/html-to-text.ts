@@ -115,8 +115,19 @@ function keepableHref(href: string): boolean {
 /**
  * Extract readable text from an HTML document. Markdown-ish: headings keep a
  * `#` prefix, list items a `-` marker, and absolute links their target.
+ *
+ * `tableCells` picks how a `<td>`/`<th>` opens: `'pipe'` (the default) keeps
+ * a real data table's columns apart when it reads as prose — what a search
+ * result or an indexed chunk needs. A one-line preview instead wants
+ * `'space'`: almost every commercial HTML email is built from layout-only
+ * tables (a logo cell, a spacer cell, a nav cell), and pipes turn those into
+ * a run of empty `| | | |` separators ahead of the message's actual text.
  */
-export function htmlToText(html: string): string {
+export function htmlToText(
+  html: string,
+  opts: { tableCells?: 'pipe' | 'space' } = {},
+): string {
+  const cellOpen = opts.tableCells === 'space' ? ' ' : ' | ';
   let work = html;
   // Comments and whole-content noise first, so nothing inside them leaks.
   work = work.replace(/<!--[\s\S]*?-->/g, ' ');
@@ -142,7 +153,7 @@ export function htmlToText(html: string): string {
     (_whole, level: string) => `\n\n${'#'.repeat(Number(level))} `,
   );
   work = work.replace(/<li\b[^>]*>/gi, '\n- ');
-  work = work.replace(/<(td|th)\b[^>]*>/gi, ' | ');
+  work = work.replace(/<(td|th)\b[^>]*>/gi, cellOpen);
   // Links: keep the target next to the text for absolute http(s) URLs.
   work = work.replace(
     /<a\b[^>]*href\s*=\s*("([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi,

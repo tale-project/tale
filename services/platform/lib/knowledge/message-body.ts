@@ -23,13 +23,17 @@ import { stripControlCharacters } from './sanitize-text';
  * `''` when nothing readable is left: an empty body, or markup and images
  * alone.
  */
-export function messageBodyText(content: string, metadata: unknown): string {
+export function messageBodyText(
+  content: string,
+  metadata: unknown,
+  opts?: { tableCells?: 'pipe' | 'space' },
+): string {
   const html =
     isRecord(metadata) && typeof metadata.html === 'string'
       ? metadata.html
       : null;
   const isHtml = html !== null && html.trim() !== '' && html === content;
-  return (isHtml ? htmlToText(content) : content).trim();
+  return (isHtml ? htmlToText(content, opts) : content).trim();
 }
 
 /** The longest subject or correspondent a name carries; the chunk header has

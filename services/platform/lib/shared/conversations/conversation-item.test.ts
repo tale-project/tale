@@ -67,6 +67,34 @@ describe('HTML message previews', () => {
     expect(item.lastMessagePreview).not.toContain('{color');
     expect(item.lastMessagePreview).not.toContain('<style');
   });
+
+  it("doesn't pad a layout-table email with empty pipe columns", () => {
+    const html =
+      '<table><tr><td><img src="logo.png"></td><td></td></tr></table>' +
+      '<table><tr><td><p>You allowed Semrush access to some of your Google data.</p></td></tr></table>';
+    const item = projectConversationItem({
+      conversation: {
+        id: 'thread',
+        organizationId: 'org',
+        channel: 'email',
+        createdAt: 0,
+      },
+      contact: null,
+      messages: [
+        {
+          id: 'm0',
+          direction: 'inbound',
+          content: html,
+          createdAt: 0,
+          metadata: { html },
+        },
+      ],
+    });
+    expect(item.lastMessagePreview).toBe(
+      'You allowed Semrush access to some of your Google data.',
+    );
+    expect(item.lastMessagePreview).not.toContain('|');
+  });
 });
 
 /**

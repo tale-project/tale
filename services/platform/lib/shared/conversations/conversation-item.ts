@@ -218,10 +218,15 @@ export function projectConversationItem(args: {
   // `<style>` block is stripped before the 200-char cut — cutting the raw
   // markup first can sever a long style block's closing tag, and the
   // stripper that runs on the client can no longer find it to remove.
+  // `tableCells: 'space'` because almost every commercial HTML email is a
+  // layout table, not data — the default `'pipe'` reads as a run of empty
+  // `| | | |` separators ahead of the message's real text.
   const lastRawMessage = args.messages[args.messages.length - 1];
   const lastMessagePreview =
     lastRawMessage !== undefined
-      ? messageBodyText(lastRawMessage.content, lastRawMessage.metadata)
+      ? messageBodyText(lastRawMessage.content, lastRawMessage.metadata, {
+          tableCells: 'space',
+        })
           .replace(/\s+/g, ' ')
           .trim()
           .slice(0, LAST_MESSAGE_PREVIEW_MAX_CHARS)
