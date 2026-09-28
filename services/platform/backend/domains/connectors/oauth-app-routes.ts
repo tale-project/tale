@@ -9,6 +9,7 @@ import { requireSession } from '../../auth/session.ts';
 import { resolveCloudImportOauthRedirectUri } from '../../core/cloud_import/deployment_config.ts';
 import { MICROSOFT_CLOUD_IMPORT_SCOPES } from '../../core/cloud_import/providers.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   CLOUD_IMPORT_APP_SLUGS,
   deleteOauthApp,
@@ -152,7 +153,8 @@ export function createConnectorOauthAppRoutes(deps: {
     }
     const parsed = upsertInput.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) {
-      return c.json({ error: 'Invalid OAuth app payload.' }, 400);
+      // The dialog shows the message as written: name the field.
+      return invalidBodyResponse(c, parsed.error);
     }
     try {
       const view = await upsertOauthApp(deps.sql, {

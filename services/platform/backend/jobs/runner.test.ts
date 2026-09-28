@@ -21,19 +21,22 @@ function fakeBoss(): {
   boss: PgBoss;
   send: ReturnType<typeof vi.fn>;
   handlers: Map<string, WorkHandler>;
+  workOptions: Map<string, WorkOptions>;
 } {
   const handlers = new Map<string, WorkHandler>();
+  const workOptions = new Map<string, WorkOptions>();
   const send = vi.fn().mockResolvedValue('requeued');
   const boss = {
     work: vi.fn(
-      async (name: string, _options: WorkOptions, handler: WorkHandler) => {
+      async (name: string, options: WorkOptions, handler: WorkHandler) => {
         handlers.set(name, handler);
+        workOptions.set(name, options);
       },
     ),
     send,
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return { boss: boss as unknown as PgBoss, send, handlers };
+  return { boss: boss as unknown as PgBoss, send, handlers, workOptions };
 }
 
 const job = {
@@ -93,6 +96,27 @@ describe('startWorker job budget', () => {
 
     expect(seen).toHaveLength(1);
     expect(seen[0]?.aborted).toBe(true);
+  });
+});
+
+describe('startWorker batch size', () => {
+  it('fetches a queue named in TASK_WORKER_BATCH_LIMITS one job at a time and every other queue at the worker concurrency', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      taskList: { noop: vi.fn(), 'sandbox.recreate_pinned': vi.fn() },
+    });
+
+    const batchSizes = new Map(
+      [...workOptions].map(([name, options]) => [name, options.batchSize]),
+    );
+    expect(batchSizes).toEqual(
+      new Map([
+        ['noop', 5],
+        ['sandbox.recreate_pinned', 1],
+      ]),
+    );
   });
 });
 

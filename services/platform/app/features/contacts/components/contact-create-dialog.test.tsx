@@ -161,7 +161,12 @@ describe('ContactCreateDialog', () => {
         `en-${'a'.repeat(18)}`,
         'Locale must be 20 characters or fewer',
       ],
-      ['email', `${'a'.repeat(65)}@example.com`, 'Enter a valid email address'],
+      // Named as the limit the docs state, not as a malformed address.
+      [
+        'email',
+        `${'a'.repeat(65)}@example.com`,
+        'Use at most 64 characters before the @',
+      ],
     ])(
       'names an over-long %s under its field and sends nothing',
       async (field, value, message) => {

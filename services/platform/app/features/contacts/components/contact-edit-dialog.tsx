@@ -74,16 +74,16 @@ export function ContactEditDialog({
     try {
       await updateContact({
         contactId: contact._id,
-        // Send the trimmed value as-is (including `''`) rather than
-        // `|| undefined` — `updateContact` drops `undefined` args as
-        // "unchanged" (see `convex/contacts/update_contact.ts`'s
-        // `cleanUpdateData` filter), so `undefined` here would silently skip
-        // patching a field the user just cleared, leaving the old value in
-        // place behind a misleading success toast. Name is optional
-        // (#2640); Phone always was — both must be clearable.
+        // A cleared field must be SENT as a clear, never left out: the
+        // adapter drops `undefined` as "unchanged", so the old value would
+        // stay behind a success toast. Name is optional (#2640) and Phone
+        // always was — both must be clearable. The door stores a blank name
+        // as null, but reads a blank phone as "not sent" (`blankAsAbsent`
+        // in `contactFieldsShape`, for CSV-shaped sources), so a cleared
+        // phone goes out as the explicit `null` the door clears on.
         name: data.name.trim(),
         email: data.email.trim(),
-        phone: data.phone.trim(),
+        phone: data.phone.trim() || null,
         locale: data.locale,
       });
 

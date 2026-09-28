@@ -141,4 +141,30 @@ describe('EditorGroup', () => {
     );
     expect(lastActive(onActive)?.isDirty).toBe(true);
   });
+
+  // Save only ever touches the dirty sections, so a clean one's validity
+  // is not the group's: an untouched section whose probe named its empty
+  // fields used to lock Save for an edit in another section.
+  it('takes validity from the dirty sections only', () => {
+    const onActive = vi.fn();
+    const page = (sections: EditorController[]) => (
+      <ActiveEditorProvider>
+        <ActiveProbe onActive={onActive} />
+        <EditorGroup>
+          {sections.map((controller, index) => (
+            <Section key={index} controller={controller} />
+          ))}
+        </EditorGroup>
+      </ActiveEditorProvider>
+    );
+    const edited = makeController({ isDirty: true });
+
+    const { rerender } = render(
+      page([edited, makeController({ isValid: false })]),
+    );
+    expect(lastActive(onActive)?.isValid).toBe(true);
+
+    rerender(page([edited, makeController({ isDirty: true, isValid: false })]));
+    expect(lastActive(onActive)?.isValid).toBe(false);
+  });
 });

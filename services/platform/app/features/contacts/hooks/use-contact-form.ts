@@ -67,10 +67,13 @@ export function useContactFormSchema() {
             }),
           )
           .email(tCommon('validation.email'))
-          // RFC 5321: at most 64 characters before the `@`.
+          // RFC 5321: at most 64 characters before the `@` — named as the
+          // limit, not as a malformed address the person would re-check.
           .refine(
             (value) => value.indexOf('@') <= CONTACT_EMAIL_LOCAL_PART_MAX,
-            tCommon('validation.email'),
+            tCommon('validation.emailLocalPart', {
+              max: CONTACT_EMAIL_LOCAL_PART_MAX,
+            }),
           ),
         phone: z
           .string()

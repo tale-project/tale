@@ -19,6 +19,7 @@ import {
   productMappers,
   PRODUCT_REQUIRED_COLUMNS,
 } from '@/app/hooks/use-file-import';
+import { PRODUCT_IMPORT_ROWS_MAX } from '@/backend/core/products/field_limits';
 import { useT } from '@/lib/i18n/client';
 import type { ProductStatus } from '@/lib/shared/constants/product-enums';
 import { PRODUCT_STATUS } from '@/lib/shared/constants/product-enums';
@@ -144,6 +145,20 @@ export function ProductsImportDialog({
         if (products.length === 0 && parsed.rowErrors.length === 0) {
           toast({
             title: t('noValidData'),
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // The door refuses a longer list whole, naming no row; ask for a
+        // split before sending anything.
+        if (products.length > PRODUCT_IMPORT_ROWS_MAX) {
+          toast({
+            title: t('import.error'),
+            description: tCommon('import.tooManyRows', {
+              count: products.length,
+              max: PRODUCT_IMPORT_ROWS_MAX,
+            }),
             variant: 'destructive',
           });
           return;

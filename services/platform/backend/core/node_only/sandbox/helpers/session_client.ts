@@ -589,8 +589,10 @@ export async function sessionDestroyIfIdle(
 
 /** PATCH /v1/sessions/:id/pin — toggle the spawner-side "always-on" reaper
  * exemption. Best-effort; the platform `sandbox_sessions.pinned` row is the
- * durable truth, which the sandbox drift reconcile re-asserts on every visit
- * (`reconcileSession` in `domains/sandbox/service.ts`). */
+ * durable truth. The sandbox drift reconcile re-asserts a PIN on every visit
+ * to a pinned row (`reconcileSession` in `domains/sandbox/service.ts`); an
+ * unpin is pushed only by the Unpin action and by Destroy, and nothing
+ * re-asserts it after a failed patch. */
 export async function sessionSetPinned(
   sessionId: string,
   pinned: boolean,

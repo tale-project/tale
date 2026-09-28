@@ -1,4 +1,5 @@
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
@@ -139,6 +140,41 @@ describe('SearchInput', () => {
       const input = screen.getByPlaceholderText('Search...');
       await user.type(input, 'hello');
       expect(handleChange).not.toHaveBeenCalled();
+    });
+
+    it('stays editable while focused when erasing the query disables it', async () => {
+      // An empty list: the query is all that keeps its search usable.
+      function EmptyList() {
+        const [query, setQuery] = useState('zz');
+        return (
+          <SearchInput
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search..."
+            disabled={query === ''}
+          />
+        );
+      }
+      const { user } = render(
+        <>
+          <EmptyList />
+          <button type="button">Next</button>
+        </>,
+      );
+      const input = screen.getByPlaceholderText('Search...');
+      await user.click(input);
+      await user.keyboard('{End}{Backspace}{Backspace}');
+
+      expect(input).toHaveFocus();
+      expect(input).toBeEnabled();
+      await user.keyboard('abc');
+      expect(input).toHaveValue('abc');
+
+      // Emptied and left, it is disabled like any box with nothing to search.
+      await user.clear(input);
+      await user.tab();
+      expect(screen.getByRole('button', { name: 'Next' })).toHaveFocus();
+      expect(input).toBeDisabled();
     });
   });
 

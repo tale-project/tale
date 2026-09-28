@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 25 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 26 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -282,6 +282,14 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   `EMBEDDING_PROVIDER_UNSUPPORTED`; reload → the section shows what it
   showed before. Repeat the blocked read in German and French: the warning,
   the row and the button read in the locale.
+- [ ] `DATA-B10` · **A Test on an untouched section never locks Save** —
+  With a saved **Object storage** connection and **External Postgres**
+  (`settings.dataResidency.externalPostgres`) saved off, change **Bucket**,
+  then switch **External Postgres** on and click its **Test connection**
+  with every field empty → the three required-field errors of `DATA-B8`
+  under their fields, and the header **Save** stays enabled without leaving
+  **Host**; activate it (or Cmd/Ctrl+S) → the bucket change saves and a
+  reload shows it, while nothing is saved for the knowledge database.
 
 ## Deployment defaults
 

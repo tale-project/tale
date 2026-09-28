@@ -68,6 +68,7 @@ import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
+import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
@@ -23550,6 +23551,8 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-000000000000000000000',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      // An Add: these probes exercise the workspace route, not a Reconnect.
+      reconnectCredentialId: null,
     });
     // Point the catalog at a fixture whose slack `tokenUrl` is the fake
     // vendor — `TALE_CONFIG_SYSTEM_DIR` is the catalog's own root override,
@@ -23688,6 +23691,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-222222222222222222222',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const reconnected = await oauth.completeOauth2(
       sql,
@@ -23735,6 +23739,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-333333333333333333333',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const secondConnected = await oauth.completeOauth2(
       sql,
@@ -23775,8 +23780,18 @@ async function checkConnectorOauth(
     // holds this org's Slack credential (one credential per connector name),
     // so only a fresh organization walks the store-then-claim path — and the
     // credential it must not keep would have been its FIRST, i.e. its default.
+    // The initiator is a developer there: the callback re-checks the
+    // membership and role the start door checked.
     vendorTeam = { id: 'T-ITEST-RACE' };
     const raceOrgId = 'itest-race-org';
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${raceOrgId}, 'Itest race org', ${raceOrgId}, now())
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (gen_random_uuid(), ${raceOrgId}, ${userId}, 'developer', now())
+    `;
     const raceState = 'itest-oauth-state-race';
     await oauth.createPendingAuthorization(sql, {
       stateHash: await hashStateToken(raceState),
@@ -23785,6 +23800,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-222222222222222222222',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const credentialService =
       await import('./domains/connector_credentials/service.ts');
@@ -23858,6 +23874,9 @@ async function checkConnectorOauth(
         raceRoute[0]?.orgId === 'some-other-org',
       `outcome=${raced.kind}/${raced.kind === 'error' ? raced.error : '-'} (want workspace_claimed), queuedBehindHolder=${queuedBehindHolder}, loserCredentials=${raceCredentials[0]?.count} (want 0) default=${raceCredentials[0]?.isDefault}, routeOwner=${raceRoute[0]?.orgId}`,
     );
+    // The suite user belongs to the suite organization alone again.
+    await sql`DELETE FROM "member" WHERE "organizationId" = ${raceOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${raceOrgId}`;
 
     // ---- an expired grant is refreshed on resolve --------------------------
     // The happy-path credential's token is made stale in place (the same
@@ -23998,6 +24017,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-111111111111111111111',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const refused = await oauth.completeOauth2(
       sql,
@@ -52388,11 +52408,15 @@ async function checkWatchdogs(
   // cannot settle it as destroyed — the page used to empty itself of idle
   // workspaces on every open — while a genuine phantom (compute-holding
   // row, container gone) still heals. A PINNED row gone spawner-side is
-  // recreated under its id with its stored profile (`'"agent"'` jsonb, as
-  // the reserve writes it) and re-pinned, never settled; a live pinned one
-  // has its pin re-asserted. The pass is walked until every row of the lane
-  // has been probed: the fair rotation may need more than one batch when
-  // earlier lanes left never-visited compute-holding rows in this org.
+  // never settled: the pass queues its recreate (recorded here, so the
+  // harness worker never runs one against a stub spawner), and the queued
+  // job's body recreates it under its id with its stored profile
+  // (`'"agent"'` jsonb, as the reserve writes it) and re-pins it — the row
+  // is left `creating` (its host died mid-provision), so the recreate also
+  // flips it to `active`; a live pinned one has its pin re-asserted. The
+  // pass is walked until every row of the lane has been probed: the fair
+  // rotation may need more than one batch when earlier lanes left
+  // never-visited compute-holding rows in this org.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, profile, status, owner_type, owner_id, created_by,
@@ -52404,7 +52428,7 @@ async function checkWatchdogs(
       (${orgId}, 'wd-org-phantom', NULL, 'active', 'project_agent',
        'itest-wd-agent-gone', 'itest:wd', false, ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'active',
+      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'creating',
        'project_agent', 'itest-wd-agent-pinned-gone', 'itest:wd', true,
        ${now - 2 * 3_600_000}, ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-org-pinned-up', '"agent"'::jsonb, 'active',
@@ -52437,6 +52461,13 @@ async function checkWatchdogs(
     'wd-org-pinned-gone',
     'wd-org-pinned-up',
   ];
+  const orgScheduled: string[] = [];
+  const orgSchedule = async (
+    _sql: unknown,
+    args: { sessionId: string },
+  ): Promise<void> => {
+    orgScheduled.push(args.sessionId);
+  };
   let orgHealed = 0;
   let orgPasses = 0;
   while (!orgLaneRows.every((id) => orgProbed.includes(id)) && orgPasses < 8) {
@@ -52444,10 +52475,19 @@ async function checkWatchdogs(
       sql,
       orgId,
       orgSpawner,
+      orgSchedule,
     );
     orgHealed += pass.healed;
     orgPasses += 1;
   }
+  const createsBeforeJob = orgCreated.length;
+  const { recreatePinnedSession } =
+    await import('./domains/sandbox/service.ts');
+  const orgRecreate = await recreatePinnedSession(
+    sql,
+    { organizationId: orgId, sessionId: 'wd-org-pinned-gone' },
+    orgSpawner,
+  );
   const orgRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id LIKE 'wd-org-%'
@@ -52456,14 +52496,20 @@ async function checkWatchdogs(
     orgRows.find((r) => r.sessionId === sessionId)?.status;
   const orgCreates = orgCreated.map((body) => JSON.stringify(body));
   record(
-    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session is recreated in place and re-pinned',
+    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session’s recreate is queued, and the job recreates it in place and re-pins it',
     !orgProbed.includes('wd-org-hibernated') &&
       orgStatusOf('wd-org-hibernated') === 'stopped' &&
       orgProbed.includes('wd-org-phantom') &&
       orgStatusOf('wd-org-phantom') === 'destroyed' &&
       orgHealed === 1 &&
-      // The pinned phantom: recreated under its id, org and stored profile,
-      // re-pinned, and its row still `active`.
+      // The page's pass queued the pinned phantom's recreate and created
+      // nothing itself…
+      createsBeforeJob === 0 &&
+      orgScheduled.includes('wd-org-pinned-gone') &&
+      orgScheduled.every((id) => id === 'wd-org-pinned-gone') &&
+      // …and the job recreated it under its id, org and stored profile,
+      // re-pinned it, and flipped its `creating` row to `active`.
+      orgRecreate === 'recreated' &&
       orgStatusOf('wd-org-pinned-gone') === 'active' &&
       orgCreates.length === 1 &&
       orgCreates[0] ===
@@ -52477,7 +52523,7 @@ async function checkWatchdogs(
       // The live pinned session: pin re-asserted, nothing created.
       orgStatusOf('wd-org-pinned-up') === 'active' &&
       orgPinned.includes('wd-org-pinned-up'),
-    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
+    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} scheduled=${orgScheduled.join(',')} createdByPass=${createsBeforeJob} job=${orgRecreate} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
   );
   // The pinned rows stay `active` by design; drop them so they hold no
   // project-agent slot of this org in the lanes after this one.
@@ -55542,6 +55588,10 @@ async function main(): Promise<void> {
         () => checkConnectorCredentials(sql, baseUrl, authCtx),
       ],
       ['checkConnectorOauth', () => checkConnectorOauth(sql, baseUrl, authCtx)],
+      [
+        'checkConnectorOauthIntent',
+        () => checkConnectorOauthIntent(sql, baseUrl, record),
+      ],
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
