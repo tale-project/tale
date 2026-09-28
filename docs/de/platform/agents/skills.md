@@ -26,7 +26,7 @@ Alte private Skills können nicht für einen Projekt-Agenten ausgewählt werden.
 
 Die Agent-Knoten einer Automation geben an, welche Skills sie brauchen. Ein an ein Projekt gebundener Lauf nutzt dessen Zugriff. Ein Lauf auf Organisationsebene kann nur organisationsweite Skills verwenden. Deine persönliche Mitgliedschaft in weiteren Teams erweitert diesen Zugriff nicht.
 
-Beim Einrichten der Sandbox stellt Tale die ausgerüsteten Bundles als Dateien bereit und gibt dem Agenten die Pfade zu ihren `SKILL.md`-Anweisungen. Unterstützende Dateien liegen daneben. Wähle die Ausrüstung gezielt und sage dem Agenten, welches Vorgehen für die Aufgabe wichtig ist. Dass ein Skill verfügbar ist, belegt noch nicht, dass das Ergebnis seinen Anweisungen folgt.
+Beim Einrichten der Sandbox stellt Tale die ausgerüsteten Bundles als Dateien bereit und nennt dem Agenten jeden Skill mit seiner Beschreibung und dem Pfad zu seinen `SKILL.md`-Anweisungen. So kann der Agent den passenden Skill auch für eine frei formulierte Aufgabe wählen. Ein Skill mit `disable-model-invocation` wird nur für ausdrückliche Anfragen genannt. Unterstützende Dateien liegen daneben. Wähle die Ausrüstung gezielt und nenne das Vorgehen, wenn es darauf ankommt. Dass ein Skill verfügbar ist, belegt noch nicht, dass das Ergebnis seinen Anweisungen folgt.
 
 ## Fehlende oder geänderte Skills prüfen
 
