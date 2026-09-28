@@ -193,12 +193,11 @@ export async function recoverStuckRagIndexing(
   const staleBefore = Date.now() - staleMs;
   const failedAfter = Date.now() - RAG_FAILED_RECONCILE_WINDOW_MS;
   const candidates = await sql<
-    ({ id: string; storageRef: string; ragStatus: string } & MovedStatusRow)[]
+    { id: string; orgId: string; storageRef: string; ragStatus: string }[]
   >`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
-           rag_status AS "ragStatus",
-           ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
-    FROM app.file_metadata fm
+           rag_status AS "ragStatus"
+    FROM app.file_metadata
     WHERE storage_ref IS NOT NULL
       AND (
         (rag_status IN ('queued', 'running')
@@ -248,31 +247,33 @@ export async function recoverStuckRagIndexing(
     // The rows this sweep moved: the document list renders the column, and
     // without a hint the browser keeps showing whatever state the page was
     // loaded with.
-    const moved: MovedStatusRow[] = [];
+    const moved: { id: string }[] = [];
     for (const row of rows) {
       const status = statuses.get(row.storageRef) ?? null;
       if (status?.status === 'completed') {
-        await sql`
+        const changed = await sql<{ id: string }[]>`
           UPDATE app.file_metadata SET
             rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
             rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
           WHERE id = ${row.id}
+          RETURNING id
         `;
-        moved.push(row);
-        adopted += 1;
+        moved.push(...changed);
+        adopted += changed.length;
         continue;
       }
       if (status?.status === 'failed') {
         // The corpus knows the REAL error; refresh the row with it.
-        await sql`
+        const changed = await sql<{ id: string }[]>`
           UPDATE app.file_metadata SET
             rag_status = 'failed',
             rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
             status_changed_at_ms = ${now}
           WHERE id = ${row.id}
+          RETURNING id
         `;
-        moved.push(row);
-        if (row.ragStatus !== 'failed') failed += 1;
+        moved.push(...changed);
+        if (row.ragStatus !== 'failed') failed += changed.length;
         continue;
       }
       if (status?.status === 'processing') {
@@ -284,14 +285,15 @@ export async function recoverStuckRagIndexing(
           // A live chain under a `failed` row is a false failure — flip it
           // back so the person watches real progress, not a wrong error.
           if (row.ragStatus === 'failed') {
-            await sql`
+            const changed = await sql<{ id: string }[]>`
               UPDATE app.file_metadata SET
                 rag_status = 'running', rag_error = NULL,
                 rag_error_code = NULL, status_changed_at_ms = ${now}
               WHERE id = ${row.id}
+              RETURNING id
             `;
-            moved.push(row);
-            revived += 1;
+            moved.push(...changed);
+            revived += changed.length;
           }
           continue;
         }
@@ -299,16 +301,30 @@ export async function recoverStuckRagIndexing(
       // Stale `processing` or never ingested: the job will not finish. An
       // already-failed row keeps its own (possibly real) error.
       if (row.ragStatus === 'failed') continue;
-      await sql`
+      const changed = await sql<{ id: string }[]>`
         UPDATE app.file_metadata SET
           rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
           status_changed_at_ms = ${now}
         WHERE id = ${row.id}
+        RETURNING id
       `;
-      moved.push(row);
-      failed += 1;
+      moved.push(...changed);
+      failed += changed.length;
     }
-    await hintDocumentLists(sql, moved);
+    if (moved.length > 0) {
+      // A document can bind a file while the corpus is read, or hold its
+      // metadata lock while a settle waits. Read ownership AFTER the writes
+      // in a fresh statement: an UPDATE RETURNING probe could still use the
+      // snapshot from before that bind committed. A later bind emits its
+      // own document hint after these settled statuses are visible.
+      const current = await sql<MovedStatusRow[]>`
+        SELECT fm.org_id AS "orgId",
+               ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+        FROM app.file_metadata fm
+        WHERE fm.org_id = ${orgId} AND fm.id = ANY(${moved.map((row) => row.id)})
+      `;
+      await hintDocumentLists(sql, current);
+    }
   }
   if (adopted + failed + revived > 0) {
     console.info(

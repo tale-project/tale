@@ -53,21 +53,42 @@ interface CorpusRow {
 }
 
 /**
- * Scripted `sql`: the candidate read — the statement that asks, per row,
- * whether a document holds the file — answers the script, the org-slug
- * lookup answers one org, every UPDATE answers no rows. Each statement is
- * recorded so the settle writes can be asserted by shape.
+ * Scripted `sql`: the candidate read is a snapshot, while the ownership
+ * read sees the current state. A bind or deletion may land between that
+ * snapshot and the status write, as the real-Postgres lane proves too.
  */
-function fakeSql(candidates: Candidate[]): {
+function fakeSql(
+  candidates: Candidate[],
+  options: { bindBeforeWrite?: string; deleteBeforeWrite?: string } = {},
+): {
   sql: Sql;
   statements: Statement[];
 } {
   const statements: Statement[] = [];
+  const current = new Map(candidates.map((row) => [row.id, { ...row }]));
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
+    if (text.startsWith('SELECT id,')) {
+      return Promise.resolve(candidates.map((row) => ({ ...row })));
+    }
+    if (text.startsWith('UPDATE app.file_metadata')) {
+      const id = candidates.find((row) => values.includes(row.id))?.id;
+      const row = id === undefined ? undefined : current.get(id);
+      if (row === undefined || row.id === options.deleteBeforeWrite) {
+        if (id !== undefined) current.delete(id);
+        return Promise.resolve([]);
+      }
+      if (row.id === options.bindBeforeWrite) row.listed = true;
+      return Promise.resolve([{ id: row.id }]);
+    }
     if (values.includes(HELD_BY_DOCUMENT_SQL)) {
-      return Promise.resolve(candidates);
+      const ids = values.find(Array.isArray) ?? [];
+      return Promise.resolve(
+        [...current.values()].filter(
+          (row) => ids.includes(row.id) && values.includes(row.orgId),
+        ),
+      );
     }
     if (text.includes('FROM "organization"')) {
       return Promise.resolve([{ slug: 'acme' }]);
@@ -177,6 +198,42 @@ describe('recoverStuckRagIndexing — the interrupted text', () => {
 });
 
 describe('recoverStuckRagIndexing — who hears a sweep', () => {
+  it('tells a document bound after the candidate read about its settled status', async () => {
+    const { sql } = fakeSql(
+      [candidate('fm_late_bind', 'running', { listed: false })],
+      { bindBeforeWrite: 'fm_late_bind' },
+    );
+    corpusAnswering([
+      {
+        file_id: 's3:fm_late_bind',
+        status: 'completed',
+        error: null,
+        updated_at: null,
+      },
+    ]);
+
+    const result = await recoverStuckRagIndexing(sql);
+
+    expect(result).toEqual({ adopted: 1, failed: 0, revived: 0 });
+    expect(vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint)).toEqual([
+      { orgId: 'org_1', entity: 'document', entityId: null },
+    ]);
+  });
+
+  it('does not count or hint a candidate deleted before its status write', async () => {
+    const { sql } = fakeSql([candidate('fm_deleted')], {
+      deleteBeforeWrite: 'fm_deleted',
+    });
+    corpusAnswering([]);
+
+    expect(await recoverStuckRagIndexing(sql)).toEqual({
+      adopted: 0,
+      failed: 0,
+      revived: 0,
+    });
+    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+  });
+
   it('tells each organization’s lists once, for every kind of write', async () => {
     const { sql } = fakeSql([
       candidate('fm_done'),
