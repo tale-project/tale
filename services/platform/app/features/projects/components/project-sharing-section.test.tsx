@@ -13,15 +13,24 @@ import { ProjectSharingSection } from './project-sharing-section';
  * to be mistaken for a narrowing: the removed team was "no longer in the
  * upcoming set", although everyone, that team included, keeps access.
  */
-const { updateSharing, orgTeams } = vi.hoisted(() => ({
-  updateSharing: vi.fn(),
-  orgTeams: {
+type OrgTeam = {
+  id: string;
+  name: string;
+  memberCount: number;
+  createdAt: number;
+};
+
+const { updateSharing, orgTeams } = vi.hoisted(() => {
+  // `current` is `undefined` (and `loading` true) while the org's teams load.
+  const teams: { current: OrgTeam[] | undefined; loading: boolean } = {
     current: [
       { id: 't-one', name: 'Team One', memberCount: 2, createdAt: 0 },
       { id: 't-two', name: 'Team Two', memberCount: 3, createdAt: 0 },
     ],
-  },
-}));
+    loading: false,
+  };
+  return { updateSharing: vi.fn(), orgTeams: teams };
+});
 
 vi.mock('../hooks/mutations', () => ({
   useUpdateProjectSharing: () => ({
@@ -30,7 +39,10 @@ vi.mock('../hooks/mutations', () => ({
   }),
 }));
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => ({ teams: orgTeams.current, isLoading: false }),
+  useOrgTeams: () => ({
+    teams: orgTeams.current,
+    isLoading: orgTeams.loading,
+  }),
   useTeamNames: () => ({
     nameOf: (id: string) => ({ 't-one': 'Team One', 't-two': 'Team Two' })[id],
     isLoading: false,
@@ -191,6 +203,30 @@ describe('ProjectSharingSection chrome', () => {
       expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     } finally {
       orgTeams.current = previous;
+    }
+  });
+
+  // Regression (#3522 review): the org's teams are `undefined` until they
+  // load, and the row used to read that as "no teams" — telling an
+  // administrator of an org with teams to go and create one.
+  it('holds the Audience row while the teams load, never claiming there are none', () => {
+    const previous = orgTeams.current;
+    orgTeams.current = undefined;
+    orgTeams.loading = true;
+    try {
+      renderSection(['t-one']);
+      const row = fieldRowAround(
+        screen.getByRole('status', { name: /Loading/ }),
+      );
+
+      expect(within(row).getByText('Audience')).toBeInTheDocument();
+      expect(screen.queryByText(/No teams yet\./)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: 'Create a team' }),
+      ).not.toBeInTheDocument();
+    } finally {
+      orgTeams.current = previous;
+      orgTeams.loading = false;
     }
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
@@ -43,7 +44,7 @@ export function ProjectSharingSection({
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
   // What the viewer may ASSIGN (an admin: every team) — the picker's options.
-  const { teams: assignableTeams } = useOrgTeams();
+  const { teams: assignableTeams, isLoading: teamsLoading } = useOrgTeams();
   // Every team by name — the read-only summary must name a team the viewer
   // is not in, too.
   const { nameOf } = useTeamNames();
@@ -130,16 +131,22 @@ export function ProjectSharingSection({
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
         >
-          <Text variant="muted">
-            {t('sharing.noTeamsHint')}{' '}
-            <Link
-              to="/dashboard/$id/settings/teams"
-              params={{ id: organizationId }}
-              className="text-primary hover:underline"
-            >
-              {t('sharing.noTeamsCreateLink')}
-            </Link>
-          </Text>
+          {/* No teams until the org's teams have loaded: "No teams yet" would
+              be false for an org that has them, so hold the row meanwhile. */}
+          {teamsLoading ? (
+            <Spinner size="sm" label={tCommon('actions.loading')} />
+          ) : (
+            <Text variant="muted">
+              {t('sharing.noTeamsHint')}{' '}
+              <Link
+                to="/dashboard/$id/settings/teams"
+                params={{ id: organizationId }}
+                className="text-primary hover:underline"
+              >
+                {t('sharing.noTeamsCreateLink')}
+              </Link>
+            </Text>
+          )}
         </SettingsFieldRow>
       </SettingsFieldList>
     );
