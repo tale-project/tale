@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import { toast } from '@tale/ui/use-toast';
 import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +6,6 @@ import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ProjectAgentRow } from '../hooks/queries';
-import { DOCUMENT_SKILL_SLUGS } from '../lib/document-skills';
 import { ProjectAgentDialog } from './project-agent-dialog';
 
 const { updateAgent, previewState } = vi.hoisted(() => ({
@@ -284,16 +280,5 @@ describe('ProjectAgentDialog document skills', () => {
     expect(await checkedState(user, 'Word documents')).toBe('false');
     expect(await checkedState(user, 'Presentations')).toBe('false');
     expect(await checkedState(user, 'Brief summary')).toBe('true');
-  });
-
-  it('names skills every organization is seeded with', () => {
-    // The seed catalog the platform image copies into each new organization.
-    const seedRoot = resolve(
-      process.cwd(),
-      '../../configs/platform/custom/skills',
-    );
-    for (const slug of DOCUMENT_SKILL_SLUGS) {
-      expect(existsSync(resolve(seedRoot, slug, 'SKILL.md')), slug).toBe(true);
-    }
   });
 });

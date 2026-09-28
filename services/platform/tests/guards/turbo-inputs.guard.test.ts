@@ -56,7 +56,8 @@ const OUTSIDE_READS = [
   { path: 'compose.dev.yml', readers: 'scripts/dev-secrets.test.ts' },
   {
     path: 'configs/platform/custom',
-    readers: 'backend/core/provisioning/provision_default_automations.test.ts',
+    readers:
+      'backend/core/provisioning/provision_default_automations.test.ts and lib/shared/config/document-skills-catalog.test.ts',
   },
   {
     path: 'configs/platform/system',
