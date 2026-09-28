@@ -554,6 +554,8 @@ loaded, and reads **No teams** for an account in none.
   warns once that it ignored `TALE_CONTACT_SUPPORT_URL`, and the same link
   points at `https://tale.dev/contact?organizationId={orgId}`.
 
+- [ ] `NAV-B15` · **Recover the header after typing in an iPhone Safari overlay** → On a real iPhone or iOS Simulator, test both the software keyboard and hardware-keyboard accessory bar. Open an automation node, focus a field, then dismiss the keyboard and close the panel; repeat by closing while the keyboard is still open, with Safari's toolbar expanded and collapsed, and with another form dialog. The title/profile row returns fully into view after dismissal and stays visible when navigating away; panel content remains scrollable. Repeat in the installed home-screen app and with pinch zoom: neither regresses.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `NAV-A1` · **Landmarks** → Exactly one `role="main"` and one `<nav
