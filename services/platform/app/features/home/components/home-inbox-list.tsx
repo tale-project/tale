@@ -334,14 +334,10 @@ export function HomeInboxList({
             })}
             className="bg-muted/70 animate-in fade-in-0 zoom-in-95 flex h-8 items-center gap-1 rounded-lg pr-1 pl-2 duration-150"
           >
+            {/* Three states, as on the phone list: a partial selection reads
+                mixed, and ticking it then selects every row the list shows. */}
             <Checkbox
-              checked={
-                selection.selectAllChecked
-                  ? true
-                  : selection.hasSelectedItems
-                    ? 'indeterminate'
-                    : false
-              }
+              checked={selection.selectAllChecked}
               onCheckedChange={selection.handleSelectAll}
               aria-label={tCommon('aria.selectAll')}
             />

@@ -317,6 +317,77 @@ describe('HomeInboxList search and filters', () => {
 });
 
 /**
+ * The toolbar's Select all reads the selection in three states, as the phone
+ * list's does: nothing, some, or every row the list shows. It coerced the
+ * partial state to "checked", so one ticked row read as all of them, and the
+ * next click cleared the row instead of selecting the rest (#3734).
+ */
+describe('HomeInboxList select all', () => {
+  const rows = [
+    conversation('c1', 'Invoice shows the wrong VAT'),
+    conversation('c2', 'Invoice for March missing'),
+    conversation('c3', 'Delivery is late'),
+  ];
+  const rowBoxes = () =>
+    screen.getAllByRole('checkbox', { name: 'Select conversation' });
+  const selectAll = () => screen.getByRole('checkbox', { name: 'Select all' });
+  const toolbar = () => screen.getByRole('toolbar');
+
+  beforeEach(() => {
+    listing.current = pages(rows);
+  });
+
+  it('reads mixed over a partial selection, and ticking it selects the rest', async () => {
+    const { user } = renderInbox();
+    await user.click(rowBoxes()[0]!);
+
+    expect(toolbar()).toHaveAccessibleName('1 selected');
+    expect(selectAll()).toHaveAttribute('aria-checked', 'mixed');
+
+    await user.click(selectAll());
+    expect(toolbar()).toHaveAccessibleName('3 selected');
+    expect(selectAll()).toHaveAttribute('aria-checked', 'true');
+    for (const box of rowBoxes()) {
+      expect(box).toHaveAttribute('aria-checked', 'true');
+    }
+
+    // Ticked while every row is selected, it lets go of all of them.
+    await user.click(selectAll());
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    for (const box of rowBoxes()) {
+      expect(box).toHaveAttribute('aria-checked', 'false');
+    }
+  });
+
+  it('reads checked once each row is ticked by hand', async () => {
+    const { user } = renderInbox();
+    for (const box of rowBoxes()) await user.click(box);
+
+    expect(toolbar()).toHaveAccessibleName('3 selected');
+    expect(selectAll()).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('counts and selects only the rows a search leaves', async () => {
+    const { user } = renderInbox();
+    await user.type(searchBox(), 'Invoice');
+    expect(rowBoxes()).toHaveLength(2);
+
+    await user.click(rowBoxes()[0]!);
+    expect(selectAll()).toHaveAttribute('aria-checked', 'mixed');
+    await user.click(selectAll());
+    expect(toolbar()).toHaveAccessibleName('2 selected');
+
+    // The row the search hid was never selected.
+    await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+    await user.type(searchBox(), '{Backspace>7/}');
+    expect(rowBoxes()).toHaveLength(3);
+    for (const box of rowBoxes()) {
+      expect(box).toHaveAttribute('aria-checked', 'false');
+    }
+  });
+});
+
+/**
  * A read that failed once its retries gave up is not an empty status: the
  * view says the list did not load and offers **Try again**, where it used to
  * read **No conversations** with nothing to recover from (#3709). Rows that
