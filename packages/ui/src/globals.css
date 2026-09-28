@@ -870,7 +870,7 @@ input[type='text']:-webkit-autofill {
 @layer base {
   :root {
     --mobile-nav-height: 3.75rem;
-    --mobile-nav-bottom: calc(0.5rem + var(--safe-bottom));
+    --mobile-nav-bottom: calc(0.25rem + var(--safe-bottom));
     --mobile-nav-clearance: 0px;
     --mobile-keyboard-inset: 0px;
     --mobile-nav-content-pad: var(--mobile-nav-clearance);
@@ -878,7 +878,7 @@ input[type='text']:-webkit-autofill {
 
   @media (width < 48rem) {
     :root.boot-safari-toolbar {
-      --mobile-nav-bottom: calc(0.5rem + max(var(--safe-bottom), 3rem));
+      --mobile-nav-bottom: calc(0.25rem + max(var(--safe-bottom), 1rem));
     }
 
     :root:has(.mobile-nav-shell):not([data-mobile-keyboard]) {
