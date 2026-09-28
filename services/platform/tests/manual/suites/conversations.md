@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 57 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -431,7 +431,9 @@ subject.
   row → Once one row is ticked every row shows its checkbox and ticked rows are
   tinted; the toolbar names the count (**N selected**,
   `conversations.bulk.selectedCount`) and its select-all box reads
-  indeterminate while only some rows are ticked; a row's checkbox also shows
+  indeterminate while only some rows are ticked — ticking it then ticks every
+  row the list shows, and ticking it once all are ticked clears them; a row's
+  checkbox also shows
   while the row holds keyboard focus; **Clear selection**
   (`home.inbox.clearSelection`) or a status switch drops the selection;
   clicking a row's text still opens the conversation rather than ticking it.
@@ -496,6 +498,19 @@ subject.
   live. Undo a reply, then open another conversation → Its reply box holds
   neither the line nor the file; back on the first conversation, both are
   still there.
+- [ ] `CONV-F34` · **Bulk verbs over more than one request** — With 201 open
+  conversations that share a word in their subject (seed them through
+  `POST /api/v1/conversations/sync`, as in CONV-B6), search for that word so
+  every page loads, tick one row, then tick the select-all box → It reads
+  mixed first, then ticks all 201 (**201 selected**,
+  `conversations.bulk.selectedCount`). **Close** → While the requests go out
+  the Home panel's bar, and at 390 px the list's overlay, count them off
+  (**Updating conversations... 200 of 201**, `conversations.bulk.progress`),
+  one toast follows (**Resolved 201 conversations**,
+  `conversations.bulk.resolvedDescription`), and after a reload all 201 sit
+  under **Closed**; reopen them the same way from **Closed**. A request the
+  door refuses is counted as failed in that same toast, and its rows stay
+  ticked for another try.
 
 ## Boundary & error tests
 
@@ -542,6 +557,13 @@ subject.
   messages are still shown (never **"No messages yet"**), the reply box is
   refused, and `GET /api/v1/conversations/sync?source=…&externalId=…` reads
   `sourceDeleted: true`, `status: closed`.
+- [ ] `CONV-B7` · **A list that does not load** — In the browser's developer
+  tools block requests to `/api/app/conversations?*` and open the Inbox → Once
+  the retries give up, the Home panel's Inbox view and the 390 px list read
+  **Couldn't load conversations** (`conversations.list.loadFailed`) with
+  **Try again** (`common.actions.tryAgain`), never **No conversations**; the
+  search box and **Filter** stay usable. Unblock and press **Try again** → The
+  rows load in place.
 
 ## Accessibility (WCAG 2.1 AA)
 
