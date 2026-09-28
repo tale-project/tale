@@ -1,14 +1,13 @@
-import { z } from 'zod';
-
-import { buildProductImageUrl } from '../../../lib/shared/product-images.ts';
+import {
+  buildProductImageUrl,
+  productImageUrlParts,
+} from '../../../lib/shared/product-images.ts';
 
 /**
  * The managed product-image URL and its inverse — pure string work with no
  * database behind it, so the product service (which images.ts builds on)
  * can read a row's `image_url` back to its upload without a cycle.
  */
-
-const IMAGE_ID = z.uuid();
 
 /** Origin-relative like branding images: cookies follow the host being used. */
 export function productImageUrl(
@@ -27,16 +26,14 @@ export function productImageId(
   value: string,
   organizationId: string,
 ): string | null {
-  if (!value.startsWith('/') || value.startsWith('//')) return null;
-  const parsed = new URL(value, 'http://product-image.invalid');
-  const fileId = parsed.pathname.split('/').at(-1);
-  if (!IMAGE_ID.safeParse(fileId).success || fileId === undefined) return null;
-  return value === productImageUrl(organizationId, fileId) ? fileId : null;
+  const parts = productImageUrlParts(value);
+  if (parts === null) return null;
+  return value === productImageUrl(organizationId, parts.fileId)
+    ? parts.fileId
+    : null;
 }
 
 export function isProductImageUrl(value: string): boolean {
-  if (!value.startsWith('/') || value.startsWith('//')) return false;
-  const parsed = new URL(value, 'http://product-image.invalid');
-  const orgId = parsed.searchParams.get('orgId');
-  return orgId !== null && productImageId(value, orgId) !== null;
+  const parts = productImageUrlParts(value);
+  return parts !== null && productImageId(value, parts.organizationId) !== null;
 }

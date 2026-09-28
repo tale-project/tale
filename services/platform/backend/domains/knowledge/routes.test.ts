@@ -174,6 +174,18 @@ describe('reviewed embedding HTTP updates', () => {
       { organizationId: 'o1' },
     );
   });
+
+  it('names the body when it is not a JSON object', async () => {
+    writeKnowledgeEmbedding.mockClear();
+    const response = await post('/embedding?orgId=o1', null);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'invalid body',
+      message: 'body: must be a JSON object',
+      data: { issues: [{ path: 'body', message: 'must be a JSON object' }] },
+    });
+    expect(writeKnowledgeEmbedding).not.toHaveBeenCalled();
+  });
 });
 
 describe('knowledge routes — BYO connection wire contract', () => {

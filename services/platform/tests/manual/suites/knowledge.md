@@ -541,8 +541,12 @@ records and delete them after.
   Products → **Add product** → **Or paste a URL**
   (`products.edit.pasteUrl`) → `example.com/cat.png` → **Next** stays on
   **Basics** with `products.edit.validation.imageUrl` under **Image URL**;
+  so does `/images/cat.png` (only the path an upload returned passes);
   `https://` in front of it passes; **Edit** → the same on **Save**. No
-  toast in any of these, and never one reading `invalid body`.
+  toast in any of these, and never one reading `invalid body`. Paste
+  `http://169.254.169.254/cat.png` → **Create** → the toast's second line
+  reads `imageUrl: must name a public host — …`, never
+  `imageUrl: Invalid input`.
 
 ## Accessibility (WCAG 2.1 AA)
 
