@@ -31,7 +31,8 @@ interface Charge {
 /**
  * Tagged-template Sql double: answers the door's membership lookups, plays
  * the rate limiter's UPSERT/SELECT pair (a charge on an `exhausted` lane
- * UPSERTs nothing and reads back an empty bucket), and records every charge.
+ * UPSERTs nothing and reads back an empty bucket), and records every charge
+ * and every statement.
  */
 function fakeSql(
   exhausted: Set<string> = new Set(),
@@ -40,17 +41,27 @@ function fakeSql(
     organizations?: Record<string, { id: string; slug: string }>;
     /** The org ids user-1 is a member of. */
     memberOf?: Set<string>;
+    /** An org whose membership is revoked right after its first member-row
+     * lookup — the door's re-check then finds none (a concurrent removal). */
+    revokeAfterFirstLookup?: string;
+    /** Org ids whose organization row carries no slug. */
+    slugless?: Set<string>;
     /** Fail every query whose text matches — a database outage. */
     outage?: RegExp;
   } = {},
 ): {
   sql: Sql;
   charges: Charge[];
+  /** Every statement's text, in order, and the values it carried. */
+  queries: { text: string; values: unknown[] }[];
 } {
   const charges: Charge[] = [];
-  const memberOf = world.memberOf ?? new Set(['org-1']);
+  const queries: { text: string; values: unknown[] }[] = [];
+  const memberOf = new Set(world.memberOf ?? ['org-1']);
+  const slugless = world.slugless ?? new Set<string>();
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+    queries.push({ text, values });
     if (world.outage?.test(text)) {
       return Promise.reject(new Error('connection refused'));
     }
@@ -78,12 +89,15 @@ function fakeSql(
           organizationId,
           role: 'member',
           name: `Org ${organizationId}`,
-          slug: organizationId,
+          slug: slugless.has(organizationId) ? null : organizationId,
         })),
       );
     }
     if (text.includes('FROM "organization" WHERE "id"')) {
-      return Promise.resolve([{ slug: 'acme' }]);
+      const [organizationId] = values;
+      return Promise.resolve([
+        { slug: slugless.has(String(organizationId)) ? null : 'acme' },
+      ]);
     }
     if (text.includes('FROM "organization" WHERE "slug"')) {
       const [slug] = values;
@@ -92,8 +106,12 @@ function fakeSql(
     }
     if (text.includes('FROM "member" WHERE "organizationId"')) {
       const [organizationId] = values;
+      const isMember = memberOf.has(String(organizationId));
+      if (world.revokeAfterFirstLookup === organizationId) {
+        memberOf.delete(String(organizationId));
+      }
       return Promise.resolve(
-        memberOf.has(String(organizationId))
+        isMember
           ? [
               {
                 id: 'm-1',
@@ -108,7 +126,7 @@ function fakeSql(
     return Promise.resolve([]);
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return { sql: tag as unknown as Sql, charges };
+  return { sql: tag as unknown as Sql, charges, queries };
 }
 
 const GOOD_KEY = 'tale_good';
@@ -475,8 +493,8 @@ describe('/api/v1 door — organization resolution statuses', () => {
     expect(await res.text()).toBe('handled: connection refused');
   });
 
-  it('answers 404 ORG_SLUG_INVALID for a header that cannot be a slug, without a lookup and without echoing it whole', async () => {
-    const { sql } = fakeSql();
+  it('answers 404 ORG_SLUG_INVALID for a header that cannot be a slug, without looking it up and without echoing it whole', async () => {
+    const { sql, queries } = fakeSql();
     const { auth } = fakeAuth();
     const monster = `Not A Slug ${'x'.repeat(500)}`;
     const res = await door(sql, auth).request(
@@ -487,6 +505,17 @@ describe('/api/v1 door — organization resolution statuses', () => {
     const body = (await res.json()) as { error: string; code: string };
     expect(body.code).toBe('ORG_SLUG_INVALID');
     expect(body.error.length).toBeLessThan(120);
+    // The unbounded value never reaches the database — only the caller's
+    // own memberships are read, to list them.
+    expect(
+      queries.some(
+        ({ text, values }) =>
+          text.includes('FROM "organization" WHERE "slug"') ||
+          values.some((value) =>
+            String(value).toLowerCase().includes('not a slug'),
+          ),
+      ),
+    ).toBe(false);
   });
 
   it('echoes a non-ASCII slug as the UTF-8 the caller sent, not byte by byte (2026-09-19, K1-6)', async () => {
@@ -502,6 +531,129 @@ describe('/api/v1 door — organization resolution statuses', () => {
     const body = (await res.json()) as { error: string; code: string };
     expect(body.code).toBe('ORG_SLUG_INVALID');
     expect(body.error).toBe('Organization not found: tälé');
+  });
+});
+
+/**
+ * Every refusal of the organization a key names hands back the slugs the
+ * key holder may send, under `data.organizations` — the regression under
+ * test: only the 400 for a missing header carried them, so a key holder in
+ * several organizations who mistyped a slug (404) or named a foreign one
+ * (403) was told what was wrong but not what to send, and `GET /api/v1/me`
+ * sits behind the same header.
+ */
+describe('/api/v1 door — a slug refusal lists the slugs the key holder may send', () => {
+  const both = {
+    organizations: [
+      { slug: 'org-1', name: 'Org org-1' },
+      { slug: 'org-2', name: 'Org org-2' },
+    ],
+  };
+
+  it('lists them in the 404 for a mistyped slug', async () => {
+    const { sql } = fakeSql(new Set(), {
+      memberOf: new Set(['org-1', 'org-2']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'org-l' }),
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Organization not found: org-l',
+      code: 'ORG_SLUG_INVALID',
+      data: both,
+    });
+  });
+
+  it('lists them in the 404 for a header that cannot be a slug', async () => {
+    const { sql } = fakeSql(new Set(), {
+      memberOf: new Set(['org-1', 'org-2']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'Org 1' }),
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Organization not found: org 1',
+      code: 'ORG_SLUG_INVALID',
+      data: both,
+    });
+  });
+
+  it('lists them in the 403 for an organization the key holder is no member of', async () => {
+    const { sql } = fakeSql(new Set(), {
+      organizations: { other: { id: 'org-3', slug: 'other' } },
+      memberOf: new Set(['org-1', 'org-2']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'other' }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'Not a member of organization other',
+      code: 'ORG_FORBIDDEN',
+      data: both,
+    });
+  });
+
+  it('lists what is left in the 403 for a membership removed while the door resolved it', async () => {
+    const { sql } = fakeSql(new Set(), {
+      organizations: { acme: { id: 'org-1', slug: 'acme' } },
+      memberOf: new Set(['org-1', 'org-2']),
+      revokeAfterFirstLookup: 'org-1',
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'acme' }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'Not a member of organization "acme".',
+      code: 'ORG_FORBIDDEN',
+      data: { organizations: [{ slug: 'org-2', name: 'Org org-2' }] },
+    });
+  });
+
+  it('answers an empty list in the 403 for a key holder with no membership', async () => {
+    const { sql } = fakeSql(new Set(), { memberOf: new Set() });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'User has no organization memberships',
+      code: 'ORG_FORBIDDEN',
+      data: { organizations: [] },
+    });
+  });
+
+  it('offers no slugless organization in the 404 for a sole membership without a slug', async () => {
+    // A single membership resolves without the header; the organization it
+    // resolves to has no slug to route by, so it is not a choice either.
+    const { sql } = fakeSql(new Set(), {
+      memberOf: new Set(['org-1']),
+      slugless: new Set(['org-1']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: 'Organization slug not found',
+      code: 'ORG_SLUG_INVALID',
+      data: { organizations: [] },
+    });
   });
 });
 

@@ -12,7 +12,10 @@ import {
 } from '../auth/auth.ts';
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
-import { resolveUserOrganization } from '../domains/organizations/service.ts';
+import {
+  listSelectableOrganizations,
+  resolveUserOrganization,
+} from '../domains/organizations/service.ts';
 import {
   clientAbortResponse,
   databaseUnavailableResponse,
@@ -275,8 +278,10 @@ export function createRestV1Routes(deps: {
     const orgSlugRaw = c.req.header('x-organization-slug')?.trim();
     const orgSlugHeader = orgSlugRaw?.toLowerCase();
     // A header that cannot be a slug at all names no organization: the
-    // domain's own 404, answered here without a lookup and without echoing
-    // an unbounded value back (the message used to quote whatever arrived).
+    // domain's own 404, answered here without looking the value up and
+    // without echoing an unbounded value back (the message used to quote
+    // whatever arrived) — but, like every slug refusal, listing the slugs
+    // the key holder may send.
     if (orgSlugRaw && orgSlugHeader && !isValidOrgSlug(orgSlugHeader)) {
       // A header value reaches the handler as a byte string (one code unit
       // per byte), so a UTF-8 `tälé` echoed as `tã¤lã©`; the bytes are
@@ -291,6 +296,12 @@ export function createRestV1Routes(deps: {
         {
           error: `Organization not found: ${shown}`,
           code: 'ORG_SLUG_INVALID',
+          data: {
+            organizations: await listSelectableOrganizations(
+              deps.sql,
+              session.user.id,
+            ),
+          },
         },
         404,
       );
@@ -323,10 +334,18 @@ export function createRestV1Routes(deps: {
       session.user.id,
     );
     if (member === null || member.role === 'disabled') {
+      // The membership went away after resolution (a concurrent removal):
+      // the same 403 the resolver answers, with the same list.
       return c.json(
         {
           error: `Not a member of organization "${resolved.orgSlug}".`,
           code: 'ORG_FORBIDDEN',
+          data: {
+            organizations: await listSelectableOrganizations(
+              deps.sql,
+              session.user.id,
+            ),
+          },
         },
         403,
       );
