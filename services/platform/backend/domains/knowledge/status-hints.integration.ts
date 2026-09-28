@@ -27,6 +27,7 @@ import {
 import { recoverStuckRagIndexing } from '../file_metadata/watchdogs.ts';
 import { productionEffects } from './index-health.ts';
 import { requeueEmbeddingBlockedDocuments } from './service.ts';
+import { checkRagStatusHintBindingRace } from './status-hints-race.integration.ts';
 
 const PK_INDEX = {
   schema: 'private_knowledge',
@@ -39,6 +40,7 @@ export async function checkRagStatusHintScope(
   sql: Sql,
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
+  await checkRagStatusHintBindingRace(sql, record);
   const orgId = randomUUID();
   const tag = orgId.slice(0, 8);
   const orgSlug = `itest-hint-scope-${tag}`;
