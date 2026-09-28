@@ -174,7 +174,10 @@ describe('@tale/platform#test turbo inputs', () => {
     const lists = Object.entries(tasks).flatMap(([task, { inputs }]) =>
       inputs ? [{ task, inputs }] : [],
     );
-    expect(lists.length).toBeGreaterThan(0);
+    expect(
+      lists.length,
+      'services/platform/turbo.json declares no task inputs',
+    ).toBeGreaterThan(0);
     for (const { task, inputs } of lists) {
       expect(
         inputs.slice(0, 2),

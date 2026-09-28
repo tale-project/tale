@@ -86,16 +86,16 @@ describe('BudgetBanner', () => {
     budgetStatusMock.value = null;
   });
 
-  it('renders the warning tint while a budget is only approached', () => {
+  it('renders the warning banner while a budget is only approached', () => {
     budgetStatusMock.value = WARNING_STATUS;
     render(<BudgetBanner organizationId="org-1" />);
 
     expect(
       screen.getByText(/2,000 of 10,000 token left this month/),
     ).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveClass(
-      'bg-amber-50',
-      'border-amber-500/30',
+    expect(screen.getByRole('alert')).toHaveAttribute(
+      'data-variant',
+      'warning',
     );
   });
 
@@ -122,13 +122,13 @@ describe('BudgetBanner', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the destructive tint once the budget is exceeded', () => {
+  it('renders the destructive banner once the budget is exceeded', () => {
     budgetStatusMock.value = EXCEEDED_STATUS;
     render(<BudgetBanner organizationId="org-1" />);
 
-    expect(screen.getByRole('alert')).toHaveClass(
-      'bg-destructive/10',
-      'border-destructive/25',
+    expect(screen.getByRole('alert')).toHaveAttribute(
+      'data-variant',
+      'destructive',
     );
     // The accent lives on the fill and the glyph: red copy on the pink
     // tint fails AA contrast in light mode.
