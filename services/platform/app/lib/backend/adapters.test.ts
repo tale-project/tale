@@ -17,6 +17,7 @@ import {
 import {
   backendErrorFromResponse,
   backendRefusalDetail,
+  failureDetail,
   isBackendRefusal,
   projectAdaptedRead,
   retryAdaptedRead,
@@ -186,6 +187,49 @@ describe('backendErrorFromResponse', () => {
     );
     expect(error).toBeInstanceOf(BackendApiError);
     expect(isBackendRefusal(error)).toBe(false);
+  });
+});
+
+describe('failureDetail', () => {
+  // An `AppError`'s own `message` is its serialized payload; a surface that
+  // showed it put `{"code":"UNAUTHORIZED",…}` under its title.
+  it.each(SHIPPED_LOCALES)(
+    "reads a lapsed session's refusal as the localized sentence, never its JSON (%s)",
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const refusal = await lapsedSessionRefusal().catch(
+        (error: unknown) => error,
+      );
+      expect(refusal).toBeInstanceOf(AppError);
+      expect(failureDetail(refusal)).toBe(SESSION_ENDED[locale]);
+    },
+  );
+
+  it("is a refusal's detail, else a plain error's message", () => {
+    expect(
+      failureDetail(
+        new AppError({ code: 'SANDBOX_BUSY', message: 'The sandbox is busy' }),
+      ),
+    ).toBe('The sandbox is busy');
+    expect(failureDetail(new AppError({ code: 'FOLDER_NAME_TAKEN' }))).toBe(
+      'FOLDER_NAME_TAKEN',
+    );
+    expect(failureDetail(new Error('Team name is too long'))).toBe(
+      'Team name is too long',
+    );
+    expect(failureDetail(new TypeError('Failed to fetch'))).toBe(
+      'Failed to fetch',
+    );
+  });
+
+  it('says nothing for a fault, a structured error without a code, or a non-error', () => {
+    expect(
+      failureDetail(new BackendApiError(502, 'Bad gateway', 'UPSTREAM')),
+    ).toBeUndefined();
+    expect(failureDetail(new AppError({ reason: 'x' }))).toBeUndefined();
+    expect(failureDetail(new Error(''))).toBeUndefined();
+    expect(failureDetail('boom')).toBeUndefined();
+    expect(failureDetail(undefined)).toBeUndefined();
   });
 });
 

@@ -18,6 +18,7 @@ import {
 
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportGoogleDriveFiles } from '../hooks/actions';
@@ -387,8 +388,7 @@ export function GoogleDriveImportDialog({
           importType === 'one-time'
             ? t('googledrive.importFailed')
             : t('googledrive.syncFailed'),
-        description:
-          error instanceof Error ? error.message : tCommon('errors.generic'),
+        description: failureDetail(error) ?? tCommon('errors.generic'),
         variant: 'destructive',
       });
     } finally {

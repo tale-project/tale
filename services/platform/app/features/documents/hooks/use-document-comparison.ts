@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { failureDetail } from '@/app/lib/backend/adapters';
 
 import type { DocumentComparisonResult } from '../components/document-comparison/comparison-types';
 
@@ -64,8 +65,7 @@ export function useDocumentComparison({
         });
         return result;
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Comparison failed';
+        const message = failureDetail(err) ?? 'Comparison failed';
         setState({ result: null, error: message, isPending: false });
         throw err;
       }

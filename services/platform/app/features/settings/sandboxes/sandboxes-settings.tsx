@@ -14,6 +14,7 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 import type { SandboxDeviceView } from '@/lib/shared/schemas/sandbox-devices';
@@ -119,7 +120,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       } catch (err) {
         toast({
           title: t('toast.error'),
-          description: err instanceof Error ? err.message : String(err),
+          description: failureDetail(err),
           variant: 'destructive',
         });
       } finally {

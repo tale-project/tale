@@ -4,6 +4,7 @@ import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { toast } from '@tale/ui/use-toast';
 import { useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteTeam } from '../hooks/mutations';
@@ -54,7 +55,7 @@ export function TeamDeleteDialog({
       console.error(error);
       toast({
         title: tSettings('teams.teamDeleteFailed'),
-        description: error instanceof Error ? error.message : undefined,
+        description: failureDetail(error),
         variant: 'destructive',
       });
     } finally {

@@ -307,6 +307,24 @@ export function backendRefusalDetail(error: unknown): string | undefined {
   return backendRefusalReason(refusal) ?? code;
 }
 
+/**
+ * What a surface puts under its localized title for whatever a call threw:
+ * a refusal's own words ({@link backendRefusalDetail}), else the message of
+ * a plain `Error` the app or a library raised (the auth client's refusal, a
+ * lost connection's "Failed to fetch"). Never a structured error's
+ * `message`: an `AppError` serializes its whole payload there, for logs,
+ * and a fault's (a 5xx) is not the person's to read.
+ */
+export function failureDetail(error: unknown): string | undefined {
+  const refusal = backendRefusalDetail(error);
+  if (refusal !== undefined) return refusal;
+  if (!(error instanceof Error) || error instanceof BackendApiError) {
+    return undefined;
+  }
+  if ('data' in error || error.message.length === 0) return undefined;
+  return error.message;
+}
+
 /** Deterministic server answers never retry; transport errors retry 3×. */
 export function retryAdaptedRead(
   failureCount: number,

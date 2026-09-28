@@ -25,6 +25,7 @@ import { useCallback, useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
@@ -400,7 +401,7 @@ export function FeedbackMetricsPage({
         variant="destructive"
         icon={AlertTriangle}
         title={t('feedback.errors.loadFailed')}
-        description={statsError.message}
+        description={failureDetail(statsError)}
       />
     );
   }
