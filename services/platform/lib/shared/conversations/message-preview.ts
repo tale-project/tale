@@ -1,4 +1,4 @@
-import { decode } from 'he';
+import he from 'he';
 import striptags from 'striptags';
 
 /**
@@ -19,6 +19,6 @@ export function cleanMessagePreview(raw: string): string {
       ' ',
     );
   content = striptags(content).trim();
-  content = decode(content);
+  content = he.decode(content);
   return content.replace(/\s+/g, ' ').trim();
 }
