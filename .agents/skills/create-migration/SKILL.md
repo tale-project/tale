@@ -94,8 +94,10 @@ services/platform/backend/db/migrations/NNNN_snake_case_subject.ts
   I/O — `isSupported()`/`isImageFile()`, the `RAG_ERROR_*` codes, the sentence helpers in
   `backend/core/knowledge/rag_unsupported.ts` — and write the reads, the writes, an `EXISTS`
   probe and the hint's `INSERT` yourself. `backend/db/data-migrations.test.ts` walks every data
-  migration's imports, transitively, and fails on a module outside its `PURE_RULES` list; a rule
-  module joins that list only once it is known to be pure, with why.
+  migration's imports, transitively, and fails on a module outside its `PURE_RULES` list and on a
+  package outside its `PURE_PACKAGES` list (`node:fs`, `@tale/shared/db/…`, or a runtime
+  `postgres` — only `import type` from it is admitted); a rule module or a package joins its list
+  only once it is known to be pure, with why.
 - Schema changes stay `.sql` — those files are the schema's documentation. Scaffold with
   `bun run gen:migration`, kind `ts`; `0128_rag_unsupported_type_codes.ts` and
   `0129_rag_unsupported_image_codes.ts` are the reference — each fills the code the indexer's rule
