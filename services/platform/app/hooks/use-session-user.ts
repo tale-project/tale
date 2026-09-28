@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { holdSessionLapseRedirects } from '@/app/lib/auth/session-lapse';
+import {
+  holdSessionLapseRedirects,
+  releaseSessionLapseHoldOnLeave,
+} from '@/app/lib/auth/session-lapse';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { currentUserQuery } from '@/app/lib/backend/account';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
@@ -42,6 +45,7 @@ function useConvexAuthUser() {
     // the next load can't hydrate the shell for the signed-out account
     // (#2386).
     clearMemberContextCache();
+    releaseSessionLapseHoldOnLeave(resumeLapseRedirects);
   };
 
   return {

@@ -21,8 +21,9 @@ let deferredLapse = false;
 /**
  * A local auth change owns the session until its response has installed the
  * replacement cookie, or its sign-out cleanup has navigated away. A sign-out
- * keeps this hold on success; a failed sign-out or completed rotation releases
- * it. Starting a change also invalidates a recheck that was already in flight.
+ * keeps this hold through cleanup and releases when its navigation begins;
+ * a failed sign-out or completed rotation releases immediately. Starting a
+ * change also invalidates a recheck that was already in flight.
  */
 export function holdSessionLapseRedirects(): () => void {
   transitionCount++;
@@ -38,6 +39,18 @@ export function holdSessionLapseRedirects(): () => void {
       reportSessionLapsed();
     }
   };
+}
+
+/**
+ * Cleanup has finished and its caller will hard-navigate. Let the unload
+ * guard take over only once that leave starts, so a cancelled dirty-editor
+ * prompt can re-arm recovery after the guard expires. Queue after the other
+ * beforeunload listeners so releasing a deferred lapse cannot race the guard.
+ */
+export function releaseSessionLapseHoldOnLeave(release: () => void): void {
+  window.addEventListener('beforeunload', () => queueMicrotask(release), {
+    once: true,
+  });
 }
 
 /** A recheck may act only while the session has not changed beneath it. */

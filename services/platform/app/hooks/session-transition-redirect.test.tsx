@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -85,7 +85,11 @@ beforeEach(() => {
   h.getSession.mockResolvedValue({ data: null, error: null });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  cleanup();
+  // A mocked location setter does not start the document's real unload.
+  window.dispatchEvent(new Event('beforeunload'));
+  await Promise.resolve();
   vi.useRealTimers();
   vi.restoreAllMocks();
   Object.defineProperty(window, 'location', {
@@ -151,6 +155,16 @@ describe('intentional sign-out and session lapse overlap', () => {
     expect(h.clearMemberContextCache).toHaveBeenCalledOnce();
     expect(h.clearTitleSuffix).toHaveBeenCalledOnce();
     expect(navigations).toEqual(['/tale']);
+
+    // A dirty editor can cancel the native navigation. Once the unload guard
+    // expires, the session that sign-out ended must be discoverable again.
+    window.dispatchEvent(new Event('beforeunload'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_001);
+    });
+    reportSessionLapsed();
+    await settle();
+    expect(navigations.at(-1)).toContain('reason=session-ended');
   });
 
   it('discards a lapse recheck already in flight when sign-out starts', async () => {
@@ -218,5 +232,13 @@ describe('intentional sign-out and session lapse overlap', () => {
     await settle();
     expect(document.cookie).toContain('tale_handoff_hold=1');
     expect(navigations).toEqual(['/tale/log-in?reason=idle']);
+
+    window.dispatchEvent(new Event('beforeunload'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_001);
+    });
+    reportSessionLapsed();
+    await settle();
+    expect(navigations.at(-1)).toContain('reason=session-ended');
   });
 });

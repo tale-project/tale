@@ -284,6 +284,16 @@ describe('Change password session revocation', () => {
     reportSessionLapsed();
     await act(async () => {});
     expect(navigations).toEqual(['/']);
+
+    // The browser can keep this document if its dirty-editor prompt cancels
+    // the leave. A later refusal must recover after the unload guard expires.
+    window.dispatchEvent(new Event('beforeunload'));
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_001);
+    await act(async () => {});
+    reportSessionLapsed();
+    await waitFor(() =>
+      expect(navigations.at(-1)).toContain('reason=session-ended'),
+    );
   });
 });
 
