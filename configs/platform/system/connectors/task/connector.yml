@@ -141,7 +141,10 @@ actions:
         externalUrl: { type: string, maxLength: 4000 }
     output: '{ taskId: string | null, created: boolean, title: string }'
     # The task domain's own cut and refusal, so a test run reports the title
-    # a live run stores (platform-tasks.test.ts holds the two together).
+    # a live run stores (platform-tasks.test.ts holds the two together). A
+    # mock body can only throw: a test run reports the blank-title sentence
+    # under MOCK_BODY_FAILED ("the task.upsert mock body failed: …"),
+    # where a live run answers INPUT_INVALID (dispatcher.test.ts).
     mock: |
       const title = String(input.title ?? '').trim();
       if (title === '') throw new Error('The task title is empty — it takes 1 to 200 UTF-16 code units.');
@@ -184,6 +187,8 @@ actions:
         projectId: { type: string, minLength: 1 }
         issues: { type: array, maxItems: 500, items: { type: object } }
     output: 'Array<{ taskId: string | null, created: boolean, title: string }>'
+    # As `upsert`'s mock: the domain's cut, and its refusal thrown as a mock
+    # failure.
     mock: |
       const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
       const cut = (title) => title.length <= 200 ? title : title.slice(0, graphemes.segment(title).containing(199).index).trimEnd() + '…';

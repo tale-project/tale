@@ -7232,7 +7232,6 @@ tasks:
   fields:
     title: Title
     description: Description
-    descriptionTooLong: This description has {length} characters; the limit is {max}. Shorten it to save. Most emoji count as 2.
     assignee: Assignee
     reviewer: Reviewer
     priority: Priority

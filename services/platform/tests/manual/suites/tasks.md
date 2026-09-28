@@ -632,11 +632,17 @@ project (as in AUTO-F32).
 - [ ] `TASK-B11` · **A description past the cap, seen** — In German and in
   English, at desktop width and at 390 px, open a task's description
   (**Edit**, `common.actions.edit`) and paste 20,005 characters → The line
-  under the field (`tasks.fields.descriptionTooLong`) reads in the UI language
-  with its number grouping (`20.005`, `20,005`), wraps inside the dialog
-  without clipping or pushing **Save** (`common.actions.save`) out of view, and
-  a screen reader announces it once; delete five characters, **Save**, reload
-  → the line is gone and the description reads back at 20,000 characters.
+  under the field (`tasks.errors.TASK_DESCRIPTION_INVALID`) reads in the UI
+  language with the cap's number grouping (`20.000`, `20,000`), a red
+  counter with the same grouping (`20.005 / 20.000`, `20,005 / 20,000`) sits
+  between the field and that line, both wrap inside the dialog without
+  clipping or pushing **Save** (`common.actions.save`) out of view, and a
+  screen reader announces the line once and reads the counter when the field
+  takes focus — deleting characters moves only the counter and announces
+  nothing more; add two blank lines after the text and the counter stays put,
+  since it counts what a save keeps; delete five, **Save**, reload → the line
+  and the counter are gone and the description reads back at 20,000
+  characters.
 - [ ] `TASK-B12` · **Reopen and close again** — On the task `TASK-F38` closed,
   set **Status** back to **In progress** (`tasks.status.in_progress`); while it
   is open, copy the `orgId` of any `…?orgId=` request in DevTools → Network and

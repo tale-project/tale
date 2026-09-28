@@ -1402,7 +1402,7 @@ Envoie `automationSlug` pour attribuer la tâche à une automatisation. Cette at
 
 La tâche reste créée si le démarrage échoue ensuite. La réponse contient alors `runId: null`, notamment si `runWorkflowSlug` ne désigne aucune automatisation déployée. Vérifie donc la référence d’exécution même après une réponse de création réussie. Tu peux aussi lancer le workflow explicitement dans un appel distinct.
 
-L’attribution par `automationSlug` a des exigences plus strictes : l’automatisation doit exister, sinon Tale renvoie **404**, `AUTOMATION_NOT_FOUND`, et posséder une version déployée, sinon **409**, `AUTOMATION_NOT_DEPLOYED`. Ces erreurs nomment l’automatisation concernée.
+L’attribution par `automationSlug` a des exigences plus strictes : l’automatisation doit exister, sinon Tale renvoie **404**, `AUTOMATION_NOT_FOUND`, et posséder une version déployée, sinon **409**, `AUTOMATION_NOT_DEPLOYED`.
 
 Une automatisation liée uniquement à d’autres projets ne peut pas s’exécuter ici : la réponse est **403**.
 
@@ -1427,7 +1427,7 @@ Si un agent de projet travaille déjà sur la tâche, le démarrage du workflow 
 
 Une nouvelle exécution est aussi refusée avec **403** `TASK_AUTOMATION_DISABLED` si l’automatisation des tâches est désactivée, ou **409** `TASK_AUTOMATION_UNAVAILABLE` si sa politique est illisible. Demande à un administrateur de l’activer ou de rétablir la politique. Les exécutions en cours peuvent se terminer et les commentaires restent enregistrés.
 
-`workflowSlug` nomme l’automatisation telle que `GET /api/v1/automations` la liste — la forme avec `/` (`billing/dunning`), jamais l’orthographe `__` du chemin d’URL — et doit désigner une automatisation existante et déployée. Sinon, la route renvoie respectivement **404**, `AUTOMATION_NOT_FOUND`, ou **409**, `AUTOMATION_NOT_DEPLOYED`, en nommant l’automatisation. Ce sont les mêmes exigences que pour l’attribution d’une tâche avec `automationSlug`.
+`workflowSlug` nomme l’automatisation telle que `GET /api/v1/automations` la liste — la forme avec `/` (`billing/dunning`), jamais l’orthographe `__` du chemin d’URL — et doit désigner une automatisation existante et déployée. Sinon, la route renvoie respectivement **404**, `AUTOMATION_NOT_FOUND`, ou **409**, `AUTOMATION_NOT_DEPLOYED`. Ce sont les mêmes exigences que pour l’attribution d’une tâche avec `automationSlug`.
 
 Ces vérifications précèdent la facturation du budget de démarrage. `reason: "not_started"` couvre le cas résiduel où le déploiement disparaît entre la vérification et le démarrage.
 
