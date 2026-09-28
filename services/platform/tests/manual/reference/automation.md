@@ -582,6 +582,7 @@ suite defines.
 
 | Suite | Automated slice | Coverage | Specs |
 | --- | --- | --- | --- |
+| [navigation](../suites/navigation.md) | Desktop Home panel drag and keyboard resizing, width bounds, remembered width, and hidden handles when folded or on mobile | ✅ browser | `app/features/home/components/home-panel.browser.test.tsx` |
 | [responsive](../suites/responsive.md) | `RESP-F20`: capsule geometry, content end clearance, floating actions, and the Home archive footer | ✅ Chromium | `packages/ui/src/components/navigation/bottom-tab-bar.browser.test.tsx`, `services/platform/tests/e2e/specs/responsive.spec.ts` |
 | [responsive](../suites/responsive.md) | `RESP-F21`: keyboard inference from editable focus and viewport contraction; hardware focus, pinch zoom, desktop transition, and missing VisualViewport support | 🔶 component; native phone verification remains manual | `packages/ui/src/hooks/use-mobile-keyboard.test.ts` |
 

@@ -8,6 +8,8 @@ import {
 } from 'react';
 
 interface UseResizableOptions {
+  /** Edge carrying the resize handle; left suits a right-hand panel. */
+  edge?: 'left' | 'right';
   minWidth?: number;
   maxWidth?: number;
   step?: number;
@@ -25,6 +27,7 @@ export function useResizable(
   panelRef: RefObject<HTMLDivElement | null>,
   options?: UseResizableOptions,
 ) {
+  const edge = options?.edge ?? 'left';
   const minWidth = options?.minWidth ?? DEFAULT_MIN_WIDTH;
   const maxWidth = options?.maxWidth ?? DEFAULT_MAX_WIDTH;
   const resizeStep = options?.step ?? DEFAULT_STEP;
@@ -49,6 +52,7 @@ export function useResizable(
   const [isResizing, setIsResizing] = useState(false);
 
   const handleMouseDown = useCallback((e: ReactMouseEvent) => {
+    if (e.button !== 0) return;
     e.preventDefault();
     setIsResizing(true);
   }, []);
@@ -57,13 +61,14 @@ export function useResizable(
     (e: ReactKeyboardEvent) => {
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault();
-        const delta = e.key === 'ArrowLeft' ? resizeStep : -resizeStep;
+        const direction = e.key === 'ArrowRight' ? 1 : -1;
+        const delta = direction * (edge === 'right' ? resizeStep : -resizeStep);
         setWidth((prev) =>
           Math.min(maxWidth, Math.max(minWidth, prev + delta)),
         );
       }
     },
-    [resizeStep, minWidth, maxWidth, setWidth],
+    [edge, resizeStep, minWidth, maxWidth, setWidth],
   );
 
   useEffect(() => {
@@ -72,10 +77,11 @@ export function useResizable(
     const handleMouseMove = (e: MouseEvent) => {
       if (!panelRef.current) return;
       const panelRect = panelRef.current.getBoundingClientRect();
-      const newWidth = panelRect.right - e.clientX;
-      if (newWidth >= minWidth && newWidth <= maxWidth) {
-        setWidth(newWidth);
-      }
+      const newWidth =
+        edge === 'right'
+          ? e.clientX - panelRect.left
+          : panelRect.right - e.clientX;
+      setWidth(Math.min(maxWidth, Math.max(minWidth, newWidth)));
     };
 
     const handleMouseUp = () => setIsResizing(false);
@@ -91,7 +97,14 @@ export function useResizable(
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizing, panelRef, minWidth, maxWidth, setWidth]);
+  }, [edge, isResizing, panelRef, minWidth, maxWidth, setWidth]);
 
-  return { width, minWidth, maxWidth, handleMouseDown, handleKeyDown };
+  return {
+    width,
+    minWidth,
+    maxWidth,
+    isResizing,
+    handleMouseDown,
+    handleKeyDown,
+  };
 }
