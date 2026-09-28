@@ -17,6 +17,13 @@ interface PopoverProps {
   modal?: boolean;
   onOpenAutoFocus?: (event: Event) => void;
   /**
+   * Runs as the popover closes, before focus goes back to the trigger — which
+   * it does unless the reader interacted outside the popover first.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
+  /** A pointer press or a focus move outside the popover, before it closes. */
+  onInteractOutside?: PopoverPrimitive.PopoverContentProps['onInteractOutside'];
+  /**
    * Accessible name for the popover layer. Radix renders the content as
    * `role="dialog"`, and a dialog without a name leaves assistive technology
    * with no context on entry — point this at the id of the visible heading.
@@ -43,6 +50,8 @@ export function Popover({
   contentClassName,
   modal,
   onOpenAutoFocus,
+  onCloseAutoFocus,
+  onInteractOutside,
   'aria-labelledby': ariaLabelledby,
   'aria-label': ariaLabel,
 }: PopoverProps) {
@@ -60,6 +69,8 @@ export function Popover({
           sideOffset={sideOffset}
           collisionPadding={8}
           onOpenAutoFocus={onOpenAutoFocus}
+          onCloseAutoFocus={onCloseAutoFocus}
+          onInteractOutside={onInteractOutside}
           aria-labelledby={ariaLabelledby}
           aria-label={ariaLabel}
           className={cn(CONTENT_CLASSES, contentClassName)}

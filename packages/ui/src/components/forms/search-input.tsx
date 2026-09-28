@@ -41,6 +41,12 @@ interface SearchInputProps extends Omit<
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
   className?: string;
+  /**
+   * Nothing to search. A box that holds focus when it turns disabled stays
+   * editable until focus leaves it: a list whose query was all that narrowed
+   * it disables the box on its last erased character, and a disabled field
+   * drops the reader's focus to the page mid-edit.
+   */
   disabled?: boolean;
   wrapperClassName?: string;
   label?: string;
@@ -59,6 +65,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
       errorMessage,
       required,
       id: providedId,
+      disabled,
       onFocus,
       onBlur,
       placeholder,
@@ -78,6 +85,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         .join(' ') || undefined;
     const [showShake, setShowShake] = useState(false);
     const [isReadOnly, setIsReadOnly] = useState(true);
+    const [hasFocus, setHasFocus] = useState(false);
 
     // A placeholder is not an accessible name (it disappears on input and is
     // unreliably announced). When there's no visible <Label> and no explicit
@@ -99,10 +107,14 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
     const handleFocus = (e: FocusEvent<HTMLInputElement>) => {
       e.currentTarget.removeAttribute('readonly');
       setIsReadOnly(false);
+      setHasFocus(true);
       onFocus?.(e);
     };
     const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
       setIsReadOnly(true);
+      // The window losing focus blurs the box but leaves it the page's
+      // focused element, to be focused again on return.
+      if (document.activeElement !== e.currentTarget) setHasFocus(false);
       onBlur?.(e);
     };
 
@@ -153,6 +165,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             aria-describedby={describedBy}
             aria-errormessage={hasError ? errorId : undefined}
             {...props}
+            disabled={disabled && !hasFocus}
             onFocus={handleFocus}
             onBlur={handleBlur}
           />

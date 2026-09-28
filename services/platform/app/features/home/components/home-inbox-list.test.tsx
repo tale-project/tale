@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/backend/core/conversations/types';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { HomeInboxList } from './home-inbox-list';
 
@@ -198,9 +198,14 @@ describe('HomeInboxList search and filters', () => {
     await user.click(filterButton());
     await user.click(await screen.findByRole('button', { name: 'Clear all' }));
 
-    // Nothing narrows the empty status any more: nothing left to search.
-    expect(filterButton()).toBeDisabled();
+    // Nothing narrows the empty status any more: nothing left to search. The
+    // Filter button takes back the focus the panel held, as unavailable, and
+    // leaves the tab order once the reader moves on.
     expect(searchBox()).toBeDisabled();
+    await waitFor(() => expect(filterButton()).toHaveFocus());
+    expect(filterButton()).toHaveAttribute('aria-disabled', 'true');
+    await user.tab();
+    expect(filterButton()).toBeDisabled();
   });
 
   it('keeps the Filter panel open when unticking the last facet disables it, and does not reopen it once closed', async () => {
@@ -226,9 +231,11 @@ describe('HomeInboxList search and filters', () => {
     expect(screen.getByRole('radio', { name: 'All' })).toHaveFocus();
     expect(searchBox()).toBeDisabled();
 
+    // Closed, it hands the focus back to the button, now unavailable.
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(filterButton()).toBeDisabled();
+    await waitFor(() => expect(filterButton()).toHaveFocus());
+    expect(filterButton()).toHaveAttribute('aria-disabled', 'true');
 
     // A conversation lands live: the controls come back, the panel stays shut.
     listing.current = pages([
@@ -282,7 +289,29 @@ describe('HomeInboxList search and filters', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Clear all' }));
 
-    expect(filterButton()).toBeDisabled();
     expect(searchBox()).toBeDisabled();
+    await waitFor(() => expect(filterButton()).toHaveFocus());
+    expect(filterButton()).toHaveAttribute('aria-disabled', 'true');
+    await user.tab();
+    expect(filterButton()).toBeDisabled();
+  });
+
+  it('keeps the search box editable while its query is erased over a status that emptied', async () => {
+    const { user, rerender } = renderInbox();
+    await user.type(searchBox(), 'zz');
+    // The status empties under the query: its last conversation was closed
+    // elsewhere. The query alone keeps the controls usable now.
+    listing.current = pages([]);
+    rerender(inbox());
+
+    // Erasing it leaves nothing to search, but not while the reader is in the
+    // box: it keeps their focus and their next keystrokes.
+    await user.keyboard('{Backspace}{Backspace}');
+    expect(searchBox()).toHaveFocus();
+    expect(searchBox()).toBeEnabled();
+    expect(filterButton()).toBeDisabled();
+    await user.keyboard('abc');
+    expect(searchBox()).toHaveValue('abc');
+    expect(filterButton()).toBeEnabled();
   });
 });
