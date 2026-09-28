@@ -60,6 +60,8 @@ interface CredentialTableRow<V, Cred> {
   vendorName: string;
   vendor: V | null;
   credential: Cred;
+  /** How many OTHER credentials the organization holds on this vendor. */
+  siblingCount: number;
 }
 
 /**
@@ -120,6 +122,15 @@ export function CredentialTable<
   );
 
   const rows = useMemo(() => {
+    // How many credentials each vendor holds — a row's delete dialog says what
+    // else goes when it is the vendor's last one. Carried on the row, not
+    // read by the columns: a column set rebuilt on every refetch remounts each
+    // row's actions, and with them any dialog open on it.
+    const vendorCounts = new Map<string, number>();
+    for (const credential of credentials) {
+      const key = adapter.vendorKeyOf(credential);
+      vendorCounts.set(key, (vendorCounts.get(key) ?? 0) + 1);
+    }
     const all: CredentialTableRow<V, Cred>[] = credentials.map((credential) => {
       const vendorKey = adapter.vendorKeyOf(credential);
       const vendor = vendorsByKey.get(vendorKey) ?? null;
@@ -132,6 +143,7 @@ export function CredentialTable<
         vendorName: vendor?.displayName ?? vendorKey,
         vendor,
         credential,
+        siblingCount: (vendorCounts.get(vendorKey) ?? 1) - 1,
       };
     });
     if (vendorFilter.length === 0) return all;
@@ -158,17 +170,6 @@ export function CredentialTable<
       .map(([key]) => vendorsByKey.get(key)?.displayName ?? key)
       .sort((a, b) => a.localeCompare(b));
   }, [adapter, credentials, vendorsByKey]);
-
-  // How many credentials each vendor holds — a row's delete dialog says what
-  // else goes when it is the vendor's last one.
-  const vendorCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const credential of credentials) {
-      const key = adapter.vendorKeyOf(credential);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return counts;
-  }, [adapter, credentials]);
 
   // Only vendors actually represented in the table are worth offering: a facet
   // that can only ever narrow to zero rows is noise.
@@ -304,14 +305,14 @@ export function CredentialTable<
               organizationId={organizationId}
               credential={row.original.credential}
               vendor={row.original.vendor}
-              siblingCount={(vendorCounts.get(row.original.vendorKey) ?? 1) - 1}
+              siblingCount={row.original.siblingCount}
               adapter={adapter}
             />
           </HStack>
         ),
       },
     ];
-  }, [adapter, labels.vendorColumn, organizationId, t, vendorCounts]);
+  }, [adapter, labels.vendorColumn, organizationId, t]);
 
   const list = useListPage<CredentialTableRow<V, Cred>>({
     dataSource: { type: 'query', data: isLoading ? undefined : rows },

@@ -1001,6 +1001,41 @@ describe('ProvidersSettings', () => {
       );
     });
 
+    it('keeps an open edit dialog, and what was typed in it, when the list refetches', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [customCredential, ...defaultCredentials];
+      const { rerender, user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      const name = dialog.getByRole('textbox', { name: /^Provider name/ });
+      await user.clear(name);
+      await user.type(name, 'Qwen typed');
+      // Another session saves a credential: the hint refetches the list.
+      fixtures.credentials = [customCredential, ...defaultCredentials.slice(1)];
+      rerender(
+        <WithHeaderSlot>
+          <ProvidersSettings organizationId="org-1" />
+        </WithHeaderSlot>,
+      );
+      expect(
+        screen.getByRole('dialog', { name: 'Edit credential' }),
+      ).toBeInTheDocument();
+      expect(
+        within(
+          screen.getByRole('dialog', { name: 'Edit credential' }),
+        ).getByRole('textbox', { name: /^Provider name/ }),
+      ).toHaveValue('Qwen typed');
+    });
+
     it('shows the refusal of an edit the provider moved under, inline', async () => {
       fixtures.catalogs = [anthropicProvider, customVendor];
       fixtures.credentials = [customCredential];
