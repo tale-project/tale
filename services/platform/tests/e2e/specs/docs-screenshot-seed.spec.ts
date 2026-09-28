@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  projectFileRow,
   settleList,
   settleListOrEmpty,
+  settleProjectFiles,
   webdavPasswordRow,
 } from '../../docs-screenshots/seed-demo-org';
+import { t } from '../helpers/i18n';
 
 // Synthetic DOM fixtures exercise the seeder's readiness signal without
 // signing in or changing organization data. Chromium belongs to this E2E lane.
@@ -38,6 +41,74 @@ for (const kind of ['list', 'list-or-empty']) {
     );
   });
 }
+
+// The project Files tab as an editor meets it: the upload dropzone is up at
+// once, while the list skeleton stands beside it until the documents read
+// answers. Labels come from the catalogs, as the seeder's own locators do.
+const FILES_LIST_LABEL = t('projects.files.treeLabel');
+const DROPZONE_LABEL = t('projects.files.addButton');
+const SKELETON_LABEL = t('skeleton.loading');
+const INDEXED_LABEL = t('projects.files.ragStatusCompleted');
+
+function loadingFilesTab(settled: string): string {
+  return `
+    <div role="status" aria-busy="true" aria-label="${SKELETON_LABEL}"></div>
+    <div role="button" tabindex="0" aria-label="${DROPZONE_LABEL}">
+      ${DROPZONE_LABEL}
+    </div>
+    <script>
+      setTimeout(() => {
+        document.querySelector('[aria-busy]').remove();
+        document.body.insertAdjacentHTML('afterbegin', ${JSON.stringify(settled)});
+      }, ${LIST_RESPONSE_DELAY_MS});
+    </script>
+  `;
+}
+
+test('screenshot seeding waits for the files a project already holds', async ({
+  page,
+}) => {
+  await page.setContent(
+    loadingFilesTab(`
+      <ul aria-label="${FILES_LIST_LABEL}">
+        <li><button aria-label="inventory.txt">inventory.txt</button>
+          <span>${INDEXED_LABEL}</span></li>
+      </ul>
+    `),
+  );
+  await settleProjectFiles(page);
+  // A premature return makes the seeder upload this attached file again.
+  expect(await projectFileRow(page, 'inventory.txt').isVisible()).toBe(true);
+});
+
+test('screenshot seeding reads a fileless project once its skeleton is gone', async ({
+  page,
+}) => {
+  await page.setContent(loadingFilesTab(''));
+  await settleProjectFiles(page);
+  expect(await page.getByRole('status').count()).toBe(0);
+  expect(await projectFileRow(page, 'inventory.txt').count()).toBe(0);
+});
+
+test('a project file row is the file item itself, never a namesake or its folder', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <ul aria-label="${FILES_LIST_LABEL}">
+      <li><button aria-label="Launch" aria-expanded="true">Launch</button>
+        <ul>
+          <li><button aria-label="runbook.txt">runbook.txt</button>
+            <span>${INDEXED_LABEL}</span></li>
+        </ul>
+      </li>
+      <li><button aria-label="runbook.txt.bak">runbook.txt.bak</button></li>
+    </ul>
+  `);
+  const row = projectFileRow(page, 'runbook.txt');
+  expect(await row.getByText(INDEXED_LABEL).count()).toBe(1);
+  expect(await row.getByRole('button').count()).toBe(1);
+  expect(await projectFileRow(page, 'runbook.txt.bak').count()).toBe(1);
+});
 
 test('a retired device does not satisfy the missing active WebDAV fixture', async ({
   page,
