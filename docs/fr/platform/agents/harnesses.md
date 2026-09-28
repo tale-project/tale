@@ -51,6 +51,8 @@ Le broker de connectors garde les identifiants ordinaires dans Tale et renvoie l
 
 L’accès sortant autorise normalement l’installation de paquets et le clonage de dépôts, tout en bloquant les adresses privées et les services de métadonnées cloud. Les opérateurs peuvent restreindre davantage les hôtes permis. Lorsqu’un service est inaccessible, examine les règles réseau avant de conclure que les identifiants sont incorrects.
 
+Les skills de documents intégrés `docx`, `pptx`, `xlsx` et `pdf` trouvent déjà installées dans la sandbox les bibliothèques qu’ils appellent. Un agent équipé de ces skills crée et lit donc des fichiers Word, PowerPoint, Excel et PDF même là où l’installation de paquets est bloquée. Leurs consignes contiennent toujours des commandes d’installation comme `npm install -g docx` ; si le registre est bloqué, cette étape échoue, mais la bibliothèque préinstallée reste disponible. La reconnaissance de texte (OCR) des PDF numérisés n’est pas incluse.
+
 ## Examiner le résultat
 
 Le programme décide quand son échange est terminé ; Tale collecte le compte rendu et la sortie. Lis les deux avant de terminer la tâche. Vérifie quels contrôles ont réellement été exécutés et quels services manquaient dans la sandbox. L’[automatisation des tâches](/fr/platform/projects/task-automation) explique la revue du travail de projet ; les [journaux d’exécution](/fr/platform/automations/execution-logs) expliquent le résultat d’un nœud agent.
