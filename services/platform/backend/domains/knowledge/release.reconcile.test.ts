@@ -16,7 +16,8 @@ import {
  * the scope stamps, and the emailed attachments' pass — the only trigger of
  * the conversation-stamp backfill, the only release of an attachment
  * whose conversation was deleted or marked spam before its lane queued one,
- * and what takes a stamp off a row that is no attachment any more.
+ * and what takes a stamp off a row that is no attachment any more — or
+ * releases the row, and the bytes nothing else would ever reach again.
  * A reconcile that stopped calling that pass would leave every attachment
  * indexed before the stamp as an unstamped hub row for good, and nothing
  * else would notice.
@@ -50,14 +51,17 @@ vi.mock('./service.ts', () => ({
 
 const { runCorpusReconcile } = await import('./release.ts');
 
+type Release = (refs: string[]) => Promise<{
+  released: string[];
+  kept: string[];
+  failures: unknown[];
+}>;
+
 type StampArgs = {
   organizationId: string;
   orgSlug: string;
-  releaseCorpus: (refs: string[]) => Promise<{
-    released: string[];
-    kept: string[];
-    failures: unknown[];
-  }>;
+  releaseCorpus: Release;
+  releaseUnbacked: Release;
 };
 
 interface Liveness {
@@ -98,15 +102,30 @@ function fakeSql(
   return { sql: tag as unknown as Sql, statements };
 }
 
-/** The `releaseCorpus` the reconcile hands the attachments' pass. */
-async function wiredRelease(sql: Sql): Promise<StampArgs['releaseCorpus']> {
+/** The releases the reconcile hands the attachments' pass: its first
+ * walk's and its second's. */
+async function wiredReleases(
+  sql: Sql,
+): Promise<Pick<StampArgs, 'releaseCorpus' | 'releaseUnbacked'>> {
   await runCorpusReconcile(sql);
   const args = reconcileMailAttachmentStamps.mock.calls[0]?.[1] as
     | StampArgs
     | undefined;
   if (args === undefined) throw new Error('the pass never ran');
-  return args.releaseCorpus;
+  return args;
 }
+
+/** What the pass reports when it changed nothing. */
+const QUIET = {
+  scanned: 0,
+  corrected: 0,
+  released: 0,
+  failures: 0,
+  stampsScanned: 0,
+  cleared: 0,
+  unbackedReleased: 0,
+  unbackedFailures: 0,
+};
 
 let info: MockInstance<typeof console.info>;
 let warn: MockInstance<typeof console.warn>;
@@ -118,13 +137,7 @@ beforeEach(() => {
   listKnowledgeDocumentRefs.mockResolvedValue([]);
   deleteKnowledgeDocumentsBatch.mockResolvedValue({ success: true });
   reconcileDocumentScopeStamps.mockResolvedValue({ scanned: 0, corrected: 0 });
-  reconcileMailAttachmentStamps.mockResolvedValue({
-    scanned: 0,
-    corrected: 0,
-    cleared: 0,
-    released: 0,
-    failures: 0,
-  });
+  reconcileMailAttachmentStamps.mockResolvedValue(QUIET);
 });
 
 describe('runCorpusReconcile — the emailed attachments pass', () => {
@@ -150,7 +163,7 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
 
   it('releases a dead attachment corpus-only: its bytes stay with the file row', async () => {
     const { sql, statements } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
-    const releaseCorpus = await wiredRelease(sql);
+    const { releaseCorpus } = await wiredReleases(sql);
     const outcome = await releaseCorpus(['s3:org-1/mail/cv.pdf']);
     expect(outcome.released).toEqual(['s3:org-1/mail/cv.pdf']);
     expect(deleteKnowledgeDocumentsBatch).toHaveBeenCalledWith({
@@ -167,18 +180,70 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
     ).toEqual([]);
   });
 
-  it('hands back, untouched, a ref something still keeps in the corpus — the pass takes its stamp off', async () => {
-    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }], {
+  it('releases a stamped row no attachment backs with its bytes, where the first walk leaves them', async () => {
+    // An attachment deleted while its best-effort blob delete failed, or a
+    // release job out of retries: nothing references the ref any more, and
+    // once its corpus row goes, nothing would reach the bytes again — the
+    // blob walk lists corpus refs only.
+    const { sql, statements } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    const { releaseCorpus, releaseUnbacked } = await wiredReleases(sql);
+    const outcome = await releaseUnbacked(['s3:org-1/mail/orphan.pdf']);
+    expect(outcome).toEqual({
+      released: ['s3:org-1/mail/orphan.pdf'],
+      kept: [],
+      failures: [],
+    });
+    expect(deleteKnowledgeDocumentsBatch).toHaveBeenCalledWith({
+      orgSlug: 'acme',
+      fileIds: ['s3:org-1/mail/orphan.pdf'],
+    });
+    expect(deleteOrgObject).toHaveBeenCalledWith(
+      'acme',
+      'org-1/mail/orphan.pdf',
+    );
+    // A trashed, unbound file row that only remembers the ref goes too.
+    expect(
+      statements.filter((text) =>
+        text.includes('DELETE FROM app.file_metadata'),
+      ),
+    ).toHaveLength(1);
+    // The first walk's release, handed a ref the read calls just as dead,
+    // keeps its bytes: its refs always have a live file row.
+    await releaseCorpus(['s3:org-1/mail/cv.pdf']);
+    expect(deleteOrgObject).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the stamp pass a ref something still keeps, its corpus rows and bytes untouched', async () => {
+    // Held by a document: the pass takes the stamp off, and that is all.
+    const { sql, statements } = fakeSql([{ id: 'org-1', slug: 'acme' }], {
       's3:org-1/mail/filed.pdf': { corpusLive: true, blobLive: true },
     });
-    const releaseCorpus = await wiredRelease(sql);
-    const outcome = await releaseCorpus(['s3:org-1/mail/filed.pdf']);
-    expect(outcome).toMatchObject({
+    const { releaseUnbacked } = await wiredReleases(sql);
+    const outcome = await releaseUnbacked(['s3:org-1/mail/filed.pdf']);
+    expect(outcome).toEqual({
       released: [],
       kept: ['s3:org-1/mail/filed.pdf'],
       failures: [],
     });
     expect(deleteKnowledgeDocumentsBatch).not.toHaveBeenCalled();
+    expect(deleteOrgObject).not.toHaveBeenCalled();
+    expect(
+      statements.filter((text) =>
+        text.includes('DELETE FROM app.file_metadata'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('logs each failed release of either walk', async () => {
+    deleteKnowledgeDocumentsBatch.mockRejectedValue(new Error('corpus down'));
+    const { sql } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    const { releaseCorpus, releaseUnbacked } = await wiredReleases(sql);
+    await releaseCorpus(['s3:org-1/mail/cv.pdf']);
+    await releaseUnbacked(['s3:org-1/mail/orphan.pdf']);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[knowledge] reconcile release failed for s3:org-1/mail/cv.pdf (corpus): corpus down',
+      '[knowledge] reconcile release failed for s3:org-1/mail/orphan.pdf (corpus): corpus down',
+    ]);
   });
 
   it('keeps going for the next organization when one pass fails', async () => {
@@ -210,33 +275,59 @@ describe('runCorpusReconcile — what the log says', () => {
     ]);
   });
 
-  it('reports a cleared conversation stamp apart from drift, as what it is', async () => {
+  it('reports the stale stamps apart from drift, with what the second walk released and failed', async () => {
     reconcileMailAttachmentStamps.mockResolvedValue({
+      ...QUIET,
       scanned: 4,
-      corrected: 0,
+      stampsScanned: 9,
       cleared: 3,
-      released: 0,
-      failures: 0,
+      unbackedReleased: 2,
+      unbackedFailures: 1,
     });
     await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
-    // Nothing failed: no drift line.
+    // No sync failed: no drift line.
     expect(lines(warn)).toEqual([]);
+    // A cleared row is held by a document — filed into it, or one in any
+    // lifecycle — or is a thread or chat file; the line names no one cause.
     expect(lines(info)).toEqual([
-      '[knowledge] stale conversation stamps for acme: cleared=3 — rows no longer an emailed attachment (filed into a document), not a failed sync',
+      '[knowledge] stale conversation stamps for acme: cleared=3 released=2 failures=1 (of stamped=9) — rows no emailed attachment backs any more (filed into or held by a document, or a thread/chat file), not a failed sync',
     ]);
   });
 
-  it('keeps the stamp line to what it stamped, released and failed', async () => {
+  it('reports a second-walk release on the stale-stamps line alone', async () => {
     reconcileMailAttachmentStamps.mockResolvedValue({
+      ...QUIET,
+      scanned: 1,
+      stampsScanned: 3,
+      unbackedReleased: 2,
+    });
+    await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
+    expect(lines(info)).toEqual([
+      '[knowledge] stale conversation stamps for acme: cleared=0 released=2 failures=0 (of stamped=3) — rows no emailed attachment backs any more (filed into or held by a document, or a thread/chat file), not a failed sync',
+    ]);
+  });
+
+  it('keeps the stamp line to what the first walk stamped, released and failed of the attachments it walked', async () => {
+    reconcileMailAttachmentStamps.mockResolvedValue({
+      ...QUIET,
       scanned: 4,
       corrected: 1,
-      cleared: 0,
       released: 2,
-      failures: 0,
     });
     await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
     expect(lines(info)).toEqual([
       '[knowledge] emailed attachments for acme: stamped=1 released=2 failures=0 (of scanned=4)',
     ]);
+  });
+
+  it('says nothing for an organization the pass changed nothing in', async () => {
+    reconcileMailAttachmentStamps.mockResolvedValue({
+      ...QUIET,
+      scanned: 5,
+      stampsScanned: 5,
+    });
+    await runCorpusReconcile(fakeSql([{ id: 'org-1', slug: 'acme' }]).sql);
+    expect(lines(info)).toEqual([]);
+    expect(lines(warn)).toEqual([]);
   });
 });
