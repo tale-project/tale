@@ -766,7 +766,7 @@ async function stageSkill(
   };
 }
 
-/** The longest description an equipped-skill line carries. */
+/** The longest description an equipped-skill line carries, in characters. */
 const SKILL_DESCRIPTION_MAX_CHARS = 300;
 
 /**
@@ -791,7 +791,7 @@ export function equippedSkillLine(
       const { meta } = parseSkillMd(skillMd, path);
       description = sanitizeUntrustedField(
         meta.description,
-        meta.description.length,
+        SKILL_DESCRIPTION_MAX_CHARS,
       );
       explicitOnly = meta.disableModelInvocation === true;
     } catch (error) {
@@ -800,13 +800,6 @@ export function equippedSkillLine(
         error instanceof Error ? error.message : String(error),
       );
     }
-  }
-  const characters = Array.from(description);
-  if (characters.length > SKILL_DESCRIPTION_MAX_CHARS) {
-    description = `${characters
-      .slice(0, SKILL_DESCRIPTION_MAX_CHARS - 1)
-      .join('')
-      .trimEnd()}…`;
   }
   const head =
     description === ''

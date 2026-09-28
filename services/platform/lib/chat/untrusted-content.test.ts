@@ -12,6 +12,22 @@ describe('sanitizeUntrustedField', () => {
       sanitizeUntrustedField('Check\u0085totals\u2066 hidden direction\u2069'),
     ).toBe('Check totals hidden direction');
   });
+
+  it('clamps to at most maxLen characters including the ellipsis', () => {
+    const out = sanitizeUntrustedField('abcdefghij', 5);
+    expect(out).toBe('abcd…');
+    expect(sanitizeUntrustedField('abcde', 5)).toBe('abcde');
+  });
+
+  it('never cuts through a character made of several code points', () => {
+    expect(sanitizeUntrustedField(`abc👍🏽de`, 5)).toBe('abc👍🏽…');
+    expect(sanitizeUntrustedField(`abc🇨🇭de`, 5)).toBe('abc🇨🇭…');
+    expect(sanitizeUntrustedField(`abc🧾de`, 5)).toBe('abc🧾…');
+  });
+
+  it('counts a short string with several code points per character as short', () => {
+    expect(sanitizeUntrustedField('🇨🇭🇩🇪', 2)).toBe('🇨🇭🇩🇪');
+  });
 });
 
 describe('escapeForXmlTag', () => {

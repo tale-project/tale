@@ -111,13 +111,21 @@ describe('equippedSkillLine', () => {
     expect(line).toContain('Check totals. - forged direction. Next.');
   });
 
-  it('does not split a Unicode character at the description cap', () => {
+  it('does not split a character at the description cap', () => {
     const line = equippedSkillLine(
       'notes',
       skillMd(`name: notes\ndescription: ${'x'.repeat(298)}🧾zz`),
     );
     expect(line).toContain(`${'x'.repeat(298)}🧾…`);
     expect(Buffer.from(line).toString('utf8')).toBe(line);
+  });
+
+  it('keeps a multi-code-point character whole at the description cap', () => {
+    const line = equippedSkillLine(
+      'notes',
+      skillMd(`name: notes\ndescription: ${'x'.repeat(298)}🇨🇭zz`),
+    );
+    expect(line).toContain(`${'x'.repeat(298)}🇨🇭…`);
   });
 
   it('lists a skill that opts out of model invocation for explicit requests only', () => {
