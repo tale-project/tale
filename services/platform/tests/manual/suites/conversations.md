@@ -97,8 +97,9 @@ The three sync packs then appear as **Not deployed** drafts
 deploying one is what opens the Inbox. A fresh org has **zero** conversations,
 so after installing an email automation the reading pane is the **Activate
 conversations** CTA (`conversations.activate.title`), the Home panel's Inbox
-view reads **No conversations** (`home.empty.inbox.title`), and every control
-of the phone list (search box, select-all, filters) is **disabled** —
+view reads **No conversations** (`home.empty.inbox.title`) with its search box
+and **Filter** **disabled**, and every control of the phone list (search box,
+select-all, filters) is **disabled** —
 CONV-G1–CONV-G3/CONV-F1/CONV-F2/CONV-B3 are testable as-is, but
 CONV-F3–CONV-F10/CONV-B1 need a populated inbox.
 
@@ -513,8 +514,9 @@ subject.
   empty state **No conversations yet** (`conversations.activate.title`) +
   **Incoming conversations from your connected channels will appear here.**
   (`conversations.activate.description`); the Home panel's Inbox view reads
-  **No conversations** (`home.empty.inbox.title`); at 390 px the list's
-  search box + select-all + filters are **disabled**.
+  **No conversations** (`home.empty.inbox.title`) and its search box +
+  **Filter** are **disabled**; at 390 px the list's search box + select-all +
+  filters are **disabled**.
 - [ ] `CONV-B4` · **Unknown filter params** — At 390 px (the URL facets belong
   to the phone list), open `…/open?channel=bogus&assignee=nobody` by hand →
   The list queries with

@@ -3,7 +3,7 @@
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useMobileKeyboard } from '@tale/ui/use-mobile-keyboard';
 import { useScrollCompact } from '@tale/ui/use-scroll-compact';
-import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate, useMatches } from '@tanstack/react-router';
 import { House } from 'lucide-react';
 import { useLayoutEffect, useMemo } from 'react';
 
@@ -46,13 +46,25 @@ function isItemActive(item: NavItem, pathname: string): boolean {
 export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const automationDetail = useMatches({
+    select: (matches) =>
+      matches.some(
+        (match) =>
+          'automationSlug' in match.params &&
+          match.params.automationSlug !== undefined,
+      ),
+  });
   const ability = useAbility();
   const { accentColor } = useBrandingContext();
   const { t: tNav } = useT('navigation');
   const { primary, pinned } = useNavigationItems(organizationId);
   const { isStandalone, isMobileSafari } = useDisplayMode();
   const keyboard = useMobileKeyboard();
-  const { compact, expand } = useScrollCompact(pathname, keyboard.open);
+  const { compact, expand } = useScrollCompact(
+    pathname,
+    keyboard.open,
+    automationDetail,
+  );
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.toggle(

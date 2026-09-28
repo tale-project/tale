@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState, useMemo } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -160,7 +161,7 @@ export function TeamCreateDialog({
       console.error(error);
       toast({
         title: tSettings('teams.teamCreateFailed'),
-        description: error instanceof Error ? error.message : undefined,
+        description: failureDetail(error),
         variant: 'destructive',
       });
     } finally {

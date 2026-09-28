@@ -47,7 +47,7 @@ Eine Senkung betrifft künftige Starts und unterbricht keine laufende Arbeit. Si
 | CPU-Auslastung des Hosts | Kürzlich genutzte und gesamte CPU-Kerne, einschließlich anderer Dienste auf dem Host. |
 | Arbeitsspeicher des Hosts | Genutzter und gesamter Speicher, einschließlich anderer Dienste und unter Berücksichtigung freigebbaren Caches. |
 
-Die Werte aktualisieren sich alle 15 Sekunden. Mit **Aktualisieren** forderst du eine neue Beobachtung an. Prüfe den Zeitstempel. Die CPU-Auslastung benötigt zwei Messungen; nach einer längeren Pause kann sie zunächst fehlen. Entfernte Hosts liefern gegebenenfalls nur Gesamtwerte. Namespace-Zugriff unter Kubernetes liefert keine Host-Messungen. Nicht verfügbare Werte sind unbekannt, nicht null.
+Die Werte aktualisieren sich alle 15 Sekunden. Mit **Aktualisieren** forderst du eine neue Beobachtung an. Prüfe den Zeitstempel. Die CPU-Auslastung ist die Differenz zweier Messungen; die erste Beobachtung nach einer längeren Pause dauert etwa eine Sekunde länger. Entfernte Hosts liefern gegebenenfalls nur Gesamtwerte. Namespace-Zugriff unter Kubernetes liefert keine Host-Messungen. Nicht verfügbare Werte sind unbekannt, nicht null.
 
 ## Belegte und inaktive Workspaces unterscheiden
 

@@ -47,7 +47,7 @@ Une baisse concerne les prochains démarrages et n’interrompt pas le travail e
 | Utilisation du CPU de l’hôte | Cœurs récemment utilisés et total des cœurs, autres services de l’hôte compris. |
 | Mémoire de l’hôte utilisée | Mémoire utilisée et totale, autres services compris et cache récupérable pris en compte. |
 
-Les mesures s’actualisent toutes les 15 secondes. **Actualiser** demande une nouvelle observation ; vérifie sa date avant de l’interpréter. Le CPU nécessite deux relevés et peut manquer après une longue interruption. Un hôte distant peut fournir les totaux sans l’utilisation. L’accès au namespace Kubernetes ne fournit pas les mesures de l’hôte. **Indisponible** signifie inconnu, pas zéro.
+Les mesures s’actualisent toutes les 15 secondes. **Actualiser** demande une nouvelle observation ; vérifie sa date avant de l’interpréter. L’utilisation du CPU est la différence entre deux relevés ; la première observation après une longue interruption prend environ une seconde de plus. Un hôte distant peut fournir les totaux sans l’utilisation. L’accès au namespace Kubernetes ne fournit pas les mesures de l’hôte. **Indisponible** signifie inconnu, pas zéro.
 
 ## Distinguer allocation et environnement inactif
 

@@ -53,7 +53,11 @@ export function ActiveHoldsSection({
     undefined,
   );
 
-  const { data: rows, isLoading } = useLegalHolds(organizationId, {
+  const {
+    data: rows,
+    isLoading,
+    isError,
+  } = useLegalHolds(organizationId, {
     status: 'active',
     targetType: targetTypeFilter === 'all' ? undefined : targetTypeFilter,
   });
@@ -222,6 +226,7 @@ export function ActiveHoldsSection({
           // to be told the set is empty.
           disabled={isFilterAffordanceDisabled({
             isLoading,
+            isError,
             itemCount: rows?.length ?? 0,
             hasActiveFilters: targetTypeFilter !== 'all',
           })}

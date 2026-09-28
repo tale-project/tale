@@ -873,20 +873,39 @@ input[type='text']:-webkit-autofill {
 @layer base {
   :root {
     --mobile-nav-height: 3.75rem;
-    --mobile-nav-bottom: calc(0.5rem + var(--safe-bottom));
+    --mobile-nav-height-compact: 3.25rem;
+    --mobile-nav-bottom: calc(0.25rem + var(--safe-bottom));
+    --mobile-nav-bottom-compact: calc(var(--mobile-nav-bottom) - 0.25rem);
     --mobile-nav-clearance: 0px;
+    /* Tracks the pill's REAL current footprint (compact or not), unlike
+       `--mobile-nav-clearance` above, which a scrolling list holds constant
+       on purpose — the pill's own compacting is scroll-driven there, and a
+       clearance that shrunk with it would move the content under the
+       reader's finger mid-scroll. A canvas that isn't scroll-linked (nothing
+       reflows other than the canvas's own box, which already resizes
+       smoothly) can follow the pill's real height instead of over-reserving
+       for the expanded one. */
+    --mobile-nav-clearance-live: 0px;
     --mobile-keyboard-inset: 0px;
     --mobile-nav-content-pad: var(--mobile-nav-clearance);
   }
 
   @media (width < 48rem) {
     :root.boot-safari-toolbar {
-      --mobile-nav-bottom: calc(0.5rem + max(var(--safe-bottom), 3rem));
+      --mobile-nav-bottom: calc(0.25rem + max(var(--safe-bottom), 1rem));
     }
 
     :root:has(.mobile-nav-shell):not([data-mobile-keyboard]) {
       --mobile-nav-clearance: calc(
         var(--mobile-nav-height) + var(--mobile-nav-bottom) + 0.5rem
+      );
+      --mobile-nav-clearance-live: var(--mobile-nav-clearance);
+    }
+
+    :root:has(.mobile-tab-bar[data-compact]):not([data-mobile-keyboard]) {
+      --mobile-nav-clearance-live: calc(
+        var(--mobile-nav-height-compact) + var(--mobile-nav-bottom-compact) +
+          0.5rem
       );
     }
   }
@@ -925,9 +944,9 @@ input[type='text']:-webkit-autofill {
   }
 
   .mobile-tab-bar.mobile-tab-bar[data-compact] {
-    height: 3.25rem;
+    height: var(--mobile-nav-height-compact);
     max-width: 17.5rem;
-    bottom: calc(var(--mobile-nav-bottom) - 0.25rem);
+    bottom: var(--mobile-nav-bottom-compact);
   }
 
   @media (prefers-reduced-motion: reduce) {

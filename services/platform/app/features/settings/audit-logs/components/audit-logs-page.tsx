@@ -137,6 +137,8 @@ export function AuditLogsPage({
   // that table computes for itself never reaches it. Watch the listing the tab
   // reads — the same query, so one cache entry answers both and no second
   // request goes out — and disable the filter over an empty, unfiltered trail.
+  // This read sits outside the tab's `LogsTableBoundary`; that holds only
+  // while the paginated lane never throws (a failure settles as `error`).
   const listedOrganizationId = accessDenied ? undefined : organizationId;
   const auditListing = useListAuditLogsPaginated({
     organizationId: activeTab === 'audit' ? listedOrganizationId : undefined,
@@ -149,6 +151,7 @@ export function AuditLogsPage({
   const activeListing = activeTab === 'errors' ? errorListing : auditListing;
   const categoryFilterDisabled = isFilterAffordanceDisabled({
     isLoading: activeListing.status === 'LoadingFirstPage',
+    isError: activeListing.error !== null,
     itemCount: activeListing.results.length,
     hasActiveFilters: auditFilterConfigs.some(isFilterActive),
     filters: auditFilterConfigs,

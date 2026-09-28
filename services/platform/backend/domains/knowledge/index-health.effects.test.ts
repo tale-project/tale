@@ -37,37 +37,54 @@ vi.mock('../../core/knowledge/pool.ts', async (importOriginal) => ({
 }));
 
 const { productionEffects } = await import('./index-health.ts');
+const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
 
 interface Statement {
   text: string;
   values: unknown[];
 }
 
+interface ParkedRow {
+  id: string;
+  orgId: string;
+  /** A document holds the file, so a document list shows its status. */
+  listed: boolean;
+}
+
 /** A `sql` double: the org lookup answers one organization; the parked-file
- * UPDATE answers `parked` rows on its first call and none after. */
-function fakeSql(parked: { id: string; orgId: string }[]) {
+ * write — the statement that asks, per row, whether a document holds the
+ * file — answers `parked` rows on its first call and none after. */
+function fakeSql(parked: ParkedRow[]) {
   const statements: Statement[] = [];
-  let updates = 0;
+  let writes = 0;
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
     statements.push({ text, values });
     if (text.includes('FROM "organization"')) {
       return Promise.resolve([{ id: 'org-1', slug: 'acme' }]);
     }
-    if (text.includes('UPDATE app.file_metadata')) {
-      updates += 1;
-      return Promise.resolve(updates === 1 ? parked : []);
+    if (values.includes(HELD_BY_DOCUMENT_SQL)) {
+      writes += 1;
+      return Promise.resolve(writes === 1 ? parked : []);
     }
     return Promise.resolve([]);
   };
-  const sql = Object.assign(fn, {
+  const tx = Object.assign(fn, { unsafe: (raw: string) => raw });
+  const sql = Object.assign(tx, {
     begin: (run: (tx: TransactionSql) => Promise<unknown>) =>
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the double is the transaction
-      run(fn as unknown as TransactionSql),
+      run(tx as unknown as TransactionSql),
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal Sql facade
   return { sql: sql as unknown as Sql, statements };
 }
+
+const doc = (id: string): ParkedRow => ({ id, orgId: 'org-1', listed: true });
+const attachment = (id: string): ParkedRow => ({
+  id,
+  orgId: 'org-1',
+  listed: false,
+});
 
 const URL = 'postgresql://tale:pw@knowledge-db:5432/tale_knowledge';
 const PK = {
@@ -87,10 +104,7 @@ beforeEach(() => {
 
 describe('requeueRefused', () => {
   it('re-queues files parked under BOTH index codes, then hints the org', async () => {
-    const { sql, statements } = fakeSql([
-      { id: 'f1', orgId: 'org-1' },
-      { id: 'f2', orgId: 'org-1' },
-    ]);
+    const { sql, statements } = fakeSql([doc('f1'), doc('f2')]);
 
     const requeued = await productionEffects(sql).requeueRefused(
       ORG_SCOPE,
@@ -127,11 +141,25 @@ describe('requeueRefused', () => {
       entityId: null,
     });
   });
+
+  // A chat, task or email attachment parked behind the index is on no list.
+  it('re-queues parked attachments without telling a document list', async () => {
+    const { sql } = fakeSql([attachment('f1'), attachment('f2')]);
+
+    const requeued = await productionEffects(sql).requeueRefused(
+      ORG_SCOPE,
+      URL,
+    );
+
+    expect(requeued).toBe(2);
+    expect(addJobInTx).toHaveBeenCalledTimes(2);
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
 });
 
 describe('failRefused', () => {
   it('re-stamps the files parked as rebuilding with the operator code and prose', async () => {
-    const { sql, statements } = fakeSql([{ id: 'f1', orgId: 'org-1' }]);
+    const { sql, statements } = fakeSql([doc('f1')]);
 
     const stamped = await productionEffects(sql).failRefused(
       ORG_SCOPE,
@@ -156,6 +184,19 @@ describe('failRefused', () => {
     expect(update?.text).toContain('WHERE rag_error_code =');
     expect(addJobInTx).not.toHaveBeenCalled();
     expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-stamps parked attachments without telling a document list', async () => {
+    const { sql } = fakeSql([attachment('f1')]);
+
+    const stamped = await productionEffects(sql).failRefused(
+      ORG_SCOPE,
+      URL,
+      PK,
+    );
+
+    expect(stamped).toBe(1);
+    expect(emitHintInTx).not.toHaveBeenCalled();
   });
 });
 
@@ -193,7 +234,7 @@ describe('scheduleRebuild', () => {
 
 describe('resumeRefused', () => {
   it('re-queues for every organization whose corpus resolves to that database', async () => {
-    const { sql } = fakeSql([{ id: 'f1', orgId: 'org-1' }]);
+    const { sql } = fakeSql([doc('f1')]);
 
     const requeued = await productionEffects(sql).resumeRefused(URL);
 
@@ -209,7 +250,7 @@ describe('resumeRefused', () => {
   });
 
   it('touches no organization whose corpus lives elsewhere', async () => {
-    const { sql, statements } = fakeSql([{ id: 'f1', orgId: 'org-1' }]);
+    const { sql, statements } = fakeSql([doc('f1')]);
     resolveOrgUrl.mockResolvedValue('postgresql://elsewhere/corpus');
 
     const requeued = await productionEffects(sql).resumeRefused(URL);

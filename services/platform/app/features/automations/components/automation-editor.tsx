@@ -7,7 +7,6 @@ import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Dialog } from '@tale/ui/dialog/dialog';
-import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import {
   EditorSaveCancelledError,
   useRegisterActiveEditor,
@@ -18,12 +17,19 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { PageActionHeader } from '@tale/ui/page-action-header';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogTitle,
+} from '@tale/ui/responsive-dialog';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
+import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useToast } from '@tale/ui/use-toast';
 import {
   CheckCircle2,
-  ChevronDown,
   Eye,
   EyeOff,
   Play,
@@ -48,7 +54,6 @@ import {
   useAutomation,
   useAutomationProjects,
   useAutomationRuns,
-  useAutomationVersions,
   useNodeTypeCatalog,
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
@@ -66,6 +71,7 @@ import { nodeStatusMap, projectRun } from '../lib/run-view';
 import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
   AUTOMATION_WORKBENCH_CANVAS_SLOT,
+  AUTOMATION_WORKBENCH_COMPACT_QUERY,
   AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
@@ -74,7 +80,8 @@ import {
   AutomationRunDialog,
   type AutomationRunRequest,
 } from './automation-run-dialog';
-import { NodeInspector } from './node-inspector';
+import { AutomationVersionPicker } from './automation-version-picker';
+import { NodeFields, NodeInspector } from './node-inspector';
 
 /**
  * Every field of a node a patch may clear. Spelling them out keeps the unset
@@ -145,6 +152,7 @@ interface AutomationEditorProps {
   projectId?: string;
   /** The stored version on the canvas; absent means the latest. */
   version?: number;
+  showVersionHistory?: boolean;
   /** The author picked a version to look at — `undefined` asks for the latest
    * again (after a save appends one). */
   onSelectVersion: (version: number | undefined) => void;
@@ -170,7 +178,8 @@ export function AutomationEditor(props: AutomationEditorProps) {
 /**
  * The Editor tab: one automation's document on the canvas beside its node
  * inspector. The automation's own settings (trigger, project bindings) are
- * the General tab; the version history and the run log are their own tabs.
+ * the General tab; version history opens from the tab strip and the run log
+ * has its own tab.
  *
  * The canvas always shows a stored VERSION — versions are immutable, so what
  * is drawn is exactly what was saved and exactly what a run of that version
@@ -189,9 +198,14 @@ function AutomationEditorScope({
   automationSlug,
   projectId,
   version,
+  showVersionHistory,
   onSelectVersion,
 }: AutomationEditorProps) {
   const { t } = useT('automations');
+  const isMobile = useIsMobile();
+  // Whether there's a side panel to put a picked node's fields in — below
+  // it, they open in a sheet over the canvas instead (see the constant).
+  const isWorkbenchCompact = useMediaQuery(AUTOMATION_WORKBENCH_COMPACT_QUERY);
   const { toast } = useToast();
   const { t: tCommon } = useT('common');
   const inspectorId = useId();
@@ -226,7 +240,7 @@ function AutomationEditorScope({
   /** A refused RUN, not refused save feedback — see the Alert below. */
   const [refusal, setRefusal] = useState<string | null>(null);
   /** A refused DEPLOY from the looking-vs-live control — the only deploy
-   * control there is; the Versions tab's rows never deploy. */
+   * control there is; the version history rows never deploy. */
   const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
   const [showLastRun, setShowLastRun] = useState(true);
   const [runRequest, setRunRequest] = useState<AutomationRunRequest | null>(
@@ -253,7 +267,6 @@ function AutomationEditorScope({
     automationSlug,
     automationQuery.data?.deployedVersion,
   );
-  const versionsQuery = useAutomationVersions(organizationId, automationSlug);
   // Only the newest run matters here — it is what the canvas overlays; the
   // Runs tab reads the log.
   const runsQuery = useAutomationRuns(organizationId, automationSlug, 1);
@@ -359,10 +372,6 @@ function AutomationEditorScope({
     }
     onSelectVersion(next);
   };
-  const versionEntries = useMemo(
-    () => [...(versionsQuery.data ?? [])].sort((a, b) => b.version - a.version),
-    [versionsQuery.data],
-  );
 
   // The save-version dialog settles the promise `save()` handed back: confirming
   // resolves it once the version is written, backing out rejects it as a
@@ -517,25 +526,6 @@ function AutomationEditorScope({
   const lookingVersion = meta?.version;
   const lookingIsLive =
     lookingVersion !== undefined && lookingVersion === meta?.deployedVersion;
-  const versionMenuItems: DropdownMenuGroup[] =
-    lookingVersion === undefined || versionEntries.length === 0
-      ? []
-      : [
-          versionEntries.map((entry) => {
-            const isDeployed = entry.version === meta?.deployedVersion;
-            return {
-              type: 'item' as const,
-              label: t('versions.versionLabel', { version: entry.version }),
-              selected: entry.version === lookingVersion,
-              trailing: isDeployed ? t('versions.deployed') : undefined,
-              onClick: () => {
-                if (entry.version !== lookingVersion) {
-                  requestVersionSwitch(entry.version);
-                }
-              },
-            };
-          }),
-        ];
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
   /** Append the draft as a version built on `baseVersion` (none: append
@@ -615,8 +605,157 @@ function AutomationEditorScope({
     onSelectVersion(undefined);
   };
 
+  // Whether a live run is actually possible right now, not just wishful:
+  // there has to be a deployed version, and it has to have loaded.
+  const canRunLive =
+    meta?.deployedVersion !== undefined &&
+    !deployedQuery.isPending &&
+    deployed !== null;
+
+  // The automation-level verbs: what to do with THIS version, not a node's
+  // fields. Shared between the desktop header and the mobile canvas toolbar;
+  // only the header also carries the document's Save/Discard cluster — on
+  // mobile that cluster moves into a picked node's own sheet instead (the
+  // `ResponsiveDialog` below), where the edit it reports on actually happens.
+  const automationActions = (
+    <>
+      {canAuthor && lookingVersion !== undefined && !lookingIsLive && (
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={Rocket}
+          isLoading={deploy.isPending}
+          onClick={() => {
+            setDeployRefusal(null);
+            deploy.mutate(
+              {
+                organizationId,
+                name: automationSlug,
+                version: lookingVersion,
+              },
+              {
+                onError: (error) => {
+                  setDeployRefusal(automationErrorMessage(error));
+                },
+              },
+            );
+          }}
+        >
+          {t('detail.deployVersion', { version: lookingVersion })}
+        </Button>
+      )}
+      {canChooseRunProject && (
+        <Select
+          aria-label={t('detail.runScope.label')}
+          className="w-48"
+          options={[
+            {
+              value: RUN_SCOPE_ORG_WIDE,
+              label: t('detail.runScope.orgWide'),
+            },
+            ...boundProjects.map((project) => ({
+              value: project._id,
+              label: project.name,
+            })),
+          ]}
+          value={
+            effectiveRunProjectId === undefined
+              ? RUN_SCOPE_ORG_WIDE
+              : effectiveRunProjectId
+          }
+          onValueChange={(value) => {
+            // Radix fires a spurious '' on unmount — never act on it.
+            if (value === '') return;
+            setRunProjectId(
+              value === RUN_SCOPE_ORG_WIDE
+                ? undefined
+                : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of the bound project ids above
+                  value,
+            );
+          }}
+        />
+      )}
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={Play}
+        isLoading={startRun.isPending}
+        onClick={() => {
+          if (meta == null || stored === null) return;
+          const request: AutomationRunRequest = {
+            automationSlug,
+            mode: 'mock',
+            version: meta.version,
+            ...(stored.inputs !== undefined && { schema: stored.inputs }),
+            ...(effectiveRunProjectId !== undefined && {
+              projectId: effectiveRunProjectId,
+            }),
+            scopeText: liveRunScopeText,
+          };
+          if (request.schema === undefined) scheduleRun(request);
+          else setRunRequest(request);
+        }}
+      >
+        {t('detail.runMock')}
+      </Button>
+      {/* On mobile there's no room to explain an inert button, so an
+          undeployable automation just doesn't offer one; the desktop header
+          has space for the disabled state and its reason instead. */}
+      {canAuthor && (canRunLive || !isMobile) && (
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={Zap}
+          isLoading={startRun.isPending}
+          disabled={!canRunLive}
+          disabledReason={t('detail.runLiveNeedsDeploy')}
+          onClick={() => {
+            if (meta?.deployedVersion === undefined || deployed === null)
+              return;
+            setRunRequest({
+              automationSlug,
+              mode: 'live',
+              version: meta.deployedVersion,
+              ...(deployed.inputs !== undefined && {
+                schema: deployed.inputs,
+              }),
+              ...(effectiveRunProjectId !== undefined && {
+                projectId: effectiveRunProjectId,
+              }),
+              scopeText: liveRunScopeText,
+            });
+          }}
+        >
+          {t('detail.runLive')}
+        </Button>
+      )}
+    </>
+  );
+
+  const editorActions = (
+    <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
+      {automationActions}
+      {canAuthor && <AutomationEditorActions />}
+    </div>
+  );
+  const canvasToolbarActions = (
+    <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
+      {automationActions}
+    </div>
+  );
+
   return (
     <>
+      <AutomationVersionPicker
+        portal
+        organizationId={organizationId}
+        automationSlug={automationSlug}
+        projectId={projectId}
+        currentVersion={lookingVersion}
+        deployedVersion={meta?.deployedVersion}
+        onSelectVersion={requestVersionSwitch}
+        showHistory={showVersionHistory}
+      />
       <PageActionHeader
         // Display name is the breadcrumb h1 in AdaptiveHeader. Live sits
         // next to that name when the canvas version is the live one. The
@@ -631,155 +770,22 @@ function AutomationEditorScope({
             </Badge>
           ),
         })}
-        actions={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {lookingVersion !== undefined && versionMenuItems.length > 0 && (
-              <DropdownMenu
-                align="end"
-                items={versionMenuItems}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    aria-label={t('detail.versionSelect')}
-                    aria-haspopup="menu"
-                    className="gap-1.5"
-                  >
-                    {t('versions.versionLabel', {
-                      version: lookingVersion,
-                    })}
-                    <ChevronDown aria-hidden className="size-3.5 shrink-0" />
-                  </Button>
-                }
-              />
-            )}
-            {canAuthor && lookingVersion !== undefined && !lookingIsLive && (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={Rocket}
-                isLoading={deploy.isPending}
-                onClick={() => {
-                  setDeployRefusal(null);
-                  deploy.mutate(
-                    {
-                      organizationId,
-                      name: automationSlug,
-                      version: lookingVersion,
-                    },
-                    {
-                      onError: (error) => {
-                        setDeployRefusal(automationErrorMessage(error));
-                      },
-                    },
-                  );
-                }}
-              >
-                {t('detail.deployVersion', { version: lookingVersion })}
-              </Button>
-            )}
-            {canChooseRunProject && (
-              <Select
-                aria-label={t('detail.runScope.label')}
-                className="w-48"
-                options={[
-                  {
-                    value: RUN_SCOPE_ORG_WIDE,
-                    label: t('detail.runScope.orgWide'),
-                  },
-                  ...boundProjects.map((project) => ({
-                    value: project._id,
-                    label: project.name,
-                  })),
-                ]}
-                value={
-                  effectiveRunProjectId === undefined
-                    ? RUN_SCOPE_ORG_WIDE
-                    : effectiveRunProjectId
-                }
-                onValueChange={(value) => {
-                  // Radix fires a spurious '' on unmount — never act on it.
-                  if (value === '') return;
-                  setRunProjectId(
-                    value === RUN_SCOPE_ORG_WIDE
-                      ? undefined
-                      : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of the bound project ids above
-                        value,
-                  );
-                }}
-              />
-            )}
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Play}
-              isLoading={startRun.isPending}
-              onClick={() => {
-                if (meta == null || stored === null) return;
-                const request: AutomationRunRequest = {
-                  automationSlug,
-                  mode: 'mock',
-                  version: meta.version,
-                  ...(stored.inputs !== undefined && { schema: stored.inputs }),
-                  ...(effectiveRunProjectId !== undefined && {
-                    projectId: effectiveRunProjectId,
-                  }),
-                  scopeText: liveRunScopeText,
-                };
-                if (request.schema === undefined) scheduleRun(request);
-                else setRunRequest(request);
-              }}
-            >
-              {t('detail.runMock')}
-            </Button>
-            {canAuthor && (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={Zap}
-                isLoading={startRun.isPending}
-                disabled={
-                  meta?.deployedVersion === undefined ||
-                  deployedQuery.isPending ||
-                  deployed === null
-                }
-                disabledReason={t('detail.runLiveNeedsDeploy')}
-                onClick={() => {
-                  if (meta?.deployedVersion === undefined || deployed === null)
-                    return;
-                  setRunRequest({
-                    automationSlug,
-                    mode: 'live',
-                    version: meta.deployedVersion,
-                    ...(deployed.inputs !== undefined && {
-                      schema: deployed.inputs,
-                    }),
-                    ...(effectiveRunProjectId !== undefined && {
-                      projectId: effectiveRunProjectId,
-                    }),
-                    scopeText: liveRunScopeText,
-                  });
-                }}
-              >
-                {t('detail.runLive')}
-              </Button>
-            )}
-            {canAuthor && <AutomationEditorActions />}
-          </div>
-        }
+        actions={isMobile ? undefined : editorActions}
       />
       {/* Edge to edge: this tab is a workbench, not a page of content — the
           canvas runs to the tab strip, the section panel and the window's
           edges, and the inspector stands against its side as a panel (a design
-          tool's layout), never a card floating in an inset. From `lg` up,
-          `flex-1 lg:min-h-0` hands the grid the height the header and tab strip
-          leave, so the workbench fills the window. Below `lg` the canvas and
-          inspector stack, and this area grows with them so the page scrolls:
-          held to the window, the stack would squeeze the canvas row under the
-          canvas's own floor and clip the zoom controls in its bottom corner.
-          The one inset kept is a phone's floating-dock allowance. */}
-      <div className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[calc(var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))] lg:min-h-0">
+          tool's layout), never a card floating in an inset. `flex-1
+          lg:min-h-0` hands the grid the height the header and tab strip
+          leave, so the workbench fills the window — a picked node never
+          grows this row: `lg` up it takes a column beside the canvas, below
+          it it opens in a sheet over the canvas instead, so the canvas is
+          always a fixed box, never a list, and the page never scrolls to
+          reach it. No nav-pill clearance reserved here either: like a
+          table's rows, the canvas's background runs behind the pill, and its
+          own zoom cluster and action toolbar (`FlowCanvas`) keep themselves
+          clear of it instead of the workbench flooring on it site-wide. */}
+      <div className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[var(--mobile-floating-actions-pad,0px)] lg:min-h-0">
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.
@@ -838,12 +844,16 @@ function AutomationEditorScope({
               onSelectNode={setSelectedNodeId}
               inspectorId={inspectorId}
               framed={false}
+              centerActions={isMobile ? canvasToolbarActions : undefined}
               {...(runStatusByNode !== undefined && { runStatusByNode })}
             />
           </div>
           {/* Only a picked node opens the inspector; until then the canvas
-              runs to the window's edge. */}
-          {selectedNode !== null && (
+              runs to the window's edge. With a side panel to put it in
+              (`lg` up) it opens there; below that there is no panel to
+              stack against, so it opens in the sheet below instead — never
+              both, `isWorkbenchCompact` picks exactly one. */}
+          {selectedNode !== null && !isWorkbenchCompact && (
             <NodeInspector
               id={inspectorId}
               variant="panel"
@@ -864,6 +874,61 @@ function AutomationEditorScope({
           )}
         </div>
       </div>
+
+      {/* The compact counterpart of the side panel above: a picked node's
+          fields in a sheet over the canvas instead of pushed below it. Kept
+          mounted for as long as the viewport stays compact, `open` toggling
+          with the selection, so a deselect plays the sheet's own close
+          animation instead of the content vanishing under it. Save/Discard
+          sit at the top of the sheet — right where the edit they report on
+          happens — instead of in a toolbar the sheet now covers. */}
+      {isWorkbenchCompact && (
+        <ResponsiveDialog
+          open={selectedNode !== null}
+          onOpenChange={(open) => {
+            if (!open) deselectNode();
+          }}
+        >
+          <ResponsiveDialogContent
+            hideClose
+            className="flex max-h-[85dvh] flex-col"
+          >
+            {selectedNode !== null && (
+              <>
+                <ResponsiveDialogTitle className="sr-only">
+                  {selectedNode.id}
+                </ResponsiveDialogTitle>
+                <ResponsiveDialogDescription className="sr-only">
+                  {t('editor.nodeSheetDescription')}
+                </ResponsiveDialogDescription>
+                {canAuthor && (
+                  <div className="flex items-center justify-end gap-2 pb-3">
+                    <AutomationEditorActions />
+                  </div>
+                )}
+                <NodeFields
+                  headingId={inspectorId}
+                  node={selectedNode}
+                  nodeType={nodeTypes.find(
+                    (def) => def.type === selectedNode.type,
+                  )}
+                  catalogUnavailable={catalogQuery.isError}
+                  runView={
+                    showLastRun
+                      ? lastRunProjection.byNode.get(selectedNode.id)
+                      : undefined
+                  }
+                  readOnly={!canAuthor}
+                  onChange={onChangeNode}
+                  organizationId={organizationId}
+                  {...(projectId !== undefined && { projectId })}
+                  onDeselect={deselectNode}
+                />
+              </>
+            )}
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
+      )}
 
       {/* Saving APPENDS a version, so the one thing the author is asked for is
           the line that will stand in the history beside it. */}

@@ -205,12 +205,12 @@ describe('floating navigation layout', () => {
               .closest('.fixed') as HTMLElement,
           ).bottom,
       )
-      .toBe('76px');
+      .toBe('72px');
     document.documentElement.classList.add('boot-safari-toolbar');
     expect(nav.getBoundingClientRect().height).toBe(60);
     await expect
       .poll(() => nav.getBoundingClientRect().bottom)
-      .toBe(box.bottom - 48);
+      .toBe(box.bottom - 16);
   });
 
   it('hides the dock and releases clearance for typing, and hides on desktop', async () => {

@@ -117,3 +117,5 @@ The platform uses `useMobileKeyboard` to hide navigation and release its clearan
 Pass `compact` to show a 52px-high, at most 280px-wide capsule, 4px lower than its expanded position. Icons stay 20px and targets remain at least 44px square. Expanded labels are 11px; compact labels remain available to assistive technology. Badges and every destination stay available.
 
 The platform uses `useScrollCompact` from `@tale/ui/use-scroll-compact` with the pathname as its reset key and keyboard visibility as its disabled flag. It observes nested scroll containers inside `.mobile-nav-shell`, minimizes after downward travel, and expands on upward travel or near the top. Wire keyboard focus and selection to the returned `expand` callback. Keep expanded content clearance in both states so resizing navigation does not move the page. Geometry transitions respect reduced motion.
+
+Use `trailing` for a compact navigation control that must remain at the right of the tab strip on every screen size. The `children` action slot moves into a floating dock on mobile; `trailing` stays in the strip.

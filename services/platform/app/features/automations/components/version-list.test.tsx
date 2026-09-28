@@ -1,38 +1,12 @@
-import { forwardRef, type AnchorHTMLAttributes } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, fireEvent } from '@/tests/utils/render';
 
 import { VersionList } from './version-list';
 
-interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
-  to?: string;
-  params?: Record<string, string>;
-  search?: Record<string, unknown>;
-}
-
-// Rows are router links to the Editor tab; render them as anchors whose
-// href spells out the resolved path and search so the tests can read it.
-vi.mock('@tanstack/react-router', () => ({
-  Link: forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
-    { to, params, search, children, ...rest },
-    ref,
-  ) {
-    const path = Object.entries(params ?? {}).reduce(
-      (acc, [key, value]) => acc.replace(`$${key}`, value),
-      to ?? '',
-    );
-    const query = new URLSearchParams(
-      Object.entries(search ?? {}).map(([key, value]) => [key, String(value)]),
-    ).toString();
-    return (
-      <a ref={ref} href={query ? `${path}?${query}` : path} {...rest}>
-        {children}
-      </a>
-    );
-  }),
-}));
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }));
 
 const versions = [
   {
@@ -63,6 +37,7 @@ function renderList({
         automationSlug="billing/dunning"
         {...(projectId !== undefined && { projectId })}
         versions={versions}
+        currentVersion={2}
         deployedVersion={deployedVersion}
         headingId="versions-heading"
       />
@@ -73,7 +48,7 @@ function renderList({
 describe('VersionList', () => {
   it('marks the version that is live and does not offer deploy on the row', () => {
     renderList();
-    expect(screen.getByText('Live')).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Live' })).toBeVisible();
     expect(
       screen.queryByRole('button', { name: /Deploy/ }),
     ).not.toBeInTheDocument();
@@ -81,8 +56,8 @@ describe('VersionList', () => {
 
   it('says which versions were saved with failing tests', () => {
     renderList();
-    expect(screen.getByText('Tests failed')).toBeVisible();
-    expect(screen.getByText('Tests passed')).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Tests failed' })).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Tests passed' })).toBeVisible();
   });
 
   it('shows the version messages so the history reads', () => {
@@ -91,26 +66,46 @@ describe('VersionList', () => {
     expect(screen.getByText('first cut')).toBeVisible();
   });
 
-  it('opens the Editor at that version from a row, newest first', () => {
+  it('selects the current version and orders newest first', () => {
     renderList();
-    const rows = screen.getAllByRole('link');
-    expect(rows.map((row) => row.getAttribute('href'))).toEqual([
-      '/dashboard/org-1/automations/billing__dunning/editor?version=2',
-      '/dashboard/org-1/automations/billing__dunning/editor?version=1',
-    ]);
+    const rows = screen.getAllByRole('radio');
+    expect(rows[0]).toBeChecked();
+    expect(rows[1]).not.toBeChecked();
+    fireEvent.click(rows[1]);
+    expect(navigate).toHaveBeenLastCalledWith({
+      to: '/dashboard/$id/automations/$automationSlug/editor',
+      params: { id: 'org-1', automationSlug: 'billing__dunning' },
+      search: { version: 1 },
+    });
   });
 
-  it('keeps the editor links inside the project shell when scoped', () => {
+  it('opens the current version from another tab when it is already checked', () => {
+    renderList();
+    fireEvent.click(screen.getAllByRole('radio')[0]);
+    expect(navigate).toHaveBeenLastCalledWith({
+      to: '/dashboard/$id/automations/$automationSlug/editor',
+      params: { id: 'org-1', automationSlug: 'billing__dunning' },
+      search: { version: 2 },
+    });
+  });
+
+  it('keeps version selection inside the project shell', () => {
     renderList({ projectId: 'proj-1' });
-    expect(screen.getAllByRole('link')[0]).toHaveAttribute(
-      'href',
-      '/dashboard/org-1/projects/proj-1/automations/billing__dunning/editor?version=2',
-    );
+    fireEvent.click(screen.getAllByRole('radio')[1]);
+    expect(navigate).toHaveBeenLastCalledWith({
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
+      params: {
+        id: 'org-1',
+        projectId: 'proj-1',
+        automationSlug: 'billing__dunning',
+      },
+      search: { version: 1 },
+    });
   });
 
   it('names the list by the tab heading', () => {
     renderList();
-    expect(screen.getByRole('list', { name: 'Versions' })).toBeVisible();
+    expect(screen.getByRole('radiogroup', { name: 'Versions' })).toBeVisible();
   });
 
   it('says so when nothing has been saved yet', () => {
@@ -124,15 +119,6 @@ describe('VersionList', () => {
       />,
     );
     expect(screen.getByText('No versions saved yet.')).toBeVisible();
-  });
-
-  it('is one bordered list with row dividers, not a stack of cards', () => {
-    const { container } = renderList();
-    const list = container.querySelector('ul');
-    expect(list).toHaveClass('divide-y');
-    expect(container.querySelectorAll('li.border, li.rounded-md')).toHaveLength(
-      0,
-    );
   });
 
   it('passes an axe audit', async () => {

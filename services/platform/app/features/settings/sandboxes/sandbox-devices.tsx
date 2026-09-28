@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import type {
   SandboxDevicesView,
@@ -314,8 +315,7 @@ export function SandboxDevicesSection({
                 (err: unknown) => {
                   toast({
                     title: t('devices.toast.error'),
-                    description:
-                      err instanceof Error ? err.message : String(err),
+                    description: failureDetail(err),
                     variant: 'destructive',
                   });
                 },

@@ -45,6 +45,7 @@ import {
   ifNoneMatchMatches,
   modifiedSince,
 } from '../lib/conditional-get.ts';
+import { listIssues } from '../lib/invalid-body-response.ts';
 import {
   rateLimitedResponse,
   rateLimitExceededCause,
@@ -584,10 +585,6 @@ export async function readOptionalJsonBody(
   return refuseUnstorableText(c, parsed);
 }
 
-/** How many schema problems one 400 lists — enough to fix a body in one
- * round trip, bounded so a hostile body cannot echo itself back at length. */
-const MAX_BODY_ISSUES = 20;
-
 /** zod's `expected` vocabulary, said the way the rest of the envelope
  * speaks ("must be a whole number"), never the validator's own dialect. */
 function describeExpectedType(expected: string): string {
@@ -730,31 +727,13 @@ export function schemaIssues(
   error: ZodError,
   unknownKey: string,
 ): { path: string; message: string }[] {
-  return error.issues
-    .flatMap((issue) =>
-      issue.code === 'unrecognized_keys'
-        ? issue.keys.map((key) => ({
-            path: [...issue.path.map(String), key].join('.'),
-            message: unknownKey,
-          }))
-        : [
-            {
-              path: issue.path.map(String).join('.'),
-              // A required field that was not sent is "required", not a
-              // type mismatch with `undefined`: `houseIssueMessage` says
-              // so for every parse on this door, and a parse that skipped
-              // it still gets zod's default text rewritten here. A
-              // schema's own sentence for an absent field (the model
-              // field's pointer to the catalog) is kept as written.
-              message:
-                issue.path.length > 0 &&
-                issue.message.endsWith('received undefined')
-                  ? 'is required'
-                  : issue.message,
-            },
-          ],
-    )
-    .slice(0, MAX_BODY_ISSUES);
+  // A required field that was not sent is "required", not a type mismatch
+  // with `undefined`: `houseIssueMessage` says so for every parse on this
+  // door, and a parse that skipped it still gets zod's default text
+  // rewritten by `listIssues` (`issueReason`). A schema's own sentence for
+  // an absent field (the model field's pointer to the catalog) is kept as
+  // written. The list is bounded at `MAX_BODY_ISSUES`.
+  return listIssues(error, unknownKey);
 }
 
 /**

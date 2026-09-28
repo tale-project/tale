@@ -4,7 +4,11 @@ import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
 } from '../../core/knowledge/pool.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
+import {
+  HELD_BY_DOCUMENT_SQL,
+  hintDocumentLists,
+  type MovedStatusRow,
+} from '../knowledge/status-hints.ts';
 import { hintVideoJobs, type VideoJobHintRow } from '../video_links/hints.ts';
 
 /**
@@ -175,6 +179,11 @@ async function readCorpusStatuses(
  *  - a recent `failed` row is reconciled too, so a false failure heals;
  *  - an already-failed row is never overwritten with the generic interrupted
  *    text — its real error is the more useful one.
+ *
+ * Every write here moves a status the document list renders, so each
+ * organization's lists hear the sweep once — and only for rows a document
+ * holds: a stuck chat, task or email attachment is on no list
+ * (`status-hints.ts`).
  */
 export async function recoverStuckRagIndexing(
   sql: Sql,
@@ -184,11 +193,12 @@ export async function recoverStuckRagIndexing(
   const staleBefore = Date.now() - staleMs;
   const failedAfter = Date.now() - RAG_FAILED_RECONCILE_WINDOW_MS;
   const candidates = await sql<
-    { id: string; orgId: string; storageRef: string; ragStatus: string }[]
+    ({ id: string; storageRef: string; ragStatus: string } & MovedStatusRow)[]
   >`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
-           rag_status AS "ragStatus"
-    FROM app.file_metadata
+           rag_status AS "ragStatus",
+           ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+    FROM app.file_metadata fm
     WHERE storage_ref IS NOT NULL
       AND (
         (rag_status IN ('queued', 'running')
@@ -235,6 +245,10 @@ export async function recoverStuckRagIndexing(
       continue;
     }
 
+    // The rows this sweep moved: the document list renders the column, and
+    // without a hint the browser keeps showing whatever state the page was
+    // loaded with.
+    const moved: MovedStatusRow[] = [];
     for (const row of rows) {
       const status = statuses.get(row.storageRef) ?? null;
       if (status?.status === 'completed') {
@@ -244,13 +258,7 @@ export async function recoverStuckRagIndexing(
             rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
           WHERE id = ${row.id}
         `;
-        // The document list renders this column; without a hint the browser
-        // keeps showing whatever state the page was loaded with.
-        await emitHintInTx(sql, {
-          orgId,
-          entity: 'document',
-          entityId: null,
-        });
+        moved.push(row);
         adopted += 1;
         continue;
       }
@@ -263,11 +271,7 @@ export async function recoverStuckRagIndexing(
             status_changed_at_ms = ${now}
           WHERE id = ${row.id}
         `;
-        await emitHintInTx(sql, {
-          orgId,
-          entity: 'document',
-          entityId: null,
-        });
+        moved.push(row);
         if (row.ragStatus !== 'failed') failed += 1;
         continue;
       }
@@ -286,6 +290,7 @@ export async function recoverStuckRagIndexing(
                 rag_error_code = NULL, status_changed_at_ms = ${now}
               WHERE id = ${row.id}
             `;
+            moved.push(row);
             revived += 1;
           }
           continue;
@@ -300,8 +305,10 @@ export async function recoverStuckRagIndexing(
           status_changed_at_ms = ${now}
         WHERE id = ${row.id}
       `;
+      moved.push(row);
       failed += 1;
     }
+    await hintDocumentLists(sql, moved);
   }
   if (adopted + failed + revived > 0) {
     console.info(

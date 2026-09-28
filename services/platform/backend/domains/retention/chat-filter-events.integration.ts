@@ -4,7 +4,8 @@
  * before it — on an organization of its own: an event older than the window
  * plus the grace goes, one inside either stays; an event raised in the chat
  * of a member on a custodian hold stays until the hold is released, and a
- * full batch of held events never starves the unheld ones behind it.
+ * full batch of held events never starves the unheld ones behind it; once
+ * released, a backlog larger than one batch drains in a single run.
  */
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
@@ -110,20 +111,24 @@ export async function checkChatFilterEventRetention(
     `left=${JSON.stringify(whileHeld)} (want fresh 1, graced 1, held ${HELD_EVENTS}; no aged-own, no aged-orphan), destructionRows=${JSON.stringify(heldRun)} (want [2])`,
   );
 
-  // Released, the held events age out like any other, a batch per run.
+  // Released, the held events age out like any other. The backlog is more
+  // than one batch, and the sweep drains it in one run under one row; the
+  // run after it finds nothing and writes none.
   await sql`
     UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
     WHERE id = ${hold[0]?.id ?? ''}
   `;
   await runRetentionCleanup(sql);
+  const drained = await eventsLeft(sql, orgId);
   await runRetentionCleanup(sql);
   const released = await eventsLeft(sql, orgId);
   const runs = await destructionCounts(sql, orgId);
   record(
-    'retention: a released hold lets its chat filter events age out, one batch per run, the fresh and graced ones still kept',
-    isDeepStrictEqual(released, { fresh: 1, graced: 1 }) &&
-      isDeepStrictEqual(runs, [2, 1_000, 1]),
-    `left=${JSON.stringify(released)} (want fresh 1, graced 1), destructionRows=${JSON.stringify(runs)} (want [2, 1000, 1])`,
+    'retention: a released hold lets its chat filter events age out, a backlog past one batch in a single run, the fresh and graced ones still kept',
+    isDeepStrictEqual(drained, { fresh: 1, graced: 1 }) &&
+      isDeepStrictEqual(released, { fresh: 1, graced: 1 }) &&
+      isDeepStrictEqual(runs, [2, HELD_EVENTS]),
+    `afterOneRun=${JSON.stringify(drained)}, afterTwo=${JSON.stringify(released)} (want fresh 1, graced 1 both times), destructionRows=${JSON.stringify(runs)} (want [2, ${HELD_EVENTS}])`,
   );
 
   // Later lanes sweep the fleet; this organization leaves it.

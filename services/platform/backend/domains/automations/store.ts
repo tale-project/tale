@@ -2064,7 +2064,10 @@ export async function deleteRunInTx(
   // and `last_failed_run_id` are `ON DELETE SET NULL`), a write of that
   // trigger row: the organization's audit chain goes first, as in a landing
   // run (the lock order in `trigger-failures.ts`), and after the run's own
-  // row, which a landing run holds before the chain.
+  // row, which a landing run holds before the chain. Taken whether or not a
+  // trigger names the run: the removal's own audit row takes it three
+  // single-row deletes later anyway (the retention sweep, whose delete
+  // takes a thousand runs, asks first).
   await lockAuditChain(tx, args.organizationId);
   await tx`
     DELETE FROM app.automation_webhook_deliveries WHERE run_id = ${args.runId}

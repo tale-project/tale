@@ -63,7 +63,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **A data-model or org-config schema change ships a migration** — one numbered `.sql` file under
   `services/platform/backend/db/migrations/`, forward-only and safe to apply to a live deployment
   mid-roll; a backfill that must decide with the app's own code (never a SQL copy of it) is a
-  numbered `.ts` data migration in the same directory and order. The real-Postgres proof is
+  numbered `.ts` data migration in the same directory and order, which writes every statement
+  itself and imports only pure rules (it runs against the schema at its number, with the newest
+  image's code). The real-Postgres proof is
   `bun run --filter @tale/platform backend:integration` (there is no separate migrations gate or
   generated registry — filename order is the registry).
   Scaffold with `bun run gen:migration` and follow the
@@ -128,9 +130,10 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
   pages. Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
-These guards ask `turbo --dry=json` whether the files are hashed; the docs and CLI guards also
-hold the two-entry prefix. A suite that starts reading another outside file adds it to both
-the task's inputs and its guard.
+These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
+`turbo.json` to hold the two-entry prefix, since the dry run hashes the same files with or
+without `$TURBO_EXTENDS$` while no root task declares inputs. A suite that starts reading
+another outside file adds it to both the task's inputs and its guard.
 
 Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
 `test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a

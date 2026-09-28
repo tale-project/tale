@@ -49,6 +49,8 @@ Test a shorter policy on synthetic data first. Confirm that a record inside the 
 
 The backend worker runs scheduled cleanup per organization. Threads, documents, contacts and external conversations have lifecycle handling; row-level categories can be deleted directly after their applicable retention and grace period. Do not assume that every deleted record appears in Trash.
 
+Each run deletes a limited number of records per category and organization: up to 50,000 chat filter events, and batches of up to 1,000 records for every other category. A larger backlog, such as a long history when a category is first enabled, takes several daily runs to clear.
+
 Audit retention is also organization-scoped. It removes the oldest eligible prefix of that organization’s audit chain, stopping when a held row must remain. One tenant’s shorter window does not shorten another tenant’s history.
 
 Each run is recorded in the organization’s [audit log](/platform/admin/governance/audit-logs) as system events in the data category. It begins with **Retention run started**, adds one event for each category that deleted records, carrying the number removed rather than one event per record, and ends with **Retention run completed**. A run that stops on an error, or keeps due records because their deletion failed, ends with **Retention run failed** instead; the next scheduled run retries those records. All events of one run name the same retention run as their target, and a run that finds nothing to delete still records its start and end.

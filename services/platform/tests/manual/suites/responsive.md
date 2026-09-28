@@ -170,7 +170,8 @@ if you want to keep a write.
   (`projects.list.createButton`) to a line of its own on the right, fully
   visible; the four stat cards sit two by two and the breakdown names are
   readable beside their bars; the editor's tab strip shows **Editor**,
-  **Versions** and **Runs**, its verbs wrapping onto a second row.
+  **General** and **Runs**, with **Version** at the right and its verbs
+  wrapping onto a second row.
   `scrollWidth === clientWidth` on each.
 - [ ] `RESP-F16` · **Thread headers in the tablet column** — At **768×1024**
   open a task page and an email conversation whose contact has a name, in

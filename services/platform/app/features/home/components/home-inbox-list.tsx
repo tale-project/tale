@@ -234,10 +234,12 @@ export function HomeInboxList({
   // Nothing to search or narrow while the first page loads (as on the phone's
   // Inbox), nor in a status that holds no conversation at all. A search or a
   // facet that narrowed the list to nothing keeps both usable so it can be
-  // undone — the channel facet included, though it narrows on the server.
+  // undone — the channel facet included, though it narrows on the server —
+  // and so does a failed read, which says nothing about the status.
   const controlsDisabled =
     loading ||
     isFilterAffordanceDisabled({
+      isError: paginated.error !== null,
       itemCount: paginated.results.length,
       hasActiveFilters: list.isFiltering || channel !== '',
       filters: list.filters,

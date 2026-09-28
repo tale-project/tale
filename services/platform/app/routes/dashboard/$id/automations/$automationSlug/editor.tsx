@@ -17,7 +17,7 @@ export const Route = createFileRoute(
 
 function AutomationEditorPage() {
   const { id: organizationId, automationSlug } = Route.useParams();
-  const { version } = Route.useSearch();
+  const { version, history } = Route.useSearch();
   const navigate = Route.useNavigate();
   const onSelectVersion = useCallback(
     (next: number | undefined) => {
@@ -35,6 +35,7 @@ function AutomationEditorPage() {
       organizationId={organizationId}
       automationSlug={paramToAutomationSlug(automationSlug)}
       {...(version !== undefined && { version })}
+      showVersionHistory={history}
       onSelectVersion={onSelectVersion}
     />
   );

@@ -4,6 +4,10 @@ import type {
   SandboxDevicesView,
   SandboxDeviceView,
 } from '@/lib/shared/schemas/sandbox-devices';
+import {
+  SESSION_ENDED,
+  lapsedSessionRefusal,
+} from '@/tests/utils/lapsed-session';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { SandboxDevicesSection } from './sandbox-devices';
@@ -204,6 +208,29 @@ describe('SandboxDevicesSection', () => {
       }),
     );
     expect(toast).toHaveBeenCalledWith({ title: 'Device removed' });
+  });
+
+  // The refusal's own `message` is its serialized payload; the toast used
+  // to read `{"code":"UNAUTHORIZED",…}` under its title.
+  it('says the session ended when the removal is refused', async () => {
+    removeDevice.mockImplementation(() => lapsedSessionRefusal());
+    const { user } = renderSection({ view: view([device()]) });
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Remove studio-mac?',
+    });
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Remove device' }),
+    );
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith({
+        title: "Couldn't remove the device",
+        description: SESSION_ENDED.en,
+        variant: 'destructive',
+      }),
+    );
   });
 });
 

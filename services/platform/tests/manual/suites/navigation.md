@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 63 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 64 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -544,15 +544,20 @@ loaded, and reads **No teams** for an account in none.
   the platform with
   `TALE_CONTACT_SUPPORT_URL=https://support.example.com/help?source=tale`
   (mode A already does; a deployment: its `.env`, then recreate the
-  `platform` service). In DevTools, block
-  `GET /api/app/projects/overview` and open `/dashboard/{org}/projects` →
-  After the retries the error state's **contact support** link
+  `platform` service). Load `/dashboard/{org}/chat` and, before touching
+  **All projects** (`home.projects.allProjects`), make the projects list's
+  read answer 500 — in the console run
+  `const f = window.fetch; window.fetch = (u, o) => String(u).includes('/api/app/projects/overview') ? Promise.resolve(Response.json({error: 'FORCED', data: {}}, {status: 500})) : f(u, o);`
+  — then press **All projects** in the panel's **Projects** header → After
+  the retries, the list shows its error state, and its **contact support** link
   (`common.errors.contactSupport`) points at
   `https://support.example.com/help?source=tale&organizationId={orgId}` and
   opens in a new tab. Restart with
-  `TALE_CONTACT_SUPPORT_URL=mailto:help@example.com` → the platform's log
-  warns once that it ignored `TALE_CONTACT_SUPPORT_URL`, and the same link
-  points at `https://tale.dev/contact?organizationId={orgId}`.
+  `TALE_CONTACT_SUPPORT_URL=mailto:help@example.com` and repeat → the
+  platform's log warns once that it ignored `TALE_CONTACT_SUPPORT_URL`, and
+  the same link points at `https://tale.dev/contact?organizationId={orgId}`.
+
+- [ ] `NAV-B15` · **Recover the header after typing in an iPhone Safari overlay** → On a real iPhone or iOS Simulator, test both the software keyboard and hardware-keyboard accessory bar. Open an automation node, focus a field, then dismiss the keyboard and close the panel; repeat by closing while the keyboard is still open, with Safari's toolbar expanded and collapsed, and with another form dialog. The title/profile row returns fully into view after dismissal and stays visible when navigating away; panel content remains scrollable. Repeat in the installed home-screen app and with pinch zoom: neither regresses.
 
 ## Accessibility (WCAG 2.1 AA)
 

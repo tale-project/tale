@@ -111,6 +111,19 @@ async function verifyProvisionedAccounts(
  * after every file numbered before it and before every file after it, and
  * is recorded in `app_migrations` by filename like a `.sql` file. It must be
  * idempotent and leave the previous image working, like any migration.
+ *
+ * It runs against the schema as it stood at its own number, but with the
+ * code of whichever image applies it — a database that jumps past several
+ * releases runs it with the newest. So the module writes every statement it
+ * runs itself (the reads, the writes, an `EXISTS` over `app.documents`, the
+ * realtime hint's `INSERT`) and imports only PURE rules: code that decides
+ * from its arguments and runs no SQL and no I/O (`isSupported()`, the
+ * `RAG_ERROR_*` codes, a sentence helper). Never a domain service, the
+ * realtime outbox, a job helper or anything else that follows today's
+ * schema: a later release that reshapes a table and updates that helper
+ * would run the new SQL on the old table. `db/data-migrations.test.ts` walks
+ * every data migration's imports and fails on a module outside its list of
+ * pure rules.
  */
 export interface DataMigration {
   migrate(tx: postgres.TransactionSql): Promise<void>;

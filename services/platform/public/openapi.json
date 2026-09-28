@@ -40147,7 +40147,7 @@
           "consecutiveFailures": {
             "type": "integer",
             "minimum": 0,
-            "description": "Runs in a row this binding started that failed for a reason the next occurrence would repeat — a `failureCode` of `node_error`, `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`, `credit_exhausted`, `model_not_found`. A success sets it back to 0, and so does saving the trigger; any other failure neither counts nor breaks the streak. A schedule pauses itself when it reaches 5 (`lastSkipReason: \"paused_after_failures\"`); webhook and event bindings keep counting and are never paused."
+            "description": "Runs in a row this binding started that failed for a reason the next occurrence would repeat — a `failureCode` of `node_error`, `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`, `credit_exhausted`, `model_not_found`. A success sets it back to 0, and so does saving the trigger; any other failure neither counts nor breaks the streak. A schedule pauses itself when it reaches 5 (`enabled: false`, `lastSkipReason: \"paused_after_failures\"`) and keeps that count while paused: a run still in flight at the pause that succeeds afterwards leaves it alone, and only saving the trigger clears it. Webhook and event bindings keep counting and are never paused."
           },
           "lastFailedAt": {
             "type": "integer",

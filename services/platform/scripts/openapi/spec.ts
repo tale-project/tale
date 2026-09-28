@@ -564,8 +564,11 @@ const triggerFailureProperties: Json = {
       'A success sets it back to 0, and so does saving the trigger; any ' +
       'other failure neither counts nor breaks the streak. A schedule ' +
       `pauses itself when it reaches ${PERMANENT_FAILURES_BEFORE_PAUSE} ` +
-      '(`lastSkipReason: "paused_after_failures"`); webhook and event ' +
-      'bindings keep counting and are never paused.',
+      '(`enabled: false`, `lastSkipReason: "paused_after_failures"`) and ' +
+      'keeps that count while paused: a run still in flight at the pause ' +
+      'that succeeds afterwards leaves it alone, and only saving the ' +
+      'trigger clears it. Webhook and event bindings keep counting and are ' +
+      'never paused.',
   },
   lastFailedAt: {
     ...nullable(epochMs),

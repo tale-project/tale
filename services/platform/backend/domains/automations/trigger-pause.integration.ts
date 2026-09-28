@@ -6,7 +6,8 @@
  * answers the pause with its streak and last failure, a success that lands
  * after the pause leaves that streak alone, and a paused schedule fires
  * nothing more. Saving it again resumes it with a fresh streak and reads the
- * notice, and a success resets the streak (migration 0124,
+ * notice, and a success resets the streak — also on a schedule an older
+ * image turned back on without clearing the pause's stamp (migration 0124,
  * `trigger-failures.ts`). */
 import type { Sql } from 'postgres';
 
@@ -355,6 +356,31 @@ export async function checkTriggerPauseAfterFailures(
         !raced.enabled &&
         raced.lastSkipReason === 'paused_after_failures',
       `pause before claim=${pausedBeforeClaim}, new runs=${racedRuns} (want 0), enabled=${raced.enabled}, reason=${raced.lastSkipReason} (want paused_after_failures)`,
+    );
+
+    // ---- mid-roll, the image before 0124 turns the paused schedule back
+    // on. Its bind knows no streak and keeps the skip stamps of an
+    // unchanged kind, so the row goes live with the pause's stamp and the
+    // count that paused it. Paused is off AND stamped: the next success
+    // resets that count, or the schedule's failures would add up across
+    // its successes and pause it again for failures that were not in a row.
+    await sql`
+      UPDATE app.automation_triggers
+      SET enabled = true, updated_at_ms = ${Date.now()}
+      WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    const stale = await trigger();
+    const lateSuccess = await fireOnce();
+    const afterStale = await trigger();
+    record(
+      'a success on a live schedule still stamped paused by an older image resets its streak',
+      stale.enabled &&
+        stale.lastSkipReason === 'paused_after_failures' &&
+        stale.consecutiveFailures === PERMANENT_FAILURES_BEFORE_PAUSE &&
+        lateSuccess.status === 'success' &&
+        afterStale.enabled &&
+        afterStale.consecutiveFailures === 0,
+      `before: enabled=${stale.enabled} reason=${stale.lastSkipReason} streak=${stale.consecutiveFailures} (want live, stamped, ${PERMANENT_FAILURES_BEFORE_PAUSE}); run → ${lateSuccess.status} (want success); after: enabled=${afterStale.enabled} streak=${afterStale.consecutiveFailures} (want 0), reason=${afterStale.lastSkipReason}`,
     );
   } finally {
     // Leave nothing armed for the lanes after this one.
