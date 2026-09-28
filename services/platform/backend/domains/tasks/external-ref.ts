@@ -19,6 +19,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRunInTx } from '../automations/store.ts';
 import { emitEvent } from '../events/emit.ts';
+import { endRepeatForAutomationOwner } from './repeat.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
   requestTaskReview,
@@ -498,6 +499,18 @@ export async function upsertTaskByExternalRef(
         updated_at_ms = ${now}
       WHERE id = ${existing.id}
     `;
+    // A task the intake hands to its automation follows that automation's
+    // lifecycle, so a series it carried ends here. The external close below
+    // continues no series either: it is the automation's lifecycle, not a
+    // close on the board.
+    if (assigneePatch !== null) {
+      await endRepeatForAutomationOwner(tx, {
+        task: existing,
+        next: assigneePatch,
+        actorType: 'agent',
+        actorId: args.actorId,
+      });
+    }
     // Unconditional — a label-only reconcile no-ops the transition.
     await applyTaskCountTransition(
       tx,

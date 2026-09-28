@@ -13,6 +13,13 @@
  * surface by anything upstream of it.
  */
 
+import { parseAcceptLanguage } from '@tale/ui/i18n/accept-language';
+import {
+  baseLocaleOf,
+  SUPPORTED_LOCALES,
+  type SupportedLocale,
+} from '@tale/ui/i18n/locales';
+
 import { basePath } from '../lib/helpers/public_origin.ts';
 
 export type ConnectorErrorKind =
@@ -29,7 +36,14 @@ export type ConnectorErrorKind =
   /** The Slack workspace is already connected to a different organization. */
   | 'workspace_claimed'
   /** Tokens were obtained but could not be stored. */
-  | 'storage_failed';
+  | 'storage_failed'
+  /** The credential a Reconnect named is gone, or no OAuth grant of this
+   * connector in this organization. */
+  | 'credential_missing'
+  /** A Reconnect was consented in another workspace than its credential's. */
+  | 'account_mismatch'
+  /** The member may no longer write this organization's credentials. */
+  | 'forbidden';
 
 interface ErrorCopy {
   readonly title: string;
@@ -80,7 +94,89 @@ const ERROR_COPY: Record<ConnectorErrorKind, ErrorCopy> = {
       'Access was granted but storing it failed, so the connector is not connected. Try again; if it keeps failing, contact an administrator.',
     status: 500,
   },
+  credential_missing: {
+    title: 'This credential cannot be reconnected',
+    detail:
+      'It was removed, or it is not an OAuth connection of this connector, so nothing was saved and no other credential changed. Check your connector settings, and add the account again if you still need it.',
+    status: 404,
+  },
+  account_mismatch: {
+    title: 'That is a different workspace',
+    detail:
+      'You authorized another workspace than the one this credential connects, so nothing was saved. Reconnect again and choose the same workspace, or use Add credential to connect the other one.',
+    status: 409,
+  },
+  forbidden: {
+    title: 'You can no longer connect connectors here',
+    detail:
+      'Your access to this organization changed while the connection was in progress, so nothing was saved. Owners, Admins and Developers can connect connectors; ask an organization admin.',
+    status: 403,
+  },
 };
+
+/** Only the newly introduced intent errors opt into localized server copy.
+ * Older callback kinds retain their existing English path. */
+const LOCALIZED_COPY: Partial<
+  Record<
+    ConnectorErrorKind,
+    Record<SupportedLocale, Pick<ErrorCopy, 'title' | 'detail'>>
+  >
+> = {
+  credential_missing: {
+    en: ERROR_COPY.credential_missing,
+    de: {
+      title: 'Diese Zugangsdaten können nicht neu verbunden werden',
+      detail:
+        'Sie wurden entfernt oder gehören nicht zu einer OAuth-Verbindung dieses Connectors. Deshalb wurde nichts gespeichert, und andere Zugangsdaten bleiben unverändert. Prüfe deine Connector-Einstellungen und füge das Konto erneut hinzu, wenn du es noch brauchst.',
+    },
+    fr: {
+      title: 'Ces identifiants ne peuvent pas être reconnectés',
+      detail:
+        'Ils ont été supprimés ou ne correspondent pas à une connexion OAuth de ce connecteur. Rien n’a donc été enregistré et aucun autre identifiant n’a changé. Vérifie les paramètres de tes connecteurs et ajoute à nouveau le compte si tu en as encore besoin.',
+    },
+  },
+  account_mismatch: {
+    en: ERROR_COPY.account_mismatch,
+    de: {
+      title: 'Das ist ein anderer Workspace',
+      detail:
+        'Du hast einen anderen Workspace als den freigegeben, den diese Zugangsdaten verbinden. Deshalb wurde nichts gespeichert. Wähle erneut Neu verbinden und gib denselben Workspace frei. Über Zugangsdaten hinzufügen kannst du stattdessen den anderen verbinden.',
+    },
+    fr: {
+      title: 'Il s’agit d’un autre espace de travail',
+      detail:
+        'Tu as autorisé un autre espace de travail que celui associé à ces identifiants. Rien n’a donc été enregistré. Sélectionne à nouveau Reconnecter et choisis le même espace, ou utilise Ajouter des identifiants pour connecter l’autre.',
+    },
+  },
+  forbidden: {
+    en: ERROR_COPY.forbidden,
+    de: {
+      title: 'Du kannst hier keine Connectors mehr verbinden',
+      detail:
+        'Dein Zugriff auf diese Organisation hat sich während des Verbindungsvorgangs geändert. Deshalb wurde nichts gespeichert. Inhaber, Admins und Entwickler können Connectors verbinden. Wende dich an einen Admin der Organisation.',
+    },
+    fr: {
+      title: 'Tu ne peux plus connecter de connecteurs ici',
+      detail:
+        'Ton accès à cette organisation a changé pendant la connexion. Rien n’a donc été enregistré. Les Propriétaires, Admins et Développeurs peuvent connecter des connecteurs. Adresse-toi à un admin de l’organisation.',
+    },
+  },
+};
+
+const BACK_LINK: Record<SupportedLocale, string> = {
+  en: 'Back to connector settings',
+  de: 'Zurück zu den Connector-Einstellungen',
+  fr: 'Retour aux paramètres des connecteurs',
+};
+
+function errorLocale(acceptLanguage: string): SupportedLocale {
+  const preferred = parseAcceptLanguage(acceptLanguage).find((candidate) =>
+    SUPPORTED_LOCALES.some(
+      (supported) => candidate.toLowerCase().split('-')[0] === supported,
+    ),
+  );
+  return baseLocaleOf(preferred?.toLowerCase());
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -100,11 +196,14 @@ function escapeHtml(value: string): string {
 export function renderConnectorErrorPage(
   kind: ConnectorErrorKind,
   backUrl?: string | null,
+  acceptLanguage = '',
 ): Response {
-  const copy = ERROR_COPY[kind];
-  const backLink = `\n    <p><a href="${escapeHtml(backUrl ?? `${basePath()}/dashboard`)}">${backUrl ? 'Back to connector settings' : 'Tale'}</a></p>`;
+  const translated = LOCALIZED_COPY[kind];
+  const locale = translated === undefined ? 'en' : errorLocale(acceptLanguage);
+  const copy = { ...ERROR_COPY[kind], ...translated?.[locale] };
+  const backLink = `\n    <p><a href="${escapeHtml(backUrl ?? `${basePath()}/dashboard`)}">${backUrl ? escapeHtml(BACK_LINK[locale]) : 'Tale'}</a></p>`;
   const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="${locale}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -120,6 +219,9 @@ export function renderConnectorErrorPage(
     status: copy.status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
+      ...(translated !== undefined
+        ? { 'Content-Language': locale, Vary: 'Accept-Language' }
+        : {}),
       // The URL of a failed callback still carries the vendor's `code`/`state`
       // in the query string; caching it anywhere would persist them.
       'Cache-Control': 'no-store',

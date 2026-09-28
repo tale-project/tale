@@ -262,7 +262,9 @@ function ConnectorConsent({
         <Button
           icon={Link2}
           size="sm"
-          onClick={() => goToAuthorization(organizationId, vendor.key)}
+          onClick={() =>
+            goToAuthorization(organizationId, vendor.key, { kind: 'add' })
+          }
         >
           {t('connectors.card.connect')}
         </Button>
@@ -326,10 +328,13 @@ export const connectorCredentialAdapter: CredentialAdapter<
       key: 'reconnect',
       label: t('connectors.credential.reconnect'),
       icon: RefreshCw,
-      // Re-consent is the same hand-off as a first connection; the callback
-      // refreshes the grant this credential already holds.
+      // Re-consent names THIS credential: the callback renews exactly it —
+      // name, default and references kept — or saves nothing.
       onClick: () =>
-        goToAuthorization(organizationId, credential.connectorSlug),
+        goToAuthorization(organizationId, credential.connectorSlug, {
+          kind: 'reconnect',
+          credentialId: credential.id,
+        }),
       visible: credential.authMethod === 'oauth2',
       disabled: busy,
     },

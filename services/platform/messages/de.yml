@@ -1412,6 +1412,7 @@ chat:
     includeNewer: Neuere Nachrichten einbeziehen
     creatingLink: Link wird erstellt…
     retry: Erneut versuchen
+    statusFailed: Der Freigabestatus konnte nicht geladen werden. Dieser Chat ist möglicherweise noch mit deiner Organisation geteilt.
     copyLink: Link kopieren
     copied: Link kopiert
     preview: Vorschau
@@ -7277,6 +7278,8 @@ tasks:
     dependencyAdded: Abhängigkeit hinzugefügt
     dependencyRemoved: Abhängigkeit entfernt
     agentRunRefused: Ausführung abgelehnt
+    repeatChanged: Wiederholung geändert
+    repeatNext: Nächste Aufgabe erstellt
   review:
     needsReview: Review ausstehend
     waitingOn: 'Wartet auf {name}'
@@ -7351,6 +7354,43 @@ tasks:
   startDate:
     label: Startet am
     afterDue: Startet am muss am oder vor dem Fälligkeitsdatum liegen.
+  repeat:
+    label: Wiederholen
+    indicator: 'Wiederholt sich: {rule}'
+    nextTask: 'Nächste Aufgabe: {task}'
+    openNextTask: Nächste Aufgabe öffnen
+    nextCreated: Nächste Aufgabe erstellt
+    nextDueDates: Nächste Fälligkeiten
+    noDueDateHint: Noch kein Fälligkeitsdatum. Wählst du eine Wiederholung, wird die Aufgabe am ersten passenden Tag fällig.
+    becomesDue: 'Diese Aufgabe wird am {date} fällig.'
+    noDueDateSaved: 'Kein Fälligkeitsdatum: Die Fälligkeit der nächsten Aufgabe richtet sich nach dem Tag, an dem diese erledigt oder abgebrochen wird.'
+    dateOutOfRange: Die nächsten Termine liegen außerhalb des unterstützten Datumsbereichs. Wähle ein früheres Datum.
+    dueDateSet: 'Diese Aufgabe ist jetzt am {date} fällig.'
+    ruleOnDue: '{rule}, nächste Aufgabe am Fälligkeitstag'
+    withParent: 'Mit {parent}'
+    onDue:
+      label: Nächste Aufgabe am Fälligkeitstag erstellen
+      description: 'Auch wenn diese am {date} noch offen ist.'
+      descriptionNow: Diese ist schon fällig, deshalb entsteht die nächste Aufgabe sofort.
+    mode:
+      close: Die nächste Aufgabe entsteht, wenn diese erledigt oder abgebrochen wird.
+      dueDate: Die nächste Aufgabe entsteht am Fälligkeitstag – oder früher, wenn diese vorher erledigt oder abgebrochen wird.
+    reason:
+      closed: Öffne diese Aufgabe wieder, um ihre Wiederholung zu ändern.
+      continued: 'Die Serie geht bei {task} weiter. Ändere die Wiederholung dort.'
+      continuedUnnamed: Die Serie geht bei der nächsten Aufgabe weiter. Ändere die Wiederholung dort.
+      stopped: Die Serie wurde beendet.
+      nextDeleted: Die nächste Aufgabe wurde gelöscht. Diese Aufgabe kann sich nicht noch einmal wiederholen.
+      automation: Eine Automatisierung führt diese Aufgabe aus, deshalb wiederholt sie sich nicht.
+      subtask: 'Diese Teilaufgabe kommt mit {parent} wieder: Jedes Mal, wenn sich {parent} wiederholt, bekommt die nächste Aufgabe eine neue Kopie von ihr.'
+      notOpen: Nur offene Aufgaben wiederholen sich.
+    stop:
+      action: Wiederholung beenden
+      altText: 'Du kannst die Wiederholung auch später beenden: Öffne die Aufgabe und wähle bei „Wiederholen“ die Aktion „Wiederholung beenden“.'
+      done: Wiederholung beendet
+      removed: Die nächste Aufgabe wurde entfernt.
+      kept: '{task} wurde schon bearbeitet und bleibt deshalb bestehen – sie wiederholt sich nur nicht mehr.'
+      keptUnnamed: Die nächste Aufgabe wurde schon bearbeitet und bleibt deshalb bestehen – sie wiederholt sich nur nicht mehr.
   mentionPreview:
     willRespond: '{slug} wird antworten'
     willQueue: '{slug} wird antworten (wartet — Parallelitätslimit erreicht)'

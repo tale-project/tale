@@ -1366,6 +1366,7 @@ chat:
     includeNewer: Include newer messages
     creatingLink: Creating link…
     retry: Try again
+    statusFailed: Couldn't load the sharing status. This chat may still be shared with your organization.
     copyLink: Copy link
     copied: Link copied
     preview: Preview
@@ -7398,6 +7399,8 @@ tasks:
     dependencyAdded: Dependency added
     dependencyRemoved: Dependency removed
     agentRunRefused: Run refused
+    repeatChanged: Repeat changed
+    repeatNext: Next task created
   review:
     needsReview: Needs review
     waitingOn: 'Waiting on {name}'
@@ -7471,6 +7474,43 @@ tasks:
   startDate:
     label: Start date
     afterDue: Start date must be on or before the due date.
+  repeat:
+    label: Repeat
+    indicator: 'Repeats: {rule}'
+    nextTask: 'Next task: {task}'
+    openNextTask: Open next task
+    nextCreated: Next task created
+    nextDueDates: Next due dates
+    noDueDateHint: No due date yet. Picking a repeat sets it to the first matching day.
+    becomesDue: 'This task becomes due on {date}.'
+    noDueDateSaved: 'No due date: its next task is dated from the day this one closes.'
+    dateOutOfRange: Upcoming dates are outside the supported calendar range. Choose an earlier date.
+    dueDateSet: 'This task is now due on {date}.'
+    ruleOnDue: '{rule}, next task on the due date'
+    withParent: 'With {parent}'
+    onDue:
+      label: Create the next task on the due date
+      description: 'Even if this one is still open on {date}.'
+      descriptionNow: This one is already due, so the next task is created right away.
+    mode:
+      close: The next task is created when this one is done or cancelled.
+      dueDate: The next task is created on the due date, or sooner if this one is done or cancelled first.
+    reason:
+      closed: Reopen this task to change how it repeats.
+      continued: 'This series continues on {task}. Change the repeat there.'
+      continuedUnnamed: This series continues on its next task. Change the repeat there.
+      stopped: This series has stopped.
+      nextDeleted: Its next task was deleted. This task cannot repeat again.
+      automation: An automation runs this task, so it doesn't repeat.
+      subtask: 'This subtask comes back with {parent}: each time {parent} repeats, its next task gets a fresh copy of it.'
+      notOpen: Only open tasks repeat.
+    stop:
+      action: Stop repeating
+      altText: 'You can also stop the repeat later: open the task and choose "Stop repeating" under "Repeat".'
+      done: Repeat stopped
+      removed: The next task was removed.
+      kept: '{task} was already changed, so it stays — it just won''t repeat.'
+      keptUnnamed: The next task was already changed, so it stays — it just won't repeat.
   mentionPreview:
     willRespond: '{slug} will respond'
     willQueue: '{slug} will respond (queued — at its concurrency limit)'

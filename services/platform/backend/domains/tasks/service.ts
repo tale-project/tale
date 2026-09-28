@@ -7,6 +7,11 @@ import {
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
 import {
+  parseTaskRepeat,
+  sameTaskRepeat,
+  type TaskRepeat,
+} from '../../../lib/shared/task-repeat.ts';
+import {
   checkProjectAccess,
   EDITOR_ROLES,
 } from '../../core/projects/access.ts';
@@ -50,6 +55,13 @@ import {
 } from '../projects/service.ts';
 import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
 import { TaskError } from './errors.ts';
+import {
+  assertTaskCanRepeat,
+  createNextRepeatCopy,
+  endRepeatForAutomationOwner,
+  type TaskRepeatCopy,
+  validateTaskRepeat,
+} from './repeat.ts';
 import { releaseUnlistedTaskBlobRefs, retireTasksInTx } from './retire.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
@@ -143,6 +155,18 @@ export interface TaskRow {
    * any status change through the board's doors clears it. Null for a
    * park a person or an agent made. */
   externalClosedAt: number | null;
+  /** The repeat rule as stored — read it through `parseTaskRepeat`, which
+   * answers null for a rule that no longer validates. */
+  repeat: unknown;
+  /** The next copy that continues this task's series (its close's, or the
+   * due-date scan's), set once. Null until then, and again once the copy
+   * is deleted — which never lets the task continue again: the writer
+   * decides on `repeat_continued_at_ms`, which outlives the copy. */
+  repeatNextTaskId: string | null;
+  /** Whether the task has continued its series (`repeat_continued_at_ms`
+   * is set). It stays true once its copy is deleted, and such a task never
+   * creates another copy, nor takes a rule again. */
+  repeatContinued: boolean;
   createdBy: string;
   createdByType: string;
   createdAt: number;
@@ -170,7 +194,10 @@ export const TASK_COLUMNS = `
   last_agent_run_at_ms::float8 AS "lastAgentRunAt",
   claimed_at_ms::float8 AS "claimedAt",
   completed_at_ms::float8 AS "completedAt",
-  external_closed_at_ms::float8 AS "externalClosedAt", created_by AS "createdBy",
+  external_closed_at_ms::float8 AS "externalClosedAt",
+  repeat_rule AS "repeat", repeat_next_task_id AS "repeatNextTaskId",
+  repeat_continued_at_ms IS NOT NULL AS "repeatContinued",
+  created_by AS "createdBy",
   created_by_type AS "createdByType", created_at_ms::float8 AS "createdAt",
   updated_at_ms::float8 AS "updatedAt", archived_at_ms::float8 AS "archivedAt"
 `;
@@ -244,7 +271,7 @@ function projectTasksEditable(
   );
 }
 
-function assertTaskNotArchived(task: TaskRow): void {
+export function assertTaskNotArchived(task: Pick<TaskRow, 'archivedAt'>): void {
   if (task.archivedAt !== null) {
     throw new TaskError('TASK_ARCHIVED', 'Task is archived');
   }
@@ -658,7 +685,7 @@ export async function recordActivity(
   });
 }
 
-function taskAudit(
+export function taskAudit(
   auth: ProjectAuthContext,
   task: { id: string; title: string },
   action: string,
@@ -730,11 +757,11 @@ function normalizeAssignee(args: {
  * project; automations (`app`) are accepted with the deployment check
  * deferred to the automations domain (ledger).
  */
-async function assertAssigneeValid(
+export async function assertAssigneeValid(
   tx: TransactionSql,
   args: {
     project: ProjectRow;
-    auth: ProjectAuthContext;
+    auth: Pick<ProjectAuthContext, 'organizationId' | 'userId'>;
     assignee: AssigneeRef | null;
   },
 ): Promise<void> {
@@ -806,6 +833,10 @@ async function assertAssigneeValid(
  *
  * `task` is the row as it stood BEFORE the write (its old status and
  * archive state drive the rollup delta and the from→to copy).
+ *
+ * A close is also where a repeating task continues: the seam answers the
+ * next copy when this move created one, so every door that closes a card
+ * repeats it alike, and the doors a person uses can say where it went.
  */
 async function settleTaskStatusChange(
   tx: TransactionSql,
@@ -822,7 +853,7 @@ async function settleTaskStatusChange(
      * "status changed" row would be noise. */
     bell?: boolean;
   },
-): Promise<void> {
+): Promise<TaskRepeatCopy | null> {
   const { task, toStatus } = args;
   // A move through any board door ends the mirror's claim on a park it
   // made (`external_closed_at_ms`): from here on an external `open` no
@@ -885,6 +916,13 @@ async function settleTaskStatusChange(
       actorId: args.actorId,
     });
   }
+  return await createNextRepeatCopy(tx, {
+    task,
+    toStatus,
+    actorType: args.actorType,
+    actorId: args.actorId,
+    ...(args.audit !== undefined ? { audit: args.audit } : {}),
+  });
 }
 
 /**
@@ -1063,6 +1101,8 @@ export interface CreateTaskArgs {
   parentTaskId?: string;
   startDate?: number;
   dueDate?: number;
+  /** The rule the task repeats on: closing it creates the next copy. */
+  repeat?: TaskRepeat;
 }
 
 export async function createTask(
@@ -1082,8 +1122,19 @@ export async function createTask(
     createdBy: auth.userId,
   });
   assertScheduleOrder(args.startDate, args.dueDate);
+  const repeat =
+    args.repeat !== undefined ? validateTaskRepeat(args.repeat) : null;
   const status = args.status ?? 'backlog';
   const assignee = normalizeAssignee(args);
+  if (repeat !== null) {
+    assertTaskCanRepeat({
+      parentTaskId: args.parentTaskId ?? null,
+      status,
+      assigneeType: assignee?.assigneeType ?? null,
+      assigneeId: assignee?.assigneeId ?? null,
+      createdByType: 'user',
+    });
+  }
   await assertAssigneeValid(tx, { project, auth, assignee });
   const attachments =
     args.attachments !== undefined
@@ -1117,8 +1168,8 @@ export async function createTask(
     INSERT INTO app.tasks (
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
-      due_date_ms, rank, number, created_by, created_by_type, created_at_ms,
-      updated_at_ms, status_changed_at_ms
+      due_date_ms, repeat_rule, rank, number, created_by, created_by_type,
+      created_at_ms, updated_at_ms, status_changed_at_ms
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1126,7 +1177,8 @@ export async function createTask(
       ${status}, ${args.priority ?? null},
       ${labelIds ?? []}, ${assignee?.assigneeType ?? null},
       ${assignee?.assigneeId ?? null}, ${args.parentTaskId ?? null},
-      ${args.startDate ?? null}, ${args.dueDate ?? null}, ${rank}, ${number},
+      ${args.startDate ?? null}, ${args.dueDate ?? null},
+      ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
       ${auth.userId}, 'user', ${now}, ${now}, ${now}
     )
     RETURNING id
@@ -1232,6 +1284,10 @@ export interface UpdateTaskArgs {
   startDate?: number | null;
   dueDate?: number | null;
   reviewerUserId?: string | null;
+  /** The new repeat rule, or null for "does not repeat" (which ends the
+   * series: the task's close creates no copy). A rule is refused on a task
+   * that already continued its series. */
+  repeat?: TaskRepeat | null;
 }
 
 /**
@@ -1250,6 +1306,7 @@ const EDIT_ACTIVITY_ACTION: Record<string, string> = {
   startDate: 'startDate.changed',
   dueDate: 'dueDate.changed',
   reviewerUserId: 'reviewer.changed',
+  repeat: 'repeat.changed',
 };
 
 /**
@@ -1415,6 +1472,33 @@ export async function updateTask(
       newState.reviewerUserId = reviewerUserId;
     }
   }
+  // The rule compares by what it says — its days and its step. The zone
+  // only records where it was set, so the same rule re-sent from another
+  // zone is a no-op and keeps the zone the series has been dated in.
+  let repeat: TaskRepeat | null = null;
+  let repeatChanged = false;
+  if (args.repeat !== undefined) {
+    const current = parseTaskRepeat(task.repeat);
+    repeat = args.repeat === null ? null : validateTaskRepeat(args.repeat);
+    // "Does not repeat" is always allowed; a rule only on a task that can
+    // carry one. A task that has continued its series never continues it
+    // again — not even once that copy is deleted — so a rule on it would
+    // promise a next task nothing ever creates.
+    if (repeat !== null) {
+      assertTaskCanRepeat(task);
+      if (task.repeatContinued) {
+        throw new TaskError(
+          'TASK_REPEAT_INVALID',
+          'This task already created its next task',
+        );
+      }
+    }
+    if (!sameTaskRepeat(current, repeat)) {
+      repeatChanged = true;
+      previousState.repeat = current;
+      newState.repeat = repeat;
+    }
+  }
   // A NEW designee (not a clear, not a re-select) is about to be subscribed
   // and belled, so they must be someone the gate would actually hand the
   // review to — the one rule `reviewerEligibility` holds the gate to. A
@@ -1473,6 +1557,9 @@ export async function updateTask(
       attachments = CASE WHEN ${nextAttachments !== undefined}::boolean
                          THEN ${nextAttachments !== undefined && nextAttachments.length > 0 ? tx.json(toJson(nextAttachments)) : null}::jsonb
                          ELSE attachments END,
+      repeat_rule = CASE WHEN ${repeatChanged}::boolean
+                         THEN ${repeat !== null ? tx.json(toJson(repeat)) : null}::jsonb
+                         ELSE repeat_rule END,
       reviewer_user_id = ${reviewerUserId}, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
@@ -1490,8 +1577,19 @@ export async function updateTask(
     const newValue = newState[field];
     if (newValue === undefined) continue;
     const previousValue = previousState[field];
-    let toValue = stringifyEditValue(action, newValue);
-    let fromValue = stringifyEditValue(action, previousValue);
+    let toValue: string | undefined = stringifyEditValue(action, newValue);
+    let fromValue: string | undefined = stringifyEditValue(
+      action,
+      previousValue,
+    );
+    // A rule rides whole, as the JSON it is stored as, so the timeline can
+    // phrase both sides in the reader's language; "does not repeat" is no
+    // value at all.
+    if (action === 'repeat.changed') {
+      fromValue =
+        previousValue === null ? undefined : JSON.stringify(previousValue);
+      toValue = newValue === null ? undefined : JSON.stringify(newValue);
+    }
     if (action === 'labels.changed') {
       const fromIds: readonly string[] = Array.isArray(previousValue)
         ? previousValue
@@ -1592,18 +1690,19 @@ async function hasOpenChildren(
   return rows.length > 0;
 }
 
+/** Answers the next copy when the move closed a repeating task. */
 export async function updateTaskStatus(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   taskId: string,
   status: TaskStatus,
-): Promise<void> {
+): Promise<TaskRepeatCopy | null> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
   if (task.status === status) {
-    return;
+    return null;
   }
   if (TERMINAL_STATUSES.has(status) && (await hasOpenChildren(tx, taskId))) {
     throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
@@ -1633,7 +1732,7 @@ export async function updateTaskStatus(
       updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${taskId}
   `;
-  await settleTaskStatusChange(tx, {
+  const nextTask = await settleTaskStatusChange(tx, {
     task,
     toStatus: status,
     actorType: 'user',
@@ -1655,6 +1754,7 @@ export async function updateTaskStatus(
       trigger: { kind: 'human', actorId: auth.userId },
     });
   }
+  return nextTask;
 }
 
 /**
@@ -1977,6 +2077,10 @@ export async function agentUpdateTaskStatusTrusted(
       updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${args.taskId}
   `;
+  // A cancel here continues a repeating task like any close — audited as
+  // the api actor's, with no `task.created` event (the settle's agent lane
+  // is event-less). The copy is not answered, as the agent's tools and the
+  // workflow native carry no repeat rules.
   await settleTaskStatusChange(tx, {
     task,
     toStatus: args.status,
@@ -2121,10 +2225,22 @@ export async function assignTask(
     WHERE id = ${args.taskId}
   `;
   await settleTaskAssigneeChange(tx, { task, assignee, auth });
+  // Handed to an automation, the task follows its lifecycle: the series
+  // ends here rather than hiding behind a Repeat row nobody can reach.
+  await endRepeatForAutomationOwner(tx, {
+    task,
+    next: {
+      assigneeType: assignee?.assigneeType ?? null,
+      assigneeId: assignee?.assigneeId ?? null,
+    },
+    actorType: 'user',
+    actorId: auth.userId,
+  });
 }
 
 /** Board drag: move to (status, position) — rank between the neighbour
- * CARDS (the 0.4 wire sends task ids; ranks resolve here). */
+ * CARDS (the 0.4 wire sends task ids; ranks resolve here). Answers the next
+ * copy when the drop closed a repeating task. */
 export async function moveTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -2134,7 +2250,7 @@ export async function moveTask(
     beforeTaskId?: string;
     afterTaskId?: string;
   },
-): Promise<void> {
+): Promise<TaskRepeatCopy | null> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
@@ -2198,23 +2314,23 @@ export async function moveTask(
       status_changed_at_ms = ${statusChanges ? now : task.statusChangedAt}
     WHERE id = ${args.taskId}
   `;
-  if (statusChanges) {
-    // The drag is the same status door as the picker: it bells the
-    // subscribers and fires the org's triggers through the shared seam.
-    await settleTaskStatusChange(tx, {
-      task,
-      toStatus: args.status,
-      actorType: 'user',
-      actorId: auth.userId,
-      audit: auth,
+  if (!statusChanges) return null;
+  // The drag is the same status door as the picker: it bells the
+  // subscribers and fires the org's triggers through the shared seam.
+  const nextTask = await settleTaskStatusChange(tx, {
+    task,
+    toStatus: args.status,
+    actorType: 'user',
+    actorId: auth.userId,
+    audit: auth,
+  });
+  if (args.status === 'in_review') {
+    await requestTaskReview(tx, {
+      task: { ...task, status: 'in_review' },
+      trigger: { kind: 'human', actorId: auth.userId },
     });
-    if (args.status === 'in_review') {
-      await requestTaskReview(tx, {
-        task: { ...task, status: 'in_review' },
-        trigger: { kind: 'human', actorId: auth.userId },
-      });
-    }
   }
+  return nextTask;
 }
 
 export async function archiveTask(

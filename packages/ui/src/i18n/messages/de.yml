@@ -212,6 +212,9 @@ common:
     autoTranslate: Automatisch übersetzen
     hasError: enthält einen Fehler
   moreTabs: Mehr
+  numberStepper:
+    decrease: Verringern
+    increase: Erhöhen
   optional: optional
   pagination:
     loadMore: Mehr laden
@@ -290,3 +293,52 @@ toast:
 tables:
   headers:
     description: Beschreibung
+recurrence:
+  label: Wiederholen
+  namePrefix: '{label}:'
+  never: Nie
+  presets: Schnellauswahl
+  custom: Benutzerdefiniert
+  back: Zurück zur Schnellauswahl
+  workweekRange: Mo–Fr
+  nextDates: Nächste Termine
+  sentence:
+    daily: '{count, plural, one {Täglich} other {Alle # Tage}}'
+    weekdays: Jeden Werktag
+    weekly: '{count, plural, one {Wöchentlich am {days}} other {Alle # Wochen am {days}}}'
+    monthly: '{count, plural, one {Monatlich am {day}.} other {Alle # Monate am {day}.}}'
+    yearly: '{count, plural, one {Jährlich am {date}} other {Alle # Jahre am {date}}}'
+  compact:
+    weekdays: Werktags
+    weekly: '{count, plural, one {Wöchentlich} other {Alle # Wochen}}'
+    monthly: '{count, plural, one {Monatlich} other {Alle # Monate}}'
+    yearly: '{count, plural, one {Jährlich} other {Alle # Jahre}}'
+    monthDay: '{day}.'
+    dayCount: '{count, plural, one {# Tag} other {# Tage}}'
+  editor:
+    unit: Einheit
+    units:
+      daily: Tag
+      weekly: Woche
+      monthly: Monat
+      yearly: Jahr
+    every: '{count, plural, one {{unit, select, weekly {Jede} yearly {Jedes} other {Jeden}}} other {Alle}}'
+    unitNoun:
+      daily: '{count, plural, one {Tag} other {Tage}}'
+      weekly: '{count, plural, one {Woche} other {Wochen}}'
+      monthly: '{count, plural, one {Monat} other {Monate}}'
+      yearly: '{count, plural, one {Jahr} other {Jahre}}'
+    onWeekdays: Am
+    onDay: Am Tag
+    onDate: Am
+    month: Monat
+    lastDayHint: In kürzeren Monaten gilt ihr letzter Tag.
+    leapDayHint: 'In anderen Jahren gilt stattdessen der {date}.'
+  weekdayChip:
+    monday: Mo
+    tuesday: Di
+    wednesday: Mi
+    thursday: Do
+    friday: Fr
+    saturday: Sa
+    sunday: So

@@ -161,7 +161,8 @@ function toolResultFromError(error: unknown): ToolResult {
 type ProjectLabel = { name: string; key?: string };
 
 /** The compact task shape the list/read tools answer with — identity, board
- * position, and the external-sync key; `description` only on `task_get`. */
+ * position, the external-sync key, and the schedule and repeat rule when the
+ * row carries them; `description` only on `task_get`. */
 function compactTask(
   task: Doc<'tasks'>,
   project?: ProjectLabel | null,
@@ -199,6 +200,18 @@ function compactTask(
     // own `Current time:` directive carries.
     createdAt: modelTimestamp(task.createdAt),
     updatedAt: modelTimestamp(task.updatedAt),
+    // The schedule, in the same format: a task date is the midnight that
+    // starts its day in the zone of whoever set it.
+    ...(modelTimestamp(task.startDate) !== undefined
+      ? { startDate: modelTimestamp(task.startDate) }
+      : {}),
+    ...(modelTimestamp(task.dueDate) !== undefined
+      ? { dueDate: modelTimestamp(task.dueDate) }
+      : {}),
+    // The repeat rule as stored (days, step, zone, and `createOn:
+    // "dueDate"` when the next task also comes on the due date): closing a
+    // repeating task creates its next one.
+    ...(isRecord(task.repeat) ? { repeat: task.repeat } : {}),
   };
 }
 

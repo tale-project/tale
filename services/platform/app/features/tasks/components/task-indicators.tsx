@@ -7,14 +7,18 @@ import {
   Ban,
   Bot,
   CalendarClock,
+  CalendarSync,
   Eye,
   MessageCircleQuestion,
   MessageSquare,
+  Repeat,
 } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
+import { type TaskRepeat, taskRepeatCreateOn } from '@/lib/shared/task-repeat';
 
 import { TASK_TERMINAL_STATUSES, isTaskStatus } from '../lib/display';
+import { useTaskRepeatLabel } from '../lib/task-repeat-label';
 
 /**
  * Amber "blocked" glyph shown on a task card/row when the task has at least one
@@ -240,6 +244,50 @@ export function NeedsReviewIndicator({
       >
         <Eye className="size-3.5 shrink-0" aria-hidden="true" />
         {hasNamedReviewer && <span className="tabular-nums">1</span>}
+      </span>
+    </Tooltip>
+  );
+}
+
+/**
+ * Repeat glyph shown on a task card/row that comes back when it closes; the
+ * tooltip names the rule. Only an open task that still carries its series
+ * shows it: one that already continued it (on its due date, while still
+ * open) never continues it again, even once that next task is deleted, and
+ * a closed one without a next task will not come back. Renders nothing
+ * otherwise.
+ */
+export function RepeatIndicator({
+  repeat,
+  status,
+  continued,
+  className,
+}: {
+  repeat?: TaskRepeat;
+  status: string;
+  /** Whether the task has continued its series (`repeatContinued`). */
+  continued?: boolean;
+  className?: string;
+}) {
+  const { t } = useT('tasks');
+  const repeatLabel = useTaskRepeatLabel();
+  const open = isTaskStatus(status) && !TASK_TERMINAL_STATUSES.has(status);
+  if (!repeat || continued === true || !open) return null;
+  const label = t('repeat.indicator', { rule: repeatLabel(repeat) });
+  // The same glyph the Repeat row shows: a series that also creates its
+  // next task on the due date reads differently at a glance.
+  const Glyph =
+    taskRepeatCreateOn(repeat) === 'dueDate' ? CalendarSync : Repeat;
+  return (
+    <Tooltip content={label}>
+      <span
+        className={cn(
+          'text-muted-foreground inline-flex items-center',
+          className,
+        )}
+        aria-label={label}
+      >
+        <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
       </span>
     </Tooltip>
   );

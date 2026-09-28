@@ -1,5 +1,7 @@
 import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue';
 
+import type { TaskRepeat } from '@/lib/shared/task-repeat';
+
 /**
  * `tasks` — the wire contract for the backend calls the app makes into this
  * family: one entry per function name, carrying its argument and response
@@ -42,6 +44,14 @@ export interface ProjectTaskMetricsDay {
   escalations: number;
   capped: boolean;
 }
+
+/**
+ * What a status change or a board move answers. `nextTask` is present only
+ * when THIS write closed a repeating task and created its next copy.
+ */
+export type TaskStatusWriteResult = {
+  nextTask?: { id: string; number?: number; dueDate?: number };
+} | null;
 
 export interface TasksContract {
   'tasks/mutations:addTaskComment': {
@@ -102,6 +112,7 @@ export interface TasksContract {
       assigneeId?: string;
       parentTaskId?: string;
       startDate?: number;
+      repeat?: TaskRepeat;
       organizationId: string;
       projectId: string;
       title: string;
@@ -152,7 +163,7 @@ export interface TasksContract {
         | 'in_progress';
       taskId: string;
     };
-    returns: null;
+    returns: TaskStatusWriteResult;
   };
   'tasks/mutations:removeTaskDependency': {
     kind: 'mutation';
@@ -169,6 +180,16 @@ export interface TasksContract {
     args: { taskId: string };
     returns: { started: boolean; reason?: string };
   };
+  /** "Stop repeating", from the task whose close created the next task:
+   *  its series ends, and `removedNextTask` says whether that next task —
+   *  still untouched — was taken back, or stays without a rule. */
+  'tasks/mutations:stopTaskRepeat': {
+    kind: 'mutation';
+    /** `nextTaskId` never reaches the server: it names the next task whose
+     *  reads must not refetch while the answer may still be "taken back". */
+    args: { taskId: string; nextTaskId?: string };
+    returns: { removedNextTask: boolean };
+  };
   'tasks/mutations:updateTask': {
     kind: 'mutation';
     args: {
@@ -184,6 +205,8 @@ export interface TasksContract {
       description?: null | string;
       labels?: string[];
       startDate?: null | number;
+      /** `null` stops the series. */
+      repeat?: null | TaskRepeat;
       taskId: string;
     };
     returns: null;
@@ -205,7 +228,7 @@ export interface TasksContract {
         | 'in_progress';
       taskId: string;
     };
-    returns: null;
+    returns: TaskStatusWriteResult;
   };
   'tasks/public_actions:cancelTaskWorkflow': {
     kind: 'action';
@@ -335,6 +358,9 @@ export interface TasksContract {
         externalIssue?: TaskExternalIssue;
         startDate?: number;
         startNotifiedAt?: number;
+        repeat?: TaskRepeat;
+        repeatNextTaskId?: string;
+        repeatContinued?: boolean;
         slaLevel?: number;
         slaLevelAt?: number;
         agentRunsPausedAt?: number;
@@ -496,6 +522,9 @@ export interface TasksContract {
         externalIssue?: TaskExternalIssue;
         startDate?: number;
         startNotifiedAt?: number;
+        repeat?: TaskRepeat;
+        repeatNextTaskId?: string;
+        repeatContinued?: boolean;
         slaLevel?: number;
         slaLevelAt?: number;
         agentRunsPausedAt?: number;
@@ -607,6 +636,9 @@ export interface TasksContract {
           externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
+          repeat?: TaskRepeat;
+          repeatNextTaskId?: string;
+          repeatContinued?: boolean;
           slaLevel?: number;
           slaLevelAt?: number;
           agentRunsPausedAt?: number;
@@ -672,6 +704,9 @@ export interface TasksContract {
           externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
+          repeat?: TaskRepeat;
+          repeatNextTaskId?: string;
+          repeatContinued?: boolean;
           slaLevel?: number;
           slaLevelAt?: number;
           agentRunsPausedAt?: number;
@@ -764,6 +799,9 @@ export interface TasksContract {
           externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
+          repeat?: TaskRepeat;
+          repeatNextTaskId?: string;
+          repeatContinued?: boolean;
           slaLevel?: number;
           slaLevelAt?: number;
           agentRunsPausedAt?: number;
@@ -855,6 +893,9 @@ export interface TasksContract {
           externalIssue?: TaskExternalIssue;
           startDate?: number;
           startNotifiedAt?: number;
+          repeat?: TaskRepeat;
+          repeatNextTaskId?: string;
+          repeatContinued?: boolean;
           slaLevel?: number;
           slaLevelAt?: number;
           agentRunsPausedAt?: number;

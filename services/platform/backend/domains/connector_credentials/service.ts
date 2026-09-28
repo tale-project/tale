@@ -449,6 +449,21 @@ function assertNameFree(
   }
 }
 
+/**
+ * Serialize the writes that decide from the pair's sibling list — a new
+ * credential's default flag and its free name — for the caller's transaction.
+ * Two adds that read the siblings at once would otherwise pick the same name,
+ * or both become the default, and the loser would die on the unique index
+ * instead of numbering past the winner. Re-entrant within one transaction.
+ */
+export async function lockCredentialPair(
+  tx: TransactionSql,
+  organizationId: string,
+  connectorSlug: string,
+): Promise<void> {
+  await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`connector-credentials:${organizationId}:${connectorSlug}`}, 0))`;
+}
+
 async function clearOtherDefaults(
   tx: TransactionSql,
   organizationId: string,
@@ -497,7 +512,7 @@ function toMasked(row: CredentialRow): MaskedCredential {
 
 /** The organization's credentials, masked, connector-then-name ordered. */
 export async function listCredentials(
-  sql: Sql,
+  sql: Db,
   organizationId: string,
   connectorSlug?: string,
 ): Promise<MaskedCredential[]> {
@@ -517,6 +532,38 @@ export async function getCredential(
   credentialId: string,
 ): Promise<MaskedCredential> {
   return toMasked(await requireOwnRow(sql, organizationId, credentialId));
+}
+
+/**
+ * The OAuth grant a Reconnect names, or null when `credentialId` is not this
+ * organization's, not this connector's, or not an OAuth grant — one answer
+ * for all three, so a caller cannot tell a foreign id from a missing one.
+ * `forUpdate` locks the row for the caller's transaction: a delete racing
+ * the renewal then waits for it, or wins first and this answers null.
+ */
+export async function findOauth2Grant(
+  db: Db,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialId: string;
+    forUpdate?: boolean;
+  },
+): Promise<MaskedCredential | null> {
+  const rows = args.forUpdate
+    ? await db<CredentialRow[]>`
+        SELECT ${db.unsafe(CREDENTIAL_COLUMNS)} FROM app.connector_credentials
+        WHERE id = ${args.credentialId} AND org_id = ${args.organizationId}
+          AND connector_slug = ${args.connectorSlug} AND auth_method = 'oauth2'
+        FOR UPDATE
+      `
+    : await db<CredentialRow[]>`
+        SELECT ${db.unsafe(CREDENTIAL_COLUMNS)} FROM app.connector_credentials
+        WHERE id = ${args.credentialId} AND org_id = ${args.organizationId}
+          AND connector_slug = ${args.connectorSlug} AND auth_method = 'oauth2'
+      `;
+  const row = rows[0];
+  return row === undefined ? null : toMasked(row);
 }
 
 export interface CreateCredentialArgs {
@@ -595,6 +642,7 @@ async function insertPreparedCredential(
   args: CreateCredentialArgs,
   prepared: PreparedCredential,
 ): Promise<{ credentialId: string }> {
+  await lockCredentialPair(tx, args.organizationId, args.connectorSlug);
   const siblings = await rowsForConnector(
     tx,
     args.organizationId,
@@ -675,88 +723,100 @@ export async function updateCredential(
   sql: Sql,
   args: UpdateCredentialArgs,
 ): Promise<void> {
-  await sql.begin(async (tx) => {
-    const row = await requireOwnRow(tx, args.organizationId, args.credentialId);
-    const connector = requireConnectorAuthMethod(
-      row.connectorSlug,
-      row.authMethod,
-    );
+  await sql.begin((tx) => updateCredentialInTransaction(tx, args));
+}
 
-    let name = row.name;
-    if (args.name !== undefined) {
-      name = normalizeName(args.name);
-      const siblings = await rowsForConnector(
-        tx,
-        args.organizationId,
-        row.connectorSlug,
-      );
-      assertNameFree(siblings, name, row.id);
+/**
+ * {@link updateCredential} on a transaction the CALLER owns — for a flow
+ * whose update must commit together with its own reads and writes. The
+ * connector OAuth callback renews the credential a Reconnect named inside
+ * the transaction that row-locked it, so a concurrent delete cannot slip
+ * between the check and the write.
+ */
+export async function updateCredentialInTransaction(
+  tx: TransactionSql,
+  args: UpdateCredentialArgs,
+): Promise<void> {
+  const row = await requireOwnRow(tx, args.organizationId, args.credentialId);
+  const connector = requireConnectorAuthMethod(
+    row.connectorSlug,
+    row.authMethod,
+  );
+
+  let name = row.name;
+  if (args.name !== undefined) {
+    name = normalizeName(args.name);
+    const siblings = await rowsForConnector(
+      tx,
+      args.organizationId,
+      row.connectorSlug,
+    );
+    assertNameFree(siblings, name, row.id);
+  }
+  let sealed: ReturnType<typeof sealPayload> | undefined;
+  if (args.secret !== undefined) {
+    sealed = sealPayload(buildPayload(row.authMethod, args.secret));
+  }
+  let endpointUrl = row.endpointUrl;
+  if (args.endpointUrl !== undefined) {
+    endpointUrl = normalizeEndpointUrl(connector, args.endpointUrl) ?? null;
+  }
+  let config = row.config;
+  if (args.config !== undefined) {
+    try {
+      config =
+        withImapFromAddress(
+          row.connectorSlug,
+          normalizeConfig(connector, args.config),
+          args.secret?.username,
+        ) ?? null;
+    } catch (error) {
+      translateAppError(error);
     }
-    let sealed: ReturnType<typeof sealPayload> | undefined;
-    if (args.secret !== undefined) {
-      sealed = sealPayload(buildPayload(row.authMethod, args.secret));
-    }
-    let endpointUrl = row.endpointUrl;
-    if (args.endpointUrl !== undefined) {
-      endpointUrl = normalizeEndpointUrl(connector, args.endpointUrl) ?? null;
-    }
-    let config = row.config;
-    if (args.config !== undefined) {
-      try {
-        config =
-          withImapFromAddress(
-            row.connectorSlug,
-            normalizeConfig(connector, args.config),
-            args.secret?.username,
-          ) ?? null;
-      } catch (error) {
-        translateAppError(error);
-      }
-    }
-    if (args.isDefault === true) {
-      await clearOtherDefaults(
-        tx,
-        args.organizationId,
-        row.connectorSlug,
-        row.id,
-      );
-    }
-    await tx`
-      UPDATE app.connector_credentials SET
-        name = ${name},
-        encrypted_data = ${sealed !== undefined ? tx.json(toJson(sealed.encryptedData)) : tx.unsafe('encrypted_data')},
-        masked_preview = ${sealed !== undefined ? (sealed.maskedPreview ?? null) : tx.unsafe('masked_preview')},
-        endpoint_url = ${endpointUrl},
-        config = ${config === null ? null : tx.json(toJson(config))},
-        status = ${args.status ?? tx.unsafe('status')},
-        status_detail = ${args.statusDetail !== undefined ? args.statusDetail : tx.unsafe('status_detail')},
-        is_default = ${args.isDefault ?? tx.unsafe('is_default')},
-        updated_at_ms = ${Date.now()}
-      WHERE id = ${row.id}
-    `;
-    await createAuditLog(tx, {
-      organizationId: args.organizationId,
-      ...actorFields(args.actor),
-      action: 'connector_credential.updated',
-      category: 'connector',
-      resourceType: 'connector_credential',
-      resourceId: row.id,
-      resourceName: name,
-      previousState: credentialState(row),
-      newState: credentialState({
-        name,
-        status: args.status ?? row.status,
-        isDefault: args.isDefault ?? row.isDefault,
-      }),
-      changedFields: UPDATABLE_FIELDS.filter(
-        (field) => args[field] !== undefined,
-      ),
-      metadata: {
-        connectorSlug: row.connectorSlug,
-        authMethod: row.authMethod,
-      },
-      status: 'success',
-    });
+  }
+  if (args.isDefault === true) {
+    await clearOtherDefaults(
+      tx,
+      args.organizationId,
+      row.connectorSlug,
+      row.id,
+    );
+  }
+  await tx`
+    UPDATE app.connector_credentials SET
+      name = ${name},
+      encrypted_data = ${sealed !== undefined ? tx.json(toJson(sealed.encryptedData)) : tx.unsafe('encrypted_data')},
+      masked_preview = ${sealed !== undefined ? (sealed.maskedPreview ?? null) : tx.unsafe('masked_preview')},
+      endpoint_url = ${endpointUrl},
+      config = ${config === null ? null : tx.json(toJson(config))},
+      status = ${args.status ?? tx.unsafe('status')},
+      status_detail = ${args.statusDetail !== undefined ? args.statusDetail : tx.unsafe('status_detail')},
+      is_default = ${args.isDefault ?? tx.unsafe('is_default')},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${row.id}
+  `;
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    ...actorFields(args.actor),
+    action: 'connector_credential.updated',
+    category: 'connector',
+    resourceType: 'connector_credential',
+    resourceId: row.id,
+    resourceName: name,
+    previousState: credentialState(row),
+    newState: credentialState({
+      name,
+      status: args.status ?? row.status,
+      isDefault: args.isDefault ?? row.isDefault,
+    }),
+    changedFields: UPDATABLE_FIELDS.filter(
+      (field) => args[field] !== undefined,
+    ),
+    metadata: {
+      connectorSlug: row.connectorSlug,
+      authMethod: row.authMethod,
+    },
+    status: 'success',
   });
 }
 

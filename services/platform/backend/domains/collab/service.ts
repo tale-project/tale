@@ -415,7 +415,8 @@ export async function markAllNotificationsRead(
 
 // ------------------------------------------------------------ subscriptions
 
-/** Idempotent task subscription upsert. */
+/** Idempotent task subscription upsert: a subscription the task already has
+ * is kept as it is, mute included. */
 export async function autoSubscribe(
   db: Db,
   args: {
@@ -424,14 +425,18 @@ export async function autoSubscribe(
     subscriberType: 'user' | 'agent';
     subscriberId: string;
     reason: string;
+    /** A watcher carried over from another task keeps the mute it had
+     * there; absent is the system default (not muted). */
+    muted?: boolean | null;
   },
 ): Promise<void> {
   await db`
     INSERT INTO app.task_subscriptions (
-      org_id, task_id, subscriber_type, subscriber_id, reason, created_at_ms
+      org_id, task_id, subscriber_type, subscriber_id, reason, muted,
+      created_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.taskId}, ${args.subscriberType},
-      ${args.subscriberId}, ${args.reason}, ${Date.now()}
+      ${args.subscriberId}, ${args.reason}, ${args.muted ?? null}, ${Date.now()}
     )
     ON CONFLICT (task_id, subscriber_type, subscriber_id) DO NOTHING
   `;

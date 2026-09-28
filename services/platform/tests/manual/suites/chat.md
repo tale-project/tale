@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 86 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 89 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -622,6 +622,29 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   member and ask again → It is found. Mark it as spam → It is no longer found.
   Mark it open again and wait a moment → It is found again. Delete the
   conversation → A new search finds nothing of it, for the admin too.
+- [ ] `CHAT-B18` · **Sharing status unavailable** — Share a chat with the
+  organization (CHAT-F21) and keep its link open in a private window. In the
+  owner's tab, make the status read answer 503 — in the console run
+  `const f = window.fetch; window.fetch = (u, o) => String(u).includes('/share-status') ? Promise.resolve(Response.json({error: 'FORCED'}, {status: 503})) : f(u, o);`
+  — then open **Share** (`chat.share.button`) → While the read and its
+  retries run, the two options are masked and neither is checked; once it
+  fails, neither **Keep private** (`chat.share.keepPrivate`) nor **Share with
+  organization** (`chat.share.organizationLink`) is checked or selectable, the
+  dialog says `chat.share.statusFailed` with **Try again**
+  (`chat.share.retry`), and there is no link and no **Create share link**
+  (`chat.share.createLink`); a reload of the private window still shows the
+  snapshot. Run `window.fetch = f;` and choose **Try again** → **Share with
+  organization** is checked beside the live link, and **Keep private** now
+  revokes it (`chat.share.unshared`); the private window's reload shows
+  `chat.share.notFound`.
+- [ ] `CHAT-B19` · **Share link under a base path** — On a deployment served
+  under a path prefix (`BASE_PATH=/app` behind a proxy that strips it, as in
+  the self-hosted subpath setup), copy a shared chat's link from the **Share**
+  dialog's link field (`chat.share.copyLink`) and from the Home row menu's
+  **Share** (`chat.share.button`) → Both copy
+  `<origin>/app/dashboard/{org}/chat/shared/{shareToken}`, one slash between
+  each part, and the link opens the snapshot in another member's session; on a
+  root deployment the same link has no prefix.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -649,6 +672,18 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **View usage** (`chat.budgetViewUsage`), **Request usage credits**
   (`chat.budgetRequestCredits`) and **Dismiss** (`chat.budgetWarningDismiss`)
   are keyboard reachable with visible focus.
+- [ ] `CHAT-A7` · **Share picker from the keyboard** → Open **Share**
+  (`chat.share.button`) on a shared chat and Tab into **Who can view this
+  chat** (`chat.share.accessPickerLabel`): focus lands on the checked option,
+  the group is one tab stop (Shift+Tab leaves it, Tab moves past it), and
+  ↑/↓ or ←/→ move the focus and the check together, with a visible focus ring.
+  Moving onto **Keep private** (`chat.share.keepPrivate`) revokes the link at
+  once (`chat.share.unshared`) with focus staying on it. With the revocation
+  refused (stub the request whose URL includes `unshare` to answer
+  `Response.json({ok: false})`, as CHAT-B18 stubs the status),
+  `chat.share.unshareFailed` appears, the check returns to **Share
+  with organization** (`chat.share.organizationLink`), focus stays on **Keep
+  private**, and Space there tries again.
 
 ## Performance
 
