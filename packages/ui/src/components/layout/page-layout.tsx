@@ -1,7 +1,8 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
-import { type ReactNode } from 'react';
+import { useResizeObserver } from '@tale/ui/use-resize-observer';
+import { useRef, type ReactNode } from 'react';
 
 import { LayoutErrorBoundary } from '../error-boundaries/boundaries/layout-error-boundary';
 import { StickyHeader } from './sticky-header';
@@ -19,6 +20,20 @@ export function PageLayout({
   organizationId,
   className,
 }: PageLayoutProps) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  useResizeObserver(
+    headerRef,
+    () => {
+      const element = headerRef.current;
+      shellRef.current?.style.setProperty(
+        '--page-sticky-header-height',
+        `${element && getComputedStyle(element).position === 'sticky' ? element.getBoundingClientRect().height : 0}px`,
+      );
+    },
+    { listenToWindow: true, deps: [!!header] },
+  );
+
   const content = organizationId ? (
     <LayoutErrorBoundary organizationId={organizationId}>
       {children}
@@ -29,6 +44,7 @@ export function PageLayout({
 
   return (
     <div
+      ref={shellRef}
       // `scrollbar-gutter: stable` reserves the vertical scrollbar's space so
       // that filtering a list (which can add/remove the scrollbar as the row
       // count changes) doesn't shift the page horizontally.
@@ -42,7 +58,7 @@ export function PageLayout({
         className,
       )}
     >
-      {header && <StickyHeader>{header}</StickyHeader>}
+      {header && <StickyHeader ref={headerRef}>{header}</StickyHeader>}
       {content}
     </div>
   );

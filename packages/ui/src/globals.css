@@ -906,8 +906,8 @@ input[type='text']:-webkit-autofill {
 
   @supports (backdrop-filter: blur(16px)) {
     .mobile-tab-bar.mobile-tab-bar {
-      background: color-mix(in srgb, var(--color-background) 90%, transparent);
-      backdrop-filter: blur(16px);
+      background: color-mix(in srgb, var(--color-background) 76%, transparent);
+      backdrop-filter: blur(16px) saturate(1.2);
     }
   }
 

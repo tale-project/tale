@@ -25,6 +25,7 @@ import {
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
 import { useInfiniteScroll } from '@tale/ui/use-infinite-scroll';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { useIsShortViewport } from '@tale/ui/use-is-short-viewport';
 import {
   flexRender,
@@ -393,19 +394,25 @@ export function DataTable<TData, TValue = unknown>({
   const prevRowCountRef = useRef(0);
   const [animatingRows, setAnimatingRows] = useState(new Set<string>());
 
+  const mobile = useIsMobile();
+  const shortViewport = useIsShortViewport();
+  const rowsScrollInFrame = stickyLayout && !shortViewport && !mobile;
+
   // Stable noop callback for when infiniteScroll is not provided
   const noop = useCallback(() => {}, []);
 
   useEffect(() => {
-    if (stickyLayout) return undefined;
-    const el = horizontalScrollRef.current;
+    if (rowsScrollInFrame) return undefined;
+    const el = stickyLayout
+      ? scrollContainerRef.current
+      : horizontalScrollRef.current;
     if (!el) return undefined;
     const onWheel = (event: WheelEvent) => {
       chainVerticalWheelToScrollParent(el, event);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [stickyLayout]);
+  }, [stickyLayout, rowsScrollInFrame]);
 
   useEffect(() => {
     const currentCount = data.length;
@@ -427,12 +434,10 @@ export function DataTable<TData, TValue = unknown>({
   }, [data, getRowId]);
 
   // A bounded table scrolls its rows inside its own scrollport, so the
-  // sentinel is watched against that; on a short viewport the frame grows
+  // sentinel is watched against that; on mobile or a short viewport the frame grows
   // with its rows and the page scrolls instead (`ContentArea` `list`), and a
   // scrollport that never scrolls would report the sentinel in view at once
   // and load every page.
-  const shortViewport = useIsShortViewport();
-  const rowsScrollInFrame = stickyLayout && !shortViewport;
 
   // Initialize infinite scroll hook for automatic loading
   const { sentinelRef } = useInfiniteScroll({
@@ -1271,8 +1276,20 @@ export function DataTable<TData, TValue = unknown>({
         />
       )}
     >
-      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
-        {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
+      <div
+        className={cn(
+          'flex min-h-0 min-w-0 flex-none flex-col md:flex-1',
+          className,
+        )}
+      >
+        {/* Own the mobile top inset inside the sticky surface: the matching
+            negative margin consumes ContentArea's initial inset so it is
+            present exactly once, both at rest and after the page scrolls. */}
+        {headerContent && (
+          <div className="bg-background sticky top-[var(--page-sticky-header-height,0px)] z-20 -mt-4 shrink-0 py-4 md:static md:mt-0 md:pt-0">
+            {headerContent}
+          </div>
+        )}
         {/* The bordered frame stays at the container's width — its rounded
             border is always fully visible — while both axes scroll inside
             `scrollContainerRef`. The sticky header/footer keep working because
@@ -1297,7 +1314,10 @@ export function DataTable<TData, TValue = unknown>({
             data-testid="data-table-scrollport"
             // `relative`: an absolutely positioned descendant (a cell's
             // `sr-only` live region) is contained here, not by the page.
-            className="relative min-h-0 overflow-auto overscroll-contain"
+            className={cn(
+              'relative min-h-0 overflow-auto',
+              rowsScrollInFrame && 'overscroll-contain',
+            )}
           >
             <div className="w-fit min-w-full">
               {tableContent}

@@ -490,6 +490,12 @@ describe('DataTable in a collection screen on a short viewport (real layout)', (
               data={manyRows}
               approxRowCount={manyRows.length}
               stickyLayout
+              search={{
+                value: '',
+                onChange: () => {},
+                placeholder: 'Search entries',
+              }}
+              addAction={{ label: 'Create entry', onClick: () => {} }}
               infiniteScroll={{ hasMore: true, onLoadMore }}
             />
           </ContentArea>
@@ -521,8 +527,55 @@ describe('DataTable in a collection screen on a short viewport (real layout)', (
     expect(screen.getByText('Entry 39')).toBeVisible();
   });
 
-  it('loads the next page from the page scroll, not all at once', async () => {
-    await page.viewport(640, 360);
+  it('grows on a portrait phone and keeps collection controls visible while scrolling', async () => {
+    await page.viewport(390, 844);
+    const { scrollport, pageScroller } = renderScreen();
+    expect(scrolls(scrollport)).toBe(false);
+    expect(scrolls(pageScroller)).toBe(true);
+    expect(scrollport.getBoundingClientRect().bottom).toBeGreaterThan(844);
+    const toolbar = screen
+      .getByPlaceholderText('Search entries')
+      .closest('.sticky');
+    if (!(toolbar instanceof HTMLElement)) throw new Error('no toolbar');
+    expect(getComputedStyle(toolbar).paddingTop).toBe('16px');
+    pageScroller.scrollTop = 500;
+    await vi.waitFor(() => {
+      const search = screen
+        .getByPlaceholderText('Search entries')
+        .getBoundingClientRect();
+      expect(search.top).toBeGreaterThanOrEqual(
+        pageScroller.getBoundingClientRect().top,
+      );
+      expect(search.bottom).toBeLessThan(150);
+      const input = screen.getByPlaceholderText('Search entries');
+      expect(document.elementFromPoint(search.left + 5, search.top + 5)).toBe(
+        input,
+      );
+    });
+    expect(screen.getByRole('button', { name: 'Create entry' })).toBeVisible();
+    const stickyTop = toolbar.getBoundingClientRect().top;
+    const inputTop = screen
+      .getByPlaceholderText('Search entries')
+      .getBoundingClientRect().top;
+    expect(inputTop - stickyTop).toBeGreaterThanOrEqual(16);
+    pageScroller.scrollTop = pageScroller.scrollHeight;
+    await vi.waitFor(() => {
+      expect(toolbar.getBoundingClientRect().top).toBe(stickyTop);
+      expect(
+        screen.getByPlaceholderText('Search entries').getBoundingClientRect()
+          .top,
+      ).toBe(inputTop);
+    });
+    scrollport.scrollLeft = 80;
+    expect(scrollport.scrollLeft).toBeGreaterThan(0);
+    expect(scrollport.scrollTop).toBe(0);
+  });
+
+  it.each([
+    [640, 360],
+    [390, 844],
+  ])('loads from page scrolling at %s × %s', async (width, height) => {
+    await page.viewport(width, height);
     const { pageScroller, onLoadMore } = renderScreen();
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(onLoadMore).not.toHaveBeenCalled();

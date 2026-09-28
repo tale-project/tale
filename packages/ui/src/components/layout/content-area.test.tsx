@@ -78,7 +78,7 @@ describe('ContentArea', () => {
       </ContentArea>,
     );
     expect(container.firstElementChild).toHaveClass('min-h-0');
-    expect(container.firstElementChild).toHaveClass('flex-1');
+    expect(container.firstElementChild).toHaveClass('md:flex-1');
     expect(container.firstElementChild).toHaveClass('px-4');
     expect(container.firstElementChild).toHaveClass(DOCK_END_PAD);
   });
