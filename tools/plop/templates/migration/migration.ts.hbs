@@ -1,0 +1,21 @@
+/**
+ * {{subject}}
+ *
+ * TODO: say WHY this data migration exists — which rows it fills, which rule
+ * of the application's own code decides them (a SQL copy of that rule would
+ * be a second copy, frozen here while the real one moves on), and what it
+ * leaves alone.
+ *
+ * Idempotent: a second run changes nothing. Bounded: it reads only the rows
+ * that can need the fill. Rolling-deploy safe: the previous image is still
+ * serving while this applies.
+ */
+
+import type { TransactionSql } from 'postgres';
+
+export async function migrate(tx: TransactionSql): Promise<void> {
+  // TODO: read the rows that can need the fill, `FOR UPDATE`; decide them
+  // with the app's own rule; write set-based, re-checking the condition in
+  // the UPDATE.
+  await tx`SELECT 1`;
+}

@@ -217,7 +217,7 @@ describe('readDocumentText — the honest miss', () => {
       /indexed but holds no readable text/,
     ],
   ])(
-    'states the %s state of a binary file it cannot read, and names the file',
+    'states the %s state of a binary document it cannot read, and names the file',
     async (_state, indexing, pattern) => {
       const { result } = await read(
         {
@@ -228,6 +228,7 @@ describe('readDocumentText — the honest miss', () => {
             filename: 'scan.pdf',
             sizeBytes: 12_345,
             indexing,
+            heldByDocument: true,
             reason: 'binary',
           }),
         },
@@ -241,6 +242,56 @@ describe('readDocumentText — the honest miss', () => {
     },
   );
 
+  // A chat, task or email attachment is on no Knowledge tab and no Index now
+  // reaches it: the miss states the fact and stops there, where it used to
+  // tell the model to index the file from the project's Knowledge tab.
+  it.each([
+    ['skipped', { status: 'skipped' }, /attached without indexing/],
+    ['pending', { status: 'pending' }, /attached without indexing/],
+    [
+      'failed',
+      { status: 'failed', error: 'Embedding provider refused' },
+      /Indexing "minutes\.doc" failed \(Embedding provider refused\)/,
+    ],
+    [
+      'unsupported',
+      {
+        status: 'unsupported',
+        error: 'No text extractor exists for "minutes.doc".',
+      },
+      /no text extractor/,
+    ],
+  ])(
+    'names no index door for a %s attachment',
+    async (_state, indexing, pattern) => {
+      const { result } = await read(
+        {
+          [ROW_FN]: () => null,
+          [FILTER_FN]: () => ['s3:acme/minutes.doc'],
+          [ON_DEMAND_FN]: () => ({
+            kind: 'unreadable',
+            filename: 'minutes.doc',
+            sizeBytes: 12_345,
+            indexing,
+            heldByDocument: false,
+            reason: 'binary',
+          }),
+        },
+        's3:acme/minutes.doc',
+      );
+      expect(result).toMatchObject({
+        status: 'not_found',
+        filename: 'minutes.doc',
+      });
+      const message = result.status === 'not_found' ? result.message : '';
+      expect(message).toMatch(pattern);
+      expect(message).toContain('Say so instead of guessing');
+      expect(message).not.toContain('Knowledge tab');
+      expect(message).not.toContain('Documents page');
+      expect(message).not.toContain('skipRagIndexing');
+    },
+  );
+
   it('names the cap for a text file too large to read on demand', async () => {
     const { result } = await read(
       {
@@ -251,6 +302,7 @@ describe('readDocumentText — the honest miss', () => {
           filename: 'dump.csv',
           sizeBytes: 9 * 1024 * 1024,
           indexing: { status: 'skipped' },
+          heldByDocument: true,
           reason: 'too_large',
         }),
       },
@@ -261,6 +313,28 @@ describe('readDocumentText — the honest miss', () => {
     expect(message).toContain('9 MiB');
     expect(message).toContain('limit is 4 MiB');
     expect(message).toContain('skipRagIndexing: false');
+  });
+
+  it('names the cap and no index door for an attachment too large to read', async () => {
+    const { result } = await read(
+      {
+        [ROW_FN]: () => null,
+        [FILTER_FN]: () => ['s3:acme/server.log'],
+        [ON_DEMAND_FN]: () => ({
+          kind: 'unreadable',
+          filename: 'server.log',
+          sizeBytes: 9 * 1024 * 1024,
+          indexing: { status: 'pending' },
+          heldByDocument: false,
+          reason: 'too_large',
+        }),
+      },
+      's3:acme/server.log',
+    );
+    const message = result.status === 'not_found' ? result.message : '';
+    expect(message).toContain('limit is 4 MiB');
+    expect(message).toContain('Say so instead of guessing');
+    expect(message).not.toContain('Knowledge tab');
   });
 
   it('says so when an admitted ref has no live file row behind it', async () => {

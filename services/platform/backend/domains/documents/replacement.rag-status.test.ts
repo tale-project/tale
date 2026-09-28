@@ -127,8 +127,10 @@ function database(fileName: string, contentType: string) {
     if (text.includes('INSERT INTO app.file_metadata')) {
       return Promise.resolve([{ id: 'file-2' }]);
     }
-    if (text.includes('RETURNING org_id')) {
-      return Promise.resolve([{ orgId: 'org-1' }]);
+    if (text.includes('RETURNING fm.org_id')) {
+      // The status lands before the swap moves the record onto the new
+      // file; the replacement's own document hint follows it.
+      return Promise.resolve([{ orgId: 'org-1', listed: false }]);
     }
     if (text.includes('UPDATE app.documents SET')) {
       return Promise.resolve([{ id: 'doc-1' }]);

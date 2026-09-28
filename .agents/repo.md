@@ -62,8 +62,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   a new cross-org shared surface is a defect.
 - **A data-model or org-config schema change ships a migration** — one numbered `.sql` file under
   `services/platform/backend/db/migrations/`, forward-only and safe to apply to a live deployment
-  mid-roll; the real-Postgres proof is `bun run --filter @tale/platform backend:integration`
-  (there is no separate migrations gate or generated registry — filename order is the registry).
+  mid-roll; a backfill that must decide with the app's own code (never a SQL copy of it) is a
+  numbered `.ts` data migration in the same directory and order. The real-Postgres proof is
+  `bun run --filter @tale/platform backend:integration` (there is no separate migrations gate or
+  generated registry — filename order is the registry).
   Scaffold with `bun run gen:migration` and follow the
   [`create-migration`](skills/create-migration/SKILL.md) skill.
 - **Spend is booked under a person, never a door** — every `app.usage_ledger` write names its

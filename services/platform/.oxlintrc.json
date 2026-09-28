@@ -50,6 +50,17 @@
       }
     },
     {
+      "files": ["backend/db/migrations/*.ts"],
+      "rules": {
+        "unicorn/filename-case": [
+          "error",
+          {
+            "case": "snakeCase"
+          }
+        ]
+      }
+    },
+    {
       "files": ["app/routes/**/$*.tsx"],
       "rules": {
         "unicorn/filename-case": "off"
