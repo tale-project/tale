@@ -1703,9 +1703,12 @@ export async function resolveRunProject(
       (args.requireProjectBinding === true || bindings.length > 0) &&
       !bindings.includes(args.projectId)
     ) {
+      // Static, like every refusal a task door relays: the name is what the
+      // caller sent (a task start's `workflowSlug`) or what a run carries,
+      // and the sentence travels to the app, REST and a workflow's trace.
       throw new AutomationError(
         'AUTOMATION_PROJECT_FORBIDDEN',
-        `"${args.name}" is not bound to that project.`,
+        'The automation is not bound to that project.',
         403,
       );
     }

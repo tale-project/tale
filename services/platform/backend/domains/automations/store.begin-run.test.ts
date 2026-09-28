@@ -166,4 +166,25 @@ describe('durable run admission', () => {
     await beginRun(sql, { ...args, projectId: 'p-1' });
     expect(writes[0]?.[3]).toBe('p-1');
   });
+
+  /**
+   * A task door relays this sentence word for word (the app's `handleError`,
+   * REST's envelope), and the name in it was the task start's
+   * `workflowSlug` — what the caller sent. It names no automation now; the
+   * caller knows the one it asked for.
+   */
+  it('refuses a project the automation is not bound to without naming it', async () => {
+    const { sql, writes } = fakeStore(1, ['p-2']);
+    const refusal = await beginRun(sql, { ...args, projectId: 'p-1' }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(refusal).toMatchObject({
+      code: 'AUTOMATION_PROJECT_FORBIDDEN',
+      status: 403,
+      message: 'The automation is not bound to that project.',
+    });
+    expect(String(refusal)).not.toContain(args.name);
+    expect(writes).toHaveLength(0);
+  });
 });

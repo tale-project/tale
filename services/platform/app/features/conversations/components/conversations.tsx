@@ -310,7 +310,7 @@ export function Conversations({
                       onClick={openBulkSendDialog}
                       disabled={isBulkProcessing}
                       aria-label={tConversations('bulk.sendMessages')}
-                      className="bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-200"
+                      className="bg-primary/10 text-primary hover:bg-primary/15"
                     >
                       <SendHorizontalIcon className="size-4" />
                     </Button>

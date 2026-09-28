@@ -6876,9 +6876,8 @@ settings:
         Embedding models this provider's listing carries; pick Other model to
         type a tag it does not list.
       modelUncuratedHint:
-        Tale knows no vector width for {provider}'s embedding models. Enter
-        the model tag and its vector width exactly as the provider documents
-        them.
+        Tale knows no vector width for {provider}. Enter the model tag (or
+        your deployment name) and the vector width that model produces.
       modelUnsupportedHint:
         '{provider} offers no embedding model. Choose a provider that serves
         one.'
@@ -6887,6 +6886,14 @@ settings:
         The {provider} catalog could not be loaded. Refresh the catalogs under
         Settings → AI providers and try again.
       modelUnavailable: Catalog unavailable
+      modelUncheckedHint:
+        Tale could not check whether {provider} can embed, so no model can be
+        chosen yet. Use Try again above.
+      modelUnchecked: Could not check
+      supportReadFailed:
+        Tale could not check which providers can embed. No model can be
+        chosen until the check answers.
+      supportReadRetry: Try again
       modelPlaceholder: Choose a model
       modelCustom: Other model…
       modelTag: Model tag
@@ -6920,6 +6927,7 @@ settings:
         credentialNotFound: The selected credential no longer exists — choose another.
         credentialMismatch: The selected credential belongs to a different provider.
         credentialDisabled: The selected credential is disabled — re-enable it or pick another.
+        providerUnsupported: This provider offers no embedding model — choose a provider that serves one.
     orgStorage:
       title: Object storage
       description:
@@ -7220,6 +7228,7 @@ tasks:
   fields:
     title: Title
     description: Description
+    descriptionTooLong: This description has {length} characters; the limit is {max}. Shorten it to save. Most emoji count as 2.
     assignee: Assignee
     reviewer: Reviewer
     priority: Priority
@@ -7411,6 +7420,8 @@ tasks:
     unwatch: Unwatch
   errors:
     PROJECT_ARCHIVED: This project is archived. Restore it to change its tasks.
+    TASK_TITLE_INVALID: A title needs 1 to {max} characters. Most emoji count as 2.
+    TASK_DESCRIPTION_INVALID: This description is too long to save. It can have up to {max} characters, and most emoji count as 2.
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'

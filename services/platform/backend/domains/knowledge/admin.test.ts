@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -56,6 +56,19 @@ async function refusal(
 afterEach(() => {
   vi.unstubAllEnvs();
 });
+
+/** Run with an empty org config tree: the org defines no providers. */
+async function withEmptyConfigDir<T>(
+  run: (dir: string) => Promise<T>,
+): Promise<T> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'tale-embedding-support-'));
+  vi.stubEnv('TALE_CONFIG_DIR', dir);
+  try {
+    return await run(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 describe('host policy on the knowledge admin doors', () => {
   it('refuses a cloud-metadata database host as a coded 400, not a 500', async () => {
@@ -182,16 +195,6 @@ describe('the settings an embedding write keeps', () => {
  * the org has no providers of its own, and only static catalogs are read.
  */
 describe('embedding recommendations with declared support', () => {
-  async function withEmptyConfigDir<T>(run: () => Promise<T>): Promise<T> {
-    const dir = await mkdtemp(path.join(tmpdir(), 'tale-embedding-support-'));
-    vi.stubEnv('TALE_CONFIG_DIR', dir);
-    try {
-      return await run();
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
-  }
-
   function key(providerSlug: string) {
     return { status: 'active', authMethod: 'api-key', providerSlug };
   }
@@ -246,4 +249,176 @@ describe('embedding recommendations with declared support', () => {
       support: 'unknown',
     });
   });
+});
+
+/**
+ * The declaration is the authority over a curated width: a pick whose
+ * provider does not declare `supported` is never offered as a one-click
+ * fill, while the provider is still reported with what it does declare. The
+ * shipped tree holds no such pick (a guard keeps every curated width beside
+ * a `supported` declaration), so the fixture is a system tree of its own.
+ */
+describe('a curated width without the declaration behind it', () => {
+  const MODELS = (provider: string) =>
+    [
+      `- id: ${provider}-embed`,
+      `  provider: ${provider}`,
+      '  tags:',
+      '    - embedding',
+      '  supportsTools: false',
+      '  supportsVision: false',
+      '  contextWindow: 8191',
+      '  embedding:',
+      '    dimensions: 1024',
+      '    recommended: true',
+      '',
+    ].join('\n');
+  const PROVIDER = (provider: string, embedding: string) =>
+    [
+      `name: ${provider}`,
+      `displayName: ${provider}`,
+      'apiFormat: openai',
+      'baseUrl: https://api.example.test/v1',
+      'catalog:',
+      '  source: static',
+      `embedding: ${embedding}`,
+      'auth:',
+      '  - method: api-key',
+      '',
+    ].join('\n');
+
+  async function withSystemTree<T>(
+    declarations: Record<string, string>,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const root = await mkdtemp(path.join(tmpdir(), 'tale-embedding-system-'));
+    try {
+      for (const [provider, embedding] of Object.entries(declarations)) {
+        await mkdir(path.join(root, 'providers', provider), {
+          recursive: true,
+        });
+        await writeFile(
+          path.join(root, 'providers', provider, 'provider.yml'),
+          PROVIDER(provider, embedding),
+        );
+        await mkdir(path.join(root, 'models', provider), { recursive: true });
+        await writeFile(
+          path.join(root, 'models', provider, 'models.yml'),
+          MODELS(provider),
+        );
+      }
+      vi.stubEnv('TALE_CONFIG_SYSTEM_DIR', root);
+      return await withEmptyConfigDir(run);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+
+  it('offers only the pick of a provider declared supported', async () => {
+    const view = await withSystemTree(
+      {
+        'declares-supported': 'supported',
+        'declares-unknown': 'unknown',
+        'declares-unsupported': 'unsupported',
+      },
+      () =>
+        listEmbeddingRecommendationsForOrg(
+          'acme',
+          [
+            'declares-supported',
+            'declares-unknown',
+            'declares-unsupported',
+          ].map((providerSlug) => ({
+            status: 'active',
+            authMethod: 'api-key',
+            providerSlug,
+          })),
+        ),
+    );
+
+    // Every provider carries a curated width, and all three are unlocked by
+    // a direct key — only the declaration tells them apart.
+    expect(view.recommendations).toEqual([
+      {
+        providerSlug: 'declares-supported',
+        model: 'declares-supported-embed',
+        dimensions: 1024,
+        recommended: true,
+      },
+    ]);
+    expect(view.providers).toEqual([
+      { providerSlug: 'declares-supported', support: 'supported' },
+      { providerSlug: 'declares-unknown', support: 'unknown' },
+      { providerSlug: 'declares-unsupported', support: 'unsupported' },
+    ]);
+  });
+});
+
+/**
+ * The write door holds the same line as the form: a provider declared unable
+ * to embed is refused before any file is touched, whether the declaration is
+ * shipped or the organization's own. The form's refusal alone let a direct
+ * call — or a save racing the declarations read — store a config that then
+ * failed every document at index time.
+ */
+describe('the embedding write door and the embedding declaration', () => {
+  const model = { model: 'example-embed', dimensions: 1024 };
+
+  it('refuses a shipped provider declared unable to embed', async () => {
+    const error = await withEmptyConfigDir(() =>
+      refusal(() =>
+        writeKnowledgeEmbedding(unreachableSql(), 'acme', {
+          providerSlug: 'anthropic',
+          ...model,
+        }),
+      ),
+    );
+    expect(error.status).toBe(400);
+    expect(error.code).toBe('EMBEDDING_PROVIDER_UNSUPPORTED');
+    expect(error.message).toContain('anthropic');
+  });
+
+  it("refuses an organization's own provider declared unable to embed", async () => {
+    const error = await withEmptyConfigDir(async (dir) => {
+      await mkdir(path.join(dir, 'acme', 'providers'), { recursive: true });
+      await writeFile(
+        path.join(dir, 'acme', 'providers', 'chat-gateway.yml'),
+        [
+          'name: chat-gateway',
+          'displayName: Chat gateway',
+          'apiFormat: openai',
+          'baseUrl: https://gateway.example.test/v1',
+          'catalog:',
+          '  source: models-endpoint',
+          'embedding: unsupported',
+          'auth:',
+          '  - method: api-key',
+          '',
+        ].join('\n'),
+      );
+      return refusal(() =>
+        writeKnowledgeEmbedding(unreachableSql(), 'acme', {
+          providerSlug: 'chat-gateway',
+          ...model,
+        }),
+      );
+    });
+    expect(error.code).toBe('EMBEDDING_PROVIDER_UNSUPPORTED');
+  });
+
+  it.each(['deepseek', 'openai', 'not-a-provider'])(
+    'lets %s through to the write — only a declared refusal refuses',
+    async (providerSlug) => {
+      // The test double opens no transaction: reaching it proves the door
+      // passed the declaration check.
+      await expect(
+        withEmptyConfigDir(() =>
+          writeKnowledgeEmbedding(unreachableSql(), 'acme', {
+            providerSlug,
+            ...model,
+          }),
+        ),
+      ).rejects.toThrow('a refused connection must not open a transaction');
+    },
+  );
 });

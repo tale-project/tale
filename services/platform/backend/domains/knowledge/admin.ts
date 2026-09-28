@@ -404,6 +404,26 @@ export async function readKnowledgeEmbeddingView(
   };
 }
 
+/**
+ * A provider whose connector declares `embedding: unsupported` offers no
+ * embedding model: a config naming it saves, then fails every document at
+ * index time. The form refuses it at the point of choosing; this is the same
+ * refusal at the door, for a direct call and for a form whose save raced its
+ * declarations read. A slug the org does not resolve is not judged here —
+ * the declaration is the only evidence, and there is none.
+ */
+function assertProviderCanEmbed(orgSlug: string, providerSlug: string): void {
+  const connector = resolveProvidersForOrg(orgSlug).find(
+    (provider) => provider.name === providerSlug,
+  );
+  if (connector?.embedding === 'unsupported') {
+    throw new KnowledgeAdminError(
+      'EMBEDDING_PROVIDER_UNSUPPORTED',
+      `Provider "${providerSlug}" offers no embedding model — choose a provider that serves one.`,
+    );
+  }
+}
+
 export async function writeKnowledgeEmbedding(
   sql: Sql,
   orgSlug: string,
@@ -423,6 +443,7 @@ export async function writeKnowledgeEmbedding(
   if (parsed.data.baseUrl) {
     assertHostAllowed(parsed.data.baseUrl);
   }
+  assertProviderCanEmbed(orgSlug, parsed.data.providerSlug);
   await withConfigWriteLock(sql, orgSlug, 'knowledge', async () => {
     const current = await readKnowledgeEmbeddingView(orgSlug);
     if (expectedHash !== undefined)
@@ -481,8 +502,13 @@ export interface EmbeddingRecommendation {
 /** What one provider the org can choose declares about embeddings. */
 export interface EmbeddingProviderSupport {
   providerSlug: string;
-  /** `unsupported` blocks the choice; `unknown` means no curated width here,
-   *  so the model and its dimensions are entered by hand. */
+  /** `unsupported` blocks the choice (the form and the write door both
+   *  refuse it); `supported` comes with a curated pick in
+   *  `recommendations`; `unknown` means no one-click pick for this org, so
+   *  the model and its dimensions are entered by hand. That covers a
+   *  provider declaring nothing either way, AND one declared `supported`
+   *  that this org reaches through no direct key — its catalog may still
+   *  list curated widths for the form's model select. */
   support: ProviderEmbeddingSupport;
 }
 

@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 23 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 25 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -265,6 +265,23 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   101-character **Region** → **Test connection** → focus lands on
   **Region**, the first refused field on the page, as it does on **Save**.
   Never a result line or toast reading `invalid body`.
+- [ ] `DATA-B9` · **Embedding model: an unanswered provider check refuses**
+  — With API-key credentials for Anthropic and DeepSeek, block the request
+  URL `/api/app/knowledge/embedding/recommendations` in DevTools → Network,
+  reload `/settings/data-residency` and toggle **Embedding model** on → a
+  warning `settings.dataResidency.orgEmbedding.supportReadFailed` with the
+  button `…orgEmbedding.supportReadRetry`. Pick `deepseek` → the **Model**
+  row holds no field; it reads `…orgEmbedding.modelUnchecked` beside the
+  hint `…orgEmbedding.modelUncheckedHint`, never
+  `…orgEmbedding.modelUncuratedHint`, and the header **Save** stays
+  disabled. Unblock the URL and press the button → the warning goes, the
+  provider stays `deepseek` and the row turns into the plain **Model**
+  field; pick `anthropic` → **Cannot embed**. Then, in the DevTools console,
+  `POST /api/app/knowledge/embedding?orgId=<org id>` with
+  `{"providerSlug":"anthropic","model":"x-embed","dimensions":1024}` → 400
+  `EMBEDDING_PROVIDER_UNSUPPORTED`; reload → the section shows what it
+  showed before. Repeat the blocked read in German and French: the warning,
+  the row and the button read in the locale.
 
 ## Deployment defaults
 

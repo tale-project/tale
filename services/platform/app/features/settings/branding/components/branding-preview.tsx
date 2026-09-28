@@ -24,6 +24,8 @@ export interface BrandingPreviewData {
   appName?: string;
   logoUrl?: string | null;
   faviconUrl?: string | null;
+  /** The accent as stored — the light-theme pick that the live app derives
+   * every theme's palette from — never a theme's rendering of it. */
   accentColor?: string;
 }
 

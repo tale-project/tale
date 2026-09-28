@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 93 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 96 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -356,12 +356,13 @@ any toggled setting after the run.
   at a chat with a cited reply, the Home panel with an unread item, and this
   page, in **Light theme** and **Dark theme** (`auth.userButton.themeLight` /
   `…themeDark`) → The **Branding preview** shows what the app shows; primary
-  buttons and the chat's send button wear the accent, rimmed in it, with a
-  legible label or arrow; Tab onto one draws a ring inside it in its label's
-  colour; Home's unread dots and the view switcher's attention dots wear the
-  accent, never a fixed blue; a citation, a link and the open settings row
-  stay readable — a deeper shade of the accent on the light theme, a lighter
-  one on the dark — and nothing set in the accent reads pale on the page.
+  buttons and the chat's send button wear the accent (rimmed in it on the
+  light theme) with a legible label or arrow; Tab onto one draws a ring inside
+  it in its label's colour; Home's unread dots and the view switcher's
+  attention dots wear the accent, never a fixed blue; a citation, a link and
+  the open settings row stay readable — a deeper shade of the accent on the
+  light theme, a lighter one on the dark — and nothing set in the accent reads
+  pale on the page.
 - [ ] `SET-F29` · **Branding images & reset** — Same page → **Upload logo**
   (`settings.branding.uploadLogo`) / **Upload favicon**
   (`settings.branding.uploadFavicon`); then the header's **Reset** action
@@ -708,7 +709,9 @@ any toggled setting after the run.
   short `SANDBOX_SESSION_MAX_IDLE_MS` the container outlives that idle window,
   so the pin holds on the spawner too.
 - [ ] `SET-F63` · **Settings lists page and create alike** — With more than
-  20 members (SET-F15 adds them), open `/dashboard/{org}/settings/members`,
+  20 members (the console loop under "More than 20 members" in
+  [setup.md](../setup.md) adds them; SET-F15 by hand), open
+  `/dashboard/{org}/settings/members`,
   `/dashboard/{org}/settings/teams` and `/dashboard/{org}/settings/api/rest`
   (first with no API keys of your own, then with one), at 1280 px and at
   390 px, in the light and in the dark theme → Members shows 20 rows over the
@@ -721,9 +724,15 @@ any toggled setting after the run.
   on a full-width row of its own at 390 px. With no keys the API page shows
   exactly one **Create API key**, inside the empty state
   (`emptyStates.apiKeys.title`), and it moves to the toolbar once a key
-  exists; **API docs** (`settings.apiDocs.openDocs`) sits under the table in
-  both states. No page scrolls sideways at 390 px, and every button label is
-  readable in both themes.
+  exists. On a cold visit, delay the initial API-key list: the page paints a
+  skeleton with no Create button; an empty response then shows the button
+  only inside the empty state. Fail that initial read: the page shows an error
+  with **Try again** (`common.errors.tryAgain`); allow the request and retry
+  to reach the empty state. The button never first appears above the skeleton.
+  **API docs**
+  (`settings.apiDocs.openDocs`) sits under the table in both states. No page
+  scrolls sideways at 390 px, and every button label is readable in both
+  themes.
 
 ## Boundary & error tests
 

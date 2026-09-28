@@ -16,16 +16,18 @@ import { describe, expect, it } from 'vitest';
  * without anyone deciding it may travel.
  *
  * This guard reads every `new TaskError(…)` and `new TaskReviewError(…)` in
- * the backend, and every `new ProjectError(…)` a task door can relay: the
- * task domain's own, and those of each projects-domain function a task door
- * reaches ({@link projectFunctionsReached}) — the app door's `handleError`
- * relays every `ProjectError` beside `TaskError`. It admits a message that
- * is a literal or is built only from what {@link ADMITTED} names: the shared
- * limit sentences (`core/tasks/helpers.ts`'s `task*Refusal`, which state a
- * cap, its unit and a measured length — `helpers.test.ts` pins them), plain
- * constants, and the one reviewed exception listed there with its reason. A
- * new piece fails here until it is either made static or reviewed onto the
- * list.
+ * the backend, and every `new ProjectError(…)` and `new AutomationError(…)`
+ * a task door can relay: the task domain's own, and those of each projects-
+ * or automations-domain function a task door reaches
+ * ({@link domainFunctionsReached}) — the app door's `handleError` relays
+ * every `ProjectError` and `AutomationError` beside `TaskError` word for
+ * word, as REST's envelope and a workflow's trace carry them. It admits a
+ * message that is a literal or is built only from what {@link ADMITTED}
+ * names: the shared limit sentences (`core/tasks/helpers.ts`'s
+ * `task*Refusal`, which state a cap, its unit and a measured length —
+ * `helpers.test.ts` pins them), plain constants, and the reviewed
+ * exceptions listed there with their reasons. A new piece fails here until
+ * it is either made static or reviewed onto the list.
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -98,12 +100,14 @@ function topLevelName(node: ts.Node): string | undefined {
 }
 
 /**
- * The functions of each `domains/projects/` module a task door reaches: the
- * ones a door imports, and every function of the same module those call in
- * turn. A `ProjectError` one of them throws reaches the door's answer.
+ * The functions of each module under `domain` (`domains/projects/`,
+ * `domains/automations/`) a task door reaches: the ones a door imports, and
+ * every function of the same module those call in turn. A `ProjectError`
+ * or `AutomationError` one of them throws reaches the door's answer.
  */
-function projectFunctionsReached(
+function domainFunctionsReached(
   files: readonly string[],
+  domain: string,
 ): Map<string, Set<string>> {
   const imported = new Map<string, Set<string>>();
   for (const file of files) {
@@ -127,7 +131,7 @@ function projectFunctionsReached(
       ).replace(/(\.ts)?$/, '.ts');
       const bindings = statement.importClause?.namedBindings;
       if (
-        !target.startsWith('domains/projects/') ||
+        !target.startsWith(domain) ||
         bindings === undefined ||
         !ts.isNamedImports(bindings)
       ) {
@@ -170,17 +174,25 @@ function projectFunctionsReached(
 function interpolatedPieces(): string[] {
   const pieces: string[] = [];
   const files = sourceFiles(BACKEND);
-  const reached = projectFunctionsReached(files);
+  const reachedBy: Record<string, Map<string, Set<string>>> = {
+    ProjectError: domainFunctionsReached(files, 'domains/projects/'),
+    AutomationError: domainFunctionsReached(files, 'domains/automations/'),
+  };
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
-    if (!/new (TaskError|TaskReviewError|ProjectError)\(/.test(source)) {
+    if (
+      !/new (TaskError|TaskReviewError|ProjectError|AutomationError)\(/.test(
+        source,
+      )
+    ) {
       continue;
     }
     const relative = backendPath(file);
     const inTasks = relative.startsWith('domains/tasks/');
-    const reachedHere = reached.get(relative);
-    const relayed = (node: ts.Node): boolean =>
-      inTasks || reachedHere?.has(topLevelName(node) ?? '') === true;
+    /** Whether a door relays this `ProjectError` / `AutomationError`. */
+    const relayed = (node: ts.Node, error: string): boolean =>
+      inTasks ||
+      reachedBy[error]?.get(relative)?.has(topLevelName(node) ?? '') === true;
     const tree = ts.createSourceFile(
       file,
       source,
@@ -193,7 +205,9 @@ function interpolatedPieces(): string[] {
         ts.isIdentifier(node.expression) &&
         (node.expression.text === 'TaskError' ||
           node.expression.text === 'TaskReviewError' ||
-          (node.expression.text === 'ProjectError' && relayed(node)))
+          ((node.expression.text === 'ProjectError' ||
+            node.expression.text === 'AutomationError') &&
+            relayed(node, node.expression.text)))
       ) {
         const [code, message] = node.arguments ?? [];
         if (
@@ -237,13 +251,23 @@ const ADMITTED = [
   // (`closePendingTaskReviewOnStatusLeave`); an agent's status move and the
   // external-ref sync close as `system`, so it never reaches a tool result.
   "domains/tasks/reviews.ts 'REVIEW_COMPETENCE_REQUIRED' held.missing.join(', ')",
+  // The first problem of a run input the deployed version's `inputs` schema
+  // refuses (`describeSchemaErrors`): a path into the input and the rule it
+  // broke ("is required", "must be string") — never an input's value. At a
+  // task door the input is the door's own task subject
+  // (`taskWorkflowSubjectInput`), so the path is one of its fixed keys or one
+  // the automation's schema requires. Every problem rides `data.issues`.
+  "domains/automations/store.ts 'AUTOMATION_INPUT_INVALID' named",
 ].sort();
 
 describe('task refusal sentences', () => {
   it('follow every projects-domain function a task door reaches', () => {
     // The doors' own imports, and what those call in turn: an access check
     // throws through `assertSameOrg` before its own refusals.
-    const reached = projectFunctionsReached(sourceFiles(BACKEND));
+    const reached = domainFunctionsReached(
+      sourceFiles(BACKEND),
+      'domains/projects/',
+    );
     expect([...reached.keys()]).toEqual(['domains/projects/service.ts']);
     expect([...(reached.get('domains/projects/service.ts') ?? [])]).toEqual(
       expect.arrayContaining([
@@ -252,6 +276,25 @@ describe('task refusal sentences', () => {
         'getProjectAuthContext',
         'listProjects',
         'loadProjectOrThrow',
+      ]),
+    );
+  });
+
+  it('follow every automations-domain function a task door reaches', () => {
+    // A task start reaches the run insert, and through it the project
+    // binding check: the app door used to relay its sentence, which named
+    // the `workflowSlug` the caller sent, word for word.
+    const reached = domainFunctionsReached(
+      sourceFiles(BACKEND),
+      'domains/automations/',
+    );
+    expect([...(reached.get('domains/automations/store.ts') ?? [])]).toEqual(
+      expect.arrayContaining([
+        'beginRunInTx',
+        'resolveRunProject',
+        'bindingProjectIds',
+        'cancelRunInTx',
+        'getRun',
       ]),
     );
   });

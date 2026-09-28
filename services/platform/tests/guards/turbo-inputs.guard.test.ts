@@ -65,6 +65,12 @@ const OUTSIDE_READS = [
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
   {
+    // Read as text, not imported: the guard that holds the accent palette's
+    // `THEME_BACKGROUND` to the stylesheet's `--background`.
+    path: 'packages/ui/src/globals.css',
+    readers: 'lib/utils/color.test.ts',
+  },
+  {
     path: ENSURE_SANDBOX_RUNTIME_SCRIPT,
     readers: 'scripts/dev-sandbox-runtime.test.ts',
   },

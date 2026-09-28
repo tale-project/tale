@@ -70,6 +70,10 @@ export function Alert({
   // live region on mount. Transient alerts keep the announcing default.
   const isLive = live !== 'off';
   const Icon = icon ?? DEFAULT_ICONS[variant ?? 'default'];
+  // The destructive tint is too dark beneath muted small text in light mode.
+  // Use the normal foreground for its explanation, as for its heading.
+  const bodyTone =
+    variant === 'destructive' ? 'text-foreground' : 'text-muted-foreground';
   return (
     <div
       role={isLive ? 'alert' : undefined}
@@ -90,16 +94,17 @@ export function Alert({
           {title}
         </Heading>
       )}
-      {/* Body is muted for hierarchy under the foreground title — the variant
-          color lives on the border, icon, and tint, not on a wall of colored
-          text. */}
+      {/* The variant color lives on the border, icon and tint; the body
+          uses neutral text with enough contrast against that tint. */}
       {description && (
-        <div className="text-muted-foreground text-sm break-words [&_p]:leading-relaxed">
+        <div
+          className={cn(bodyTone, 'text-sm break-words [&_p]:leading-relaxed')}
+        >
           {description}
         </div>
       )}
       {children && (
-        <div className="text-muted-foreground break-words">{children}</div>
+        <div className={cn(bodyTone, 'break-words')}>{children}</div>
       )}
     </div>
   );

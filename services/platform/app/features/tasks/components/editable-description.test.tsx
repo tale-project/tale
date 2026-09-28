@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TASK_DESCRIPTION_MAX } from '@/backend/core/tasks/helpers';
 import { render, screen } from '@/tests/utils/render';
 
 // The mention machinery is a separate concern with its own tests, and it talks
@@ -13,23 +14,32 @@ vi.mock('./mention-textarea', () => ({
     value,
     placeholder,
     onValueChange,
+    onKeyDown,
+    errorMessage,
     autoFocus,
   }: {
     label?: string;
     value: string;
     placeholder?: string;
     onValueChange: (value: string) => void;
+    onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+    errorMessage?: string;
     autoFocus?: boolean;
   }) => (
-    <label>
-      {label}
-      <textarea
-        value={value}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        onChange={(event) => onValueChange(event.target.value)}
-      />
-    </label>
+    <>
+      <label>
+        {label}
+        <textarea
+          value={value}
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          onKeyDown={onKeyDown}
+          onChange={(event) => onValueChange(event.target.value)}
+        />
+      </label>
+      {/* The real field renders its error the way `Textarea` does. */}
+      {errorMessage !== undefined && <p role="alert">{errorMessage}</p>}
+    </>
   ),
 }));
 
@@ -211,5 +221,47 @@ describe('EditableDescription', () => {
     );
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  // An older import stored descriptions whole, past the cap the server now
+  // holds every write to, and saving one answered only the generic error
+  // toast. The editor names the cap under the draft and holds the save —
+  // the button and ⌘/Ctrl+Enter alike — until the draft fits.
+  it('names the cap under a draft past it and holds the save until it fits', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { user } = renderField('d'.repeat(TASK_DESCRIPTION_MAX + 1), onSave);
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'This description has 20,001 characters; the limit is 20,000. ' +
+        'Shorten it to save. Most emoji count as 2.',
+    );
+
+    const field = screen.getByRole('textbox', { name: 'Description' });
+    await user.type(field, ' and more');
+    expect(screen.getByRole('alert')).toHaveTextContent('20,010 characters');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.keyboard('{Control>}{Enter}{/Control}');
+    expect(onSave).not.toHaveBeenCalled();
+
+    // Back at the cap, the hint goes and the save is offered again.
+    await user.type(field, '{Backspace}'.repeat(10));
+    expect(field).toHaveValue('d'.repeat(TASK_DESCRIPTION_MAX));
+    expect(screen.queryByRole('alert')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith('d'.repeat(TASK_DESCRIPTION_MAX));
+  });
+
+  it('measures the draft as the save sends it, trimmed', async () => {
+    const { user } = renderField('Short.');
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const field = screen.getByRole('textbox', { name: 'Description' });
+    await user.clear(field);
+    await user.click(field);
+    await user.paste(`  ${'d'.repeat(TASK_DESCRIPTION_MAX)}\n`);
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 });

@@ -18,6 +18,18 @@ describe('FilterButton', () => {
     expect(button).toHaveTextContent('');
   });
 
+  it('marks active filters with a dot in the accent, not a fixed blue', () => {
+    // `bg-primary` is `--primary`, which a host (an organization's branding)
+    // sets from its accent.
+    const { container } = render(
+      <FilterButton hasActiveFilters onClick={vi.fn()} />,
+    );
+
+    const dot = container.querySelector('[data-slot="active-filter-dot"]');
+    expect(dot).toHaveClass('bg-primary');
+    expect(dot?.className).not.toMatch(/\bbg-blue-/);
+  });
+
   it('shows the label by default', () => {
     render(<FilterButton hasActiveFilters={false} onClick={vi.fn()} />);
 

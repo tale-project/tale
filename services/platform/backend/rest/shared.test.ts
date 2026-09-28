@@ -9,6 +9,7 @@ import { z } from 'zod';
 import {
   findNulByte,
   formatKeysetCursor,
+  houseIssueMessage,
   invalidBodyResponse,
   INVALID_JSON,
   loadRestProject,
@@ -799,5 +800,42 @@ describe('nonBlank with a unit', () => {
     );
     const plain = nonBlank(3).safeParse('abcd');
     expect(plain.error?.issues[0]?.message).not.toContain('UTF-16');
+  });
+});
+
+/**
+ * Every string cap on this door counts `String.length`, UTF-16 code units,
+ * and the house sentence names that unit — the one the reference's example
+ * (`must be at most 200 UTF-16 code units`) and the domain's refusals name.
+ * It used to say "characters" for every field but the few that passed a
+ * unit of their own, so the published example matched no generic answer.
+ */
+describe('houseIssueMessage — string caps', () => {
+  const reason = (schema: z.ZodType, value: unknown): string | undefined =>
+    schema.safeParse(value, { error: houseIssueMessage }).error?.issues[0]
+      ?.message;
+
+  it('names UTF-16 code units, where an emoji counts 2', () => {
+    const cap = z.string().max(200);
+    expect(reason(cap, 'x'.repeat(201))).toBe(
+      'must be at most 200 UTF-16 code units',
+    );
+    expect(reason(cap, '🎯'.repeat(100))).toBeUndefined();
+    expect(reason(cap, '🎯'.repeat(101))).toBe(
+      'must be at most 200 UTF-16 code units',
+    );
+    expect(reason(z.string().min(3), 'xy')).toBe(
+      'must be at least 3 UTF-16 code units',
+    );
+    expect(reason(z.string().max(1), 'xy')).toBe(
+      'must be at most 1 UTF-16 code unit',
+    );
+  });
+
+  it('keeps counting items for an array and blank for an empty string', () => {
+    expect(reason(z.array(z.string()).max(2), ['a', 'b', 'c'])).toBe(
+      'must have at most 2 items',
+    );
+    expect(reason(z.string().min(1), '')).toBe('must not be blank');
   });
 });

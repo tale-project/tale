@@ -166,7 +166,7 @@ export function OneDrivePickerStage({
                     <button
                       type="button"
                       onClick={() => onBreadcrumbClick(index)}
-                      className="hover:text-blue-600 hover:underline"
+                      className="hover:text-primary hover:underline"
                     >
                       {index === 0 ? <Home className="size-4" /> : folder.name}
                     </button>
@@ -305,7 +305,7 @@ function SharePointBreadcrumb({
       <button
         type="button"
         onClick={onSiteReset}
-        className="flex items-center gap-1 hover:text-blue-600 hover:underline"
+        className="hover:text-primary flex items-center gap-1 hover:underline"
       >
         <SharePointIcon className="size-4" />
         {t('microsoft365.sharePointSites')}
@@ -316,7 +316,7 @@ function SharePointBreadcrumb({
           <button
             type="button"
             onClick={onDriveReset}
-            className="hover:text-blue-600 hover:underline"
+            className="hover:text-primary hover:underline"
           >
             {selectedSite.displayName}
           </button>
@@ -326,7 +326,7 @@ function SharePointBreadcrumb({
               <button
                 type="button"
                 onClick={onBreadcrumbReset}
-                className="hover:text-blue-600 hover:underline"
+                className="hover:text-primary hover:underline"
               >
                 {selectedDrive.name}
               </button>
@@ -336,7 +336,7 @@ function SharePointBreadcrumb({
                   <button
                     type="button"
                     onClick={() => onFolderBreadcrumbClick(index)}
-                    className="hover:text-blue-600 hover:underline"
+                    className="hover:text-primary hover:underline"
                   >
                     {folder.name}
                   </button>

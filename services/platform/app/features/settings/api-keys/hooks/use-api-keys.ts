@@ -1,3 +1,5 @@
+import { queryOptions } from '@tanstack/react-query';
+
 import { useReactMutation } from '@/app/hooks/use-react-mutation';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
@@ -13,8 +15,12 @@ interface CreateApiKeyResult {
   id: string;
 }
 
-export function useApiKeys(organizationId: string) {
-  return useReactQuery({
+/**
+ * The API keys read, shared by the page's hook and its route loader so the
+ * loader warms the very entry the table reads.
+ */
+export function apiKeysQuery(organizationId: string) {
+  return queryOptions({
     queryKey: ['api-keys', organizationId],
     queryFn: async () => {
       const result = await authClient.apiKey.list();
@@ -25,6 +31,10 @@ export function useApiKeys(organizationId: string) {
       return result.data?.apiKeys ?? [];
     },
   });
+}
+
+export function useApiKeys(organizationId: string) {
+  return useReactQuery(apiKeysQuery(organizationId));
 }
 
 export function useCreateApiKey(organizationId: string) {
@@ -53,11 +63,16 @@ export function useCreateApiKey(organizationId: string) {
         id: result.data.id,
       };
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ['api-keys', organizationId],
-      });
-    },
+    // Returned, so the mutation settles only once the list holds the new key.
+    // The first key moves the table's Create button from the empty state to
+    // the toolbar (a remount); were the success dialog shown first, a quick
+    // Done would hand focus to the empty-state button just before the refetch
+    // unmounted it, dropping focus to the page. A failed refetch still
+    // resolves (`invalidateQueries` never throws), so the key is always shown.
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: apiKeysQuery(organizationId).queryKey,
+      }),
   });
 }
 

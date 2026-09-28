@@ -309,7 +309,8 @@ const taskStore: WorkflowTaskStore = {
       })),
     ),
   listExternalIssues: () => Promise.resolve({ issues: [], hasMore: false }),
-  upsert: () => Promise.resolve({ taskId: 'task_1', created: true }),
+  upsert: ({ title }) =>
+    Promise.resolve({ taskId: 'task_1', created: true, title }),
   get: ({ taskId }) =>
     Promise.resolve({
       taskId,

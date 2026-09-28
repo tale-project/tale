@@ -113,17 +113,30 @@ export function taskCommentRefusal(body: string): string | null {
   return null;
 }
 
+/** Grapheme segmentation for the imported cut, built on first use: the app
+ * imports this module for its limits, and only an import cuts. */
+let graphemes: Intl.Segmenter | undefined;
+
 /**
  * Imported text, trimmed and cut to `max` UTF-16 code units ending in "…".
- * The cut never ends on the first half of a surrogate pair: a lone half is
- * no character, and storage writes it as U+FFFD.
+ * The cut ends on a grapheme boundary (`Intl.Segmenter`), so it never
+ * splits what a reader sees as one character: an emoji's surrogate pair (a
+ * lone half is no character, and storage writes it as U+FFFD), a ZWJ
+ * sequence (a family emoji is kept whole or dropped, never left as its
+ * first person), a flag's two regional indicators, a skin-tone modifier, a
+ * keycap, or a letter and its combining marks. The last whole grapheme that
+ * ends within `max - 1` units is kept; one grapheme longer than that leaves
+ * only the "…".
  */
 function cutImportedText(text: string, max: number): string {
   const trimmed = text.trim();
   if (trimmed.length <= max) return trimmed;
-  let end = max - 1;
-  const last = trimmed.charCodeAt(end - 1);
-  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  graphemes ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  // The grapheme holding unit `max - 1`, the first with no room left beside
+  // the "…", starts where the kept text ends: at that unit when it opens a
+  // grapheme, before it when it continues one. (`containing` answers
+  // undefined only past the end, and `trimmed` is longer than `max`.)
+  const end = graphemes.segment(trimmed).containing(max - 1)?.index ?? 0;
   return `${trimmed.slice(0, end).trimEnd()}…`;
 }
 

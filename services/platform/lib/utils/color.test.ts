@@ -268,7 +268,11 @@ describe('deriveAccentPalette', () => {
     (theme) => {
       for (const pick of BAD_PICKS) {
         const palette = deriveAccentPalette(pick, theme);
-        // `--primary` / `--ring` paint exactly the checked text shade…
+        // `--primary` / `--ring` paint exactly the checked text shade. Not a
+        // tautology: a rounded string of the hex (`hexToHsl(text)`, the way
+        // `baseHsl` was built) paints `#9582c0` for `#443366` on dark, not
+        // the checked `#9682c0`. The painted proof is
+        // `accent-chrome.browser.test.tsx`…
         expect(paintedHsl(palette.textHsl), pick).toBe(
           palette.text.toLowerCase(),
         );

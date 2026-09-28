@@ -11,6 +11,7 @@
         "$TURBO_ROOT$/compose.dev.yml",
         "$TURBO_ROOT$/configs/platform/**",
         "$TURBO_ROOT$/knip.config.ts",
+        "$TURBO_ROOT$/packages/ui/src/globals.css",
         "$TURBO_ROOT$/scripts/ensure-sandbox-runtime-image.ts",
         "$TURBO_ROOT$/services/db/init-scripts/*.sql",
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",

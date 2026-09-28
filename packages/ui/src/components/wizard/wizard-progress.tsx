@@ -241,7 +241,10 @@ export function WizardProgress({
                     className={cn(
                       'focus-visible:ring-ring flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none',
                       isActive && 'bg-accent-base text-accent-fg',
-                      isComplete && 'bg-accent-base/15 text-accent-base',
+                      // The check is the accent as ink on its own tint: the
+                      // text shade (`--primary`) reads there; the surface
+                      // `accent-base` only has to clear 3:1 on the page.
+                      isComplete && 'bg-primary/15 text-primary',
                       !isActive &&
                         !isComplete &&
                         'bg-bg-elevated text-fg-muted ring-border-strong ring-1',

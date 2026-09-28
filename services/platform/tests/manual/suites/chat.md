@@ -226,7 +226,7 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.markAsUnread`) → The pinned chat moves to the **Pinned** band
   (`home.groups.pinned`) with a pin mark (`chat.pinned`), and **Unpin chat**
   (`chat.unpinChat`) returns it to its time band; the new name persists after
-  reload, on the row and in the chat header; an unread chat shows the blue
+  reload, on the row and in the chat header; an unread chat shows the accent
   **Unread** dot (`home.row.unread`) and a bold title until **Mark as read**
   (`chat.markAsRead`) or opening it.
 - [ ] `CHAT-F28` · **Archive / unarchive** — Chat row menu → **Archive**

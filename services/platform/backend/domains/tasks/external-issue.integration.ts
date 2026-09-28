@@ -5,6 +5,10 @@ import type { TaskExternalIssue } from '@tale/shared/schemas/task-external-issue
 import type { Sql } from 'postgres';
 
 import type { WorkflowIssueInput } from '../../../lib/connectors/natives/platform-tasks.ts';
+import {
+  TASK_TITLE_MAX,
+  truncateImportedTitle,
+} from '../../core/tasks/helpers.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
 import { upsertTaskByExternalRef } from './external-ref.ts';
 import { loadTaskOrThrow, TaskError } from './service.ts';
@@ -88,6 +92,8 @@ export async function checkTaskExternalIssueSync(
     'external issue: rename and source closure preserve Tale edits and triage',
     renamed.taskId === taskId &&
       !renamed.created &&
+      // The sync answers the title the task kept, not the one it was sent.
+      renamed.title === 'Human title' &&
       refreshed.title === 'Human title' &&
       refreshed.description === 'Human description' &&
       refreshed.status === 'cancelled' &&
@@ -97,7 +103,36 @@ export async function checkTaskExternalIssueSync(
       refreshed.externalUrl === closed.url &&
       refreshed.externalIssue?.title === closed.title &&
       refreshed.externalIssue.state === 'closed',
-    `same=${renamed.taskId === taskId}, Tale=${refreshed.status}, source=${refreshed.externalIssue?.state}`,
+    `same=${renamed.taskId === taskId}, answered=${renamed.title}, Tale=${refreshed.status}, source=${refreshed.externalIssue?.state}`,
+  );
+
+  // The workflow natives' batch (the importers' own lane) answers the title
+  // each task carries: an over-long one as the create cut and stored it.
+  const longTitle = `${'L'.repeat(TASK_TITLE_MAX)} and the rest`;
+  const [longSync] = await pgTaskStore(sql).upsertIssues({
+    organizationId: ctx.orgId,
+    projectId,
+    caller: { kind: 'system', reason: 'isolated source integration proof' },
+    issues: [
+      {
+        externalSystem: 'github',
+        externalId: `example/old-repo#${now}`,
+        title: longTitle,
+        externalIssue: { ...source, id: randomUUID(), title: longTitle },
+      },
+    ],
+  });
+  if (longSync?.taskId == null) {
+    throw new Error('the long-title batch sync did not answer a task');
+  }
+  const longRow = await loadTaskOrThrow(sql, longSync.taskId, ctx.orgId);
+  record(
+    'external issue: a batch sync answers the title its task stored, cut to the cap',
+    longSync.created &&
+      longRow.title === truncateImportedTitle(longTitle) &&
+      longSync.title === longRow.title &&
+      longRow.externalIssue?.title === longTitle,
+    `answered=${longSync.title.length} units, stored=${longRow.title.length}`,
   );
 
   await sync({ ...source, syncedAt: now - 1 });
@@ -369,7 +404,7 @@ async function checkTransferredIssueTracking(
           provider === 'github' ? ('closed' as const) : ('resolved' as const),
         syncedAt: now + 44,
       };
-      await write(43, resolved);
+      const settled = await write(43, resolved);
       const refreshed = await loadTaskOrThrow(sql, taskId, ctx.orgId);
       const retained = await sql<{ scopes: string[] }[]>`
         SELECT external_issue_source_scopes AS scopes FROM app.tasks WHERE id=${taskId}
@@ -377,6 +412,8 @@ async function checkTransferredIssueTracking(
       record(
         `external issue: ${provider} ${legacy ? 'legacy' : 'tracked'} transferred resolution preserves local triage`,
         refreshed.title === 'Human transfer title' &&
+          // …and answers that title, never the "Imported title" it was sent.
+          settled[0]?.title === 'Human transfer title' &&
           refreshed.status === 'in_progress' &&
           refreshed.externalIssue?.state === resolved.state &&
           refreshed.externalUrl === resolved.url &&
@@ -384,7 +421,7 @@ async function checkTransferredIssueTracking(
           ['41', '42', '43'].every((scope) =>
             retained[0]?.scopes.includes(scope),
           ),
-        `local=${refreshed.status}, source=${refreshed.externalIssue?.state}`,
+        `local=${refreshed.status}, answered=${settled[0]?.title}, source=${refreshed.externalIssue?.state}`,
       );
       if (provider === 'glitchtip') {
         const foreign = 'https://foreign-transfers.example.test';
