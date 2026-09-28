@@ -2625,7 +2625,7 @@ onboarding:
   provider:
     heading: OpenRouter verbinden
     why:
-      Ein Schlüssel schaltet Hunderte Modelle für Chat, Bilder, Sprache und mehr
+      Ein Schlüssel schaltet Hunderte Modelle für Chat, Agenten, Sprache und mehr
       frei – wir konfigurieren eine empfohlene Auswahl vor, damit du sofort
       loslegen kannst.
   finish:
@@ -2658,7 +2658,7 @@ emptyStates:
     description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können.
   skills:
     title: Noch keine Skills
-    description: Schreibe einen Skill, um Agents wiederverwendbares Wissen mitzugeben — nutz ihn im Chat oder hänge ihn an eine Automatisierung.
+    description: Schreib einen Skill einmal und rüste dann Projekt-Agenten oder Agenten-Schritte in Automatisierungen damit aus.
   members:
     title: Keine Mitglieder gefunden
     description: Lade Personen ein, in diesem Workspace zusammenzuarbeiten.

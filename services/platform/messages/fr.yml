@@ -2652,7 +2652,7 @@ onboarding:
   provider:
     heading: Connecter OpenRouter
     why:
-      Une seule clé débloque des centaines de modèles pour le chat, les images,
+      Une seule clé débloque des centaines de modèles pour le chat, les agents,
       la voix et plus encore — nous préconfigurons une sélection recommandée
       pour que tu sois prêt tout de suite.
   finish:
@@ -2685,7 +2685,7 @@ emptyStates:
     description: Enregistre des faits depuis le chat ou ajoute des entrées que les agents peuvent réutiliser.
   skills:
     title: Aucun skill pour l’instant
-    description: Écris un skill pour donner aux agents des connaissances réutilisables — utilise-le dans le chat ou attache-le à une automatisation.
+    description: Écris un skill une fois, puis équipe-en les agents de projet ou les étapes d’agent de tes automatisations.
   members:
     title: Aucun membre trouvé
     description: Invite des personnes à collaborer dans ce workspace.

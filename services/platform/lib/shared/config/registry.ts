@@ -121,11 +121,12 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
   },
   // Skills — one bundle directory per skill (`<org>/skills/<slug>/SKILL.md`
   // plus small assets). A skill is a knowledge pack an agent expands, never
-  // something the platform runs, so the files are read at the two places
-  // that consume them: staging a sandbox workspace and answering the skill
-  // tools during a turn. Sharing lives in the file itself — `visibility:
-  // private | org` with an `owner` — so there is nothing to mirror into a
-  // table and no cross-org surface to scope. Catalog-scaffolded (`bundle`: a
+  // something the platform runs, so the files are read where an agent run
+  // consumes them: staging the sandbox workspace of a project agent's task or
+  // an automation's agent step (chat does not use skills). Sharing lives in
+  // the file itself — `visibility: team | org` with its `teams` and an
+  // `owner` — so there is nothing to mirror into a table and no cross-org
+  // surface to scope. Catalog-scaffolded (`bundle`: a
   // whole `<slug>/` directory tree per skill) so a fresh org ships with the
   // builtin skills under `configs/platform/custom/skills/` — e.g. the baked
   // `visual-aspect-analyzer`. An org still authors or imports its own skills

@@ -3,7 +3,8 @@
 > **Prefix** `SKILL-` · **Reset** none · **Cost** 20 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
-assets) any chat or agent can read. Covers the settings table with its facets,
+assets) that project agents and automation agent steps are equipped with; chat
+does not use them. Covers the settings table with its facets,
 authoring a blank skill, uploading a bundle (zip/folder), visibility scopes
 (org/team; private is retired), the detail pane with its bundle tree and asset
 viewer, edit/delete, and equipping a skill on a project agent. Supersedes the
@@ -47,7 +48,9 @@ builtin skill from `configs/platform/custom/skills/`.
   renders columns **Name / Description / Visibility / Usage / Labels**
   (`skills.columns.*`); search (`skills.searchPlaceholder`) narrows by slug,
   description, **and** label text; a fresh org shows the empty state
-  (`emptyStates.skills.title`) whose click opens the create pane.
+  (`emptyStates.skills.title`) whose click opens the create pane, and whose
+  description (`emptyStates.skills.description`) points at project agents and
+  automation agent steps — never at chat, which does not use skills.
 - [ ] `SKILL-F2` · **Facets** — Open the table filter → **Visibility**
   (`skills.library.scopeFilterLabel`) and **Filter by label**
   (`skills.library.labelFilterLabel`) → The scope facet offers **Organization

@@ -7,8 +7,9 @@
  * configurable per org, its loadout is exactly the three retrieval tools in
  * `tools.ts`, and its guide lives here in code where a config edit cannot
  * widen it. Org voice still applies through the governance mandatory
- * instructions; personas with their own instructions and allowlists remain a
- * TASK-lane concept (`lib/agents/`).
+ * instructions; personas with their own instructions, skills and allowlists
+ * are project agents working tasks (`backend/domains/projects/`) and
+ * automation agent steps.
  *
  * The instructions are authored in English only. The runtime-directives block
  * of the context contract already sets the reply language — the user's own,
