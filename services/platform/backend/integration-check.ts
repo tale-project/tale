@@ -25004,6 +25004,7 @@ async function checkConversations(
     addMessageToConversation,
     listConversationsPage,
     countConversationsByStatus,
+    markConversationAsRead,
   } = await import('./domains/conversations/service.ts');
 
   // Seed: a contact + an inbound email conversation (the ingest shape).
@@ -25756,6 +25757,185 @@ async function checkConversations(
       afterTeamClear?.team === null &&
       afterTeamClear.user === memberId,
     `set=${setPerson.status}/${setTeam.status}, refused=[${refusals.join('; ')}] kept=${afterRefusals?.user === memberId}/${afterRefusals?.team === teamId}, clearPerson=${clearPerson.status} → ${afterPersonClear?.user ?? 'null'}/${afterPersonClear?.team === teamId ? 'team kept' : 'team LOST'}, clearTeam=${clearTeam.status} → ${afterTeamClear?.team ?? 'null'}/${afterTeamClear?.user === memberId ? 'person kept' : 'person LOST'}`,
+  );
+
+  // --- Overlapping summary writes lose nothing (#3735) -------------------
+  // Writer A runs the production service in-process and is held just before
+  // its conversation UPDATE — having read the row and, for an append, stored
+  // its message; append B (a newer inbound message) goes through the native
+  // door meanwhile; then A is released. The hold only reorders: every read
+  // and write is the service's own. Read unlocked, B committed while A was
+  // held and A then wrote back its stale snapshot — one unread message, the
+  // older time. Locked, B waits for A (a blocked backend) and builds on it.
+  const holdAtSummaryUpdate = (
+    run: (tx: TransactionSql) => Promise<unknown>,
+  ): {
+    done: Promise<unknown>;
+    atUpdate: Promise<void>;
+    release: () => void;
+  } => {
+    let release = (): void => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reached = (): void => {};
+    const atUpdate = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const done = sql.begin((tx) =>
+      run(
+        new Proxy(tx, {
+          apply(target, thisArg, args: unknown[]) {
+            const strings = args[0];
+            if (
+              Array.isArray(strings) &&
+              strings.join('?').includes('UPDATE app.conversations SET')
+            ) {
+              reached();
+              return released.then(() => Reflect.apply(target, thisArg, args));
+            }
+            return Reflect.apply(target, thisArg, args);
+          },
+        }),
+      ),
+    );
+    return { done, atUpdate, release };
+  };
+  const blockedBackends = async (): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pg_stat_activity
+          WHERE datname = current_database()
+            AND cardinality(pg_blocking_pids(pid)) > 0
+        `
+      )[0]?.count ?? '0',
+    );
+  const overlapWith = async (
+    label: string,
+    seedUnread: boolean,
+    writer: (tx: TransactionSql, id: string) => Promise<unknown>,
+  ) => {
+    const id = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject: `Overlap probe: ${label}`,
+        channel: 'email',
+        direction: 'inbound',
+        connectorName: 'imap-smtp',
+      }),
+    );
+    const older = Date.now() - 120_000;
+    const newer = older + 60_000;
+    if (seedUnread) {
+      await sql.begin((tx) =>
+        addMessageToConversation(tx, {
+          conversationId: id,
+          organizationId: orgId,
+          sender: 'customer@inbox.test',
+          content: 'The first question.',
+          isCustomer: true,
+          sentAt: older,
+        }),
+      );
+    }
+    const held = holdAtSummaryUpdate((tx) => writer(tx, id));
+    await held.atUpdate;
+    let bCommitted = false;
+    const appendB = api(`/${id}/messages`, {
+      body: { content: 'A newer question.', isCustomer: true, sentAt: newer },
+    }).then((res) => {
+      bCommitted = true;
+      return res.status;
+    });
+    const bWaited = await waitFor(
+      async () => bCommitted || (await blockedBackends()) >= 1,
+      10_000,
+    );
+    const committedWhileHeld = bCommitted;
+    held.release();
+    await held.done;
+    const bStatus = await appendB;
+    const stored = (
+      await sql<
+        {
+          unread: number | null;
+          metaLast: number | null;
+          indexedLast: number | null;
+          messages: number;
+        }[]
+      >`
+        SELECT (metadata->>'unread_count')::int AS unread,
+               (metadata->>'last_message_at')::float8 AS "metaLast",
+               last_message_at_ms::float8 AS "indexedLast",
+               (SELECT count(*)::int FROM app.conversation_messages m
+                 WHERE m.conversation_id = c.id) AS messages
+        FROM app.conversations c WHERE c.id = ${id}
+      `
+    )[0];
+    const projected = z
+      .object({
+        item: z.looseObject({
+          unread_count: z.number(),
+          last_message_at: z.string(),
+        }),
+      })
+      .loose()
+      .safeParse(await (await api(`/${id}`)).json());
+    await sql`DELETE FROM app.conversations WHERE id = ${id}`;
+    return {
+      bStatus,
+      bWaited: bWaited && !committedWhileHeld,
+      stored,
+      newer,
+      projectedUnread: projected.success
+        ? projected.data.item.unread_count
+        : null,
+      projectedLast: projected.success
+        ? Date.parse(projected.data.item.last_message_at)
+        : null,
+    };
+  };
+  const describeOverlap = (o: Awaited<ReturnType<typeof overlapWith>>) =>
+    `B=${o.bStatus} waited=${o.bWaited} stored unread=${o.stored?.unread} messages=${o.stored?.messages} last=${o.stored?.metaLast === o.newer ? 'newer' : o.stored?.metaLast}/${o.stored?.indexedLast === o.newer ? 'newer' : o.stored?.indexedLast} projected=${o.projectedUnread}/${o.projectedLast === o.newer ? 'newer' : o.projectedLast}`;
+  const olderAppend = await overlapWith('two appends', false, (tx, id) =>
+    addMessageToConversation(tx, {
+      conversationId: id,
+      organizationId: orgId,
+      sender: 'customer@inbox.test',
+      content: 'An older question.',
+      isCustomer: true,
+      sentAt: Date.now() - 120_000,
+    }),
+  );
+  record(
+    'conversations: two overlapping appends both count as unread, and the newer one dates the conversation',
+    olderAppend.bStatus === 201 &&
+      olderAppend.bWaited &&
+      olderAppend.stored?.messages === 2 &&
+      olderAppend.stored.unread === 2 &&
+      olderAppend.stored.metaLast === olderAppend.newer &&
+      olderAppend.stored.indexedLast === olderAppend.newer &&
+      olderAppend.projectedUnread === 2 &&
+      olderAppend.projectedLast === olderAppend.newer,
+    describeOverlap(olderAppend),
+  );
+  const readBeside = await overlapWith(
+    'read beside an append',
+    true,
+    (tx, id) => markConversationAsRead(tx, orgId, id),
+  );
+  record(
+    'conversations: a message landing while a reader marks the thread read stays unread and dates it',
+    readBeside.bStatus === 201 &&
+      readBeside.bWaited &&
+      readBeside.stored?.messages === 2 &&
+      readBeside.stored.unread === 1 &&
+      readBeside.stored.metaLast === readBeside.newer &&
+      readBeside.stored.indexedLast === readBeside.newer &&
+      readBeside.projectedUnread === 1,
+    describeOverlap(readBeside),
   );
 }
 
