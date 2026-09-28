@@ -49,6 +49,8 @@ Project chat also receives the project’s standing instructions. File access is
 
 Use [attachments](/platform/chat/attachments) for material needed in this conversation, [project files](/platform/projects/manage-files) for recurring project work, and [Knowledge](/platform/knowledge/overview) for shared reference material. The assistant retrieves content when it needs it; uploading a document does not mean every answer has read it.
 
+Questions about Tale itself need no upload: the assistant reads the public documentation at docs.tale.dev before explaining how a screen or setting works. The documentation describes the latest release, so the assistant points out when your workspace may differ.
+
 ## Check what the assistant used
 
 Above the reply, the timeline shows search and reading steps. A failed step explains what could not be read; it is useful evidence when an answer is incomplete. Expand the thinking section when one is available, but judge factual claims against sources rather than the fluency of that explanation.
