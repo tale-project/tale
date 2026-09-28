@@ -111,27 +111,31 @@ declared inputs — test file ordering, wall-clock, a shared browser page — is
 cacheable, and the fix is the determinism, not the cache.
 
 Turbo's default source inputs cover a task's own workspace. A task that reads a file outside
-it lists the file as a `$TURBO_ROOT$/…` input in its workspace's `turbo.json`; otherwise an
-edit to that file alone replays the cached verdict. Keep `$TURBO_DEFAULT$` and any inherited
-inputs (`$TURBO_EXTENDS$`) in that list:
+it lists the file in its workspace's `turbo.json` `inputs`; otherwise an edit to that file
+alone replays the cached verdict. Open the list with `$TURBO_EXTENDS$` (keeps the root task's
+inputs, which a workspace list otherwise replaces) and `$TURBO_DEFAULT$` (keeps the workspace's
+own files), then list the outside files as `$TURBO_ROOT$/<path>`:
 
 - [`services/platform/turbo.json`](../services/platform/turbo.json) gives `@tale/platform`'s
   tests the catalogs under `configs/platform/`, compose files, tale-db init scripts,
   knowledge-db migrations and other outside files. Its guard is
   `services/platform/tests/guards/turbo-inputs.guard.test.ts`.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
-  tree (test, build), its JSON maps (typecheck, lint) and the root `README*.md` (test).
-  Its guard is `services/docs/tests/turbo-inputs.test.ts`.
+  tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
+  i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
   pages. Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
-These guards ask `turbo --dry=json` whether the files are hashed. A suite that starts reading
-another outside file adds it to both the task's inputs and its guard.
+These guards ask `turbo --dry=json` whether the files are hashed; the docs and CLI guards also
+hold the two-entry prefix. A suite that starts reading another outside file adds it to both
+the task's inputs and its guard.
 
-Workspace-package sources remain a separate gap. An edit under `packages/` leaves every dependent workspace's `test`,
-`typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…` — the
-services' i18n tests that read the `packages/ui` catalogs included. A package change is judged
-only by that package's own tasks until the consumer's own files change.
+Beyond such a declared file, an edit under `packages/` leaves every dependent workspace's
+`test`, `typecheck` and `lint` hash unchanged, because none of those tasks depends on `^…`: a
+package change is judged only by that package's own tasks until the consumer's own files
+change. The i18n suites of `services/platform`, `services/web`, `services/ui-docs`,
+`services/ai-gateway` and `packages/marketing-ui` are still in that gap: they run `@tale/ui`'s
+i18n test framework (the first three also read the package catalogs) unhashed.
 
 ## Skills index
 

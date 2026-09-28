@@ -28,10 +28,7 @@ import {
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import {
-  backendErrorFromResponse,
-  backendRefusalDetail,
-} from '@/app/lib/backend/adapters';
+import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -176,8 +173,12 @@ export function ConversationPanel({
   const isLoading = isQueryLoading || forceLoading;
 
   const { mutate: markAsRead } = useMarkAsRead();
-  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
-  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
+  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector({
+    errorToast: false,
+  });
+  const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl({
+    errorToast: false,
+  });
   const { mutate: reopenConversation, isPending: isReopening } =
     useReopenConversation();
   const { mutate: deleteConversation, isPending: isDeleting } =
@@ -272,59 +273,49 @@ export function ConversationPanel({
     let uploadedAttachments: StoredAttachment[] | undefined;
 
     if (attachments && attachments.length > 0) {
-      try {
-        const validAttachments = attachments.filter((a) => a.file || a.stored);
-        if (validAttachments.length !== attachments.length) {
-          throw new Error(tConversations('panel.invalidFileAttachment'));
-        }
-
-        uploadedAttachments = await Promise.all(
-          validAttachments.map(async (attachment) => {
-            // A file an undone send handed back is already in storage: the
-            // re-send names the same blob rather than uploading it again.
-            if (attachment.stored) return attachment.stored;
-            const file = attachment.file;
-            if (!file)
-              throw new Error(tConversations('panel.invalidFileAttachment'));
-
-            const uploadUrl = await generateUploadUrl({});
-
-            const result = await fetch(uploadUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': file.type || 'application/octet-stream',
-              },
-              body: file,
-            });
-
-            if (!result.ok) {
-              // The door's own refusal, so the toast below can say why.
-              throw await backendErrorFromResponse(result);
-            }
-
-            const { storageId: rawStorageId } = await result.json();
-
-            if (typeof rawStorageId !== 'string') {
-              throw new Error(tConversations('panel.uploadFailed'));
-            }
-
-            return {
-              storageId: rawStorageId,
-              fileName: file.name,
-              contentType: file.type,
-              size: file.size,
-            };
-          }),
-        );
-      } catch (error) {
-        console.error('Error uploading attachments:', error);
-        toast({
-          title: tConversations('panel.uploadFailed'),
-          description: backendRefusalDetail(error),
-          variant: 'destructive',
-        });
-        return;
+      // A failed upload must reject onSave: the editor retains the draft
+      // and owns the one failure toast for both upload and send.
+      const validAttachments = attachments.filter((a) => a.file || a.stored);
+      if (validAttachments.length !== attachments.length) {
+        throw new Error(tConversations('panel.invalidFileAttachment'));
       }
+
+      uploadedAttachments = await Promise.all(
+        validAttachments.map(async (attachment) => {
+          if (attachment.stored) return attachment.stored;
+          const file = attachment.file;
+          if (!file)
+            throw new Error(tConversations('panel.invalidFileAttachment'));
+
+          const uploadUrl = await generateUploadUrl({});
+
+          const result = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': file.type || 'application/octet-stream',
+            },
+            body: file,
+          });
+
+          if (!result.ok) {
+            // Keep the door's refusal for the editor's failure toast.
+            throw await backendErrorFromResponse(result);
+          }
+
+          const { storageId: rawStorageId } = await result.json();
+
+          if (typeof rawStorageId !== 'string') {
+            throw new Error(tConversations('panel.uploadFailed'));
+          }
+
+          return {
+            storageId: rawStorageId,
+            fileName: file.name,
+            contentType: file.type,
+            size: file.size,
+          };
+        }),
+      );
     }
 
     const contactEmail = conversation.contact.email;

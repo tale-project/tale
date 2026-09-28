@@ -1,14 +1,16 @@
 import type { Sql } from 'postgres';
 
 import {
+  sessionCreate,
   sessionDestroyIfIdle,
   sessionIsAlive,
+  sessionSetPinned,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { RECOVERY_STALE_MS } from './recovery.ts';
-import { reconcileSession } from './service.ts';
+import { reconcileSession, type ReconcileSpawner } from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
 
@@ -17,9 +19,7 @@ import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
  * unit layer and the real-Postgres integration probe drive the passes with a
  * scripted spawner; production uses the signed session client.
  */
-export interface WatchdogSpawner {
-  /** GET /v1/sessions/:id — false ONLY on a definitive 404; throws otherwise. */
-  isAlive: (sessionId: string) => Promise<boolean>;
+export interface WatchdogSpawner extends ReconcileSpawner {
   /** DELETE /v1/sessions/:id?if_idle=1 — the spawner arbitrates busy. */
   destroyIfIdle: (
     sessionId: string,
@@ -28,6 +28,8 @@ export interface WatchdogSpawner {
 
 const DEFAULT_SPAWNER: WatchdogSpawner = {
   isAlive: sessionIsAlive,
+  setPinned: sessionSetPinned,
+  create: sessionCreate,
   destroyIfIdle: sessionDestroyIfIdle,
 };
 
@@ -71,6 +73,9 @@ export interface SandboxWatchdogOptions {
 export interface SandboxWatchdogResult {
   expired: number;
   healed: number;
+  /** Pinned sessions gone spawner-side that the reconcile recreated in place
+   * (same id, preserved workspace) and re-pinned this tick. */
+  recreated: number;
   reclaimed: number;
   /** Failed creates the sweep settled this tick: their spawner session
    * destroyed or confirmed absent, or already owned by a newer incarnation. */
@@ -95,12 +100,15 @@ export interface SandboxWatchdogResult {
  *    nothing, so a dead one cannot pin its session.
  *  - RECONCILE: a bounded batch of compute-holding rows is checked against
  *    the spawner; a container gone spawner-side settles the row as destroyed
- *    (phantom heal). Requires a reachable spawner — when it is down the
- *    probes fail closed as `live` (never heal blind). The batch is a FAIR
- *    walk: least-recently-visited first (`last_reconciled_at_ms`, never
- *    visited before any visited), and every visited row is stamped, so a
- *    long-lived healthy session at the head of `created_at_ms` can no longer
- *    shadow a younger phantom forever.
+ *    (phantom heal) — unless the row is pinned: a pinned session is
+ *    recreated in place (same id, so the spawner re-attaches its preserved
+ *    workspace) and a live one has its pin re-asserted, since the spawner
+ *    forgets a pin with its container. Requires a reachable spawner — when
+ *    it is down the probes fail closed as `live` (never heal blind). The
+ *    batch is a FAIR walk: least-recently-visited first
+ *    (`last_reconciled_at_ms`, never visited before any visited), and every
+ *    visited row is stamped, so a long-lived healthy session at the head of
+ *    `created_at_ms` can no longer shadow a younger phantom forever.
  *  - RECLAIM: the per-execution sessions of ENDED automation runs. The run's
  *    terminal door only hibernates them (`stopped` — a LIVE status the
  *    Sandboxes page lists and the spawner keeps a workspace for), so without
@@ -171,14 +179,15 @@ export async function runSandboxWatchdog(
   }
 
   let healed = 0;
+  let recreated = 0;
   let reclaimed = 0;
   let collected = 0;
   if (options.skipReconcile !== true) {
     const spawner = options.spawner ?? DEFAULT_SPAWNER;
-    healed = await reconcilePass(sql, spawner, {
+    ({ healed, recreated } = await reconcilePass(sql, spawner, {
       batch: options.reconcileBatch ?? 25,
       now,
-    });
+    }));
     reclaimed = await reclaimEndedRunSessions(sql, spawner, {
       batch: options.reclaimBatch ?? 25,
       graceMs: options.reclaimGraceMs ?? SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
@@ -206,7 +215,14 @@ export async function runSandboxWatchdog(
     console.error('[watchdog] gateway key settlement sweep failed:', error);
   }
 
-  return { expired: expired.length, healed, reclaimed, collected, settled };
+  return {
+    expired: expired.length,
+    healed,
+    recreated,
+    reclaimed,
+    collected,
+    settled,
+  };
 }
 
 interface Candidate {
@@ -233,7 +249,7 @@ async function reconcilePass(
   sql: Sql,
   spawner: WatchdogSpawner,
   args: { batch: number; now: number; organizationId?: string },
-): Promise<number> {
+): Promise<{ healed: number; recreated: number }> {
   // Compute-holding rows ONLY. A `stopped` row is hibernated: its container
   // is gone BY DESIGN (idle reaper, capacity reclaim) while its workspace
   // waits for the next turn, so the spawner's 404 for it is the expected
@@ -251,24 +267,27 @@ async function reconcilePass(
     LIMIT ${args.batch}
   `;
   let healed = 0;
+  let recreated = 0;
   for (const candidate of candidates) {
     try {
       const outcome = await reconcileSession(
         sql,
         { organizationId: candidate.orgId, sessionId: candidate.sessionId },
-        { isAlive: spawner.isAlive },
+        spawner,
       );
       if (outcome === 'healed') healed += 1;
+      if (outcome === 'recreated') recreated += 1;
     } catch (error) {
-      // Spawner unreachable ⇒ no verdict on this row; leave it alone.
+      // Spawner unreachable or refusing ⇒ no verdict on this row; leave it
+      // alone for its next visit.
       console.warn(
-        `[watchdog] reconcile probe failed for ${candidate.sessionId}:`,
+        `[watchdog] reconcile failed for ${candidate.sessionId}:`,
         error,
       );
     }
   }
   await stampVisited(sql, candidates, args.now);
-  return healed;
+  return { healed, recreated };
 }
 
 /**
@@ -283,7 +302,7 @@ export async function reconcileOrgSessions(
   organizationId: string,
   spawner: WatchdogSpawner = DEFAULT_SPAWNER,
 ): Promise<{ healed: number }> {
-  const healed = await reconcilePass(sql, spawner, {
+  const { healed } = await reconcilePass(sql, spawner, {
     batch: 25,
     now: Date.now(),
     organizationId,

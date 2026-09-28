@@ -20,6 +20,8 @@ Use **Settings > Governance > Data subject requests** as an Admin or Owner to pr
 
 Erasure permanently removes covered data; it is not a move to Trash. The receipt records the affected categories and counts, including chats, documents and uploads, preferences, feedback, notifications, usage, and audit-identifier scrubbing.
 
+Tasks that name the person as **Reviewer** lose that designation. A task review still waiting on them moves to the task creator or project creator, as **Clear reviewer** does, and that person is notified. On an archived task the review moves without a notification. Review decisions the person already made stay on record without their name.
+
 ## Check the policy before filing
 
 | Setting | Effect |

@@ -53,10 +53,12 @@ Bei genau einer Organisation ist der Organisations-Header optional. Mit mehreren
 
 | Organisationsauswahl | Ergebnis |
 | --- | --- |
-| Mehrere Mitgliedschaften, kein Slug | `400 ORG_SLUG_REQUIRED`; mögliche Slugs stehen in `data.organizations` |
-| Unbekannter Slug | `404 ORG_SLUG_INVALID` |
-| Vorhandene Organisation ohne Mitgliedschaft | `403 ORG_FORBIDDEN` |
+| Mehrere Mitgliedschaften, kein Slug | `400 ORG_SLUG_REQUIRED` |
+| Unbekannter Slug oder ein Wert, der kein Slug sein kann | `404 ORG_SLUG_INVALID` |
+| Vorhandene Organisation ohne Mitgliedschaft oder mit deaktivierter Mitgliedschaft | `403 ORG_FORBIDDEN` |
 | Gültige Mitgliedschaft | Anfrage läuft mit Organisation und Rolle weiter |
+
+Jede dieser drei Ablehnungen nennt in `data.organizations` die Organisationen, die du wählen kannst, jeweils als Paar aus `slug` und `name`. Deaktivierte Mitgliedschaften fehlen darin; bleibt keine übrig, ist die Liste leer. Wiederhole die Anfrage mit einem der genannten Slugs.
 
 `GET /api/v1/me` liefert die Mitgliedschaften auch als `organizations`. `key.expiresAt` enthält Unixzeit in Millisekunden oder `null` bei unbegrenzter Gültigkeit. Rotiere unbeaufsichtigte Zugangsdaten vor dem Ablauf, bevor `401` den Dienst unterbricht. `key.name` benennt den verwendeten Schlüssel.
 

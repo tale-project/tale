@@ -18,6 +18,7 @@ import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
@@ -296,6 +297,7 @@ function MilkdownEditorInner({
           console.error('Failed to send message:', error);
           toast({
             title: tConversations('editor.sendFailed'),
+            description: backendRefusalDetail(error),
             variant: 'destructive',
           });
         }

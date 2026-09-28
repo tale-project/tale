@@ -15,8 +15,9 @@ Run it after renaming, moving, or deleting a page; after editing
 [`docs/nav.json`](../../../docs/nav.json); after adding a page in one locale; after editing any
 heading (heading text → slug); after translating or rewriting a page; and before opening any PR
 that touches `docs/` or `services/docs/` (CI runs the same suite via `bunx turbo run test`;
-[`../turbo.json`](../turbo.json) hashes `docs/` and the root READMEs, so a docs-only change
-re-runs it instead of replaying the cached verdict).
+[`../turbo.json`](../turbo.json) hashes `docs/`, the root READMEs and `@tale/ui`'s i18n catalogs
+and test framework, so a change to any of them re-runs it instead of replaying the cached
+verdict).
 
 ## Run it
 
@@ -46,7 +47,7 @@ and asserts the list is empty — the failure prints each file once with offendi
 | Check (`*.test.ts`)  | Catches → fix                                                                                                                                                   |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `walk`               | Harness sanity: walker finds pages, base locales `en`/`de`/`fr` present → if it trips the harness itself is broken (check `lib/paths.ts`, the tree).            |
-| `turbo-inputs`       | A `@tale/docs` task (test, build, typecheck, lint) that reads a file outside `services/docs/` turbo does not hash, so a docs-only change would replay its cached result → add the `$TURBO_ROOT$/…` glob to [`../turbo.json`](../turbo.json), keeping `$TURBO_DEFAULT$`. |
+| `turbo-inputs`       | A `@tale/docs` task (test, build, typecheck, lint) that reads a file outside `services/docs/` turbo does not hash, so a docs-only change would replay its cached result → add the `$TURBO_ROOT$/…` glob to [`../turbo.json`](../turbo.json) after `$TURBO_EXTENDS$` and `$TURBO_DEFAULT$`, which open every list. |
 | `navigation`         | A `docs/nav.json` slug with no `.md`/`.mdx` under a locale (renamed page, untranslated page, typo) → create the file or fix/remove the nav entry.               |
 | `locale-tree`        | An `en/` page with no DE/FR mirror, or a DE/FR orphan with no `en/` source → create the mirror or delete the orphan.                                            |
 | `locale-outline`     | DE/FR drifting from the EN page's heading-depth sequence or fenced-code-block count → restructure the locale page to match EN's outline.                        |

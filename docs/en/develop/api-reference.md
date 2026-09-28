@@ -53,10 +53,12 @@ A user with exactly one organization can omit the organization header. With seve
 
 | Organization selection | Result |
 | --- | --- |
-| Several memberships, no slug | `400 ORG_SLUG_REQUIRED`; available slugs are in `data.organizations` |
-| Unknown slug | `404 ORG_SLUG_INVALID` |
-| Existing organization without membership | `403 ORG_FORBIDDEN` |
+| Several memberships, no slug | `400 ORG_SLUG_REQUIRED` |
+| Unknown slug, or a value that cannot be a slug | `404 ORG_SLUG_INVALID` |
+| Existing organization without membership, or with a disabled one | `403 ORG_FORBIDDEN` |
 | Valid membership | Request proceeds under that organization and role |
+
+Each of the three refusals lists the organizations you can select in `data.organizations`, as `slug` and `name` pairs. Disabled memberships are left out, so the list is empty when none remains. Retry with one of the listed slugs.
 
 `GET /api/v1/me` also returns the membership list as `organizations`. Its `key.expiresAt` is epoch milliseconds, or `null` for a non-expiring key: rotate unattended credentials before expiry causes `401`. `key.name` identifies the credential in use.
 

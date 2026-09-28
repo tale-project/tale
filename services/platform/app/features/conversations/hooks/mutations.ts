@@ -1,7 +1,12 @@
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
-export function useGenerateUploadUrl() {
-  return useBackendMutation('files/mutations:generateUploadUrl');
+/** The editor owns send feedback; other callers keep the hook's default toast. */
+interface ErrorFeedbackOptions {
+  errorToast?: false;
+}
+
+export function useGenerateUploadUrl(options?: ErrorFeedbackOptions) {
+  return useBackendMutation('files/mutations:generateUploadUrl', options);
 }
 
 export function useBulkArchiveConversations() {
@@ -26,12 +31,18 @@ export function useBulkUnarchiveConversations() {
   );
 }
 
-export function useSendMessageViaConnector() {
-  return useBackendMutation('conversations/mutations:sendMessageViaConnector');
+export function useSendMessageViaConnector(options?: ErrorFeedbackOptions) {
+  return useBackendMutation(
+    'conversations/mutations:sendMessageViaConnector',
+    options,
+  );
 }
 
-export function useComposeEmailConversation() {
-  return useBackendMutation('conversations/mutations:composeEmailConversation');
+export function useComposeEmailConversation(options?: ErrorFeedbackOptions) {
+  return useBackendMutation(
+    'conversations/mutations:composeEmailConversation',
+    options,
+  );
 }
 
 export function useCloseConversation() {

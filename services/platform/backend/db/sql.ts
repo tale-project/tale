@@ -58,7 +58,9 @@ const jsonPassthrough = {
  * How many connections ONE process opens to the application database.
  *
  * The budget matters once the database is external: a replica costs this pool
- * plus pg-boss's own pool of the same size, and a managed Postgres can cap
+ * plus pg-boss's own pool of the same size. Sandbox lifecycle lock holders
+ * may each open one temporary data connection (at most this pool's size),
+ * so the peak is three times the configured size. A managed Postgres can cap
  * `max_connections` far below what a handful of replicas would then ask for
  * (Azure's smallest Flexible Server allows 50). Tunable so the arithmetic is
  * the operator's to do rather than the code's to assume.
