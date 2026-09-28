@@ -68,6 +68,7 @@ import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
+import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
@@ -79,6 +80,7 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
@@ -98,6 +100,7 @@ import {
 } from './lib/http-hygiene.ts';
 import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
+import { checkOrgSlugRefusals } from './rest/org-slug-refusals.integration.ts';
 
 const noopPayloadSchema = z.object({
   seq: z.number().optional(),
@@ -21640,20 +21643,29 @@ async function checkTasksCollabIntegrity(
   // ---- designating a reviewer tells them -----------------------------------
   // The designee is subscribed (reason 'reviewer') and gets the heads-up
   // bell on the wire entity the app keys the bell on; designating yourself
-  // rings nothing, and a non-member cannot be put on the hook at all.
+  // rings nothing, a non-member cannot be put on the hook at all, and
+  // neither can a member who cannot edit the project — the gate would only
+  // route past them.
   const reviewer = 'integrity-reviewer-1';
-  await sql`
-    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
-                        "updatedAt")
-    VALUES (${reviewer}, 'Integrity Reviewer', ${`${reviewer}@example.com`},
-            true, ${new Date()}, ${new Date()})
-    ON CONFLICT ("id") DO NOTHING
-  `;
-  await sql`
-    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
-    VALUES (${`m-${reviewer}`}, ${orgId}, ${reviewer}, 'member', ${new Date()})
-    ON CONFLICT ("id") DO NOTHING
-  `;
+  const readOnlyMember = 'integrity-reviewer-readonly';
+  for (const [id, role] of [
+    [reviewer, 'editor'],
+    [readOnlyMember, 'member'],
+  ] as const) {
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (${id}, ${id}, ${`${id}@example.com`}, true, ${new Date()},
+              ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-${orgId}-${id}`}, ${orgId}, ${id}, ${role}, ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+  }
   const reviewedTask = await newTask('Needs a reviewer');
   const designated = await post(
     `/api/app/tasks/${reviewedTask}?orgId=${orgId}`,
@@ -21692,8 +21704,24 @@ async function checkTasksCollabIntegrity(
     .object({ error: z.string() })
     .loose()
     .safeParse(await bogus.json());
+  const readOnly = await post(`/api/app/tasks/${reviewedTask}?orgId=${orgId}`, {
+    reviewerUserId: readOnlyMember,
+  });
+  const readOnlyBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await readOnly.json());
+  const stillDesignated = await sql<{ reviewerUserId: string | null }[]>`
+    SELECT reviewer_user_id AS "reviewerUserId" FROM app.tasks
+    WHERE id = ${reviewedTask}
+  `;
+  const readOnlyBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${readOnlyMember}
+      AND task_id = ${reviewedTask}
+  `;
   record(
-    'tasks/collab: designating a reviewer subscribes and bells them (never yourself, never a non-member)',
+    'tasks/collab: designating a reviewer subscribes and bells them (never yourself, never a non-member, never someone who cannot edit)',
     designated.ok &&
       reviewerBell[0]?.count === '1' &&
       reviewerFollows[0]?.count === '1' &&
@@ -21701,8 +21729,13 @@ async function checkTasksCollabIntegrity(
       selfBell[0]?.count === '0' &&
       bogus.status === 400 &&
       bogusBody.success &&
-      bogusBody.data.error === 'TASK_REVIEWER_INVALID',
-    `designate → ${designated.status}, bell=${reviewerBell[0]?.count} (want 1), follows=${reviewerFollows[0]?.count} (want 1), hint=${reviewerHint[0]?.count} (want ≥1); self bell=${selfBell[0]?.count} (want 0); non-member → ${bogus.status}/${bogusBody.success ? bogusBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_INVALID)`,
+      bogusBody.data.error === 'TASK_REVIEWER_INVALID' &&
+      readOnly.status === 400 &&
+      readOnlyBody.success &&
+      readOnlyBody.data.error === 'TASK_REVIEWER_NO_EDIT_ACCESS' &&
+      stillDesignated[0]?.reviewerUserId === reviewer &&
+      readOnlyBell[0]?.count === '0',
+    `designate → ${designated.status}, bell=${reviewerBell[0]?.count} (want 1), follows=${reviewerFollows[0]?.count} (want 1), hint=${reviewerHint[0]?.count} (want ≥1); self bell=${selfBell[0]?.count} (want 0); non-member → ${bogus.status}/${bogusBody.success ? bogusBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_INVALID); read-only member → ${readOnly.status}/${readOnlyBody.success ? readOnlyBody.data.error : 'ERR'} (want 400/TASK_REVIEWER_NO_EDIT_ACCESS), designation=${stillDesignated[0]?.reviewerUserId === reviewer ? 'kept' : String(stillDesignated[0]?.reviewerUserId)} (want kept), their bells=${readOnlyBell[0]?.count} (want 0)`,
   );
 
   // ---- a reviewer changed mid-review takes the open review along ----------
@@ -21863,6 +21896,47 @@ async function checkTasksCollabIntegrity(
       bellsBCleared.every((bell) => bell.read) &&
       bellsCreator.length === 0,
     `clear → ${clearedOver.status}, gate=${clearedGate.length} same=${clearedGate[0]?.id === handedApproval} for creator=${clearedGate[0]?.metadata?.requestedFor === userId} (want 1/true/true); chip=${viewCleared.chip === userId ? 'creator' : String(viewCleared.chip)} (want creator), waiting on B=${viewCleared.waitsOn(reviewerB)} (want false); bells B=${bellText(bellsBCleared)} (want all read), creator=${bellText(bellsCreator)} (want none: they cleared it themselves)`,
+  );
+  // ---- a reviewer changed BEFORE review lets the previous designee off ----
+  // No review is open yet, so there is no request to move — but A's unread
+  // "You're the reviewer" heads-up kept telling A they were on the hook.
+  const earlyTask = await newTask('Reviewer changed before review');
+  const headsUps = (user: string): Promise<{ read: boolean }[]> => sql<
+    { read: boolean }[]
+  >`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${user} AND task_id = ${earlyTask}
+      AND type = 'task_reviewer_assigned'
+  `;
+  await post(`/api/app/tasks/${earlyTask}?orgId=${orgId}`, {
+    reviewerUserId: reviewerA,
+  });
+  const earlyA = await headsUps(reviewerA);
+  const movedEarly = await post(`/api/app/tasks/${earlyTask}?orgId=${orgId}`, {
+    reviewerUserId: reviewerB,
+  });
+  const movedA = await headsUps(reviewerA);
+  const movedB = await headsUps(reviewerB);
+  const earlyCleared = await post(
+    `/api/app/tasks/${earlyTask}?orgId=${orgId}`,
+    { reviewerUserId: null },
+  );
+  const clearedB = await headsUps(reviewerB);
+  const readText = (rows: { read: boolean }[]): string =>
+    rows.map((row) => (row.read ? 'read' : 'unread')).join(',') || 'none';
+  record(
+    "tasks/collab: changing the reviewer before review dismisses the previous designee's heads-up",
+    earlyA.length === 1 &&
+      earlyA.every((row) => !row.read) &&
+      movedEarly.ok &&
+      movedA.length === 1 &&
+      movedA.every((row) => row.read) &&
+      movedB.length === 1 &&
+      movedB.every((row) => !row.read) &&
+      earlyCleared.ok &&
+      clearedB.length === 1 &&
+      clearedB.every((row) => row.read),
+    `A designated: ${readText(earlyA)} (want unread); → B ${movedEarly.status}: A=${readText(movedA)} (want read), B=${readText(movedB)} (want unread); clear ${earlyCleared.status}: B=${readText(clearedB)} (want read)`,
   );
   // ---- a mention directory that cannot be listed fails the surface -------
   // Against the real schema: the same resolution with the agent-instance
@@ -43929,6 +44003,46 @@ async function checkErasure(
               ${sql.json({ requestedFor: subject, response: { respondedBy: subject } })},
               ${now})
   `;
+  // A review still WAITING on the subject is routing, not history: it must
+  // move on to the task creator (here the owner) rather than wait on the
+  // pseudonym, where no board and no bell would ever find it.
+  const waitingProject = z
+    .object({ projectId: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, {
+          name: 'Erasure review hand-over',
+        })
+      ).json(),
+    );
+  const waitingTask = z
+    .object({ taskId: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/tasks?orgId=${orgId}`, {
+          projectId: waitingProject.success
+            ? waitingProject.data.projectId
+            : '',
+          title: 'Waiting on the subject',
+          status: 'in_review',
+        })
+      ).json(),
+    );
+  const waitingTaskId = waitingTask.success ? waitingTask.data.taskId : '';
+  // The subject held the designation and the open review when the erasure
+  // was filed (written directly: a read-only member can no longer be named).
+  await sql`
+    UPDATE app.tasks SET reviewer_user_id = ${subject}
+    WHERE id = ${waitingTaskId}
+  `;
+  await sql`
+    UPDATE app.approvals SET
+      metadata = metadata || ${sql.json({ requestedFor: subject })}
+    WHERE resource_type = 'task_review' AND resource_id = ${waitingTaskId}
+      AND status = 'pending'
+  `;
   await sql`
     INSERT INTO app.login_attempts (email, consecutive_failures,
                                     last_failure_at)
@@ -43953,6 +44067,12 @@ async function checkErasure(
       created_at_ms, updated_at_ms
     ) VALUES (${orgId}, ${subject}, 'folder', ${`gd-${subject}`}, 'Reports',
               'documents', 'active', ${now}, ${now})
+  `;
+  // Nothing above hints the task (the designation and the review were
+  // written directly), so a `task` hint past this cursor is the erasure's:
+  // the board, **Needs my review** and the Reviewer field refresh on it.
+  const outboxBefore = await sql<{ max: string | null }[]>`
+    SELECT max(id)::text AS max FROM app_realtime.outbox
   `;
   const filed = z
     .object({ requestId: z.string(), threadsTargeted: z.number() })
@@ -44027,6 +44147,41 @@ async function checkErasure(
   const receiptCounts = await sql<{ counts: Record<string, number> | null }[]>`
     SELECT counts FROM app.gdpr_erasure_requests WHERE id = ${requestId}
   `;
+  const waitingAfter = await sql<
+    { id: string; status: string; requestedFor: string | null }[]
+  >`
+    SELECT id, status, metadata->>'requestedFor' AS "requestedFor"
+    FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${waitingTaskId}
+  `;
+  const waitingDesignation = await sql<{ reviewerUserId: string | null }[]>`
+    SELECT reviewer_user_id AS "reviewerUserId" FROM app.tasks
+    WHERE id = ${waitingTaskId}
+  `;
+  const handedBell = await sql<{ read: boolean; actorType: string }[]>`
+    SELECT read, actor_type AS "actorType" FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_review_requested'
+      AND resource_id = ${waitingAfter[0]?.id ?? ''}
+  `;
+  const boardHints = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'task'
+      AND entity_id = ${waitingTaskId}
+      AND id > ${outboxBefore[0]?.max ?? '0'}::bigint
+  `;
+  record(
+    'erasure: a review still waiting on the subject moves on to the task creator, not to the pseudonym',
+    waitingTask.success &&
+      waitingAfter.length === 1 &&
+      waitingAfter[0]?.status === 'pending' &&
+      waitingAfter[0]?.requestedFor === userId &&
+      waitingDesignation[0]?.reviewerUserId === null &&
+      handedBell.length === 1 &&
+      handedBell.every((bell) => !bell.read && bell.actorType === 'system') &&
+      Number(boardHints[0]?.count ?? '0') > 0,
+    `task=${waitingTask.success ? 'ok' : 'ERR'}; reviews=${waitingAfter.length} ${waitingAfter[0]?.status}/${waitingAfter[0]?.requestedFor === userId ? 'creator' : String(waitingAfter[0]?.requestedFor)} (want 1 pending/creator); designation=${String(waitingDesignation[0]?.reviewerUserId)} (want null); creator bell=${handedBell.map((bell) => `${bell.read ? 'read' : 'unread'}:${bell.actorType}`).join(',') || 'none'} (want unread:system); task hints=${boardHints[0]?.count} (want >0)`,
+  );
   record(
     'erasure: the uploads pass deletes the blob behind the ledger row',
     receiptStatus === 'done' &&
@@ -51639,6 +51794,8 @@ async function checkWatchdogs(
       probed.push(sessionId);
       return Promise.resolve(true);
     },
+    setPinned: (): Promise<boolean> => Promise.resolve(true),
+    create: (): Promise<unknown> => Promise.resolve(undefined),
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
@@ -51707,33 +51864,59 @@ async function checkWatchdogs(
   // candidate, so the spawner's 404 for it (container reaped by design)
   // cannot settle it as destroyed — the page used to empty itself of idle
   // workspaces on every open — while a genuine phantom (compute-holding
-  // row, container gone) still heals. The pass is walked until the phantom
+  // row, container gone) still heals. A PINNED row gone spawner-side is
+  // recreated under its id with its stored profile (`'"agent"'` jsonb, as
+  // the reserve writes it) and re-pinned, never settled; a live pinned one
+  // has its pin re-asserted. The pass is walked until every row of the lane
   // has been probed: the fair rotation may need more than one batch when
   // earlier lanes left never-visited compute-holding rows in this org.
   await sql`
     INSERT INTO app.sandbox_sessions (
-      org_id, session_id, status, owner_type, owner_id, created_by,
-      created_at_ms, expires_at_ms
+      org_id, session_id, profile, status, owner_type, owner_id, created_by,
+      pinned, created_at_ms, expires_at_ms
     ) VALUES
-      (${orgId}, 'wd-org-hibernated', 'stopped', 'project_agent',
-       'itest-wd-agent-idle', 'itest:wd', ${now - 2 * 3_600_000},
+      (${orgId}, 'wd-org-hibernated', NULL, 'stopped', 'project_agent',
+       'itest-wd-agent-idle', 'itest:wd', false, ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-org-phantom', 'active', 'project_agent',
-       'itest-wd-agent-gone', 'itest:wd', ${now - 2 * 3_600_000},
-       ${now + 24 * 3_600_000})
+      (${orgId}, 'wd-org-phantom', NULL, 'active', 'project_agent',
+       'itest-wd-agent-gone', 'itest:wd', false, ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'active',
+       'project_agent', 'itest-wd-agent-pinned-gone', 'itest:wd', true,
+       ${now - 2 * 3_600_000}, ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-org-pinned-up', '"agent"'::jsonb, 'active',
+       'project_agent', 'itest-wd-agent-pinned-up', 'itest:wd', true,
+       ${now - 2 * 3_600_000}, ${now + 24 * 3_600_000})
   `;
   const orgProbed: string[] = [];
+  const orgCreated: unknown[] = [];
+  const orgPinned: string[] = [];
   const orgSpawner = {
     isAlive: (sessionId: string): Promise<boolean> => {
       orgProbed.push(sessionId);
-      return Promise.resolve(sessionId !== 'wd-org-phantom');
+      return Promise.resolve(
+        sessionId !== 'wd-org-phantom' && sessionId !== 'wd-org-pinned-gone',
+      );
+    },
+    setPinned: (sessionId: string, pinned: boolean): Promise<boolean> => {
+      if (pinned) orgPinned.push(sessionId);
+      return Promise.resolve(true);
+    },
+    create: (body: unknown): Promise<unknown> => {
+      orgCreated.push(body);
+      return Promise.resolve(undefined);
     },
     destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
       Promise.resolve({ destroyed: false, busy: false }),
   };
+  const orgLaneRows = [
+    'wd-org-phantom',
+    'wd-org-pinned-gone',
+    'wd-org-pinned-up',
+  ];
   let orgHealed = 0;
   let orgPasses = 0;
-  while (!orgProbed.includes('wd-org-phantom') && orgPasses < 8) {
+  while (!orgLaneRows.every((id) => orgProbed.includes(id)) && orgPasses < 8) {
     const pass = await sandboxWatchdogs.reconcileOrgSessions(
       sql,
       orgId,
@@ -51748,15 +51931,38 @@ async function checkWatchdogs(
   `;
   const orgStatusOf = (sessionId: string): string | undefined =>
     orgRows.find((r) => r.sessionId === sessionId)?.status;
+  const orgCreates = orgCreated.map((body) => JSON.stringify(body));
   record(
-    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals',
+    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session is recreated in place and re-pinned',
     !orgProbed.includes('wd-org-hibernated') &&
       orgStatusOf('wd-org-hibernated') === 'stopped' &&
       orgProbed.includes('wd-org-phantom') &&
       orgStatusOf('wd-org-phantom') === 'destroyed' &&
-      orgHealed === 1,
-    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed}`,
+      orgHealed === 1 &&
+      // The pinned phantom: recreated under its id, org and stored profile,
+      // re-pinned, and its row still `active`.
+      orgStatusOf('wd-org-pinned-gone') === 'active' &&
+      orgCreates.length === 1 &&
+      orgCreates[0] ===
+        JSON.stringify({
+          sessionId: 'wd-org-pinned-gone',
+          organizationId: orgId,
+          profile: 'agent',
+          placement: 'device',
+        }) &&
+      orgPinned.includes('wd-org-pinned-gone') &&
+      // The live pinned session: pin re-asserted, nothing created.
+      orgStatusOf('wd-org-pinned-up') === 'active' &&
+      orgPinned.includes('wd-org-pinned-up'),
+    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
   );
+  // The pinned rows stay `active` by design; drop them so they hold no
+  // project-agent slot of this org in the lanes after this one.
+  await sql`
+    DELETE FROM app.sandbox_sessions
+    WHERE org_id = ${orgId}
+      AND session_id IN ('wd-org-pinned-gone', 'wd-org-pinned-up')
+  `;
 
   // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
   // session is still live is destroyed and stamped by primary key, keeping
@@ -51800,6 +52006,8 @@ async function checkWatchdogs(
   const collectAsked: string[] = [];
   const collectSpawner = {
     isAlive: (): Promise<boolean> => Promise.resolve(true),
+    setPinned: (): Promise<boolean> => Promise.resolve(true),
+    create: (): Promise<unknown> => Promise.resolve(undefined),
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
@@ -54671,6 +54879,10 @@ async function main(): Promise<void> {
         'checkErasure',
         () => checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
+      [
+        'checkErasureReviewHandoverRaces',
+        () => checkErasureReviewHandoverRaces(sql, authCtx, record),
+      ],
       // Reliability batch probes (self-contained; each seeds and cleans its
       // own rows).
       [
@@ -54742,6 +54954,16 @@ async function main(): Promise<void> {
         () => checkRetiredBuilderRoute(baseUrl, authCtx),
       ],
       ['checkRestDoor', () => checkRestDoor(sql, baseUrl, authCtx)],
+      [
+        'checkOrgSlugRefusals',
+        async () =>
+          checkOrgSlugRefusals(
+            sql,
+            baseUrl,
+            await signUpUser(baseUrl, 'slug-refusals'),
+            record,
+          ),
+      ],
       ['checkRestProjectAgents', () => checkRestProjectAgents(sql, baseUrl)],
       [
         'checkRestMachineJourney',
@@ -55034,6 +55256,10 @@ async function main(): Promise<void> {
         },
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
+      [
+        'checkSandboxLifecycle',
+        () => checkSandboxLifecycle(sql, authCtx, record),
+      ],
       [
         'checkSandboxRetiredTablesDropped',
         () => checkSandboxRetiredTablesDropped(sql, record),

@@ -27,7 +27,10 @@ import { AssigneeAvatar } from './assignee-avatar';
  * machinery (transfer confirm, live-run cancel, agents/automations sections)
  * applies here. Candidates are the project's members holding an editor-level
  * org role — the same `EDITOR_ROLES` set the server enforces (Members can see
- * review cards but cannot respond).
+ * review cards but cannot respond). Until the project's audience has loaded
+ * it lists nobody: the org-wide fallback the assignee picker lives with
+ * would offer editors outside a team-restricted project, whom the server
+ * refuses.
  *
  * When `disabled` (no edit permission) it renders the bare avatar with no menu.
  */
@@ -52,7 +55,7 @@ export function ReviewerPicker({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const { assignableMembers, currentUserId, resolveActor } =
+  const { assignableMembers, currentUserId, resolveActor, scopeReady } =
     useAssignableActors(organizationId, projectId);
   const [open, setOpen] = useState(false);
 
@@ -61,6 +64,7 @@ export function ReviewerPicker({
   const label = resolved?.name ?? t('reviewer.none');
 
   const options = useMemo<SearchableSelectOption[]>(() => {
+    if (!scopeReady) return [];
     const eligible = assignableMembers.filter(
       (member) => member.role !== undefined && EDITOR_ROLES.has(member.role),
     );
@@ -79,7 +83,7 @@ export function ReviewerPicker({
           </Badge>
         ) : undefined,
     }));
-  }, [assignableMembers, currentUserId, t]);
+  }, [assignableMembers, currentUserId, scopeReady, t]);
 
   const reviewerIsCurrentUser =
     reviewerUserId !== undefined &&
@@ -140,7 +144,11 @@ export function ReviewerPicker({
           modal
           trigger={trigger}
           searchPlaceholder={t('reviewer.search')}
-          emptyText={tCommon('search.noResults')}
+          emptyText={
+            scopeReady
+              ? tCommon('search.noResults')
+              : tCommon('actions.loading')
+          }
           aria-label={t('fields.reviewer')}
           optionAction={(opt) => (
             <AssigneeAvatar

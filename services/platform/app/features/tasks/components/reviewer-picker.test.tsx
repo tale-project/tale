@@ -38,9 +38,13 @@ const members: AssignableActor[] = [
   { type: 'user', id: 'user-4', name: 'Dan', email: 'dan@example.com' },
 ];
 
+/** Whether the project's audience has loaded (see `useAssignableActors`). */
+let scopeReady = true;
+
 vi.mock('../hooks/use-actor-directory', () => ({
   useAssignableActors: () => ({
     assignableMembers: members,
+    scopeReady,
     currentUserId: 'user-2',
     resolveActor: (_type: string, id: string) => ({
       type: 'user',
@@ -54,6 +58,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
 describe('ReviewerPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    scopeReady = true;
   });
 
   it('lists only members holding an editor-level role, current user first', async () => {
@@ -72,6 +77,30 @@ describe('ReviewerPicker', () => {
     expect(screen.queryByText('Dan')).not.toBeInTheDocument();
     // The eligibility hint explains the shortened list.
     expect(screen.getByText('tasks.reviewer.editorsOnly')).toBeInTheDocument();
+  });
+
+  it('lists nobody until the project audience has loaded', async () => {
+    // Until then the members are org-wide, editors outside a team-restricted
+    // project included — the server would refuse any of them.
+    scopeReady = false;
+    const { user } = render(
+      <ReviewerPicker
+        organizationId="org-1"
+        projectId="project-1"
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+    );
+
+    expect(screen.queryByText('Alex')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bea')).not.toBeInTheDocument();
+    expect(screen.getByText('common.actions.loading')).toBeInTheDocument();
+    expect(
+      screen.queryByText('common.search.noResults'),
+    ).not.toBeInTheDocument();
   });
 
   it('designates on select and clears via the footer action', async () => {

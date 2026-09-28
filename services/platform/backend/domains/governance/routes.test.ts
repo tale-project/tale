@@ -8,6 +8,10 @@
  * file actually replaced, not the TTL cache's view of it.
  */
 
+import {
+  FILE_POLICY_TYPES,
+  isPolicyReadableByMember,
+} from '@tale/shared/schemas/governance';
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -603,5 +607,52 @@ describe('GET /my/budget-usage', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ limits: [] });
     expect(queries).toEqual([]);
+  });
+});
+
+describe('GET /policies/:policyType — who may read', () => {
+  // The app's route loaders warm these for a caller whose role they do not
+  // know yet (`isPolicyReadableByMember`), so this door must answer a member
+  // exactly them and refuse the rest (#3098).
+  const MEMBER_READABLE: ReadonlySet<string> = new Set([
+    'data_classification_notice',
+    'feature_flags',
+    'pii_config',
+    'chat_filter',
+    'custom_instructions',
+    'upload_policy',
+    'default_models',
+    'session_idle_timeout',
+  ]);
+
+  async function read(policyType: string): Promise<Response> {
+    return await createGovernanceRoutes({
+      sql: {} as never,
+      auth: {} as never,
+    }).request(`/policies/${policyType}?orgId=o1`);
+  }
+
+  beforeEach(() => {
+    readGovernancePolicyForOrg.mockResolvedValue(null);
+  });
+
+  it.each(FILE_POLICY_TYPES)(
+    'answers a member %s only when any member may read it',
+    async (policyType) => {
+      caller.role = 'member';
+
+      const response = await read(policyType);
+
+      expect(isPolicyReadableByMember(policyType)).toBe(
+        MEMBER_READABLE.has(policyType),
+      );
+      expect(response.status).toBe(MEMBER_READABLE.has(policyType) ? 200 : 403);
+    },
+  );
+
+  it.each(FILE_POLICY_TYPES)('answers an admin %s', async (policyType) => {
+    caller.role = 'admin';
+
+    expect((await read(policyType)).status).toBe(200);
   });
 });

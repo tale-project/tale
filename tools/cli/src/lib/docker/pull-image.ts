@@ -1,4 +1,5 @@
 import * as defaultLogger from '../../utils/logger';
+import { imagePlatform } from '../compose/types';
 import { docker as defaultDocker } from './docker';
 
 function isManifestNotFound(stderr: string): boolean {
@@ -28,7 +29,12 @@ export async function pullImage(
 ): Promise<boolean> {
   logger.info(`Pulling image: ${image}`);
   try {
-    const result = await docker('pull', image);
+    const platform = imagePlatform(image);
+    const result = await docker(
+      'pull',
+      ...(platform ? ['--platform', platform] : []),
+      image,
+    );
     if (!result.success) {
       logger.error(`Failed to pull image: ${image}`);
       if (isManifestNotFound(result.stderr)) {

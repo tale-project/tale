@@ -30,7 +30,7 @@ export class OrganizationError extends Error {
   readonly code: string;
   readonly status: 400 | 401 | 403 | 404;
   /** Structured detail a door hands on under `data` — the organizations a
-   * key holder may name when the refusal is that none was named. */
+   * key holder may name, on every refusal of the one it named (or did not). */
   readonly data?: Record<string, unknown>;
 
   constructor(
@@ -106,6 +106,31 @@ export async function listUserOrganizations(
   return organizations;
 }
 
+/** One organization a key holder may name in `X-Organization-Slug`. */
+export interface SelectableOrganization {
+  slug: string;
+  name: string;
+}
+
+/**
+ * The organizations a key holder may name — every membership that is not
+ * disabled and whose organization has a slug to route by, oldest first.
+ * Every refusal of the organization a key named (or did not name) hands
+ * this list back under `data.organizations`: a holder in several
+ * organizations has no other way to learn their slugs on the machine door
+ * (`GET /api/v1/me` sits behind the same header), so a 400, a 403 and a
+ * 404 alike say what to send, not only what was wrong. Nothing beyond the
+ * caller's own memberships is revealed.
+ */
+export async function listSelectableOrganizations(
+  sql: Sql,
+  userId: string,
+): Promise<SelectableOrganization[]> {
+  return (await listUserOrganizations(sql, userId)).flatMap((org) =>
+    org.slug === undefined ? [] : [{ slug: org.slug, name: org.name }],
+  );
+}
+
 export async function getOrganization(
   sql: Sql,
   organizationId: string,
@@ -174,6 +199,8 @@ export interface ResolvedUserOrganization {
  * single-org user resolves directly and a multi-org user follows
  * `lastActiveOrganizationId` unless `requireExplicitOrgSlug` demands the
  * header (write-capable machine keys must not follow dashboard clicks).
+ * Every refusal carries `listSelectableOrganizations` as
+ * `data.organizations`.
  */
 export async function resolveUserOrganization(
   sql: Sql,
@@ -194,6 +221,7 @@ export async function resolveUserOrganization(
         'ORG_SLUG_INVALID',
         `Organization not found: ${args.orgSlug}`,
         404,
+        { organizations: await listSelectableOrganizations(sql, args.userId) },
       );
     }
     const member = await findOrganizationMember(sql, org.id, args.userId);
@@ -202,6 +230,7 @@ export async function resolveUserOrganization(
         'ORG_FORBIDDEN',
         `Not a member of organization ${org.slug}`,
         403,
+        { organizations: await listSelectableOrganizations(sql, args.userId) },
       );
     }
     return { organizationId: org.id, orgSlug: org.slug };
@@ -211,10 +240,13 @@ export async function resolveUserOrganization(
     (m) => m.role !== 'disabled',
   );
   if (memberships.length === 0) {
+    // No membership that is not disabled: nothing to offer, and saying so
+    // keeps `data.organizations` on every refusal of this door.
     throw new OrganizationError(
       'ORG_FORBIDDEN',
       'User has no organization memberships',
       403,
+      { organizations: [] },
     );
   }
 
@@ -236,13 +268,8 @@ export async function resolveUserOrganization(
       }
     }
     if (!pickedOrgId) {
-      // The refusal names what to send: a key holder in several
-      // organizations has no other way to learn their slugs on this door
-      // (`GET /api/v1/me` sits behind the same rule), so the 400 carries
-      // them — the dashboard's URL is the only alternative source.
-      const organizations = (await listUserOrganizations(sql, args.userId))
-        .filter((org) => org.slug !== undefined)
-        .map((org) => ({ slug: org.slug, name: org.name }));
+      // The refusal names what to send — the message quotes the slugs too.
+      const organizations = await listSelectableOrganizations(sql, args.userId);
       throw new OrganizationError(
         'ORG_SLUG_REQUIRED',
         `Send X-Organization-Slug: the key holder belongs to ${memberships.length} organizations (${organizations.map((org) => org.slug).join(', ')})`,
@@ -261,6 +288,7 @@ export async function resolveUserOrganization(
       'ORG_SLUG_INVALID',
       'Organization slug not found',
       404,
+      { organizations: await listSelectableOrganizations(sql, args.userId) },
     );
   }
   return { organizationId: pickedOrgId, orgSlug: slug };

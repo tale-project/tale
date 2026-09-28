@@ -227,5 +227,10 @@
  * carries the streak: `consecutiveFailures`, and the last counted failure's
  * `lastFailedAt`, `lastFailureCode` and `lastFailedRunId`. Saving a trigger
  * resets the streak.
+ *
+ * 3.2.0 — 2026-09-28: 404 `ORG_SLUG_INVALID` and 403 `ORG_FORBIDDEN` carry
+ * `data.organizations` — the slugs the key holder may send — the way 400
+ * `ORG_SLUG_REQUIRED` already did, so a mistyped or foreign
+ * `X-Organization-Slug` says what to send instead.
  */
-export const API_CONTRACT_VERSION = '3.1.0';
+export const API_CONTRACT_VERSION = '3.2.0';

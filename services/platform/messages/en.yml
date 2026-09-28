@@ -1734,7 +1734,6 @@ conversations:
       title: Discard draft?
       description: This draft will be permanently discarded.
     sent: Email sent
-    uploadFailed: Couldn't upload attachment
   updating: Updating conversations...
   bulk:
     sendMessages: Send messages

@@ -53,10 +53,12 @@ Une personne appartenant à une seule organisation peut omettre l'en-tête d'org
 
 | Sélection d'organisation | Résultat |
 | --- | --- |
-| Plusieurs appartenances, aucun slug | `400 ORG_SLUG_REQUIRED` ; slugs disponibles dans `data.organizations` |
-| Slug inconnu | `404 ORG_SLUG_INVALID` |
-| Organisation existante sans appartenance | `403 ORG_FORBIDDEN` |
+| Plusieurs appartenances, aucun slug | `400 ORG_SLUG_REQUIRED` |
+| Slug inconnu, ou valeur qui ne peut pas être un slug | `404 ORG_SLUG_INVALID` |
+| Organisation existante sans appartenance, ou avec une appartenance désactivée | `403 ORG_FORBIDDEN` |
 | Appartenance valide | La requête continue avec cette organisation et ce rôle |
+
+Chacun de ces trois refus liste dans `data.organizations` les organisations que tu peux sélectionner, sous forme de paires `slug` et `name`. Les appartenances désactivées en sont exclues ; s'il n'en reste aucune, la liste est vide. Relance la requête avec l'un des slugs listés.
 
 `GET /api/v1/me` renvoie aussi les appartenances sous `organizations`. `key.expiresAt` est un horodatage Unix en millisecondes, ou `null` pour une clé sans expiration. Renouvelle les identifiants des traitements autonomes avant que l'expiration provoque `401`. `key.name` identifie la clé utilisée.
 

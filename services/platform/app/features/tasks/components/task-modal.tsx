@@ -86,6 +86,7 @@ import {
   type TaskStatus,
 } from '../lib/display';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
+import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
@@ -1169,7 +1170,9 @@ export function EditTaskBody({
     }
     // Setting In review → Done IS the review approve, so the org's
     // review_policy can refuse the picker — surface WHY, not a generic error.
-    const reviewRefusal = reviewPolicyErrorMessage(error, t);
+    // So does a Reviewer the server refuses (the picker's list went stale).
+    const reviewRefusal =
+      reviewPolicyErrorMessage(error, t) ?? reviewerRefusalMessage(error, t);
     if (reviewRefusal !== undefined) {
       toast({ title: reviewRefusal, variant: 'destructive' });
       return;
