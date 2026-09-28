@@ -3,10 +3,12 @@
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { Bot } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
@@ -16,6 +18,7 @@ import {
   TASK_RUN_REFUSAL_LABEL_KEY,
   isTaskStatus,
 } from '../lib/display';
+import { useTaskRepeatLabel } from '../lib/task-repeat-label';
 import {
   isPreviewableTaskActor,
   isWorkflowSentinel,
@@ -36,6 +39,24 @@ function formatCents(cents: number): string {
 }
 
 type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
+
+/**
+ * The rule a `repeat.changed` row stored (as JSON), with when it creates its
+ * next task. Its zone is set aside before validating: the label never reads
+ * it, and a zone this runtime no longer knows must not turn a real rule into
+ * "Never".
+ */
+function storedRepeatRule(value: string): TaskRepeat | null {
+  let stored: unknown;
+  try {
+    stored = JSON.parse(value);
+  } catch (error) {
+    console.warn('[tasks] unreadable repeat rule in the activity log', error);
+    return null;
+  }
+  if (typeof stored !== 'object' || stored === null) return null;
+  return parseTaskRepeat({ ...stored, timezone: 'UTC' });
+}
 
 /** A task's activity and its agent runs, merged newest first, with the runs'
  * total cost — what the Activity log and the task page's conversation read. */
@@ -87,6 +108,8 @@ export function TaskTimelineEntry({
     resolveWorkflowRunPreview,
   } = useActorDirectory(organizationId, projectId);
   const { formatRelative, formatDate } = useFormatDate();
+  const repeatLabel = useTaskRepeatLabel();
+  const { never: repeatNever } = useRecurrenceFormat();
 
   if (item.kind === 'agentRun') {
     const { run } = item;
@@ -161,6 +184,15 @@ export function TaskTimelineEntry({
   const formatActivityValue = (
     value: string | undefined,
   ): string | undefined => {
+    // A repeat change names both rules; a missing end is "Never",
+    // so setting and stopping a series each read as the change they were.
+    // A rule keeps when it creates its next task, so a change of that alone
+    // reads as one too.
+    if (entry.action === 'repeat.changed') {
+      if (!value) return repeatNever;
+      const rule = storedRepeatRule(value);
+      return rule ? repeatLabel(rule) : undefined;
+    }
     if (value === undefined) return undefined;
     // `priority.changed` uses the empty string as the "no priority" sentinel;
     // map it before the generic empty-string pass-through below would

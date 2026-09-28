@@ -26,6 +26,7 @@ import {
   CommentCountIndicator,
   DueDateIndicator,
   NeedsReviewIndicator,
+  RepeatIndicator,
   SubtaskProgress,
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
@@ -214,6 +215,11 @@ export function TaskCard({
               needsReview={needsReview(task._id)}
               reviewerName={reviewerName}
               reviewerIsMe={reviewerIsMe}
+            />
+            <RepeatIndicator
+              repeat={task.repeat}
+              status={task.status}
+              continued={task.repeatContinued}
             />
             <DueDateIndicator dueDate={task.dueDate} status={task.status} />
             {total > 0 && <SubtaskProgress done={done} total={total} />}

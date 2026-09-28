@@ -7,6 +7,7 @@ import {
 } from '@/lib/utils/backend-error';
 
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
+import { useNextTaskToast } from './use-next-task-toast';
 
 export function useCreateTask() {
   return useBackendMutation('tasks/mutations:createTask');
@@ -17,7 +18,10 @@ export function useUpdateTask() {
 }
 
 export function useUpdateTaskStatus() {
-  return useBackendMutation('tasks/mutations:updateTaskStatus');
+  const announceNextTask = useNextTaskToast();
+  return useBackendMutation('tasks/mutations:updateTaskStatus', {
+    onSuccess: announceNextTask,
+  });
 }
 
 export function useAssignTask() {
@@ -68,10 +72,12 @@ export function useDeleteTask() {
 export function useMoveTask() {
   const { t } = useT('tasks');
   const { t: tToast } = useT('toast');
+  const announceNextTask = useNextTaskToast();
   // Dropping In review → Done IS the review approve, so the org's
   // review_policy can refuse a drag — name the reason instead of the generic
   // failure copy (the card still snaps back either way).
   return useBackendMutation('tasks/mutations:moveTask', {
+    onSuccess: announceNextTask,
     errorToast: {
       title: tToast('error.generic.title'),
       description: (error) =>

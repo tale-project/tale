@@ -10,6 +10,8 @@ import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issu
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import type { TaskStatusWriteResult } from '@/app/lib/backend/contract/tasks';
+import { parseTaskRepeat } from '@/lib/shared/task-repeat';
 
 import type {
   AdapterContext,
@@ -65,6 +67,12 @@ interface TaskWire {
   startDate: number | null;
   startNotifiedAt: number | null;
   dueDate: number | null;
+  /** The stored repeat rule, as written — validated on the way in below. */
+  repeat: unknown;
+  repeatNextTaskId: string | null;
+  /** Whether the task has continued its series — true still once that
+   * next task is deleted, when the pointer above is cleared. */
+  repeatContinued: boolean;
   slaLevel: number | null;
   slaLevelAt: number | null;
   statusChangedAt: number | null;
@@ -85,6 +93,9 @@ interface TaskWire {
 
 function taskView(row: TaskWire): TaskItem {
   const externalIssue = taskExternalIssueSchema.safeParse(row.externalIssue);
+  // A rule that no longer validates (a zone the runtime dropped) reads as
+  // none, so the board never renders a series it cannot describe.
+  const repeat = parseTaskRepeat(row.repeat);
   const view: Record<string, unknown> = {
     _id: row.id,
     _creationTime: row.createdAt,
@@ -132,6 +143,11 @@ function taskView(row: TaskWire): TaskItem {
       ? { startNotifiedAt: row.startNotifiedAt }
       : {}),
     ...(isEpochMs(row.dueDate) ? { dueDate: row.dueDate } : {}),
+    ...(repeat !== null ? { repeat } : {}),
+    ...(typeof row.repeatNextTaskId === 'string'
+      ? { repeatNextTaskId: row.repeatNextTaskId }
+      : {}),
+    ...(row.repeatContinued ? { repeatContinued: true } : {}),
     ...(row.slaLevel !== null ? { slaLevel: row.slaLevel } : {}),
     ...(row.slaLevelAt !== null ? { slaLevelAt: row.slaLevelAt } : {}),
     ...(row.statusChangedAt !== null
@@ -722,20 +738,52 @@ function requireString(args: Record<string, unknown>, field: string): string {
   return value;
 }
 
-/** POST a task verb under `/tasks/:taskId/<verb>`, body = args minus ids. */
+/** POST a task verb under `/tasks/:taskId/<verb>`, body = args minus ids.
+ *  `project` shapes the answer; without one the verb answers `null`. */
 function taskVerb(
   verb: string,
+  project: (body: unknown) => unknown = () => null,
 ): (args: Record<string, unknown>, ctx: AdapterContext) => Promise<unknown> {
   return async (args, ctx) => {
     const orgId = requireOrg(args, ctx);
     const taskId = requireString(args, 'taskId');
     const { organizationId: _org, taskId: _task, ...body } = args;
-    await backendFetch(`/tasks/${encodeURIComponent(taskId)}/${verb}`, {
-      method: 'POST',
-      body,
-      orgId,
-    });
-    return null;
+    const answer = await backendFetch<unknown>(
+      `/tasks/${encodeURIComponent(taskId)}/${verb}`,
+      { method: 'POST', body, orgId },
+    );
+    return project(answer);
+  };
+}
+
+/** "Stop repeating" answers whether the untouched next task was taken
+ *  back; anything but an explicit `true` reads as kept. */
+function stopRepeatView(body: unknown): { removedNextTask: boolean } {
+  const removed =
+    typeof body === 'object' &&
+    body !== null &&
+    'removedNextTask' in body &&
+    body.removedNextTask === true;
+  return { removedNextTask: removed };
+}
+
+/** The status and move routes' answer, read field by field. */
+interface StatusWriteWire {
+  nextTask?: { id?: unknown; number?: unknown; dueDate?: unknown } | null;
+}
+
+/** A status change or move answers the next copy of a repeating task when
+ *  that write closed one; nulls become absent fields, as on every task. */
+function statusWriteView(body: unknown): TaskStatusWriteResult {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the fetch boundary: every field is checked below
+  const next = (body as StatusWriteWire | null | undefined)?.nextTask;
+  if (typeof next?.id !== 'string') return {};
+  return {
+    nextTask: {
+      id: next.id,
+      ...(typeof next.number === 'number' ? { number: next.number } : {}),
+      ...(isEpochMs(next.dueDate) ? { dueDate: next.dueDate } : {}),
+    },
   };
 }
 
@@ -768,7 +816,7 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     invalidate: taskWriteInvalidate,
   },
   'tasks/mutations:updateTaskStatus': {
-    run: taskVerb('status'),
+    run: taskVerb('status', statusWriteView),
     invalidate: taskWriteInvalidate,
   },
   'tasks/mutations:assignTask': {
@@ -776,7 +824,7 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
     invalidate: taskWriteInvalidate,
   },
   'tasks/mutations:moveTask': {
-    run: taskVerb('move'),
+    run: taskVerb('move', statusWriteView),
     invalidate: taskWriteInvalidate,
   },
   'tasks/mutations:archiveTask': {
@@ -786,6 +834,32 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
   'tasks/mutations:restoreTask': {
     run: taskVerb('restore'),
     invalidate: taskWriteInvalidate,
+  },
+  'tasks/mutations:stopTaskRepeat': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      const answer = await backendFetch<unknown>(
+        `/tasks/${encodeURIComponent(taskId)}/repeat/stop`,
+        { method: 'POST', body: {}, orgId },
+      );
+      return stopRepeatView(answer);
+    },
+    // The next task this may take back answers 404 once it is gone, so its
+    // reads are left out here — refetching them would log a failed request
+    // each; the caller refreshes them when the answer says the task stayed.
+    // Every other task read refreshes.
+    invalidate: (client, args, ctx) => {
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      const nextTaskId = args.nextTaskId;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'task'),
+        predicate: (query) =>
+          typeof nextTaskId !== 'string' ||
+          !query.queryKey.includes(nextTaskId),
+      });
+    },
   },
   'tasks/mutations:deleteTask': {
     run: async (args, ctx) => {
