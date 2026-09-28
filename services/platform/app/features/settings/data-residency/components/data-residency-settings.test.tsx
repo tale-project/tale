@@ -87,8 +87,12 @@ const fixtures = vi.hoisted(() => ({
     support: 'supported' | 'unsupported' | 'unknown';
   }>,
   // How the recommendations read — picks and declarations — stands: answered,
-  // still in flight, or failed.
-  recommendationsRead: 'answered' as 'answered' | 'pending' | 'failed',
+  // still in flight, failed, or retrying after that first failure.
+  recommendationsRead: 'answered' as
+    | 'answered'
+    | 'pending'
+    | 'failed'
+    | 'retrying',
   // Whether the org's catalog listing answered or failed outright.
   catalogsRead: 'answered' as 'answered' | 'failed',
   backfill: null as unknown,
@@ -154,14 +158,16 @@ vi.mock('../hooks/queries', () => ({
           isPending: false,
           isError: false,
           isFetching: false,
+          isFetched: true,
           error: null,
           refetch: refetchRecommendations,
         }
       : {
           data: undefined,
-          isPending: fixtures.recommendationsRead === 'pending',
+          isPending: fixtures.recommendationsRead !== 'failed',
           isError: fixtures.recommendationsRead === 'failed',
-          isFetching: fixtures.recommendationsRead === 'pending',
+          isFetching: fixtures.recommendationsRead !== 'failed',
+          isFetched: fixtures.recommendationsRead !== 'pending',
           error:
             fixtures.recommendationsRead === 'failed'
               ? new Error('recommendations unavailable')
@@ -262,13 +268,18 @@ function renderWithController() {
     capture.current = useActiveEditor();
     return null;
   }
-  const rendered = render(
+  const page = () => (
     <ActiveEditorProvider>
       <ActiveProbe />
       <DataResidencySettings organizationId="org-1" />
-    </ActiveEditorProvider>,
+    </ActiveEditorProvider>
   );
-  return { ...rendered, capture };
+  const rendered = render(page());
+  return {
+    ...rendered,
+    capture,
+    rerenderPage: () => rendered.rerender(page()),
+  };
 }
 
 function sectionByHeading(name: string): HTMLElement {
@@ -954,6 +965,47 @@ describe('DataResidencySettings', () => {
       within(section).getByRole('button', { name: 'Try again' }),
     );
     expect(refetchRecommendations).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an edited draft dirty while the failed declarations read retries', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'deepseek', name: 'API key' },
+    ];
+    fixtures.recommendationsRead = 'failed';
+    const { user, capture, rerenderPage } = renderWithController();
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'deepseek' }));
+    expect(capture.current?.isDirty).toBe(true);
+
+    // With no successful data yet, a real refetch returns to pending. It
+    // must not suppress the dirty source while this draft still exists.
+    fixtures.recommendationsRead = 'retrying';
+    rerenderPage();
+    expect(capture.current?.isDirty).toBe(true);
+    expect(capture.current?.isValid).toBe(false);
+    expect(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    ).toHaveTextContent('deepseek');
+
+    fixtures.recommendationsRead = 'answered';
+    fixtures.embeddingSupport = [
+      { providerSlug: 'deepseek', support: 'unknown' },
+    ];
+    rerenderPage();
+    expect(capture.current?.isDirty).toBe(true);
+    expect(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    ).toHaveTextContent('deepseek');
+    expect(
+      within(section).getByRole('textbox', { name: 'Model' }),
+    ).toBeEnabled();
+    expect(saveEmbedding).not.toHaveBeenCalled();
   });
 
   it('pins the door refusal of a provider that cannot embed under the model', async () => {

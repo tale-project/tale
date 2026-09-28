@@ -359,10 +359,10 @@ export function OrgEmbeddingSection({
     !catalogsEnabled ||
     catalogsQuery.data !== undefined ||
     catalogsQuery.isError;
-  const supportSettled =
-    !catalogsEnabled ||
-    recommendationsQuery.data !== undefined ||
-    recommendationsQuery.isError;
+  // `isFetched` remains true while a failed read retries. Returning the
+  // adopted baseline to undefined would suppress the editor's dirty source
+  // and let navigation discard a draft without warning during that retry.
+  const supportSettled = !catalogsEnabled || recommendationsQuery.isFetched;
   const supportReadFailed =
     catalogsEnabled &&
     recommendationsQuery.data === undefined &&
