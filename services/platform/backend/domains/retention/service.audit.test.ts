@@ -11,11 +11,12 @@
  * so "the same transaction" is a checked fact rather than a hope.
  */
 
+import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
 import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
 import { releaseRefs } from '../knowledge/release.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
@@ -27,7 +28,10 @@ vi.mock('../../lib/org-config.ts', () => ({
 }));
 vi.mock('../knowledge/release.ts', () => ({ releaseRefs: vi.fn() }));
 vi.mock('../legal_holds/service.ts', () => ({ loadActiveHolds: vi.fn() }));
-vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
+vi.mock('../audit_logs/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../audit_logs/service.ts')>()),
+  createAuditLog: vi.fn(),
+}));
 vi.mock('../tts/service.ts', () => ({ cascadeDeleteThreadTtsChunks: vi.fn() }));
 
 interface Statement {
@@ -742,6 +746,7 @@ describe('sweepOrgPhase2 — destruction rows', () => {
   it('writes one row each for agent runs, automation runs and the sandbox ledgers, in their delete’s transaction', async () => {
     const fake = fakeSql({
       'DELETE FROM app.project_agent_runs': ids(2, 'agent-run-'),
+      'SELECT id FROM app.automation_runs': ids(4, 'run-'),
       'DELETE FROM app.automation_runs': ids(4, 'run-'),
       'DELETE FROM app.sandbox_tool_calls': ids(3, 'call-'),
       'DELETE FROM app.sandbox_credential_access': ids(1, 'grant-'),
@@ -791,5 +796,70 @@ describe('sweepOrgPhase2 — destruction rows', () => {
       deleted: 4,
       counts: { toolCalls: 3, credentialAccess: 1 },
     });
+  });
+
+  // The delete clears a purged run from the trigger that names it (`ON
+  // DELETE SET NULL`), so the organization's audit chain goes between the
+  // runs' own rows and that delete — the order a landing run takes them in
+  // (`automations/trigger-failures.ts`).
+  it('locks the automation runs it removes, then the audit chain, then deletes them, in one transaction', async () => {
+    const fake = fakeSql({
+      'SELECT id FROM app.automation_runs': ids(2, 'run-'),
+      'DELETE FROM app.automation_runs': ids(2, 'run-'),
+    });
+
+    await sweepOrgPhase2(
+      fake.sql,
+      {
+        organizationId: 'org_1',
+        config: { workflowLogEnabled: true, workflowLogRetentionDays: 30 },
+      },
+      { orgHeld: false, userMembershipIds: new Set() },
+    );
+
+    const tx = txOf(fake.statements, 'DELETE FROM app.automation_runs');
+    const inTx = fake.statements.filter((s) => s.tx === tx);
+    const at = (predicate: (text: string) => boolean) =>
+      inTx.findIndex((s) => predicate(s.text));
+    const batch = at((text) =>
+      text.startsWith('SELECT id FROM app.automation_runs'),
+    );
+    const chain = at((text) => text.includes('pg_advisory_xact_lock'));
+    const removal = at((text) =>
+      text.startsWith('DELETE FROM app.automation_runs'),
+    );
+    expect(inTx[batch]?.text).toContain('FOR UPDATE');
+    expect(inTx[chain]?.values).toEqual([
+      RETRY_QUEUE_LOCK_CLASS,
+      auditChainQueueKey('org_1'),
+    ]);
+    expect(batch).toBeGreaterThan(-1);
+    expect(chain).toBeGreaterThan(batch);
+    expect(removal).toBeGreaterThan(chain);
+    expect(inTx[removal]?.values).toEqual([['run-0', 'run-1']]);
+    expect(appendOf('automation_run.retention_deleted').tx).toBe(tx);
+  });
+
+  it('takes no audit chain and deletes nothing when no automation run is due', async () => {
+    const fake = fakeSql({});
+
+    await sweepOrgPhase2(
+      fake.sql,
+      {
+        organizationId: 'org_1',
+        config: { workflowLogEnabled: true, workflowLogRetentionDays: 30 },
+      },
+      { orgHeld: false, userMembershipIds: new Set() },
+    );
+
+    expect(
+      fake.statements.some((s) => s.text.includes('pg_advisory_xact_lock')),
+    ).toBe(false);
+    expect(
+      fake.statements.some((s) =>
+        s.text.startsWith('DELETE FROM app.automation_runs'),
+      ),
+    ).toBe(false);
+    expect(actions()).toEqual([]);
   });
 });
