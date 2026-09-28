@@ -35,7 +35,7 @@ The header's Discard action applies to pending form edits. It does not undo an i
 
 ## Change the accent color
 
-Edit **Accent color** and inspect the preview. Select **Save** in the settings header to persist the change, or **Discard** to return to the saved value. The color field reflects the current theme, so a derived dark-theme color may differ from the stored light-theme value. Saving a change, uploading an image or removing one each leave a row in the audit log under **Settings > Governance > Logs**.
+Edit **Accent color** and inspect the preview. Select **Save** in the settings header to persist the change, or **Discard** to return to the saved value. The color field reflects the current theme, so a derived dark-theme color may differ from the stored light-theme value. The preview shows the color as it will look once saved, so in the dark theme it can differ from the value in the field. Saving a change, uploading an image or removing one each leave a row in the audit log under **Settings > Governance > Logs**.
 
 Buttons keep your color as closely as legibility allows. Other marks drawn in the accent use your color only where it reads as text on the page. Where it does not, Tale uses a deeper shade of it, or a lighter one in the dark theme. These marks include a link, a mention, a source reference, the selected navigation item, an unread dot, the keyboard focus ring, a switch that is on, and a progress bar. A mid-tone color can therefore look slightly different on a link or a switch than on a button.
 

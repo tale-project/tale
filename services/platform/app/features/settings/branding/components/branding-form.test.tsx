@@ -9,7 +9,7 @@ import { act, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
-import { adjustColorForTheme } from '@/lib/utils/color';
+import { adjustColorForTheme, deriveAccentPalette } from '@/lib/utils/color';
 import {
   SESSION_ENDED,
   SHIPPED_LOCALES,
@@ -120,7 +120,15 @@ import { BrandingForm } from './branding-form';
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mockTheme.resolvedTheme = 'light';
 });
+
+/** The accent the form last handed its preview. */
+function lastPreviewAccent(onPreviewChange: ReturnType<typeof vi.fn>) {
+  const [data] = onPreviewChange.mock.lastCall ?? [];
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the mock's one argument is the preview payload
+  return (data as { accentColor?: string } | undefined)?.accentColor;
+}
 
 describe('BrandingForm', () => {
   const defaultProps = {
@@ -258,25 +266,20 @@ describe('BrandingForm', () => {
         />
       </ActiveEditorProvider>,
     );
-    const lastPreviewAccent = () => {
-      const [data] = onPreviewChange.mock.lastCall ?? [];
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the mock's one argument is the preview payload
-      return (data as { accentColor?: string } | undefined)?.accentColor;
-    };
-    expect(lastPreviewAccent()).toBe('#FF0000');
+    expect(lastPreviewAccent(onPreviewChange)).toBe('#FF0000');
 
     const hexInput = screen.getByLabelText('Accent color hex value');
     // One keystroke at a time: the preview keeps the stored color until the
     // typed value is a color again (a partial hex is not one).
     fireEvent.change(hexInput, { target: { value: 'E' } });
-    expect(lastPreviewAccent()).toBe('#FF0000');
+    expect(lastPreviewAccent(onPreviewChange)).toBe('#FF0000');
     fireEvent.change(hexInput, { target: { value: 'E11D' } });
-    expect(lastPreviewAccent()).toBe('#FF0000');
+    expect(lastPreviewAccent(onPreviewChange)).toBe('#FF0000');
     fireEvent.change(hexInput, { target: { value: 'E11D48' } });
-    expect(lastPreviewAccent()).toBe('#E11D48');
+    expect(lastPreviewAccent(onPreviewChange)).toBe('#E11D48');
     // Clearing the field clears the preview's accent.
     fireEvent.change(hexInput, { target: { value: '' } });
-    expect(lastPreviewAccent()).toBeUndefined();
+    expect(lastPreviewAccent(onPreviewChange)).toBeUndefined();
   });
 
   it('returns the active editor to clean when the color reverts to baseline', () => {
@@ -399,6 +402,50 @@ describe('BrandingForm', () => {
       );
       expect(expected).not.toBe('#F5F5F5');
       mockTheme.resolvedTheme = 'light';
+    });
+
+    it("hands the preview the stored color in dark mode, not the field's dark rendering", () => {
+      // The live app derives the dark palette from the stored pick. Deriving
+      // it from the field's dark-rendered value re-rounds the text shade.
+      mockTheme.resolvedTheme = 'dark';
+      const onPreviewChange = vi.fn();
+      render(
+        <ActiveEditorProvider>
+          <BrandingForm
+            {...defaultProps}
+            onPreviewChange={onPreviewChange}
+            branding={{ accentColor: '#443366' }}
+          />
+        </ActiveEditorProvider>,
+      );
+
+      expect(lastPreviewAccent(onPreviewChange)).toBe('#443366');
+      const shown = adjustColorForTheme('#443366', 'dark');
+      expect(screen.getByLabelText('Accent color hex value')).toHaveValue(
+        shown.slice(1).toUpperCase(),
+      );
+      expect(deriveAccentPalette('#443366', 'dark').text).toBe('#9682c0');
+      expect(deriveAccentPalette(shown, 'dark').text).toBe('#9582c0');
+    });
+
+    it('hands the preview a changed dark-mode pick as it will be stored', () => {
+      mockTheme.resolvedTheme = 'dark';
+      const onPreviewChange = vi.fn();
+      render(
+        <ActiveEditorProvider>
+          <BrandingForm {...defaultProps} onPreviewChange={onPreviewChange} />
+        </ActiveEditorProvider>,
+      );
+
+      fireEvent.change(screen.getByLabelText('Accent color hex value'), {
+        target: { value: 'F5F5F5' },
+      });
+
+      // Saved, the near-white is stored as its light-mode equivalent, and the
+      // dark theme is derived from that: the preview shows the same.
+      const stored = adjustColorForTheme('#F5F5F5', 'light');
+      expect(stored).not.toBe('#F5F5F5');
+      expect(lastPreviewAccent(onPreviewChange)).toBe(stored);
     });
 
     it('round-trips an untouched stored color verbatim in dark mode', async () => {
