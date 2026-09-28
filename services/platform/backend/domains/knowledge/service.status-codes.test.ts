@@ -265,7 +265,9 @@ describe('markRagUnsupportedIfNoExtractor — a lane that stores a file without 
     'lands %s on `unsupported` with the indexer’s sentence and code',
     async (fileName) => {
       const log: Query[] = [];
-      await markRagUnsupportedIfNoExtractor(fakeSql(log), 'file-1', fileName);
+      await expect(
+        markRagUnsupportedIfNoExtractor(fakeSql(log), 'file-1', fileName),
+      ).resolves.toBe(true);
       expect(lastStatusWrite(log)).toEqual(
         expect.arrayContaining([
           'unsupported',
@@ -283,7 +285,9 @@ describe('markRagUnsupportedIfNoExtractor — a lane that stores a file without 
     'writes nothing for %s, which an extractor reads',
     async (fileName) => {
       const log: Query[] = [];
-      await markRagUnsupportedIfNoExtractor(fakeSql(log), 'file-1', fileName);
+      await expect(
+        markRagUnsupportedIfNoExtractor(fakeSql(log), 'file-1', fileName),
+      ).resolves.toBe(false);
       expect(log).toEqual([]);
     },
   );

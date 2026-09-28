@@ -3596,9 +3596,9 @@ async function checkFiles(
   // A file this door never queues and no extractor reads — a hand-uploaded
   // Loop page — used to keep an empty status, which reads as indexing never
   // started. It now lands on the terminal state a sync import and the
-  // indexer give it, with no job. A `.log`, which a Reindex can index, keeps
-  // its empty status, and so does a chat-bound `.loop`: the chat reads its
-  // own attachments.
+  // indexer give it, with no job — in an existing thread exactly as in a
+  // fresh chat, whose first attachments register before the thread exists.
+  // A `.log`, which a Reindex can index, keeps its empty status.
   const loopUpload = await registerStaged(
     'standup.loop',
     'application/octet-stream',
@@ -3637,8 +3637,9 @@ async function checkFiles(
     (await indexJobsFor(logUpload.fileId)) +
     (await indexJobsFor(chatLoopUpload.fileId));
   const loopSentence = 'No text extractor exists for "standup.loop".';
+  const chatLoopSentence = 'No text extractor exists for "chat.loop".';
   record(
-    'register lands a file no extractor reads on unsupported_type; a .log and a chat-bound file keep an empty status',
+    'register lands a file no extractor reads on unsupported_type, chat-bound or not; a .log keeps an empty status',
     loopUpload.fileId !== '' &&
       loopRow?.ragStatus === 'unsupported' &&
       loopRow.ragErrorCode === 'unsupported_type' &&
@@ -3647,9 +3648,104 @@ async function checkFiles(
       logRow?.ragStatus === null &&
       logRow.ragErrorCode === null &&
       chatLoopUpload.fileId !== '' &&
-      chatLoopRow?.ragStatus === null &&
+      chatLoopRow?.ragStatus === 'unsupported' &&
+      chatLoopRow.ragErrorCode === 'unsupported_type' &&
+      chatLoopRow.ragError === chatLoopSentence &&
       unqueuedJobs === 0,
-    `loop=${loopRow?.ragStatus ?? 'null'}/${loopRow?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${loopRow?.ragError === loopSentence}, log=${logRow?.ragStatus ?? 'null'} (want null), chat-bound loop=${chatLoopRow?.ragStatus ?? 'null'} (want null), jobs=${unqueuedJobs} (want 0)`,
+    `loop=${loopRow?.ragStatus ?? 'null'}/${loopRow?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${loopRow?.ragError === loopSentence}, log=${logRow?.ragStatus ?? 'null'} (want null), chat-bound loop=${chatLoopRow?.ragStatus ?? 'null'}/${chatLoopRow?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${chatLoopRow?.ragError === chatLoopSentence}, jobs=${unqueuedJobs} (want 0)`,
+  );
+
+  // A chat attachment registered in an existing thread before the door made
+  // it terminal kept an empty status for good: the turn's backstop only ever
+  // queued. It now gives such a row the door's answer the first time a turn
+  // reaches for it, once; a `.log` stays empty, as it does at the door.
+  await sql`
+    UPDATE app.file_metadata
+    SET rag_status = NULL, rag_error = NULL, rag_error_code = NULL
+    WHERE id = ${chatLoopUpload.fileId}
+  `;
+  const chatLogUpload = await registerStaged(
+    'chat.log',
+    'text/plain',
+    'GET /health 200',
+    { threadId: 'itest-attachment-thread' },
+  );
+  const healedLoop = await healHandler?.({ storageId: chatLoopUpload.ref });
+  const healedLoopAgain = await healHandler?.({
+    storageId: chatLoopUpload.ref,
+  });
+  const healedLog = await healHandler?.({ storageId: chatLogUpload.ref });
+  const healedLoopRow = await ragStateOf(chatLoopUpload.fileId);
+  const chatLogRow = await ragStateOf(chatLogUpload.fileId);
+  const healJobs =
+    (await indexJobsFor(chatLoopUpload.fileId)) +
+    (await indexJobsFor(chatLogUpload.fileId));
+  record(
+    'a turn lands a status-less attachment no extractor reads on unsupported_type, once; a .log stays empty',
+    healedLoop === 'unsupported' &&
+      healedLoopAgain === null &&
+      healedLog === null &&
+      healedLoopRow?.ragStatus === 'unsupported' &&
+      healedLoopRow.ragErrorCode === 'unsupported_type' &&
+      healedLoopRow.ragError === chatLoopSentence &&
+      chatLogUpload.fileId !== '' &&
+      chatLogRow?.ragStatus === null &&
+      healJobs === 0,
+    `heal=${String(healedLoop)} (want unsupported), second=${String(healedLoopAgain)} (want null), log=${String(healedLog)} (want null), row=${healedLoopRow?.ragStatus ?? 'null'}/${healedLoopRow?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type), log row=${chatLogRow?.ragStatus ?? 'null'} (want null), jobs=${healJobs} (want 0)`,
+  );
+
+  // No list shows an attachment, so its status write tells no document list
+  // to refetch, and `rag_fetch` names no index door for it; once a document
+  // holds the same file, both do. Hints are counted inside the writing
+  // transaction by the rows it inserted itself, so a hint another lane
+  // commits meanwhile cannot leak in.
+  const { markRagUnsupportedIfNoExtractor, readFileTextOnDemand } =
+    await import('./domains/knowledge/service.ts');
+  const documentHintsOfWrite = (rowId: string, storedName: string) =>
+    sql.begin(async (tx) => {
+      await markRagUnsupportedIfNoExtractor(tx, rowId, storedName);
+      const own = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app_realtime.outbox
+        WHERE xmin = pg_current_xact_id()::xid AND entity = 'document'
+      `;
+      return Number(own[0]?.count ?? '-1');
+    });
+  const readUnreadable = async (ref: string) => {
+    const read = await readFileTextOnDemand(sql, {
+      organizationId: orgId,
+      storageId: ref,
+    });
+    return read?.kind === 'unreadable' ? read : null;
+  };
+  const attachmentHints = await documentHintsOfWrite(
+    loopUpload.fileId,
+    'standup.loop',
+  );
+  const attachmentRead = await readUnreadable(loopUpload.ref);
+  const holder = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, extension, source_provider, created_by,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'standup.loop', ${loopUpload.ref}, 'loop', 'upload',
+      'itest:hint-scope', ${Date.now()}, ${Date.now()}
+    )
+    RETURNING id
+  `;
+  const listedHints = await documentHintsOfWrite(
+    loopUpload.fileId,
+    'standup.loop',
+  );
+  const listedRead = await readUnreadable(loopUpload.ref);
+  await sql`DELETE FROM app.documents WHERE id = ${holder[0]?.id ?? ''}`;
+  record(
+    'a status write hints the document lists only for a file a document holds, and rag_fetch names an index door only for it',
+    attachmentHints === 0 &&
+      listedHints === 1 &&
+      attachmentRead?.heldByDocument === false &&
+      attachmentRead.indexing.status === 'unsupported' &&
+      listedRead?.heldByDocument === true,
+    `attachment hints=${attachmentHints} (want 0), held hints=${listedHints} (want 1), attachment heldByDocument=${String(attachmentRead?.heldByDocument)} (want false) status=${attachmentRead?.indexing.status ?? 'none'}, held heldByDocument=${String(listedRead?.heldByDocument)} (want true)`,
   );
 }
 
@@ -5646,6 +5742,90 @@ async function checkDocuments(
       !ledgerRetry.data.success &&
       ledgerRetry.data.error === ledgerSentence,
     `mark → ${ledgerMark.status}, finalize → ${ledgerFinalize.status}, file=${ledgerFile?.ragStatus ?? 'null'}/${ledgerFile?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${ledgerFile?.ragError === ledgerSentence}, jobs=${ledgerJobs[0]?.count ?? '?'} (want 0), view=${ledgerAfter.success ? `${ledgerAfter.data.document.ragStatus}/${ledgerAfter.data.document.ragErrorCode}` : 'ERR'}, retry=${ledgerRetry.success ? `${ledgerRetry.data.success}: ${ledgerRetry.data.error}` : 'ERR'} (want refused with the sentence)`,
+  );
+
+  // Migration 0128: the replacements written before that fix kept the bare
+  // `unsupported` — no code, no sentence. Put the `.ac2` row back in that
+  // state, beside a bare row whose file an extractor reads (its cause is not
+  // the name's to tell), and run the migration as the boot does, twice.
+  const { migrate: fillUnsupportedCodes } =
+    await import('./db/migrations/0128_rag_unsupported_type_codes.ts');
+  await sql`
+    UPDATE app.file_metadata SET rag_error = NULL, rag_error_code = NULL
+    WHERE id = ${ledgerFile?.id ?? ''}
+  `;
+  const bareView = z
+    .object({
+      document: z.object({ ragErrorCode: z.string().optional() }),
+    })
+    .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
+  const readableBare = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, rag_status,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, ${`s3:itest/bare-readable-${randomUUID()}`}, 'scan.pdf',
+      'application/pdf', 1, 'unsupported', ${Date.now()}
+    )
+    RETURNING id
+  `;
+  const migrationHints = await sql.begin(async (tx) => {
+    await fillUnsupportedCodes(tx);
+    const own = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app_realtime.outbox
+      WHERE xmin = pg_current_xact_id()::xid AND entity = 'document'
+        AND org_id = ${orgId}
+    `;
+    return Number(own[0]?.count ?? '-1');
+  });
+  const fileStateOf = async (id: string) =>
+    (
+      await sql<{ ragErrorCode: string | null; ragError: string | null }[]>`
+        SELECT rag_error_code AS "ragErrorCode", rag_error AS "ragError"
+        FROM app.file_metadata WHERE id = ${id}
+      `
+    )[0];
+  const filledLedger = await fileStateOf(ledgerFile?.id ?? '');
+  const leftReadable = await fileStateOf(readableBare[0]?.id ?? '');
+  await sql.begin((tx) => fillUnsupportedCodes(tx));
+  const filledLedgerAgain = await fileStateOf(ledgerFile?.id ?? '');
+  const filledView = z
+    .object({
+      document: z.object({
+        ragStatus: z.string().optional(),
+        ragErrorCode: z.string().optional(),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
+  const filledRetry = z
+    .object({ success: z.boolean(), error: z.string().optional() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${ledgerId}/retry-rag?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  await sql`DELETE FROM app.file_metadata WHERE id = ${readableBare[0]?.id ?? ''}`;
+  record(
+    'migration 0128 gives a bare unsupported file no extractor reads its code and sentence, once; a readable one stays bare',
+    bareView.success &&
+      bareView.data.document.ragErrorCode === undefined &&
+      filledLedger?.ragErrorCode === 'unsupported_type' &&
+      filledLedger.ragError === ledgerSentence &&
+      leftReadable?.ragErrorCode === null &&
+      leftReadable.ragError === null &&
+      JSON.stringify(filledLedgerAgain) === JSON.stringify(filledLedger) &&
+      migrationHints === 1 &&
+      filledView.success &&
+      filledView.data.document.ragStatus === 'unsupported' &&
+      filledView.data.document.ragErrorCode === 'unsupported_type' &&
+      filledRetry.success &&
+      !filledRetry.data.success &&
+      filledRetry.data.error === ledgerSentence,
+    `bare view code=${bareView.success ? String(bareView.data.document.ragErrorCode) : 'ERR'} (want undefined), filled=${filledLedger?.ragErrorCode ?? 'null'} (want unsupported_type) sentence=${filledLedger?.ragError === ledgerSentence}, readable=${leftReadable?.ragErrorCode ?? 'null'} (want null), idempotent=${JSON.stringify(filledLedgerAgain) === JSON.stringify(filledLedger)}, hints=${migrationHints} (want 1), view=${filledView.success ? `${filledView.data.document.ragStatus}/${filledView.data.document.ragErrorCode}` : 'ERR'}, retry=${filledRetry.success ? `${filledRetry.data.success}: ${filledRetry.data.error}` : 'ERR'} (want refused with the sentence)`,
   );
 
   // Hard delete removes the row and the hub listing entry.

@@ -9,8 +9,11 @@
  * machine-readable". These tests pin the enqueue — and the three shapes that
  * must NOT take it. A file no lane will index and no extractor reads (a
  * `.doc`, a `.zip`, a hand-uploaded `.loop`) lands on the terminal state the
- * indexer and a sync import give it, while audio, video, chat-bound and
- * opted-out files, and a `.log` the indexer reads, keep an empty status.
+ * indexer and a sync import give it — in an existing thread exactly as in a
+ * fresh chat, whose first attachments register before the thread exists —
+ * while audio, video and opted-out files, and a `.log` the indexer reads,
+ * keep an empty status. No list shows these rows, so no status write here
+ * makes the organization's open Documents lists refetch.
  */
 
 import type { Sql } from 'postgres';
@@ -26,16 +29,20 @@ import { queueTranscription } from './transcription.ts';
 
 /** The register transaction, recording what runs on it. The queue marker and
  * the page-shape stamp stay mocked, so an `UPDATE app.file_metadata` here is
- * the status writer's, run for real. */
+ * the status writer's, run for real. A freshly registered upload is held by
+ * no document, so the writer's list probe answers false. */
 const db = vi.hoisted(() => {
   const statements: { text: string; values: unknown[] }[] = [];
-  const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$');
     statements.push({ text, values });
     return Promise.resolve(
-      text.includes('RETURNING org_id') ? [{ orgId: 'org_1' }] : [],
+      text.includes('RETURNING fm.org_id')
+        ? [{ orgId: 'org_1', listed: false }]
+        : [],
     );
   };
+  const tx = Object.assign(tag, { unsafe: (raw: string) => raw });
   return { statements, tx };
 });
 
@@ -212,13 +219,41 @@ describe('POST /files/register — a file no lane will index', () => {
           'file_1',
         ]),
       );
-      // The open document lists refetch, as for any status the indexer writes.
-      expect(hints().map((s) => s.values)).toEqual([
-        ['org_1', null, 'document', null],
-      ]);
+      // An attachment is on no document list: the writer asks, and the
+      // organization's open Documents lists are not told to refetch.
+      expect(writes[0]?.text).toContain('AS "listed"');
+      expect(hints()).toEqual([]);
       expect(markRagQueued).not.toHaveBeenCalled();
       expect(addJobInTx).not.toHaveBeenCalled();
       expect(queueTranscription).not.toHaveBeenCalled();
+    },
+  );
+
+  // A fresh chat registers its first attachments before the thread exists;
+  // a later message in the same chat registers them with its thread id. The
+  // same file must read the same either way — it used to be terminal in the
+  // first case and empty for good in the second.
+  it.each([
+    ['a legacy Word file', 'minutes.doc', 'application/msword'],
+    ['a hand-uploaded Loop page', 'standup.loop', 'application/octet-stream'],
+  ])(
+    'gives %s in an existing thread the status it gets in a fresh chat',
+    async (_label, fileName, contentType) => {
+      await register({ fileName, contentType });
+      const freshChat = statusWrites().map((s) => s.values);
+      db.statements.length = 0;
+
+      const res = await register({
+        fileName,
+        contentType,
+        threadId: 'thread_1',
+      });
+
+      expect(res.status).toBe(200);
+      expect(freshChat).toHaveLength(1);
+      expect(statusWrites().map((s) => s.values)).toEqual(freshChat);
+      expect(hints()).toEqual([]);
+      expect(addJobInTx).not.toHaveBeenCalled();
     },
   );
 
@@ -238,16 +273,16 @@ describe('POST /files/register — a file no lane will index', () => {
     },
   );
 
-  it('leaves a chat-bound file to the chat', async () => {
+  it('leaves a chat-bound recording to the transcription lane too', async () => {
     const res = await register({
-      fileName: 'standup.loop',
-      contentType: 'application/octet-stream',
+      fileName: 'memo.m4a',
+      contentType: 'audio/mp4',
       threadId: 'thread_1',
     });
 
     expect(res.status).toBe(200);
     expect(statusWrites()).toEqual([]);
-    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(queueTranscription).toHaveBeenCalledTimes(1);
   });
 
   it('leaves an opted-out file alone', async () => {
@@ -261,15 +296,19 @@ describe('POST /files/register — a file no lane will index', () => {
     expect(statusWrites()).toEqual([]);
   });
 
-  it('keeps a `.log` on its empty status: the indexer reads it, so it is not terminal', async () => {
-    const res = await register({
-      fileName: 'server.log',
-      contentType: 'text/plain',
-    });
+  it.each([undefined, 'thread_1'])(
+    'keeps a `.log` on its empty status: the indexer reads it, so it is not terminal (thread %s)',
+    async (threadId) => {
+      const res = await register({
+        fileName: 'server.log',
+        contentType: 'text/plain',
+        ...(threadId !== undefined ? { threadId } : {}),
+      });
 
-    expect(res.status).toBe(200);
-    expect(statusWrites()).toEqual([]);
-    expect(markRagQueued).not.toHaveBeenCalled();
-    expect(addJobInTx).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(200);
+      expect(statusWrites()).toEqual([]);
+      expect(markRagQueued).not.toHaveBeenCalled();
+      expect(addJobInTx).not.toHaveBeenCalled();
+    },
+  );
 });

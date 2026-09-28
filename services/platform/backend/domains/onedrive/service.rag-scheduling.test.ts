@@ -65,8 +65,9 @@ function fakeSql(
     if (text.includes('FROM app.file_metadata')) {
       return Promise.resolve([row]);
     }
-    if (text.includes('RETURNING org_id')) {
-      return Promise.resolve([{ orgId: 'org-1' }]);
+    if (text.includes('RETURNING fm.org_id')) {
+      // The synced document holds its file, so a list shows the status.
+      return Promise.resolve([{ orgId: 'org-1', listed: true }]);
     }
     return Promise.resolve([]);
   };

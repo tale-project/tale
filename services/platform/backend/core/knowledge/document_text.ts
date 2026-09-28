@@ -24,9 +24,11 @@
  * When none serves, the miss states the TRUE indexing state of the file —
  * skipped, queued, running, failed with its error, unsupported, or indexed
  * with no text — and names the file, so the model relays a fact and the
- * timeline shows a filename instead of a raw `s3:` ref. A ref the caller may
- * not read answers the SAME miss as a ref that does not exist: the file name
- * and its state are only ever spoken for an admitted ref.
+ * timeline shows a filename instead of a raw `s3:` ref. It names a remedy
+ * only where one exists: a document can be indexed by hand, an attachment
+ * cannot. A ref the caller may not read answers the SAME miss as a ref that
+ * does not exist: the file name and its state are only ever spoken for an
+ * admitted ref.
  *
  * Admission for the on-demand lane is the live-truth check every corpus hit
  * already passes (`filterRetrievableRagFileIds`): a project file inside the
@@ -91,6 +93,10 @@ export type OnDemandFileRead =
       readonly filename: string;
       readonly sizeBytes: number;
       readonly indexing: OnDemandIndexingState;
+      /** A document holds the file, so a person can start its index run
+       * (Index now, Reindex, a REST bind). False for an attachment — a
+       * chat, task or email file — which no door indexes. */
+      readonly heldByDocument: boolean;
       /** `binary`: not a text-like name (needs the indexer's extractors);
        * `too_large`: text-like but over the cap; `no_text`: the bytes are
        * empty or gone. */
@@ -150,7 +156,10 @@ const MISSING_EMAIL: DocumentTextRead = {
 
 const SAY_SO = 'Say so instead of guessing at its contents.';
 
-/** The remedy for a file that will never index on its own. */
+/** The remedy for a document that will never index on its own. Only a
+ * document has one: an attachment — a chat, task or email file — is on no
+ * list and no Index now reaches it, so its misses end at {@link SAY_SO}
+ * rather than send the model to a door that cannot open. */
 const INDEX_IT =
   "Index it from the project's Knowledge tab (or bind it over the API with " +
   'skipRagIndexing: false), then fetch it again.';
@@ -166,25 +175,30 @@ function describeUnreadable(
   const name = `"${file.filename}"`;
   const { status, error } = file.indexing;
   const because = error !== undefined ? ` (${error})` : '';
+  const unindexed = status === 'skipped' || status === 'pending';
   if (file.reason === 'no_text') {
     return `${name} holds no readable text — its stored bytes are empty or gone. ${SAY_SO}`;
   }
   if (file.reason === 'too_large') {
     const size = `${name} is ${mib(file.sizeBytes)} — too large to read without indexing (the limit is ${mib(ON_DEMAND_TEXT_MAX_BYTES)}).`;
-    return status === 'skipped' || status === 'pending'
+    return unindexed && file.heldByDocument
       ? `${size} ${INDEX_IT}`
       : `${size} ${SAY_SO}`;
   }
   switch (status) {
     case 'skipped':
     case 'pending':
-      return `${name} was uploaded without indexing, and only its indexed text can be read here. ${INDEX_IT}`;
+      return file.heldByDocument
+        ? `${name} was uploaded without indexing, and only its indexed text can be read here. ${INDEX_IT}`
+        : `${name} was attached without indexing, and only indexed text can be read here. ${SAY_SO}`;
     case 'queued':
       return `${name} is queued for indexing and has no readable text yet — try again shortly, or say so.`;
     case 'running':
       return `${name} is being indexed right now — try again shortly, or say so.`;
     case 'failed':
-      return `Indexing ${name} failed${because}, so its text cannot be read. Say so; it can be re-indexed from the project's Knowledge tab or the Documents page.`;
+      return file.heldByDocument
+        ? `Indexing ${name} failed${because}, so its text cannot be read. Say so; it can be re-indexed from the project's Knowledge tab or the Documents page.`
+        : `Indexing ${name} failed${because}, so its text cannot be read. ${SAY_SO}`;
     case 'unsupported':
       return `${name} has no text extractor${because} — its content cannot be read here. ${SAY_SO}`;
     default:

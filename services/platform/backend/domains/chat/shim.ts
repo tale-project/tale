@@ -594,8 +594,9 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
 
     // Self-heal for an attachment whose upload never started indexing (rows
     // from before registration queued it, and the backstop for any lane that
-    // binds a file without queueing). Called by the turn that is about to
-    // tell the model where the file's content lives.
+    // binds a file without queueing): queued, or — for a file no extractor
+    // reads — made terminal. Called by the turn that is about to tell the
+    // model where the file's content lives.
     'file_metadata/internal_mutations:queueRagIndexIfUnstarted': async (
       raw,
     ) => {

@@ -995,7 +995,9 @@ async function loadDocumentAppendix(
       // No status at all means nothing ever started indexing this file —
       // rows an instance carries from before registration queued it. Telling
       // the model the content is unreadable would make that permanent, since
-      // chat offers no retry: start the run instead, and say so.
+      // chat offers no retry: start the run instead, and say so — or, for a
+      // file no extractor reads, land it on the terminal state it would have
+      // had from a fresh chat, and say that.
       const ragStatus =
         meta?.ragStatus ??
         (await ctx.runMutation(
