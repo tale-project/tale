@@ -37,12 +37,21 @@ describe('parseContactSupportUrl', () => {
     );
   });
 
-  it('answers a value that cannot close the inline __ENV__ script', () => {
+  it('answers the parsed URL, with <, > and quotes percent-encoded', () => {
     const url = parseContactSupportUrl(
       'https://support.example.com/</script><script>alert(1)</script>',
     );
     expect(url).toBeDefined();
     expect(url).not.toMatch(/[<>"]/);
+  });
+
+  it('keeps $ and backticks as written (the splice keeps them text)', () => {
+    expect(parseContactSupportUrl("https://support.example.com/a$'b")).toBe(
+      "https://support.example.com/a$'b",
+    );
+    expect(parseContactSupportUrl('https://help.example.com/?x=$`&y=$$')).toBe(
+      'https://help.example.com/?x=$`&y=$$',
+    );
   });
 
   it('reads TALE_CONTACT_SUPPORT_URL by default', () => {

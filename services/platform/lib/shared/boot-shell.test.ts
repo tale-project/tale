@@ -34,4 +34,11 @@ describe('injectBootShell', () => {
     const html = '<body><div id="app"></div></body>';
     expect(injectBootShell(html, '<span>shell</span>')).toBe(html);
   });
+
+  it("keeps a $& or $' in the shell as text", () => {
+    const html = '<body><div id="root"></div></body>';
+    expect(injectBootShell(html, "<span>$&$'</span>")).toBe(
+      '<body><div id="root"><span>$&$\'</span></div></body>',
+    );
+  });
 });
