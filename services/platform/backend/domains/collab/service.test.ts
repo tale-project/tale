@@ -14,8 +14,8 @@ import {
   notifyTaskComment,
   notifyTaskMentions,
   notifyTaskReviewerAssigned,
-  notifyTriggerPaused,
   notifyTaskReviewRequested,
+  notifyTriggerPaused,
   writeCoalescedNotification,
 } from './service.ts';
 
