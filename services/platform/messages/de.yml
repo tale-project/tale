@@ -1926,6 +1926,8 @@ conversations:
     discard: Löschen
   list:
     empty: Keine Konversationen in diesem Tab
+    loadFailed: Konversationen konnten nicht geladen werden
+    loadFailedDescription: Beim Laden dieser Konversationen ist ein Fehler aufgetreten.
   activate:
     title: Noch keine Konversationen
     description: Eingehende Konversationen aus deinen verbundenen Kanälen erscheinen hier.

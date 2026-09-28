@@ -315,3 +315,63 @@ describe('HomeInboxList search and filters', () => {
     expect(filterButton()).toBeEnabled();
   });
 });
+
+/**
+ * A read that failed once its retries gave up is not an empty status: the
+ * view says the list did not load and offers **Try again**, where it used to
+ * read **No conversations** with nothing to recover from (#3709). Rows that
+ * did load stay on screen.
+ */
+describe('HomeInboxList read failure', () => {
+  const failed = (
+    results: ConversationItem[] = [],
+    status: UsePaginatedQueryReturnType<ConversationItem>['status'] = 'Exhausted',
+  ) => ({
+    ...pages(results, status),
+    error: new Error('Request failed with status 503'),
+  });
+
+  it('says the list did not load, instead of that the status is empty', async () => {
+    listing.current = failed();
+    const { user } = renderInbox();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load conversations",
+    );
+    expect(screen.queryByText('No conversations')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(listing.current.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the rows that loaded when a later read fails', () => {
+    listing.current = failed([
+      conversation('c1', 'Invoice shows the wrong VAT'),
+    ]);
+    renderInbox();
+
+    expect(
+      screen.getByRole('link', { name: /Invoice shows the wrong VAT/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says so too when a facet had narrowed the loaded rows to none and the next page failed', () => {
+    window.localStorage.setItem(
+      'home-inbox-read-org-1',
+      JSON.stringify('unread'),
+    );
+    listing.current = failed(
+      [conversation('c1', 'Invoice shows the wrong VAT')],
+      'CanLoadMore',
+    );
+    renderInbox();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load conversations",
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    // The facet that narrowed the list stays undoable.
+    expect(filterButton()).toBeEnabled();
+  });
+});

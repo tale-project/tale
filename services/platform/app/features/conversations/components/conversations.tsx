@@ -437,6 +437,8 @@ export function Conversations({
           loadMore={paginatedResult.loadMore}
           skeletonRows={skeletonRows}
           isFiltering={isFiltering}
+          loadError={paginatedResult.error}
+          onRetry={paginatedResult.retry}
         />
       </ConversationListPanel>
 

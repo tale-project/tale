@@ -1936,6 +1936,8 @@ conversations:
     discard: Supprimer
   list:
     empty: Aucune conversation dans cet onglet
+    loadFailed: Échec du chargement des conversations
+    loadFailedDescription: Une erreur s'est produite lors du chargement de ces conversations.
   activate:
     title: Aucune conversation pour le moment
     description: Les conversations entrantes de vos canaux connectés apparaîtront ici.

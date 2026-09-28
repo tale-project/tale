@@ -41,6 +41,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomeRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import { BulkSendDialog } from '@/app/features/conversations/components/bulk-send-dialog';
+import { ConversationListLoadError } from '@/app/features/conversations/components/conversation-list-load-error';
 import { useListConversationsPaginated } from '@/app/features/conversations/hooks/queries';
 import { useInboxChannelOptions } from '@/app/features/conversations/hooks/use-inbox-channel-options';
 import {
@@ -434,7 +435,11 @@ export function HomeInboxList({
             <HomeRowsSkeleton />
           </Skeletonize>
         ) : groups.length === 0 ? (
-          pageStatus === 'CanLoadMore' || pageStatus === 'LoadingMore' ? (
+          paginated.error !== null ? (
+            // Nothing to show because the read failed, not because the
+            // status is empty: say so, and offer the retry.
+            <ConversationListLoadError onRetry={paginated.retry} />
+          ) : pageStatus === 'CanLoadMore' || pageStatus === 'LoadingMore' ? (
             <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
               <HomeRowsSkeleton />
             </Skeletonize>

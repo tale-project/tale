@@ -33,7 +33,7 @@ export interface UsePaginatedQueryReturnType<Item> {
   /** The request's error once the retry policy gave up, else `null` — a
    * list hands it to `useListPage` so a failed read is never an empty list. */
   error: Error | null;
-  /** Re-issue the request. */
+  /** Re-issue the request that failed: the first page, or the next one. */
   retry: () => void;
 }
 
@@ -66,6 +66,7 @@ function useBackendPaginatedQuery<Item>(
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
     data,
     isLoading,
     isError,
@@ -81,6 +82,7 @@ function useBackendPaginatedQuery<Item>(
   const results = data?.pages.flatMap((page) => page.page) ?? [];
   // A failed first page reads as an exhausted empty list (never an eternal
   // skeleton) — the retry policy has already given up on a deterministic 4xx.
+  // Asking for it again clears the error, so it loads like the first time.
   const status =
     data === undefined
       ? isError
@@ -91,9 +93,12 @@ function useBackendPaginatedQuery<Item>(
         : hasNextPage
           ? 'CanLoadMore'
           : 'Exhausted';
+  // The failed request, not a reload: a refetch reloads only the pages
+  // already there, so a page that failed after them would never be asked for.
   const retry = useCallback(() => {
-    void refetch();
-  }, [refetch]);
+    if (isFetchNextPageError) void fetchNextPage();
+    else void refetch();
+  }, [isFetchNextPageError, fetchNextPage, refetch]);
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter's page rows are the contract's page item by construction (both keyed by the same name)
     results: results as Item[],
