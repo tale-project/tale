@@ -296,7 +296,7 @@ describe('ConversationAssigneePicker', () => {
       await user.click(screen.getByTestId('option-user:user-1'));
 
       expect(mutations.assignUser).toHaveBeenCalledWith(
-        { conversationId: 'conv-1', assigneeUserId: undefined },
+        { conversationId: 'conv-1', assigneeUserId: null },
         expect.anything(),
       );
     });
@@ -328,7 +328,7 @@ describe('ConversationAssigneePicker', () => {
       await user.click(screen.getByTestId('option-team:team-1'));
 
       expect(mutations.assignTeam).toHaveBeenCalledWith(
-        { conversationId: 'conv-1', assigneeTeamId: undefined },
+        { conversationId: 'conv-1', assigneeTeamId: null },
         expect.anything(),
       );
     });
@@ -351,6 +351,37 @@ describe('ConversationAssigneePicker', () => {
       expect(mutations.assignUser).toHaveBeenCalledTimes(1);
       expect(mutations.assignTeam).not.toHaveBeenCalled();
     });
+
+    // `null` is the clear the assignment doors take; `undefined` went over
+    // the wire as `null` too, but nothing said so and the door refused it.
+    it.each([
+      ['Unassign', 'assignUser', { assigneeUserId: null }],
+      ['Remove team', 'assignTeam', { assigneeTeamId: null }],
+    ] as const)(
+      'clears one dimension with null from the footer’s %s',
+      async (label, mutation, cleared) => {
+        const { user } = render(
+          <ConversationAssigneePicker
+            conversation={makeConversation({
+              assigneeUserId: 'user-1',
+              assigneeTeamId: 'team-1',
+            })}
+            organizationId="org-1"
+          />,
+        );
+
+        await user.click(screen.getByRole('button', { name: label }));
+
+        expect(mutations[mutation]).toHaveBeenCalledTimes(1);
+        expect(mutations[mutation]).toHaveBeenCalledWith(
+          { conversationId: 'conv-1', ...cleared },
+          expect.anything(),
+        );
+        expect(
+          mutations[mutation === 'assignUser' ? 'assignTeam' : 'assignUser'],
+        ).not.toHaveBeenCalled();
+      },
+    );
 
     it('leaves the person alone when the team queue is cleared', async () => {
       const { user } = render(

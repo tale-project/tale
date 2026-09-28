@@ -50,6 +50,22 @@ function stringArg(args: Record<string, unknown>, key: string): string {
   return value;
 }
 
+/**
+ * An assignment's target: the person's or team's id, or `null` — the one
+ * clear gesture the assignment doors take, sent as `null`. Anything else is a
+ * missing argument, never a clear: a write that lost its target must not
+ * quietly take the conversation away from whoever answers it.
+ */
+function assignmentTargetArg(
+  args: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = args[key];
+  if (value === null) return null;
+  if (typeof value === 'string' && value.length > 0) return value;
+  throw new Error(`Missing ${key} for adapted write`);
+}
+
 /** An outbound email's body. `''` is a real body when files go with it — an
  * attachment-only email, which the composer offers Send for — and a missing
  * argument when nothing does. */
@@ -224,12 +240,8 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
         `/conversations/${encodeURIComponent(stringArg(args, 'conversationId'))}/assign`,
         {
           orgId: requireOrg(args, ctx),
-          // An absent assignee is the UNASSIGN gesture, not a missing arg.
           body: {
-            assigneeUserId:
-              typeof args.assigneeUserId === 'string'
-                ? args.assigneeUserId
-                : null,
+            assigneeUserId: assignmentTargetArg(args, 'assigneeUserId'),
           },
         },
       ).then(() => null),
@@ -242,10 +254,7 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
         {
           orgId: requireOrg(args, ctx),
           body: {
-            assigneeTeamId:
-              typeof args.assigneeTeamId === 'string'
-                ? args.assigneeTeamId
-                : null,
+            assigneeTeamId: assignmentTargetArg(args, 'assigneeTeamId'),
           },
         },
       ).then(() => null),

@@ -25666,6 +25666,97 @@ async function checkConversations(
       editorDelete.status === 204,
     `member=${memberDoors.join(',')} (want 11x403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
   );
+
+  // --- The assignment doors name their target (#3708, #3732) -------------
+  // `null` clears one dimension and keeps the other — what the Inbox's
+  // **Unassign** and **Remove team** send, which the door used to refuse.
+  // A body that states no target (truncated, empty, `{}`) changes nothing:
+  // the truncated one used to answer 200 and clear the person.
+  const assignProbe = await sql.begin((tx) =>
+    createConversation(tx, {
+      organizationId: orgId,
+      contactId,
+      subject: 'Assignment wire probe',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+    }),
+  );
+  const rawAssign = (
+    door: 'assign' | 'assign-team',
+    body: string,
+  ): Promise<Response> =>
+    fetch(
+      `${base}/api/app/conversations/${assignProbe}/${door}?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body,
+      },
+    );
+  const assignedPair = async () =>
+    (
+      await sql<{ user: string | null; team: string | null }[]>`
+        SELECT assignee_user_id AS "user", assignee_team_id AS "team"
+        FROM app.conversations WHERE id = ${assignProbe}
+      `
+    )[0];
+  const setPerson = await rawAssign(
+    'assign',
+    JSON.stringify({ assigneeUserId: memberId }),
+  );
+  const setTeam = await rawAssign(
+    'assign-team',
+    JSON.stringify({ assigneeTeamId: teamId }),
+  );
+  const bothSet = await assignedPair();
+  const refusals: string[] = [];
+  for (const [door, body] of [
+    ['assign', '{"assigneeUserId":'],
+    ['assign-team', '{"assigneeTeamId":'],
+    ['assign', ''],
+    ['assign', '{}'],
+    ['assign-team', '{}'],
+  ] as const) {
+    const res = await rawAssign(door, body);
+    const code = z
+      .object({ code: z.string().optional(), error: z.string() })
+      .safeParse(await res.json());
+    refusals.push(
+      `${door} ${JSON.stringify(body)}→${res.status}/${code.success ? (code.data.code ?? code.data.error) : 'ERR'}`,
+    );
+  }
+  const afterRefusals = await assignedPair();
+  const clearPerson = await rawAssign(
+    'assign',
+    JSON.stringify({ assigneeUserId: null }),
+  );
+  const afterPersonClear = await assignedPair();
+  await rawAssign('assign', JSON.stringify({ assigneeUserId: memberId }));
+  const clearTeam = await rawAssign(
+    'assign-team',
+    JSON.stringify({ assigneeTeamId: null }),
+  );
+  const afterTeamClear = await assignedPair();
+  await sql`DELETE FROM app.conversations WHERE id = ${assignProbe}`;
+  record(
+    'conversations: an assignment clears on null alone, and a body naming no target changes nothing',
+    setPerson.status === 200 &&
+      setTeam.status === 200 &&
+      bothSet?.user === memberId &&
+      bothSet.team === teamId &&
+      refusals.every((line) => line.includes('→400/')) &&
+      refusals.filter((line) => line.endsWith('/INVALID_JSON')).length === 3 &&
+      afterRefusals?.user === memberId &&
+      afterRefusals.team === teamId &&
+      clearPerson.status === 200 &&
+      afterPersonClear?.user === null &&
+      afterPersonClear.team === teamId &&
+      clearTeam.status === 200 &&
+      afterTeamClear?.team === null &&
+      afterTeamClear.user === memberId,
+    `set=${setPerson.status}/${setTeam.status}, refused=[${refusals.join('; ')}] kept=${afterRefusals?.user === memberId}/${afterRefusals?.team === teamId}, clearPerson=${clearPerson.status} → ${afterPersonClear?.user ?? 'null'}/${afterPersonClear?.team === teamId ? 'team kept' : 'team LOST'}, clearTeam=${clearTeam.status} → ${afterTeamClear?.team ?? 'null'}/${afterTeamClear?.user === memberId ? 'person kept' : 'person LOST'}`,
+  );
 }
 
 /**
