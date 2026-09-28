@@ -6710,7 +6710,7 @@ refusal, with the wait in \`data.retryAfterMs\` (milliseconds) and
 lists every problem under \`data.issues\`, each naming the field (\`path\`)
 and the reason as a short phrase you can show a person — \`is required\`,
 \`must be a string\`, \`must not be blank\`, \`must be at most 200
-characters\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
+UTF-16 code units\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
 \`cursor\` (\`INVALID_LIMIT\`, \`INVALID_CURSOR\`) names its parameter there
 too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,

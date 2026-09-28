@@ -618,7 +618,10 @@ function describeQuantity(origin: string | undefined, count: unknown): string {
   const n = String(count);
   switch (origin) {
     case 'string':
-      return `${n} character${n === '1' ? '' : 's'}`;
+      // A string cap counts `String.length`: UTF-16 code units, most emoji
+      // counting 2. "Characters" misstated it for every field, where the
+      // domain's refusals and the reference name the unit.
+      return `${n} UTF-16 code unit${n === '1' ? '' : 's'}`;
     case 'array':
     case 'set':
       return `${n} item${n === '1' ? '' : 's'}`;
@@ -634,8 +637,8 @@ function quoteValue(value: unknown): string {
 /**
  * The reason a schema refusal states, in the house voice, for every zod
  * issue a body or query can raise: "is required", "must be a string",
- * "must not be blank", "must be at most 200 characters", "must be one of
- * "a", "b"" — short phrases a consumer can show a person. Passed to every
+ * "must not be blank", "must be at most 200 UTF-16 code units", "must be
+ * one of "a", "b"" — short phrases a consumer can show a person. Passed to every
  * parse on this door as the per-parse error map, which zod 4 consults
  * AFTER a schema's own message (`nonBlank`'s "must not be blank", a
  * route's `.regex(…, { message })`) and BEFORE its locale text, so the
@@ -970,10 +973,10 @@ export function nonBlank(max = 256, options: { unit?: string } = {}) {
       .string()
       .trim()
       .min(1, 'must not be blank')
-      // A field whose cap is a count of something other than characters
-      // names its unit: the chat `content` cap counts UTF-16 code units,
-      // which "characters" misstated for an emoji (2026-09-18 evaluation,
-      // J2-1) — the formatter's default sentence stays for every other.
+      // A field may name the unit its cap counts. The chat `content` cap
+      // did first, when the formatter's default still said "characters",
+      // which misstated UTF-16 code units for an emoji (2026-09-18
+      // evaluation, J2-1); the default (`describeQuantity`) names those now.
       .max(
         max,
         options.unit === undefined
