@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { TransactionSql } from 'postgres';
 import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   RAG_ERROR_IMAGE_NO_VISION,
@@ -30,6 +30,23 @@ import {
   unsupportedTypeError,
 } from '../core/knowledge/rag_unsupported.ts';
 import { isMigrationFile } from './migrate.ts';
+
+// The indexer's by-name rule, as the migrations see it: the real rule unless
+// a case stands in the one a later release ships.
+vi.mock('../core/knowledge/rag_unsupported.ts', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('../core/knowledge/rag_unsupported.ts')
+    >();
+  return { ...actual, unsupportedByName: vi.fn(actual.unsupportedByName) };
+});
+const rules = await vi.importActual<
+  typeof import('../core/knowledge/rag_unsupported.ts')
+>('../core/knowledge/rag_unsupported.ts');
+
+afterEach(() => {
+  vi.mocked(unsupportedByName).mockImplementation(rules.unsupportedByName);
+});
 
 const MIGRATIONS_DIR = new URL('./migrations/', import.meta.url);
 /** `services/platform/`, the root the pure rules are named from. */
@@ -415,6 +432,56 @@ describe('0129 — the code on a bare `unsupported` image', () => {
 
     expect(fillOf(statements)?.values[1]).toEqual(['file-png']);
     expect(statements).toHaveLength(2);
+  });
+
+  // It runs with the newest image's code. Once the vision lane returns, the
+  // indexer's rule drops its image leg: an image then reads as a file the
+  // indexer indexes, and "no vision" would be a false cause to stamp on it.
+  it('follows the indexer’s rule, not the image extensions: an image the rule no longer refuses stays bare', async () => {
+    vi.mocked(unsupportedByName).mockImplementation((fileName) => {
+      const cause = rules.unsupportedByName(fileName);
+      return cause?.code === RAG_ERROR_IMAGE_NO_VISION ? null : cause;
+    });
+    const { tx, statements } = fakeTx([
+      { id: 'file-png', fileName: 'photo.png' },
+      { id: 'file-jpg', fileName: 'SCAN.JPG' },
+    ]);
+
+    await m0129.migrate(tx);
+
+    expect(statements).toHaveLength(1);
+  });
+
+  it('fills only what the rule answers as `image_no_vision`, with the sentence it answers', async () => {
+    vi.mocked(unsupportedByName).mockImplementation((fileName) => {
+      if (fileName === 'photo.png') {
+        return {
+          code: RAG_ERROR_IMAGE_NO_VISION,
+          error: 'The rule’s own sentence for "photo.png".',
+        };
+      }
+      // An image the rule's release no longer reads is `unsupported_type`:
+      // `0128`'s to fill, never this migration's.
+      return fileName === 'legacy.tiff'
+        ? { code: RAG_ERROR_UNSUPPORTED_TYPE, error: 'not this one' }
+        : null;
+    });
+    const { tx, statements } = fakeTx(
+      [
+        { id: 'file-png', fileName: 'photo.png' },
+        { id: 'file-tiff', fileName: 'legacy.tiff' },
+        { id: 'file-webp', fileName: 'diagram.webp' },
+      ],
+      [{ orgId: 'org-1', listed: true }],
+    );
+
+    await m0129.migrate(tx);
+
+    expect(fillOf(statements)?.values).toEqual([
+      RAG_ERROR_IMAGE_NO_VISION,
+      ['file-png'],
+      ['The rule’s own sentence for "photo.png".'],
+    ]);
   });
 });
 
