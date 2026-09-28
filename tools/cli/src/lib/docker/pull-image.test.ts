@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 
+import { imageRef } from '../compose/types';
 import { pullImage } from './pull-image';
 
 // Fresh fakes per test, injected directly — no `mock.module`, which is
@@ -13,6 +14,29 @@ function fakeDeps() {
 }
 
 describe('pullImage', () => {
+  test('deploy can pull the object-store before Compose on an arm64 host', async () => {
+    const deps = fakeDeps();
+    const image = imageRef(
+      { registry: 'ghcr.io/tale-project', version: '0.0.0-test' },
+      'object-store',
+    );
+    // The pinned registry image has no arm64 manifest. A host-default pull
+    // fails before the generated Compose service can select its platform.
+    deps.docker.mockImplementation(async (...args: string[]) => ({
+      success: args[1] === '--platform' && args[2] === 'linux/amd64',
+      stdout: '',
+      stderr: 'no matching manifest for linux/arm64/v8',
+    }));
+
+    expect(await pullImage(image, deps)).toBe(true);
+    expect(deps.docker).toHaveBeenCalledWith(
+      'pull',
+      '--platform',
+      'linux/amd64',
+      image,
+    );
+  });
+
   test('returns true on successful pull', async () => {
     const deps = fakeDeps();
     deps.docker.mockResolvedValue({ success: true, stdout: '', stderr: '' });

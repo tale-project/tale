@@ -5,13 +5,15 @@
  * while one of its running ops is live (last sign of life inside the recovery
  * window) and lets it go once that op falls silent, the reconcile batch is a
  * FAIR walk (least-recently-visited first, every visited row stamped — not
- * the 25 globally-oldest rows forever), the ended-run reclaim settles a row
+ * the 25 globally-oldest rows forever) that hands each row the whole spawner
+ * (a pinned row is re-pinned or recreated, `service.test.ts` owns how) and
+ * counts a recreate apart from a heal, the ended-run reclaim settles a row
  * only when the spawner confirmed the session is gone or idle (busy and
  * errors leave it for the next tick), and the failed-create collect destroys
  * a session only when no newer or live incarnation carries its id, then
  * stamps that one row. The real-Postgres probe (`integration-check.ts`)
- * proves the live-turn spare, the rotation and the reclaim and collect guards
- * on the actual schema.
+ * proves the live-turn spare, the rotation, the pinned recreate and the
+ * reclaim and collect guards on the actual schema.
  */
 
 import type { Sql } from 'postgres';
@@ -39,8 +41,10 @@ import {
 } from './watchdogs.ts';
 
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
+  sessionCreate: vi.fn(),
   sessionIsAlive: vi.fn(),
   sessionDestroyIfIdle: vi.fn(),
+  sessionSetPinned: vi.fn(),
 }));
 vi.mock('../tasks/agent-runs.ts', () => ({
   wakeParkedAgentRuns: vi.fn(() => Promise.resolve()),
@@ -116,6 +120,25 @@ function fakeSql(script: {
 function candidate(id: string): Candidate {
   return { id, sessionId: `ses-${id}`, orgId: 'org_1' };
 }
+
+/** A scripted spawner: every session alive, every pin taken, every create
+ * and idle destroy served — a test overrides the verbs it scripts. */
+function scriptedSpawner(
+  overrides: Partial<WatchdogSpawner> = {},
+): WatchdogSpawner {
+  return {
+    isAlive: vi.fn(() => Promise.resolve(true)),
+    setPinned: vi.fn(() => Promise.resolve(true)),
+    create: vi.fn(() => Promise.resolve(undefined)),
+    destroyIfIdle: vi.fn(() =>
+      Promise.resolve({ destroyed: true, busy: false }),
+    ),
+    ...overrides,
+  };
+}
+
+const idleAnswer = (): WatchdogSpawner['destroyIfIdle'] =>
+  vi.fn(() => Promise.resolve({ destroyed: false, busy: false }));
 
 const stampsOf = (statements: Statement[]): Statement[] =>
   statements.filter((s) => s.text.includes('SET last_reconciled_at_ms'));
@@ -212,12 +235,7 @@ describe('runSandboxWatchdog — fair reconcile', () => {
   it('walks least-recently-visited first, probes with the injected spawner, and stamps every visited row', async () => {
     const batch = [candidate('a'), candidate('b'), candidate('c')];
     const { sql, statements } = fakeSql({ reconcile: [batch] });
-    const spawner: WatchdogSpawner = {
-      isAlive: vi.fn(() => Promise.resolve(true)),
-      destroyIfIdle: vi.fn(() =>
-        Promise.resolve({ destroyed: false, busy: false }),
-      ),
-    };
+    const spawner = scriptedSpawner({ destroyIfIdle: idleAnswer() });
     vi.mocked(reconcileSession).mockResolvedValueOnce('healed');
 
     const result = await runSandboxWatchdog(sql, {
@@ -239,13 +257,14 @@ describe('runSandboxWatchdog — fair reconcile', () => {
     );
     expect(select?.values).toContain(3);
 
-    // Each candidate probed through the injected liveness verb.
+    // Each candidate reconciled through the injected spawner — its liveness
+    // probe and the pin and create verbs a pinned row needs.
     expect(reconcileSession).toHaveBeenCalledTimes(3);
     for (const row of batch) {
       expect(reconcileSession).toHaveBeenCalledWith(
         sql,
         { organizationId: row.orgId, sessionId: row.sessionId },
-        { isAlive: spawner.isAlive },
+        spawner,
       );
     }
 
@@ -266,17 +285,44 @@ describe('runSandboxWatchdog — fair reconcile', () => {
 
     const result = await runSandboxWatchdog(sql, {
       reconcileBatch: 2,
-      spawner: {
-        isAlive: vi.fn(() => Promise.resolve(true)),
-        destroyIfIdle: vi.fn(() =>
-          Promise.resolve({ destroyed: false, busy: false }),
-        ),
-      },
+      spawner: scriptedSpawner({ destroyIfIdle: idleAnswer() }),
     });
 
     expect(result.healed).toBe(0);
     expect(warn).toHaveBeenCalled();
     expect(stampsOf(statements)[0]?.values).toContainEqual(['x', 'y']);
+  });
+});
+
+describe('runSandboxWatchdog — pinned sessions in the reconcile', () => {
+  it('counts a pinned session recreated in place apart from a healed phantom', async () => {
+    const { sql } = fakeSql({
+      reconcile: [[candidate('pinned'), candidate('phantom'), candidate('up')]],
+    });
+    vi.mocked(reconcileSession)
+      .mockResolvedValueOnce('recreated')
+      .mockResolvedValueOnce('healed')
+      .mockResolvedValueOnce('repinned');
+
+    const result = await runSandboxWatchdog(sql, {
+      reconcileBatch: 3,
+      spawner: scriptedSpawner(),
+    });
+
+    expect(result).toMatchObject({ healed: 1, recreated: 1 });
+  });
+
+  it('keeps the Sandboxes page probe answering its healed count alone', async () => {
+    const { sql } = fakeSql({
+      reconcile: [[candidate('pinned'), candidate('phantom')]],
+    });
+    vi.mocked(reconcileSession)
+      .mockResolvedValueOnce('recreated')
+      .mockResolvedValueOnce('healed');
+
+    await expect(
+      reconcileOrgSessions(sql, 'org_1', scriptedSpawner()),
+    ).resolves.toEqual({ healed: 1 });
   });
 });
 
@@ -298,7 +344,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
     });
 
     const result = await runSandboxWatchdog(sql, {
-      spawner: { isAlive: vi.fn(() => Promise.resolve(true)), destroyIfIdle },
+      spawner: scriptedSpawner({ destroyIfIdle }),
     });
 
     expect(result.reclaimed).toBe(1);
@@ -323,14 +369,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
     const { sql, statements } = fakeSql({});
     const before = Date.now();
 
-    await runSandboxWatchdog(sql, {
-      spawner: {
-        isAlive: vi.fn(() => Promise.resolve(true)),
-        destroyIfIdle: vi.fn(() =>
-          Promise.resolve({ destroyed: true, busy: false }),
-        ),
-      },
-    });
+    await runSandboxWatchdog(sql, { spawner: scriptedSpawner() });
 
     const select = statements.find((s) =>
       s.text.includes("s.owner_type = 'workflow_run'"),
@@ -369,12 +408,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
       reclaim: [[candidate('never-either')]],
       collect: [[candidate('never-collected')]],
     });
-    const spawner: WatchdogSpawner = {
-      isAlive: vi.fn(() => Promise.resolve(true)),
-      destroyIfIdle: vi.fn(() =>
-        Promise.resolve({ destroyed: true, busy: false }),
-      ),
-    };
+    const spawner = scriptedSpawner();
 
     const result = await runSandboxWatchdog(sql, {
       skipReconcile: true,
@@ -384,6 +418,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
     expect(result).toEqual({
       expired: 0,
       healed: 0,
+      recreated: 0,
       reclaimed: 0,
       collected: 0,
       settled: 0,
@@ -404,10 +439,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
 describe('runSandboxWatchdog — collect of failed creates', () => {
   const idleSpawner = (
     destroyIfIdle: WatchdogSpawner['destroyIfIdle'],
-  ): WatchdogSpawner => ({
-    isAlive: vi.fn(() => Promise.resolve(true)),
-    destroyIfIdle,
-  });
+  ): WatchdogSpawner => scriptedSpawner({ destroyIfIdle });
 
   // The regression (#3494): a failed row was never visited by any pass, so
   // the container its create left behind (Docker state `created`) and its
@@ -550,12 +582,7 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
   it('runs the compute-holding-only fair pass scoped to the org, probes with the given spawner, and stamps the visit', async () => {
     const batch = [candidate('a'), candidate('b')];
     const { sql, statements } = fakeSql({ reconcile: [batch] });
-    const spawner: WatchdogSpawner = {
-      isAlive: vi.fn(() => Promise.resolve(true)),
-      destroyIfIdle: vi.fn(() =>
-        Promise.resolve({ destroyed: false, busy: false }),
-      ),
-    };
+    const spawner = scriptedSpawner({ destroyIfIdle: idleAnswer() });
     vi.mocked(reconcileSession).mockResolvedValueOnce('healed');
 
     const result = await reconcileOrgSessions(sql, 'org_1', spawner);
@@ -579,7 +606,7 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
       expect(reconcileSession).toHaveBeenCalledWith(
         sql,
         { organizationId: c.orgId, sessionId: c.sessionId },
-        { isAlive: spawner.isAlive },
+        spawner,
       );
     }
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
@@ -593,12 +620,7 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
 
     await runSandboxWatchdog(sql, {
       reconcileBatch: 1,
-      spawner: {
-        isAlive: vi.fn(() => Promise.resolve(true)),
-        destroyIfIdle: vi.fn(() =>
-          Promise.resolve({ destroyed: false, busy: false }),
-        ),
-      },
+      spawner: scriptedSpawner({ destroyIfIdle: idleAnswer() }),
     });
 
     const select = statements.find(

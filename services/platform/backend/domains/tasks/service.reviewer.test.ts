@@ -3,14 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   autoSubscribe,
+  dismissReviewerAssignedNotifications,
   notifyTaskReviewerAssigned,
 } from '../collab/service.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
-import { retargetPendingTaskReview } from './reviews.ts';
+import { retargetPendingTaskReview, reviewerEligibility } from './reviews.ts';
 import { type TaskRow, updateTask } from './service.ts';
 
 vi.mock('../collab/service.ts', () => ({
   autoSubscribe: vi.fn(),
+  dismissReviewerAssignedNotifications: vi.fn(),
   notifyTaskAssigned: vi.fn(),
   notifyTaskReviewerAssigned: vi.fn(),
   notifyTaskStatusChanged: vi.fn(),
@@ -19,21 +21,12 @@ vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
-vi.mock('../../auth/membership.ts', () => ({
-  findOrganizationMember: vi.fn((_sql, organizationId, userId) =>
-    Promise.resolve({
-      id: `m-${userId}`,
-      organizationId,
-      userId,
-      role: 'editor',
-    }),
-  ),
-}));
 vi.mock('./reviews.ts', () => ({
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
   requestTaskReview: vi.fn(),
   retargetPendingTaskReview: vi.fn(),
+  reviewerEligibility: vi.fn(),
 }));
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
@@ -130,9 +123,14 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
   };
 }
 
+/** Every statement the fake answered, so a refusal can be shown to have
+ * written nothing. */
+let statements: string[] = [];
+
 function fakeTx(fixture: TaskRow): TransactionSql {
   const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+    statements.push(text);
     return Promise.resolve(
       text.startsWith('SELECT ? FROM app.tasks WHERE id = ?') ? [fixture] : [],
     );
@@ -146,9 +144,12 @@ function fakeTx(fixture: TaskRow): TransactionSql {
 }
 
 beforeEach(() => {
+  statements = [];
   vi.mocked(loadProjectOrThrow).mockReset().mockResolvedValue(project);
   vi.mocked(retargetPendingTaskReview).mockReset().mockResolvedValue(undefined);
+  vi.mocked(reviewerEligibility).mockReset().mockResolvedValue('eligible');
   vi.mocked(autoSubscribe).mockReset();
+  vi.mocked(dismissReviewerAssignedNotifications).mockReset();
   vi.mocked(notifyTaskReviewerAssigned).mockReset();
 });
 
@@ -192,20 +193,6 @@ describe('updateTask — the open review follows the reviewer', () => {
     );
   });
 
-  it('still sends the heads-up when the open review resolves past the designee', async () => {
-    // The designee lost project edit access: the request falls through the
-    // chain to someone else, so theirs is the only bell they get.
-    vi.mocked(retargetPendingTaskReview).mockResolvedValue('u-owner');
-    const tx = fakeTx(taskRow());
-
-    await updateTask(tx, auth, { taskId: 't-1', reviewerUserId: 'u-bob' });
-
-    expect(notifyTaskReviewerAssigned).toHaveBeenCalledWith(
-      tx,
-      expect.objectContaining({ reviewerUserId: 'u-bob' }),
-    );
-  });
-
   it('hands a cleared review back to the gate to resolve, belling no designee', async () => {
     vi.mocked(retargetPendingTaskReview).mockResolvedValue('u-owner');
     const tx = fakeTx(taskRow());
@@ -228,5 +215,110 @@ describe('updateTask — the open review follows the reviewer', () => {
 
     expect(retargetPendingTaskReview).not.toHaveBeenCalled();
     expect(notifyTaskReviewerAssigned).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A designee is held to the rule the gate resolves by. Before this, only
+ * org membership was checked: a designee who could not edit the project was
+ * stored, belled with "You're the reviewer", and then routed past at mint —
+ * the review landing, silently, on a creator.
+ */
+describe('updateTask — who can be designated', () => {
+  it('refuses a designee who cannot edit the project, writing nothing', async () => {
+    vi.mocked(reviewerEligibility).mockResolvedValue('cannot_edit');
+    const tx = fakeTx(taskRow({ status: 'todo' }));
+
+    await expect(
+      updateTask(tx, auth, { taskId: 't-1', reviewerUserId: 'u-viewer' }),
+    ).rejects.toMatchObject({
+      name: 'TaskError',
+      code: 'TASK_REVIEWER_NO_EDIT_ACCESS',
+      status: 400,
+    });
+
+    // Judged against the project's own audience.
+    expect(reviewerEligibility).toHaveBeenCalledWith(tx, {
+      organizationId: 'org-1',
+      projectTeamIds: [],
+      userId: 'u-viewer',
+    });
+    expect(statements.some((text) => text.startsWith('UPDATE app.tasks'))).toBe(
+      false,
+    );
+    expect(retargetPendingTaskReview).not.toHaveBeenCalled();
+    expect(dismissReviewerAssignedNotifications).not.toHaveBeenCalled();
+    expect(autoSubscribe).not.toHaveBeenCalled();
+    expect(notifyTaskReviewerAssigned).not.toHaveBeenCalled();
+  });
+
+  it('refuses a designee who is no longer a live member', async () => {
+    vi.mocked(reviewerEligibility).mockResolvedValue('not_member');
+    const tx = fakeTx(taskRow({ status: 'todo' }));
+
+    await expect(
+      updateTask(tx, auth, { taskId: 't-1', reviewerUserId: 'u-gone' }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_INVALID', status: 400 });
+    expect(statements.some((text) => text.startsWith('UPDATE app.tasks'))).toBe(
+      false,
+    );
+  });
+
+  it('judges only a new designee — a clear or a re-select asks nothing', async () => {
+    const tx = fakeTx(taskRow());
+
+    await updateTask(tx, auth, { taskId: 't-1', reviewerUserId: null });
+    await updateTask(tx, auth, { taskId: 't-1', reviewerUserId: 'u-alice' });
+
+    expect(reviewerEligibility).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The "You're the reviewer" heads-up is for whoever holds the designation.
+ * Before this, a change ahead of In review left the previous designee's
+ * unread heads-up ringing.
+ */
+describe('updateTask — the previous designee is let off the hook', () => {
+  it('dismisses the previous designee’s heads-up when the designation moves', async () => {
+    const tx = fakeTx(taskRow({ status: 'todo' }));
+
+    await updateTask(tx, auth, { taskId: 't-1', reviewerUserId: 'u-bob' });
+
+    expect(dismissReviewerAssignedNotifications).toHaveBeenCalledWith(tx, {
+      organizationId: 'org-1',
+      taskId: 't-1',
+      userId: 'u-alice',
+    });
+    // The new designee still gets theirs.
+    expect(notifyTaskReviewerAssigned).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ reviewerUserId: 'u-bob' }),
+    );
+  });
+
+  it('dismisses it when the reviewer is cleared', async () => {
+    const tx = fakeTx(taskRow({ status: 'todo' }));
+
+    await updateTask(tx, auth, { taskId: 't-1', reviewerUserId: null });
+
+    expect(dismissReviewerAssignedNotifications).toHaveBeenCalledWith(tx, {
+      organizationId: 'org-1',
+      taskId: 't-1',
+      userId: 'u-alice',
+    });
+  });
+
+  it('dismisses nothing for a first designation or an unchanged one', async () => {
+    await updateTask(fakeTx(taskRow({ reviewerUserId: null })), auth, {
+      taskId: 't-1',
+      reviewerUserId: 'u-bob',
+    });
+    await updateTask(fakeTx(taskRow()), auth, {
+      taskId: 't-1',
+      reviewerUserId: 'u-alice',
+    });
+
+    expect(dismissReviewerAssignedNotifications).not.toHaveBeenCalled();
   });
 });

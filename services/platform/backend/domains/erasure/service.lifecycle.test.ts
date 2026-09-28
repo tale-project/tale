@@ -8,7 +8,8 @@
  * check; these pin the transitions that used to be silent or unguarded —
  * the Retry of a receipt blocked at filing (policy re-applied, CAS re-arm),
  * the execution-time hold block (audited), the limiter outage (not a
- * denial), and the project-agent-runs pass.
+ * denial), the project-agent-runs pass, and the review pass handing a
+ * waiting review on instead of stamping it with the pseudonym.
  */
 
 import type { Sql } from 'postgres';
@@ -24,6 +25,9 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
+import { TaskError } from '../tasks/errors.ts';
+import { retargetPendingTaskReview } from '../tasks/reviews.ts';
+import { loadTaskOrThrow, type TaskRow } from '../tasks/service.ts';
 import {
   ErasureError,
   getErasureRequest,
@@ -63,6 +67,8 @@ vi.mock('../retention/service.ts', () => ({
   purgeThreadLineage: vi.fn(() => Promise.resolve(0)),
   purgeDocument: vi.fn(),
 }));
+vi.mock('../tasks/reviews.ts', () => ({ retargetPendingTaskReview: vi.fn() }));
+vi.mock('../tasks/service.ts', () => ({ loadTaskOrThrow: vi.fn() }));
 
 interface Statement {
   text: string;
@@ -90,7 +96,16 @@ function fakeSql(
     statements.push({ text, values });
     return Promise.resolve(answer(text, values) ?? []);
   };
-  tag.begin = (callback: (tx: typeof tag) => unknown): unknown => callback(tag);
+  tag.begin = (
+    optionsOrCallback: string | ((tx: typeof tag) => unknown),
+    callback?: (tx: typeof tag) => unknown,
+  ): unknown => {
+    if (typeof optionsOrCallback === 'string') {
+      statements.push({ text: `BEGIN ${optionsOrCallback}`, values: [] });
+      return callback?.(tag);
+    }
+    return optionsOrCallback(tag);
+  };
   tag.json = (value: unknown): unknown => value;
   return { sql: tag as unknown as Sql, statements };
 }
@@ -438,6 +453,301 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
+  });
+});
+
+/**
+ * A review still waiting on the subject is routing, not history: stamping
+ * it with the pseudonym left it waiting on nobody — on no board and in no
+ * bell. It moves on through the chain a cleared designation takes, the
+ * subject excluded, and only what still names the subject afterwards is
+ * pseudonymized.
+ */
+describe('processErasure — the review pass', () => {
+  it('hands a waiting review on through the cleared chain, then pseudonymizes what still names the subject', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const task = {
+      id: 'task-1',
+      reviewerUserId: null,
+      archivedAt: null,
+    } as unknown as TaskRow;
+    const fake = fakeSql((text, values) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('SELECT id FROM app.tasks'))
+        return [{ id: 'task-1' }];
+      if (text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'))
+        return values[0] === 'task-1' ? [{ id: 'task-1' }] : [];
+      if (text.startsWith('SELECT id FROM app.approvals'))
+        return [{ id: 'review-open' }];
+      if (text.startsWith('SELECT id, resource_id AS "taskId"'))
+        return [
+          { id: 'review-open', taskId: 'task-1' },
+          { id: 'review-orphan', taskId: 'task-gone' },
+        ];
+      if (text.startsWith('SELECT id, approved_by AS "approvedBy"'))
+        return [
+          // The orphan has no task to move to, so it keeps the old stamp.
+          {
+            id: 'review-orphan',
+            approvedBy: null,
+            metadata: { requestedFor: 'subject', round: 0 },
+          },
+          {
+            id: 'review-decided',
+            approvedBy: 'subject',
+            metadata: {
+              requestedFor: 'subject',
+              response: { decision: 'approve', respondedBy: 'subject' },
+            },
+          },
+        ];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+    let statementsAtLoad = -1;
+    vi.mocked(loadTaskOrThrow).mockImplementation((_tx, taskId) => {
+      if (taskId !== 'task-1') {
+        return Promise.reject(
+          new TaskError('TASK_NOT_FOUND', 'Task not found', 404),
+        );
+      }
+      statementsAtLoad = fake.statements.length;
+      return Promise.resolve(task);
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    // The designation is cleared BEFORE the chain runs, so the chain starts
+    // past the subject's designation — and the subject is excluded from the
+    // creator slots too (they are still a member until removed).
+    const clearedAt = fake.statements.findIndex((s) =>
+      s.text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'),
+    );
+    expect(clearedAt).toBeGreaterThanOrEqual(0);
+    expect(statementsAtLoad).toBeGreaterThan(clearedAt);
+    expect(loadTaskOrThrow).toHaveBeenCalledWith(
+      expect.anything(),
+      'task-1',
+      'org_1',
+    );
+    expect(retargetPendingTaskReview).toHaveBeenCalledTimes(1);
+    const transactionAt = fake.statements.findIndex(
+      (s) => s.text === 'BEGIN isolation level serializable',
+    );
+    expect(transactionAt).toBeGreaterThanOrEqual(0);
+    expect(clearedAt).toBeGreaterThan(transactionAt);
+    expect(emitHintInTx).toHaveBeenCalledWith(expect.anything(), {
+      orgId: 'org_1',
+      entity: 'task',
+      entityId: 'task-1',
+    });
+    expect(retargetPendingTaskReview).toHaveBeenCalledWith(expect.anything(), {
+      task,
+      excludeUserId: 'subject',
+      silent: false,
+    });
+    // Only rows that still name the subject after the hand-over get the
+    // pseudonym; the handed-over review is not rewritten to it.
+    const pseudonymized = fake.statements
+      .filter((s) => s.text.startsWith('UPDATE app.approvals SET approved_by'))
+      .map((s) => s.values);
+    expect(pseudonymized).toEqual([
+      [null, { requestedFor: 'erased-user', round: 0 }, 'review-orphan'],
+      [
+        'erased-user',
+        {
+          requestedFor: 'erased-user',
+          response: { decision: 'approve', respondedBy: 'erased-user' },
+        },
+        'review-decided',
+      ],
+    ]);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[0]).toBe('done');
+    // One handed over, two pseudonymized, one designation cleared.
+    expect(settle?.values[2]).toMatchObject({ reviewDecisions: 4 });
+  });
+
+  it('leaves a review that was reassigned after discovery with its new reviewer', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      ) {
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      }
+      if (text.startsWith('SELECT id, resource_id AS "taskId"')) {
+        return [{ id: 'review-open', taskId: 'task-1' }];
+      }
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      // No designation or pending review still points to the subject in
+      // the transaction: the concurrent edit already handed it over.
+      return undefined;
+    });
+    vi.mocked(loadTaskOrThrow).mockResolvedValue({
+      id: 'task-1',
+      reviewerUserId: 'new-reviewer',
+    } as unknown as TaskRow);
+
+    await processErasure(fake.sql, 'req-1');
+
+    expect(retargetPendingTaskReview).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ entity: 'task' }),
+    );
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ reviewDecisions: 0 });
+  });
+});
+
+/**
+ * The two ways a hand-over can go other than plainly: an archived task,
+ * whose card nobody sees, and a hand-over that throws — which must hold
+ * back neither the designation's clear nor the pseudonym.
+ */
+describe('processErasure — the review pass, off the plain path', () => {
+  /** `task-1` is designated to the subject and its review waits on them. */
+  function reviewPassSql() {
+    return fakeSql((text, values) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('SELECT id FROM app.tasks'))
+        return [{ id: 'task-1' }];
+      if (text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'))
+        return values[0] === 'task-1' ? [{ id: 'task-1' }] : [];
+      if (text.startsWith('SELECT id FROM app.approvals'))
+        return [{ id: 'review-open' }];
+      if (text.startsWith('SELECT id, resource_id AS "taskId"'))
+        return [{ id: 'review-open', taskId: 'task-1' }];
+      if (text.startsWith('SELECT id, approved_by AS "approvedBy"'))
+        return [
+          {
+            id: 'review-open',
+            approvedBy: null,
+            metadata: { requestedFor: 'subject', round: 0 },
+          },
+          {
+            id: 'review-decided',
+            approvedBy: 'subject',
+            metadata: {
+              requestedFor: 'subject',
+              response: { decision: 'approve', respondedBy: 'subject' },
+            },
+          },
+        ];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+  }
+
+  function settled(fake: ReturnType<typeof fakeSql>): unknown[] | undefined {
+    return fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    )?.values;
+  }
+
+  it('moves the routing of an archived task without asking anyone', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const task = {
+      id: 'task-1',
+      reviewerUserId: null,
+      archivedAt: 1_700_000_000_000,
+    } as unknown as TaskRow;
+    vi.mocked(loadTaskOrThrow).mockResolvedValue(task);
+
+    await processErasure(reviewPassSql().sql, 'req-1');
+
+    expect(retargetPendingTaskReview).toHaveBeenCalledWith(expect.anything(), {
+      task,
+      excludeUserId: 'subject',
+      silent: true,
+    });
+  });
+
+  it('still clears the designation and pseudonymizes everything when a hand-over fails', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    vi.mocked(loadTaskOrThrow).mockResolvedValue({
+      id: 'task-1',
+      reviewerUserId: null,
+      archivedAt: null,
+    } as unknown as TaskRow);
+    vi.mocked(retargetPendingTaskReview).mockRejectedValue(
+      new Error('email queue down'),
+    );
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const fake = reviewPassSql();
+
+    await processErasure(fake.sql, 'req-1');
+
+    expect(error).toHaveBeenCalledWith(
+      '[erasure] handing on the review of task task-1 failed:',
+      expect.any(Error),
+    );
+    // The serializable attempt rolled back; the designation goes in a
+    // transaction of its own, and the board still hears about it.
+    const clears = fake.statements.filter((s) =>
+      s.text.startsWith('UPDATE app.tasks SET reviewer_user_id = NULL'),
+    );
+    expect(clears).toHaveLength(2);
+    expect(emitHintInTx).toHaveBeenCalledWith(expect.anything(), {
+      orgId: 'org_1',
+      entity: 'task',
+      entityId: 'task-1',
+    });
+    // The waiting row falls to the pseudonym as before hand-overs existed,
+    // and the decision loses the subject's id: nothing is held back and the
+    // pass is not reported as failed.
+    const pseudonymized = fake.statements
+      .filter((s) => s.text.startsWith('UPDATE app.approvals SET approved_by'))
+      .map((s) => s.values[2]);
+    expect(pseudonymized).toEqual(['review-open', 'review-decided']);
+    const settle = settled(fake);
+    expect(settle?.[0]).toBe('done');
+    // Two pseudonymized, one designation cleared, none handed over.
+    expect(settle?.[2]).toMatchObject({ reviewDecisions: 3 });
+    error.mockRestore();
   });
 });
 

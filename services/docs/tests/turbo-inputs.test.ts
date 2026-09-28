@@ -9,12 +9,13 @@ import { walkDocs } from './lib/walk';
 
 /**
  * Turbo keys a task's cache on the files of its own workspace, and neither the
- * content tree (`docs/`) nor the root READMEs belong to one — so a task that
- * reads them replays its last verdict when only they change, and a broken
- * page passes CI (a docs-only edit replayed `@tale/docs:test` from the cache).
- * `services/docs/turbo.json` declares them as `$TURBO_ROOT$` inputs; this asks
- * turbo itself (`--dry=json`) which files each task hashes, so an input list
- * that misses a file the task reads fails here instead of replaying green.
+ * content tree (`docs/`), the root READMEs nor `@tale/ui`'s i18n framework
+ * belong to this one — so a task that reads them replays its last verdict when
+ * only they change, and a broken page passes CI (a docs-only edit replayed
+ * `@tale/docs:test` from the cache). `services/docs/turbo.json` declares them
+ * as `$TURBO_ROOT$` inputs; this asks turbo itself (`--dry=json`) which files
+ * each task hashes, so an input list that misses a file the task reads fails
+ * here instead of replaying green.
  *
  * A task that starts reading another file outside `services/docs/` lists it
  * in `turbo.json` and here. (`@tale/cli`'s tests read the CLI install pages;
@@ -22,6 +23,34 @@ import { walkDocs } from './lib/walk';
  */
 
 const DATA_FILES = ['docs/nav.json', 'docs/redirects.json'];
+
+/** `@tale/ui`'s i18n folder, repo-relative. */
+const UI_I18N = 'packages/ui/src/i18n';
+
+/** Every file under a repo-relative directory, repo-relative and `/`-separated. */
+function filesUnder(dir: string): string[] {
+  const root = path.join(REPO_ROOT, dir);
+  return fs
+    .readdirSync(root, { recursive: true, encoding: 'utf8' })
+    .filter((entry) => fs.statSync(path.join(root, entry)).isFile())
+    .map((entry) => toPosix(path.join(dir, entry)));
+}
+
+/**
+ * What the i18n suites load from `@tale/ui`: `lib/i18n/messages.test.ts`
+ * resolves the service's `docs.*` keys against the package catalogs
+ * (`packageCatalogs`), and it and `docs.test.ts` run the shared framework
+ * (`@tale/ui/i18n/tests` — its checks, per-locale rule data and glossary).
+ */
+function uiI18nFiles(): string[] {
+  const catalogs = filesUnder(`${UI_I18N}/messages`).filter((file) =>
+    file.endsWith('.yml'),
+  );
+  const framework = filesUnder(`${UI_I18N}/tests`).filter(
+    (file) => !/\.test\.tsx?$/.test(file),
+  );
+  return [...catalogs, ...framework];
+}
 
 /** Every page the structural suite walks, plus the nav and redirect maps. */
 function contentFiles(): string[] {
@@ -39,8 +68,8 @@ function rootReadmes(): string[] {
 const READERS: { task: string; why: string; reads: () => string[] }[] = [
   {
     task: 'test',
-    why: 'the structural suite, the i18n docs scan and the README parity check',
-    reads: () => [...contentFiles(), ...rootReadmes()],
+    why: 'the structural suite, the i18n suites and the README parity check',
+    reads: () => [...contentFiles(), ...rootReadmes(), ...uiI18nFiles()],
   },
   {
     task: 'build',
@@ -83,10 +112,19 @@ function hashedByTask(): Map<string, Set<string>> {
     ],
     { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   );
+  if (run.error) {
+    throw new Error(`turbo --dry=json did not run: ${run.error.message}`, {
+      cause: run.error,
+    });
+  }
   if (run.status !== 0) {
     throw new Error(`turbo --dry=json exited ${run.status}: ${run.stderr}`);
   }
-  const { tasks } = JSON.parse(run.stdout.slice(run.stdout.indexOf('{'))) as {
+  const start = run.stdout.indexOf('{');
+  if (start === -1) {
+    throw new Error(`turbo --dry=json printed no JSON: ${run.stdout}`);
+  }
+  const { tasks } = JSON.parse(run.stdout.slice(start)) as {
     tasks: DryRunTask[];
   };
   return new Map(
@@ -109,6 +147,23 @@ describe('turbo inputs', () => {
   beforeAll(() => {
     hashed = hashedByTask();
   }, 60_000);
+
+  it('every input list keeps the root task inputs and the workspace sources', () => {
+    // A workspace `inputs` list replaces the root task's instead of adding to
+    // it; `$TURBO_EXTENDS$` keeps the root's, `$TURBO_DEFAULT$` the workspace's
+    // own files.
+    const { tasks } = JSON.parse(
+      fs.readFileSync(path.join(REPO_ROOT, 'services/docs/turbo.json'), 'utf8'),
+    ) as { tasks: Record<string, { inputs?: string[] }> };
+    const lists = Object.entries(tasks).filter(([, { inputs }]) => inputs);
+    expect(lists.length).toBeGreaterThan(0);
+    for (const [task, { inputs }] of lists) {
+      expect(inputs?.slice(0, 2), `services/docs/turbo.json ${task}`).toEqual([
+        '$TURBO_EXTENDS$',
+        '$TURBO_DEFAULT$',
+      ]);
+    }
+  });
 
   for (const { task, why, reads } of READERS) {
     it(`@tale/docs#${task} hashes every file it reads outside the workspace`, () => {

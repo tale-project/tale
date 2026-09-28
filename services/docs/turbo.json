@@ -4,19 +4,30 @@
   "tasks": {
     "test": {
       "inputs": [
+        "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/docs/**",
-        "$TURBO_ROOT$/README*.md"
+        "$TURBO_ROOT$/README*.md",
+        "$TURBO_ROOT$/packages/ui/src/i18n/messages/*.yml",
+        "$TURBO_ROOT$/packages/ui/src/i18n/tests/**"
       ]
     },
     "build": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**"]
+      "inputs": ["$TURBO_EXTENDS$", "$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/**"]
     },
     "typecheck": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/*.json"]
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/docs/*.json"
+      ]
     },
     "lint": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/*.json"]
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/docs/*.json"
+      ]
     }
   }
 }

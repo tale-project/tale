@@ -94,9 +94,11 @@ test('turbo re-runs this suite when an install page changes', () => {
     );
   }
   const stdout = run.stdout.toString();
-  const { tasks } = dryRunSchema.parse(
-    JSON.parse(stdout.slice(stdout.indexOf('{'))),
-  );
+  const start = stdout.indexOf('{');
+  if (start === -1) {
+    throw new Error(`turbo --dry=json printed no JSON: ${stdout}`);
+  }
+  const { tasks } = dryRunSchema.parse(JSON.parse(stdout.slice(start)));
   const inputs = new Set(
     Object.keys(
       tasks.find((task) => task.taskId === '@tale/cli#test')?.inputs ?? {},
@@ -109,4 +111,21 @@ test('turbo re-runs this suite when an install page changes', () => {
     relative(CLI_ROOT, installPage(locale)).split(sep).join('/'),
   ).filter((page) => !inputs.has(page));
   expect(unhashed).toEqual([]);
+});
+
+/** A workspace `inputs` list replaces the root task's instead of adding to it;
+ * `$TURBO_EXTENDS$` keeps the root's, `$TURBO_DEFAULT$` the workspace's own. */
+test('the test input list keeps the root inputs and the workspace sources', () => {
+  const { tasks } = z
+    .object({
+      tasks: z.record(
+        z.string(),
+        z.object({ inputs: z.array(z.string()).optional() }),
+      ),
+    })
+    .parse(JSON.parse(readFileSync(resolve(CLI_ROOT, 'turbo.json'), 'utf8')));
+  expect(tasks.test?.inputs?.slice(0, 2)).toEqual([
+    '$TURBO_EXTENDS$',
+    '$TURBO_DEFAULT$',
+  ]);
 });
