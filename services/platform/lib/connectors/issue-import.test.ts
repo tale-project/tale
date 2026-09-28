@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TASK_DESCRIPTION_MAX } from '../../backend/core/tasks/helpers';
 import { issueImportNatives } from './natives/issue-import';
 
 const fetchPage = vi.fn();
@@ -357,18 +358,20 @@ function refresh(provider: string, issue = source(provider)) {
 describe.each(['github', 'glitchtip'])(
   '%s editable local description',
   (provider) => {
-    it.each([50_000, 65_000, 100_001])(
+    function sourceRow(body: string) {
+      return provider === 'github'
+        ? { ...githubIssue(1), body }
+        : { ...glitchtipIssue(1), culprit: null, metadata: { value: body } };
+    }
+
+    // The native seeds the description the task domain's own cut makes
+    // (`truncateImportedDescription`): the board's cap, which every door
+    // can save again. It used to pre-cut at a local 50,000 — past that cap,
+    // so the board refused an unchanged imported description (TALE-75).
+    it.each([TASK_DESCRIPTION_MAX + 1, 65_000, 100_001])(
       'keeps a %i-character source body while seeding a description the task editor accepts',
       async (length) => {
-        const body = 'd'.repeat(length);
-        const row =
-          provider === 'github'
-            ? { ...githubIssue(1), body }
-            : {
-                ...glitchtipIssue(1),
-                culprit: null,
-                metadata: { value: body },
-              };
+        const row = sourceRow('d'.repeat(length));
         fetchPage.mockResolvedValueOnce(response([row]));
         const imported = (await run(provider)) as {
           issues: {
@@ -376,7 +379,8 @@ describe.each(['github', 'glitchtip'])(
             externalIssue: { description: string };
           }[];
         };
-        expect(imported.issues[0]?.description.length).toBe(50_000);
+        const seeded = `${'d'.repeat(TASK_DESCRIPTION_MAX - 1)}…`;
+        expect(imported.issues[0]?.description).toBe(seeded);
         expect(imported.issues[0]?.externalIssue.description.length).toBe(
           Math.min(length, 100_000),
         );
@@ -385,12 +389,36 @@ describe.each(['github', 'glitchtip'])(
           description: string;
           externalIssue: { description: string };
         };
-        expect(refreshed.description.length).toBe(50_000);
+        expect(refreshed.description).toBe(seeded);
         expect(refreshed.externalIssue.description.length).toBe(
           Math.min(length, 100_000),
         );
       },
     );
+
+    it('seeds a body that fits whole', async () => {
+      fetchPage.mockResolvedValueOnce(
+        response([sourceRow('d'.repeat(TASK_DESCRIPTION_MAX))]),
+      );
+      const imported = (await run(provider)) as {
+        issues: { description: string }[];
+      };
+      expect(imported.issues[0]?.description).toBe(
+        'd'.repeat(TASK_DESCRIPTION_MAX),
+      );
+    });
+
+    // A code-unit slice left the emoji's high surrogate alone at the end.
+    it('cuts on a grapheme boundary, never inside an emoji', async () => {
+      const body = `${'d'.repeat(TASK_DESCRIPTION_MAX - 2)}👍🏽 and more`;
+      fetchPage.mockResolvedValueOnce(response([sourceRow(body)]));
+      const imported = (await run(provider)) as {
+        issues: { description: string }[];
+      };
+      expect(imported.issues[0]?.description).toBe(
+        `${'d'.repeat(TASK_DESCRIPTION_MAX - 2)}…`,
+      );
+    });
 
     it('retains a long unavailable snapshot without seeding an uneditable description', async () => {
       const issue = source(provider);
@@ -400,7 +428,9 @@ describe.each(['github', 'glitchtip'])(
         description: string;
         externalIssue: { description: string; unavailable: boolean };
       };
-      expect(refreshed.description.length).toBe(50_000);
+      expect(refreshed.description).toBe(
+        `${'d'.repeat(TASK_DESCRIPTION_MAX - 1)}…`,
+      );
       expect(refreshed.externalIssue.description.length).toBe(100_000);
       expect(refreshed.externalIssue.unavailable).toBe(true);
     });
