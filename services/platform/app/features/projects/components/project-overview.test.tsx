@@ -138,6 +138,24 @@ describe('ProjectOverview', () => {
     ).toBeInTheDocument();
   });
 
+  // Regression (#3522 review): the field row shows each hint beside its
+  // control, but the row's wrapper is a plain div, so only the control itself
+  // can carry its label and hint to a screen reader.
+  it('names and describes the name and description fields by their rows', () => {
+    renderOverview();
+
+    expect(
+      screen.getByRole('textbox', { name: 'Name' }),
+    ).toHaveAccessibleDescription(
+      'Shown in the projects list and the Home panel.',
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Description' }),
+    ).toHaveAccessibleDescription(
+      'A short summary that tells teammates what belongs here.',
+    );
+  });
+
   it('shows the read-only Project summary for viewers with a description', () => {
     projectFixture = {
       name: 'Getting started',
@@ -239,6 +257,14 @@ describe('ProjectOverview', () => {
       expect(
         await screen.findByText('Project name must be 1–80 characters.'),
       ).toBeInTheDocument();
+      // The row's hint joins the field's own error, never replaces it.
+      const nameField = screen.getByRole('textbox', { name: 'Name' });
+      expect(nameField).toHaveAccessibleDescription(
+        /Project name must be 1–80 characters\./,
+      );
+      expect(nameField).toHaveAccessibleDescription(
+        /Shown in the projects list and the Home panel\./,
+      );
       expect(mockToast).not.toHaveBeenCalled();
     });
 

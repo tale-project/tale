@@ -152,16 +152,20 @@ export function ProjectSharingSection({
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
         >
-          {/* The row shows the label, so the combobox carries its accessible
-              name itself — a `<label htmlFor>` cannot name a combobox div. */}
-          <TeamMultiSelect
-            aria-label={t('settings.audience')}
-            teams={assignableTeams}
-            selectedTeamIds={teamIds}
-            onSelectionChange={handleChange}
-            orgWideLabel={t('list.sharingOrgWide')}
-            disabled={isPending}
-          />
+          {/* The row shows the label and the help, so the combobox points at
+              both itself: a screen reader hears "Audience" and that an empty
+              audience means the whole organization before it narrows one. */}
+          {({ labelId, descriptionId }) => (
+            <TeamMultiSelect
+              aria-labelledby={labelId}
+              aria-describedby={descriptionId}
+              teams={assignableTeams}
+              selectedTeamIds={teamIds}
+              onSelectionChange={handleChange}
+              orgWideLabel={t('list.sharingOrgWide')}
+              disabled={isPending}
+            />
+          )}
         </SettingsFieldRow>
       </SettingsFieldList>
 
