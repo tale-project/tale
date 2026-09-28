@@ -40,6 +40,7 @@ import {
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
+import { recreatePinnedSession } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
@@ -92,6 +93,11 @@ const idleSessionReleaseSchema = z.object({
   organizationId: z.string().min(1),
   sessionId: z.string().min(1),
   generation: z.string().min(1),
+});
+
+const recreatePinnedSchema = z.object({
+  organizationId: z.string().min(1),
+  sessionId: z.string().min(1),
 });
 
 const orgCleanupSchema = z.object({
@@ -166,6 +172,26 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         deps.sql,
         idleSessionReleaseSchema.parse(payload),
       );
+    },
+    'sandbox.recreate_pinned': async (payload) => {
+      const input = recreatePinnedSchema.parse(payload);
+      try {
+        const outcome = await recreatePinnedSession(deps.sql, input);
+        if (outcome === 'recreated') {
+          console.log(
+            `[sandbox] recreated pinned session ${input.sessionId} in place and re-pinned it`,
+          );
+        }
+      } catch (error) {
+        // No verdict — spawner unreachable, create refused, device offline:
+        // the row keeps its pin, and the sweep's next visit queues another
+        // attempt. The reconcile pass's own posture, so a workspace on an
+        // offline device is not an error report every five minutes.
+        console.warn(
+          `[sandbox] recreate of pinned session ${input.sessionId} failed; the next sweep retries:`,
+          error,
+        );
+      }
     },
     noop: (payload) => {
       console.debug(`[backend] noop task executed: ${JSON.stringify(payload)}`);
@@ -518,17 +544,20 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'watchdog.sandbox': async () => {
-      const result = await runSandboxWatchdog(deps.sql);
+    'watchdog.sandbox': async (_payload, context) => {
+      const result = await runSandboxWatchdog(
+        deps.sql,
+        context !== undefined ? { signal: context.signal } : {},
+      );
       if (
         result.expired > 0 ||
         result.healed > 0 ||
-        result.recreated > 0 ||
+        result.recreating > 0 ||
         result.reclaimed > 0 ||
         result.collected > 0
       ) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, recreated ${result.recreated} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, queued the recreate of ${result.recreating} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
         );
       }
       // Removed sandbox devices the hub has not dropped yet (the spawner was

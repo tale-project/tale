@@ -1,4 +1,4 @@
-import postgres, { type Sql } from 'postgres';
+import postgres, { type Sql, type TransactionSql } from 'postgres';
 
 import {
   SessionDuplicateError,
@@ -8,6 +8,7 @@ import {
   sessionSetPinned,
   type SessionCreateBody,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   getSessionBySessionId,
   markSessionDestroyed,
@@ -27,6 +28,11 @@ import {
  * verbatim.
  */
 
+interface SessionArgs {
+  organizationId: string;
+  sessionId: string;
+}
+
 /** Serialize spawner transitions across replicas. The transaction holds ONLY
  * the advisory lock: lifecycle data commits independently so deleting a
  * gateway key cannot be followed by rollback of its booked spend.
@@ -35,41 +41,72 @@ import {
  * root pool's resolved connection options (including TLS and serializers).
  * Using the root pool for that work can deadlock once all its connections
  * are occupied by lock holders. Extra connections are bounded by that pool's
- * maximum; waiters never open one, and finally always closes the data pool. */
-function withSessionLifecycleLock<T>(
+ * maximum; waiters never open one, and finally always closes the data pool.
+ *
+ * `wait: false` takes the lock only when it is free: a caller that must not
+ * queue behind another transition (the reconcile's probes, which a recreate
+ * can hold for minutes) gets `{ acquired: false }` and opens no connection. */
+async function lifecycleLocked<T>(
   sql: Sql,
-  args: { organizationId: string; sessionId: string },
+  args: SessionArgs,
+  wait: boolean,
+  work: (sessionSql: Sql) => Promise<T>,
+): Promise<{ acquired: true; value: T } | { acquired: false }> {
+  let outcome: { acquired: true; value: T } | { acquired: false } = {
+    acquired: false,
+  };
+  await sql.begin(async (lock) => {
+    const key = `sandbox-lifecycle:${JSON.stringify([args.organizationId, args.sessionId])}`;
+    if (wait) {
+      await lock`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+    } else {
+      const taken = await lock<{ acquired: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtextextended(${key}, 0)) AS acquired
+      `;
+      if (!taken[0]?.acquired) return;
+    }
+    // postgres.js accepts these already-parsed options (its subscription
+    // pool does the same). Its public overload only types raw host/port;
+    // retain the resolved TLS, multi-host, credential and serializer state.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- postgres.js parseOptions explicitly accepts its own parsed options
+    const options = {
+      ...sql.options,
+      max: 1,
+    } as unknown as postgres.Options<{}>;
+    const sessionSql = postgres(options);
+    try {
+      outcome = { acquired: true, value: await work(sessionSql) };
+    } finally {
+      await sessionSql.end();
+    }
+  });
+  return outcome;
+}
+
+/** Wait for the session's lifecycle lock, then run `work` under it. */
+async function withSessionLifecycleLock<T>(
+  sql: Sql,
+  args: SessionArgs,
   work: (sessionSql: Sql) => Promise<T>,
 ): Promise<T> {
-  let result!: T;
-  return sql
-    .begin(async (lock) => {
-      const key = `sandbox-lifecycle:${JSON.stringify([args.organizationId, args.sessionId])}`;
-      await lock`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
-      // postgres.js accepts these already-parsed options (its subscription
-      // pool does the same). Its public overload only types raw host/port;
-      // retain the resolved TLS, multi-host, credential and serializer state.
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- postgres.js parseOptions explicitly accepts its own parsed options
-      const options = {
-        ...sql.options,
-        max: 1,
-      } as unknown as postgres.Options<{}>;
-      const sessionSql = postgres(options);
-      try {
-        result = await work(sessionSql);
-      } finally {
-        await sessionSql.end();
-      }
-    })
-    .then(() => result);
+  const locked = await lifecycleLocked(sql, args, true, work);
+  if (!locked.acquired) {
+    throw new Error(`the lifecycle lock of ${args.sessionId} was not taken`);
+  }
+  return locked.value;
 }
 
 /** Authorize before contacting the spawner; settle the row only after it
- * confirms destruction or absence. Failures leave it retryable but unpinned. */
+ * confirms destruction or absence. Failures leave it retryable, and unpinned
+ * on both sides. */
 export async function teardownSession(
   sql: Sql,
-  args: { organizationId: string; sessionId: string },
+  args: SessionArgs,
   destroy: (sessionId: string) => Promise<boolean> = sessionDestroy,
+  setPinned: (
+    sessionId: string,
+    pinned: boolean,
+  ) => Promise<boolean> = sessionSetPinned,
 ): Promise<boolean> {
   return withSessionLifecycleLock(sql, args, async (sessionSql) => {
     const session = await getSessionBySessionId(
@@ -80,8 +117,26 @@ export async function teardownSession(
     if (session === null) return false;
     // Persist the no-recreate intent BEFORE an irreversible remote delete.
     // A lost response or a later database failure leaves a visible unpinned
-    // row to retry/heal, never authority to recreate a wiped workspace.
-    await setSessionPinned(sessionSql, { ...args, pinned: false });
+    // row to retry/heal, never authority to recreate a wiped workspace. Only
+    // a pinned row is written: an unpin restarts the row's lifetime, which a
+    // failed Destroy must not hand an unpinned session.
+    if (session.pinned) {
+      await setSessionPinned(sessionSql, { ...args, pinned: false });
+    }
+    // Drop the spawner's own pin as well, best-effort. The reconcile only
+    // ever pushes a pin, never an unpin, so a pin left on a container that
+    // survives a failed destroy would keep the idle reaper off it for good —
+    // long after the unpinned row expired off the Sandboxes page. Asked of
+    // every row: a failed Unpin can leave the spawner pinned under an
+    // unpinned one.
+    try {
+      await setPinned(args.sessionId, false);
+    } catch (error) {
+      console.warn(
+        `[sandbox] spawner unpin before destroying ${args.sessionId} failed:`,
+        error,
+      );
+    }
     await destroy(args.sessionId);
     return markSessionDestroyed(sessionSql, args);
   });
@@ -90,7 +145,7 @@ export async function teardownSession(
 /** Pin/unpin on both sides (platform TTL exemption + spawner reaper skip). */
 export async function pinSession(
   sql: Sql,
-  args: { organizationId: string; sessionId: string; pinned: boolean },
+  args: SessionArgs & { pinned: boolean },
   setPinned: (
     sessionId: string,
     pinned: boolean,
@@ -127,9 +182,49 @@ export interface ReconcileSpawner {
   create: (body: SessionCreateBody) => Promise<unknown>;
 }
 
+const DEFAULT_RECONCILE_SPAWNER: ReconcileSpawner = {
+  isAlive: sessionIsAlive,
+  setPinned: sessionSetPinned,
+  create: sessionCreate,
+};
+
+/** Queues the recreate of one pinned session gone spawner-side. */
+export type RecreateScheduler = (
+  sql: Sql | TransactionSql,
+  args: SessionArgs,
+) => Promise<void>;
+
+/** One `sandbox.recreate_pinned` job per session: the queue is `exclusive`,
+ * so while one is queued or running for the key, a sweep tick or a page open
+ * that finds the session still gone adds nothing. */
+export const schedulePinnedRecreate: RecreateScheduler = async (sql, args) => {
+  await addJobInTx(
+    sql,
+    'sandbox.recreate_pinned',
+    { organizationId: args.organizationId, sessionId: args.sessionId },
+    { singletonKey: JSON.stringify([args.organizationId, args.sessionId]) },
+  );
+};
+
+export interface ReconcileOptions {
+  /**
+   * How a pinned session gone spawner-side comes back. `schedule` (the
+   * default: the sweep and the Sandboxes page probe) queues the recreate and
+   * returns `recreating`. A create can take minutes (runnerd readiness alone
+   * is allowed 180 s) under the session's lock and connections, and a batch
+   * that waited for each one would stall its later rows, the sweep's other
+   * lanes and the page's request. `inline` (that queued job) creates under
+   * the lock and returns `recreated`.
+   */
+  recreate?: 'schedule' | 'inline';
+  /** Where `schedule` queues the recreate — the job by default. */
+  schedule?: RecreateScheduler;
+}
+
 /** The statuses under which a row holds compute — the reconcile pass's
- * candidates. A pin only keeps such a row running: a `stopped` row is
- * hibernated on purpose, a terminal one is history. */
+ * candidates. Only such a row is the reconcile's to settle or keep running:
+ * a `stopped` row is hibernated on purpose (its container is gone by design),
+ * a terminal one is history. */
 const COMPUTE_HOLDING_STATUSES: ReadonlySet<string> = new Set([
   'creating',
   'active',
@@ -139,95 +234,162 @@ const COMPUTE_HOLDING_STATUSES: ReadonlySet<string> = new Set([
 export type ReconcileOutcome =
   /** Alive spawner-side and unpinned: nothing to do. */
   | 'live'
-  /** Gone spawner-side and unpinned: the row settled as destroyed. */
+  /** Gone spawner-side and unpinned (or a pinned render): the row settled
+   * as destroyed. */
   | 'healed'
   /** Alive and pinned: the pin re-asserted spawner-side. */
   | 'repinned'
-  /** Gone and pinned: recreated in place and re-pinned. */
+  /** Gone and pinned: its recreate queued (`recreate: 'schedule'`). */
+  | 'recreating'
+  /** Gone and pinned: recreated in place and re-pinned
+   * (`recreate: 'inline'`). */
   | 'recreated'
-  /** Pinned, but the row left the compute-holding statuses since the batch
-   * named it (destroyed or hibernated meanwhile): not the reconcile's to
-   * touch. */
+  /** Not the reconcile's to touch: the row left the compute-holding
+   * statuses since the batch named it (destroyed, hibernated or expired
+   * meanwhile), another visit settled it first, or — for a probe that does
+   * not wait — another lifecycle transition holds the session's lock. */
   | 'skipped';
 
 /**
- * Watchdog reconcile for one row. Under the shared lifecycle lock, probe
- * liveness and read the row fresh: the batch that named it may be minutes
- * old. Destroy and pin/unpin hold this lock through their remote operation
- * and row commit, so the probe cannot act on a half-completed transition.
+ * Watchdog reconcile for one row. An unlocked first look settles the common
+ * visit — an unpinned session still alive needs no write, so it takes no
+ * lock and opens no connection. Every other verdict is decided again under
+ * the shared lifecycle lock: probe liveness, then read the row fresh (the
+ * batch that named it may be minutes old). Destroy and pin/unpin hold this
+ * lock through their remote operation and row commit, so the probe cannot
+ * act on a half-completed transition. In `schedule` mode the lock is only
+ * TRIED: a session whose lock another transition holds is skipped for the
+ * next visit, so a probe never queues behind a Destroy or a recreate.
  *
+ * - A row no longer holding compute is left alone, pinned or not — a
+ *   hibernated project workspace keeps its workspace even when the spawner
+ *   answers 404 for its container.
  * - Unpinned: a container gone spawner-side settles the row as destroyed
- *   (phantom heal); a live one is left alone.
+ *   (phantom heal); `healed` counts only a row this visit settled.
  * - Pinned: the row is the durable truth of the pin, and nothing else pushes
  *   it back to the spawner — which forgets a pin whenever its container goes
  *   (a new create always starts unpinned). A live session has the pin
- *   re-asserted. A gone one is recreated under the same id — the spawner
- *   resolves the workspace by id, so the create re-attaches the preserved
- *   workspace (on the device it lives on, when it lives on one) — and
- *   re-pinned, never settled as destroyed. A create the spawner answers as a
- *   duplicate means the session is back already (a turn or a concurrent
- *   reconcile recreated it): it is re-pinned too, and deliberately not
- *   acquired, since no work follows. A pinned row that left the
- *   compute-holding statuses since the batch (a Destroy or a hibernation
- *   raced the probe) is left alone.
+ *   re-asserted. A gone agent workspace is recreated under the same id — the
+ *   spawner resolves the workspace by id, so the create re-attaches the
+ *   preserved workspace (on the device it lives on, when it lives on one) —
+ *   and re-pinned, never settled as destroyed: queued in `schedule` mode,
+ *   done in `inline` mode. A create the spawner answers as a duplicate means
+ *   the session is back already (a turn or a concurrent reconcile recreated
+ *   it): it is re-pinned too, and deliberately not acquired, since no work
+ *   follows. A gone pinned RENDER sandbox heals like an unpinned phantom: it
+ *   serves one crawl batch and nothing ever reuses it, and its batch's own
+ *   teardown does not take this lock, so a recreate could only leave an
+ *   empty pinned container behind that teardown.
  *
  * Every spawner failure — a refused pin, a create the spawner could not
- * serve, an offline device — throws, so the caller leaves the row for its
- * next visit instead of settling it on a guess.
+ * serve, an offline device, a pinned row with no known profile — throws, so
+ * the caller leaves the row for its next visit instead of settling it on a
+ * guess.
  */
 export async function reconcileSession(
   sql: Sql,
-  args: { organizationId: string; sessionId: string },
-  spawner: ReconcileSpawner = {
-    isAlive: sessionIsAlive,
-    setPinned: sessionSetPinned,
-    create: sessionCreate,
-  },
+  args: SessionArgs,
+  spawner: ReconcileSpawner = DEFAULT_RECONCILE_SPAWNER,
+  options: ReconcileOptions = {},
 ): Promise<ReconcileOutcome> {
-  return withSessionLifecycleLock(sql, args, async (sessionSql) => {
-    const alive = await spawner.isAlive(args.sessionId);
-    const row = await getSessionBySessionId(
-      sessionSql,
-      args.organizationId,
-      args.sessionId,
+  const seen = await getSessionBySessionId(
+    sql,
+    args.organizationId,
+    args.sessionId,
+  );
+  if (seen === null || !COMPUTE_HOLDING_STATUSES.has(seen.status)) {
+    return 'skipped';
+  }
+  if (!seen.pinned && (await spawner.isAlive(args.sessionId))) return 'live';
+  const inline = options.recreate === 'inline';
+  const locked = await lifecycleLocked(sql, args, inline, async (sessionSql) =>
+    reconcileLocked(sessionSql, args, spawner, {
+      inline,
+      schedule: options.schedule ?? schedulePinnedRecreate,
+    }),
+  );
+  return locked.acquired ? locked.value : 'skipped';
+}
+
+/** The queued job's body: `reconcileSession` in `inline` mode, which waits
+ * for the session's lock and recreates a pinned session still gone. */
+export async function recreatePinnedSession(
+  sql: Sql,
+  args: SessionArgs,
+  spawner: ReconcileSpawner = DEFAULT_RECONCILE_SPAWNER,
+): Promise<ReconcileOutcome> {
+  return reconcileSession(sql, args, spawner, { recreate: 'inline' });
+}
+
+async function reconcileLocked(
+  sessionSql: Sql,
+  args: SessionArgs,
+  spawner: ReconcileSpawner,
+  mode: { inline: boolean; schedule: RecreateScheduler },
+): Promise<ReconcileOutcome> {
+  const alive = await spawner.isAlive(args.sessionId);
+  const row = await getSessionBySessionId(
+    sessionSql,
+    args.organizationId,
+    args.sessionId,
+  );
+  if (row === null || !COMPUTE_HOLDING_STATUSES.has(row.status)) {
+    return 'skipped';
+  }
+  if (row.pinned && alive) {
+    await requirePin(spawner, args.sessionId, 'repinned');
+    return 'repinned';
+  }
+  if (alive) return 'live';
+  const body = row.pinned ? recreateBody(row) : null;
+  if (body === null) {
+    return (await markSessionDestroyed(sessionSql, args))
+      ? 'healed'
+      : 'skipped';
+  }
+  if (!mode.inline) {
+    await mode.schedule(sessionSql, args);
+    return 'recreating';
+  }
+  try {
+    await spawner.create(body);
+  } catch (error) {
+    if (!(error instanceof SessionDuplicateError)) throw error;
+    console.warn(
+      `[sandbox] pinned session ${args.sessionId} is back spawner-side already; re-pinning it`,
     );
-    if (row === null || !row.pinned) {
-      if (alive) return 'live';
-      await markSessionDestroyed(sessionSql, args);
-      return 'healed';
-    }
-    if (!COMPUTE_HOLDING_STATUSES.has(row.status)) return 'skipped';
-    if (!alive) {
-      try {
-        await spawner.create(recreateBody(row));
-      } catch (error) {
-        if (!(error instanceof SessionDuplicateError)) throw error;
-        console.warn(
-          `[sandbox] pinned session ${args.sessionId} is back spawner-side already; re-pinning it`,
-        );
-      }
-    }
-    if (!(await spawner.setPinned(args.sessionId, true))) {
-      throw new Error(
-        `the spawner did not take the pin of ${args.sessionId}${alive ? '' : ' after recreating it'}; the next reconcile retries`,
-      );
-    }
-    return alive ? 'repinned' : 'recreated';
-  });
+  }
+  await requirePin(spawner, args.sessionId, 'recreated');
+  return 'recreated';
+}
+
+async function requirePin(
+  spawner: ReconcileSpawner,
+  sessionId: string,
+  outcome: 'repinned' | 'recreated',
+): Promise<void> {
+  if (!(await spawner.setPinned(sessionId, true))) {
+    throw new Error(
+      `the spawner did not take the pin of ${sessionId}${outcome === 'recreated' ? ' after recreating it' : ''}; the next reconcile retries`,
+    );
+  }
 }
 
 /** The body the row's own create site sent — same id, organization and
- * profile. Agent workspaces may live on one of the organization's devices
- * (the hub routes an id it placed back to that machine, and keeps a
- * server-side workspace on the server); renders never leave the server. */
-function recreateBody(row: SessionRow): SessionCreateBody {
-  const base = { sessionId: row.sessionId, organizationId: row.organizationId };
+ * profile — or null for a render sandbox, which is never recreated (see
+ * `reconcileSession`). Agent workspaces may live on one of the
+ * organization's devices (the hub routes an id it placed back to that
+ * machine, and keeps a server-side workspace on the server). */
+function recreateBody(row: SessionRow): SessionCreateBody | null {
   if (row.profile === 'agent') {
-    return { ...base, profile: 'agent', placement: 'device' };
+    return {
+      sessionId: row.sessionId,
+      organizationId: row.organizationId,
+      profile: 'agent',
+      placement: 'device',
+    };
   }
-  if (row.profile === 'default') {
-    return { ...base, profile: 'default', placement: 'server' };
-  }
+  if (row.profile === 'default') return null;
   throw new Error(
     `pinned session ${row.sessionId} carries no known profile (${JSON.stringify(row.profile)}); it cannot be recreated`,
   );

@@ -6,11 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SessionDuplicateError,
   sessionDestroy,
+  sessionSetPinned,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import {
+  pinSession,
   reconcileSession,
+  recreatePinnedSession,
   teardownSession,
   type ReconcileSpawner,
 } from './service.ts';
@@ -33,6 +37,9 @@ vi.mock(
     sessionSetPinned: vi.fn(),
   }),
 );
+vi.mock('../../jobs/enqueue.ts', () => ({
+  addJobInTx: vi.fn(async () => 'job-1'),
+}));
 vi.mock('../tasks/agent-runs.ts', () => ({
   wakeParkedAgentRuns: vi.fn(async () => 0),
 }));
@@ -63,23 +70,36 @@ interface Statement {
   values: unknown[];
 }
 
-/** Exercise the real scoped lookup and settlement; only the SQL transport is
- * scripted. The SELECT's bound organization and id must both match the row. */
-function fakeSql(row: SessionRow | null) {
-  const statements: Statement[] = [];
+const LOCK_KEY = 'sandbox-lifecycle:["org-a","session-a"]';
+
+/**
+ * Exercise the real scoped lookups and settlement over two scripted
+ * transports, told apart so the tests can see WHICH connection each
+ * statement used:
+ *  - the ROOT pool: its plain queries are the reconcile's unlocked first
+ *    look (`root`); its `begin` is the lifecycle lock transaction, which
+ *    must carry the advisory lock and nothing else (`locks`);
+ *  - the dedicated DATA client `postgres()` returns under the lock — every
+ *    row read and write of a lifecycle transition (`data`).
+ * Both answer from one stored row; the SELECT's bound organization and id
+ * must both match it. `lockFree: false` makes a TRIED lock find it taken.
+ */
+function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
+  const root: Statement[] = [];
+  const locks: Statement[] = [];
+  const data: Statement[] = [];
   const stored = row === null ? null : { ...row };
-  const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
-    statements.push({ text, values });
-    if (text.startsWith('SELECT pg_advisory_xact_lock')) {
-      return Promise.resolve([]);
+  const answer = (text: string, values: unknown[]): unknown[] => {
+    if (text.startsWith('SELECT pg_try_advisory_xact_lock')) {
+      return [{ acquired: options.lockFree ?? true }];
     }
+    if (text.startsWith('SELECT pg_advisory_xact_lock')) return [];
     if (text.startsWith('SELECT')) {
       const matches =
         stored !== null &&
         values.at(-2) === stored.sessionId &&
         values.at(-1) === stored.organizationId;
-      return Promise.resolve(matches ? [stored] : []);
+      return matches ? [{ ...stored }] : [];
     }
     if (text.startsWith('UPDATE app.sandbox_sessions')) {
       if (
@@ -88,38 +108,85 @@ function fakeSql(row: SessionRow | null) {
         !values.includes(stored.sessionId) ||
         !values.includes(stored.organizationId)
       )
-        return Promise.resolve([]);
+        return [];
       if (text.includes('pinned =')) stored.pinned = Boolean(values[0]);
       else stored.status = 'destroyed';
-      return Promise.resolve([{ id: stored.id }]);
+      return [{ id: stored.id }];
     }
-    return Promise.resolve([]);
+    return [];
   };
+  const recorder =
+    (log: Statement[]) =>
+    (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      log.push({ text, values });
+      return Promise.resolve(answer(text, values));
+    };
+  const unsafe = (fragment: string) => fragment;
   // A postgres.js transaction really has savepoint and NO begin. Keeping
   // that distinction catches accidental nested root-pool transactions.
-  const tx = Object.assign(query, {
-    unsafe: (fragment: string) => fragment,
-    savepoint: <T>(callback: (transaction: typeof query) => Promise<T>) =>
-      callback(tx),
-  });
-  const sql = Object.assign(
-    (strings: TemplateStringsArray, ...values: unknown[]) =>
-      query(strings, ...values),
-    {
-      unsafe: tx.unsafe,
-      options: { host: ['itest-host'], ssl: 'require', max: 3 },
-      end: vi.fn(async () => {}),
-      begin: <T>(callback: (transaction: typeof query) => Promise<T>) =>
+  const transaction = (log: Statement[]) => {
+    const query = recorder(log);
+    const tx = Object.assign(query, {
+      unsafe,
+      savepoint: <T>(callback: (transaction: typeof query) => Promise<T>) =>
         callback(tx),
-    },
+    });
+    return tx;
+  };
+  const pool = (log: Statement[], tx: ReturnType<typeof transaction>) => {
+    const query = recorder(log);
+    return Object.assign(
+      (strings: TemplateStringsArray, ...values: unknown[]) =>
+        query(strings, ...values),
+      {
+        unsafe,
+        options: { host: ['itest-host'], ssl: 'require', max: 3 },
+        end: vi.fn(async () => {}),
+        begin: <T>(callback: (transaction: typeof tx) => Promise<T>) =>
+          callback(tx),
+      },
+    );
+  };
+  const rootSql = pool(root, transaction(locks));
+  const dataSql = pool(data, transaction(data));
+  postgresFactory.mockReturnValue(dataSql);
+  return {
+    sql: rootSql as unknown as Sql,
+    dataSql: dataSql as unknown as Sql,
+    root,
+    locks,
+    data,
+    stored,
+    end: dataSql.end,
+  };
+}
+
+/** The lock transaction carried exactly the session's advisory lock —
+ * waited for or tried — and the data work ran on one dedicated `max: 1`
+ * connection with the root pool's resolved options, closed once. */
+function expectLockedOnce(
+  locks: Statement[],
+  end: ReturnType<typeof vi.fn>,
+  kind: 'wait' | 'try',
+): void {
+  expect(locks).toHaveLength(1);
+  expect(locks[0]?.text).toContain(
+    kind === 'wait' ? 'pg_advisory_xact_lock' : 'pg_try_advisory_xact_lock',
   );
-  postgresFactory.mockReturnValue(sql);
-  return { sql: sql as unknown as Sql, tx, statements, stored, end: sql.end };
+  expect(locks[0]?.values).toEqual([LOCK_KEY]);
+  expect(postgresFactory).toHaveBeenCalledExactlyOnceWith({
+    host: ['itest-host'],
+    ssl: 'require',
+    max: 1,
+  });
+  expect(end).toHaveBeenCalledOnce();
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(sessionDestroy).mockResolvedValue(true);
+  vi.mocked(sessionSetPinned).mockResolvedValue(true);
 });
 
 describe('teardownSession ownership and confirmed deletion', () => {
@@ -127,7 +194,7 @@ describe('teardownSession ownership and confirmed deletion', () => {
     ['another organization', { ...OWNED_SESSION, organizationId: 'org-b' }],
     ['no organization', null],
   ])('does not touch a session belonging to %s', async (_label, row) => {
-    const { sql, statements, stored } = fakeSql(row);
+    const { sql, root, locks, data, stored, end } = fakeSql(row);
 
     expect(
       await teardownSession(sql, {
@@ -136,11 +203,12 @@ describe('teardownSession ownership and confirmed deletion', () => {
       }),
     ).toBe(false);
 
-    expect(statements).toHaveLength(2);
-    expect(statements[1]?.text).toContain(
-      'WHERE session_id = ? AND org_id = ?',
-    );
-    expect(statements[1]?.values.slice(-2)).toEqual(['session-a', 'org-a']);
+    expectLockedOnce(locks, end, 'wait');
+    expect(root).toEqual([]);
+    expect(data).toHaveLength(1);
+    expect(data[0]?.text).toContain('WHERE session_id = ? AND org_id = ?');
+    expect(data[0]?.values.slice(-2)).toEqual(['session-a', 'org-a']);
+    expect(sessionSetPinned).not.toHaveBeenCalled();
     expect(sessionDestroy).not.toHaveBeenCalled();
     expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
@@ -148,14 +216,16 @@ describe('teardownSession ownership and confirmed deletion', () => {
   });
 
   it.each([true, false])(
-    'settles an owned session after confirmed deletion or absence (%s)',
+    'settles an owned session after confirmed deletion or absence (%s), on the dedicated connection',
     async (destroyed) => {
-      const { sql, end, statements, stored } = fakeSql(OWNED_SESSION);
+      const { sql, dataSql, root, locks, data, stored, end } =
+        fakeSql(OWNED_SESSION);
       let stateAtDestroy: unknown;
       vi.mocked(sessionDestroy).mockImplementationOnce(async () => {
         stateAtDestroy = {
-          statements: statements.length,
+          statements: data.length,
           status: stored?.status,
+          spawnerUnpinned: vi.mocked(sessionSetPinned).mock.calls,
           revocations: vi.mocked(revokeSessionGatewayKeys).mock.calls.length,
         };
         return destroyed;
@@ -165,31 +235,69 @@ describe('teardownSession ownership and confirmed deletion', () => {
       await expect(teardownSession(sql, args)).resolves.toBe(true);
 
       expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
+      // An unpinned row is not rewritten before the destroy (its lifetime
+      // stays as it was), but the spawner's pin is dropped either way.
       expect(stateAtDestroy).toEqual({
-        statements: 3,
+        statements: 1,
         status: 'active',
+        spawnerUnpinned: [['session-a', false]],
         revocations: 0,
       });
       expect(stored?.status).toBe('destroyed');
-      expect(postgresFactory).toHaveBeenCalledExactlyOnceWith({
-        host: ['itest-host'],
-        ssl: 'require',
-        max: 1,
-      });
-      expect(end).toHaveBeenCalledOnce();
+      expectLockedOnce(locks, end, 'wait');
+      expect(root).toEqual([]);
       expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(
-        sql,
+        dataSql,
         args,
       );
-      expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(sql, 'org-a');
+      expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(
+        dataSql,
+        'org-a',
+      );
     },
   );
 
-  it('leaves an owned session retryable when the spawner cannot confirm deletion', async () => {
-    const { sql, end, statements, stored } = fakeSql({
+  it('leaves a pinned session retryable and unpinned on both sides when the spawner cannot confirm deletion', async () => {
+    const { sql, locks, data, stored, end } = fakeSql({
       ...OWNED_SESSION,
       pinned: true,
     });
+    const failure = new Error('sandbox session destroy failed (503)');
+    let pinnedAtDestroy: unknown;
+    vi.mocked(sessionDestroy).mockImplementationOnce(async () => {
+      pinnedAtDestroy = {
+        row: stored?.pinned,
+        spawner: vi.mocked(sessionSetPinned).mock.calls,
+      };
+      throw failure;
+    });
+
+    await expect(
+      teardownSession(sql, {
+        organizationId: 'org-a',
+        sessionId: 'session-a',
+      }),
+    ).rejects.toBe(failure);
+
+    // Both unpins land BEFORE the irreversible remote delete: a container
+    // that survives it is left to the spawner's idle reaper.
+    expect(pinnedAtDestroy).toEqual({
+      row: false,
+      spawner: [['session-a', false]],
+    });
+    expect(data.map((statement) => statement.text.split(' SET ')[0])).toEqual([
+      expect.stringMatching(/^SELECT/),
+      'UPDATE app.sandbox_sessions',
+    ]);
+    expect(stored?.status).toBe('active');
+    expect(stored?.pinned).toBe(false);
+    expectLockedOnce(locks, end, 'wait');
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+  });
+
+  it('does not extend an unpinned session’s lifetime when its Destroy fails', async () => {
+    const { sql, data, stored } = fakeSql(OWNED_SESSION);
     const failure = new Error('sandbox session destroy failed (503)');
     vi.mocked(sessionDestroy).mockRejectedValueOnce(failure);
 
@@ -200,12 +308,106 @@ describe('teardownSession ownership and confirmed deletion', () => {
       }),
     ).rejects.toBe(failure);
 
-    expect(statements).toHaveLength(3);
-    expect(stored?.status).toBe('active');
+    // No UPDATE at all: `setSessionPinned` would have restarted the TTL.
+    expect(
+      data.filter((statement) => !statement.text.startsWith('SELECT')),
+    ).toEqual([]);
+    expect(stored).toMatchObject({ status: 'active', expiresAt: 2000 });
+  });
+
+  it('still destroys when the spawner unpin fails', async () => {
+    const { sql, stored } = fakeSql({ ...OWNED_SESSION, pinned: true });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(sessionSetPinned).mockRejectedValueOnce(
+      new Error('spawner unreachable'),
+    );
+
+    await expect(
+      teardownSession(sql, {
+        organizationId: 'org-a',
+        sessionId: 'session-a',
+      }),
+    ).resolves.toBe(true);
+
+    expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
+    expect(stored).toMatchObject({ status: 'destroyed', pinned: false });
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+});
+
+describe('pinSession serializes with the other lifecycle transitions', () => {
+  it.each([true, false])(
+    'writes the row (pinned=%s) on the dedicated connection under the lock, then patches the spawner',
+    async (pinned) => {
+      const { sql, root, locks, data, stored, end } = fakeSql({
+        ...OWNED_SESSION,
+        pinned: !pinned,
+      });
+      let rowAtPatch: unknown;
+      vi.mocked(sessionSetPinned).mockImplementationOnce(async () => {
+        rowAtPatch = stored?.pinned;
+        return true;
+      });
+
+      await expect(
+        pinSession(sql, {
+          organizationId: 'org-a',
+          sessionId: 'session-a',
+          pinned,
+        }),
+      ).resolves.toBe(true);
+
+      expect(rowAtPatch).toBe(pinned);
+      expect(sessionSetPinned).toHaveBeenCalledExactlyOnceWith(
+        'session-a',
+        pinned,
+      );
+      expect(data).toHaveLength(1);
+      expect(data[0]?.text).toMatch(
+        /^UPDATE app\.sandbox_sessions SET pinned =/,
+      );
+      expect(root).toEqual([]);
+      expectLockedOnce(locks, end, 'wait');
+    },
+  );
+
+  it('answers not found for another organization’s session without asking the spawner', async () => {
+    const { sql, stored } = fakeSql({
+      ...OWNED_SESSION,
+      organizationId: 'org-b',
+    });
+
+    await expect(
+      pinSession(sql, {
+        organizationId: 'org-a',
+        sessionId: 'session-a',
+        pinned: true,
+      }),
+    ).resolves.toBe(false);
+
+    expect(sessionSetPinned).not.toHaveBeenCalled();
     expect(stored?.pinned).toBe(false);
-    expect(end).toHaveBeenCalledOnce();
-    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
-    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+  });
+
+  it('keeps the row pinned when the spawner patch fails', async () => {
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(sessionSetPinned).mockRejectedValueOnce(
+      new Error('spawner unreachable'),
+    );
+
+    await expect(
+      pinSession(sql, {
+        organizationId: 'org-a',
+        sessionId: 'session-a',
+        pinned: true,
+      }),
+    ).resolves.toBe(true);
+
+    expect(stored?.pinned).toBe(true);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
 
@@ -257,8 +459,8 @@ function expectRowUntouched(
 }
 
 describe('reconcileSession keeps a pinned session pinned', () => {
-  it('re-asserts the pin on a live pinned session and settles nothing', async () => {
-    const { sql, statements, stored } = fakeSql(PINNED_SESSION);
+  it('re-asserts the pin on a live pinned session under the tried lock and settles nothing', async () => {
+    const { sql, root, locks, data, stored, end } = fakeSql(PINNED_SESSION);
     const { spawner, calls } = fakeSpawner(true);
 
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
@@ -267,14 +469,53 @@ describe('reconcileSession keeps a pinned session pinned', () => {
 
     expect(calls).toEqual(['isAlive session-a', 'setPinned session-a true']);
     expect(spawner.create).not.toHaveBeenCalled();
-    expectRowUntouched(statements, stored);
+    // The unlocked first look on the root pool, the decision on the
+    // dedicated connection under the lock.
+    expect(root).toHaveLength(1);
+    expect(data).toHaveLength(1);
+    expectLockedOnce(locks, end, 'try');
+    expectRowUntouched(data, stored);
   });
 
-  it('recreates a gone pinned session under its id, then re-pins it, instead of settling the row', async () => {
-    const { sql, statements, stored } = fakeSql(PINNED_SESSION);
+  it('queues the recreate of a gone pinned session instead of creating it or settling the row', async () => {
+    const { sql, dataSql, locks, data, stored, end } = fakeSql(PINNED_SESSION);
     const { spawner, calls } = fakeSpawner(false);
 
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+      'recreating',
+    );
+
+    // One `exclusive` job per organization + session, queued on the
+    // dedicated connection: the batch never waits for a create.
+    expect(addJobInTx).toHaveBeenCalledExactlyOnceWith(
+      dataSql,
+      'sandbox.recreate_pinned',
+      ARGS,
+      { singletonKey: JSON.stringify(['org-a', 'session-a']) },
+    );
+    expect(calls).toEqual(['isAlive session-a']);
+    expectLockedOnce(locks, end, 'try');
+    expectRowUntouched(data, stored);
+  });
+
+  it('hands the recreate to an injected scheduler', async () => {
+    const { sql, dataSql } = fakeSql(PINNED_SESSION);
+    const { spawner } = fakeSpawner(false);
+    const schedule = vi.fn(async () => {});
+
+    await expect(
+      reconcileSession(sql, ARGS, spawner, { schedule }),
+    ).resolves.toBe('recreating');
+
+    expect(schedule).toHaveBeenCalledExactlyOnceWith(dataSql, ARGS);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('recreates a gone pinned session under its id in the queued job, waiting for the lock, then re-pins it', async () => {
+    const { sql, locks, data, stored, end } = fakeSql(PINNED_SESSION);
+    const { spawner, calls } = fakeSpawner(false);
+
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
       'recreated',
     );
 
@@ -293,31 +534,75 @@ describe('reconcileSession keeps a pinned session pinned', () => {
       'create session-a',
       'setPinned session-a true',
     ]);
-    expectRowUntouched(statements, stored);
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expectLockedOnce(locks, end, 'wait');
+    expectRowUntouched(data, stored);
   });
 
-  it('recreates a pinned render sandbox on the server', async () => {
-    const { sql } = fakeSql({
+  it('heals a gone pinned render sandbox instead of recreating it', async () => {
+    const { sql, stored } = fakeSql({
       ...PINNED_SESSION,
       profile: 'default',
       ownerType: 'render',
     });
     const { spawner } = fakeSpawner(false);
 
-    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
-      'recreated',
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
+      'healed',
     );
 
-    expect(spawner.create).toHaveBeenCalledExactlyOnceWith({
-      sessionId: 'session-a',
-      organizationId: 'org-a',
-      profile: 'default',
-      placement: 'server',
-    });
+    expect(spawner.create).not.toHaveBeenCalled();
+    expect(spawner.setPinned).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(stored?.status).toBe('destroyed');
   });
 
+  it('re-pins a live pinned render sandbox', async () => {
+    const { sql } = fakeSql({
+      ...PINNED_SESSION,
+      profile: 'default',
+      ownerType: 'render',
+    });
+    const { spawner, calls } = fakeSpawner(true);
+
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+      'repinned',
+    );
+
+    expect(calls).toEqual(['isAlive session-a', 'setPinned session-a true']);
+  });
+
+  it.each([
+    ['queued', undefined],
+    ['recreated', 'inline' as const],
+  ])(
+    'refuses a gone pinned row with no known profile (%s) and leaves it untouched',
+    async (_label, recreate) => {
+      const { sql, data, stored } = fakeSql({
+        ...PINNED_SESSION,
+        profile: null,
+      });
+      const { spawner } = fakeSpawner(false);
+
+      await expect(
+        reconcileSession(
+          sql,
+          ARGS,
+          spawner,
+          recreate === undefined ? {} : { recreate },
+        ),
+      ).rejects.toThrow(/carries no known profile/);
+
+      expect(spawner.create).not.toHaveBeenCalled();
+      expect(spawner.setPinned).not.toHaveBeenCalled();
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expectRowUntouched(data, stored);
+      expect(stored?.pinned).toBe(true);
+    },
+  );
+
   it('re-pins a session the spawner reports as already back (a duplicate create)', async () => {
-    const { sql, statements, stored } = fakeSql(PINNED_SESSION);
+    const { sql, data, stored } = fakeSql(PINNED_SESSION);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { spawner, calls } = fakeSpawner(false, {
       create: vi.fn(() =>
@@ -325,27 +610,29 @@ describe('reconcileSession keeps a pinned session pinned', () => {
       ),
     });
 
-    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
       'recreated',
     );
 
     expect(calls).toEqual(['isAlive session-a', 'setPinned session-a true']);
     expect(warn).toHaveBeenCalledOnce();
-    expectRowUntouched(statements, stored);
+    expectRowUntouched(data, stored);
     warn.mockRestore();
   });
 
   it('leaves the row for the next visit when the spawner cannot recreate the session', async () => {
-    const { sql, statements, stored } = fakeSql(PINNED_SESSION);
+    const { sql, data, stored } = fakeSql(PINNED_SESSION);
     const failure = new Error('sandbox session create failed (503): full');
     const { spawner } = fakeSpawner(false, {
       create: vi.fn(() => Promise.reject(failure)),
     });
 
-    await expect(reconcileSession(sql, ARGS, spawner)).rejects.toBe(failure);
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).rejects.toBe(
+      failure,
+    );
 
     expect(spawner.setPinned).not.toHaveBeenCalled();
-    expectRowUntouched(statements, stored);
+    expectRowUntouched(data, stored);
   });
 
   it.each([
@@ -354,12 +641,12 @@ describe('reconcileSession keeps a pinned session pinned', () => {
   ])(
     'throws when the spawner does not take the pin of %s session',
     async (_label, alive) => {
-      const { sql, statements, stored } = fakeSql(PINNED_SESSION);
+      const { sql, data, stored } = fakeSql(PINNED_SESSION);
       const { spawner } = fakeSpawner(alive, {
         setPinned: vi.fn(() => Promise.resolve(false)),
       });
 
-      await expect(reconcileSession(sql, ARGS, spawner)).rejects.toThrow(
+      await expect(recreatePinnedSession(sql, ARGS, spawner)).rejects.toThrow(
         /did not take the pin of session-a/,
       );
 
@@ -367,50 +654,147 @@ describe('reconcileSession keeps a pinned session pinned', () => {
         'session-a',
         true,
       );
-      expectRowUntouched(statements, stored);
+      expectRowUntouched(data, stored);
     },
   );
 
-  it.each(['destroyed', 'stopped'])(
-    'leaves a pinned row that turned %s since the batch named it alone',
+  it.each(['destroyed', 'stopped', 'expired'])(
+    'leaves a pinned row that reads %s alone without asking the spawner',
     async (status) => {
-      const { sql, statements, stored } = fakeSql({
-        ...PINNED_SESSION,
-        status,
-      });
-      const { spawner } = fakeSpawner(false);
+      const { sql, locks, stored } = fakeSql({ ...PINNED_SESSION, status });
+      const { spawner, calls } = fakeSpawner(false);
 
-      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+      await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
         'skipped',
       );
 
-      expect(spawner.create).not.toHaveBeenCalled();
-      expect(spawner.setPinned).not.toHaveBeenCalled();
-      expectRowUntouched(statements, stored, status);
+      expect(calls).toEqual([]);
+      expect(locks).toEqual([]);
+      expect(postgresFactory).not.toHaveBeenCalled();
+      expect(stored?.status).toBe(status);
     },
   );
+
+  it('leaves a pinned row that turned stopped between the first look and the lock alone', async () => {
+    const { sql, data, stored } = fakeSql(PINNED_SESSION);
+    const { spawner } = fakeSpawner(false, {
+      isAlive: vi.fn(() => {
+        if (stored !== null) stored.status = 'stopped';
+        return Promise.resolve(false);
+      }),
+    });
+
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
+      'skipped',
+    );
+
+    expect(spawner.create).not.toHaveBeenCalled();
+    expect(spawner.setPinned).not.toHaveBeenCalled();
+    expectRowUntouched(data, stored, 'stopped');
+  });
+
+  it('skips a session whose lock another transition holds, without waiting or opening a connection', async () => {
+    const { sql, locks, stored } = fakeSql(PINNED_SESSION, {
+      lockFree: false,
+    });
+    const { spawner, calls } = fakeSpawner(false);
+
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('skipped');
+
+    expect(locks).toHaveLength(1);
+    expect(locks[0]?.text).toContain('pg_try_advisory_xact_lock');
+    expect(postgresFactory).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(stored).toMatchObject({ status: 'active', pinned: true });
+  });
 });
 
 describe('reconcileSession heals unpinned phantoms as before', () => {
-  it('leaves a live unpinned session alone', async () => {
-    const { sql, statements, stored } = fakeSql(OWNED_SESSION);
+  it('leaves a live unpinned session alone without taking the lock', async () => {
+    const { sql, root, locks, data, stored } = fakeSql(OWNED_SESSION);
     const { spawner, calls } = fakeSpawner(true);
 
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('live');
 
     expect(calls).toEqual(['isAlive session-a']);
-    expectRowUntouched(statements, stored);
+    expect(root).toHaveLength(1);
+    expect(locks).toEqual([]);
+    expect(data).toEqual([]);
+    expect(postgresFactory).not.toHaveBeenCalled();
+    expectRowUntouched(root, stored);
   });
 
-  it('settles a gone unpinned session as destroyed without recreating it', async () => {
-    const { sql, stored } = fakeSql(OWNED_SESSION);
+  it('settles a gone unpinned session as destroyed under the lock without recreating it', async () => {
+    const { sql, dataSql, locks, stored, end } = fakeSql(OWNED_SESSION);
     const { spawner, calls } = fakeSpawner(false);
 
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('healed');
 
-    expect(calls).toEqual(['isAlive session-a']);
+    // Probed again under the lock: the first answer may predate a
+    // transition that just finished.
+    expect(calls).toEqual(['isAlive session-a', 'isAlive session-a']);
+    expect(spawner.create).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
     expect(stored?.status).toBe('destroyed');
-    expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(sql, ARGS);
-    expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(sql, 'org-a');
+    expectLockedOnce(locks, end, 'try');
+    expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(
+      dataSql,
+      ARGS,
+    );
+    expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(
+      dataSql,
+      'org-a',
+    );
+  });
+
+  it('counts nothing for a row a Destroy settled while the reconcile waited', async () => {
+    const { sql, data, stored } = fakeSql(OWNED_SESSION);
+    let probes = 0;
+    const { spawner } = fakeSpawner(false, {
+      isAlive: vi.fn(() => {
+        probes += 1;
+        // The Destroy that held the lock committed its settlement.
+        if (probes === 2 && stored !== null) stored.status = 'destroyed';
+        return Promise.resolve(false);
+      }),
+    });
+
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
+      'skipped',
+    );
+
+    expectRowUntouched(data, stored, 'destroyed');
+  });
+
+  it.each(['stopped', 'expired', 'destroyed'])(
+    'leaves an unpinned row that reads %s alone, even when the spawner has no container',
+    async (status) => {
+      const { sql, root, stored } = fakeSql({ ...OWNED_SESSION, status });
+      const { spawner, calls } = fakeSpawner(false);
+
+      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+        'skipped',
+      );
+
+      expect(calls).toEqual([]);
+      expectRowUntouched(root, stored, status);
+    },
+  );
+
+  it('keeps a workspace hibernated between the first look and the lock', async () => {
+    const { sql, data, stored } = fakeSql(OWNED_SESSION);
+    let probes = 0;
+    const { spawner } = fakeSpawner(false, {
+      isAlive: vi.fn(() => {
+        probes += 1;
+        if (probes === 1 && stored !== null) stored.status = 'stopped';
+        return Promise.resolve(false);
+      }),
+    });
+
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('skipped');
+
+    expectRowUntouched(data, stored, 'stopped');
   });
 });

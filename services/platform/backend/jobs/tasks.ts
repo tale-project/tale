@@ -255,6 +255,10 @@ export interface TaskPayloads {
     sessionId: string;
     generation: string;
   };
+  /** Recreate one pinned session the drift reconcile found gone
+   * spawner-side, under its id, then re-pin it — queued by the sweep and the
+   * Sandboxes page probe so neither waits for a create. */
+  'sandbox.recreate_pinned': { organizationId: string; sessionId: string };
   /** 2-min direct-chat crash recovery: clear stale generation rows so a
    * hard-killed turn cannot wedge its thread's composer. */
   'watchdog.chat_generations': Record<string, never>;
@@ -332,7 +336,7 @@ export interface TaskQueueOptions {
    * accepted, and give every job on that queue a key, or keyless jobs share
    * the default key and shut each other out.
    */
-  policy?: 'standard' | 'short' | 'singleton' | 'stately';
+  policy?: 'standard' | 'short' | 'singleton' | 'stately' | 'exclusive';
 }
 
 /** Per-queue delivery policy (inherited by that queue's jobs). */
@@ -494,6 +498,16 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 60,
   },
+  // One queued-or-running recreate per session (`exclusive`, keyed by
+  // organization and session): a sweep tick or a page open that finds the
+  // session still gone adds nothing. No pg-boss retry — the next sweep tick
+  // queues another attempt when the session is still gone. The expiry covers
+  // a create's 200 s budget plus its probe and pin.
+  'sandbox.recreate_pinned': {
+    policy: 'exclusive',
+    retryLimit: 0,
+    expireInSeconds: 300,
+  },
   'watchdog.chat_generations': { retryLimit: 1, expireInSeconds: 120 },
   'documents.replacement_cleanup': { retryLimit: 1, expireInSeconds: 300 },
   'onedrive.sync_scan': { retryLimit: 1, expireInSeconds: 300 },
@@ -519,3 +533,16 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'websites.register': { retryLimit: 1, expireInSeconds: 300 },
   'websites.row_sync': { retryLimit: 0, expireInSeconds: 120 },
 };
+
+/**
+ * Queues one worker process runs fewer jobs of at once than its
+ * `WORKER_CONCURRENCY`. A pinned-session recreate holds its session's
+ * lifecycle lock — an app-pool connection idle in a transaction, plus one
+ * dedicated data connection — through a create of up to ~200 s, so a burst
+ * after a host restart is worked through one session at a time per worker
+ * instead of parking an app-pool connection per concurrent job.
+ */
+export const TASK_WORKER_BATCH_LIMITS: ReadonlyMap<string, number> = new Map<
+  TaskIdentifier,
+  number
+>([['sandbox.recreate_pinned', 1]]);

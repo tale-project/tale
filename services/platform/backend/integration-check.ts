@@ -52386,11 +52386,14 @@ async function checkWatchdogs(
   // cannot settle it as destroyed — the page used to empty itself of idle
   // workspaces on every open — while a genuine phantom (compute-holding
   // row, container gone) still heals. A PINNED row gone spawner-side is
-  // recreated under its id with its stored profile (`'"agent"'` jsonb, as
-  // the reserve writes it) and re-pinned, never settled; a live pinned one
-  // has its pin re-asserted. The pass is walked until every row of the lane
-  // has been probed: the fair rotation may need more than one batch when
-  // earlier lanes left never-visited compute-holding rows in this org.
+  // never settled: the pass queues its recreate (recorded here, so the
+  // harness worker never runs one against a stub spawner), and the queued
+  // job's body recreates it under its id with its stored profile
+  // (`'"agent"'` jsonb, as the reserve writes it) and re-pins it; a live
+  // pinned one has its pin re-asserted. The pass is walked until every row
+  // of the lane has been probed: the fair rotation may need more than one
+  // batch when earlier lanes left never-visited compute-holding rows in
+  // this org.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, profile, status, owner_type, owner_id, created_by,
@@ -52435,6 +52438,13 @@ async function checkWatchdogs(
     'wd-org-pinned-gone',
     'wd-org-pinned-up',
   ];
+  const orgScheduled: string[] = [];
+  const orgSchedule = async (
+    _sql: unknown,
+    args: { sessionId: string },
+  ): Promise<void> => {
+    orgScheduled.push(args.sessionId);
+  };
   let orgHealed = 0;
   let orgPasses = 0;
   while (!orgLaneRows.every((id) => orgProbed.includes(id)) && orgPasses < 8) {
@@ -52442,10 +52452,19 @@ async function checkWatchdogs(
       sql,
       orgId,
       orgSpawner,
+      orgSchedule,
     );
     orgHealed += pass.healed;
     orgPasses += 1;
   }
+  const createsBeforeJob = orgCreated.length;
+  const { recreatePinnedSession } =
+    await import('./domains/sandbox/service.ts');
+  const orgRecreate = await recreatePinnedSession(
+    sql,
+    { organizationId: orgId, sessionId: 'wd-org-pinned-gone' },
+    orgSpawner,
+  );
   const orgRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id LIKE 'wd-org-%'
@@ -52454,14 +52473,20 @@ async function checkWatchdogs(
     orgRows.find((r) => r.sessionId === sessionId)?.status;
   const orgCreates = orgCreated.map((body) => JSON.stringify(body));
   record(
-    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session is recreated in place and re-pinned',
+    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session’s recreate is queued, and the job recreates it in place and re-pins it',
     !orgProbed.includes('wd-org-hibernated') &&
       orgStatusOf('wd-org-hibernated') === 'stopped' &&
       orgProbed.includes('wd-org-phantom') &&
       orgStatusOf('wd-org-phantom') === 'destroyed' &&
       orgHealed === 1 &&
-      // The pinned phantom: recreated under its id, org and stored profile,
-      // re-pinned, and its row still `active`.
+      // The page's pass queued the pinned phantom's recreate and created
+      // nothing itself…
+      createsBeforeJob === 0 &&
+      orgScheduled.includes('wd-org-pinned-gone') &&
+      orgScheduled.every((id) => id === 'wd-org-pinned-gone') &&
+      // …and the job recreated it under its id, org and stored profile,
+      // re-pinned it, and left its row `active`.
+      orgRecreate === 'recreated' &&
       orgStatusOf('wd-org-pinned-gone') === 'active' &&
       orgCreates.length === 1 &&
       orgCreates[0] ===
@@ -52475,7 +52500,7 @@ async function checkWatchdogs(
       // The live pinned session: pin re-asserted, nothing created.
       orgStatusOf('wd-org-pinned-up') === 'active' &&
       orgPinned.includes('wd-org-pinned-up'),
-    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
+    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} scheduled=${orgScheduled.join(',')} createdByPass=${createsBeforeJob} job=${orgRecreate} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
   );
   // The pinned rows stay `active` by design; drop them so they hold no
   // project-agent slot of this org in the lanes after this one.
