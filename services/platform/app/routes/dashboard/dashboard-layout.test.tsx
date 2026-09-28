@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
 
 // jsdom doesn't ship ResizeObserver; Radix primitives (popovers, sheets,
 // tooltips) pulled in by the layout's children depend on it. Stub before any
@@ -435,5 +437,52 @@ describe('DashboardLayout', () => {
 
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  // A notice floating over the page covered a phone's header — its
+  // navigation and actions — until the person signed in. In the shell it
+  // sits in the alert stack, above the page, once.
+  it("shows a lapsed session's standing notice in the shell's alert stack", () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: {
+        status: 'ok',
+        role: 'admin',
+        memberId: 'm1',
+        organizationId: 'org-1',
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(
+      <SessionLapseRecovery
+        recovery={{
+          isLapsed: true,
+          open: false,
+          checking: false,
+          checkFailed: false,
+          liveSessionVersion: 0,
+          setOpen: vi.fn(),
+          continueToLogIn: vi.fn(),
+        }}
+      >
+        <DashboardLayout />
+      </SessionLapseRecovery>,
+    );
+
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('auth.sessionLapse.title');
+    expect(
+      screen.getAllByRole('button', { name: 'auth.sessionLapse.signIn' }),
+    ).toEqual([within(notice).getByRole('button')]);
+    expect(
+      notice.compareDocumentPosition(screen.getByTestId('outlet')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(notice.className).not.toMatch(/\bfixed\b/);
   });
 });

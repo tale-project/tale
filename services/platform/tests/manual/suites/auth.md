@@ -377,9 +377,11 @@ compute codes from the enrollment secret.
   focus returns to the field you were editing, where the text can be copied;
   repeated refused requests do not reopen the confirmation. Copy the work and
   close the product dialog → the standing notice shows its title and
-  **Your page is still open. …** (`auth.sessionLapse.paused`) in full over the
-  page header. Reach **Sign in** (`auth.sessionLapse.signIn`) in it by
-  keyboard → the confirmation reopens. Confirm →
+  **Your page is still open. …** (`auth.sessionLapse.paused`) above the page
+  header, whose controls stay usable; at a phone's width (375 px) it keeps to
+  its title and **Sign in** (`auth.sessionLapse.signIn`), and the header's
+  navigation and actions still respond. Reach **Sign in** in it by keyboard
+  → the confirmation reopens. Confirm →
   `/log-in?redirectTo=<products page>&reason=session-ended` shows
   **Your session has ended. Sign in again.** (`common.errors.sessionEnded`);
   sign in → back on the products page, where copied input can be re-entered.
