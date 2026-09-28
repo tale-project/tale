@@ -104,11 +104,12 @@ test.describe('settings depth — API keys', () => {
 
     const keyName = `e2e-key-${Date.now().toString(36)}`;
 
-    // --- Create: header/empty-state CTA opens the create dialog (both share the
-    // "Create API key" button). ---
+    // --- Create: the list's one "Create API key" button (DataTable's
+    // `addAction`) opens the create dialog — in the empty state while there
+    // are no keys, in the toolbar once there are. No `.first()`: strict mode
+    // fails the step if a second Create button ever comes back. ---
     await page
       .getByRole('button', { name: t('settings.apiKeys.createKey') })
-      .first()
       .click();
 
     const createDialog = page.getByRole('dialog', {

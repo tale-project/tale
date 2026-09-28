@@ -93,6 +93,8 @@ describe('TeamsTable', () => {
 
   // The create button is DataTable's standard `addAction`: the toolbar keeps
   // it beside the search box, rows or none, and it opens the create dialog.
+  // (That it is `addAction` and not a bespoke `actionMenu` is the source
+  // guard's job — `list-conventions.test.ts` — both render the same button.)
   describe('create action', () => {
     it.each([
       ['with teams', [makeTeam()]],
@@ -104,11 +106,23 @@ describe('TeamsTable', () => {
 
       const create = screen.getAllByRole('button', { name: 'Create team' });
       expect(create).toHaveLength(1);
+      const button = create[0] as HTMLElement;
+      // The toolbar is the row above the table frame that holds the search
+      // box: never inside the table, where the empty state lives.
+      const table = screen.getByRole('table');
+      const search = screen.getByPlaceholderText('Search teams');
+      expect(table).not.toContainElement(button);
+      for (const toolbarItem of [search, button]) {
+        expect(
+          table.compareDocumentPosition(toolbarItem) &
+            Node.DOCUMENT_POSITION_PRECEDING,
+        ).toBeTruthy();
+      }
       expect(
         screen.queryByRole('dialog', { name: 'Create team dialog' }),
       ).toBeNull();
 
-      await user.click(create[0] as HTMLElement);
+      await user.click(button);
 
       expect(
         screen.getByRole('dialog', { name: 'Create team dialog' }),

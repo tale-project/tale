@@ -105,9 +105,10 @@ describe('ApiKeysTable', () => {
         name: 'No API keys yet',
       });
       const emptyState = emptyTitle.parentElement as HTMLElement;
-      expect(
-        within(emptyState).getByRole('button', { name: 'Create API key' }),
-      ).toBeInTheDocument();
+      // Only there: no toolbar button above the empty table as well.
+      expect(screen.getAllByRole('button', { name: 'Create API key' })).toEqual(
+        [within(emptyState).getByRole('button', { name: 'Create API key' })],
+      );
     });
 
     it.each([
@@ -116,7 +117,16 @@ describe('ApiKeysTable', () => {
     ])('links the API docs below the table %s', (_, apiKeys) => {
       render(<ApiKeysTable apiKeys={apiKeys} organizationId="org-1" />);
 
-      expect(screen.getAllByRole('link', { name: 'API docs' })).toHaveLength(1);
+      const links = screen.getAllByRole('link', { name: 'API docs' });
+      expect(links).toHaveLength(1);
+      const link = links[0] as HTMLElement;
+      // Outside the table — so outside the empty state, where it used to sit —
+      // and after it.
+      const table = screen.getByRole('table');
+      expect(table).not.toContainElement(link);
+      expect(
+        table.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
   });
 
