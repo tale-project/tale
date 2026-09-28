@@ -1,6 +1,6 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING, imageRef } from '../types';
+import { DEFAULT_LOGGING, imagePlatform, imageRef } from '../types';
 
 /**
  * The deployment's BLOB store.
@@ -20,13 +20,10 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
 export function createObjectStorageService(
   config: ServiceConfig,
 ): ComposeService {
+  const image = imageRef(config, 'object-store');
   return {
-    image: imageRef(config, 'object-store'),
-    // The pinned image publishes ONLY linux/amd64 (ops rebuild, no arm64
-    // manifest) — pin the arch so a `tale deploy` onto an arm64 host (e.g.
-    // Graviton) pulls under emulation instead of failing outright. Keep in
-    // lockstep with the canonical compose.yml service.
-    platform: 'linux/amd64',
+    image,
+    platform: imagePlatform(image),
     container_name: `${getProjectId()}-object-store`,
     // Let in-flight multipart writes finish before SIGKILL.
     stop_grace_period: '30s',

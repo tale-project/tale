@@ -13,6 +13,7 @@ import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
   THIRD_PARTY_IMAGES,
+  imagePlatform,
   imageRef,
   imageRepoForService,
   isValidService,
@@ -60,6 +61,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       stop_grace_period?: string;
       stop_signal?: string;
       image?: string;
+      platform?: string;
       build?: unknown;
       ports?: unknown[];
       environment?: Record<string, string>;
@@ -653,6 +655,10 @@ describe('service → image parity', () => {
     expect(compose.services['object-store']?.image).toBe(
       THIRD_PARTY_IMAGES['object-store'],
     );
+    // Compose and the deploy pre-pull must request the same manifest.
+    const platform = imagePlatform(THIRD_PARTY_IMAGES['object-store']);
+    expect(createObjectStorageService(config).platform).toBe(platform);
+    expect(compose.services['object-store']?.platform).toBe(platform);
   });
 });
 

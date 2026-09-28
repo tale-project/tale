@@ -373,7 +373,8 @@ services:
     # The ops rebuild (see above) publishes ONLY linux/amd64 — no arm64
     # manifest exists, so an unpinned pull fails outright on Apple Silicon /
     # arm64 hosts ("no matching manifest for linux/arm64/v8"). Pin the arch
-    # so compose requests it explicitly; Docker/OrbStack emulate it (Rosetta).
+    # so compose requests it explicitly. ARM hosts need amd64 emulation;
+    # Docker Desktop and OrbStack provide it, standalone Linux needs setup.
     platform: linux/amd64
     pull_policy: missing
 

@@ -195,6 +195,17 @@ export const THIRD_PARTY_IMAGES = {
 } as const satisfies Partial<Record<ServiceName, string>>;
 
 /**
+ * A single-architecture image needs the same selection in Compose and the
+ * deploy pre-pull. ARM hosts also need amd64 emulation already configured.
+ * Remove this exception once the object-store pin has a native arm64 build.
+ */
+export function imagePlatform(image: string): 'linux/amd64' | undefined {
+  return image === THIRD_PARTY_IMAGES['object-store']
+    ? 'linux/amd64'
+    : undefined;
+}
+
+/**
  * The `tale-*` image repository a service runs, without the registry prefix.
  * Every service ships its own `tale-<service>` image EXCEPT the backend tier,
  * which runs the platform image (`TALE_ROLE` picks api/worker at boot) —
