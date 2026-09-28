@@ -83,7 +83,7 @@ export function SettingsPage({
     <div
       {...FIELD_LAYOUT_ROW}
       className={cn(
-        'flex w-full flex-col gap-8',
+        'mobile-nav-clearance flex w-full flex-col gap-8',
         // Every section after the first gets the same divider, owned by the
         // shared rule so no page can forget it on one sibling and render an
         // inconsistent rhythm.
@@ -98,7 +98,7 @@ export function SettingsPage({
         // scroll and must fill the box edge-to-edge.
         fitToContainer
           ? 'min-h-0 flex-1'
-          : 'pb-[calc(1.5rem+var(--mobile-floating-actions-pad,0px))]',
+          : 'pb-[calc(1.5rem+var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))]',
         className,
       )}
       {...props}

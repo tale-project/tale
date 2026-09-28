@@ -62,11 +62,14 @@ import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
+import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
+import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
@@ -77,6 +80,8 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
+import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
@@ -95,6 +100,7 @@ import {
 } from './lib/http-hygiene.ts';
 import { RATE_LIMITS, type RateLimitName } from './lib/rate-limit.ts';
 import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
+import { checkOrgSlugRefusals } from './rest/org-slug-refusals.integration.ts';
 
 const noopPayloadSchema = z.object({
   seq: z.number().optional(),
@@ -25502,9 +25508,11 @@ async function checkMailboxSyncLane(
     `;
     // The #3220 decision on the row the bind produced: retrievable inside
     // the scope of the conversation it arrived on — the admin reaches Bob's
-    // unassigned thread, the plain inbox member does not. Dispatched the way
-    // the reused search/fetch modules dispatch it: the identity travels as a
-    // top-level `userId`, and the shim resolves the member role behind it.
+    // unassigned thread, the plain inbox member does not — and, being mail,
+    // only through the door that asks for it (the chat tools, which wrap it
+    // as untrusted). Dispatched the way the reused search/fetch modules
+    // dispatch it: the identity travels as a top-level `userId`, and the
+    // shim resolves the member role behind it.
     const filterRetrievable =
       knowledgeShimHandlers(sql)[
         'documents/internal_queries:filterRetrievableRagFileIds'
@@ -25513,12 +25521,19 @@ async function checkMailboxSyncLane(
     const memberRows = await sql<{ id: string }[]>`
       SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
     `;
-    const retrievableFor = async (callerUserId: string | undefined) =>
+    const retrievableFor = async (
+      callerUserId: string | undefined,
+      asksForMail = true,
+    ) =>
       z.array(z.string()).parse(
         await filterRetrievable({
           organizationId: orgId,
           fileIds: [attachment?.storageRef ?? ''],
-          access: { teamIds: [], includeConversationScoped: true },
+          access: {
+            teamIds: [],
+            includeConversationScoped: true,
+            ...(asksForMail ? { includeConversationMessages: true } : {}),
+          },
           ...(callerUserId !== undefined ? { userId: callerUserId } : {}),
         }),
       );
@@ -25527,6 +25542,7 @@ async function checkMailboxSyncLane(
       memberRows[0]?.id ?? 'no-such-user',
     );
     const nobodySees = await retrievableFor(undefined);
+    const otherDoorSees = await retrievableFor(userId, false);
     record(
       'emailed attachment: the bind un-skips, queues and dispatches indexing inside the conversation scope',
       attachmentRows.length === 1 &&
@@ -25538,8 +25554,9 @@ async function checkMailboxSyncLane(
         adminSees.length === 1 &&
         adminSees[0] === attachment.storageRef &&
         memberSees.length === 0 &&
-        nobodySees.length === 0,
-      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0) anonymous=${nobodySees.length} (want 0)`,
+        nobodySees.length === 0 &&
+        otherDoorSees.length === 0,
+      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0) anonymous=${nobodySees.length} (want 0) doorThatDidNotAsk=${otherDoorSees.length} (want 0)`,
     );
 
     // Outbound send through the same door (system caller: runs + audited).
@@ -27242,15 +27259,17 @@ async function checkChatMailAttachmentListing(
   const seedConversation = async (
     subject: string,
     assignment: { userId?: string; teamId?: string },
+    state: { status?: string; lifecycleStatus?: string } = {},
   ): Promise<string> => {
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.conversations (org_id, subject, status, channel,
                                      direction, assignee_user_id,
                                      assignee_team_id, last_message_at_ms,
-                                     created_at_ms)
-      VALUES (${org}, ${subject}, 'open', 'email', 'inbound',
-              ${assignment.userId ?? null}, ${assignment.teamId ?? null},
-              ${now}, ${now})
+                                     lifecycle_status, created_at_ms)
+      VALUES (${org}, ${subject}, ${state.status ?? 'open'}, 'email',
+              'inbound', ${assignment.userId ?? null},
+              ${assignment.teamId ?? null}, ${now},
+              ${state.lifecycleStatus ?? null}, ${now})
       RETURNING id
     `;
     return rows[0]?.id ?? '';
@@ -27258,6 +27277,14 @@ async function checkChatMailAttachmentListing(
   const unassigned = await seedConversation('Unassigned application', {});
   const mine = await seedConversation('Assigned to me', { userId: memberId });
   const ours = await seedConversation('Assigned to my team', { teamId });
+  // Mail retrieval refuses (a spam verdict, the Trash) is not listed either,
+  // even to the admin who may read every conversation.
+  const junk = await seedConversation('Marked as spam', {}, { status: 'spam' });
+  const expired = await seedConversation(
+    'Expired by the retention window',
+    { userId: memberId },
+    { lifecycleStatus: 'expired' },
+  );
 
   const bind = async (
     conversationId: string,
@@ -27281,6 +27308,8 @@ async function checkChatMailAttachmentListing(
   await bind(ours, 'ours-newest.pdf', now - 1000);
   await bind(unassigned, 'triage-middle.pdf', now - 3000);
   await bind(mine, 'mine-trashed.pdf', now - 500, { trashed: true });
+  await bind(junk, 'spam-newest.pdf', now - 100, { ragStatus: 'completed' });
+  await bind(expired, 'expired-newest.pdf', now - 200);
   // A file with no mail arrival time is not an emailed attachment.
   await sql`
     INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
@@ -27340,7 +27369,8 @@ async function checkChatMailAttachmentListing(
 
   record(
     'chat mail-attachment listing (assignment scope, arrival order, truncated)',
-    // Newest arrival first, the trashed row skipped, the non-mail row absent.
+    // Newest arrival first, the trashed row skipped, the non-mail row absent,
+    // and nothing of a spam or an expired conversation.
     names(admin) === 'ours-newest.pdf|triage-middle.pdf|mine-older.pdf' &&
       !admin.truncated &&
       // A plain member never sees the unassigned triage row.
@@ -43510,6 +43540,31 @@ async function checkRetention(
       9, 'imap_smtp', ${userId}, ${ancientConv}, ${ancient}, ${ancient}
     ) RETURNING id
   `;
+  // Its corpus copy, as the indexer leaves it: stamped with its
+  // conversation. The window releases it with the file, as it releases the
+  // conversation's email bodies.
+  const { ensureDefaultCorpusSchema: ensureRetentionCorpus } =
+    await import('./domains/knowledge/service.ts');
+  await ensureRetentionCorpus();
+  const { getKnowledgePoolForOrg: retentionCorpusFor } =
+    await import('./core/knowledge/pool.ts');
+  const retentionCorpus = await retentionCorpusFor(orgSlug);
+  await retentionCorpus.unsafe(
+    `INSERT INTO private_knowledge.documents
+         (org_slug, file_id, filename, status, conversation_id)
+     VALUES ($1, 's3:itest/conv-attachment', 'invoice.pdf', 'completed', $2)
+     ON CONFLICT (org_slug, file_id) DO UPDATE SET
+         status = 'completed', conversation_id = EXCLUDED.conversation_id`,
+    [orgSlug, ancientConv],
+  );
+  const convAttachmentCorpusRows = async (): Promise<string | undefined> =>
+    (
+      await retentionCorpus.unsafe<{ count: string }[]>(
+        `SELECT count(*)::text AS count FROM private_knowledge.documents
+          WHERE org_slug = $1 AND file_id = 's3:itest/conv-attachment'`,
+        [orgSlug],
+      )
+    )[0]?.count;
 
   const { runRetentionCleanup } =
     await import('./domains/retention/service.ts');
@@ -43638,6 +43693,7 @@ async function checkRetention(
     SELECT count(*)::text AS count FROM app.file_metadata
     WHERE id = ${convAttachment[0]?.id ?? ''}
   `;
+  const convAttachmentCorpusLeft = await convAttachmentCorpusRows();
   record(
     'retention: external conversations age by last message, org hold freezes',
     // The org hold froze the ancient conversation on the first run.
@@ -43649,9 +43705,11 @@ async function checkRetention(
       // The email BODIES ride the parent's ON DELETE CASCADE...
       convBodiesLeft.length === 0 &&
       // ...and the stored mail attachment, which no temp-file sweep can
-      // reach, goes with them instead of outliving the mail forever.
-      convAttachmentGone[0]?.count === '0',
-    `frozenConv=${frozenConv[0]?.count} (want 1), left=${convLeft.map((row) => row.subject).join(',')} (want rt-conv-fresh,rt-conv-silent), bodies=${convBodiesLeft.length} attachment=${convAttachmentGone[0]?.count} (both want 0)`,
+      // reach, goes with them instead of outliving the mail forever — its
+      // corpus copy with it.
+      convAttachmentGone[0]?.count === '0' &&
+      convAttachmentCorpusLeft === '0',
+    `frozenConv=${frozenConv[0]?.count} (want 1), left=${convLeft.map((row) => row.subject).join(',')} (want rt-conv-fresh,rt-conv-silent), bodies=${convBodiesLeft.length} attachment=${convAttachmentGone[0]?.count} attachmentCorpus=${convAttachmentCorpusLeft} (all want 0)`,
   );
 
   // With a deletion grace configured the conversation sweep is TWO-PASS
@@ -51736,6 +51794,8 @@ async function checkWatchdogs(
       probed.push(sessionId);
       return Promise.resolve(true);
     },
+    setPinned: (): Promise<boolean> => Promise.resolve(true),
+    create: (): Promise<unknown> => Promise.resolve(undefined),
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
@@ -51804,33 +51864,59 @@ async function checkWatchdogs(
   // candidate, so the spawner's 404 for it (container reaped by design)
   // cannot settle it as destroyed — the page used to empty itself of idle
   // workspaces on every open — while a genuine phantom (compute-holding
-  // row, container gone) still heals. The pass is walked until the phantom
+  // row, container gone) still heals. A PINNED row gone spawner-side is
+  // recreated under its id with its stored profile (`'"agent"'` jsonb, as
+  // the reserve writes it) and re-pinned, never settled; a live pinned one
+  // has its pin re-asserted. The pass is walked until every row of the lane
   // has been probed: the fair rotation may need more than one batch when
   // earlier lanes left never-visited compute-holding rows in this org.
   await sql`
     INSERT INTO app.sandbox_sessions (
-      org_id, session_id, status, owner_type, owner_id, created_by,
-      created_at_ms, expires_at_ms
+      org_id, session_id, profile, status, owner_type, owner_id, created_by,
+      pinned, created_at_ms, expires_at_ms
     ) VALUES
-      (${orgId}, 'wd-org-hibernated', 'stopped', 'project_agent',
-       'itest-wd-agent-idle', 'itest:wd', ${now - 2 * 3_600_000},
+      (${orgId}, 'wd-org-hibernated', NULL, 'stopped', 'project_agent',
+       'itest-wd-agent-idle', 'itest:wd', false, ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-org-phantom', 'active', 'project_agent',
-       'itest-wd-agent-gone', 'itest:wd', ${now - 2 * 3_600_000},
-       ${now + 24 * 3_600_000})
+      (${orgId}, 'wd-org-phantom', NULL, 'active', 'project_agent',
+       'itest-wd-agent-gone', 'itest:wd', false, ${now - 2 * 3_600_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'active',
+       'project_agent', 'itest-wd-agent-pinned-gone', 'itest:wd', true,
+       ${now - 2 * 3_600_000}, ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-org-pinned-up', '"agent"'::jsonb, 'active',
+       'project_agent', 'itest-wd-agent-pinned-up', 'itest:wd', true,
+       ${now - 2 * 3_600_000}, ${now + 24 * 3_600_000})
   `;
   const orgProbed: string[] = [];
+  const orgCreated: unknown[] = [];
+  const orgPinned: string[] = [];
   const orgSpawner = {
     isAlive: (sessionId: string): Promise<boolean> => {
       orgProbed.push(sessionId);
-      return Promise.resolve(sessionId !== 'wd-org-phantom');
+      return Promise.resolve(
+        sessionId !== 'wd-org-phantom' && sessionId !== 'wd-org-pinned-gone',
+      );
+    },
+    setPinned: (sessionId: string, pinned: boolean): Promise<boolean> => {
+      if (pinned) orgPinned.push(sessionId);
+      return Promise.resolve(true);
+    },
+    create: (body: unknown): Promise<unknown> => {
+      orgCreated.push(body);
+      return Promise.resolve(undefined);
     },
     destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
       Promise.resolve({ destroyed: false, busy: false }),
   };
+  const orgLaneRows = [
+    'wd-org-phantom',
+    'wd-org-pinned-gone',
+    'wd-org-pinned-up',
+  ];
   let orgHealed = 0;
   let orgPasses = 0;
-  while (!orgProbed.includes('wd-org-phantom') && orgPasses < 8) {
+  while (!orgLaneRows.every((id) => orgProbed.includes(id)) && orgPasses < 8) {
     const pass = await sandboxWatchdogs.reconcileOrgSessions(
       sql,
       orgId,
@@ -51845,15 +51931,38 @@ async function checkWatchdogs(
   `;
   const orgStatusOf = (sessionId: string): string | undefined =>
     orgRows.find((r) => r.sessionId === sessionId)?.status;
+  const orgCreates = orgCreated.map((body) => JSON.stringify(body));
   record(
-    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals',
+    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session is recreated in place and re-pinned',
     !orgProbed.includes('wd-org-hibernated') &&
       orgStatusOf('wd-org-hibernated') === 'stopped' &&
       orgProbed.includes('wd-org-phantom') &&
       orgStatusOf('wd-org-phantom') === 'destroyed' &&
-      orgHealed === 1,
-    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed}`,
+      orgHealed === 1 &&
+      // The pinned phantom: recreated under its id, org and stored profile,
+      // re-pinned, and its row still `active`.
+      orgStatusOf('wd-org-pinned-gone') === 'active' &&
+      orgCreates.length === 1 &&
+      orgCreates[0] ===
+        JSON.stringify({
+          sessionId: 'wd-org-pinned-gone',
+          organizationId: orgId,
+          profile: 'agent',
+          placement: 'device',
+        }) &&
+      orgPinned.includes('wd-org-pinned-gone') &&
+      // The live pinned session: pin re-asserted, nothing created.
+      orgStatusOf('wd-org-pinned-up') === 'active' &&
+      orgPinned.includes('wd-org-pinned-up'),
+    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
   );
+  // The pinned rows stay `active` by design; drop them so they hold no
+  // project-agent slot of this org in the lanes after this one.
+  await sql`
+    DELETE FROM app.sandbox_sessions
+    WHERE org_id = ${orgId}
+      AND session_id IN ('wd-org-pinned-gone', 'wd-org-pinned-up')
+  `;
 
   // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
   // session is still live is destroyed and stamped by primary key, keeping
@@ -51897,6 +52006,8 @@ async function checkWatchdogs(
   const collectAsked: string[] = [];
   const collectSpawner = {
     isAlive: (): Promise<boolean> => Promise.resolve(true),
+    setPinned: (): Promise<boolean> => Promise.resolve(true),
+    create: (): Promise<unknown> => Promise.resolve(undefined),
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
@@ -54680,6 +54791,15 @@ async function main(): Promise<void> {
           }),
       ],
       [
+        'checkEmailedAttachments',
+        () =>
+          checkEmailedAttachments(sql, authCtx, `itest-${orgSuffix}`, {
+            record,
+            waitFor,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
+      ],
+      [
         'checkChat',
         () => checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
@@ -54817,8 +54937,16 @@ async function main(): Promise<void> {
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
       [
+        'checkTriggerPauseAfterFailures',
+        () => checkTriggerPauseAfterFailures(sql, authCtx, record),
+      ],
+      [
         'checkDeletedOrgSchedules',
         () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
+      [
+        'checkTriggerStreakLockOrder',
+        () => checkTriggerStreakLockOrder(sql, authCtx, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
@@ -54826,6 +54954,16 @@ async function main(): Promise<void> {
         () => checkRetiredBuilderRoute(baseUrl, authCtx),
       ],
       ['checkRestDoor', () => checkRestDoor(sql, baseUrl, authCtx)],
+      [
+        'checkOrgSlugRefusals',
+        async () =>
+          checkOrgSlugRefusals(
+            sql,
+            baseUrl,
+            await signUpUser(baseUrl, 'slug-refusals'),
+            record,
+          ),
+      ],
       ['checkRestProjectAgents', () => checkRestProjectAgents(sql, baseUrl)],
       [
         'checkRestMachineJourney',
@@ -55118,6 +55256,14 @@ async function main(): Promise<void> {
         },
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
+      [
+        'checkSandboxLifecycle',
+        () => checkSandboxLifecycle(sql, authCtx, record),
+      ],
+      [
+        'checkSandboxRetiredTablesDropped',
+        () => checkSandboxRetiredTablesDropped(sql, record),
+      ],
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),

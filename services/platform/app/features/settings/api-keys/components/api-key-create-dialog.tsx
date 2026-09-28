@@ -10,7 +10,7 @@ import { Text } from '@tale/ui/text';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
 import { Copy, Check } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type RefObject } from 'react';
 import * as z from 'zod';
 
 import { useT } from '@/lib/i18n/client';
@@ -23,6 +23,7 @@ import { useCreateApiKey } from '../hooks/use-api-keys';
 const API_KEY_NAME_MAX = 32;
 
 interface ApiKeyCreateDialogProps {
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
@@ -39,6 +40,7 @@ export function ApiKeyCreateDialog({
   onOpenChange,
   organizationId,
   onSuccess,
+  restoreFocusRef,
 }: ApiKeyCreateDialogProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -155,6 +157,7 @@ export function ApiKeyCreateDialog({
   if (createdKey) {
     return (
       <FormDialog
+        restoreFocusRef={restoreFocusRef}
         open={open}
         onOpenChange={handleOpenChange}
         title={tSettings('apiKeys.keyCreated')}
@@ -201,6 +204,7 @@ export function ApiKeyCreateDialog({
 
   return (
     <FormDialog
+      restoreFocusRef={restoreFocusRef}
       open={open}
       onOpenChange={handleOpenChange}
       title={tSettings('apiKeys.createKey')}

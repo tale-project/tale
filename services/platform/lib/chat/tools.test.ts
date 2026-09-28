@@ -83,7 +83,9 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     // task tool. Projects deliberately do not: their row already holds
     // everything (name, key, open/done counts).
     const text = wireDescription('rag_search');
-    expect(text).toMatch(/document, web-page and task rows carry\s+a "ref"/i);
+    expect(text).toMatch(
+      /document, mail-attachment, web-page and task rows carry\s+a "ref"/i,
+    );
     expect(text).toMatch(/project rows carry their content inline/i);
     expect(text).toMatch(/cannot\s+be fetched/i);
   });

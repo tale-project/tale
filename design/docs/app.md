@@ -28,7 +28,7 @@ what is there, and the page shows the one thing you opened.
   **Knowledge**, **Automations**, and at its foot **Settings**, notifications and the account. The
   active section sits on one pill that glides from tile to tile (never two fills blinking); inactive
   tiles are muted; each shows a no-arrow tooltip to its right. Built from `@tale/ui` primitives, not a
-  bespoke layout. A phone shows the same sections, from the same list, as the bottom tab bar.
+  bespoke layout. A phone shows the same sections, from the same list, inside a floating, fully rounded bottom capsule. Its lightly translucent surface contains both icons and labels; one selected background glides between destinations. Scroll content continues behind it, with end clearance for the last item. Composers and page-action docks sit above it. The capsule is 60px tall with 20px icons and 11px labels. Downward scrolling reduces it to a 52px icon-only capsule, at most 280px wide and 4px lower; upward scrolling restores it. Both states keep 44px touch targets, accessible names and stable content clearance. The capsule hides while the software keyboard is open and returns when it closes.
 - **Section panels** — a section with navigation of its own opens it in a panel beside the page,
   one frame for all of them: `SubPanel width="list"` (280px, full height, right border), a
   `SubPanelHeader` naming the section in the same `h-13` row as a page header (border included, so

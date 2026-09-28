@@ -35,7 +35,12 @@ const TOKEN_HASH_PARAM = 6;
  */
 function fakeUpsert(
   landing: 'fresh' | 'kept',
-  existing: { kind: string; tokenHash: string | null } | null = null,
+  existing: {
+    id?: string;
+    kind: string;
+    tokenHash: string | null;
+    lastSkipReason?: string | null;
+  } | null = null,
 ): {
   sql: Sql;
   /** The trigger-table statements — the write shape under test. */
@@ -54,6 +59,9 @@ function fakeUpsert(
     statements.push({ text, values });
     if (text.includes('FOR UPDATE')) {
       return Promise.resolve(existing === null ? [] : [existing]);
+    }
+    if (text.includes('UPDATE app.user_notifications')) {
+      return Promise.resolve([{ userId: 'admin_1' }]);
     }
     if (!text.includes('INSERT INTO app.automation_triggers')) {
       throw new Error(`unexpected statement: ${text}`);
@@ -158,11 +166,59 @@ describe('setTrigger', () => {
       'last_run_id',
       'last_skipped_at_ms',
       'last_skip_reason',
+      'last_failed_at_ms',
+      'last_failure_code',
+      'last_failed_run_id',
     ]) {
       expect(text).toContain(`${column} = CASE`);
       expect(text).toContain(`WHEN t.kind = EXCLUDED.kind THEN t.${column}`);
     }
     expect(text).toContain('ELSE NULL');
+  });
+
+  it('starts a fresh failure streak on every save', async () => {
+    // A person looked at the binding: runs started before the save no
+    // longer count toward pausing it (`trigger-failures.ts`).
+    const fake = fakeUpsert('kept', { kind: 'schedule', tokenHash: null });
+    await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
+    const text = upsertOf(fake.statements)?.text ?? '';
+    expect(text).toContain('consecutive_failures = 0');
+    // A save that finds no pause dismisses nothing: the read and the write.
+    expect(fake.statements).toHaveLength(2);
+  });
+
+  it('clears the pause of a schedule its failures paused, and the notices of it', async () => {
+    const fake = fakeUpsert('kept', {
+      id: 'trg_1',
+      kind: 'schedule',
+      tokenHash: null,
+      lastSkipReason: 'paused_after_failures',
+    });
+    await setTrigger(
+      fake.sql,
+      args({ kind: 'schedule', cron: '0 9 * * 1', enabled: false }),
+    );
+    // Whatever `enabled` the save sets, someone decided: the skip stamp the
+    // pause wrote goes, decided in SQL against the row it replaces.
+    const text = upsertOf(fake.statements)?.text ?? '';
+    for (const column of ['last_skipped_at_ms', 'last_skip_reason']) {
+      expect(text).toMatch(
+        new RegExp(
+          `${column} = CASE\\s+WHEN t\\.last_skip_reason = 'paused_after_failures' THEN NULL`,
+        ),
+      );
+    }
+    // The owners' and admins' unread notices of the pause are marked read.
+    const dismissal = fake.statements.find((s) =>
+      s.text.includes('UPDATE app.user_notifications'),
+    );
+    expect(dismissal?.text).toContain("type = 'automation_failed'");
+    expect(dismissal?.values).toEqual([expect.any(Number), 'org_1', 'trg_1']);
+    // Their bells hear about it, and the automation read refreshes.
+    expect(fake.hints.map((hint) => hint.values[2])).toEqual(
+      expect.arrayContaining(['automation']),
+    );
+    expect(fake.hints).toHaveLength(2);
   });
 
   /**

@@ -34,7 +34,11 @@ import {
 // ── Small builders ───────────────────────────────────────────────────────────
 import { z } from 'zod';
 
-import { RUN_FAILURE_CODES } from '../../backend/core/automations/failure.ts';
+import {
+  PERMANENT_FAILURE_CODES,
+  PERMANENT_FAILURES_BEFORE_PAUSE,
+  RUN_FAILURE_CODES,
+} from '../../backend/core/automations/failure.ts';
 import { RAG_ERROR_CODES } from '../../backend/core/knowledge/rag_error_codes.ts';
 import {
   CONTENT_MAX_LENGTH,
@@ -521,19 +525,64 @@ const triggerHealthProperties: Json = {
     description:
       'The last time the binding came due (a schedule occurrence, an event, ' +
       'a webhook delivery) and started nothing — `lastSkipReason` says why; ' +
-      'null until it has.',
+      'null until it has. With `paused_after_failures`, the moment the ' +
+      'schedule paused itself.',
   },
   lastSkipReason: {
     ...nullable({
       type: 'string',
-      enum: ['not_deployed', 'unusable_cron', 'start_refused'],
+      enum: [
+        'not_deployed',
+        'unusable_cron',
+        'start_refused',
+        'paused_after_failures',
+      ],
     }),
     description:
       '`not_deployed`: the automation had no deployed version to run — ' +
       'deploy one. `unusable_cron`: the schedule’s expression or time zone ' +
       'could not be read; the scheduler leaves the binding alone until it ' +
       'is edited. `start_refused`: the deployed version’s `inputs` schema ' +
-      'refused the run’s input (`{trigger, firedAt}` for a schedule).',
+      'refused the run’s input (`{trigger, firedAt}` for a schedule). ' +
+      '`paused_after_failures`: the schedule turned itself off ' +
+      `(\`enabled: false\`) after ${PERMANENT_FAILURES_BEFORE_PAUSE} runs ` +
+      'in a row failed for a reason the next occurrence would repeat — fix the ' +
+      'automation, then save the trigger with `enabled: true`. Saving the ' +
+      'trigger clears this reason, whatever `enabled` it sets.',
+  },
+};
+
+/** A trigger's failure streak (0124) — read on `Trigger` only. */
+const triggerFailureProperties: Json = {
+  consecutiveFailures: {
+    type: 'integer',
+    minimum: 0,
+    description:
+      'Runs in a row this binding started that failed for a reason the ' +
+      'next occurrence would repeat — a `failureCode` of ' +
+      `${PERMANENT_FAILURE_CODES.map((code) => `\`${code}\``).join(', ')}. ` +
+      'A success sets it back to 0, and so does saving the trigger; any ' +
+      'other failure neither counts nor breaks the streak. A schedule ' +
+      `pauses itself when it reaches ${PERMANENT_FAILURES_BEFORE_PAUSE} ` +
+      '(`lastSkipReason: "paused_after_failures"`); webhook and event ' +
+      'bindings keep counting and are never paused.',
+  },
+  lastFailedAt: {
+    ...nullable(epochMs),
+    description:
+      'When the last run counted in the streak finished; null until one ' +
+      'has. Kept after the streak resets; cleared by a rebind to another ' +
+      'kind.',
+  },
+  lastFailureCode: {
+    ...nullable({ type: 'string', enum: [...PERMANENT_FAILURE_CODES] }),
+    description: 'That run’s `failureCode`.',
+  },
+  lastFailedRunId: {
+    ...nullable(str),
+    description:
+      'That run — `GET …/runs/{runId}` has its failure sentence; null once ' +
+      'the run is deleted.',
   },
 };
 
@@ -944,8 +993,8 @@ const orgSlugHeaderParam = {
     'slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the ' +
     'key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys ' +
     'may omit it; a blank or whitespace-only value reads as the header ' +
-    'absent. The 400 lists the slugs the key holder may send under ' +
-    '`data.organizations`; `GET /api/v1/me` answers them too.',
+    'absent. Each of the three refusals lists the slugs the key holder may ' +
+    'send under `data.organizations`; `GET /api/v1/me` answers them too.',
 };
 
 // ── The spec ─────────────────────────────────────────────────────────────────
@@ -6431,11 +6480,11 @@ export function buildSpec(): Json {
       }
       responses['403'] = withDoorRefusal(
         responses['403'],
-        '`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`)',
+        '`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)',
       );
       responses['404'] = withDoorRefusal(
         responses['404'],
-        '`X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`)',
+        '`X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)',
       );
       responses['405'] ??= errorResponse(
         'The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves',
@@ -6575,11 +6624,10 @@ every request, reads included — without it the request answers 400
 apart on purpose: a slug is the public path segment of every app URL, not a
 secret, and the probe is already authenticated and rate-limited; resource ids
 never get this treatment (an id you cannot see answers the same 404 as one
-that does not exist). The
-400 lists the slugs you may send under \`data.organizations\`; \`GET
-/api/v1/me\` lists them too, as its top-level \`organizations\`. The slug
-is matched without regard to case; a blank or whitespace-only header reads
-as absent.
+that does not exist). Each of the three refusals lists the slugs you may
+send under \`data.organizations\`; \`GET /api/v1/me\` lists them too, as its
+top-level \`organizations\`. The slug is matched without regard to case; a
+blank or whitespace-only header reads as absent.
 
 ## Requests
 
@@ -6894,7 +6942,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 organizations: {
                   type: 'array',
                   description:
-                    'For ORG_SLUG_REQUIRED, the organizations the key holder belongs to — send one of the slugs as `X-Organization-Slug`',
+                    'For ORG_SLUG_REQUIRED, ORG_SLUG_INVALID and ORG_FORBIDDEN, the organizations the key holder belongs to (a disabled membership is left out; the list is empty when none remains) — send one of the slugs as `X-Organization-Slug`',
                   items: {
                     type: 'object',
                     required: ['slug', 'name'],
@@ -8474,7 +8522,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             'the last time it came due and started nothing. A binding is ' +
             'alive when `lastFiredAt` keeps pace with its cadence; one whose ' +
             '`lastSkippedAt` is the newer stamp is coming due and not running ' +
-            '— the reason says what to fix.',
+            '— the reason says what to fix. `consecutiveFailures` counts the ' +
+            'runs it started that failed in a row, and `lastFailedAt`, ' +
+            '`lastFailureCode` and `lastFailedRunId` name the last of them — ' +
+            'a schedule that reaches the threshold pauses itself.',
           required: [
             'id',
             'name',
@@ -8485,6 +8536,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             'lastRunId',
             'lastSkippedAt',
             'lastSkipReason',
+            'consecutiveFailures',
+            'lastFailedAt',
+            'lastFailureCode',
+            'lastFailedRunId',
           ],
           properties: {
             id: {
@@ -8509,6 +8564,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'once that run is deleted.',
             },
             ...triggerHealthProperties,
+            ...triggerFailureProperties,
           },
         },
         RunSummary: {

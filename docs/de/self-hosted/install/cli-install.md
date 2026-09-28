@@ -15,6 +15,8 @@ Du brauchst:
 - Für lokale Container: Docker mit Compose und einen laufenden Docker-Daemon.
 - Für einen entfernten Workspace: Zugriff auf dessen Docker-Daemon, üblicherweise über einen SSH-Docker-Kontext. Der Benutzer auf dem Zielhost muss Docker ausführen dürfen.
 
+Den mitgelieferten Objektspeicher gibt es derzeit nur als `linux/amd64`-Image. Auf ARM64-Hosts brauchen lokale Entwicklung und Workspace-Deployments deshalb eine funktionierende amd64-Emulation: Docker Desktop bringt sie mit; auf einem eigenständigen Linux-Docker-Host muss [QEMU auf dem Host registriert sein](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale wählt das amd64-Image aus, installiert aber keine Emulation. Verwaltete Bundles benötigen weiterhin native Images für ihre deklarierte Architektur. Ein verwaltetes ARM64-Deployment ist daher erst mit einem nativen Objektspeicher-Image möglich.
+
 Der Installer lädt die ausführbare Datei von GitHub herunter. Dafür braucht er Zugriff auf `raw.githubusercontent.com`, `api.github.com`, `github.com` und die Download-Ziele, auf die GitHub weiterleitet.
 
 ## install-cli.sh oder install-cli.ps1 ausführen

@@ -13,6 +13,9 @@ export const DEFAULT_LOGGING: LoggingConfig = {
 
 export interface ComposeService {
   image: string;
+  // Forces the manifest arch compose pulls, for a third-party image published
+  // under only ONE platform — see create-object-storage-service.ts.
+  platform?: string;
   container_name?: string;
   // `init: true` runs an init process (PID 1 reaper) — needed by sidecars that
   // spawn short-lived child processes (e.g. the bgutil provider's headless
@@ -190,6 +193,17 @@ export function isStatefulService(name: string): name is StatefulService {
 export const THIRD_PARTY_IMAGES = {
   'object-store': 'ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z',
 } as const satisfies Partial<Record<ServiceName, string>>;
+
+/**
+ * A single-architecture image needs the same selection in Compose and the
+ * deploy pre-pull. ARM hosts also need amd64 emulation already configured.
+ * Remove this exception once the object-store pin has a native arm64 build.
+ */
+export function imagePlatform(image: string): 'linux/amd64' | undefined {
+  return image === THIRD_PARTY_IMAGES['object-store']
+    ? 'linux/amd64'
+    : undefined;
+}
 
 /**
  * The `tale-*` image repository a service runs, without the registry prefix.

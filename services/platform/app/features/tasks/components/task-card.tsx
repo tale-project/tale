@@ -29,6 +29,7 @@ import {
   SubtaskProgress,
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
+import { TaskTitleButton } from './task-title-button';
 
 export type TaskRow = TaskDoc & {
   /** Folder-input subject facts stamped by the board list query (see
@@ -154,39 +155,13 @@ export function TaskCard({
             read-only card is a plain button: dnd-kit's attributes would
             announce it disabled ("sortable", aria-disabled) although it
             still opens the task. */}
-        <button
-          type="button"
-          ref={sortable.setActivatorNodeRef}
-          {...(editable ? sortable.attributes : {})}
-          {...(editable ? sortable.listeners : {})}
-          onClick={() => onOpen?.(task)}
-          onKeyDown={(e) => {
-            // Enter always opens the task. Space starts a keyboard drag via
-            // dnd-kit's KeyboardSensor activator (kept in `sortable.listeners`),
-            // so we must forward to it rather than shadow it — but only when
-            // the card is draggable. For read-only cards Space opens instead.
-            if (e.key === 'Enter' || (e.key === ' ' && !editable)) {
-              e.preventDefault();
-              onOpen?.(task);
-              return;
-            }
-            sortable.listeners?.onKeyDown?.(e);
-          }}
-          onKeyUp={(e) => {
-            // A native button clicks on Space KEYUP, so a keyboard drag
-            // (or drop) on Space would also open the task; keydown already
-            // did whatever Space means for this card.
-            if (e.key === ' ') e.preventDefault();
-          }}
-          className={cn(
-            'text-foreground line-clamp-2 w-full text-left text-sm leading-snug font-medium',
-            'focus-visible:outline-none',
-            "after:absolute after:inset-0 after:rounded-[inherit] after:content-['']",
-            'focus-visible:after:ring-ring focus-visible:after:ring-2',
-          )}
-        >
-          {task.title}
-        </button>
+        <TaskTitleButton
+          title={task.title}
+          sortable={sortable}
+          draggable={editable}
+          onOpen={() => onOpen?.(task)}
+          className="text-foreground line-clamp-2 w-full text-left text-sm leading-snug font-medium"
+        />
 
         {task.labels && task.labels.length > 0 && (
           <Row gap={1} align="stretch" wrap className="mt-2">

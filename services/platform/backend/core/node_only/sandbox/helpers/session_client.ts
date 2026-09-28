@@ -588,8 +588,9 @@ export async function sessionDestroyIfIdle(
 }
 
 /** PATCH /v1/sessions/:id/pin — toggle the spawner-side "always-on" reaper
- * exemption. Best-effort; the platform `sandboxSessions.pinned` row is the
- * durable truth (re-pushed on the next turn after a spawner restart). */
+ * exemption. Best-effort; the platform `sandbox_sessions.pinned` row is the
+ * durable truth, which the sandbox drift reconcile re-asserts on every visit
+ * (`reconcileSession` in `domains/sandbox/service.ts`). */
 export async function sessionSetPinned(
   sessionId: string,
   pinned: boolean,

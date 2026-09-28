@@ -53,10 +53,12 @@ A user with exactly one organization can omit the organization header. With seve
 
 | Organization selection | Result |
 | --- | --- |
-| Several memberships, no slug | `400 ORG_SLUG_REQUIRED`; available slugs are in `data.organizations` |
-| Unknown slug | `404 ORG_SLUG_INVALID` |
-| Existing organization without membership | `403 ORG_FORBIDDEN` |
+| Several memberships, no slug | `400 ORG_SLUG_REQUIRED` |
+| Unknown slug, or a value that cannot be a slug | `404 ORG_SLUG_INVALID` |
+| Existing organization without membership, or with a disabled one | `403 ORG_FORBIDDEN` |
 | Valid membership | Request proceeds under that organization and role |
+
+Each of the three refusals lists the organizations you can select in `data.organizations`, as `slug` and `name` pairs. Disabled memberships are left out, so the list is empty when none remains. Retry with one of the listed slugs.
 
 `GET /api/v1/me` also returns the membership list as `organizations`. Its `key.expiresAt` is epoch milliseconds, or `null` for a non-expiring key: rotate unattended credentials before expiry causes `401`. `key.name` identifies the credential in use.
 
@@ -571,9 +573,11 @@ Each kind takes its own keys — `cron` and `timezone` only with `schedule`, `ev
 
 ### Check trigger health and pause safely
 
-`GET .../triggers` reads the binding back — as `triggers`, a list of at most one, the one plural in the family — with its health: `lastFiredAt` is the last time this binding **started a run** — `lastRunId` names it, and both stay `null` until it has — while `lastSkippedAt` and `lastSkipReason` record the last time it came due and started nothing: `not_deployed` (nothing is deployed — deploy a version), `unusable_cron` (the expression or zone could not be read; the scheduler leaves the binding alone until it is edited) or `start_refused` (the deployed version's `inputs` schema refused the run's input). A webhook delivery the deployed `inputs` schema refuses is a different case: it is answered **400** `AUTOMATION_INPUT_INVALID` to the sender and starts nothing, and it moves none of these stamps — the binding did not come due, so a webhook whose every delivery is refused reads the same as one that has never been called. Verify deliveries from the sender's side.
+`GET .../triggers` reads the binding back — as `triggers`, a list of at most one, the one plural in the family — with its health: `lastFiredAt` is the last time this binding **started a run** — `lastRunId` names it, and both stay `null` until it has — while `lastSkippedAt` and `lastSkipReason` record the last time it came due and started nothing: `not_deployed` (nothing is deployed — deploy a version), `unusable_cron` (the expression or zone could not be read; the scheduler leaves the binding alone until it is edited), `start_refused` (the deployed version's `inputs` schema refused the run's input) or `paused_after_failures` (a schedule that turned itself off after repeated failures — see below). A webhook delivery the deployed `inputs` schema refuses is a different case: it is answered **400** `AUTOMATION_INPUT_INVALID` to the sender and starts nothing, and it moves none of these stamps — the binding did not come due, so a webhook whose every delivery is refused reads the same as one that has never been called. Verify deliveries from the sender's side.
 
 A binding is alive when `lastFiredAt` keeps pace with its cadence; one whose `lastSkippedAt` is the newer stamp is coming due and not running, and the reason says what to fix. A rebind to another kind starts every stamp afresh. `enabled: false` pauses a trigger without losing it; `DELETE .../triggers` removes it — and, for a webhook, revokes the URL. So does binding another kind over a live webhook: the `PUT` still returns **200**, with `"revoked": "webhook"` beside the name, and the old URL is gone for good — a later webhook bind mints a different token.
+
+A schedule whose runs keep failing pauses itself. `consecutiveFailures` counts the runs this binding started that failed in a row with a `failureCode` the next occurrence would repeat — `node_error`, `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`, `credit_exhausted` or `model_not_found` — and `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of them. A success sets the count back to `0`; any other failure neither counts nor resets it. When a schedule's count reaches five, the platform sets `enabled: false` and `lastSkipReason: "paused_after_failures"`, writes an `automation.trigger.paused` audit row, and notifies the organization's Owners and Admins. Fix the automation, then `PUT` the trigger with `enabled: true`. Every `PUT` resets the count and clears that reason, and one that omits `enabled` turns the trigger back on, since `enabled` defaults to `true`. Webhook and event bindings keep the count but are never paused (contract 3.1.0).
 
 The `PUT` also returns `deployed`: binding before deploying is accepted, and a trigger bound to an automation with no deployed version starts nothing — every occurrence is skipped as `not_deployed`, which the row's `trigger` on `GET /api/v1/automations` shows — until a version is deployed.
 

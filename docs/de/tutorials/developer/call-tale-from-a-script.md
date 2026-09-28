@@ -117,8 +117,8 @@ Bewahre für eine weiterführende Integration die Thread-ID auf. Sende spätere 
 | Ergebnis | Nächste Aktion |
 | --- | --- |
 | `401` | Prüfe, ob der Schlüssel abgelaufen, widerrufen oder falsch kopiert ist. |
-| `400` mit `ORG_SLUG_REQUIRED` | Gib den Slug der gewünschten Organisation an. |
-| `404` mit `ORG_SLUG_INVALID` | Der Slug benennt gar keine Organisation — prüfe auf einen Tippfehler, und setze nie die Organisations-ID aus der Dashboard-URL ein. |
+| `400` mit `ORG_SLUG_REQUIRED` | Gib den Slug der gewünschten Organisation aus `data.organizations` an. |
+| `404` mit `ORG_SLUG_INVALID` | Der Slug benennt gar keine Organisation — prüfe auf einen Tippfehler, und setze nie die Organisations-ID aus der Dashboard-URL ein. Wähle einen Slug aus `data.organizations`. |
 | `403` mit `ORG_FORBIDDEN` | Die Organisation existiert, aber der Schlüsselbesitzer ist dort kein Mitglied — wähle einen Slug aus `data.organizations`. |
 | `403` | Prüfe die Rechte des Schlüsselinhabers für die Aktion. |
 | Kein passendes Modell | Lies `/models` erneut und wähle das genaue Paar aus Modell-ID und Anbieter. |

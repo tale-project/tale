@@ -5,7 +5,7 @@ import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useQueryClient } from '@tanstack/react-query';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { Users } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
@@ -16,8 +16,8 @@ import { useDeleteTeam } from '../hooks/mutations';
 import type { Team } from '../hooks/queries';
 import { useTeamMembers } from '../hooks/queries';
 import { useTeamsTableConfig } from '../hooks/use-teams-table-config';
+import { TeamCreateDialog } from './team-create-dialog';
 import { TeamDetailDialog } from './team-detail-dialog';
-import { TeamsActionMenu } from './teams-action-menu';
 
 interface TeamsTableProps {
   teams: Team[] | undefined;
@@ -48,7 +48,6 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
   const { t: tSettings } = useT('settings');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  // Lifted so the action menu and the empty-state CTA share one dialog.
   const [createOpen, setCreateOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -114,13 +113,13 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        actionMenu={
-          <TeamsActionMenu
-            organizationId={organizationId}
-            createOpen={createOpen}
-            onCreateOpenChange={setCreateOpen}
-          />
-        }
+        // The standard create affordance: DataTable sizes and places it like
+        // every other list's, in the toolbar beside the search.
+        addAction={{
+          label: tSettings('teams.createTeam'),
+          icon: Plus,
+          onClick: () => setCreateOpen(true),
+        }}
         emptyState={{
           icon: Users,
           title: tEmpty('teams.title'),
@@ -137,6 +136,12 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
           />
         }
         {...list.tableProps}
+      />
+
+      <TeamCreateDialog
+        organizationId={organizationId}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
       />
 
       {selectedTeam && (

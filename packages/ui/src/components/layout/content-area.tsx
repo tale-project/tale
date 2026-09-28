@@ -13,7 +13,7 @@ import { forwardRef, type HTMLAttributes } from 'react';
  * Base size is `--content-area-pb`, declared once on the shared class.
  */
 const FLOATING_DOCK_END_PAD =
-  'pb-[calc(var(--content-area-pb)+var(--mobile-floating-actions-pad,0px))]';
+  'pb-[calc(var(--content-area-pb)+var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))]';
 
 /**
  * The inset every content frame keeps, on all four sides: `pt-4` / `px-4` /
@@ -24,7 +24,7 @@ const FLOATING_DOCK_END_PAD =
  * the sides to `px-6` for its own chrome; nothing else varies.
  */
 const contentAreaVariants = cva(
-  'flex w-full min-w-0 flex-col [--content-area-pb:1rem]',
+  'mobile-nav-clearance flex w-full min-w-0 flex-col [--content-area-pb:1rem]',
   {
     variants: {
       variant: {

@@ -455,7 +455,7 @@ export function HomeNavigator({
       ) : (
         <ThreadListFrameProvider value={frame}>
           <ThreadDndProvider organizationId={organizationId}>
-            <div className="flex min-h-0 flex-1 flex-col px-2.5 pb-3">
+            <div className="mobile-nav-clearance flex min-h-0 flex-1 flex-col px-2.5 pb-[calc(0.75rem+var(--mobile-nav-content-pad,0px))]">
               <HomeProjects
                 organizationId={organizationId}
                 projects={data.projects}
@@ -558,7 +558,7 @@ function HomeStreamScroller({
   return (
     <div
       ref={setRefs}
-      className="scrollbar-thin border-border/70 relative -mx-2.5 mt-2 min-h-0 flex-1 overflow-y-auto border-t px-2.5"
+      className="mobile-nav-clearance mobile-nav-inset mobile-nav-scroll scrollbar-thin border-border/70 relative -mx-2.5 mt-2 min-h-0 flex-1 overflow-y-auto border-t px-2.5"
     >
       <SlidingHighlight indicator={indicator} />
       {children}

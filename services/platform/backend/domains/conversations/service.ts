@@ -22,7 +22,7 @@ import { emitEvent } from '../events/emit.ts';
 import { getFileUrl, statOrgBlob } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 import {
-  indexedMessageRefsOf,
+  mailRefsOf,
   queueMessageRefRelease,
   queueSpamVerdictCorpusJobs,
 } from './message-corpus.ts';
@@ -1328,12 +1328,14 @@ export async function bulkSetConversationStatus(
 /**
  * Hard delete (0.4 semantics): messages cascade; org-level holds block.
  *
- * The corpus copies of its inbound email bodies live in another database, so
- * no cascade reaches them: the ref release is queued in THIS transaction and
- * runs once the rows are gone, when `assessMessageRefLiveness` reads the
- * refs as dead (the network I/O never runs inside the delete). A job that
- * exhausts its retries is the daily corpus reconcile's to finish, and the
- * retrievable filter refuses a deleted message's rows meanwhile.
+ * The corpus copies of its mail — the inbound email bodies and the emailed
+ * attachments — live in another database, so no cascade reaches them: the
+ * ref release is queued in THIS transaction and runs once the rows are gone,
+ * when liveness reads the refs as dead (the network I/O never runs inside
+ * the delete). An attachment's file row and bytes stay, as 0.4 left them;
+ * only its corpus copy dies with the conversation. A job that exhausts its
+ * retries is the daily corpus reconcile's to finish, and the retrievable
+ * filter refuses the deleted conversation's mail meanwhile.
  */
 export async function deleteConversation(
   sql: Sql,
@@ -1353,9 +1355,7 @@ export async function deleteConversation(
       );
     }
     await assertNotHeld(tx, organizationId, 'conversation', conversationId);
-    const refs = await indexedMessageRefsOf(tx, organizationId, [
-      conversationId,
-    ]);
+    const refs = await mailRefsOf(tx, organizationId, [conversationId]);
     await tx`DELETE FROM app.conversations WHERE id = ${conversationId}`;
     await queueMessageRefRelease(tx, organizationId, refs);
   });

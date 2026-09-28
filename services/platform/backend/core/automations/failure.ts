@@ -81,6 +81,47 @@ export const RUN_FAILURE_CODES: readonly RunFailureCode[] = [
 ];
 
 /**
+ * The failures a later run of the same binding cannot outwait: the author's
+ * own node, a connector that refuses, a model reply that never fits the
+ * schema, and the organization's provider account (a rejected or missing
+ * key, spent credit, a model the provider does not serve). Only these count
+ * toward a trigger's failure streak — a rate limit, an unreachable provider,
+ * an agent turn that crashed or ran out of time may well pass at the next
+ * occurrence, so they neither count nor break the streak.
+ */
+export const PERMANENT_FAILURE_CODES = [
+  'node_error',
+  'connector_error',
+  'llm_output_invalid',
+  'auth_error',
+  'missing_api_key',
+  'credit_exhausted',
+  'model_not_found',
+] as const satisfies readonly RunFailureCode[];
+
+const PERMANENT_FAILURE_CODE_SET: ReadonlySet<string> = new Set(
+  PERMANENT_FAILURE_CODES,
+);
+
+/** Whether a failed run's code is one the next occurrence would repeat. */
+export function isPermanentFailureCode(
+  code: string | null | undefined,
+): boolean {
+  return (
+    code !== null && code !== undefined && PERMANENT_FAILURE_CODE_SET.has(code)
+  );
+}
+
+/**
+ * Permanent failures in a row after which a schedule turns itself off and
+ * the organization's owners and admins are told. A schedule is the one
+ * binding the platform fires by itself, so nothing else stops one that
+ * fails the same way at every occurrence (one did 5,370 times in ten days,
+ * #3092); five leaves room for a failure that only looked permanent.
+ */
+export const PERMANENT_FAILURES_BEFORE_PAUSE = 5;
+
+/**
  * A node failure that knows its cause. Thrown at the sites that can tell —
  * a connector refusal, a rejected approval, the execution guard, an agent
  * turn that exhausted its retries — and read by the stepper's one catch, so

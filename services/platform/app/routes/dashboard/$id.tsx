@@ -312,7 +312,7 @@ function DashboardLayout() {
                     {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
                   inside #main-content pushed those headers down and looked broken. */}
-                    <div className="flex h-full w-full flex-col overflow-hidden">
+                    <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
                       {hasRole && (
                         <TwoFactorGraceBanner organizationId={organizationId} />
                       )}
@@ -404,10 +404,8 @@ function DashboardLayout() {
                         {hasRole ? (
                           <MobileBottomNav organizationId={organizationId} />
                         ) : (
-                          // Holds the tab bar's band while access resolves,
-                          // like the rail and chat placeholders above — without
-                          // it the content column grows to the bottom edge and
-                          // jumps back up when the live bar mounts.
+                          // The boot and resolving shells share the live capsule's
+                          // geometry and CSS clearance before navigation mounts.
                           <MobileBottomNavPlaceholder />
                         )}
                       </div>
