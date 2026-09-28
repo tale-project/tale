@@ -548,7 +548,6 @@ automations:
   navigation:
     editor: Editor
     general: General
-    versions: Versions
     runs: Runs
   switcher:
     title: Switch automation
@@ -747,6 +746,7 @@ automations:
       description: This automation has no version with that number — the link may be stale, or the number mistyped.
       openLatest: Open latest
     controlFlowTitle: Control flow
+    nodeSheetDescription: Edit the node's fields, then save or discard the change.
     agent:
       equipmentLabel: Equipment
       harnessDefault: Default (Claude Code)
@@ -801,7 +801,6 @@ automations:
     noProjects: This organization has no projects yet.
   versions:
     title: Versions
-    description: Every saved version, newest first — open one to show it on the canvas. Exactly one is live at a time.
     empty: No versions saved yet.
     versionLabel: v{version}
     deployed: Live

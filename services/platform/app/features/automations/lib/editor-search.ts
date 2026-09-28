@@ -6,5 +6,6 @@ import { z } from 'zod';
  * rather than failing the route — a bad link should still open the automation.
  */
 export const automationEditorSearchSchema = z.object({
+  history: z.boolean().optional().catch(undefined),
   version: z.number().int().positive().optional().catch(undefined),
 });

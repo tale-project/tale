@@ -8,7 +8,7 @@ one **deployed** (live) version, a trigger bound to the name, project
 bindings, and a record of every run (mock or live). Tested here: the org list
 with its create menu (blank or upload a pack), the detail page's tabs —
 **Editor** (canvas + node inspector), **General** (trigger + project
-bindings), **Versions** and **Runs** — the run-detail page (status, effects,
+bindings), the **Version** history and **Runs** — the run-detail page (status, effects,
 agent log, approval/ask cards), and the metrics redirect. The Inbox that deployed email-sync packs open has its own
 plan: [conversations.md](conversations.md).
 
@@ -29,7 +29,7 @@ as `__` (`billing__dunning-reminder`, lossless codec in
 | Automation detail (alias) | `/dashboard/{org}/automations/{slug}` → forwards to `…/{slug}/editor`                                                                        |
 | Editor tab (default)      | `/dashboard/{org}/automations/{slug}/editor` — `?version={n}` pins a stored version on the canvas                                            |
 | General tab               | `/dashboard/{org}/automations/{slug}/general`                                                                                                |
-| Versions tab              | `/dashboard/{org}/automations/{slug}/versions`                                                                                               |
+| Legacy version history link              | `/dashboard/{org}/automations/{slug}/versions`                                                                                               |
 | Runs tab                  | `/dashboard/{org}/automations/{slug}/runs`                                                                                                   |
 | Run detail                | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                                                           |
 | Project-scoped list       | `/dashboard/{org}/projects/{projectId}/automations`                                                                                          |
@@ -190,9 +190,9 @@ output:
       when looking === live (no version number in the badge); the row draws no
       divider of its own — the tab strip under it carries the line, exactly as
       a project detail. Tab strip (`common.aria.automationsNavigation`):
-      **Editor** / **General** / **Versions** / **Runs**
+      **Editor** / **General** / **Runs**
       (`automations.navigation.editor` / `automations.navigation.general` /
-      `automations.navigation.versions` / `automations.navigation.runs`), Editor
+      `automations.navigation.runs`), Editor
       active; at its right end the **Version** button
       (`automations.detail.versionSelect`) showing
       `automations.versions.versionLabel`, **Deploy v**_n_
@@ -202,7 +202,7 @@ output:
       — with no node selected there is no inspector column at all (AUTO-F37;
       a selected node's inspector does not grow the canvas); the
       trigger and the project bindings are the **General** tab (AUTO-F51),
-      versions and runs the last two tabs (AUTO-F35) — none of them panels
+      version history in the picker and executions in Runs (AUTO-F35) — none of them panels
       beside or under the canvas.
 - [ ] `AUTO-F13` · **Canvas graph** — On the workbench, inspect the canvas →
       Region labelled **Automation canvas** (`automations.canvas.ariaLabel`); each
@@ -230,19 +230,18 @@ output:
       (`automations.detail.saveDialog.title`) → enter a **Version message**
       (`automations.detail.saveMessageLabel`) → confirm → Saving APPENDS: the
       URL drops any `?version=`, the canvas shows the new version, and the
-      **Versions** tab lists v{n+1} carrying the message; older versions
+      **Version** popup lists v{n+1} carrying the message; older versions
       unchanged (append-only — reload and read the list back).
 - [ ] `AUTO-F16` · **Version switching** — The strip's **Version** button
       (`automations.detail.versionSelect`) → an older version; also from a
-      **Versions** tab row; repeat with unsaved edits on the canvas → Clean: the
+      **Version** popup row; repeat with unsaved edits on the canvas → Clean: the
       canvas redraws that stored version, the URL carries `?version={n}` and
       the **Version** button shows it (AUTO-F36). Dirty, from the picker:
       confirm dialog (`automations.detail.switchVersion.title`) — **Discard and
       switch** (`automations.detail.switchVersion.confirm`) drops the draft;
-      Cancel keeps it. Dirty, from the **Versions** tab: leaving the Editor
-      first raises the unsaved-changes dialog (`common.unsavedChanges.title`).
+      Cancel keeps it. Leaving the editor for another tab still uses the shared unsaved-changes dialog.
 - [ ] `AUTO-F17` · **Deploy** — On a version that is not live (pick it from
-      the **Version** button, or open it from a **Versions** tab row)
+      the **Version** button, or open it from a **Version** popup row)
       → **Deploy v**_n_ (`automations.detail.deployVersion`) — tests on that
       version did not fail → The green **Live** badge
       (`automations.versions.deployed`) moves to that version and to the name in
@@ -250,7 +249,7 @@ output:
       versions saved with passing/failing acceptance tests carry
       `automations.versions.testsPassed` / `automations.versions.testsFailed`
       badges — deploying a failed one is refused
-      (`automations.versions.deployRefused` alert). **Versions** rows have no
+      (`automations.versions.deployRefused` alert). Version history rows have no
       **Deploy** control.
 - [ ] `AUTO-F18` · **Test run (mock)** — On `qa/manual-probe` (undeployed is
   fine) → **Test run** (`automations.detail.runMock`); when the saved version declares inputs, fill **Run input (JSON)** (`automations.detail.runInput.label`) using **Input schema** (`automations.detail.runInput.schema`) — missing required fields and invalid JSON keep confirmation disabled → A run starts on the
@@ -345,7 +344,7 @@ output:
       `/dashboard/{org}/projects/{projectId}/automations` then a bound
       automation's detail and one of its runs → The index lists only that
       project's automations inside the project shell; the detail carries the
-      same **Editor** / **General** / **Versions** / **Runs** strip and the run
+      same **Editor** / **General** / **Runs** strip and the run
       page the same run UI under the Automations chrome; every tab, row and run
       link stays inside `/dashboard/{org}/projects/{projectId}/…`
 - [ ] `AUTO-F32` · **Task-board integration** — (env-gated: a pack whose
@@ -375,19 +374,18 @@ output:
       **General** (`automations.navigation.general`) →
       `/dashboard/{org}/automations/{slug}/general` carries the trigger and the
       project bindings (AUTO-F51);
-      **Versions** (`automations.navigation.versions`) →
-      `/dashboard/{org}/automations/{slug}/versions` lists every version newest
-      first under `automations.versions.title` +
-      `automations.versions.description`, the **Live** badge on the deployed one
-      and no per-row deploy control; **Runs** (`automations.navigation.runs`) →
+      the **Version** button at the right opens history with messages, dates,
+      test results and the **Live** badge, newest first; there is no Versions tab.
+      The old `/dashboard/{org}/automations/{slug}/versions` link redirects to
+      the editor with history open. **Runs** (`automations.navigation.runs`) →
       `/dashboard/{org}/automations/{slug}/runs`; the active tab carries the
-      underline and `aria-current="page"`; the action cluster (Version / Deploy
-      / Test run / Run live / Discard / Save) shows on the Editor tab only, and
+      underline and `aria-current="page"`; the action cluster (Deploy
+      / Test run / Run live / Discard / Save) shows on the Editor tab only; Version remains on every tab, and
       **General** shows **Discard** / **Save** alone; the
       breadcrumb switcher opens the same tab on the sibling automation (a run
       page switches to the sibling's Runs list); the project-scoped detail
       carries the identical strip.
-- [ ] `AUTO-F36` · **Version deep link** — On the **Versions** tab click an
+- [ ] `AUTO-F36` · **Version deep link** — In the **Version** popup click an
       older version's row → URL `…/{slug}/editor?version={n}`, the **Version**
       button reads v{n}, the canvas draws that version; a shared link with the
       same `?version=` opens the same picture; `?version=abc` opens the latest
@@ -523,7 +521,7 @@ output:
       (`automations.detail.delete.title`) and open that URL → the page is
       NOT blank: under the breadcrumb and tab strip an info banner
       (`automations.detail.deleted.banner`) names the deletion date, the
-      **Editor** and **Versions** tabs are disabled, **Runs** works, and the
+      The **Editor** tab is disabled and the version picker is hidden, **Runs** works, and the
       run page shows its header, a canvas drawn from the run's own steps
       (each with its status), the effects and the JSON sections; the Runs
       list still lists the runs; opening `…/editor` shows
@@ -607,7 +605,7 @@ output:
       (`automations.detail.staleVersion.reload`) drops B's draft and shows
       A's version with A's change intact; **Save anyway**
       (`automations.detail.staleVersion.saveAnyway`) appends B's version on
-      top instead (A's version stays in **Versions**, the latest is B's).
+      top instead (A's version stays in the **Version** history, the latest is B's).
       Nothing is ever reverted silently.
 
 ## Run liveness — chaos recovery (backend, scripted)
