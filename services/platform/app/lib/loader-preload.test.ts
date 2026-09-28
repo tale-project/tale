@@ -161,6 +161,38 @@ describe('ensureGovernancePolicies', () => {
     expect(queryFn).toHaveBeenCalledTimes(1);
   });
 
+  // A cold deep link: an admin-only policy waits for the caller's role
+  // (#3098), so a member never asks for it and an admin still does.
+  it.each([
+    ['member', 0],
+    ['admin', 1],
+  ] as const)(
+    "asks a %s's cold deep link for an admin-only policy %i time(s)",
+    async (role, reads) => {
+      vi.spyOn(window, 'fetch').mockImplementation(async () =>
+        Response.json(memberContext(role)),
+      );
+      queryFn.mockResolvedValue({ policy: null });
+
+      await ensureGovernancePolicies(context(), 'org-1', ['budgets']);
+
+      expect(queryFn).toHaveBeenCalledTimes(reads);
+    },
+  );
+
+  it("swallows the session door's 401 on the member-context read", async () => {
+    answer(401, {
+      error:
+        'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
+      code: 'UNAUTHORIZED',
+    });
+
+    await expect(
+      ensureGovernancePolicies(context(), 'org-1', ['budgets']),
+    ).resolves.toEqual([undefined]);
+    expect(queryFn).not.toHaveBeenCalled();
+  });
+
   it('propagates any other refusal', async () => {
     answer(403, {
       error: 'RBAC_FORBIDDEN',
