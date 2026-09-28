@@ -922,6 +922,9 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
     createdAt: 1,
     updatedAt: 1,
     archivedAt: null,
+    repeat: null,
+    repeatNextTaskId: null,
+    repeatContinued: false,
   };
   const snapshot = {
     id: '9042',
