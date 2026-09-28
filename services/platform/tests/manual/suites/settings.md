@@ -693,6 +693,23 @@ any toggled setting after the run.
   **Save** succeeds and the value survives a reload; above capacity + N the
   total explains `sandboxes.limits.totalExceedsCapacity` and Save stays
   disabled.
+- [ ] `SET-F63` · **Settings lists page and create alike** — With more than
+  20 members (SET-F15 adds them), open `/dashboard/{org}/settings/members`,
+  `/dashboard/{org}/settings/teams` and `/dashboard/{org}/settings/api/rest`
+  (first with no API keys of your own, then with one), at 1280 px and at
+  390 px, in the light and in the dark theme → Members shows 20 rows over the
+  footer **Showing 20 of {n} members** (`common.pagination.showingFiltered`)
+  and the rest arrive as you scroll to its end. **Add member**
+  (`settings.organization.addMember`), **Create team**
+  (`settings.teams.createTeam`) and **Create API key**
+  (`settings.apiKeys.createKey`) are the same button: at the right end of the
+  table's toolbar at 1280 px (beside the search box where the list has one),
+  on a full-width row of its own at 390 px. With no keys the API page shows
+  exactly one **Create API key**, inside the empty state
+  (`emptyStates.apiKeys.title`), and it moves to the toolbar once a key
+  exists; **API docs** (`settings.apiDocs.openDocs`) sits under the table in
+  both states. No page scrolls sideways at 390 px, and every button label is
+  readable in both themes.
 
 ## Boundary & error tests
 
