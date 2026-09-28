@@ -1,6 +1,6 @@
 import { type Locator, type Page } from '@playwright/test';
 
-import { ENTITY_ID, TIMEOUT } from '../helpers/env';
+import { E2E_CONTACT_SUPPORT_URL, ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { expect, test } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 import { STARTER_PROJECT_NAME } from '../helpers/seed';
@@ -8,8 +8,9 @@ import { STARTER_PROJECT_NAME } from '../helpers/seed';
 /**
  * Cross-cutting navigation/routing the per-feature specs don't exercise:
  * primary rail-nav, the Home panel, the settings-rail → governance click-path, breadcrumb
- * up-navigation, the not-found shell, and back/forward history. Read-only —
- * only navigates and asserts.
+ * up-navigation, the error screens' contact-support link, the not-found
+ * shell, and back/forward history. Read-only — only navigates and asserts
+ * (the error screen comes from a stubbed read, not from breaking anything).
  *
  * Rail links are icon-only with portalled tooltips; we scope to the
  * main-navigation landmark and locate each by its deterministic href (the rail
@@ -345,6 +346,48 @@ test.describe('navigation: user menu', () => {
     await expect(
       menu.locator('a[href="https://tale.dev/contact"]'),
     ).toHaveCount(0);
+  });
+});
+
+test.describe('navigation: error screens', () => {
+  // The list read below is answered by `page.route`; a service worker would
+  // take the request out of the page's hands.
+  test.use({ serviceWorkers: 'block' });
+
+  test("the contact-support link opens the operator's page (NAV-B14)", async ({
+    page,
+    org,
+  }) => {
+    const { organizationId } = org;
+
+    // Fail the projects list with a structured refusal: the query client
+    // does not retry one (app/router.tsx), so the list's error state shows
+    // at once, and a statused answer leaves the offline overlay alone.
+    await page.route(/\/api\/app\/projects\/overview(?:\?|$)/, (route) =>
+      route.fulfill({
+        status: 500,
+        json: {
+          error: 'E2E_FORCED_FAILURE',
+          message: 'Forced by the navigation spec',
+          data: {},
+        },
+      }),
+    );
+    await page.goto(dashboardUrl(organizationId, '/projects'));
+
+    // The stack runs with TALE_CONTACT_SUPPORT_URL (playwright.config.ts):
+    // the link follows it through window.__ENV__ and the app-root
+    // SupportUrlProvider, and the compact display adds the organization.
+    const link = page.getByRole('link', {
+      name: t('common.errors.contactSupport'),
+    });
+    await expect(link).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(link).toHaveAttribute(
+      'href',
+      `${E2E_CONTACT_SUPPORT_URL}&organizationId=${encodeURIComponent(organizationId)}`,
+    );
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 });
 

@@ -88,6 +88,40 @@ describe('supportUrlFor', () => {
     );
   });
 
+  it('replaces an organizationId the page already carries', () => {
+    expect(
+      supportUrlFor(
+        'https://help.example.com/new?organizationId=x&source=tale',
+        'org_1',
+      ),
+    ).toBe('https://help.example.com/new?source=tale&organizationId=org_1');
+    expect(
+      supportUrlFor(
+        'https://help.example.com/?organizationId=x&organizationId=y#top',
+        'org_1',
+      ),
+    ).toBe('https://help.example.com/?organizationId=org_1#top');
+  });
+
+  it('keeps a parameter that only starts with organizationId', () => {
+    expect(
+      supportUrlFor('https://help.example.com/?organizationIds=a', 'org_1'),
+    ).toBe('https://help.example.com/?organizationIds=a&organizationId=org_1');
+  });
+
+  it('replaces encoded organization keys without rewriting other values', () => {
+    const result = supportUrlFor(
+      'https://help.example.com/?%6FrganizationId=old&organization%49d=older&source=a%20b&source=a+b&?organizationId=keep#top',
+      'org_1',
+    );
+    expect(new URL(result).searchParams.getAll('organizationId')).toEqual([
+      'org_1',
+    ]);
+    expect(result).toBe(
+      'https://help.example.com/?source=a%20b&source=a+b&?organizationId=keep&organizationId=org_1#top',
+    );
+  });
+
   it('encodes the organization', () => {
     expect(supportUrlFor('https://help.example.com/', 'a&b=c')).toBe(
       'https://help.example.com/?organizationId=a%26b%3Dc',

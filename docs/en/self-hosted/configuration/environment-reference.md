@@ -233,7 +233,7 @@ Leave it unset to keep the default session lifetime. When set, an idle session e
 | -------------------------- | -------------------------- | ----------- |
 | `TALE_CONTACT_SUPPORT_URL` | `https://tale.dev/contact` | **Optional, read by the `platform` service.** Where the **contact support** link on the app's error screens points. An absolute `http://` or `https://` URL. |
 
-Set it to your own help desk so people who hit an error reach the team that runs your deployment. Where the error screen knows the organization, the link adds `organizationId=<id>` to the query string, after any query the URL already carries. Any other value, such as `mailto:` or a URL without a scheme, is ignored with a warning in the `platform` service's log, and the link keeps the default.
+Set it to your own help desk so people who hit an error reach the team that runs your deployment. Where the error screen knows the organization, the link adds `organizationId=<id>` to the query string, after any query the URL already carries, and replaces an `organizationId` the URL already has. Any other value, such as `mailto:` or a URL without a scheme, is ignored with a warning in the `platform` service's log, and the link keeps the default.
 
 ## Sandbox infrastructure
 

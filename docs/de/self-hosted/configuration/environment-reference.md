@@ -233,7 +233,7 @@ Ohne Wert gilt die normale Sitzungsdauer. Mit gesetztem Limit läuft eine inakti
 | -------------------------- | -------------------------- | ------------ |
 | `TALE_CONTACT_SUPPORT_URL` | `https://tale.dev/contact` | **Optional, gelesen vom Dienst `platform`.** Ziel des Links **kontaktiere den Support** auf den Fehlerseiten der App. Eine absolute `http://`- oder `https://`-URL. |
 
-Trag hier deinen eigenen Helpdesk ein, damit Personen nach einem Fehler das Team erreichen, das dein Deployment betreibt. Kennt die Fehlerseite die Organisation, hängt der Link `organizationId=<id>` an den Query-String an, hinter eine bereits vorhandene Query. Jeder andere Wert, etwa `mailto:` oder eine URL ohne Schema, wird mit einer Warnung im Log des Dienstes `platform` ignoriert, und der Link behält den Standardwert.
+Trag hier deinen eigenen Helpdesk ein, damit Personen nach einem Fehler das Team erreichen, das dein Deployment betreibt. Kennt die Fehlerseite die Organisation, hängt der Link `organizationId=<id>` an den Query-String an, hinter eine bereits vorhandene Query, und ersetzt einen `organizationId`-Parameter, den die URL schon trägt. Jeder andere Wert, etwa `mailto:` oder eine URL ohne Schema, wird mit einer Warnung im Log des Dienstes `platform` ignoriert, und der Link behält den Standardwert.
 
 ## Sandbox-Infrastruktur {#sandbox-infrastructure}
 

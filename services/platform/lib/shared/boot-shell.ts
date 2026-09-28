@@ -29,7 +29,8 @@ const ROOT_MARKER = '<div id="root"></div>';
  */
 export function injectBootShell(html: string, shellHtml: string): string {
   if (!html.includes(ROOT_MARKER)) return html;
-  return html.replace(ROOT_MARKER, `<div id="root">${shellHtml}</div>`);
+  // A replacer function, so a `$&`-style sequence in the shell stays text.
+  return html.replace(ROOT_MARKER, () => `<div id="root">${shellHtml}</div>`);
 }
 
 function stripBasePath(pathname: string, basePath: string): string | undefined {

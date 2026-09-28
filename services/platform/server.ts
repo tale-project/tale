@@ -24,6 +24,7 @@ import { createOrgFrameAncestorsProvider } from './lib/org-frame-ancestors';
 import { createOrgObjectStorageOriginsProvider } from './lib/org-storage-origins';
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
+import { inlineScriptJson, replaceLiteral } from './lib/utils/inline-script';
 import { slaRulesResponse } from './sla-targets';
 import {
   buildStatusFeed,
@@ -1150,16 +1151,20 @@ export function createApp(
         ? env
         : { ...env, SITE_URL: requestOrigin };
 
-    let html = template
-      .replace('<head>', `<head>${analytics.html}`)
-      .replace(
-        /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
-        `window.__ENV__ = ${JSON.stringify(pageEnv)};`,
-      )
-      .replace(
-        /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
-        `window.__ACCEPT_LANGUAGE__ = ${JSON.stringify(acceptLanguage)};`,
-      );
+    // Runtime values go in verbatim (`replaceLiteral`: no `$&`-style
+    // expansion) and script-safe (`inlineScriptJson`: no `</script>`), since
+    // neither the operator's env nor the request's Accept-Language is ours.
+    let html = replaceLiteral(template, '<head>', `<head>${analytics.html}`);
+    html = replaceLiteral(
+      html,
+      /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
+      `window.__ENV__ = ${inlineScriptJson(pageEnv)};`,
+    );
+    html = replaceLiteral(
+      html,
+      /window\.__ACCEPT_LANGUAGE__\s*=\s*['"]__ACCEPT_LANGUAGE_PLACEHOLDER__['"];/,
+      `window.__ACCEPT_LANGUAGE__ = ${inlineScriptJson(acceptLanguage)};`,
+    );
 
     // Dashboard navigations get the prerendered boot shell injected into
     // #root — the SPA's stand-in for SSR: the sidebar rail is already on
@@ -1186,7 +1191,8 @@ export function createApp(
       );
     }
 
-    html = html.replace(
+    html = replaceLiteral(
+      html,
       '<head>',
       `<head>\n    <base href="${escapeHtmlAttr(basePath)}/">`,
     );
