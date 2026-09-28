@@ -14,7 +14,7 @@ export interface BodyIssue {
  * (both list through `listIssues`). A schema's own sentence for an absent
  * field is kept as written.
  */
-export function issueReason(issue: z.core.$ZodIssue): string {
+function issueReason(issue: z.core.$ZodIssue): string {
   return issue.path.length > 0 && issue.message.endsWith('received undefined')
     ? 'is required'
     : issue.message;
@@ -23,7 +23,7 @@ export function issueReason(issue: z.core.$ZodIssue): string {
 /** How many issues one refusal lists — enough to fix a body in one round
  * trip, never a hostile body echoed back at length. The app doors and the
  * REST door share it. */
-export const MAX_BODY_ISSUES = 20;
+const MAX_BODY_ISSUES = 20;
 
 /**
  * The problems of a failed parse, as `{path, message}` with the root at
