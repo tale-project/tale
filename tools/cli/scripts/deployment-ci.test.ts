@@ -89,6 +89,170 @@ test.skipIf(process.platform === 'win32')(
   },
 );
 
+test('PR-image cleanup covers exactly the images the build job publishes', async () => {
+  // Only the build job pushes `pr-N-sha-` tags. A service it no longer builds
+  // has no package left to clean (convex and controller, 2026-09); one it
+  // builds but the cleanup skips leaks a tag on every push.
+  const services = async (name: string, job: string) => {
+    const workflow = parse(
+      await readFile(join(repository, '.github/workflows', name), 'utf8'),
+    ) as {
+      jobs: Record<
+        string,
+        { strategy?: { matrix?: { service?: string[] } } } | undefined
+      >;
+    };
+    return workflow.jobs[job]?.strategy?.matrix?.service?.toSorted() ?? [];
+  };
+  const built = await services('build.yml', 'build');
+  expect(built).toContain('platform');
+  expect(await services('cleanup-pr-images.yml', 'delete')).toEqual(built);
+});
+
+/** A stand-in for the `gh` the cleanup step runs. It logs each call, then
+ * answers with the next reply of the listing or the deletion queue: `ok`, or
+ * the HTTP status the call fails with, in gh's own error format. A listing
+ * that succeeds prints the page through the step's own `--jq` filter. */
+const GH_STAND_IN = `#!/bin/sh
+printf '%s\\n' "$*" >> "$TEST_COMMAND_LOG"
+if [ "$2" = -X ]; then
+  replies=$TEST_DELETE_REPLIES
+  call=$(grep -c '^api -X DELETE ' "$TEST_COMMAND_LOG")
+else
+  replies=$TEST_LIST_REPLIES
+  call=$(grep -c ' --paginate ' "$TEST_COMMAND_LOG")
+fi
+reply=$(printf '%s\\n' $replies | sed -n "\${call}p")
+case "$reply" in
+  ok) ;;
+  '') echo "gh: unexpected call: $*" >&2; exit 2 ;;
+  *) echo "gh: Stand-in failure. (HTTP $reply)" >&2; exit 1 ;;
+esac
+[ "$2" = -X ] && exit 0
+while [ $# -gt 1 ]; do
+  [ "$1" = --jq ] && filter=$2
+  shift
+done
+jq -r "$filter" "$TEST_VERSIONS"
+`;
+
+/** Runs the PR-image cleanup step's script for PR 7 against the stand-in. */
+async function cleanup(
+  service: string,
+  replies: { list: string[]; remove?: string[] },
+  versions: unknown[] = [],
+) {
+  const workflow = parse(
+    await readFile(
+      join(repository, '.github/workflows/cleanup-pr-images.yml'),
+      'utf8',
+    ),
+  ) as { jobs: { delete: { steps: Step[] } } };
+  const root = await mkdtemp(join(tmpdir(), 'tale-cleanup-pr-images-'));
+  roots.push(root);
+  const bin = join(root, 'bin');
+  const log = join(root, 'calls');
+  const summary = join(root, 'summary');
+  const page = join(root, 'versions.json');
+  await mkdir(bin);
+  await writeFile(log, '');
+  await writeFile(summary, '');
+  await writeFile(page, JSON.stringify(versions));
+  await writeFile(join(bin, 'gh'), GH_STAND_IN, { mode: 0o755 });
+  // The retry backoff (2 s, then 4 s) would only slow the suite down.
+  await writeFile(join(bin, 'sleep'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  const result = await execute(
+    workflow.jobs.delete.steps.find(
+      (step) => step.name === 'Delete PR-tagged versions',
+    )?.run,
+    {
+      PATH: `${bin}:${process.env.PATH}`,
+      GITHUB_STEP_SUMMARY: summary,
+      TEST_COMMAND_LOG: log,
+      TEST_LIST_REPLIES: replies.list.join(' '),
+      TEST_DELETE_REPLIES: (replies.remove ?? []).join(' '),
+      TEST_VERSIONS: page,
+      PR: '7',
+      SVC: service,
+      OWNER: 'tale-project',
+    },
+  );
+  const calls = (await readFile(log, 'utf8')).split('\n').filter(Boolean);
+  return {
+    ...result,
+    summary: await readFile(summary, 'utf8'),
+    listings: calls.filter((call) => call.includes(' --paginate ')).length,
+    deletions: calls
+      .filter((call) => call.startsWith('api -X DELETE '))
+      .map((call) => call.split(' ')[3]?.split('/').at(-1)),
+  };
+}
+
+test.skipIf(process.platform === 'win32')(
+  'PR-image cleanup finds nothing to clean in a package that does not exist',
+  async () => {
+    const result = await cleanup('convex', { list: ['404'] });
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    // A 404 is an answer, not a blip: one listing, no retry.
+    expect(result.listings).toBe(1);
+    expect(result.deletions).toEqual([]);
+    // The matrix tracks build.yml, so a 404 names the two causes left: an
+    // image never pushed, or a package this repository lost access to.
+    expect(result.stdout).toContain(
+      '::warning::Package tale-convex not found or not visible to this token (HTTP 404)',
+    );
+    expect(result.stdout).toContain('Manage Actions access');
+    expect(result.summary).toContain(
+      'package tale-convex was not found or is not visible to this token; no versions cleaned',
+    );
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  'PR-image cleanup retries a failed listing and fails the job when the error persists',
+  async () => {
+    const recovered = await cleanup('platform', { list: ['502', 'ok'] });
+    expect(recovered.code, recovered.stdout + recovered.stderr).toBe(0);
+    expect(recovered.listings).toBe(2);
+    expect(recovered.summary).toContain('No `pr-7-sha-*` versions found');
+    const refused = await cleanup('platform', { list: ['403', '403', '403'] });
+    expect(refused.code).toBe(1);
+    expect(refused.listings).toBe(3);
+    // gh's own error still reaches the job log.
+    expect(refused.stderr).toContain('(HTTP 403)');
+    expect(refused.stdout).toContain(
+      '::error::Failed to list versions of tale%2Ftale-platform after 3 attempts',
+    );
+  },
+);
+
+test.skipIf(process.platform === 'win32')(
+  "PR-image cleanup deletes only the closed PR's tags",
+  async () => {
+    const version = (id: number, ...tags: string[]) => ({
+      id,
+      metadata: { container: { tags } },
+    });
+    const result = await cleanup(
+      'platform',
+      { list: ['ok'], remove: ['ok', '404'] },
+      [
+        version(1, `pr-7-sha-${'a'.repeat(40)}`),
+        version(2, `pr-70-sha-${'a'.repeat(40)}`),
+        version(3, `sha-${'a'.repeat(40)}`),
+        version(4),
+        version(5, `pr-7-sha-${'b'.repeat(40)}`),
+      ],
+    );
+    expect(result.code, result.stdout + result.stderr).toBe(0);
+    expect(result.deletions).toEqual(['1', '5']);
+    // A version gone before its delete (a duplicate run, say) is no failure.
+    expect(result.summary).toContain(
+      '- Deleted: 1\n- Already gone (404): 1\n- Failures: 0',
+    );
+  },
+);
+
 test.skipIf(process.platform === 'win32')(
   'setup action selects the host binary, honours linux-baseline on x64 only and seals only the final Mac executable',
   async () => {

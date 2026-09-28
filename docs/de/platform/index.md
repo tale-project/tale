@@ -32,6 +32,8 @@ Lesezeichen und geteilte Links zu einem bestimmten Projekt, einer Aufgabe oder e
 
 **Start** bündelt deine Chats, Aufgaben, Projekte und Kundenkonversationen. Am Computer bleibt die Seitenleiste von **Start** neben jedem Chat, jeder Aufgabe, jedem Projekt und jeder Inbox-Seite stehen. Auf dem Smartphone öffnet **Start** dieselbe Liste als eigenen Bildschirm. Öffnest du von dort einen Chat, eine Aufgabe oder eine Konversation, hat die Seite nur eine Kopfzeile mit einem Zurück-Pfeil zur Liste, dem Titel und den Aktionen. Dein Profilmenü bleibt oben auf dem Bildschirm **Start** und in den **Einstellungen** erreichbar.
 
+Am Computer kannst du den rechten Rand der Seitenleiste von **Start** ziehen, um ihre Breite anzupassen. Du kannst die Trennlinie auch mit Tab fokussieren und die linke oder rechte Pfeiltaste drücken. Dein Browser merkt sich die Breite für diese Organisation.
+
 Oben in der Seitenleiste legst du mit **Alle**, **Chats**, **Aufgaben** und **Inbox** fest, was die Liste zeigt. Daneben startest du mit **Neuer Chat**, dem Stift, einen Chat; der Tooltip der Schaltfläche zeigt das Tastenkürzel. **Inbox** erscheint nur, wenn deine Organisation eine Inbox hat: eine live geschaltete Automatisierung, die E-Mails synchronisiert, oder eine API-App, die bereits eine Konversation synchronisiert hat.
 
 **Projekte** listet alle Projekte, die du öffnen kannst. Wähle ein Projekt, um seine Seite mit dem Aufgaben-Board, **Allgemein**, **Chats**, **Wissen** und **Agenten** zu öffnen. Die beiden Symbole neben der Überschrift **Projekte** sind **Alle Projekte**, das die vollständige Projektliste öffnet, und **Neues Projekt**. Ziehst du einen Chat auf ein Projekt, legst du ihn dort ab. Das Menü eines Projekts bietet **Neuer Chat** und **Projekt anheften**.

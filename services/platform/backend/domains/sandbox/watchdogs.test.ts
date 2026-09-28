@@ -6,14 +6,16 @@
  * window) and lets it go once that op falls silent, the reconcile batch is a
  * FAIR walk (least-recently-visited first, every visited row stamped — not
  * the 25 globally-oldest rows forever) that hands each row the whole spawner
- * (a pinned row is re-pinned or recreated, `service.test.ts` owns how) and
- * counts a recreate apart from a heal, the ended-run reclaim settles a row
+ * (a pinned row is re-pinned or its recreate queued, `service.test.ts` owns
+ * how) and counts a queued recreate apart from a heal, stops visiting rows
+ * once the job's signal aborts (stamping only the rows it visited), the
+ * ended-run reclaim settles a row
  * only when the spawner confirmed the session is gone or idle (busy and
  * errors leave it for the next tick), and the failed-create collect destroys
  * a session only when no newer or live incarnation carries its id, then
  * stamps that one row. The real-Postgres probe (`integration-check.ts`)
- * proves the live-turn spare, the rotation, the pinned recreate and the
- * reclaim and collect guards on the actual schema.
+ * proves the live-turn spare, the rotation, the queued pinned recreate and
+ * the reclaim and collect guards on the actual schema.
  */
 
 import type { Sql } from 'postgres';
@@ -265,6 +267,7 @@ describe('runSandboxWatchdog — fair reconcile', () => {
         sql,
         { organizationId: row.orgId, sessionId: row.sessionId },
         spawner,
+        {},
       );
     }
 
@@ -295,12 +298,12 @@ describe('runSandboxWatchdog — fair reconcile', () => {
 });
 
 describe('runSandboxWatchdog — pinned sessions in the reconcile', () => {
-  it('counts a pinned session recreated in place apart from a healed phantom', async () => {
+  it('counts a pinned session whose recreate it queued apart from a healed phantom', async () => {
     const { sql } = fakeSql({
       reconcile: [[candidate('pinned'), candidate('phantom'), candidate('up')]],
     });
     vi.mocked(reconcileSession)
-      .mockResolvedValueOnce('recreated')
+      .mockResolvedValueOnce('recreating')
       .mockResolvedValueOnce('healed')
       .mockResolvedValueOnce('repinned');
 
@@ -309,7 +312,27 @@ describe('runSandboxWatchdog — pinned sessions in the reconcile', () => {
       spawner: scriptedSpawner(),
     });
 
-    expect(result).toMatchObject({ healed: 1, recreated: 1 });
+    expect(result).toMatchObject({ healed: 1, recreating: 1 });
+  });
+
+  it('hands an injected recreate scheduler to every row it reconciles', async () => {
+    const { sql } = fakeSql({ reconcile: [[candidate('pinned')]] });
+    const spawner = scriptedSpawner();
+    const scheduleRecreate = vi.fn(async () => {});
+
+    await runSandboxWatchdog(sql, {
+      reconcileBatch: 1,
+      spawner,
+      scheduleRecreate,
+    });
+    await reconcileOrgSessions(sql, 'org_1', spawner, scheduleRecreate);
+
+    expect(reconcileSession).toHaveBeenCalledWith(
+      sql,
+      { organizationId: 'org_1', sessionId: 'ses-pinned' },
+      spawner,
+      { schedule: scheduleRecreate },
+    );
   });
 
   it('keeps the Sandboxes page probe answering its healed count alone', async () => {
@@ -317,12 +340,44 @@ describe('runSandboxWatchdog — pinned sessions in the reconcile', () => {
       reconcile: [[candidate('pinned'), candidate('phantom')]],
     });
     vi.mocked(reconcileSession)
-      .mockResolvedValueOnce('recreated')
+      .mockResolvedValueOnce('recreating')
       .mockResolvedValueOnce('healed');
 
     await expect(
       reconcileOrgSessions(sql, 'org_1', scriptedSpawner()),
     ).resolves.toEqual({ healed: 1 });
+  });
+});
+
+describe('runSandboxWatchdog — the job signal', () => {
+  it('stops visiting rows once pg-boss gives up on the tick and stamps only the rows it visited', async () => {
+    const controller = new AbortController();
+    const { sql, statements } = fakeSql({
+      reconcile: [[candidate('a'), candidate('b'), candidate('c')]],
+      reclaim: [[candidate('ended')]],
+      collect: [[candidate('failed')]],
+    });
+    const spawner = scriptedSpawner();
+    // The tick's expiry lapses while the second row is probed.
+    vi.mocked(reconcileSession)
+      .mockResolvedValueOnce('live')
+      .mockImplementationOnce(async () => {
+        controller.abort();
+        return 'live';
+      });
+
+    await runSandboxWatchdog(sql, {
+      reconcileBatch: 3,
+      spawner,
+      signal: controller.signal,
+    });
+
+    expect(reconcileSession).toHaveBeenCalledTimes(2);
+    expect(spawner.destroyIfIdle).not.toHaveBeenCalled();
+    // Row c is left unstamped, so the retry (or the next tick) starts at it.
+    const stamps = stampsOf(statements);
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]?.values).toContainEqual(['a', 'b']);
   });
 });
 
@@ -418,7 +473,7 @@ describe('runSandboxWatchdog — reclaim of ended runs', () => {
     expect(result).toEqual({
       expired: 0,
       healed: 0,
-      recreated: 0,
+      recreating: 0,
       reclaimed: 0,
       collected: 0,
       settled: 0,
@@ -607,6 +662,7 @@ describe('reconcileOrgSessions — the Sandboxes page mount probe', () => {
         sql,
         { organizationId: c.orgId, sessionId: c.sessionId },
         spawner,
+        {},
       );
     }
     expect(spawner.destroyIfIdle).not.toHaveBeenCalled();

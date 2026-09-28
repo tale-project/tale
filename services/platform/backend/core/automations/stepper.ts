@@ -33,11 +33,8 @@ import {
   type WorkflowAgentRequest,
 } from './agent_host';
 import {
-  AUTO_RETRY_MAX_ATTEMPTS,
-  executedMsOf,
   isWorkflowAgentRetryable,
-  mergeBurnedHashes,
-  nextAttempt,
+  planWorkflowAgentRetry,
   workflowAgentRetryResume,
 } from './agent_retry';
 import { boundCheckpointTrace, boundNodeTrace } from './bound_run_payload';
@@ -1249,25 +1246,25 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     // SAME resolved request in place — upstream checkpoints, the run row, and
     // the session workspace all survive — under a fixed budget. An attempt
     // that executed past the progress threshold refreshes the budget instead
-    // of counting toward it, so `nextAttempt` both gates and numbers the
-    // re-kick. Exhaustion and denylisted codes fall through to the throw,
-    // which is the run's durable record of how many attempts burned.
-    const retryAttempt = nextAttempt(
-      attempt,
-      executedMsOf(parked.launchedAt, Date.now()),
+    // of counting toward it, and a credential rotation (the broker refreshed
+    // the account under the turn) resumes for free on the same account pool,
+    // so `planWorkflowAgentRetry` both gates and numbers the re-kick.
+    // Exhaustion and denylisted codes fall through to the throw, which is the
+    // run's durable record of how many attempts burned.
+    const plan = planWorkflowAgentRetry(
+      parked,
+      settled.failureCode,
+      Date.now(),
     );
     if (
       isWorkflowAgentRetryable(settled.failureCode) &&
-      retryAttempt <= AUTO_RETRY_MAX_ATTEMPTS &&
+      plan.retry &&
       // The runaway guard charges only executions that happen: a trip here
       // falls through to the exhaust throw carrying the settle's reason.
       checkpoints.executions < DEFAULT_MAX_NODE_EXECUTIONS
     ) {
       checkpoints.executions++;
-      const burned = mergeBurnedHashes(
-        parked.burnedBrokerTokenHashes,
-        parked.brokerTokenHash,
-      );
+      const burned = plan.burnedBrokerTokenHashes;
       // The retry CONTINUES the failed conversation when the harness left a
       // handle — the agent's reasoning and the operator's answers stand,
       // only the cut is repaired. No handle (or a session that is gone)
@@ -1291,8 +1288,11 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         gatewayModel: kicked.gatewayModel,
         harness: kicked.harness,
         input: parked.input,
-        attempt: retryAttempt,
+        attempt: plan.attempt,
         ...(burned.length > 0 ? { burnedBrokerTokenHashes: burned } : {}),
+        ...(plan.credentialRotations > 0
+          ? { credentialRotations: plan.credentialRotations }
+          : {}),
         ...(resume !== undefined ? { resumedFrom: resume.agentSessionId } : {}),
       };
       const cursor: NodeCursor = {

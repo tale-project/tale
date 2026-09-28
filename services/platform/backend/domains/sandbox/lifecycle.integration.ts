@@ -6,7 +6,13 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { createSql } from '../../db/sql.ts';
-import { pinSession, reconcileSession, teardownSession } from './service.ts';
+import {
+  pinSession,
+  reconcileSession,
+  recreatePinnedSession,
+  schedulePinnedRecreate,
+  teardownSession,
+} from './service.ts';
 
 function oneConnectionPool(databaseUrl: string): Sql {
   const before = process.env.DATABASE_POOL_MAX;
@@ -146,17 +152,37 @@ export async function checkSandboxLifecycle(
         return true;
       },
     };
-    // Destroy removes the workspace but has not committed its row yet.
+    // The sweep's probes queue a recreate instead of running it; recorded
+    // here, so no worker ever sees one from this lane.
+    const scheduled: string[] = [];
+    const schedule = async (
+      _sql: unknown,
+      scheduledArgs: { sessionId: string },
+    ): Promise<void> => {
+      scheduled.push(scheduledArgs.sessionId);
+    };
+    // Destroy removes the workspace (and the spawner's pin) but has not
+    // committed its row yet.
     const destroyed = gate();
     const finishDestroy = gate();
-    const destroying = teardownSession(first, args, async () => {
-      alive = false;
-      destroyed.release();
-      await finishDestroy.promise;
-      return true;
-    });
+    const destroying = teardownSession(
+      first,
+      args,
+      async () => {
+        alive = false;
+        destroyed.release();
+        await finishDestroy.promise;
+        return true;
+      },
+      spawner.setPinned,
+    );
     await destroyed.promise;
-    const afterDestroy = reconcileSession(second, args, spawner);
+    // A sweep probe does not queue behind the transition: it skips the row.
+    const probeDuringDestroy = await reconcileSession(second, args, spawner, {
+      schedule,
+    });
+    // The recreate job waits for the lock, then reads the settled row.
+    const afterDestroy = recreatePinnedSession(second, args, spawner);
     const destroyWait = await waitsForLock(afterDestroy);
     finishDestroy.release();
     const [didDestroy, afterDestroyOutcome] = await Promise.all([
@@ -167,11 +193,14 @@ export async function checkSandboxLifecycle(
       'sandbox lifecycle: a Destroy in flight cannot resurrect an empty workspace',
       destroyWait &&
         didDestroy &&
-        afterDestroyOutcome === 'healed' &&
+        probeDuringDestroy === 'skipped' &&
+        afterDestroyOutcome === 'skipped' &&
+        scheduled.length === 0 &&
         !alive &&
+        !remotePinned &&
         creates === 0 &&
         (await state())?.status === 'destroyed',
-      `waited=${destroyWait}, outcome=${afterDestroyOutcome}, creates=${creates}, alive=${alive}`,
+      `probe=${probeDuringDestroy}, job waited=${destroyWait}, job outcome=${afterDestroyOutcome}, scheduled=${scheduled.length}, creates=${creates}, alive=${alive}, spawner pinned=${remotePinned}`,
     );
     const tokens = await sql<{ revoked: boolean }[]>`
       SELECT revoked_at_ms IS NOT NULL AS revoked FROM app.sandbox_session_tokens
@@ -192,7 +221,7 @@ export async function checkSandboxLifecycle(
     creates = 0;
     const creating = gate();
     const finishCreate = gate();
-    const recreate = reconcileSession(first, args, {
+    const recreate = recreatePinnedSession(first, args, {
       ...spawner,
       create: async () => {
         creating.release();
@@ -202,20 +231,59 @@ export async function checkSandboxLifecycle(
       },
     });
     await creating.promise;
-    const destroyAfter = teardownSession(second, args, async () => {
-      alive = false;
-      return true;
+    // The page's probe answers at once while the create runs, queueing
+    // nothing: it neither waits for the lock nor doubles the recreate.
+    const probeDuringRecreate = await reconcileSession(sql, args, spawner, {
+      schedule,
     });
+    const destroyAfter = teardownSession(
+      second,
+      args,
+      async () => {
+        alive = false;
+        return true;
+      },
+      spawner.setPinned,
+    );
     const recreateWait = await waitsForLock(destroyAfter);
     finishCreate.release();
-    await Promise.all([recreate, destroyAfter]);
+    const [recreateOutcome] = await Promise.all([recreate, destroyAfter]);
     record(
-      'sandbox lifecycle: Destroy waits for an in-flight recreate then destroys it',
+      'sandbox lifecycle: Destroy waits for an in-flight recreate then destroys it; a probe skips it without waiting',
       recreateWait &&
+        recreateOutcome === 'recreated' &&
+        probeDuringRecreate === 'skipped' &&
+        scheduled.length === 0 &&
         !alive &&
         creates === 1 &&
         (await state())?.status === 'destroyed',
-      `waited=${recreateWait}, creates=${creates}, alive=${alive}`,
+      `waited=${recreateWait}, recreate=${recreateOutcome}, probe=${probeDuringRecreate}, scheduled=${scheduled.length}, creates=${creates}, alive=${alive}`,
+    );
+
+    // The real scheduler queues ONE job per session: the queue is
+    // `exclusive`, so a second schedule while the first is pending adds
+    // nothing. Both sends share one transaction, so no worker can take the
+    // first before the second is refused.
+    const queuedFor = {
+      organizationId: orgId,
+      sessionId: `${sessionId}:queue`,
+    };
+    await sql.begin(async (tx) => {
+      await schedulePinnedRecreate(tx, queuedFor);
+      await schedulePinnedRecreate(tx, queuedFor);
+    });
+    const queued = await sql<{ count: string; policy: string | null }[]>`
+      SELECT count(*)::text AS count,
+        (SELECT policy FROM pgboss.queue WHERE name = 'sandbox.recreate_pinned') AS policy
+      FROM pgboss.job
+      WHERE name = 'sandbox.recreate_pinned'
+        AND singleton_key = ${JSON.stringify([queuedFor.organizationId, queuedFor.sessionId])}
+        AND data ->> 'sessionId' = ${queuedFor.sessionId}
+    `;
+    record(
+      'sandbox lifecycle: a pinned recreate is queued once per session on an exclusive queue',
+      queued[0]?.count === '1' && queued[0]?.policy === 'exclusive',
+      `jobs=${queued[0]?.count} (want 1), policy=${queued[0]?.policy} (want exclusive)`,
     );
 
     await reset();
@@ -334,6 +402,7 @@ async function checkLifecycleDurability(
     },
     setPinned: async () => true,
   };
+  const recreateInline = { recreate: 'inline' as const };
   try {
     const now = Date.now();
     await sql`
@@ -344,10 +413,15 @@ async function checkLifecycleDurability(
         'project_agent', ${sessionId}, ${ctx.userId}, true, ${now}, ${now + 3_600_000})
     `;
     // The remote may destroy the files even when its response never arrives.
-    const interrupted = await teardownSession(pool, args, async () => {
-      alive = false;
-      throw failure;
-    }).then(
+    const interrupted = await teardownSession(
+      pool,
+      args,
+      async () => {
+        alive = false;
+        throw failure;
+      },
+      spawner.setPinned,
+    ).then(
       () => false,
       (error: unknown) => error === failure,
     );
@@ -356,7 +430,7 @@ async function checkLifecycleDurability(
       SELECT status, pinned FROM app.sandbox_sessions WHERE org_id = ${orgId}
     `
     )[0];
-    const healed = await reconcileSession(pool, args, spawner);
+    const healed = await reconcileSession(pool, args, spawner, recreateInline);
     record(
       'sandbox lifecycle: an uncertain Destroy persists unpin intent before losing its response',
       interrupted &&
@@ -392,10 +466,15 @@ async function checkLifecycleDurability(
         return Reflect.get(target, property, receiver);
       },
     });
-    const rolledBack = await teardownSession(rollbackPool, args, async () => {
-      alive = false;
-      return true;
-    }).then(
+    const rolledBack = await teardownSession(
+      rollbackPool,
+      args,
+      async () => {
+        alive = false;
+        return true;
+      },
+      spawner.setPinned,
+    ).then(
       () => false,
       (error: unknown) => error === failure,
     );
@@ -416,7 +495,12 @@ async function checkLifecycleDurability(
         row?.status === 'destroyed',
       `rolledBack=${rolledBack}, keyAlive=${keyAlive}, committedBeforeDelete=${committedBeforeDelete}, settled=${spent?.settled}, spent/booked=${spent?.spent}/${spent?.booked}, row=${row?.status}`,
     );
-    const afterRollback = await reconcileSession(pool, args, spawner);
+    const afterRollback = await reconcileSession(
+      pool,
+      args,
+      spawner,
+      recreateInline,
+    );
     record(
       'sandbox lifecycle: failed lock commit after remote Destroy cannot resurrect the workspace',
       !alive &&

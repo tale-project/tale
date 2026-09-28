@@ -93,6 +93,7 @@ import {
   secretsGuidance,
 } from '../sandbox/tool_names';
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
+import { isCredentialRotation } from '../tasks/task_auto_retry';
 import {
   retryResumePrompt,
   type WorkflowAgentRetryResume,
@@ -2405,22 +2406,42 @@ async function settleWorkflowAgentTurn(
     );
   }
 
-  if (result.errored && result.apiErrorStatus === 429) {
+  // The broker account that served this exec, when one did: a 429 cools it
+  // down, and a 401 on it is the broker refreshing the account under the
+  // turn — the token the exec started with is revoked, the account holds a
+  // fresh one. Named `credential_rotated`, the stepper re-kicks on a new vend
+  // and resumes without spending the budget or burning the account.
+  let failureCode = result.failureCode;
+  if (
+    result.errored &&
+    (result.apiErrorStatus === 429 || result.apiErrorStatus === 401)
+  ) {
     const state = await ctx.runQuery(
       internal.automations.queries.readAgentCursor,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
       { organizationId: args.organizationId, runId: args.runId as never },
     );
     const agent = state?.cursor?.agent;
-    if (agent?.execId === args.execId && agent.brokerTokenHash) {
+    const brokerTokenHash =
+      agent?.execId === args.execId ? agent.brokerTokenHash : undefined;
+    if (result.apiErrorStatus === 429 && brokerTokenHash) {
       await ctx.runMutation(
         internal.provider_credentials.mutations.recordBrokerFailureInternal,
         {
           organizationId: args.organizationId,
-          brokerTokenHash: agent.brokerTokenHash,
+          brokerTokenHash,
           apiErrorStatus: result.apiErrorStatus,
         },
       );
+    }
+    if (
+      failureCode === 'harness_error' &&
+      isCredentialRotation({
+        apiErrorStatus: result.apiErrorStatus,
+        brokerServed: Boolean(brokerTokenHash),
+      })
+    ) {
+      failureCode = 'credential_rotated';
     }
   }
 
@@ -2463,6 +2484,7 @@ async function settleWorkflowAgentTurn(
     execId: args.execId,
     result: {
       ...result,
+      ...(failureCode !== undefined ? { failureCode } : {}),
       files,
       ...(harvestSkipped !== undefined ? { harvestSkipped } : {}),
       // An already-errored turn keeps its primary reason AND its primary
@@ -2475,7 +2497,7 @@ async function settleWorkflowAgentTurn(
               result.errored && result.reason !== undefined
                 ? `${result.reason}; output harvest failed: ${harvestError}`
                 : `output harvest failed: ${harvestError}`,
-            failureCode: result.failureCode ?? 'harvest_failed',
+            failureCode: failureCode ?? 'harvest_failed',
           }
         : {}),
     },

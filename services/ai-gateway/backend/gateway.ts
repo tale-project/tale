@@ -50,6 +50,7 @@ export function createGateway(options: CreateGatewayOptions = {}): Gateway {
     providers,
     cipher: createTokenCipher(config.encryptionKey),
     tokenRefreshSkewSeconds: config.tokenRefreshSkewSeconds,
+    tokenMinHandoutSeconds: config.tokenMinHandoutSeconds,
     usageMinIntervalSeconds: config.usageMinIntervalSeconds,
   });
 

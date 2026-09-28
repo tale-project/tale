@@ -10,7 +10,11 @@ import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_consta
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { RECOVERY_STALE_MS } from './recovery.ts';
-import { reconcileSession, type ReconcileSpawner } from './service.ts';
+import {
+  reconcileSession,
+  type ReconcileSpawner,
+  type RecreateScheduler,
+} from './service.ts';
 import { markSessionDestroyed } from './sessions.ts';
 import { reconcilePendingSessionOpKeys } from './spend-settlement.ts';
 
@@ -68,14 +72,22 @@ export interface SandboxWatchdogOptions {
    * callers with no spawner to ask. */
   skipReconcile?: boolean;
   spawner?: WatchdogSpawner;
+  /** Where the reconcile queues a pinned session's recreate — the
+   * `sandbox.recreate_pinned` job by default. */
+  scheduleRecreate?: RecreateScheduler;
+  /** The job's signal: once pg-boss gives up on the tick (its expiry), the
+   * spawner-facing passes stop visiting rows, stamping only the rows they
+   * visited, so the retry never probes beside the attempt it replaces and
+   * resumes where that one stopped. */
+  signal?: AbortSignal;
 }
 
 export interface SandboxWatchdogResult {
   expired: number;
   healed: number;
-  /** Pinned sessions gone spawner-side that the reconcile recreated in place
-   * (same id, preserved workspace) and re-pinned this tick. */
-  recreated: number;
+  /** Pinned sessions gone spawner-side whose recreate in place (same id,
+   * preserved workspace, re-pinned) the reconcile queued this tick. */
+  recreating: number;
   reclaimed: number;
   /** Failed creates the sweep settled this tick: their spawner session
    * destroyed or confirmed absent, or already owned by a newer incarnation. */
@@ -100,10 +112,13 @@ export interface SandboxWatchdogResult {
  *    nothing, so a dead one cannot pin its session.
  *  - RECONCILE: a bounded batch of compute-holding rows is checked against
  *    the spawner; a container gone spawner-side settles the row as destroyed
- *    (phantom heal) — unless the row is pinned: a pinned session is
- *    recreated in place (same id, so the spawner re-attaches its preserved
- *    workspace) and a live one has its pin re-asserted, since the spawner
- *    forgets a pin with its container. Requires a reachable spawner — when
+ *    (phantom heal) — unless the row is pinned: a pinned agent workspace has
+ *    its recreate in place queued (`sandbox.recreate_pinned` — same id, so
+ *    the spawner re-attaches its preserved workspace; never inline, since a
+ *    create can take minutes) and a live one has its pin re-asserted, since
+ *    the spawner forgets a pin with its container. A row another lifecycle
+ *    transition holds (a Destroy, a pin, a running recreate) is skipped, not
+ *    waited for. Requires a reachable spawner — when
  *    it is down the probes fail closed as `live` (never heal blind). The
  *    batch is a FAIR walk: least-recently-visited first
  *    (`last_reconciled_at_ms`, never visited before any visited), and every
@@ -179,25 +194,32 @@ export async function runSandboxWatchdog(
   }
 
   let healed = 0;
-  let recreated = 0;
+  let recreating = 0;
   let reclaimed = 0;
   let collected = 0;
   if (options.skipReconcile !== true) {
     const spawner = options.spawner ?? DEFAULT_SPAWNER;
-    ({ healed, recreated } = await reconcilePass(sql, spawner, {
+    const signal = options.signal;
+    ({ healed, recreating } = await reconcilePass(sql, spawner, {
       batch: options.reconcileBatch ?? 25,
       now,
+      ...(options.scheduleRecreate !== undefined
+        ? { scheduleRecreate: options.scheduleRecreate }
+        : {}),
+      ...(signal !== undefined ? { signal } : {}),
     }));
     reclaimed = await reclaimEndedRunSessions(sql, spawner, {
       batch: options.reclaimBatch ?? 25,
       graceMs: options.reclaimGraceMs ?? SANDBOX_RUN_SESSION_RECLAIM_GRACE_MS,
       now,
+      ...(signal !== undefined ? { signal } : {}),
     });
     collected = await collectFailedSessions(sql, spawner, {
       batch: options.collectBatch ?? 25,
       graceMs:
         options.collectGraceMs ?? SANDBOX_FAILED_SESSION_COLLECT_GRACE_MS,
       now,
+      ...(signal !== undefined ? { signal } : {}),
     });
   }
 
@@ -218,7 +240,7 @@ export async function runSandboxWatchdog(
   return {
     expired: expired.length,
     healed,
-    recreated,
+    recreating,
     reclaimed,
     collected,
     settled,
@@ -248,8 +270,14 @@ async function stampVisited(
 async function reconcilePass(
   sql: Sql,
   spawner: WatchdogSpawner,
-  args: { batch: number; now: number; organizationId?: string },
-): Promise<{ healed: number; recreated: number }> {
+  args: {
+    batch: number;
+    now: number;
+    organizationId?: string;
+    scheduleRecreate?: RecreateScheduler;
+    signal?: AbortSignal;
+  },
+): Promise<{ healed: number; recreating: number }> {
   // Compute-holding rows ONLY. A `stopped` row is hibernated: its container
   // is gone BY DESIGN (idle reaper, capacity reclaim) while its workspace
   // waits for the next turn, so the spawner's 404 for it is the expected
@@ -267,16 +295,22 @@ async function reconcilePass(
     LIMIT ${args.batch}
   `;
   let healed = 0;
-  let recreated = 0;
+  let recreating = 0;
+  const visited: Candidate[] = [];
   for (const candidate of candidates) {
+    if (args.signal?.aborted === true) break;
+    visited.push(candidate);
     try {
       const outcome = await reconcileSession(
         sql,
         { organizationId: candidate.orgId, sessionId: candidate.sessionId },
         spawner,
+        args.scheduleRecreate !== undefined
+          ? { schedule: args.scheduleRecreate }
+          : {},
       );
       if (outcome === 'healed') healed += 1;
-      if (outcome === 'recreated') recreated += 1;
+      if (outcome === 'recreating') recreating += 1;
     } catch (error) {
       // Spawner unreachable or refusing ⇒ no verdict on this row; leave it
       // alone for its next visit.
@@ -286,8 +320,8 @@ async function reconcilePass(
       );
     }
   }
-  await stampVisited(sql, candidates, args.now);
-  return { healed, recreated };
+  await stampVisited(sql, visited, args.now);
+  return { healed, recreating };
 }
 
 /**
@@ -295,17 +329,21 @@ async function reconcilePass(
  * the SAME fair, compute-holding-only pass the sweep runs, scoped to one
  * organization and stamped like a sweep tick. One implementation, so the
  * page can never heal a row the sweep would leave alone — a hibernated
- * project workspace stays listed until someone destroys it.
+ * project workspace stays listed until someone destroys it. A pinned
+ * session's recreate is queued like the sweep's, so the request answers
+ * once the probes have, never after a create.
  */
 export async function reconcileOrgSessions(
   sql: Sql,
   organizationId: string,
   spawner: WatchdogSpawner = DEFAULT_SPAWNER,
+  scheduleRecreate?: RecreateScheduler,
 ): Promise<{ healed: number }> {
   const { healed } = await reconcilePass(sql, spawner, {
     batch: 25,
     now: Date.now(),
     organizationId,
+    ...(scheduleRecreate !== undefined ? { scheduleRecreate } : {}),
   });
   return { healed };
 }
@@ -322,7 +360,7 @@ export async function reconcileOrgSessions(
 async function reclaimEndedRunSessions(
   sql: Sql,
   spawner: WatchdogSpawner,
-  args: { batch: number; graceMs: number; now: number },
+  args: { batch: number; graceMs: number; now: number; signal?: AbortSignal },
 ): Promise<number> {
   const horizon = args.now - args.graceMs;
   const candidates = await sql<Candidate[]>`
@@ -343,7 +381,10 @@ async function reclaimEndedRunSessions(
     LIMIT ${args.batch}
   `;
   let reclaimed = 0;
+  const visited: Candidate[] = [];
   for (const candidate of candidates) {
+    if (args.signal?.aborted === true) break;
+    visited.push(candidate);
     let outcome: { destroyed: boolean; busy: boolean };
     try {
       outcome = await spawner.destroyIfIdle(candidate.sessionId);
@@ -367,7 +408,7 @@ async function reclaimEndedRunSessions(
     });
     reclaimed += 1;
   }
-  await stampVisited(sql, candidates, args.now);
+  await stampVisited(sql, visited, args.now);
   return reclaimed;
 }
 
@@ -383,7 +424,7 @@ async function reclaimEndedRunSessions(
 async function collectFailedSessions(
   sql: Sql,
   spawner: WatchdogSpawner,
-  args: { batch: number; graceMs: number; now: number },
+  args: { batch: number; graceMs: number; now: number; signal?: AbortSignal },
 ): Promise<number> {
   const horizon = args.now - args.graceMs;
   const candidates = await sql<Candidate[]>`
@@ -395,7 +436,10 @@ async function collectFailedSessions(
     LIMIT ${args.batch}
   `;
   let collected = 0;
+  const visited: Candidate[] = [];
   for (const candidate of candidates) {
+    if (args.signal?.aborted === true) break;
+    visited.push(candidate);
     // Asked per row, right before the spawner call, so a successor inserted
     // after the batch was selected still holds the destroy off.
     if (!(await isSupersededIncarnation(sql, candidate))) {
@@ -413,7 +457,7 @@ async function collectFailedSessions(
     }
     if (await stampFailedSessionCollected(sql, candidate)) collected += 1;
   }
-  await stampVisited(sql, candidates, args.now);
+  await stampVisited(sql, visited, args.now);
   return collected;
 }
 

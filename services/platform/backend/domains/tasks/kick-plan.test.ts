@@ -23,6 +23,9 @@ interface RunRow {
   startedAt: number;
   brokerTokenHash: string | null;
   apiErrorStatus: number | null;
+  failureCode: string | null;
+  launchedAt: number | null;
+  settledAt: number | null;
 }
 
 /** A tagged-template stand-in for `postgres`, keyed by the table a query
@@ -68,8 +71,20 @@ function run(overrides: Partial<RunRow>): RunRow {
     startedAt: 2000,
     brokerTokenHash: null,
     apiErrorStatus: null,
+    failureCode: null,
+    launchedAt: 2100,
+    settledAt: 3000,
     ...overrides,
   };
+}
+
+/** A failed run the broker's refresh cut: a 401 on a brokered turn. */
+function rotated(overrides: Partial<RunRow>): RunRow {
+  return run({
+    failureCode: 'credential_rotated',
+    apiErrorStatus: 401,
+    ...overrides,
+  });
 }
 
 describe('resolveTaskKickStartArgs', () => {
@@ -139,6 +154,48 @@ describe('resolveTaskKickStartArgs', () => {
 
     expect(plan.predecessorExecId).toBe('exec-older');
     expect(plan.resume).toBe('conv-claude-old');
+  });
+
+  it('resumes a credential rotation on the same account pool, burning only real failures', async () => {
+    const plan = await resolveTaskKickStartArgs(
+      fakeSql({
+        liveSession: { createdAt: 1000 },
+        runs: [
+          // The retry being started.
+          run({ status: 'queued', execId: 'exec-new', agentSessionId: null }),
+          rotated({
+            execId: 'exec-rotated',
+            agentSessionId: 'conv-rotated',
+            brokerTokenHash: 'account-a',
+          }),
+          run({ execId: 'exec-crashed', brokerTokenHash: 'account-b' }),
+        ],
+      }),
+      { ...KICK, harness: 'claude-code' },
+    );
+
+    // The conversation continues, and the account whose token was refreshed
+    // under it stays in the pool; the one that crashed is stepped past.
+    expect(plan.resume).toBe('conv-rotated');
+    expect(plan.predecessorExecId).toBe('exec-rotated');
+    expect(plan.excludeBrokerTokenHashes).toEqual(['account-b']);
+  });
+
+  it('burns the account on the third rotation in a row', async () => {
+    const plan = await resolveTaskKickStartArgs(
+      fakeSql({
+        liveSession: { createdAt: 1000 },
+        runs: [
+          rotated({ execId: 'exec-3', brokerTokenHash: 'account-c' }),
+          rotated({ execId: 'exec-2', brokerTokenHash: 'account-b' }),
+          rotated({ execId: 'exec-1', brokerTokenHash: 'account-a' }),
+        ],
+      }),
+      { ...KICK, harness: 'claude-code' },
+    );
+
+    // The first two stay free; the third takes the ordinary path.
+    expect(plan.excludeBrokerTokenHashes).toEqual(['account-c']);
   });
 
   it('plans a first start with nothing to reap', async () => {

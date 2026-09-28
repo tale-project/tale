@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { CircleStop } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -47,15 +47,39 @@ export function TaskRepeatStopButton({
   const { t } = useT('tasks');
   const { task: next } = useTask(nextTaskId);
   const { stop, isPending } = useStopTaskRepeat();
-  const [stopped, setStopped] = useState(false);
+  const [stopped, setStopped] = useState<{
+    taskId: string;
+    nextTaskId: string;
+  } | null>(null);
+  const currentTaskRef = useRef<{ taskId: string; nextTaskId: string } | null>({
+    taskId,
+    nextTaskId,
+  });
+  useLayoutEffect(() => {
+    currentTaskRef.current = { taskId, nextTaskId };
+    return () => {
+      currentTaskRef.current = null;
+    };
+  }, [taskId, nextTaskId]);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  if (stopped || next?.repeat === undefined) return null;
+  if (
+    (stopped?.taskId === taskId && stopped.nextTaskId === nextTaskId) ||
+    next?.repeat === undefined
+  )
+    return null;
   const onStopped = (done: boolean) => {
-    if (!done) return;
+    // A task panel can move on while this request is pending. Its result
+    // belongs to the task that started it, never the new action or focus.
+    if (
+      !done ||
+      currentTaskRef.current?.taskId !== taskId ||
+      currentTaskRef.current.nextTaskId !== nextTaskId
+    )
+      return;
     if (returnFocusTo !== undefined && focusStranded(buttonRef.current)) {
       document.getElementById(returnFocusTo)?.focus();
     }
-    setStopped(true);
+    setStopped({ taskId, nextTaskId });
   };
   return (
     <Button

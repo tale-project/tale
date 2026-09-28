@@ -16,6 +16,7 @@ import {
 } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
 import {
+  AUTOMATION_NOT_BOUND_SENTENCE,
   AutomationError,
   automationExists,
   bindingProjectIds,
@@ -302,16 +303,18 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** The automation a task door names must exist and be deployed — the two
    * refusals every other door answers, each under its own code: a name
    * nobody saved is 404 `AUTOMATION_NOT_FOUND`, a saved one with nothing
-   * deployed is 409 `AUTOMATION_NOT_DEPLOYED`, the sentence naming it and
-   * what to do next (`deployHint`). One check behind the intake's owner and
-   * the start door: the start door used to fold both absences into a 200
-   * `not_started` after the intake had already split them (2026-09-13
-   * evaluation, E2-03). */
+   * deployed is 409 `AUTOMATION_NOT_DEPLOYED`, the sentence saying what to
+   * do next at this `door`. One check behind the intake's owner, the start
+   * door and a review's request for changes: the start door used to fold
+   * both absences into a 200 `not_started` after the intake had already
+   * split them (2026-09-13 evaluation, E2-03). Both sentences are static,
+   * like every refusal a task door relays (`domains/tasks/errors.test.ts`):
+   * the not-deployed one used to repeat the slug the caller sent. */
   const assertDeployedAutomation = async (
     sql: Sql | TransactionSql,
     organizationId: string,
     name: string,
-    deployHint: string,
+    door: 'intake' | 'start' | 'review',
   ): Promise<void> => {
     if (!(await automationExists(sql, organizationId, name))) {
       // The one wrong spelling worth a hint: the `{name}` path parameter
@@ -330,7 +333,11 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if ((await deployedVersion(sql, organizationId, name)) === undefined) {
       throw new AutomationError(
         'AUTOMATION_NOT_DEPLOYED',
-        `"${name}" has no deployed version — ${deployHint}.`,
+        door === 'intake'
+          ? 'The automation has no deployed version — deploy it before assigning tasks to it.'
+          : door === 'start'
+            ? 'The automation has no deployed version — deploy it before starting it on a task.'
+            : 'The automation has no deployed version — deploy it before requesting changes through it.',
         409,
       );
     }
@@ -350,18 +357,13 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     for (const name of names) {
       if (name === undefined) continue;
       if (name === input.automationSlug) {
-        await assertDeployedAutomation(
-          tx,
-          auth.organizationId,
-          name,
-          'deploy it before assigning tasks to it',
-        );
+        await assertDeployedAutomation(tx, auth.organizationId, name, 'intake');
       }
       const bindings = await bindingProjectIds(tx, auth.organizationId, name);
       if (bindings.length > 0 && !bindings.includes(projectId)) {
         throw new AutomationError(
           'AUTOMATION_PROJECT_FORBIDDEN',
-          'The automation is not bound to this project.',
+          AUTOMATION_NOT_BOUND_SENTENCE,
           403,
         );
       }
@@ -668,7 +670,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         deps.sql,
         auth.organizationId,
         body.workflowSlug,
-        'deploy it before starting it on a task',
+        'start',
       );
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
@@ -751,7 +753,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           deps.sql,
           auth.organizationId,
           workflowSlug,
-          'deploy it before requesting changes through it',
+          'review',
         );
       }
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
