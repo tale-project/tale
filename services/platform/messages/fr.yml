@@ -1674,6 +1674,7 @@ common:
     required: '{field} est requis'
     maxLength: '{field} ne doit pas dépasser {max} caractères'
     email: Entre une adresse email valide
+    emailLocalPart: Utilise au plus {max} caractères avant le signe @
     phone: Entre un numéro de téléphone avec des chiffres et + ( ) - uniquement
     uploadFile: Téléverse un fichier
     unsupportedFileType: Type de fichier non pris en charge

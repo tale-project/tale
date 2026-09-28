@@ -1665,6 +1665,7 @@ common:
     required: '{field} ist erforderlich'
     maxLength: '{field} darf höchstens {max} Zeichen lang sein'
     email: Gib eine gültige E-Mail-Adresse ein
+    emailLocalPart: Verwende höchstens {max} Zeichen vor dem @
     phone: Gib eine Telefonnummer nur mit Ziffern und + ( ) - ein
     uploadFile: Lade eine Datei hoch
     unsupportedFileType: Nicht unterstützter Dateityp

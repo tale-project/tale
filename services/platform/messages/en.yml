@@ -1613,6 +1613,7 @@ common:
     required: '{field} is required'
     maxLength: '{field} must be {max} characters or fewer'
     email: Enter a valid email address
+    emailLocalPart: Use at most {max} characters before the @
     phone: Enter a phone number using digits and + ( ) - only
     uploadFile: Upload a file
     unsupportedFileType: Unsupported file type
