@@ -180,7 +180,9 @@ rollups**, so figures may legitimately lag same-day activity.
   (`analytics.externalTurns.title`) and the table heading
   (`analytics.externalTurns.byHarness.title`) all say **Harness**; the **By
   harness** table names each harness slug — never `unknown` for a run that
-  started on this version; **Total turns** equals the sum of the rows'
+  started on this version, and after you switch the task agent to another
+  harness (`pi`) and run it once more, that turn adds a `pi` row instead of
+  raising the `claude-code` count; **Total turns** equals the sum of the rows'
   **Turns**, the summary **Success rate** / **Timeout rate** equal what the
   rows imply, and a turn that ended on the harness's own error or its turn
   limit counts as failed in both.

@@ -407,6 +407,7 @@ export function automationAgentHost(
           kind: 'workflow-agent',
           status: 'running',
           modelRef: `${serving.providerSlug}/${execModel}`,
+          harness,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
         },
@@ -954,6 +955,7 @@ async function mintWorkflowTurnAuth(
           kind: 'workflow-agent',
           defaultBudgetCents: workflowAgentBudgetCents(),
           modelRef: `${args.providerSlug}/${args.gatewayModel}`,
+          harness: args.harness,
         },
       ),
     );
@@ -1238,6 +1240,7 @@ export async function startWorkflowAgentTurnImpl(
           kind: 'workflow-agent',
           status: 'running',
           modelRef: `${args.providerSlug}/${args.gatewayModel}`,
+          harness: args.harness,
           deadlineMs: args.deadlineAt,
           heartbeatAt: Date.now(),
           ...(auth.mintedKeyId !== undefined
@@ -1819,6 +1822,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           kind: 'workflow-agent',
           status: 'running',
           modelRef: `${keys.providerSlug}/${keys.gatewayModel}`,
+          harness: agent.harness,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
           ...(auth.mintedKeyId !== undefined
