@@ -280,9 +280,11 @@ export function PlaceHoldDialog({
             }
             options={matterOptions}
             footer={
+              // Accent text hovers on its own tint, where the palette keeps it
+              // at 4.5:1; the dark `--accent` gray drops it below that.
               <button
                 type="button"
-                className="text-primary hover:bg-accent w-full px-3 py-2 text-left text-sm"
+                className="text-primary hover:bg-primary/10 w-full px-3 py-2 text-left text-sm"
                 onClick={() => setCreateMatterOpen(true)}
               >
                 {t('legalHold.dialogs.placeHold.matterCreateNew')}
