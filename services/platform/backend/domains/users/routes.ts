@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { MemberServiceError } from '../members/service.ts';
 import {
   computePasswordExpiry,
@@ -136,7 +137,7 @@ export function createUserRoutes(deps: {
   app.post('/notification-state/toast-shown', async (c) => {
     const body = versionSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const userId = c.get('sessionBundle').user.id;
     await transactSerializable(deps.sql, (tx) =>
@@ -148,7 +149,7 @@ export function createUserRoutes(deps: {
   app.post('/notification-state/changelog-seen', async (c) => {
     const body = versionSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const userId = c.get('sessionBundle').user.id;
     await transactSerializable(deps.sql, (tx) =>
@@ -160,7 +161,7 @@ export function createUserRoutes(deps: {
   app.post('/update-name', async (c) => {
     const body = updateNameSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const userId = c.get('sessionBundle').user.id;
     try {
@@ -182,7 +183,7 @@ export function createUserRoutes(deps: {
   app.post('/update-password', async (c) => {
     const body = updatePasswordSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const session = c.get('sessionBundle');
     try {
@@ -207,7 +208,7 @@ export function createUserRoutes(deps: {
   app.post('/members', async (c) => {
     const body = createMemberSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const session = c.get('sessionBundle');
     try {
@@ -229,7 +230,7 @@ export function createUserRoutes(deps: {
   app.post('/members/:memberId/password', async (c) => {
     const body = setMemberPasswordSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     const session = c.get('sessionBundle');
     try {

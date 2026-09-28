@@ -8,6 +8,7 @@ import { type RefObject, useEffect, useRef } from 'react';
 
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
+import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useUpdateContact } from '../hooks/mutations';
 import {
@@ -97,6 +98,8 @@ export function ContactEditDialog({
       console.error('Update error:', error);
       toast({
         title: tContacts('updateError'),
+        // A refused body names its field ("phone: …"); keep it.
+        description: backendRefusalReason(error),
         variant: 'destructive',
       });
     }

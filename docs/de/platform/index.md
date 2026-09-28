@@ -10,6 +10,10 @@ Diese Anleitungen helfen dir bei der Arbeit in Tale, in der Cloud und im eigenen
 
 Am Computer zeigt die Navigationsleiste am linken Rand die Bereiche als Symbole: **Start**, **Wissen** und **Automatisierungen**. Am unteren Ende der Leiste liegen **Einstellungen**, deine Benachrichtigungen und dein Profilmenü. Zeigst du auf ein Symbol, erscheint sein Name. Auf dem Smartphone findest du **Start**, **Wissen**, **Automatisierungen** und **Einstellungen** in der Tab-Leiste am unteren Bildschirmrand.
 
+Auf dem Smartphone schwebt die Navigation als abgerundete Leiste über der Seite. Inhalte scrollen dahinter weiter; Nachrichtenfelder und Seitenaktionen bleiben darüber erreichbar. Sobald sich die Bildschirmtastatur öffnet, wird die Leiste ausgeblendet. Schließt du die Tastatur, erscheint sie wieder.
+
+Beim Scrollen nach unten wird die Leiste kleiner, rückt etwas nach unten und zeigt nur noch die Symbole. Scrollst du nach oben, erscheinen die Leiste in voller Größe und die Beschriftungen wieder. Alle Bereiche bleiben in beiden Größen erreichbar.
+
 Ein Bereich öffnet immer seine eigene erste Seite – egal, was du dort zuletzt getan hast. Dieselbe Auswahl führt dich also jedes Mal an dieselbe Stelle. Ein Beispiel: Öffne in einer Automatisierung den Tab **Läufe**, wechsle zu **Start** und wähle dann **Automatisierungen**. Du landest in der Liste der Automatisierungen, nicht auf dem Tab, den du verlassen hast. Am Computer macht nur **Start** dort weiter, wo du aufgehört hast, und öffnet den Chat, den du zuletzt gelesen hast – oder einen neuen Chat, falls es noch keinen gibt. Wählst du **Start** erneut, während du schon dort bist, beginnt ein neuer Chat. Dasselbe erreichst du mit **⌥⌘N** auf dem Mac oder **Alt+Ctrl+N** unter Windows und Linux.
 
 Die **Einstellungen** führen ihre Seiten in einer Seitenleiste neben der Seite auf, und die Kopfzeile nennt die geöffnete Seite; auf dem Smartphone beginnen sie mit einer Liste ihrer Seiten. **Wissen** zeigt seine Seiten als Tabs unter der Kopfzeile.

@@ -3,10 +3,12 @@
 import { type LucideIcon } from 'lucide-react';
 import { forwardRef, type ReactNode } from 'react';
 
+import { useSlidingIndicator } from '../../hooks/use-sliding-indicator';
 import { cn } from '../../lib/cn';
 import { COUNT_BADGE_CLASS, CountBadge } from '../feedback/count-badge';
 import { SkeletonBox, SkeletonCircle } from '../feedback/skeleton';
 import { Skeletonize } from '../feedback/skeleton-context';
+import { Card } from '../layout/card';
 
 export interface BottomTabBarItem {
   /** Stable identifier for the item — used as the React key. */
@@ -45,59 +47,69 @@ export interface BottomTabBarProps extends Omit<
   React.HTMLAttributes<HTMLElement>,
   'children'
 > {
+  /** Icon-only, narrower presentation; touch targets remain at least 44px. */
+  compact?: boolean;
   items: BottomTabBarItem[];
   /** Accessible label for the navigation landmark. */
   ariaLabel: string;
 }
 
-// The bar's geometry, shared by the live bar and its placeholder so the
-// stand-in a loading shell renders has the bar's exact height by
-// construction: a top border, then per tab the padding, a 28px icon pill, the
-// gap and one label line.
-//
-// The label keeps to one line and gets all of the tab's width: no side
-// padding, and tight tracking, so the longest section names — German's
-// "Automatisierungen", French's "Automatisations" — read whole on a 360px
-// phone (and French on a 320px one) instead of ending in an ellipsis. Text
-// renders about a pixel wider on Linux (Android) than on a Mac, so the
-// margin is kept to a few pixels, not one.
-const BAR_FRAME_CLASS =
-  'border-border flex border-t pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left) md:hidden';
+// One capsule geometry for the live bar and the pre-hydration placeholder.
+const BAR_FRAME_CLASS = 'mobile-tab-bar md:hidden';
 const TAB_CLASS =
-  'relative flex min-h-12 min-w-0 flex-1 basis-0 flex-col items-center justify-start gap-0.5 pt-2 pb-1.5';
+  'relative z-10 flex min-h-11 min-w-11 flex-auto flex-col items-center justify-center gap-0.5 rounded-full px-0.5';
 const PILL_CLASS =
-  'relative inline-flex h-7 min-w-12 items-center justify-center rounded-full px-3';
+  'relative inline-flex h-7 min-w-8 items-center justify-center rounded-full';
 const LABEL_CLASS =
-  'w-full truncate text-center text-[10px] leading-tight tracking-tight';
+  'max-w-full truncate text-center text-[11px] leading-tight tracking-tight';
 
 /**
- * In-flow bottom tab bar primitive. Renders 2-5 items as a row of equally-sized
- * touch targets (44×44 min). Honors `env(safe-area-inset-bottom)` (via the
- * `--safe-bottom` token) so the buttons clear the iOS home-indicator gesture
- * zone. Designed to be the last child of a flex-column app shell sized to the
- * viewport (`h-full` / `h-dvh`). Hidden on `md+` viewports — desktop uses a
- * sidebar.
- *
- * The bar has no router knowledge: callers pass `onSelect` per item and wire
- * navigation themselves (e.g. via `useNavigate()`).
+ * Floating mobile navigation. Place in a positioned viewport-height shell;
+ * content owns end clearance through the shared mobile-navigation variables.
+ * Labels determine each tab's minimum useful width before surplus is shared.
+ * Hidden on md+; routing and permissions remain the caller's responsibility.
  */
 export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
-  ({ items, ariaLabel, className, ...props }, ref) => (
-    <nav
-      ref={ref}
-      aria-label={ariaLabel}
-      className={cn(
-        BAR_FRAME_CLASS,
-        'bg-background/95 shadow-[0_-1px_2px_rgba(0,0,0,0.04)] backdrop-blur-md',
-        className,
-      )}
-      {...props}
-    >
-      {items.map((item) => (
-        <BottomTabBarButton key={item.key} item={item} />
-      ))}
-    </nav>
-  ),
+  ({ items, ariaLabel, compact = false, className, ...props }, ref) => {
+    const active = items.find((item) => item.active);
+    const { containerRef, ...indicator } = useSlidingIndicator<HTMLDivElement>(
+      active?.key ?? null,
+      items,
+    );
+    return (
+      <Card asChild padding="none" className={cn(BAR_FRAME_CLASS, className)}>
+        <nav
+          data-compact={compact || undefined}
+          ref={ref}
+          aria-label={ariaLabel}
+          {...props}
+        >
+          <div ref={containerRef} className="relative flex h-full w-full">
+            <span
+              aria-hidden
+              className={cn(
+                'bg-muted pointer-events-none absolute top-0 left-0 rounded-full',
+                indicator.transitionClassName,
+              )}
+              style={{
+                ...indicator.style,
+                ...(active?.accentColor
+                  ? { backgroundColor: `${active.accentColor}1f` }
+                  : {}),
+              }}
+            />
+            {items.map((item) => (
+              <BottomTabBarButton
+                key={item.key}
+                item={item}
+                compact={compact}
+              />
+            ))}
+          </div>
+        </nav>
+      </Card>
+    );
+  },
 );
 BottomTabBar.displayName = 'BottomTabBar';
 
@@ -121,11 +133,12 @@ export function BottomTabBarPlaceholder({
   className,
 }: BottomTabBarPlaceholderProps) {
   return (
-    <div
+    <Card
       aria-hidden="true"
-      className={cn(BAR_FRAME_CLASS, 'bg-background', className)}
+      padding="none"
+      className={cn(BAR_FRAME_CLASS, className)}
     >
-      <Skeletonize loading className="flex w-full">
+      <Skeletonize loading className="flex h-full w-full">
         {Array.from({ length: tabs }, (_, index) => (
           // eslint-disable-next-line react/no-array-index-key -- a fixed row of identical masks
           <div key={index} className={TAB_CLASS}>
@@ -140,17 +153,18 @@ export function BottomTabBarPlaceholder({
           </div>
         ))}
       </Skeletonize>
-    </div>
+    </Card>
   );
 }
 
 interface BottomTabBarButtonProps {
   item: BottomTabBarItem;
+  compact: boolean;
 }
 
-function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
+function BottomTabBarButton({ item, compact }: BottomTabBarButtonProps) {
   const Icon = item.icon;
-  const showPill = item.active || item.featured;
+  const showPill = item.featured && !item.active;
   const activeStyle =
     item.active && item.accentColor ? { color: item.accentColor } : undefined;
   const pillStyle =
@@ -160,6 +174,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
   return (
     <button
       type="button"
+      data-indicator-key={item.key}
       onClick={item.onSelect}
       aria-current={item.active ? 'page' : undefined}
       className={cn(
@@ -211,7 +226,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
           </>
         )}
       </span>
-      <span className={LABEL_CLASS}>{item.label}</span>
+      <span className={compact ? 'sr-only' : LABEL_CLASS}>{item.label}</span>
     </button>
   );
 }

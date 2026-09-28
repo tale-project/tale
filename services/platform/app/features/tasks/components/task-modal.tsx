@@ -175,9 +175,11 @@ export function TaskModal({
   showProjectLink?: boolean;
 }) {
   const { t } = useT('tasks');
+  const contentRef = useRef<HTMLDivElement>(null);
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent
+        ref={contentRef}
         className={cn(
           'max-w-3xl',
           // Edit mode: pin the dialog height so it never jumps as comments /
@@ -185,9 +187,17 @@ export function TaskModal({
           taskId && 'flex h-[85dvh] flex-col overflow-hidden',
         )}
         // Edit mode: Radix would focus (and text-select) the first tabbable —
-        // the inline-editable title. Keep focus on the dialog instead; create
-        // mode keeps its intentional title autofocus.
-        onOpenAutoFocus={taskId ? (e) => e.preventDefault() : undefined}
+        // the inline-editable title. Focus the dialog explicitly: cancelling
+        // alone also skips Radix's container fallback and leaves the opener
+        // focused behind the overlay. Create mode keeps its title autofocus.
+        onOpenAutoFocus={
+          taskId
+            ? (event) => {
+                event.preventDefault();
+                contentRef.current?.focus({ preventScroll: true });
+              }
+            : undefined
+        }
       >
         <ResponsiveDialogDescription className="sr-only">
           {t('detail.overview')}

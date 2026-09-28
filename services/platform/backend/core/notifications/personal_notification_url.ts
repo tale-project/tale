@@ -85,6 +85,12 @@ export function buildPersonalNotificationUrl(args: {
   if (args.params?.budgets === true) {
     return `${base}/dashboard/${args.organizationId}/settings/governance/policies-limits`;
   }
+  // A paused schedule opens its automation's General tab — parity with
+  // `personalNotificationTarget`.
+  if (args.params?.trigger === true && typeof args.params.name === 'string') {
+    const slug = encodeURIComponent(automationSlugToParam(args.params.name));
+    return `${base}/dashboard/${args.organizationId}/automations/${slug}/general`;
+  }
   if (args.taskId && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${encodeURIComponent(projectId)}/tasks?task=${encodeURIComponent(args.taskId)}`;
   }

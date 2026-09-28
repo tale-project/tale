@@ -845,3 +845,113 @@ input[type='text']:-webkit-autofill {
 .react-flow__panel.-translate-x-1\/2\! {
   transform: translateX(-50%);
 }
+
+/* The mobile dock is an overlay. Scroll content consumes its clearance once;
+   nested content frames and dialogs must not reserve another copy of it. */
+@layer base {
+  :root {
+    --mobile-nav-height: 3.75rem;
+    --mobile-nav-bottom: calc(0.5rem + var(--safe-bottom));
+    --mobile-nav-clearance: 0px;
+    --mobile-keyboard-inset: 0px;
+    --mobile-nav-content-pad: var(--mobile-nav-clearance);
+  }
+
+  @media (width < 48rem) {
+    :root.boot-safari-toolbar {
+      --mobile-nav-bottom: calc(0.5rem + max(var(--safe-bottom), 3rem));
+    }
+
+    :root:has(.mobile-nav-shell):not([data-mobile-keyboard]) {
+      --mobile-nav-clearance: calc(
+        var(--mobile-nav-height) + var(--mobile-nav-bottom) + 0.5rem
+      );
+    }
+  }
+
+  .mobile-nav-clearance > *,
+  [role='dialog'],
+  [role='alertdialog'] {
+    --mobile-nav-content-pad: 0px;
+  }
+}
+
+@layer utilities {
+  .mobile-nav-shell {
+    position: relative;
+  }
+
+  .mobile-tab-bar.mobile-tab-bar {
+    position: absolute;
+    z-index: 30;
+    right: calc(0.75rem + var(--safe-right));
+    bottom: var(--mobile-nav-bottom);
+    left: calc(0.75rem + var(--safe-left));
+    width: auto;
+    max-width: 30rem;
+    height: var(--mobile-nav-height);
+    margin-inline: auto;
+    padding: 0.1875rem;
+    transition:
+      height 220ms ease-out,
+      max-width 220ms ease-out,
+      bottom 220ms ease-out;
+    border-radius: 9999px;
+    background: var(--color-background);
+    box-shadow: 0 4px 20px
+      color-mix(in srgb, var(--color-foreground) 12%, transparent);
+  }
+
+  .mobile-tab-bar.mobile-tab-bar[data-compact] {
+    height: 3.25rem;
+    max-width: 17.5rem;
+    bottom: calc(var(--mobile-nav-bottom) - 0.25rem);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-tab-bar.mobile-tab-bar {
+      transition: none;
+    }
+  }
+
+  @supports (backdrop-filter: blur(16px)) {
+    .mobile-tab-bar.mobile-tab-bar {
+      background: color-mix(in srgb, var(--color-background) 90%, transparent);
+      backdrop-filter: blur(16px);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce),
+    (prefers-contrast: more),
+    (forced-colors: active) {
+    .mobile-tab-bar.mobile-tab-bar {
+      background: var(--color-background);
+      backdrop-filter: none;
+    }
+  }
+
+  .mobile-nav-inset {
+    padding-bottom: var(--mobile-nav-content-pad, 0px);
+  }
+
+  .mobile-nav-scroll {
+    scroll-padding-bottom: var(--mobile-nav-content-pad, 0px);
+  }
+
+  @media (width < 48rem) {
+    :root[data-mobile-keyboard] {
+      --mobile-keyboard-inset: max(
+        0px,
+        calc(100dvh - var(--mobile-visual-height))
+      );
+    }
+
+    [data-mobile-keyboard] .mobile-tab-bar {
+      display: none;
+    }
+
+    [data-mobile-keyboard] .mobile-nav-shell {
+      height: var(--mobile-visual-height);
+    }
+  }
+}

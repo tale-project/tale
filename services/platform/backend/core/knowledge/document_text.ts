@@ -32,7 +32,7 @@
  * already passes (`filterRetrievableRagFileIds`): a project file inside the
  * caller's project scope, a hub file under its team rules, a thread upload
  * inside its own thread, an emailed attachment inside the conversation the
- * caller may read — nothing wider.
+ * caller may read and only for a door that asked for mail — nothing wider.
  */
 
 import { isMessageRef } from '../../../lib/knowledge/message-ref';
@@ -103,8 +103,12 @@ export type DocumentTextRead =
       readonly status: 'ok';
       readonly text: string;
       readonly filename: string | null;
-      /** The conversation an emailed attachment arrived on — the caller
-       * wraps such text as untrusted. Null for everything else. */
+      /** The conversation an emailed attachment or an email body arrived
+       * on, as its corpus row is stamped — the caller wraps such text as
+       * untrusted. Null for everything else, and for an attachment the
+       * stamp has not reached or one read on demand: a door that serves mail
+       * confirms provenance from the file rows
+       * (`lookupMailAttachmentConversations`). */
       readonly conversationId: string | null;
       readonly source: 'corpus' | 'inline' | 'file';
     }

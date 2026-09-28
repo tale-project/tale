@@ -433,7 +433,10 @@ export function ComposeEmailPane({
 
   return (
     <>
-      <Stack gap={0} className="relative min-h-0 flex-1">
+      <Stack
+        gap={0}
+        className="mobile-nav-clearance mobile-nav-inset relative min-h-0 flex-1"
+      >
         <Stack gap={0} className="min-h-0 flex-1 overflow-y-auto">
           <div className="border-border bg-background sticky top-0 z-20 border-b p-4 sm:px-6 sm:py-4">
             <Row justify="between" align="center" gap={2}>

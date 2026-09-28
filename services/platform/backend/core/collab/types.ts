@@ -37,11 +37,13 @@ export type NotificationType =
   // question (`collab/notify_agent_asks.ts`), or a root escalation / circuit
   // breaker. Actionable.
   | 'agent_escalation'
-  // RETIRED with the 0.4 emitters that never made the port: the
-  // `automation_alerts` group (automation_failed / budget_alert /
-  // runtime_offline). Their preference column stays deprecated in
-  // `app.notification_preferences`; a revived producer re-adds the literal
-  // and the PREF_FIELD row together.
+  // A schedule was paused because its runs kept failing for a reason the
+  // next occurrence would repeat (`automations/trigger-failures.ts`): one
+  // row per owner and admin, who fix the automation and turn the trigger
+  // back on. Gated by the `automation_alerts` preference; the rest of the
+  // 0.4 group (budget_alert / runtime_offline) never made the port.
+  // Actionable.
+  | 'automation_failed'
   // RETIRED — no emitter writes this type anymore (the digest automation was
   // removed). The literal stays so stored rows keep typing; drop it once the
   // stored rows are gone.

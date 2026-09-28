@@ -41,12 +41,7 @@ import {
  * that meets a full org parks on its own ledger row
  * (`project_agent_runs.waiting_for_capacity_at_ms`, tasks/agent-runs.ts)
  * and is woken on the release edges here (`releaseProjectAgentSessionSlot`,
- * `markSessionDestroyed`) and by the task-agent watchdog. The 0.4 FIFO
- * admission-ticket lane (`app.sandbox_admission_tickets`) and the
- * workflow re-attach checkpoints (`app.sandbox_agent_checkpoints`) were
- * never wired into a 0.5 caller; nothing reads or writes either table any
- * more, and both are dropped in a later release once no serving image
- * touches them (rolling-deploy doctrine — see the create-migration skill).
+ * `markSessionDestroyed`) and by the task-agent watchdog.
  *
  * The pure policy pieces (`sessionBudgetForOwnerType`, `sessionCapFor`,
  * the status vocabulary, the caps) are REUSED from the 0.4 modules so the

@@ -75,6 +75,19 @@ async function openEventStream(origin: string): Promise<Response> {
   return res;
 }
 
+function consumeResponseBody(
+  response: Response,
+): Promise<'ended' | 'interrupted'> {
+  // Keep the client reading until shutdown. An unread, unretained response
+  // can be garbage-collected: fetch then cancels its body and closes the
+  // connection before the server's force deadline. Observe both outcomes
+  // immediately so an interrupted stream never leaks an unhandled rejection.
+  return response.text().then(
+    () => 'ended',
+    () => 'interrupted',
+  );
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -93,7 +106,7 @@ afterEach(async () => {
 describe('closeServerGracefully', () => {
   it('a bare server.close() parks while an /events stream is open', async () => {
     const { server, origin } = await startServer();
-    await openEventStream(origin);
+    const body = consumeResponseBody(await openEventStream(origin));
 
     let closed = false;
     const closePromise = new Promise<void>((resolve) => {
@@ -114,11 +127,12 @@ describe('closeServerGracefully', () => {
     if ('closeIdleConnections' in server) server.closeIdleConnections();
     await closePromise;
     expect(closed).toBe(true);
+    expect(await body).toBe('ended');
   });
 
   it('resolves with an open /events client, via the graceful path', async () => {
     const { server, origin } = await startServer();
-    const res = await openEventStream(origin);
+    const body = consumeResponseBody(await openEventStream(origin));
 
     const startedAt = Date.now();
     await closeServerGracefully(server, { forceAfterMs: 4_000 });
@@ -126,23 +140,18 @@ describe('closeServerGracefully', () => {
     expect(Date.now() - startedAt).toBeLessThan(3_000);
 
     // The client observes its stream ending rather than hanging forever.
-    const reader = res.body?.getReader();
-    if (reader) {
-      await expect(
-        Promise.race([reader.read(), sleep(2_000).then(() => 'timeout')]),
-      ).resolves.not.toBe('timeout');
-    }
+    expect(await body).toBe('ended');
   });
 
   it('force-closes connections the registry cannot see at the deadline', async () => {
     const { server, origin } = await startServer();
-    const hang = fetch(`${origin}/hang`);
-    await hang; // headers received — the response body never ends
+    const body = consumeResponseBody(await fetch(`${origin}/hang`));
 
     const startedAt = Date.now();
     await closeServerGracefully(server, { forceAfterMs: 300 });
     const elapsed = Date.now() - startedAt;
     expect(elapsed).toBeGreaterThanOrEqual(280);
     expect(elapsed).toBeLessThan(3_000);
+    expect(await body).toBe('interrupted');
   });
 });

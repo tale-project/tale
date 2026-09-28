@@ -7,8 +7,14 @@
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/.env.example",
+        "$TURBO_ROOT$/compose.yml",
+        "$TURBO_ROOT$/compose.dev.yml",
+        "$TURBO_ROOT$/configs/platform/**",
         "$TURBO_ROOT$/knip.config.ts",
-        "$TURBO_ROOT$/services/db/init-scripts/*.sql"
+        "$TURBO_ROOT$/scripts/ensure-sandbox-runtime-image.ts",
+        "$TURBO_ROOT$/services/db/init-scripts/*.sql",
+        "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
+        "$TURBO_ROOT$/services/sandbox/src/config.ts"
       ]
     }
   }

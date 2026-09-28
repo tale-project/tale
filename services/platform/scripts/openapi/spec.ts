@@ -34,7 +34,11 @@ import {
 // ── Small builders ───────────────────────────────────────────────────────────
 import { z } from 'zod';
 
-import { RUN_FAILURE_CODES } from '../../backend/core/automations/failure.ts';
+import {
+  PERMANENT_FAILURE_CODES,
+  PERMANENT_FAILURES_BEFORE_PAUSE,
+  RUN_FAILURE_CODES,
+} from '../../backend/core/automations/failure.ts';
 import { RAG_ERROR_CODES } from '../../backend/core/knowledge/rag_error_codes.ts';
 import {
   CONTENT_MAX_LENGTH,
@@ -61,17 +65,6 @@ import {
   MAX_SESSION_TTL_MS,
 } from '../../backend/domains/browser_sessions/service.ts';
 import {
-  CONTACT_EMAIL_LOCAL_PART_MAX,
-  CONTACT_EMAIL_MAX,
-  CONTACT_EXTERNAL_ID_MAX,
-  CONTACT_LOCALE_MAX,
-  CONTACT_NAME_MAX,
-  CONTACT_NOTES_MAX,
-  CONTACT_PHONE_MAX,
-  CONTACT_TAG_MAX,
-  CONTACT_TAGS_MAX,
-} from '../../backend/domains/contacts/input-schema.ts';
-import {
   PRODUCT_EXTERNAL_ID_MAX,
   PRODUCT_TAG_MAX,
   PRODUCT_TAGS_MAX,
@@ -91,7 +84,18 @@ import {
   apiSnapshotSchema,
 } from '../../lib/shared/conversations/api-sync.ts';
 import { EMITTED_EVENT_TYPES } from '../../lib/shared/event-types.ts';
-import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
+import {
+  CONTACT_EMAIL_LOCAL_PART_MAX,
+  CONTACT_EMAIL_MAX,
+  CONTACT_EXTERNAL_ID_MAX,
+  CONTACT_LOCALE_MAX,
+  CONTACT_NAME_MAX,
+  CONTACT_NOTES_MAX,
+  CONTACT_PHONE_MAX,
+  CONTACT_TAG_MAX,
+  CONTACT_TAGS_MAX,
+  dataSourceSchema,
+} from '../../lib/shared/schemas/common.ts';
 import { FREE_FORM_JSON_BOUNDS } from '../../lib/shared/utils/json-bounds.ts';
 
 export type Json = Record<string, unknown>;
@@ -521,19 +525,64 @@ const triggerHealthProperties: Json = {
     description:
       'The last time the binding came due (a schedule occurrence, an event, ' +
       'a webhook delivery) and started nothing — `lastSkipReason` says why; ' +
-      'null until it has.',
+      'null until it has. With `paused_after_failures`, the moment the ' +
+      'schedule paused itself.',
   },
   lastSkipReason: {
     ...nullable({
       type: 'string',
-      enum: ['not_deployed', 'unusable_cron', 'start_refused'],
+      enum: [
+        'not_deployed',
+        'unusable_cron',
+        'start_refused',
+        'paused_after_failures',
+      ],
     }),
     description:
       '`not_deployed`: the automation had no deployed version to run — ' +
       'deploy one. `unusable_cron`: the schedule’s expression or time zone ' +
       'could not be read; the scheduler leaves the binding alone until it ' +
       'is edited. `start_refused`: the deployed version’s `inputs` schema ' +
-      'refused the run’s input (`{trigger, firedAt}` for a schedule).',
+      'refused the run’s input (`{trigger, firedAt}` for a schedule). ' +
+      '`paused_after_failures`: the schedule turned itself off ' +
+      `(\`enabled: false\`) after ${PERMANENT_FAILURES_BEFORE_PAUSE} runs ` +
+      'in a row failed for a reason the next occurrence would repeat — fix the ' +
+      'automation, then save the trigger with `enabled: true`. Saving the ' +
+      'trigger clears this reason, whatever `enabled` it sets.',
+  },
+};
+
+/** A trigger's failure streak (0124) — read on `Trigger` only. */
+const triggerFailureProperties: Json = {
+  consecutiveFailures: {
+    type: 'integer',
+    minimum: 0,
+    description:
+      'Runs in a row this binding started that failed for a reason the ' +
+      'next occurrence would repeat — a `failureCode` of ' +
+      `${PERMANENT_FAILURE_CODES.map((code) => `\`${code}\``).join(', ')}. ` +
+      'A success sets it back to 0, and so does saving the trigger; any ' +
+      'other failure neither counts nor breaks the streak. A schedule ' +
+      `pauses itself when it reaches ${PERMANENT_FAILURES_BEFORE_PAUSE} ` +
+      '(`lastSkipReason: "paused_after_failures"`); webhook and event ' +
+      'bindings keep counting and are never paused.',
+  },
+  lastFailedAt: {
+    ...nullable(epochMs),
+    description:
+      'When the last run counted in the streak finished; null until one ' +
+      'has. Kept after the streak resets; cleared by a rebind to another ' +
+      'kind.',
+  },
+  lastFailureCode: {
+    ...nullable({ type: 'string', enum: [...PERMANENT_FAILURE_CODES] }),
+    description: 'That run’s `failureCode`.',
+  },
+  lastFailedRunId: {
+    ...nullable(str),
+    description:
+      'That run — `GET …/runs/{runId}` has its failure sentence; null once ' +
+      'the run is deleted.',
   },
 };
 
@@ -8474,7 +8523,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             'the last time it came due and started nothing. A binding is ' +
             'alive when `lastFiredAt` keeps pace with its cadence; one whose ' +
             '`lastSkippedAt` is the newer stamp is coming due and not running ' +
-            '— the reason says what to fix.',
+            '— the reason says what to fix. `consecutiveFailures` counts the ' +
+            'runs it started that failed in a row, and `lastFailedAt`, ' +
+            '`lastFailureCode` and `lastFailedRunId` name the last of them — ' +
+            'a schedule that reaches the threshold pauses itself.',
           required: [
             'id',
             'name',
@@ -8485,6 +8537,10 @@ curl -H "Authorization: Bearer <api-key>" \\
             'lastRunId',
             'lastSkippedAt',
             'lastSkipReason',
+            'consecutiveFailures',
+            'lastFailedAt',
+            'lastFailureCode',
+            'lastFailedRunId',
           ],
           properties: {
             id: {
@@ -8509,6 +8565,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'once that run is deleted.',
             },
             ...triggerHealthProperties,
+            ...triggerFailureProperties,
           },
         },
         RunSummary: {
