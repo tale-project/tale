@@ -123,7 +123,7 @@ async function verifyProvisionedAccounts(
  * schema: a later release that reshapes a table and updates that helper
  * would run the new SQL on the old table. `db/data-migrations.test.ts` walks
  * every data migration's imports and fails on a module outside its list of
- * pure rules.
+ * pure rules, or a package outside its list of pure packages.
  */
 export interface DataMigration {
   migrate(tx: postgres.TransactionSql): Promise<void>;
