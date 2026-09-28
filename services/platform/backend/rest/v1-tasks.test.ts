@@ -573,9 +573,10 @@ describe('project-scoped task intake', () => {
   /**
    * The owner's two absences are two refusals: a name nobody saved is a
    * 404 `AUTOMATION_NOT_FOUND`; a saved automation with nothing deployed is
-   * a 409 `AUTOMATION_NOT_DEPLOYED`, naming it — one code, one status, as on
-   * the run doors. The door used to answer both as a 404 whose sentence
-   * said "not deployed" (2026-09-12 evaluation, S3-4c).
+   * a 409 `AUTOMATION_NOT_DEPLOYED` whose sentence repeats no slug — one
+   * code, one status, as on the run doors. The door used to answer both as
+   * a 404 whose sentence said "not deployed" (2026-09-12 evaluation,
+   * S3-4c), and later named the slug the caller sent (TALE-75).
    */
   it('refuses an owner nobody saved with 404 AUTOMATION_NOT_FOUND before creating an orphan assignment', async () => {
     const { request } = mount({ exists: false, boundProjectIds: [] });
@@ -591,7 +592,7 @@ describe('project-scoped task intake', () => {
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 
-  it('refuses a saved but undeployed owner with 409 AUTOMATION_NOT_DEPLOYED, naming it', async () => {
+  it('refuses a saved but undeployed owner with 409 AUTOMATION_NOT_DEPLOYED, not repeating its name', async () => {
     const { request } = mount({ deployed: false, boundProjectIds: [] });
     const res = await request(collection, 'POST', {
       ...input,
@@ -600,7 +601,7 @@ describe('project-scoped task intake', () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error:
-        '"parked" has no deployed version — deploy it before assigning tasks to it.',
+        'The automation has no deployed version — deploy it before assigning tasks to it.',
       code: 'AUTOMATION_NOT_DEPLOYED',
     });
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
@@ -1023,7 +1024,7 @@ describe('project-scoped task reads and operations', () => {
     expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
   });
 
-  it('refuses a saved but undeployed workflow with 409 AUTOMATION_NOT_DEPLOYED, naming it', async () => {
+  it('refuses a saved but undeployed workflow with 409 AUTOMATION_NOT_DEPLOYED, not repeating its name', async () => {
     const { request, queries } = mount({ deployed: false });
     const res = await request(`${item}/start`, 'POST', {
       workflowSlug: 'parked',
@@ -1031,7 +1032,7 @@ describe('project-scoped task reads and operations', () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error:
-        '"parked" has no deployed version — deploy it before starting it on a task.',
+        'The automation has no deployed version — deploy it before starting it on a task.',
       code: 'AUTOMATION_NOT_DEPLOYED',
     });
     expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();

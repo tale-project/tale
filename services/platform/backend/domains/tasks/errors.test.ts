@@ -17,8 +17,10 @@ import { describe, expect, it } from 'vitest';
  *
  * This guard reads every `new TaskError(…)` and `new TaskReviewError(…)` in
  * the backend, and every `new ProjectError(…)` and `new AutomationError(…)`
- * a task door can relay: the task domain's own, and those of each projects-
- * or automations-domain function a task door reaches
+ * a task door can relay: those every door's own file builds ({@link
+ * TASK_DOORS} — the task domain, the REST task door, the natives' store, the
+ * write shim, the intake folder), and those of each projects- or
+ * automations-domain function a task door reaches
  * ({@link domainFunctionsReached}) — the app door's `handleError` relays
  * every `ProjectError` and `AutomationError` beside `TaskError` word for
  * word, as REST's envelope and a workflow's trace carry them. It admits a
@@ -168,10 +170,22 @@ function domainFunctionsReached(
   return reached;
 }
 
-/** `<file> <code> <piece>` for every non-literal piece of a refusal's
- * message — a template's interpolations, or the whole expression when the
- * message is not a template at all. */
-function interpolatedPieces(): string[] {
+/** Whether an expression is prose alone: a literal, or a choice between
+ * literals — the condition picks a sentence and never reaches the text. */
+function isStaticText(node: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(node)) return isStaticText(node.expression);
+  if (ts.isConditionalExpression(node)) {
+    return isStaticText(node.whenTrue) && isStaticText(node.whenFalse);
+  }
+  return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node);
+}
+
+/** What the guard reads: `<file> <code>` for every refusal it judges
+ * (`judged`), and `<file> <code> <piece>` for every non-literal piece of
+ * one's message (`pieces`) — a template's interpolations, or the whole
+ * expression when the message is not a template or a choice of literals. */
+function scanRefusals(): { judged: string[]; pieces: string[] } {
+  const judged: string[] = [];
   const pieces: string[] = [];
   const files = sourceFiles(BACKEND);
   const reachedBy: Record<string, Map<string, Set<string>>> = {
@@ -188,10 +202,14 @@ function interpolatedPieces(): string[] {
       continue;
     }
     const relative = backendPath(file);
-    const inTasks = relative.startsWith('domains/tasks/');
+    // A door's own file relays every refusal it builds: the task domain,
+    // and the REST task door, the natives' store, the write shim and the
+    // intake folder, whose `AutomationError`s went unread while only
+    // `domains/tasks/` counted (TALE-75 review).
+    const inDoor = TASK_DOORS.some((door) => relative.startsWith(door));
     /** Whether a door relays this `ProjectError` / `AutomationError`. */
     const relayed = (node: ts.Node, error: string): boolean =>
-      inTasks ||
+      inDoor ||
       reachedBy[error]?.get(relative)?.has(topLevelName(node) ?? '') === true;
     const tree = ts.createSourceFile(
       file,
@@ -210,13 +228,12 @@ function interpolatedPieces(): string[] {
             relayed(node, node.expression.text)))
       ) {
         const [code, message] = node.arguments ?? [];
-        if (
-          message !== undefined &&
-          !ts.isStringLiteral(message) &&
-          !ts.isNoSubstitutionTemplateLiteral(message)
-        ) {
+        judged.push(`${relative} ${code?.getText(tree) ?? '?'}`);
+        if (message !== undefined && !isStaticText(message)) {
           const parts = ts.isTemplateExpression(message)
-            ? message.templateSpans.map((span) => span.expression)
+            ? message.templateSpans
+                .map((span) => span.expression)
+                .filter((part) => !isStaticText(part))
             : [message];
           for (const part of parts) {
             pieces.push(
@@ -229,7 +246,7 @@ function interpolatedPieces(): string[] {
     };
     visit(tree);
   }
-  return pieces.sort();
+  return { judged: judged.sort(), pieces: pieces.sort() };
 }
 
 /** Every non-literal piece a task refusal may carry, and why it may. */
@@ -299,9 +316,22 @@ describe('task refusal sentences', () => {
     );
   });
 
+  it("read every refusal a door's own file builds", () => {
+    // The REST task door's not-deployed sentence repeated the slug the
+    // caller sent while only `domains/tasks/` was read (TALE-75 review):
+    // each door file's `AutomationError`s and `ProjectError`s are judged.
+    expect(scanRefusals().judged).toEqual(
+      expect.arrayContaining([
+        "rest/v1-tasks.ts 'AUTOMATION_NOT_DEPLOYED'",
+        "rest/v1-tasks.ts 'AUTOMATION_NOT_FOUND'",
+        "rest/v1-tasks.ts 'AUTOMATION_PROJECT_FORBIDDEN'",
+      ]),
+    );
+  });
+
   it('carry no value beyond the shared limit sentences and constants', () => {
     expect(
-      interpolatedPieces(),
+      scanRefusals().pieces,
       'A task refusal interpolates something new. Its sentence reaches the ' +
         'app, REST and the agent tool result: make it static (put a value ' +
         'the caller needs in the error `data`, which the agent door never ' +
