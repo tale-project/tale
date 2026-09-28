@@ -54320,9 +54320,6 @@ async function checkOrganizationLifecycle(
       afterSameSlug[0].slug === slugA,
     `status=${sameSlug.status} name=${afterSameSlug[0]?.name ?? ''} slug=${afterSameSlug[0]?.slug ?? 'MISSING'}`,
   );
-  // The deletion door compares the typed confirmation with the name the
-  // organization carries NOW, so every deletion below types the name the
-  // update above left — the one it had before is refused as a mismatch.
 
   // Better Auth's own delete would bypass every guard above — it is closed.
   const pluginDelete = await post(
