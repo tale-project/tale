@@ -202,16 +202,29 @@ describe('policies-limits loader', () => {
     );
   });
 
-  // No role to go on: a lapsed session (401) or a caller who is no member
-  // of the organization at all (403 ORG_FORBIDDEN). The admin-only reads are
-  // skipped, and the transition is never failed for it.
+  // No role to go on: a lapsed session (the session door's 401) or a caller
+  // who is no member of the organization at all (403 ORG_FORBIDDEN). The
+  // admin-only reads are skipped, and neither is a preload failure worth the
+  // route's warning: the page's own reads meet the same answer.
   it.each([
-    ['a lapsed session', json({ error: 'UNAUTHORIZED' }, 401)],
+    [
+      'a lapsed session',
+      json(
+        {
+          error:
+            'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
+          code: 'UNAUTHORIZED',
+        },
+        401,
+      ),
+    ],
     ['no membership', json({ error: 'ORG_FORBIDDEN' }, 403)],
   ])(
     'asks for no admin-only policy when the member context reads %s',
     async (_label, memberMe) => {
-      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
       const backend = stubBackend('member', memberMe);
 
       await expect(runLoader(new QueryClient())).resolves.toBeUndefined();
@@ -219,6 +232,27 @@ describe('policies-limits loader', () => {
       expect(backend.policyReads.filter((t) => ADMIN_ONLY.includes(t))).toEqual(
         [],
       );
+      expect(warn).not.toHaveBeenCalled();
     },
   );
+
+  // Any other refusal of the member-context read is worth a diagnostic: the
+  // admin-only reads are still skipped, and the route logs why.
+  it('skips the admin-only policies and warns on any other member-context refusal', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const backend = stubBackend(
+      'member',
+      json({ error: 'RBAC_FORBIDDEN' }, 403),
+    );
+
+    await expect(runLoader(new QueryClient())).resolves.toBeUndefined();
+
+    expect(backend.policyReads.filter((t) => ADMIN_ONLY.includes(t))).toEqual(
+      [],
+    );
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to preload policies-limits policies',
+      expect.anything(),
+    );
+  });
 });

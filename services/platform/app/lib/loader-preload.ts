@@ -9,6 +9,7 @@ import {
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
+  toBackendError,
 } from '@/app/lib/backend/adapters';
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
@@ -117,11 +118,14 @@ export function ensureOrgSettingsQuery<Name extends QueryName>(
  * route's `beforeLoad` found has since ended (signed out in another tab,
  * expired, revoked). That is the auth state, not a preload failure worth
  * logging: the page's own reads meet the same answer. Anything else
- * propagates to the caller for diagnostics.
+ * propagates to the caller for diagnostics. A raw-lane read (the member
+ * context) rejects with the `BackendApiError` an adapted read normalizes;
+ * both are read alike.
  */
 function isLapsedSessionError(error: unknown): boolean {
-  if (!(error instanceof AppError)) return false;
-  const data: unknown = error.data;
+  const refusal = toBackendError(error);
+  if (!(refusal instanceof AppError)) return false;
+  const data: unknown = refusal.data;
   return (
     typeof data === 'object' &&
     data !== null &&
@@ -139,7 +143,8 @@ function isLapsedSessionError(error: unknown): boolean {
  * an admin-only one waits for the caller's role, joining the dashboard's
  * read in flight rather than asking twice. So a member's visit never asks
  * for a policy the server refuses them. A member-context read that fails
- * rejects the admin-only reads with its error, for the caller to log.
+ * rejects the admin-only reads with its error (a lapsed session is
+ * swallowed like the policy reads' own 401), so none is asked for.
  */
 function governancePolicyGate(
   context: RouterContext,
@@ -182,17 +187,20 @@ export function ensureGovernancePolicies(
   const mayRead = governancePolicyGate(context, organizationId);
   return Promise.all(
     policyTypes.map(async (policyType) => {
-      if (!(await mayRead(policyType))) return undefined;
-      return ensureConvexQuery(context, 'governance/queries:getPolicy', {
-        organizationId,
-        policyType,
-      }).catch((error: unknown) => {
-        // A lapsed session is expected, not a preload failure; swallow it so
-        // it never reaches the caller's warning log. Real errors still
-        // propagate.
+      try {
+        if (!(await mayRead(policyType))) return undefined;
+        return await ensureConvexQuery(
+          context,
+          'governance/queries:getPolicy',
+          { organizationId, policyType },
+        );
+      } catch (error: unknown) {
+        // A lapsed session — met by the member-context read or the policy
+        // read — is expected, not a preload failure; swallow it so it never
+        // reaches the caller's warning log. Real errors still propagate.
         if (isLapsedSessionError(error)) return undefined;
         throw error;
-      });
+      }
     }),
   );
 }
