@@ -481,7 +481,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     const args = body.data;
     if (!args.externalId === !args.ensureFolder) {
@@ -672,7 +672,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -690,7 +690,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .object({ name: z.string().min(1).max(100) })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -727,7 +727,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .object({ projectId: z.string().min(1) })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -749,7 +749,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/dependencies', async (c) => {
     const body = dependencySchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -765,7 +765,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.delete('/dependencies', async (c) => {
     const body = dependencySchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -1084,7 +1084,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .object({ workflowSlug: z.string().min(1).max(200) })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -1213,7 +1213,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .object({ status: statusSchema })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -1229,7 +1229,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/move', async (c) => {
     const body = moveSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -1245,7 +1245,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/assign', async (c) => {
     const body = assignSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);

@@ -5,7 +5,6 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   fetchPresignedObject,
   locateOrgObjectStore,
@@ -80,7 +79,7 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         locale: z.string().min(1).max(35),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       const result = await synthesizeChunk(deps.sql, {
         ...caller(c),
@@ -176,7 +175,7 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ enabled: z.boolean() })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     await setUserVoiceOutput(deps.sql, {
       ...caller(c),
       enabled: body.data.enabled,
@@ -188,7 +187,7 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ override: z.boolean().nullable() })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await setThreadVoiceOutputOverride(deps.sql, {
         ...caller(c),

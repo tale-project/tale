@@ -33,7 +33,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { TestResultLine } from '@/app/features/settings/components/test-result-line';
 import { useT } from '@/lib/i18n/client';
-import { OBJECT_STORAGE_CONNECTION_MAX } from '@/lib/shared/schemas/object_storage';
 
 import {
   useDeleteOrgObjectStorageConnection,
@@ -111,84 +110,6 @@ function isValidEndpoint(value: string): boolean {
 
 const FORM_ID = 'org-storage-form';
 
-type Translator = (key: string, options?: Record<string, unknown>) => string;
-
-/** Each capped field with the label its length refusal names. */
-const CAPPED_FIELDS = [
-  ['region', 'dataResidency.storage.region'],
-  ['endpoint', 'dataResidency.storage.endpoint'],
-  ['bucket', 'dataResidency.orgStorage.bucket'],
-  ['prefix', 'dataResidency.orgStorage.prefix'],
-  ['accessKeyId', 'dataResidency.storage.accessKeyId'],
-  ['secretAccessKey', 'dataResidency.storage.secretAccessKey'],
-] as const satisfies ReadonlyArray<
-  readonly [keyof typeof OBJECT_STORAGE_CONNECTION_MAX, string]
->;
-
-/**
- * What the door would refuse in these values, named per field in the
- * caller's language — the door's own rules (required region and bucket, an
- * http(s) endpoint, each field's cap in `OBJECT_STORAGE_CONNECTION_MAX`, a
- * key pair entered whole), applied to the values as they will be SENT:
- * trimmed. A region of spaces passed the old `=== ''` check, was trimmed to
- * nothing on the way out, and came back as a bare `invalid body`. Save and
- * Test both check through here.
- */
-function storageFormIssues(
-  values: StorageForm,
-  t: Translator,
-  tCommon: Translator,
-): { path: keyof StorageForm; message: string }[] {
-  const issues: { path: keyof StorageForm; message: string }[] = [];
-  const sent = {
-    region: values.region.trim(),
-    endpoint: values.endpoint.trim(),
-    bucket: values.bucket.trim(),
-    prefix: values.prefix.trim(),
-    accessKeyId: values.accessKeyId,
-    secretAccessKey: values.secretAccessKey,
-  };
-  if (sent.region === '') {
-    issues.push({
-      path: 'region',
-      message: t('dataResidency.orgStorage.errors.regionRequired'),
-    });
-  }
-  if (!isValidEndpoint(sent.endpoint)) {
-    issues.push({
-      path: 'endpoint',
-      message: t('dataResidency.orgStorage.errors.endpointInvalid'),
-    });
-  }
-  if (sent.bucket === '') {
-    issues.push({
-      path: 'bucket',
-      message: t('dataResidency.orgStorage.errors.bucketRequired'),
-    });
-  }
-  for (const [field, labelKey] of CAPPED_FIELDS) {
-    const max = OBJECT_STORAGE_CONNECTION_MAX[field];
-    // One message per field: an invalid endpoint is not also "too long".
-    if (sent[field].length > max && !issues.some((i) => i.path === field)) {
-      issues.push({
-        path: field,
-        message: tCommon('validation.maxLength', { field: t(labelKey), max }),
-      });
-    }
-  }
-  // Pair-or-none, verified where the admin can fix it: the blank half of a
-  // half-entered pair gets the message.
-  const hasKey = values.accessKeyId.length > 0;
-  const hasSecret = values.secretAccessKey.length > 0;
-  if (hasKey !== hasSecret) {
-    issues.push({
-      path: hasKey ? 'secretAccessKey' : 'accessKeyId',
-      message: t('dataResidency.orgStorage.errors.credentialsPair'),
-    });
-  }
-  return issues;
-}
-
 export function OrgStorageSection({
   organizationId,
   view,
@@ -250,15 +171,40 @@ export function OrgStorageSection({
         })
         .superRefine((values, ctx) => {
           if (!configured && structuralEqual(values, EMPTY_FORM)) return;
-          for (const issue of storageFormIssues(values, t, tCommon)) {
+          if (values.region === '') {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              path: [issue.path],
-              message: issue.message,
+              path: ['region'],
+              message: t('dataResidency.orgStorage.errors.regionRequired'),
+            });
+          }
+          if (!isValidEndpoint(values.endpoint)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['endpoint'],
+              message: t('dataResidency.orgStorage.errors.endpointInvalid'),
+            });
+          }
+          if (values.bucket === '') {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['bucket'],
+              message: t('dataResidency.orgStorage.errors.bucketRequired'),
+            });
+          }
+          // Pair-or-none, verified where the admin can fix it: the blank half
+          // of a half-entered pair gets the message.
+          const hasKey = values.accessKeyId.length > 0;
+          const hasSecret = values.secretAccessKey.length > 0;
+          if (hasKey !== hasSecret) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [hasKey ? 'secretAccessKey' : 'accessKeyId'],
+              message: t('dataResidency.orgStorage.errors.credentialsPair'),
             });
           }
         }),
-    [t, tCommon, configured],
+    [t, configured],
   );
 
   const data = useMemo(() => formFromView(view), [view]);
@@ -334,7 +280,6 @@ export function OrgStorageSection({
   const {
     register,
     getValues,
-    setError,
     watch,
     formState: { errors },
   } = editor.form;
@@ -356,20 +301,6 @@ export function OrgStorageSection({
   async function onTest() {
     setTestResult(undefined);
     const values = getValues();
-    // The probe takes the same body as Save: name what it would refuse
-    // under its field instead of sending it (a blank region used to come
-    // back as a bare `invalid body` on the result line).
-    const issues = storageFormIssues(values, t, tCommon);
-    if (issues.length > 0) {
-      issues.forEach((issue, index) =>
-        setError(
-          issue.path,
-          { type: 'manual', message: issue.message },
-          { shouldFocus: index === 0 },
-        ),
-      );
-      return;
-    }
     try {
       const res: StorageProbeResult = await test.mutateAsync({
         organizationId,

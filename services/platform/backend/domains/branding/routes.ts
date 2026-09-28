@@ -8,7 +8,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   BrandingError,
@@ -100,7 +99,7 @@ export function createBrandingRoutes(deps: {
         expectedHash: expectedConfigurationHashSchema.optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
@@ -121,7 +120,7 @@ export function createBrandingRoutes(deps: {
         mimeType: z.string().max(100),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {

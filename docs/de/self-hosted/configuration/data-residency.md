@@ -36,7 +36,7 @@ Ein anderer Standard-Bucket oder Endpunkt kopiert keine vorhandenen Dateien. Üb
 ## Wissensdatenbank einer Organisation verbinden
 
 1. Öffne **Einstellungen > Datenresidenz** in der Zielorganisation und trage unter **Wissensdatenbank** Host, Port, Datenbank, Benutzer, SSL-Modus und Passwort ein.
-2. Wähle **Verbindung testen**. Der Test prüft die Felder zuerst wie **Speichern** und nennt einen fehlenden Host, eine fehlende Datenbank oder einen fehlenden Benutzer unter dem Feld, statt zu laufen. Prüfe Erreichbarkeit und Erweiterungen. Ein erfolgreicher Verbindungstest belegt keinen abgeschlossenen Korpusumzug.
+2. Wähle **Verbindung testen**. Prüfe Erreichbarkeit und Erweiterungen. Ein erfolgreicher Verbindungstest belegt keinen abgeschlossenen Korpusumzug.
 3. Speichere erst, wenn Ziel und Plan für vorhandene Daten bereit sind. Folgende Anfragen nutzen die gewählte Verbindung ohne Container-Neustart.
 4. Indexiere ein Testdokument, suche nach einer bekannten Formulierung und prüfe, ob benötigte ältere Inhalte weiter verfügbar sind.
 
@@ -78,7 +78,7 @@ Für die Indexierung eines Dokuments bleiben pro Versuch höchstens 15 Minuten. 
 
 1. Stelle einen S3-kompatiblen Bucket mit den benötigten Objektrechten bereit. Konfiguriere CORS für die tatsächlichen Browser-Ursprünge und benötigten Methoden `GET`, `PUT` und `HEAD`.
 2. Trage unter **Objektspeicher** Region, bei Bedarf Endpunkt, Bucket, optionales Schlüsselpräfix und Zugangsdaten ein. Nutze Path-Style, wenn dein Speicher es verlangt.
-3. Wähle **Verbindung testen** und speichere danach. Eine fehlende Region, ein fehlender Bucket oder ein Wert über der Längengrenze eines Felds wird unter dem Feld genannt, bevor etwas gesendet wird. Der Servertest schreibt, liest und löscht ein Testobjekt; Browser-CORS prüft er nicht.
+3. Wähle **Verbindung testen** und speichere danach. Der Servertest schreibt, liest und löscht ein Testobjekt; Browser-CORS prüft er nicht.
 4. Lade im Browser eine Testdatei hoch und wieder herunter, bevor du dich auf die Verbindung verlässt.
 
 Neue Uploads verwenden den Organisations-Bucket. Ältere Dateien im Standardspeicher können über gemischte Referenzen lesbar bleiben. Die Verbindung allein erfüllt daher keine Pflicht, auch den bisherigen Bestand umzuziehen. Die Konfiguration liegt unter `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` und `connection.secrets.json`.

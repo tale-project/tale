@@ -8,7 +8,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { purgeIncompleteResponse } from '../../lib/purge-incomplete-response.ts';
 import {
   rateLimitExceededCause,
@@ -274,7 +273,7 @@ export function createDocumentRoutes(deps: {
     const body = projectTextReadSchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       const auth = await authCtx(c);
       return c.json({
@@ -289,7 +288,7 @@ export function createDocumentRoutes(deps: {
     const body = projectTextWriteSchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       const auth = await authCtx(c);
       return c.json(
@@ -400,7 +399,7 @@ export function createDocumentRoutes(deps: {
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -422,7 +421,7 @@ export function createDocumentRoutes(deps: {
   app.post('/from-blob-upload', async (c) => {
     const body = createFromBlobUploadSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -458,7 +457,7 @@ export function createDocumentRoutes(deps: {
   app.post('/:documentId', async (c) => {
     const body = updateSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -540,7 +539,7 @@ export function createDocumentRoutes(deps: {
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -574,7 +573,7 @@ export function createDocumentRoutes(deps: {
       .object({ reviewerUserId: z.string().min(1) })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);

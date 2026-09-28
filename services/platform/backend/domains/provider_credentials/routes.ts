@@ -13,7 +13,6 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { loadOrgCustomProviders } from '../../core/lib/providers/org_providers.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { requeueEmbeddingBlockedDocuments } from '../knowledge/service.ts';
 import { deleteProviderDefinition } from '../providers/config.ts';
@@ -155,7 +154,7 @@ export function createProviderCredentialRoutes(deps: {
   app.post('/', async (c) => {
     const body = createSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const scope = scopeOf(c);
@@ -173,7 +172,7 @@ export function createProviderCredentialRoutes(deps: {
   app.post('/:credentialId', async (c) => {
     const body = updateSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const scope = scopeOf(c);

@@ -9,7 +9,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
   IMPROVE_MAX_INPUT_CHARS,
@@ -103,14 +102,6 @@ const attachmentSchema = z.object({
   contentType: z.string().min(1).max(255),
   size: z.number().int().nonnegative(),
 });
-
-/** Where an email with neither a body nor files is refused: at `content`,
- * the field the composer fills, rather than as an unnamed "Invalid input"
- * on the whole body. */
-const EMPTY_EMAIL_ISSUE = {
-  path: ['content'],
-  message: 'must not be empty unless files are attached',
-};
 
 const statusSchema = z.enum(['open', 'closed', 'spam', 'archived']);
 
@@ -245,7 +236,7 @@ export function createConversationRoutes(deps: {
         metadata: z.record(z.string(), z.unknown()).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await deps.sql.begin((tx) =>
@@ -285,7 +276,7 @@ export function createConversationRoutes(deps: {
         metadata: z.record(z.string(), z.unknown()).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       const result = await deps.sql.begin((tx) =>
@@ -322,7 +313,7 @@ export function createConversationRoutes(deps: {
         instruction: z.string().max(IMPROVE_MAX_INSTRUCTION_CHARS).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       return c.json(
         await improveConversationMessage(deps.sql, {
@@ -343,7 +334,7 @@ export function createConversationRoutes(deps: {
     const body = z
       .object({ assigneeUserId: z.string().max(128).optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await assignConversation(deps.sql, {
         organizationId: c.get('orgId'),
@@ -361,7 +352,7 @@ export function createConversationRoutes(deps: {
     const body = z
       .object({ assigneeTeamId: z.string().max(128).optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await assignConversationTeam(deps.sql, {
         organizationId: c.get('orgId'),
@@ -384,7 +375,7 @@ export function createConversationRoutes(deps: {
         content: z.string().min(1).max(200_000),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     // Scope every named row through the viewer's own visibility first.
     const scoped: string[] = [];
     const errors: string[] = [];
@@ -451,9 +442,9 @@ export function createConversationRoutes(deps: {
         sourceMarkdown: z.string().max(200_000).optional(),
         attachments: z.array(attachmentSchema).max(50).optional(),
       })
-      .refine(hasBodyOrAttachments, EMPTY_EMAIL_ISSUE)
+      .refine(hasBodyOrAttachments)
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await assertOwnedAttachments(c, body.data.attachments);
@@ -492,9 +483,9 @@ export function createConversationRoutes(deps: {
         assigneeTeamId: z.string().max(128).optional(),
         attachments: z.array(attachmentSchema).max(50).optional(),
       })
-      .refine(hasBodyOrAttachments, EMPTY_EMAIL_ISSUE)
+      .refine(hasBodyOrAttachments)
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await assertOwnedAttachments(c, body.data.attachments);
       const result = await composeEmailConversation(deps.sql, {
@@ -594,7 +585,7 @@ export function createConversationRoutes(deps: {
     const body = z
       .object({ conversationIds: z.array(z.string().max(64)).min(1).max(200) })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     // Scope every named row through the viewer's own visibility first.
     const scoped: string[] = [];
     const errors: string[] = [];

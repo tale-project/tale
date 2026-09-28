@@ -46,8 +46,6 @@ vi.mock('@/app/lib/backend/adapters', () => ({
 
 import { useMutation } from '@tanstack/react-query';
 
-import { AppError } from '@/lib/shared/errors/app-error';
-
 import { useBackendAction } from './use-backend-action';
 
 /** A row that exists only in this file's stub registry — the
@@ -132,32 +130,6 @@ describe('useBackendAction error toast', () => {
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
-    );
-  });
-
-  it("describes a refused body by the field it names, not 'Try again'", () => {
-    useBackendAction(actionName);
-    getRegisteredOnError()(
-      new AppError({
-        code: 'invalid body',
-        message: 'email: Invalid email address',
-      }),
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'email: Invalid email address',
-        variant: 'destructive',
-      }),
-    );
-  });
-
-  it('keeps the generic description for any other failure', () => {
-    useBackendAction(actionName);
-    getRegisteredOnError()(
-      new AppError({ code: 'FORBIDDEN', message: 'internal text' }),
-    );
-    expect(mockToast).toHaveBeenCalledWith(
-      expect.objectContaining({ description: 'error.generic.description' }),
     );
   });
 

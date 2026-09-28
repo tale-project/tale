@@ -7,7 +7,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   FeedbackError,
   listMyThreadFeedback,
@@ -51,7 +50,7 @@ export function createFeedbackRoutes(deps: {
   app.post('/', async (c) => {
     const body = submitSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     const scope = scopeOf(c);
     try {

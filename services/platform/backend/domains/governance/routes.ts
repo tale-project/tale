@@ -25,7 +25,6 @@ import {
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import { appErrorHandler } from '../../error-reporting';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
@@ -346,7 +345,7 @@ export function createGovernanceRoutes(deps: {
         evidence: z.string().max(4000).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       return c.json(
         await grantCompetence(deps.sql, {
@@ -593,7 +592,7 @@ export function createGovernanceRoutes(deps: {
     const body = z
       .object({ resourceType: z.string().min(1), id: z.string().min(1) })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const session = c.get('sessionBundle');
     try {
       await transactSerializable(deps.sql, (tx) =>
@@ -696,7 +695,7 @@ export function createGovernanceRoutes(deps: {
     const body = z
       .object({ authHeader: z.string().min(1).max(4096) })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     await saveGovernanceSecret(
       deps.sql,
       {
@@ -732,7 +731,7 @@ export function createGovernanceRoutes(deps: {
         direction: z.enum(['input', 'output']).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     return c.json(
       await testModerationProvider(deps.sql, c.get('orgId'), body.data),
     );

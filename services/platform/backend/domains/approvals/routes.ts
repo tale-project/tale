@@ -5,7 +5,6 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { ErasureError } from '../erasure/service.ts';
 import { ApprovalError, decideApproval, getApproval } from './service.ts';
 
@@ -60,7 +59,7 @@ export function createApprovalRoutes(deps: {
         comments: z.string().max(10_000).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await decideApproval(deps.sql, {
         organizationId: c.get('orgId'),

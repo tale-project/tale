@@ -38,8 +38,6 @@ Zum Pflegen der Organisationsdatensätze brauchst du die Rolle Redakteur oder h�
 2. Prüfe **Sprache**. Das Feld ist mit `en` vorbelegt; passe es an die Sprache des Kontakts an.
 3. Wähle **Speichern**. Der Kontakt erscheint mit seinen Angaben und dem Erstellungsdatum in der Tabelle.
 
-Vor dem Speichern prüft das Formular jedes Feld gegen das, was Tale speichert: **Name** bis 300 Zeichen, **Telefon** bis 50, **Sprache** bis 20 und bei der **E-Mail** höchstens 64 Zeichen vor dem `@`. Ein Wert über einer Grenze wird unter seinem Feld genannt, und gespeichert wird erst, wenn du ihn korrigiert hast.
-
 Du kannst einen Kontakt auch beim Schreiben anlegen. Wähle im Bereich **Start** in der Ansicht **Inbox** die Schaltfläche **Neue E-Mail** und tippe eine Adresse in **An**: Trägt sie kein Kontakt, bietet die Liste **„…“ als Kontakt hinzufügen** an und öffnet dasselbe Formular mit bereits ausgefüllter **E-Mail**. Nach dem Speichern ist dieser Kontakt der Empfänger – du verlässt die begonnene Nachricht also nie.
 
 Ist die E-Mail-Adresse bereits vorhanden, suche den bestehenden Kontakt und bearbeite ihn über sein Zeilenmenü; aus **Neue E-Mail** heraus wählt Tale den vorhandenen Kontakt für dich aus. Beim Speichern wird nur der Datensatz angelegt; Tale sendet dem Kontakt dabei keine E-Mail.
@@ -58,7 +56,7 @@ Wähle **Bild hochladen** oder ziehe eine PNG-, JPEG-, WebP-, GIF- oder SVG-Date
 
 Das hochgeladene Bild bleibt nach dem Speichern und Neuladen des Produkts verfügbar. Sobald das Produkt gespeichert ist, können andere Organisationsmitglieder mit Produktzugriff das Bild sehen. Die Bildadresse setzt eine angemeldete Sitzung voraus und eignet sich nicht als öffentlicher Freigabelink. Zum Entfernen bearbeitest du das Produkt, wählst **Bild entfernen** und speicherst die Änderung. Wird das Bild entfernt oder ersetzt oder das Produkt gelöscht, wird auch die hochgeladene Datei selbst entfernt, sofern kein anderes Produkt sie noch zeigt.
 
-Wenn du **Oder URL einfügen** wählst, gib eine vollständige öffentliche HTTPS-Adresse ein, die mit `https://` beginnt. Eine unvollständige Adresse nennt das Formular unter dem Feld, bevor du weitergehen kannst. Tale weist unsichere oder nicht zugelassene Hosts ab. Frage einen Administrator, wenn du eine interne Bildquelle brauchst. Für Bilder von externen Adressen gelten die Zugriffsregeln der jeweiligen Quelle.
+Wenn du **Oder URL einfügen** wählst, verwende eine öffentliche HTTPS-Adresse. Tale weist unsichere oder nicht zugelassene Hosts ab. Frage einen Administrator, wenn du eine interne Bildquelle brauchst. Für Bilder von externen Adressen gelten die Zugriffsregeln der jeweiligen Quelle.
 
 ## Zugriff und Aktualität prüfen
 

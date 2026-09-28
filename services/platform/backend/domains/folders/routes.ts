@@ -6,7 +6,6 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { purgeIncompleteResponse } from '../../lib/purge-incomplete-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
@@ -159,7 +158,7 @@ export function createFolderRoutes(deps: {
       .object({ teamIds: z.array(z.string().min(1)).max(64) })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -203,7 +202,7 @@ export function createFolderRoutes(deps: {
   app.post('/', async (c) => {
     const body = createSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);
@@ -226,7 +225,7 @@ export function createFolderRoutes(deps: {
       .object({ name: z.string().min(1).max(200) })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const auth = await authCtx(c);

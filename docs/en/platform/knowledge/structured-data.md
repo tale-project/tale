@@ -38,8 +38,6 @@ You need an Editor role or higher to maintain organization records. Open **Knowl
 2. Check **Locale**, which starts as `en`, and set the language appropriate to the contact.
 3. Choose **Save**. The new row appears in Contacts with its details and added date.
 
-The form holds each field to what Tale stores before it saves: a **Name** of up to 300 characters, a **Phone** of up to 50, a **Locale** of up to 20, and an **Email** with at most 64 characters before the `@`. A value past a limit is named under its field, and nothing is saved until you fix it.
-
 You can also add a contact while writing to them. In the **Inbox** view in Home, choose **New email** and type an address into **To**: if no contact carries it, the list offers **Add “…” as a contact**, which opens this same form with the **Email** already filled. Saving makes that contact the recipient, so you never leave the message you are writing.
 
 If the email address already exists, find the existing contact and update it through the row menu instead of creating a duplicate; from **New email**, Tale selects the existing contact for you. Saving a contact creates a record; it does not send that person an email.
@@ -58,7 +56,7 @@ To add a product image, choose **Upload image** or drop a PNG, JPEG, WebP, GIF, 
 
 The uploaded image stays available after you save and reload the product. Other organization members with product access can view it once the product is saved; the image address requires a signed-in session and is not a public sharing link. To remove it, edit the product, choose **Remove image**, then save. Removing or replacing the image, or deleting the product, removes the upload itself as well, unless another product still shows it.
 
-If you choose **Or paste a URL**, enter a complete public HTTPS address, starting with `https://`. The form names an incomplete address under the field before you can continue. Tale refuses unsafe or disallowed hosts; ask an administrator if you need an internal image source. Images loaded from external addresses follow that source’s access rules.
+If you choose **Or paste a URL**, use a public HTTPS address. Tale refuses unsafe or disallowed hosts; ask an administrator if you need an internal image source. Images loaded from external addresses follow that source’s access rules.
 
 ## Keep access and freshness in view
 

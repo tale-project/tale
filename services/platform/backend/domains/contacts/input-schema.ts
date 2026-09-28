@@ -1,16 +1,7 @@
 import { z } from 'zod';
 
 import {
-  CONTACT_EMAIL_LOCAL_PART_MAX,
-  CONTACT_EMAIL_MAX,
-  CONTACT_EXTERNAL_ID_MAX,
-  CONTACT_LOCALE_MAX,
-  CONTACT_NAME_MAX,
-  CONTACT_NOTES_MAX,
-  CONTACT_PHONE_MAX,
   CONTACT_PHONE_PATTERN,
-  CONTACT_TAG_MAX,
-  CONTACT_TAGS_MAX,
   dataSourceSchema,
 } from '../../../lib/shared/schemas/common.ts';
 import { boundedJsonObject } from '../../../lib/shared/utils/json-bounds.ts';
@@ -33,6 +24,17 @@ import { boundedJsonObject } from '../../../lib/shared/utils/json-bounds.ts';
  * rule the reference documents); `address` and `metadata` are bounded
  * free-form objects.
  */
+
+export const CONTACT_NAME_MAX = 300;
+export const CONTACT_EMAIL_MAX = 320;
+/** RFC 5321 §4.5.3.1.1: the part before `@` is at most 64 octets. */
+export const CONTACT_EMAIL_LOCAL_PART_MAX = 64;
+export const CONTACT_PHONE_MAX = 50;
+export const CONTACT_EXTERNAL_ID_MAX = 256;
+export const CONTACT_LOCALE_MAX = 20;
+export const CONTACT_TAG_MAX = 60;
+export const CONTACT_TAGS_MAX = 50;
+export const CONTACT_NOTES_MAX = 10_000;
 
 export const contactEmailSchema = z
   .string()

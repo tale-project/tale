@@ -15,10 +15,7 @@ import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
-import {
-  invalidBodyIssuesResponse,
-  invalidBodyResponse,
-} from '../../lib/invalid-body-response.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
   registerLiveStream,
@@ -523,7 +520,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           .optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const ok = await setThreadReasoningEffort(
       deps.sql,
@@ -540,7 +537,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ projectId: z.string().max(128).nullable() })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     try {
       const ok = await moveThreadToProject(
@@ -564,7 +561,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ title: z.string().max(500) })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const ok = await renameThread(
       deps.sql,
@@ -581,7 +578,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ pinned: z.boolean() })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const ok = await setThreadPinned(
       deps.sql,
@@ -598,7 +595,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ read: z.boolean().optional() })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     await markThreadRead(
       deps.sql,
@@ -615,7 +612,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ operation: z.enum(['archive', 'trash']) })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const result = await bulkUpdateThreads(
       deps.sql,
       {
@@ -632,7 +629,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ archived: z.boolean() })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     try {
       const toggled = await setThreadArchived(
@@ -657,7 +654,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ shared: z.boolean() })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     try {
       const ok = await setThreadSharedWithProject(
@@ -689,15 +686,13 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         parsed = JSON.parse(raw);
       } catch (error) {
         console.warn('[chat] share body is not JSON', error);
-        return invalidBodyIssuesResponse(c, [
-          { path: 'body', message: 'must be JSON' },
-        ]);
+        return c.json({ error: 'invalid body' }, 400);
       }
     }
     const body = z
       .object({ leafThreadId: z.string().min(1).max(128).optional() })
       .safeParse(parsed);
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const share = await shareThread(
       deps.sql,
@@ -732,7 +727,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         title: z.string().max(200).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const branchId = await branchThread(
       deps.sql,
@@ -832,7 +827,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .union([entry, z.object({ selections: z.array(entry).min(1).max(50) })])
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     await setBranchSelection(
       deps.sql,
@@ -1129,7 +1124,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         verdict: z.enum(['a_better', 'b_better', 'tie', 'both_bad']).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const result = await settleArenaPair(deps.sql, {
       organizationId,
@@ -1154,7 +1149,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = arenaTurnSchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     const thread = await ownedThread(
       deps.sql,
@@ -1430,7 +1425,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ perceivedWaitMs: z.number().finite().positive().max(600_000) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     await deps.sql`
       UPDATE app.messages m

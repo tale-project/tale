@@ -5,7 +5,6 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
 import {
   bindCompletedJobsToMessage,
@@ -69,7 +68,7 @@ export function createVideoLinkRoutes(deps: {
         userLocale: z.string().max(35).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       const userId = c.get('sessionBundle').user.id;
       if (body.data.threadId !== undefined) {
@@ -133,7 +132,7 @@ export function createVideoLinkRoutes(deps: {
     const body = z
       .object({ threadId: z.string().min(1).max(200) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await assertOwnThread(
         deps.sql,
@@ -157,7 +156,7 @@ export function createVideoLinkRoutes(deps: {
     const body = z
       .object({ jobIds: z.array(z.string().min(1)).max(50) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await unbindJobsFromMessage(deps.sql, {
         organizationId: c.get('orgId'),

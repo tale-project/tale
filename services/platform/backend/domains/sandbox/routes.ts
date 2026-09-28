@@ -18,7 +18,6 @@ import {
   type SessionBudget,
 } from '../../core/sandbox/quota_policy.ts';
 import { SANDBOX_AGENT_OP_KINDS } from '../../core/sandbox/session_constants.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { classifyOutcome } from './external-turn-outcome.ts';
 import { getSandboxDeploymentLimits } from './limits.ts';
@@ -348,7 +347,7 @@ export function createSandboxRoutes(deps: {
     if (denied) return denied;
     const body = pinSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     const pinned = await pinSession(deps.sql, {
       organizationId: c.get('orgId'),

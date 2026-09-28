@@ -3,12 +3,10 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import { OBJECT_STORAGE_CONNECTION_MAX } from '../../../lib/shared/schemas/object_storage.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   ObjectStorageError,
@@ -31,17 +29,12 @@ function handleError<E extends OrgEnv>(
   throw error;
 }
 
-const MAX = OBJECT_STORAGE_CONNECTION_MAX;
-
-/** The connection write, with the write-only key pair. */
 const connectionSchema = z.object({
-  region: z.string().min(1).max(MAX.region),
-  endpoint: z.string().max(MAX.endpoint).optional(),
+  region: z.string().min(1).max(100),
+  endpoint: z.string().max(2_000).optional(),
   forcePathStyle: z.boolean().optional(),
-  bucket: z.string().min(1).max(MAX.bucket),
-  prefix: z.string().max(MAX.prefix).optional(),
-  accessKeyId: z.string().max(MAX.accessKeyId).optional(),
-  secretAccessKey: z.string().max(MAX.secretAccessKey).optional(),
+  bucket: z.string().min(1).max(255),
+  prefix: z.string().max(500).optional(),
 });
 
 export function createObjectStorageRoutes(deps: {
@@ -75,8 +68,13 @@ export function createObjectStorageRoutes(deps: {
   });
 
   app.post('/connection', async (c) => {
-    const body = connectionSchema.safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    const body = connectionSchema
+      .extend({
+        accessKeyId: z.string().max(500).optional(),
+        secretAccessKey: z.string().max(500).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const { accessKeyId, secretAccessKey, ...connection } = body.data;
@@ -100,8 +98,13 @@ export function createObjectStorageRoutes(deps: {
   });
 
   app.post('/connection/test', async (c) => {
-    const body = connectionSchema.safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    const body = connectionSchema
+      .extend({
+        accessKeyId: z.string().max(500).optional(),
+        secretAccessKey: z.string().max(500).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const { accessKeyId, secretAccessKey, ...connection } = body.data;
@@ -123,7 +126,7 @@ export function createObjectStorageRoutes(deps: {
     const body = z
       .object({ dryRun: z.boolean().optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const dryRun = body.data.dryRun ?? false;

@@ -450,67 +450,6 @@ describe('DataResidencySettings', () => {
     });
   });
 
-  it('names what the knowledge probe would refuse instead of sending it', async () => {
-    // Test used to send the form unchecked: an empty host came back as a
-    // bare `invalid body` on the result line (TALE-103).
-    const { user } = render(<DataResidencySettings organizationId="org-1" />);
-    const section = sectionByHeading('Knowledge database');
-    await user.click(
-      within(section).getByRole('switch', { name: 'External Postgres' }),
-    );
-    await user.click(
-      within(section).getByRole('button', { name: 'Test connection' }),
-    );
-
-    expect(
-      await within(section).findByText('Enter the database host.'),
-    ).toBeInTheDocument();
-    expect(
-      within(section).getByText('Enter the database name.'),
-    ).toBeInTheDocument();
-    expect(
-      within(section).getByText('Enter the database user.'),
-    ).toBeInTheDocument();
-    expect(
-      within(section).getByRole('textbox', { name: 'Host' }),
-    ).toHaveFocus();
-    expect(testKnowledge).not.toHaveBeenCalled();
-  });
-
-  it('refuses a knowledge database of spaces, which the door would get trimmed to nothing', async () => {
-    setKnowledgeFixture({
-      configured: true,
-      host: 'pg.acme.example',
-      port: 5599,
-      database: 'acme_rag',
-      user: 'acme',
-      sslmode: 'disable',
-      hasPassword: true,
-    });
-    const { user, capture } = renderWithController();
-    const section = sectionByHeading('Knowledge database');
-
-    const database = within(section).getByRole('textbox', {
-      name: 'Database',
-    });
-    await user.clear(database);
-    await user.type(database, '   ');
-    await act(async () => {
-      await expect(capture.current?.save()).rejects.toThrow(
-        'VALIDATION_FAILED',
-      );
-    });
-    expect(
-      await within(section).findByText('Enter the database name.'),
-    ).toBeInTheDocument();
-
-    await user.click(
-      within(section).getByRole('button', { name: 'Test connection' }),
-    );
-    expect(saveKnowledge).not.toHaveBeenCalled();
-    expect(testKnowledge).not.toHaveBeenCalled();
-  });
-
   it('routes the toggle-off of a saved knowledge connection through a confirm, then removes with a toast', async () => {
     setKnowledgeFixture({
       configured: true,
@@ -1414,59 +1353,6 @@ describe('DataResidencySettings', () => {
       accessKeyId: 'AKIA123',
       secretAccessKey: 'shhh',
     });
-  });
-
-  it('names what the bucket probe would refuse instead of sending it', async () => {
-    // A region of spaces passed the form, was trimmed to nothing on the way
-    // out and came back as a bare `invalid body` on the result line.
-    setStorageFixture({
-      configured: true,
-      region: 'eu-central-1',
-      forcePathStyle: true,
-      bucket: 'org-blobs',
-      hasCredentials: true,
-    });
-    const { user } = render(<DataResidencySettings organizationId="org-1" />);
-    const section = sectionByHeading('Object storage');
-
-    const region = within(section).getByRole('textbox', { name: 'Region' });
-    await user.clear(region);
-    await user.type(region, '   ');
-    await user.click(
-      within(section).getByRole('button', { name: 'Test connection' }),
-    );
-
-    expect(
-      await within(section).findByText("Enter the bucket's region."),
-    ).toBeInTheDocument();
-    expect(region).toHaveFocus();
-    expect(testStorage).not.toHaveBeenCalled();
-  });
-
-  it("holds the bucket to the door's length cap before Save", async () => {
-    setStorageFixture({
-      configured: true,
-      region: 'eu-central-1',
-      forcePathStyle: false,
-      bucket: 'org-blobs',
-      hasCredentials: true,
-    });
-    const { user, capture } = renderWithController();
-
-    const bucket = screen.getByRole('textbox', { name: 'Bucket' });
-    await user.clear(bucket);
-    await user.click(bucket);
-    await user.paste('b'.repeat(256));
-    await act(async () => {
-      await expect(capture.current?.save()).rejects.toThrow(
-        'VALIDATION_FAILED',
-      );
-    });
-
-    expect(
-      await screen.findByText('Bucket must be 255 characters or fewer'),
-    ).toBeInTheDocument();
-    expect(saveStorage).not.toHaveBeenCalled();
   });
 
   it('explains the bucket CORS requirement next to the org storage form', () => {

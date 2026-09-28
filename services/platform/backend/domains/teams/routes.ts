@@ -11,7 +11,6 @@ import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
   auditTeamDeleted,
@@ -284,7 +283,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({ userId: z.string().min(1).max(128) })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgId = c.get('orgId');
     const team = await teamInOrg(c.req.param('teamId'), orgId);
     if (team === null) return c.json({ error: 'TEAM_NOT_FOUND' }, 404);

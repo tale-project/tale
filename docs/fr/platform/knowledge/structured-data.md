@@ -38,8 +38,6 @@ Le rôle Rédacteur ou un rôle supérieur est nécessaire pour modifier les fic
 2. Vérifie **Langue**, dont la valeur initiale est `en`, et adapte-la à la langue du contact.
 3. Choisis **Enregistrer**. La fiche apparaît dans Contacts avec ses coordonnées et sa date d’ajout.
 
-Avant d’enregistrer, le formulaire vérifie chaque champ selon ce que Tale conserve : un **Nom** de 300 caractères au plus, un **Téléphone** de 50 au plus, une **Langue** de 20 au plus et un **Courriel** d’au plus 64 caractères avant le `@`. Une valeur qui dépasse une limite est signalée sous son champ, et rien n’est enregistré tant que tu ne l’as pas corrigée.
-
 Tu peux aussi créer une fiche au moment d’écrire. Dans la vue **Réception** d’**Accueil**, choisis **Nouvel e-mail** et saisis une adresse dans **À** : si aucun contact ne la porte, la liste propose **Ajouter « … » comme contact**, ce qui ouvre ce même formulaire avec le **Courriel** déjà renseigné. Une fois la fiche enregistrée, ce contact devient le destinataire : tu ne quittes jamais le message en cours.
 
 Si cette adresse existe déjà, retrouve la fiche et modifie-la depuis le menu de sa ligne ; depuis **Nouvel e-mail**, Tale sélectionne pour toi le contact existant. Enregistrer un contact crée uniquement une fiche ; cette opération ne lui envoie aucun e-mail.
@@ -58,7 +56,7 @@ Choisis **Téléverser une image** ou dépose un fichier PNG, JPEG, WebP, GIF ou
 
 L’image reste disponible après l’enregistrement et le rechargement du produit. Une fois le produit enregistré, les autres membres de l’organisation ayant accès aux produits peuvent la voir. Son adresse exige une session connectée et ne constitue pas un lien de partage public. Pour la retirer, modifie le produit, choisis **Supprimer l'image**, puis enregistre. Retirer ou remplacer l’image, ou supprimer le produit, supprime aussi le fichier téléversé lui-même, sauf si un autre produit l’affiche encore.
 
-Si tu choisis **Ou coller une URL**, saisis une adresse HTTPS publique complète, qui commence par `https://`. Le formulaire signale une adresse incomplète sous le champ avant que tu puisses continuer. Tale refuse les hôtes non sûrs ou non autorisés. Demande à un administrateur si tu as besoin d’une source d’image interne. Les images chargées depuis une adresse externe restent soumises aux règles d’accès de cette source.
+Si tu choisis **Ou coller une URL**, utilise une adresse HTTPS publique. Tale refuse les hôtes non sûrs ou non autorisés. Demande à un administrateur si tu as besoin d’une source d’image interne. Les images chargées depuis une adresse externe restent soumises aux règles d’accès de cette source.
 
 ## Vérifier l’accès et l’actualité
 

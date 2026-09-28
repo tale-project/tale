@@ -247,22 +247,6 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   is missing and names Settings → AI providers, never "not set up yet".
   Add a credential for that provider and pick it under Embedding model →
   **Save** → the badge is **Configured** again and **Retry indexing** lands.
-- [ ] `DATA-B8` · **Test names what it would refuse** — Switch **External
-  Postgres** (`settings.dataResidency.externalPostgres`) on and, with every
-  field empty, click **Test connection** → **Enter the database host.**,
-  **Enter the database name.** and **Enter the database user.**
-  (`settings.dataResidency.orgKnowledge.errors.hostRequired`,
-  `…databaseRequired`, `…userRequired`) under their fields, focus on
-  **Host**, no result line, and DevTools Network shows no
-  `POST /api/app/knowledge/connection/test`. Type three spaces as
-  **Database** → header **Save** → the same field error, nothing saved. In
-  **Object storage** with a saved connection, set **Region** to spaces →
-  **Test connection** → **Enter the bucket's region.**
-  (`settings.dataResidency.orgStorage.errors.regionRequired`) under
-  **Region**, no request; paste a 256-character **Bucket** → **Save** →
-  **Bucket must be 255 characters or fewer**
-  (`common.validation.maxLength`). Never a result line or toast reading
-  `invalid body`.
 
 ## Deployment defaults
 

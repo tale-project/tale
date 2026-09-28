@@ -1,8 +1,5 @@
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
-import {
-  KNOWLEDGE_CONNECTION_PASSWORD_MAX,
-  knowledgeConnectionSchema,
-} from '@tale/shared/schemas/knowledge';
+import { knowledgeConnectionSchema } from '@tale/shared/schemas/knowledge';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -14,10 +11,6 @@ import { requireSession } from '../../auth/session.ts';
 import { FETCH_WINDOW_CHARS, windowText } from '../../core/knowledge/fetch.ts';
 import { isAudienceAdmin } from '../../core/lib/audience.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
-import {
-  invalidBodyIssuesResponse,
-  invalidBodyResponse,
-} from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
 import {
@@ -106,7 +99,7 @@ export function createKnowledgeRoutes(deps: {
   app.post('/search', async (c) => {
     const body = searchSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const { access } = await callerScope(c);
@@ -127,7 +120,7 @@ export function createKnowledgeRoutes(deps: {
   app.post('/fetch', async (c) => {
     const body = fetchSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     try {
       const { access } = await callerScope(c);
@@ -200,11 +193,7 @@ export function createKnowledgeRoutes(deps: {
   // with it died as a bare "invalid body".
   const connectionBodySchema = z.object({
     ...knowledgeConnectionSchema.shape,
-    password: z
-      .string()
-      .max(KNOWLEDGE_CONNECTION_PASSWORD_MAX)
-      .nullable()
-      .optional(),
+    password: z.string().max(2_000).nullable().optional(),
   });
 
   app.get('/connection', async (c) => {
@@ -221,7 +210,7 @@ export function createKnowledgeRoutes(deps: {
     const body = connectionBodySchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const { password, ...connection } = body.data;
@@ -251,7 +240,7 @@ export function createKnowledgeRoutes(deps: {
     const body = connectionBodySchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const { password, ...connection } = body.data;
@@ -303,11 +292,7 @@ export function createKnowledgeRoutes(deps: {
     const denied = requireKnowledgeAdmin(c);
     if (denied) return denied;
     const body: unknown = await c.req.json().catch(() => null);
-    if (body === null) {
-      return invalidBodyIssuesResponse(c, [
-        { path: 'body', message: 'must be a JSON object' },
-      ]);
-    }
+    if (body === null) return c.json({ error: 'invalid body' }, 400);
     const input = z
       .object({ expectedHash: expectedConfigurationHashSchema.optional() })
       .catchall(z.unknown())

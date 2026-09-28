@@ -3,7 +3,6 @@ import { useT } from '@/lib/i18n/client';
 import {
   backendErrorCode,
   backendUserMessage,
-  invalidBodyReason,
 } from '@/lib/utils/backend-error';
 
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
@@ -32,10 +31,7 @@ export function useAssignTask() {
       description: (error) =>
         backendErrorCode(error) === 'TASK_HAS_LIVE_RUN'
           ? t('assignee.liveRunGuard')
-          : backendUserMessage(
-              error,
-              invalidBodyReason(error) ?? tToast('error.generic.description'),
-            ),
+          : backendUserMessage(error, tToast('error.generic.description')),
     },
   });
 }
@@ -76,10 +72,7 @@ export function useMoveTask() {
       title: tToast('error.generic.title'),
       description: (error) =>
         reviewPolicyErrorMessage(error, t) ??
-        backendUserMessage(
-          error,
-          invalidBodyReason(error) ?? tToast('error.generic.description'),
-        ),
+        backendUserMessage(error, tToast('error.generic.description')),
     },
   });
 }

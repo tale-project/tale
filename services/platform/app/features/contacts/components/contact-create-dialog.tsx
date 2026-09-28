@@ -7,10 +7,7 @@ import { toast } from '@tale/ui/use-toast';
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import {
-  backendErrorCode,
-  backendRefusalReason,
-} from '@/lib/utils/backend-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useCreateContact } from '../hooks/mutations';
 import {
@@ -144,8 +141,6 @@ export function ContactCreateDialog({
           title: isDuplicate
             ? tContacts('create.duplicateEmail')
             : tContacts('create.error'),
-          // A refused body names its field ("email: …"); keep it.
-          description: isDuplicate ? undefined : backendRefusalReason(error),
           variant: 'destructive',
         });
       }

@@ -7,7 +7,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   addMember,
@@ -91,7 +90,7 @@ export function createMemberRoutes(deps: {
   orgScoped.post('/', async (c) => {
     const body = addMemberSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     const session = c.get('sessionBundle');
     const orgId = c.get('orgId');
@@ -179,7 +178,7 @@ export function createMemberRoutes(deps: {
   app.post('/:memberId/role', async (c) => {
     const body = updateRoleSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     const session = c.get('sessionBundle');
     try {
@@ -199,7 +198,7 @@ export function createMemberRoutes(deps: {
   app.post('/:memberId/display-name', async (c) => {
     const body = displayNameSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return c.json({ error: 'invalid body' }, 400);
     }
     const session = c.get('sessionBundle');
     try {

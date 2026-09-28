@@ -34,7 +34,6 @@ import {
 import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useCreateProduct } from '../hooks/mutations';
-import { productImageUrlSchema } from '../utils/product-image-url-schema';
 import { productNumberSchema } from '../utils/product-number-schema';
 import { ProductImageField } from './product-image-field';
 
@@ -116,16 +115,13 @@ export function ProductCreateDialog({
             max: PRODUCT_DESCRIPTION_MAX,
           }),
         ),
-        // The door's rule: blank, an uploaded image's app path, or an
-        // absolute http(s) URL (a pasted `example.com/cat.png` used to
-        // pass here and fail Create as a bare `invalid body`).
-        imageUrl: productImageUrlSchema({
-          tooLong: tCommon('validation.maxLength', {
+        imageUrl: z.string().max(
+          PRODUCT_IMAGE_URL_MAX,
+          tCommon('validation.maxLength', {
             field: tProducts('edit.labels.imageUrl'),
             max: PRODUCT_IMAGE_URL_MAX,
           }),
-          notUrl: tProducts('edit.validation.imageUrl'),
-        }),
+        ),
         // Refused at the Pricing step (a negative or an amount past the
         // safe range used to reach Review and fail there as a bare toast).
         stock: productNumberSchema({

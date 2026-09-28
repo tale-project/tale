@@ -18,7 +18,6 @@ import { listFiles } from '../../core/onedrive/list_files.ts';
 import { listSharePointDrives } from '../../core/onedrive/list_sharepoint_drives.ts';
 import { listSharePointFiles } from '../../core/onedrive/list_sharepoint_files.ts';
 import { listSharePointSites } from '../../core/onedrive/list_sharepoint_sites.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { chargeOrgRateLimit } from '../../lib/rate-limit-response.ts';
 import {
   FolderError,
@@ -102,7 +101,7 @@ export function createOneDriveRoutes(deps: {
         search: z.string().optional(),
       })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const limited = await chargeOrgRateLimit(
       deps.sql,
       c,
@@ -123,7 +122,7 @@ export function createOneDriveRoutes(deps: {
     const body = z
       .object({ search: z.string().optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const limited = await chargeOrgRateLimit(
       deps.sql,
       c,
@@ -147,7 +146,7 @@ export function createOneDriveRoutes(deps: {
     const body = z
       .object({ siteId: z.string().min(1) })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const limited = await chargeOrgRateLimit(
       deps.sql,
       c,
@@ -175,7 +174,7 @@ export function createOneDriveRoutes(deps: {
         folderId: z.string().optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const limited = await chargeOrgRateLimit(
       deps.sql,
       c,
@@ -205,7 +204,7 @@ export function createOneDriveRoutes(deps: {
     const body = importBodySchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const limited = await chargeOrgRateLimit(
       deps.sql,
       c,

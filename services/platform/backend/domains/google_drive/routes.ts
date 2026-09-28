@@ -15,7 +15,6 @@ import {
   assertTeamsAssignable,
   TeamAssignmentError,
 } from '../../core/lib/audience.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { chargeOrgRateLimit } from '../../lib/rate-limit-response.ts';
 import {
   FolderError,
@@ -94,7 +93,7 @@ export function createGoogleDriveRoutes(deps: {
         search: z.string().optional(),
       })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const limited = await chargeOrgRateLimit(
       deps.sql,
       c,
@@ -117,7 +116,7 @@ export function createGoogleDriveRoutes(deps: {
     const body = importBodySchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const limited = await chargeOrgRateLimit(
       deps.sql,
       c,

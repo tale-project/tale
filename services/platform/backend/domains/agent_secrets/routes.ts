@@ -6,7 +6,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   AgentSecretError,
   deleteAgentSecret,
@@ -62,7 +61,7 @@ export function createAgentSecretRoutes(deps: {
         description: z.string().max(500).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       return c.json(
         await upsertAgentSecret(deps.sql, {

@@ -36,7 +36,7 @@ Changer le bucket ou le point d’accès par défaut ne copie pas les objets exi
 ## Connecter la base de connaissances d’une organisation
 
 1. Ouvre **Paramètres > Résidence des données** dans l’organisation cible et renseigne **Base de connaissances** : hôte, port, base, utilisateur, mode SSL et mot de passe.
-2. Choisis **Tester la connexion**. Le test vérifie d’abord les champs comme **Enregistrer** et signale un hôte, une base de données ou un utilisateur manquant sous son champ au lieu de s’exécuter. Vérifie accès et extensions ; une connexion réussie ne prouve pas que l’ancien corpus a migré.
+2. Choisis **Tester la connexion**. Vérifie accès et extensions ; une connexion réussie ne prouve pas que l’ancien corpus a migré.
 3. Enregistre lorsque la destination et le plan de transfert sont prêts. Les requêtes suivantes utilisent la connexion choisie sans redémarrage de conteneur.
 4. Indexe un document contrôlé, cherche une expression connue et vérifie que les contenus antérieurs nécessaires restent disponibles.
 
@@ -78,7 +78,7 @@ L’indexation d’un document dispose d’au plus 15 minutes par tentative. Qua
 
 1. Prépare un bucket compatible S3 et les permissions objet nécessaires. Configure CORS pour les véritables origines du navigateur et les méthodes requises `GET`, `PUT` et `HEAD`.
 2. Dans **Stockage objet**, saisis région, point d’accès si nécessaire, bucket, préfixe de clé facultatif et identifiants. Utilise l’adressage path-style si ton stockage le demande.
-3. Lance **Tester la connexion**, puis enregistre. Une région ou un bucket manquant, ou une valeur qui dépasse la longueur maximale d’un champ, est signalé sous son champ avant tout envoi. Le test serveur écrit, lit et supprime un objet de test ; il ne teste pas CORS dans le navigateur.
+3. Lance **Tester la connexion**, puis enregistre. Le test serveur écrit, lit et supprime un objet de test ; il ne teste pas CORS dans le navigateur.
 4. Envoie et télécharge un fichier contrôlé dans le navigateur avant de compter sur la nouvelle connexion.
 
 Les nouveaux imports utilisent le bucket de l’organisation. Les anciens fichiers du stockage par défaut peuvent rester accessibles grâce aux références mixtes ; connecter le bucket ne suffit donc pas à relocaliser l’historique. La configuration réside dans `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` et `connection.secrets.json`.

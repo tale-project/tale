@@ -7,7 +7,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
   countWebsites,
@@ -112,7 +111,7 @@ export function createWebsiteRoutes(deps: {
     const body = createBodySchema.safeParse(
       await c.req.json().catch(() => null),
     );
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       // The one registration choreography, shared with the REST door
       // (`registerWebsite`): a same-org re-post of a LIST merges (the
@@ -151,7 +150,7 @@ export function createWebsiteRoutes(deps: {
   app.patch('/:websiteId', async (c) => {
     const raw: unknown = await c.req.json().catch(() => null);
     const body = updateBodySchema.safeParse(raw);
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       if (isRecord(raw) && raw.domain !== undefined) {
         throw websiteDomainImmutableError();
@@ -251,7 +250,7 @@ export function createWebsiteRoutes(deps: {
         limit: z.number().int().min(1).max(50).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       const website = await loadOwnedWebsite(deps.sql, c);
       return c.json(

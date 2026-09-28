@@ -18,31 +18,22 @@
 import { z } from 'zod/v4';
 
 /**
- * The characters a Postgres host may carry: hostname / IPv4 / IPv6 only.
- * Rejecting URL metacharacters (`/ ? & @ , space % #`) keeps a crafted host
- * from smuggling libpq params / downgrading TLS once it is interpolated into
- * a connection URL or DSN downstream (the SSRF-gate URL parser and the pg
- * driver's DSN parser must not be able to disagree on the host). Exported so
- * the settings form checks the very rule the door applies.
- */
-export const PG_HOST_PATTERN = /^[A-Za-z0-9._:[\]-]+$/;
-
-/** The longest database password a knowledge-connection write takes (the
- * app door's cap, which the settings form checks before it sends). */
-export const KNOWLEDGE_CONNECTION_PASSWORD_MAX = 2_000;
-
-/**
  * External-Postgres connection shape (no `table`/`schema` — the corpus owns
  * whole schemas on the target DB). Secrets (password) are NEVER stored here —
  * they live in the SOPS-encrypted secrets sidecar next to the file.
  */
 export const pgConnectionSchema = z
   .object({
+    // Restrict to hostname / IPv4 / IPv6 characters. Rejecting URL
+    // metacharacters (`/ ? & @ , space % #`) keeps a crafted host from
+    // smuggling libpq params / downgrading TLS once it is interpolated into a
+    // connection URL or DSN downstream (the SSRF-gate URL parser and the pg
+    // driver's DSN parser must not be able to disagree on the host).
     host: z
       .string()
       .min(1)
       .regex(
-        PG_HOST_PATTERN,
+        /^[A-Za-z0-9._:[\]-]+$/,
         'Host may only contain letters, digits, and . _ - : [ ] (no URL metacharacters).',
       ),
     port: z.number().int().min(1).max(65535).default(5432),

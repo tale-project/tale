@@ -7,7 +7,6 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   closeLegalMatter,
   GovernanceTailError,
@@ -160,7 +159,7 @@ export function createLegalHoldRoutes(deps: {
         description: z.string().max(4000).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const session = c.get('sessionBundle');
     try {
       const matterId = await transactSerializable(deps.sql, (tx) =>
@@ -187,7 +186,7 @@ export function createLegalHoldRoutes(deps: {
     const body = z
       .object({ releaseReason: z.string().max(2000).optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const session = c.get('sessionBundle');
     try {
       const result = await transactSerializable(deps.sql, (tx) =>
@@ -225,7 +224,7 @@ export function createLegalHoldRoutes(deps: {
         matterRef: z.string().min(1).max(128).optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       const holdId = await placeLegalHold(deps.sql, {
         ...actor(c),
@@ -244,7 +243,7 @@ export function createLegalHoldRoutes(deps: {
     const body = z
       .object({ reason: z.string().min(1).max(2_000) })
       .safeParse(await c.req.json());
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       const requestId = await requestLegalHoldRelease(deps.sql, {
         ...actor(c),
@@ -274,7 +273,7 @@ export function createLegalHoldRoutes(deps: {
     const body = z
       .object({ reason: z.string().max(2_000).optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await rejectLegalHoldRelease(deps.sql, {
         ...actor(c),

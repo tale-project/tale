@@ -35,21 +35,6 @@ export const OBJECT_STORAGE_CONFIG_DOMAIN = 'object-storage';
 export const OBJECT_STORAGE_CONNECTION_KEY = 'connection';
 
 /**
- * The longest value each field of an org's connection write takes — the
- * app door's caps (`backend/domains/object_storage/routes.ts`), which the
- * settings form checks before it sends, so a value the form lets through is
- * one the door takes.
- */
-export const OBJECT_STORAGE_CONNECTION_MAX = {
-  region: 100,
-  endpoint: 2_000,
-  bucket: 255,
-  prefix: 500,
-  accessKeyId: 500,
-  secretAccessKey: 500,
-} as const;
-
-/**
  * `connection.json` — the org's S3-compatible bucket coordinates (region +
  * optional endpoint + forcePathStyle) for ONE bucket the org owns.
  */

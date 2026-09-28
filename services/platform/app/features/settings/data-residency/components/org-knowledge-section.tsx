@@ -15,10 +15,6 @@
  * flow.
  */
 
-import {
-  KNOWLEDGE_CONNECTION_PASSWORD_MAX,
-  PG_HOST_PATTERN,
-} from '@tale/shared/schemas/knowledge';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -57,6 +53,11 @@ const SSL_MODES = [
   'verify-full',
 ] as const;
 type SslMode = (typeof SSL_MODES)[number];
+
+// Mirrors `pgConnectionSchema`'s host guard (hostname / IPv4 / IPv6 characters
+// only) — the server re-validates authoritatively; this copy exists so the
+// form can explain the refusal in the caller's language.
+const HOST_PATTERN = /^[A-Za-z0-9._:[\]-]+$/;
 
 /** Masked read of the org's knowledge-DB connection. */
 export interface KnowledgeConnectionView {
@@ -112,68 +113,6 @@ function formFromView(
 
 const FORM_ID = 'org-knowledge-form';
 
-type Translator = (key: string, options?: Record<string, unknown>) => string;
-
-/**
- * What the door would refuse in these values, named per field in the
- * caller's language — the door's own rules (`pgConnectionSchema`'s host
- * characters, port range and required fields, the password cap), applied
- * to the values as they will be SENT: trimmed. A database of spaces passed
- * the old `=== ''` check, was trimmed to nothing on the way out, and came
- * back as a bare `invalid body`. Save and Test both check through here.
- */
-function knowledgeFormIssues(
-  values: KnowledgeForm,
-  t: Translator,
-  tCommon: Translator,
-): { path: keyof KnowledgeForm; message: string }[] {
-  const issues: { path: keyof KnowledgeForm; message: string }[] = [];
-  const host = values.host.trim();
-  if (host === '') {
-    issues.push({
-      path: 'host',
-      message: t('dataResidency.orgKnowledge.errors.hostRequired'),
-    });
-  } else if (!PG_HOST_PATTERN.test(host)) {
-    issues.push({
-      path: 'host',
-      message: t('dataResidency.orgKnowledge.errors.hostInvalid'),
-    });
-  }
-  if (
-    !Number.isInteger(values.port) ||
-    values.port < 1 ||
-    values.port > 65_535
-  ) {
-    issues.push({
-      path: 'port',
-      message: t('dataResidency.orgKnowledge.errors.portInvalid'),
-    });
-  }
-  if (values.database.trim() === '') {
-    issues.push({
-      path: 'database',
-      message: t('dataResidency.orgKnowledge.errors.databaseRequired'),
-    });
-  }
-  if (values.user.trim() === '') {
-    issues.push({
-      path: 'user',
-      message: t('dataResidency.orgKnowledge.errors.userRequired'),
-    });
-  }
-  if (values.password.length > KNOWLEDGE_CONNECTION_PASSWORD_MAX) {
-    issues.push({
-      path: 'password',
-      message: tCommon('validation.maxLength', {
-        field: t('dataResidency.field.password'),
-        max: KNOWLEDGE_CONNECTION_PASSWORD_MAX,
-      }),
-    });
-  }
-  return issues;
-}
-
 export function OrgKnowledgeSection({
   organizationId,
   view,
@@ -186,7 +125,6 @@ export function OrgKnowledgeSection({
   readOnly: boolean;
 }) {
   const { t } = useT('settings');
-  const { t: tCommon } = useT('common');
   const { toast } = useToast();
 
   const save = useSaveOrgKnowledgeConnection(organizationId);
@@ -228,15 +166,46 @@ export function OrgKnowledgeSection({
         })
         .superRefine((values, ctx) => {
           if (!configured && structuralEqual(values, EMPTY_FORM)) return;
-          for (const issue of knowledgeFormIssues(values, t, tCommon)) {
+          if (values.host === '') {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              path: [issue.path],
-              message: issue.message,
+              path: ['host'],
+              message: t('dataResidency.orgKnowledge.errors.hostRequired'),
+            });
+          } else if (!HOST_PATTERN.test(values.host)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['host'],
+              message: t('dataResidency.orgKnowledge.errors.hostInvalid'),
+            });
+          }
+          if (
+            !Number.isInteger(values.port) ||
+            values.port < 1 ||
+            values.port > 65_535
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['port'],
+              message: t('dataResidency.orgKnowledge.errors.portInvalid'),
+            });
+          }
+          if (values.database === '') {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['database'],
+              message: t('dataResidency.orgKnowledge.errors.databaseRequired'),
+            });
+          }
+          if (values.user === '') {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['user'],
+              message: t('dataResidency.orgKnowledge.errors.userRequired'),
             });
           }
         }),
-    [t, tCommon, configured],
+    [t, configured],
   );
 
   const data = useMemo(() => formFromView(view), [view]);
@@ -287,37 +256,18 @@ export function OrgKnowledgeSection({
     register,
     control,
     getValues,
-    setError,
     formState: { errors },
   } = editor.form;
 
   async function onTest() {
     setTestResult(undefined);
-    const typed = getValues();
-    // An untouched number input reads as NaN; probe the schema default.
-    const values = {
-      ...typed,
-      port: Number.isNaN(typed.port) ? 5432 : typed.port,
-    };
-    // The probe takes the same body as Save: name what it would refuse
-    // under its field instead of sending it (an empty form used to come
-    // back as a bare `invalid body` on the result line).
-    const issues = knowledgeFormIssues(values, t, tCommon);
-    if (issues.length > 0) {
-      issues.forEach((issue, index) =>
-        setError(
-          issue.path,
-          { type: 'manual', message: issue.message },
-          { shouldFocus: index === 0 },
-        ),
-      );
-      return;
-    }
+    const values = getValues();
     try {
       const res: KnowledgeProbeResult = await test.mutateAsync({
         organizationId,
         host: values.host.trim(),
-        port: values.port,
+        // An untouched number input reads as NaN; probe the schema default.
+        port: Number.isNaN(values.port) ? 5432 : values.port,
         database: values.database.trim(),
         user: values.user.trim(),
         sslmode: values.sslmode,
@@ -523,7 +473,6 @@ export function OrgKnowledgeSection({
                     aria-label={t('dataResidency.field.password')}
                     type="password"
                     wrapperClassName="w-full"
-                    errorMessage={errors.password?.message}
                     {...register('password')}
                   />
                 </SettingsFieldRow>
