@@ -1,5 +1,19 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import {
+  connectorSchema,
+  type ConnectorAction,
+} from '@tale/shared/schemas/connectors';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  importedTaskTitleRefusal,
+  TASK_TITLE_MAX,
+  truncateImportedTitle,
+} from '../../../backend/core/tasks/helpers';
+import { nodeVmRunner } from '../../engine/runners/node-vm';
+import { parseYamlOrThrow } from '../../shared/config/yaml';
 import { platformTaskNatives } from './platform-tasks';
 
 const bodies = {
@@ -102,11 +116,16 @@ describe('external issue task intake', () => {
     title: 'Issue',
     externalUrl: 'https://github.com/example/web/issues/1',
   };
+  const issue = {
+    externalSystem: 'github',
+    externalId: 'example/web#1',
+    title: 'Issue',
+  };
 
   it('takes organization and caller from the trusted context', async () => {
     const upsert = vi
       .fn()
-      .mockResolvedValue({ taskId: 'task-1', created: true });
+      .mockResolvedValue({ taskId: 'task-1', created: true, title: 'Issue' });
     const native = platformTaskNatives({ upsert } as never)['task.upsert'];
     const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'tasks' };
     await expect(
@@ -118,6 +137,85 @@ describe('external issue task intake', () => {
       caller,
     });
   });
+
+  /**
+   * The title a workflow reads back is the one the task carries: the store's
+   * answer, cut to the board's cap on a create and kept as stored by a
+   * source-snapshot reconcile. The native used to echo the title it was
+   * sent — trimmed, but uncut and up to 10,000 units.
+   */
+  it('answers the title the task carries, not the one it was sent', async () => {
+    const long = 'L'.repeat(TASK_TITLE_MAX + 50);
+    const upsert = vi.fn().mockResolvedValue({
+      taskId: 'task-1',
+      created: false,
+      title: 'Renamed in Tale',
+    });
+    const upsertIssues = vi
+      .fn()
+      .mockResolvedValue([
+        { taskId: 'task-2', created: true, title: truncateImportedTitle(long) },
+      ]);
+    const natives = platformTaskNatives({ upsert, upsertIssues } as never);
+    const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'tasks' };
+    await expect(
+      natives['task.upsert']?.({ ...input, title: long }, {
+        organizationId: 'org-1',
+        caller,
+      } as never),
+    ).resolves.toEqual({
+      taskId: 'task-1',
+      created: false,
+      title: 'Renamed in Tale',
+    });
+    await expect(
+      natives['task.upsert_issues']?.(
+        { projectId: 'project-1', issues: [{ ...issue, title: long }] },
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).resolves.toEqual([
+      { taskId: 'task-2', created: true, title: `${'L'.repeat(199)}…` },
+    ]);
+  });
+
+  /**
+   * A blank title names nothing, and every task door answers it with the
+   * one empty-title sentence — the agent's upsert, the app's intake and now
+   * both natives, which used to answer the validator's "title Too small:
+   * expected string to have >=1 characters". A batch names the item.
+   */
+  it.each(['', '   ', '\n\t '])(
+    'refuses a blank title %j with the empty-title sentence, before writing',
+    async (title) => {
+      const upsert = vi.fn();
+      const upsertIssues = vi.fn();
+      const natives = platformTaskNatives({ upsert, upsertIssues } as never);
+      const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'tasks' };
+      const sentence =
+        'The task title is empty — it takes 1 to 200 UTF-16 code units.';
+      expect(importedTaskTitleRefusal(title)).toBe(sentence);
+      await expect(
+        natives['task.upsert']?.({ ...input, title }, {
+          organizationId: 'org-1',
+          caller,
+        } as never),
+      ).rejects.toMatchObject({ code: 'INPUT_INVALID', message: sentence });
+      await expect(
+        natives['task.upsert_issues']?.(
+          {
+            projectId: 'project-1',
+            issues: [issue, { ...issue, externalId: 'example/web#2', title }],
+          },
+          { organizationId: 'org-1', caller } as never,
+        ),
+      ).rejects.toMatchObject({
+        code: 'INPUT_INVALID',
+        message: `issues.1: ${sentence}`,
+      });
+      expect(upsert).not.toHaveBeenCalled();
+      expect(upsertIssues).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     { ...input, projectId: ' ' },
@@ -143,5 +241,103 @@ describe('external issue task intake', () => {
       } as never),
     ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
     expect(upsert).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A test run answers from the connector's mock, a live run from the task
+ * domain. The two used to part at the title: the mocks echoed it as sent
+ * and took a blank one. Each mock now cuts and refuses as the domain does —
+ * run here in the engine's own node-vm runner against the helpers the
+ * domain uses.
+ */
+describe('the task connector mocks mirror the import domain', () => {
+  const connector = connectorSchema.parse(
+    parseYamlOrThrow(
+      readFileSync(
+        path.join(
+          path.dirname(new URL(import.meta.url).pathname),
+          '../../../../../configs/platform/system/connectors/task/connector.yml',
+        ),
+        'utf8',
+      ),
+      { maxBytes: 1024 * 1024 },
+    ),
+  );
+  const mockOf = (name: string): ConnectorAction['mock'] => {
+    const action = connector.actions.find((entry) => entry.name === name);
+    if (action === undefined) throw new Error(`no task.${name} action`);
+    return action.mock;
+  };
+  const runner = nodeVmRunner();
+  const limits = { timeoutMs: 2000 };
+  const ref = { externalSystem: 'github', externalId: 'example/web#1' };
+  const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+  const titles = [
+    'Short',
+    '  Padded  ',
+    'x'.repeat(TASK_TITLE_MAX),
+    'x'.repeat(TASK_TITLE_MAX + 1),
+    `${'a'.repeat(TASK_TITLE_MAX - 3)}${family} more`,
+    `${'a'.repeat(TASK_TITLE_MAX - 3)}\u{1F1E8}\u{1F1ED} more`,
+    `${'a'.repeat(TASK_TITLE_MAX - 2)}e\u0301 more`,
+    'y'.repeat(10_000),
+  ];
+
+  it('cuts every title the way the domain stores it', async () => {
+    const one = mockOf('upsert');
+    const batch = mockOf('upsert_issues');
+    for (const title of titles) {
+      await expect(
+        runner.runBody(
+          one,
+          { input: { projectId: 'p', ...ref, title } },
+          limits,
+        ),
+      ).resolves.toMatchObject({ title: truncateImportedTitle(title) });
+    }
+    await expect(
+      runner.runBody(
+        batch,
+        {
+          input: {
+            projectId: 'p',
+            issues: titles.map((title) => ({ ...ref, title })),
+          },
+        },
+        limits,
+      ),
+    ).resolves.toEqual(
+      titles.map((title) =>
+        expect.objectContaining({ title: truncateImportedTitle(title) }),
+      ),
+    );
+  });
+
+  it('refuses a blank title with the domain sentence, the batch by item', async () => {
+    const sentence = importedTaskTitleRefusal(' ');
+    expect(sentence).not.toBeNull();
+    await expect(
+      runner.runBody(
+        mockOf('upsert'),
+        { input: { projectId: 'p', ...ref, title: ' ' } },
+        limits,
+      ),
+    ).rejects.toThrow(sentence ?? '');
+    await expect(
+      runner.runBody(
+        mockOf('upsert_issues'),
+        {
+          input: {
+            projectId: 'p',
+            issues: [
+              { ...ref, title: 'Fine' },
+              { ...ref, title: '' },
+            ],
+          },
+        },
+        limits,
+      ),
+    ).rejects.toThrow(`issues.1: ${sentence ?? ''}`);
   });
 });

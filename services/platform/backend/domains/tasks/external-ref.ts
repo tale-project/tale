@@ -224,6 +224,20 @@ export interface UpsertTaskByExternalRefArgs {
   createIfMissing?: boolean;
 }
 
+/** What {@link upsertTaskByExternalRef} answers. */
+export interface UpsertTaskByExternalRefResult {
+  /** The task the ref names — null when nothing was materialized (an
+   * update-only reconcile, a closed source) and none existed. */
+  taskId: string | null;
+  created: boolean;
+  /** The title the task carries after the write, never merely the one sent:
+   * the imported title as cut ({@link truncateImportedTitle}) on a create
+   * and a plain reconcile, the stored one where the write leaves the title
+   * alone (a source-snapshot reconcile, an archived task). With no task,
+   * the title a create would have stored. */
+  title: string;
+}
+
 /**
  * On the rebuilt engine the workflow slug IS the automation's store name: a
  * DEPLOYED automation of that name owns the tasks it operates.
@@ -257,7 +271,7 @@ async function automationOwnerOfWorkflowSlug(
 export async function upsertTaskByExternalRef(
   tx: TransactionSql,
   args: UpsertTaskByExternalRefArgs,
-): Promise<{ taskId: string | null; created: boolean }> {
+): Promise<UpsertTaskByExternalRefResult> {
   const { externalSystem, externalId } = canonicalExternalRef(args);
   // Issue state is evidence for triage, including old source-less REST
   // intakes. Generic desk mirrors keep their explicit lifecycle contract.
@@ -335,8 +349,9 @@ export async function upsertTaskByExternalRef(
    * archival is authoritative, so the upstream item's later close (or
    * reopen) neither moves the hidden card nor mints a review gate a
    * reviewer would be belled for on no board. The ref still resolves, so
-   * the intake does not create a duplicate. */
-  const reconcileExisting = async (existing: TaskRow): Promise<void> => {
+   * the intake does not create a duplicate. Answers the title the task
+   * carries afterwards. */
+  const reconcileExisting = async (existing: TaskRow): Promise<string> => {
     if (source !== undefined) {
       // Archived cards still report what happened upstream; archival and
       // every Tale field stay untouched. An older overlapping observation
@@ -386,9 +401,9 @@ export async function upsertTaskByExternalRef(
           metadata: { externalSystem, externalId, sourceId: source.id },
         });
       }
-      return;
+      return existing.title;
     }
-    if (existing.archivedAt !== null) return;
+    if (existing.archivedAt !== null) return existing.title;
     const preserveDescription =
       args.descriptionMode === 'preserve' &&
       existing.description !== null &&
@@ -536,17 +551,21 @@ export async function upsertTaskByExternalRef(
       title,
       metadata: { externalSystem, externalId },
     });
+    return title;
   };
 
   const existing = await findExisting();
   if (existing) {
-    await reconcileExisting(existing);
-    return { taskId: existing.id, created: false };
+    return {
+      taskId: existing.id,
+      created: false,
+      title: await reconcileExisting(existing),
+    };
   }
 
   // No existing task. An update-only reconcile stops here; intake creates.
   if (!createIfMissing) {
-    return { taskId: null, created: false };
+    return { taskId: null, created: false, title };
   }
   const projectId = args.projectId;
   if (projectId === undefined) {
@@ -634,8 +653,11 @@ export async function upsertTaskByExternalRef(
       }
       throw new Error('TASK_CREATE_FAILED: the insert answered no row');
     }
-    await reconcileExisting(winner);
-    return { taskId: winner.id, created: false };
+    return {
+      taskId: winner.id,
+      created: false,
+      title: await reconcileExisting(winner),
+    };
   }
   // Read the bucket from the INSERTED state, never assume "create ⇒ open":
   // a closed external issue is materialized directly as `done`.
@@ -670,7 +692,7 @@ export async function upsertTaskByExternalRef(
     title,
     metadata: { projectId, externalSystem, externalId },
   });
-  return { taskId, created: true };
+  return { taskId, created: true, title };
 }
 
 /** The per-(org, task) start mutex — see {@link startWorkflowForTask}. The

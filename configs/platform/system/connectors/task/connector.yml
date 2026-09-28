@@ -123,7 +123,7 @@ actions:
       impl: task.list_comments
     exampleInput: { taskId: 'tsk_1', authorTypes: [user], limit: 20 }
   - name: upsert
-    description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. A title over 200 or a description over 20,000 UTF-16 code units is cut to that length, ending in "…". Does not start an agent.
+    description: Import an external issue into a project's backlog, reusing its existing task on repeat imports. Keeps local status, assignee, and non-empty description. A title over 200 or a description over 20,000 UTF-16 code units is cut to that length, ending in "…"; a blank title is refused. Returns the title the task carries. Does not start an agent.
     effects: write
     input:
       type: object
@@ -134,12 +134,19 @@ actions:
         externalSystem: { type: string, minLength: 1, maxLength: 100 }
         externalId: { type: string, minLength: 1, maxLength: 2000 }
         externalIssue: { type: object }
-        title: { type: string, minLength: 1, maxLength: 10000 }
+        # No minLength: the native refuses a blank title with the sentence
+        # every task door answers, which this schema would pre-empt.
+        title: { type: string, maxLength: 10000 }
         description: { type: string, maxLength: 100000 }
         externalUrl: { type: string, maxLength: 4000 }
     output: '{ taskId: string | null, created: boolean, title: string }'
+    # The task domain's own cut and refusal, so a test run reports the title
+    # a live run stores (platform-tasks.test.ts holds the two together).
     mock: |
-      return { taskId: 'task_' + String(input.externalSystem) + '_' + String(input.externalId), created: true, title: input.title };
+      const title = String(input.title ?? '').trim();
+      if (title === '') throw new Error('The task title is empty — it takes 1 to 200 UTF-16 code units.');
+      const stored = title.length <= 200 ? title : title.slice(0, new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(title).containing(199).index).trimEnd() + '…';
+      return { taskId: 'task_' + String(input.externalSystem) + '_' + String(input.externalId), created: true, title: stored };
     backend:
       kind: native
       impl: task.upsert
@@ -167,7 +174,7 @@ actions:
       impl: task.list_external_issues
     exampleInput: { projectId: proj_mock, externalSystem: github, repositoryId: 1 }
   - name: upsert_issues
-    description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Titles and descriptions are cut to 200 and 20,000 UTF-16 code units, ending in "…". Returns one result per source, with taskId null when a closed source has no task.
+    description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Titles and descriptions are cut to 200 and 20,000 UTF-16 code units, ending in "…"; a blank title refuses the batch, naming the item. Returns one result per source with the title its task carries, and taskId null when a closed source has no task.
     effects: write
     input:
       type: object
@@ -178,7 +185,13 @@ actions:
         issues: { type: array, maxItems: 500, items: { type: object } }
     output: 'Array<{ taskId: string | null, created: boolean, title: string }>'
     mock: |
-      return input.issues.map((issue) => ({ taskId: 'task_' + String(issue.externalSystem) + '_' + String(issue.externalId), created: true, title: issue.title }));
+      const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      const cut = (title) => title.length <= 200 ? title : title.slice(0, graphemes.segment(title).containing(199).index).trimEnd() + '…';
+      return input.issues.map((issue, index) => {
+        const title = String(issue.title ?? '').trim();
+        if (title === '') throw new Error('issues.' + index + ': The task title is empty — it takes 1 to 200 UTF-16 code units.');
+        return { taskId: 'task_' + String(issue.externalSystem) + '_' + String(issue.externalId), created: true, title: cut(title) };
+      });
     backend:
       kind: native
       impl: task.upsert_issues
