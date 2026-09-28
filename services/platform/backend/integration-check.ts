@@ -53673,6 +53673,10 @@ async function checkOrganizationLifecycle(
       afterSameSlug[0].slug === slugA,
     `status=${sameSlug.status} name=${afterSameSlug[0]?.name ?? ''} slug=${afterSameSlug[0]?.slug ?? 'MISSING'}`,
   );
+  // The deletion door compares the typed confirmation with the name the
+  // organization carries NOW, so every deletion below types the name the
+  // update above left — the one it had before is refused as a mismatch.
+  const nameA = afterSameSlug[0]?.name ?? 'Life A';
 
   // Better Auth's own delete would bypass every guard above — it is closed.
   const pluginDelete = await post(
@@ -53692,7 +53696,7 @@ async function checkOrganizationLifecycle(
   const memberDelete = await post(
     plain.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    { confirmName: 'Life A' },
+    { confirmName: nameA },
   );
   const afterMember = await snapshot();
   record(
@@ -53728,7 +53732,7 @@ async function checkOrganizationLifecycle(
         tx,
         { userId: owner.userId },
         orgA,
-        'Life A',
+        nameA,
       );
       throw new Error('itest-abort');
     });
@@ -53770,7 +53774,7 @@ async function checkOrganizationLifecycle(
   const deleted = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    { confirmName: 'Life A' },
+    { confirmName: nameA },
   );
   const deletedBody = z
     .object({ orgSlug: z.string() })
