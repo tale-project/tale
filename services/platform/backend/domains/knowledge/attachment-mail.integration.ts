@@ -12,8 +12,11 @@
  * the copy a verdict left behind with no release queued (every verdict before
  * this release) — a file filed into a document with its stamp left behind is
  * hidden from every document door until that pass takes the stamp off (the
- * scope pass leaves it: no sync failed), a stamped row nothing holds is
- * released by it, and deleting the conversation releases the corpus copy.
+ * scope pass leaves it: no sync failed), a ref that turns back into an
+ * attachment while the pass clears its stamp gets the stamp back from the
+ * same pass, a stamped row nothing holds is released by it with its bytes
+ * and the trashed file row that remembered them, and deleting the
+ * conversation releases the corpus copy.
  * Needs the object store `checkFiles` seeds: an attachment has bytes. */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -123,6 +126,8 @@ export async function checkEmailedAttachments(
   let fileId = '';
   let ref = '';
   let documentId = '';
+  let orphanFileId = '';
+  let orphanRef = '';
   try {
     // A key for the fake endpoint — unless an earlier lane left one the
     // model already resolves (the full run), so the lane also runs alone.
@@ -409,14 +414,23 @@ export async function checkEmailedAttachments(
     );
     const unstamped = await doors();
     const unstampedFetch = await chatFetch(userId);
-    /** The nightly pass, wired as `runCorpusReconcile` wires it. */
-    const stampPass = () =>
-      reconcileMailAttachmentStamps(sql, {
-        organizationId: orgId,
-        orgSlug,
-        releaseCorpus: (refs) =>
-          releaseCorpusRefs(sql, { organizationId: orgId, orgSlug, refs }),
+    /** The nightly pass, wired as `runCorpusReconcile` wires it; `between`
+     * runs once a release has judged its refs, before the pass writes what
+     * that release decided. */
+    const stampPass = (between?: (refs: string[]) => Promise<void>) => {
+      const judged = async <T>(refs: string[], outcome: T): Promise<T> => {
+        await between?.(refs);
+        return outcome;
+      };
+      const orgRef = { organizationId: orgId, orgSlug };
+      return reconcileMailAttachmentStamps(sql, {
+        ...orgRef,
+        releaseCorpus: async (refs) =>
+          judged(refs, await releaseCorpusRefs(sql, { ...orgRef, refs })),
+        releaseUnbacked: async (refs) =>
+          judged(refs, await releaseRefs(sql, { ...orgRef, refs })),
       });
+    };
     const backfill = await stampPass();
     const restamped = await corpusRow();
     record(
@@ -550,6 +564,7 @@ export async function checkEmailedAttachments(
         scopePassLeft === conversationId &&
         clear.cleared >= 1 &&
         clear.failures === 0 &&
+        clear.unbackedFailures === 0 &&
         unstampedDocument?.status === 'completed' &&
         unstampedDocument.conversationId === null &&
         filedFound.rest.found &&
@@ -558,32 +573,109 @@ export async function checkEmailedAttachments(
         clearAgain.cleared === 0 &&
         unfiled.corrected >= 1 &&
         unfiledRow?.conversationId === conversationId,
-      `filed stamp=${filedStamp === conversationId} hidden rest=${!filedHidden.rest.found} orgWide=${!filedHidden.orgWide.found} (want true), scope pass left the stamp=${scopePassLeft === conversationId} (want true), cleared=${clear.cleared} (want >= 1) failures=${clear.failures} row=${unstampedDocument?.status ?? 'gone'} stamp=${unstampedDocument?.conversationId ?? 'none'} (want completed/none), found rest=${filedFound.rest.found} orgWide=${filedFound.orgWide.found} restFetch=${(filedFound.restFetch?.text ?? '').includes(phrase)} (want true), second pass cleared=${clearAgain.cleared} (want 0), unfiled restamped=${unfiled.corrected} (want >= 1) stamp=${unfiledRow?.conversationId === conversationId}`,
+      `filed stamp=${filedStamp === conversationId} hidden rest=${!filedHidden.rest.found} orgWide=${!filedHidden.orgWide.found} (want true), scope pass left the stamp=${scopePassLeft === conversationId} (want true), cleared=${clear.cleared} (want >= 1) failures=${clear.failures}/${clear.unbackedFailures} row=${unstampedDocument?.status ?? 'gone'} stamp=${unstampedDocument?.conversationId ?? 'none'} (want completed/none), found rest=${filedFound.rest.found} orgWide=${filedFound.orgWide.found} restFetch=${(filedFound.restFetch?.text ?? '').includes(phrase)} (want true), second pass cleared=${clearAgain.cleared} (want 0), unfiled restamped=${unfiled.corrected} (want >= 1) stamp=${unfiledRow?.conversationId === conversationId}`,
+    );
+
+    // The clear decides on the app's rows and writes to the corpus, a
+    // database of its own, so nothing guards it with those rows. A ref that
+    // turns back into an attachment in between — here the document holding
+    // it is deleted while the file row stays unbound — gets its stamp back
+    // from the same pass instead of reading as a hub row until the next
+    // night.
+    documentId = randomUUID();
+    const heldAt = Date.now();
+    await sql`
+      INSERT INTO app.documents (
+        id, org_id, title, file_ref, mime_type, extension, source_provider,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${documentId}, ${orgId}, ${`cv-${suffix}.txt`}, ${ref}, 'text/plain',
+        'txt', 'upload', ${userId}, ${heldAt}, ${heldAt}
+      )
+    `;
+    const heldStamp = (await corpusRow())?.conversationId ?? null;
+    const heldBy = documentId;
+    let racedAway = false;
+    const raced = await stampPass(async (refs) => {
+      if (!refs.includes(ref)) return;
+      await sql`DELETE FROM app.documents WHERE id = ${heldBy}`;
+      racedAway = true;
+    });
+    // Idempotent: the pass may never have reached the hook.
+    await sql`DELETE FROM app.documents WHERE id = ${heldBy}`;
+    documentId = '';
+    const racedRow = await corpusRow();
+    record(
+      'emailed attachment: a ref that turns back into an attachment while the stamp pass clears its stamp gets the stamp back from the same pass',
+      heldStamp === conversationId &&
+        racedAway &&
+        raced.cleared === 0 &&
+        raced.unbackedFailures === 0 &&
+        racedRow?.conversationId === conversationId,
+      `stamped before=${heldStamp === conversationId} (want true) document deleted between release and clear=${racedAway} (want true) cleared=${raced.cleared} (want 0) failures=${raced.unbackedFailures} stamp after=${racedRow?.conversationId === conversationId} (want true)`,
     );
 
     // A stamped corpus row nothing holds any more is released by the pass,
     // never un-stamped: unstamped, it would read as a hub row and be offered
-    // to content-hash clones.
-    const orphanRef = `s3:itest/${orgSlug}/orphan-attachment-${suffix}.txt`;
+    // to content-hash clones. Its bytes go with it: an attachment deleted
+    // behind a failed blob delete leaves them with nothing but that row to
+    // name them — the blob walk lists corpus refs only — and a trashed file
+    // row that only remembers the ref goes too.
+    const orphanBytes = new TextEncoder().encode(`orphaned ${phrase}`);
+    orphanRef = z.string().parse(
+      await store({
+        organizationId: orgId,
+        bytes: orphanBytes.buffer.slice(
+          orphanBytes.byteOffset,
+          orphanBytes.byteOffset + orphanBytes.byteLength,
+        ),
+        contentType: 'text/plain',
+      }),
+    );
+    orphanFileId = z.object({ fileId: z.string() }).parse(
+      await register({
+        organizationId: orgId,
+        storageId: orphanRef,
+        fileName: `orphan-${suffix}.txt`,
+        contentType: 'text/plain',
+        size: orphanBytes.byteLength,
+        source: 'imap-smtp',
+        skipRagIndexing: true,
+      }),
+    ).fileId;
+    await sql`
+      UPDATE app.file_metadata
+         SET lifecycle_status = 'trashed', conversation_id = ${conversationId}
+       WHERE id = ${orphanFileId}
+    `;
     await pool.unsafe(
       `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
            (org_slug, file_id, filename, status, conversation_id)
        VALUES ($1, $2, 'orphan.txt', 'completed', $3)`,
       [orgSlug, orphanRef, conversationId],
     );
+    const orphanBytesBefore = await statOrgBlob(sql, orgId, orphanRef);
     const orphanSwept = await stampPass();
     const orphanLeft = await pool.unsafe<{ count: string }[]>(
       `SELECT count(*)::text AS count FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
         WHERE org_slug = $1 AND file_id = $2`,
       [orgSlug, orphanRef],
     );
+    const orphanBytesAfter = await statOrgBlob(sql, orgId, orphanRef);
+    const orphanFileLeft = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.file_metadata
+      WHERE id = ${orphanFileId}
+    `;
     record(
-      'emailed attachment: a stamped corpus row nothing holds is released by the stamp pass, never un-stamped',
-      orphanSwept.released >= 1 &&
+      'emailed attachment: a stamped corpus row nothing holds is released by the stamp pass with its bytes and the trashed file row that remembered them, never un-stamped',
+      orphanSwept.unbackedReleased >= 1 &&
         orphanSwept.cleared === 0 &&
-        orphanSwept.failures === 0 &&
-        orphanLeft[0]?.count === '0',
-      `released=${orphanSwept.released} (want >= 1) cleared=${orphanSwept.cleared} (want 0) failures=${orphanSwept.failures} left=${orphanLeft[0]?.count} (want 0)`,
+        orphanSwept.unbackedFailures === 0 &&
+        orphanLeft[0]?.count === '0' &&
+        orphanBytesBefore !== null &&
+        orphanBytesAfter === null &&
+        orphanFileLeft[0]?.count === '0',
+      `released=${orphanSwept.unbackedReleased} (want >= 1) cleared=${orphanSwept.cleared} (want 0) failures=${orphanSwept.unbackedFailures} left=${orphanLeft[0]?.count} (want 0) bytes before=${orphanBytesBefore !== null} (want true) after=${orphanBytesAfter !== null} (want false) trashed file row left=${orphanFileLeft[0]?.count} (want 0)`,
     );
 
     // Deleting the conversation releases the corpus copy.
@@ -617,11 +709,23 @@ export async function checkEmailedAttachments(
         },
       );
     }
-    if (fileId !== '') {
-      // The file row outlives its conversation (0.4 parity): this lane's own
-      // leftovers go, row then bytes, through the release seam.
-      await sql`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
-      await releaseRefs(sql, { organizationId: orgId, orgSlug, refs: [ref] })
+    // The file row outlives its conversation (0.4 parity): this lane's own
+    // leftovers go, rows then bytes, through the release seam — the
+    // orphan's too, which the stamp pass reaps when it works.
+    const leftovers = [
+      { fileId, ref },
+      { fileId: orphanFileId, ref: orphanRef },
+    ].filter((file) => file.fileId !== '');
+    if (leftovers.length > 0) {
+      await sql`
+        DELETE FROM app.file_metadata
+        WHERE id = ANY(${leftovers.map((file) => file.fileId)}::text[])
+      `;
+      await releaseRefs(sql, {
+        organizationId: orgId,
+        orgSlug,
+        refs: leftovers.map((file) => file.ref),
+      })
         .then((outcome) => {
           if (outcome.failures.length > 0) {
             console.warn(
