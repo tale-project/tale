@@ -9,7 +9,10 @@ import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,
 } from '../../core/knowledge_entries/constants.ts';
-import { describeIssues } from '../../lib/invalid-body-response.ts';
+import {
+  describeIssues,
+  invalidBodyResponse,
+} from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
@@ -115,10 +118,7 @@ export function createKnowledgeEntryRoutes(deps: {
       await c.req.json().catch(() => null),
     );
     if (!body.success) {
-      return c.json(
-        { error: 'invalid body', message: describeIssues(body.error) },
-        400,
-      );
+      return invalidBodyResponse(c, body.error);
     }
     try {
       await checkOrganizationRateLimit(
@@ -144,10 +144,7 @@ export function createKnowledgeEntryRoutes(deps: {
       await c.req.json().catch(() => null),
     );
     if (!body.success) {
-      return c.json(
-        { error: 'invalid body', message: describeIssues(body.error) },
-        400,
-      );
+      return invalidBodyResponse(c, body.error);
     }
     try {
       await checkOrganizationRateLimit(

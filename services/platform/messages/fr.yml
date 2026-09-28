@@ -4983,6 +4983,7 @@ products:
     currencyPlaceholder: EUR
     validation:
       currency: Saisis un code devise ISO 4217 à trois lettres (par exemple EUR ou USD)
+      imageUrl: Saisis une URL d'image qui commence par https:// ou http://
       priceNumber: Saisis un nombre pour le prix
       priceNonNegative: Le prix doit être supérieur ou égal à 0
       priceTooLarge: Le prix est trop élevé

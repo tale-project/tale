@@ -3,18 +3,17 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { CONTACT_LOCALE_PATTERN } from '../../../lib/shared/schemas/common.ts';
+import {
+  CONTACT_EXTERNAL_ID_MAX,
+  CONTACT_LOCALE_PATTERN,
+} from '../../../lib/shared/schemas/common.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { mergeBulkResult, partitionBulkRows } from '../../lib/bulk-rows.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
-import {
-  CONTACT_EXTERNAL_ID_MAX,
-  contactEmailSchema,
-  contactFieldsShape,
-} from './input-schema.ts';
+import { contactEmailSchema, contactFieldsShape } from './input-schema.ts';
 import {
   bulkCreateContacts,
   CONTACT_SOURCES,
