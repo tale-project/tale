@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
@@ -156,7 +157,10 @@ describe('turbo inputs', () => {
       fs.readFileSync(path.join(REPO_ROOT, 'services/docs/turbo.json'), 'utf8'),
     ) as { tasks: Record<string, { inputs?: string[] }> };
     const lists = Object.entries(tasks).filter(([, { inputs }]) => inputs);
-    expect(lists.length).toBeGreaterThan(0);
+    expect(
+      lists.length,
+      'services/docs/turbo.json declares no task inputs',
+    ).toBeGreaterThan(0);
     for (const [task, { inputs }] of lists) {
       expect(inputs?.slice(0, 2), `services/docs/turbo.json ${task}`).toEqual([
         '$TURBO_EXTENDS$',
@@ -169,10 +173,13 @@ describe('turbo inputs', () => {
     it(`@tale/docs#${task} hashes every file it reads outside the workspace`, () => {
       const inputs = hashed.get(`@tale/docs#${task}`) ?? new Set<string>();
       // `$TURBO_DEFAULT$` stays in the list, or the task's own sources drop out.
-      expect(
-        inputs.has('services/docs/package.json'),
-        `@tale/docs#${task} no longer hashes its own workspace`,
-      ).toBe(true);
+      // Probe this file: turbo hashes `package.json` and `turbo.json` either way.
+      const self = toPosix(
+        path.relative(REPO_ROOT, fileURLToPath(import.meta.url)),
+      );
+      expect(inputs.has(self), `@tale/docs#${task} does not hash ${self}`).toBe(
+        true,
+      );
       const files = reads();
       expect(files.length).toBeGreaterThan(0);
       const missing = files.filter((file) => !inputs.has(file));

@@ -21,6 +21,10 @@ interface SegmentedControlProps {
   options: SegmentedControlOption[];
   disabled?: boolean;
   className?: string;
+  /** Names the group when there is no visible `label`. */
+  'aria-label'?: string;
+  /** Names the group after visible text elsewhere, when there is no `label`. */
+  'aria-labelledby'?: string;
 }
 
 /**
@@ -40,6 +44,8 @@ export function SegmentedControl({
   options,
   disabled,
   className,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
 }: SegmentedControlProps) {
   const generatedId = useId();
   const id = providedId ?? generatedId;
@@ -67,7 +73,8 @@ export function SegmentedControl({
         value={value}
         onValueChange={handleValueChange}
         disabled={disabled}
-        aria-labelledby={label ? `${id}-label` : undefined}
+        aria-label={label ? undefined : ariaLabel}
+        aria-labelledby={label ? `${id}-label` : ariaLabelledBy}
         className={cn(
           'border-border bg-muted inline-flex gap-0.5 rounded-md border p-0.5',
           className,

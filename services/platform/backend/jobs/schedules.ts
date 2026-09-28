@@ -93,6 +93,10 @@ export const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.transcriptions', cron: '*/5 * * * *' },
   { name: 'watchdog.rag_indexing', cron: '2-59/5 * * * *' },
   { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
+  // Repeating tasks that continue on their due date: the next task appears
+  // within five minutes of the due day's start in the rule's zone. Offset so
+  // it does not share the minute of the other five-minute sweeps.
+  { name: 'tasks.repeat_on_due', cron: '3-59/5 * * * *' },
   // Session-idle enforcement: the control only exists if something revokes.
   { name: 'governance.revoke_idle_sessions', cron: '*/5 * * * *' },
   // Outbound-send crash recovery: fail replies stranded 'queued' by a lost or

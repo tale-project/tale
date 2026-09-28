@@ -325,21 +325,29 @@ async function reconcileRange(
     if (page.length === 0) break;
     scanned += page.length;
     cursor = page.at(-1) ?? null;
-    const outcome = await releaseRefs(sql, {
-      organizationId: args.organizationId,
-      orgSlug: args.orgSlug,
-      refs: page,
-    });
+    const outcome = warnReleaseFailures(
+      await releaseRefs(sql, {
+        organizationId: args.organizationId,
+        orgSlug: args.orgSlug,
+        refs: page,
+      }),
+    );
     released += outcome.released.length;
     failures += outcome.failures.length;
-    for (const failure of outcome.failures) {
-      console.warn(
-        `[knowledge] reconcile release failed for ${failure.ref} (${failure.stage}): ${failure.message}`,
-      );
-    }
     if (page.length < RECONCILE_PAGE) break;
   }
   return { scanned, released, failures };
+}
+
+/** Log each failure of a release the reconcile ran — the next run retries
+ * what it still finds — and hand the outcome on. */
+function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
+  for (const failure of outcome.failures) {
+    console.warn(
+      `[knowledge] reconcile release failed for ${failure.ref} (${failure.stage}): ${failure.message}`,
+    );
+  }
+  return outcome;
 }
 
 /**
@@ -426,33 +434,39 @@ export async function runCorpusReconcile(sql: Sql): Promise<void> {
       // The same walk releases the corpus copy of every attachment whose
       // conversation is gone or marked spam — those a delete or a verdict
       // left behind before its lane queued the release, which the bounded
-      // blob walk above may never reach — and takes the stamp off every row
-      // no attachment backs any more, or releases it when nothing keeps it.
+      // blob walk above may never reach — and leaves the bytes to the file
+      // row. A second walk takes the stamp off every row no attachment backs
+      // any more, or releases it when nothing keeps it — bytes and all when
+      // nothing references them: the blob walk lists corpus refs only, so
+      // once that row is gone nothing would ever reach them again.
       const orgRef = { organizationId: org.id, orgSlug: org.slug };
       const mail = await reconcileMailAttachmentStamps(sql, {
         ...orgRef,
-        releaseCorpus: async (refs) => {
-          const outcome = await releaseCorpusRefs(sql, { ...orgRef, refs });
-          for (const failure of outcome.failures) {
-            console.warn(
-              `[knowledge] reconcile release failed for ${failure.ref} (${failure.stage}): ${failure.message}`,
-            );
-          }
-          return outcome;
-        },
+        releaseCorpus: async (refs) =>
+          warnReleaseFailures(
+            await releaseCorpusRefs(sql, { ...orgRef, refs }),
+          ),
+        releaseUnbacked: async (refs) =>
+          warnReleaseFailures(await releaseRefs(sql, { ...orgRef, refs })),
       });
       if (mail.corrected > 0 || mail.released > 0 || mail.failures > 0) {
         console.info(
           `[knowledge] emailed attachments for ${org.slug}: stamped=${mail.corrected} released=${mail.released} failures=${mail.failures} (of scanned=${mail.scanned})`,
         );
       }
-      if (mail.cleared > 0) {
+      if (
+        mail.cleared > 0 ||
+        mail.unbackedReleased > 0 ||
+        mail.unbackedFailures > 0
+      ) {
         // Not drift: no sync failed. These rows stopped being emailed
-        // attachments (a file filed into a document, whose stamp raced the
-        // filing) and kept a stamp that hid them from every document door,
-        // so they are reported apart from the scope drift above.
+        // attachments and kept a stamp — one that hid them from every
+        // document door while something still holds the ref, or one on a
+        // row nothing holds any more — so they are reported apart from the
+        // scope drift above, and apart from the attachments line, whose
+        // counts are of attachment rows.
         console.info(
-          `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} — rows no longer an emailed attachment (filed into a document), not a failed sync`,
+          `[knowledge] stale conversation stamps for ${org.slug}: cleared=${mail.cleared} released=${mail.unbackedReleased} failures=${mail.unbackedFailures} (of stamped=${mail.stampsScanned}) — rows no emailed attachment backs any more (filed into or held by a document, or a thread/chat file), not a failed sync`,
         );
       }
     } catch (error) {

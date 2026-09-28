@@ -7,11 +7,13 @@ import type {
   ChatProjectSummary,
   ChatThreadSummary,
 } from '@/app/features/chat/types';
+import { projectConversationItem } from '@/lib/shared/conversations/conversation-item';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
 import type { HomeItem } from '../lib/home-items';
 import { HomeNavigator } from './home-panel';
+import { HomeConversationRow } from './home-rows';
 
 import '@/app/globals.css';
 
@@ -25,6 +27,57 @@ import '@/app/globals.css';
  */
 
 const ORG = 'org-test';
+
+it.each([320, 1280])(
+  'renders a cleaned mail preview as literal text at %ipx',
+  async (width) => {
+    await page.viewport(width, 720);
+    const html =
+      `<style>${'.mail { color: red; }'.repeat(20)}</style>` +
+      '<table><tr><td></td><td>Your code is &lt;123456&gt;; type &amp;amp; literally.</td></tr></table>';
+    const projected = projectConversationItem({
+      conversation: { id: 'mail', organizationId: ORG, createdAt: Date.now() },
+      contact: null,
+      messages: [
+        {
+          id: 'message',
+          direction: 'inbound',
+          content: html,
+          metadata: { html },
+          createdAt: Date.now(),
+        },
+      ],
+    });
+    const preview = projected.lastMessagePreview;
+    if (typeof preview !== 'string')
+      throw new Error('The mail preview is missing');
+    render(
+      <ul style={{ width: Math.min(width - 32, 400) }}>
+        <HomeConversationRow
+          organizationId={ORG}
+          active={false}
+          item={{
+            kind: 'conversation',
+            id: 'mail',
+            title: 'Account notice',
+            activityAt: Date.now(),
+            unread: false,
+            status: 'open',
+            contactLabel: 'Support',
+            preview,
+          }}
+        />
+      </ul>,
+    );
+    const row = screen.getByRole('link', { name: /Account notice/ });
+    expect(row).toHaveTextContent(
+      'Your code is <123456>; type &amp; literally.',
+    );
+    expect(row).not.toHaveTextContent('color: red');
+    expect(row).not.toHaveTextContent('|');
+    expect(row.getBoundingClientRect().width).toBeLessThanOrEqual(width);
+  },
+);
 
 const backend = vi.hoisted(() => ({
   location: { pathname: '/dashboard/org-test/chat', search: {} } as {

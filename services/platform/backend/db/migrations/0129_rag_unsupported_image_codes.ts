@@ -18,7 +18,11 @@
  *
  * Its own number rather than an edit of `0128`: a database that already
  * applied `0128` never runs it again. A TypeScript data migration because
- * which names are images is the extractor router's own `isImageFile()`.
+ * which rows get the pair is the indexer's own by-name rule,
+ * `unsupportedByName()`: a row is filled only where it answers
+ * `image_no_vision`, with the sentence it answers. The rule drops its image
+ * leg once the vision lane returns; this then fills nothing, rather than
+ * stamp "no vision" on an image the indexer of that release reads.
  * Every statement is written here, against the schema as it stood at 0129:
  * a database that jumps past several releases runs this with the newest
  * image's code, so only pure rules are imported (`DataMigration`).
@@ -33,8 +37,7 @@
 import type { TransactionSql } from 'postgres';
 
 import { RAG_ERROR_IMAGE_NO_VISION } from '../../core/knowledge/rag_error_codes.ts';
-import { imageNoVisionError } from '../../core/knowledge/rag_unsupported.ts';
-import { isImageFile } from '../../core/lib/knowledge/extraction/router.ts';
+import { unsupportedByName } from '../../core/knowledge/rag_unsupported.ts';
 
 export async function migrate(tx: TransactionSql): Promise<void> {
   const bare = await tx<{ id: string; fileName: string }[]>`
@@ -43,7 +46,12 @@ export async function migrate(tx: TransactionSql): Promise<void> {
     WHERE rag_status = 'unsupported' AND rag_error_code IS NULL
     FOR UPDATE
   `;
-  const images = bare.filter((row) => isImageFile(row.fileName));
+  const images = bare.flatMap((row) => {
+    const cause = unsupportedByName(row.fileName);
+    return cause?.code === RAG_ERROR_IMAGE_NO_VISION
+      ? [{ id: row.id, error: cause.error }]
+      : [];
+  });
   if (images.length === 0) return;
   // `listed`: a document holds the file, so a document list shows its status
   // — an attachment's is on no list.
@@ -54,7 +62,7 @@ export async function migrate(tx: TransactionSql): Promise<void> {
       rag_progress = NULL
     FROM unnest(
       ${images.map((row) => row.id)}::text[],
-      ${images.map((row) => imageNoVisionError(row.fileName))}::text[]
+      ${images.map((row) => row.error)}::text[]
     ) AS v(id, error)
     WHERE fm.id = v.id
       AND fm.rag_status = 'unsupported' AND fm.rag_error_code IS NULL

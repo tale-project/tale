@@ -29,6 +29,7 @@ import {
   BlockedIndicator,
   CommentCountIndicator,
   DueDateIndicator,
+  RepeatIndicator,
   SubtaskProgress,
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
@@ -393,6 +394,12 @@ function TaskListRow({
       <BlockedIndicator blocked={blocked} className="relative z-10 shrink-0" />
       <CommentCountIndicator
         count={task.commentCount}
+        className="relative z-10 shrink-0"
+      />
+      <RepeatIndicator
+        repeat={task.repeat}
+        status={task.status}
+        continued={task.repeatContinued}
         className="relative z-10 shrink-0"
       />
       <DueDateIndicator

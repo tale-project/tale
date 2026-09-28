@@ -3,7 +3,7 @@
  * connector's default; Reconnect renews exactly the credential its row named
  * — id, name, default flag and references kept — or saves nothing when that
  * credential is gone. The intent rides the pending authorization row the
- * start door minted (migration 0130), so an expired or tampered one, a
+ * start door minted (migration 0131), so an expired or tampered one, a
  * denied consent, a member who lost the role mid-consent and a row the
  * previous image minted all behave; two Adds completing at once number past
  * each other; Slack keeps one credential per workspace.

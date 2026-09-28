@@ -212,6 +212,9 @@ common:
     autoTranslate: Auto-translate
     hasError: has an error
   moreTabs: More
+  numberStepper:
+    decrease: Decrease
+    increase: Increase
   optional: optional
   pagination:
     loadMore: Load more
@@ -290,3 +293,52 @@ toast:
 tables:
   headers:
     description: Description
+recurrence:
+  label: Repeat
+  namePrefix: '{label}:'
+  never: Never
+  presets: Presets
+  custom: Custom
+  back: Back to presets
+  workweekRange: Mon–Fri
+  nextDates: Next dates
+  sentence:
+    daily: '{count, plural, one {Daily} other {Every # days}}'
+    weekdays: Every weekday
+    weekly: '{count, plural, one {Weekly on {days}} other {Every # weeks on {days}}}'
+    monthly: '{count, plural, one {Monthly on day {day}} other {Every # months on day {day}}}'
+    yearly: '{count, plural, one {Yearly on {date}} other {Every # years on {date}}}'
+  compact:
+    weekdays: Weekdays
+    weekly: '{count, plural, one {Weekly} other {Every # weeks}}'
+    monthly: '{count, plural, one {Monthly} other {Every # months}}'
+    yearly: '{count, plural, one {Yearly} other {Every # years}}'
+    monthDay: 'day {day}'
+    dayCount: '{count, plural, one {# day} other {# days}}'
+  editor:
+    unit: Unit
+    units:
+      daily: Day
+      weekly: Week
+      monthly: Month
+      yearly: Year
+    every: '{unit, select, other {{count, plural, other {Every}}}}'
+    unitNoun:
+      daily: '{count, plural, one {day} other {days}}'
+      weekly: '{count, plural, one {week} other {weeks}}'
+      monthly: '{count, plural, one {month} other {months}}'
+      yearly: '{count, plural, one {year} other {years}}'
+    onWeekdays: 'On'
+    onDay: On day
+    onDate: 'On'
+    month: Month
+    lastDayHint: Shorter months use their last day.
+    leapDayHint: 'In other years, this falls on {date}.'
+  weekdayChip:
+    monday: Mo
+    tuesday: Tu
+    wednesday: We
+    thursday: Th
+    friday: Fr
+    saturday: Sa
+    sunday: Su
