@@ -548,8 +548,8 @@ loaded, and reads **No teams** for an account in none.
   **All projects** (`home.projects.allProjects`), make the projects list's
   read answer 500 — in the console run
   `const f = window.fetch; window.fetch = (u, o) => String(u).includes('/api/app/projects/overview') ? Promise.resolve(Response.json({error: 'FORCED', data: {}}, {status: 500})) : f(u, o);`
-  — then press **All projects** in the panel's **Projects** header → The
-  list shows its error state, and its **contact support** link
+  — then press **All projects** in the panel's **Projects** header → After
+  the retries, the list shows its error state, and its **contact support** link
   (`common.errors.contactSupport`) points at
   `https://support.example.com/help?source=tale&organizationId={orgId}` and
   opens in a new tab. Restart with
