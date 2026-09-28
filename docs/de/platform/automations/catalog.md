@@ -79,7 +79,7 @@ Die ZIP-Datei darf komprimiert und entpackt jeweils höchstens 20 MiB enthalten:
 
 ## Konflikte bei Skills klären
 
-Die `skills`-Liste im Manifest muss zu den Ordnern unter `skills/` passen. Nicht deklarierte Ordner und deklarierte, aber fehlende Bundles führen zur Ablehnung. Jedes Bundle braucht gültige Metadaten in `SKILL.md`; `name` muss dem Ordnernamen entsprechen.
+Die `skills`-Liste im Manifest muss zu den Ordnern unter `skills/` passen. Nicht deklarierte Ordner und deklarierte, aber fehlende Bundles führen zur Ablehnung. Jedes Bundle braucht gültige Metadaten in `SKILL.md`; `name` muss dem Ordnernamen entsprechen. Mitgelieferte Skills folgen den Regeln der Skill-Bibliothek: Ein neuer Skill gehört der Person, die das Paket hochlädt, ein ersetzter behält seinen Eigentümer, und ein Team-Skill darf nur Teams nennen, mit denen diese Person teilen darf.
 
 ```yaml
 # automation.yml

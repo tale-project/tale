@@ -66,7 +66,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-L’aperçu présente les métadonnées, le partage, la licence et la liste des fichiers avant que **Téléverser le bundle** n’enregistre quoi que ce soit. Vérifie le contenu et le public. Sans `visibility`, le partage est ouvert à l’organisation. Si le nom existe déjà, Tale demande s’il faut remplacer le skill ; ce remplacement concerne aussi les agents qui l’utilisent.
+L’aperçu présente les métadonnées, le partage, la licence et la liste des fichiers avant que **Téléverser le bundle** n’enregistre quoi que ce soit. Vérifie le contenu et le public. Sans `visibility`, le partage est ouvert à l’organisation. Un skill d’équipe ne peut nommer que des équipes de ton organisation, et seulement les tiennes si tu n’es pas administrateur. Un `owner` indiqué dans le fichier est ignoré : un nouveau skill t’appartient, un skill remplacé garde son propriétaire actuel. Si le nom existe déjà, Tale demande s’il faut remplacer le skill ; ce remplacement concerne aussi les agents qui l’utilisent.
 
 <Warning>
 

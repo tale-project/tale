@@ -66,7 +66,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-The preview shows metadata, sharing, license, and the file list before **Upload bundle** writes anything. Check the contents and audience. Missing `visibility` means organization-wide sharing. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
+The preview shows metadata, sharing, license, and the file list before **Upload bundle** writes anything. Check the contents and audience. Missing `visibility` means organization-wide sharing. A team skill may name only your organization's teams, and only your own unless you are an administrator. An `owner` in the file is ignored: a new skill is yours, a replacement keeps its current owner. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
 
 <Warning>
 

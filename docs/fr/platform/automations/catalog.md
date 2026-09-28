@@ -79,7 +79,7 @@ L’archive ne doit dépasser 20 MiB ni compressée ni décompressée, avec au p
 
 ## Résoudre les conflits de skills
 
-La liste `skills` du manifeste doit correspondre aux dossiers fournis sous `skills/`. Un dossier non déclaré ou un bundle déclaré mais absent fait refuser l’import. Chaque bundle exige des métadonnées valides dans `SKILL.md`, avec un `name` identique au nom du dossier.
+La liste `skills` du manifeste doit correspondre aux dossiers fournis sous `skills/`. Un dossier non déclaré ou un bundle déclaré mais absent fait refuser l’import. Chaque bundle exige des métadonnées valides dans `SKILL.md`, avec un `name` identique au nom du dossier. Les skills fournis suivent les règles de la bibliothèque de skills : un nouveau skill appartient à la personne qui téléverse le paquet, un skill remplacé garde son propriétaire, et un skill d’équipe ne peut nommer que des équipes avec lesquelles cette personne peut partager.
 
 ```yaml
 # automation.yml
