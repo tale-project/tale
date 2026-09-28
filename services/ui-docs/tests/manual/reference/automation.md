@@ -23,6 +23,7 @@ a spec failure and belongs in the gate, not in a round.
 | ⌘K opens the palette and finds a component page | `tests/e2e/specs/smoke.spec.ts` › search | grouping, snippets, keyboard order, recents, empty state ([search.md](../suites/search.md)) |
 | Settings demo save/discard baseline and reload reset | `tests/e2e/specs/demo-workflows.spec.ts` › settings demo | judge the explanatory copy and layout |
 | Single toast viewport and replacement | `tests/e2e/specs/demo-workflows.spec.ts` › toast examples | judge placement and readable feedback |
+| Multiple toast actions stay below copy and within desktop/phone widths, including EN/DE/FR at 200% text; a short single action stays beside copy, and a tall notice scrolls to its actions | `packages/ui/src/components/feedback/toaster.browser.test.tsx` | judge feedback in its surrounding workflow |
 | Deep-page first Tab and skip-link destination | `tests/e2e/specs/demo-workflows.spec.ts` › deep page | visible focus treatment |
 | Outline scroll behavior follows reduced motion | `packages/ui/src/components/docs/docs-toc.test.tsx` › DocsToc › honors reduced motion | perceived motion and final heading position |
 | Nav ↔ file parity, group labels in every locale, nav order | `tests/navigation.test.ts` | — |
