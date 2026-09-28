@@ -14,7 +14,7 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Polit
 ## Ajouter un budget
 
 1. Dans les règles de budget, choisis **Ajouter une règle**.
-2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé.
+2. Choisis la portée et sa cible : un rôle pour un groupe comme les rédacteurs, une équipe pour un travail commun, une personne pour une limite individuelle, une clé API pour un identifiant, ou l’organisation pour un plafond partagé. La liste des clés API propose chaque clé d’un membre de l’organisation, avec le nom de la personne qui la détient : tu peux ainsi plafonner le script ou l’outil de code d’une seule personne.
 3. Sélectionne une période quotidienne, hebdomadaire ou mensuelle. Renseigne au moins une limite positive de tokens, de coût ou de requêtes. Le coût est en USD ; un champ vide ne plafonne pas cette dimension par cette règle.
 4. Définis si besoin le seuil d’alerte entre 0 et 100 pour avertir avant d’atteindre le plafond.
 5. Choisis **Confirmer**, enregistre les changements de la page et vérifie la portée, la cible, la période et les limites enregistrées.
