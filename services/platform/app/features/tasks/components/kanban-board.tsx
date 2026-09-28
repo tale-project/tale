@@ -42,7 +42,7 @@ export function KanbanBoard({
 }) {
   const { t } = useT('tasks');
   const { confirmCancel, dialog } = useRunCancelConfirm();
-  const dnd = useTaskBoardDnd(tasks, { confirmCancel });
+  const dnd = useTaskBoardDnd(tasks, { confirmCancel, projectKey });
   const { isAgentWorking } = useTaskBoardContext();
   // Single-project boards scope contracts to that project; mixed boards load
   // org + project-bound automations so drop hints still name the right verb.
@@ -107,6 +107,7 @@ export function KanbanBoard({
       onDragEnd={dnd.onDragEnd}
       onDragCancel={dnd.onDragCancel}
       autoScroll={dnd.autoScroll}
+      accessibility={dnd.accessibility}
     >
       <Row
         gap={3}
@@ -130,13 +131,18 @@ export function KanbanBoard({
       </Row>
       <DragOverlay>
         {dnd.activeTask ? (
-          <TaskCard
-            task={dnd.activeTask}
-            subtasks={childrenByParent.get(dnd.activeTask._id)}
-            dragging
-            projectKey={projectKey}
-            canEdit={canEdit}
-          />
+          // dnd-kit measures the overlay's only child: this upright wrapper,
+          // not the tilted card, so the keyboard's first arrow press judges
+          // the lanes from the card's true box.
+          <div>
+            <TaskCard
+              task={dnd.activeTask}
+              subtasks={childrenByParent.get(dnd.activeTask._id)}
+              dragging
+              projectKey={projectKey}
+              canEdit={canEdit}
+            />
+          </div>
         ) : null}
       </DragOverlay>
       {dialog}
