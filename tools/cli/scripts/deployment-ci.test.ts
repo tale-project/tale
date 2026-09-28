@@ -196,9 +196,12 @@ test.skipIf(process.platform === 'win32')(
     // A 404 is an answer, not a blip: one listing, no retry.
     expect(result.listings).toBe(1);
     expect(result.deletions).toEqual([]);
+    // The matrix tracks build.yml, so a 404 names the two causes left: an
+    // image never pushed, or a package this repository lost access to.
     expect(result.stdout).toContain(
-      '::warning::Package tale-convex not found (HTTP 404)',
+      '::warning::Package tale-convex not found or not visible to this token (HTTP 404)',
     );
+    expect(result.stdout).toContain('Manage Actions access');
     expect(result.summary).toContain(
       'package tale-convex does not exist; nothing to clean',
     );

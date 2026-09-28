@@ -63,10 +63,11 @@ jobs:
           # Retry the listing call up to 3 times for transient 5xx / network
           # blips. An error that outlasts the retries (a 403, say) fails the
           # step rather than being silently swallowed. A 404 is not retried:
-          # the package does not exist (a service retired from build.yml, or
-          # one whose first image was never pushed), so there is nothing to
-          # clean and the job ends green. A token that cannot see a package
-          # gets the same 404, so that exit also raises a warning.
+          # the matrix tracks build.yml (deployment-ci.test.ts), so the
+          # package was either never pushed (a new service's first PR image)
+          # or does not grant this repository Actions access. Either way
+          # there is nothing this token can clean, so the job ends green with
+          # a warning that names both causes: the second leaves PR tags behind.
           #
           # NOTE: build.yml currently sets `platforms: linux/amd64` and
           # `provenance: false`, so each tag corresponds to exactly one OCI
@@ -85,7 +86,7 @@ jobs:
             fi
             cat "${err_log}" >&2
             if grep -q "HTTP 404" "${err_log}"; then
-              echo "::warning::Package tale-${SVC} not found (HTTP 404); nothing to clean. Drop a retired service from this workflow's matrix."
+              echo "::warning::Package tale-${SVC} not found or not visible to this token (HTTP 404); nothing cleaned. Either its first image was never pushed, or this repository lost Actions access to it (package settings > Manage Actions access)."
               {
                 echo "## Cleanup tale-${SVC}"
                 echo ""
