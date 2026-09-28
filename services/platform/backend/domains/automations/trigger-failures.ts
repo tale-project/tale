@@ -46,17 +46,25 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  *   `comment.mentioned`, a conversation opened before its first message)
  *   holds the chain by then, like one that audited first (a task or a
  *   contact created);
+ * - removing a run writes the row too: `last_run_id` and
+ *   `last_failed_run_id` are `ON DELETE SET NULL`, so the delete clears the
+ *   trigger that names the run. The run door (`deleteRunInTx`) and the
+ *   retention sweep lock the runs' own rows, then the chain, then delete —
+ *   the order a landing run takes its row, the chain and the trigger in.
+ *   Erasure removes only runs a person or a key started, which no trigger
+ *   names;
  * - the schedule scan, the webhook door and saving or removing a trigger
  *   write the row and take no chain in that transaction.
  *
- * A landing run and a producer stamping the same event trigger therefore
- * queue on the chain instead of each holding what the other waits for — a
- * deadlock whose loser was the producer's dispatch (swallowed by
- * `emitEvent`'s savepoint: the event's run silently never started), the
- * streak (swallowed by its savepoint below: the run went uncounted) or the
- * landing run's audit row (the terminal write rolled back, left to the
- * sweep). The real-Postgres lane `trigger-lock-order.integration.ts` holds
- * both orders of producer.
+ * A landing run and a producer stamping the same event trigger, or a
+ * removal of the run the trigger names, therefore queue on the chain
+ * instead of each holding what the other waits for — a deadlock whose loser
+ * was the producer's dispatch (swallowed by `emitEvent`'s savepoint: the
+ * event's run silently never started), the streak (swallowed by its
+ * savepoint below: the run went uncounted) or the landing run's audit row
+ * (the terminal write rolled back, left to the sweep). The real-Postgres
+ * lane `trigger-lock-order.integration.ts` holds both orders of producer and
+ * both removals.
  *
  * The bookkeeping rides a savepoint, like an event dispatch (`emitEvent`):
  * the run's own terminal write is the contract, and a fault here must never

@@ -38,7 +38,7 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
 import {
   dismissAgentQuestionNotifications,
   dismissTriggerPausedNotifications,
@@ -2057,6 +2057,12 @@ export async function deleteRunInTx(
       409,
     );
   }
+  // The delete clears the run from the trigger that names it (`last_run_id`
+  // and `last_failed_run_id` are `ON DELETE SET NULL`), a write of that
+  // trigger row: the organization's audit chain goes first, as in a landing
+  // run (the lock order in `trigger-failures.ts`), and after the run's own
+  // row, which a landing run holds before the chain.
+  await lockAuditChain(tx, args.organizationId);
   await tx`
     DELETE FROM app.automation_webhook_deliveries WHERE run_id = ${args.runId}
   `;
@@ -2433,8 +2439,8 @@ export async function finishRun(
       // A trigger's run keeps the trigger's failure streak — and the
       // schedule it pauses, when its runs keep failing the same way. After
       // the audit row, never before it: the organization's audit chain is
-      // locked ahead of any trigger row, here as in an event dispatch (the
-      // lock order in `trigger-failures.ts`).
+      // locked ahead of any trigger row, here as in an event dispatch and a
+      // run removal (the lock order in `trigger-failures.ts`).
       const trigger = await recordTriggerRunOutcome(tx, {
         organizationId: args.organizationId,
         runId: args.runId,

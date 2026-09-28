@@ -20,7 +20,7 @@ import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
 import {
   indexedMessageRefsOf,
   queueMessageRefRelease,
@@ -1413,15 +1413,24 @@ async function sweepAutomationRuns(
   const cutoff =
     Date.now() - (days + (org.config.deletionGraceDays ?? 0)) * DAY_MS;
   await destroyInTx(sql, trail, async (tx) => {
+    // The delete clears a purged run from the trigger that names it
+    // (`last_run_id`, `last_failed_run_id`: `ON DELETE SET NULL`), a write
+    // of that trigger row, so the organization's audit chain is taken before
+    // it — and after the runs' own rows — in the order a landing run takes
+    // them (`automations/trigger-failures.ts`).
+    const batch = await tx<{ id: string }[]>`
+      SELECT id FROM app.automation_runs
+      WHERE org_id = ${org.organizationId}
+        AND status IN ('success', 'failed', 'cancelled')
+        AND coalesce(finished_at_ms, started_at_ms) < ${cutoff}
+      LIMIT ${BATCH_LIMIT}
+      FOR UPDATE
+    `;
+    if (batch.length === 0) return { deleted: 0 };
+    await lockAuditChain(tx, org.organizationId);
     const rows = await tx<{ id: string }[]>`
       DELETE FROM app.automation_runs
-      WHERE id IN (
-        SELECT id FROM app.automation_runs
-        WHERE org_id = ${org.organizationId}
-          AND status IN ('success', 'failed', 'cancelled')
-          AND coalesce(finished_at_ms, started_at_ms) < ${cutoff}
-        LIMIT ${BATCH_LIMIT}
-      )
+      WHERE id = ANY(${batch.map((run) => run.id)}::text[])
       RETURNING id
     `;
     return { deleted: rows.length };
