@@ -10,8 +10,11 @@
  * such a row, a spam verdict releases the corpus copy and keeps the bytes
  * while lifting it indexes the file again — the nightly stamp pass releasing
  * the copy a verdict left behind with no release queued (every verdict before
- * this release) — and deleting the conversation releases the corpus copy. Needs the object store `checkFiles` seeds: an
- * attachment has bytes. */
+ * this release) — a file filed into a document with its stamp left behind is
+ * hidden from every document door until that pass takes the stamp off (the
+ * scope pass leaves it: no sync failed), a stamped row nothing holds is
+ * released by it, and deleting the conversation releases the corpus copy.
+ * Needs the object store `checkFiles` seeds: an attachment has bytes. */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -41,6 +44,7 @@ import { releaseCorpusRefs, releaseRefs } from './release.ts';
 import {
   ensureDefaultCorpusSchema,
   fetchKnowledgeDocument,
+  reconcileDocumentScopeStamps,
   reconcileMailAttachmentStamps,
   searchKnowledgeForOrg,
 } from './service.ts';
@@ -118,6 +122,7 @@ export async function checkEmailedAttachments(
   let conversationId = '';
   let fileId = '';
   let ref = '';
+  let documentId = '';
   try {
     // A key for the fake endpoint — unless an earlier lane left one the
     // model already resolves (the full run), so the lane also runs alone.
@@ -495,6 +500,92 @@ export async function checkEmailedAttachments(
       `leftBehind=${leftBehind} (want true) released=${swept.released} (want >= 1) failures=${swept.failures} gone=${sweptGone} fileKept=${sweptFileKept[0]?.count} (want 1) bytesKept=${sweptBytesKept !== null} reindexedOnLift=${sweptReindexed}`,
     );
 
+    // Filed into a document, the file is that document's and no mail — but
+    // a filing that re-indexes nothing, or one the stamp raced, leaves the
+    // conversation stamp on the corpus row, and the pre-filter keeps every
+    // stamped row out of every document door. The scope pass leaves the
+    // stamp alone (it is no failed per-edit sync); the nightly stamp pass
+    // takes it off, once, and keeps the row. Unfiled again, the file is an
+    // attachment, and the pass stamps it back.
+    documentId = randomUUID();
+    const filedAt = Date.now();
+    await sql`
+      INSERT INTO app.documents (
+        id, org_id, title, file_ref, mime_type, extension, source_provider,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${documentId}, ${orgId}, ${`cv-${suffix}.txt`}, ${ref}, 'text/plain',
+        'txt', 'upload', ${userId}, ${filedAt}, ${filedAt}
+      )
+    `;
+    await sql`
+      UPDATE app.file_metadata SET document_id = ${documentId}
+      WHERE id = ${fileId}
+    `;
+    const filedStamp = (await corpusRow())?.conversationId ?? null;
+    const filedHidden = {
+      rest: await found(restScope),
+      orgWide: await found(undefined),
+    };
+    await reconcileDocumentScopeStamps(sql, { organizationId: orgId, orgSlug });
+    const scopePassLeft = (await corpusRow())?.conversationId ?? null;
+    const clear = await stampPass();
+    const unstampedDocument = await corpusRow();
+    const filedFound = {
+      rest: await found(restScope),
+      orgWide: await found(undefined),
+      restFetch: await fetched(restScope),
+    };
+    const clearAgain = await stampPass();
+    await sql`UPDATE app.file_metadata SET document_id = NULL WHERE id = ${fileId}`;
+    await sql`DELETE FROM app.documents WHERE id = ${documentId}`;
+    documentId = '';
+    const unfiled = await stampPass();
+    const unfiledRow = await corpusRow();
+    record(
+      'emailed attachment: filed into a document, the stamp left behind hides it from every document door until the nightly stamp pass takes it off, once — the scope pass leaves it',
+      filedStamp === conversationId &&
+        !filedHidden.rest.found &&
+        !filedHidden.orgWide.found &&
+        scopePassLeft === conversationId &&
+        clear.cleared >= 1 &&
+        clear.failures === 0 &&
+        unstampedDocument?.status === 'completed' &&
+        unstampedDocument.conversationId === null &&
+        filedFound.rest.found &&
+        filedFound.orgWide.found &&
+        (filedFound.restFetch?.text ?? '').includes(phrase) &&
+        clearAgain.cleared === 0 &&
+        unfiled.corrected >= 1 &&
+        unfiledRow?.conversationId === conversationId,
+      `filed stamp=${filedStamp === conversationId} hidden rest=${!filedHidden.rest.found} orgWide=${!filedHidden.orgWide.found} (want true), scope pass left the stamp=${scopePassLeft === conversationId} (want true), cleared=${clear.cleared} (want >= 1) failures=${clear.failures} row=${unstampedDocument?.status ?? 'gone'} stamp=${unstampedDocument?.conversationId ?? 'none'} (want completed/none), found rest=${filedFound.rest.found} orgWide=${filedFound.orgWide.found} restFetch=${(filedFound.restFetch?.text ?? '').includes(phrase)} (want true), second pass cleared=${clearAgain.cleared} (want 0), unfiled restamped=${unfiled.corrected} (want >= 1) stamp=${unfiledRow?.conversationId === conversationId}`,
+    );
+
+    // A stamped corpus row nothing holds any more is released by the pass,
+    // never un-stamped: unstamped, it would read as a hub row and be offered
+    // to content-hash clones.
+    const orphanRef = `s3:itest/${orgSlug}/orphan-attachment-${suffix}.txt`;
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+           (org_slug, file_id, filename, status, conversation_id)
+       VALUES ($1, $2, 'orphan.txt', 'completed', $3)`,
+      [orgSlug, orphanRef, conversationId],
+    );
+    const orphanSwept = await stampPass();
+    const orphanLeft = await pool.unsafe<{ count: string }[]>(
+      `SELECT count(*)::text AS count FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+        WHERE org_slug = $1 AND file_id = $2`,
+      [orgSlug, orphanRef],
+    );
+    record(
+      'emailed attachment: a stamped corpus row nothing holds is released by the stamp pass, never un-stamped',
+      orphanSwept.released >= 1 &&
+        orphanSwept.cleared === 0 &&
+        orphanSwept.failures === 0 &&
+        orphanLeft[0]?.count === '0',
+      `released=${orphanSwept.released} (want >= 1) cleared=${orphanSwept.cleared} (want 0) failures=${orphanSwept.failures} left=${orphanLeft[0]?.count} (want 0)`,
+    );
+
     // Deleting the conversation releases the corpus copy.
     await deleteConversation(sql, orgId, conversationId);
     conversationId = '';
@@ -508,6 +599,14 @@ export async function checkEmailedAttachments(
       `released=${released}`,
     );
   } finally {
+    if (documentId !== '') {
+      // A check that threw with the file still filed: the document goes.
+      await sql`DELETE FROM app.documents WHERE id = ${documentId}`.catch(
+        (error: unknown) => {
+          console.warn('[itest] the filed attachment document stayed:', error);
+        },
+      );
+    }
     if (conversationId !== '') {
       await deleteConversation(sql, orgId, conversationId).catch(
         (error: unknown) => {

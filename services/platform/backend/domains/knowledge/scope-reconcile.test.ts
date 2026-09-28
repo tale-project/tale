@@ -150,16 +150,17 @@ describe('reconcileDocumentScopeStamps', () => {
     expect(out).toEqual({ scanned: 3, corrected: 2 });
   });
 
-  it('clears a conversation stamp from a document, as drift', async () => {
-    // A document is never mail. A stamp that raced the file being filed
-    // into it would hide it in the mail partition from every document door
-    // until something re-indexed it; the stamp pass leaves such refs alone,
-    // so this pass is what takes the stamp off.
+  it('leaves a conversation stamp to the stamp pass, so what it counts is drift alone', async () => {
+    // A document is never mail, but a stamp left on its ref — one that raced
+    // the file being filed into it — is no failed per-edit sync, and the
+    // reconcile reports this count as exactly that. The stamp pass takes
+    // such a stamp off and reports it as what it is
+    // (`reconcileMailAttachmentStamps`).
     const texts: string[] = [];
     getKnowledgePoolForOrg.mockResolvedValue({
       json: (value: unknown): JsonParameter => ({ type: 3802, value }),
       unsafe: (text: string) => {
-        texts.push(text.replace(/\s+/g, ' '));
+        texts.push(text);
         return Promise.resolve({ count: 1 });
       },
     });
@@ -169,8 +170,8 @@ describe('reconcileDocumentScopeStamps', () => {
       orgSlug: 'acme',
     });
 
-    expect(texts[0]).toContain('conversation_id = NULL');
-    expect(texts[0]).toContain('OR d.conversation_id IS NOT NULL');
+    expect(texts).toHaveLength(1);
+    expect(texts[0]).not.toContain('conversation_id');
   });
 
   it('sends the rows as one jsonb parameter, never as a pre-serialized string', async () => {

@@ -4,6 +4,7 @@ import {
   INDEXED_MESSAGE_CHANNEL,
   INDEXED_MESSAGE_DIRECTION,
   isMessageRef,
+  MESSAGE_REF_LIKE_PATTERN,
   parseMessageRef,
 } from '../../../lib/knowledge/message-ref.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
@@ -1679,8 +1680,11 @@ const SCOPE_RECONCILE_PAGE = 1000;
  * subset — the drift it missed stayed missed forever.
  *
  * One statement per page: the guard is `IS DISTINCT FROM` on all four stamped
- * columns (and a conversation stamp, which no document carries), so the row
- * count IS the drift count and an in-sync corpus writes nothing.
+ * columns, so the row count IS the drift count and an in-sync corpus writes
+ * nothing. A conversation stamp on a document's ref is not scope drift — no
+ * per-edit sync failed to write it — and is the stamp pass's to take off
+ * (`reconcileMailAttachmentStamps`), so the count stays what the reconcile
+ * reports it as: edits whose corpus write failed.
  */
 export async function reconcileDocumentScopeStamps(
   sql: Sql,
@@ -1770,15 +1774,11 @@ async function reconcileScopeStampPage(
   // pre-serialized string would be JSON-encoded a second time once the server
   // reports the parameter as jsonb, and `jsonb_to_recordset` then refuses the
   // resulting JSON string ("cannot call jsonb_to_recordset on a non-array").
-  // A document is never mail: a conversation stamp on its ref — an emailed
-  // attachment's, left by a stamp that raced the file being filed into this
-  // document — would hide it in the mail partition from every document door,
-  // so it is cleared with the rest (the stamp pass skips such refs).
   const result = await pool.unsafe(
     `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         SET team_ids = v.team_ids, team_id = v.team_id,
             project_id = v.project_id, folder_path = v.folder_path,
-            conversation_id = NULL, updated_at = NOW()
+            updated_at = NOW()
        FROM jsonb_to_recordset($2::jsonb)
             AS v(file_id text, team_ids text[], team_id text,
                  project_id text, folder_path text)
@@ -1786,8 +1786,7 @@ async function reconcileScopeStampPage(
         AND (d.team_ids IS DISTINCT FROM v.team_ids
           OR d.team_id IS DISTINCT FROM v.team_id
           OR d.project_id IS DISTINCT FROM v.project_id
-          OR d.folder_path IS DISTINCT FROM v.folder_path
-          OR d.conversation_id IS NOT NULL)`,
+          OR d.folder_path IS DISTINCT FROM v.folder_path)`,
     [args.orgSlug, pool.json(intended)],
   );
   return {
@@ -1797,7 +1796,8 @@ async function reconcileScopeStampPage(
   };
 }
 
-/** Emailed attachments compared per corpus statement in the stamp pass. */
+/** Rows compared per statement in the stamp pass: attachment rows in its
+ * first walk, stamped corpus rows in its second. */
 const ATTACHMENT_STAMP_PAGE = 1000;
 
 /** What the stamp pass reports for one organization. */
@@ -1806,6 +1806,11 @@ export interface MailAttachmentStampStats {
   scanned: number;
   /** Corpus rows whose conversation stamp was missing or wrong. */
   corrected: number;
+  /** Corpus rows whose stamp no attachment backs any more — the file was
+   * filed into a document, or otherwise stopped being an emailed attachment
+   * — and that something else still keeps in the corpus: the stamp came
+   * off. No sync failed for these; they are not scope drift. */
+  cleared: number;
   /** Corpus rows of dead attachments released (see `releaseCorpus`). */
   released: number;
   /** Refs whose release failed; the next run retries them. */
@@ -1813,37 +1818,50 @@ export interface MailAttachmentStampStats {
 }
 
 /**
- * Stamp the conversation on the corpus rows of emailed attachments that lack
- * it, and report how many did — the BACKFILL for every attachment indexed
- * before the indexer stamped one (`emailedAttachmentConversation`), and the
- * backstop for a stamp that drifted since.
+ * Keep the conversation stamp on the corpus rows of emailed attachments true
+ * in both directions, and report what changed.
  *
- * An unstamped attachment is not served where it must not be: the
- * retrievable filter decides it from its file row, as mail, whatever the
- * corpus says. But every scope column NULL reads as an org-wide hub row in
- * the SQL pre-filter, so the row competes for every caller's document slots
- * until it is stamped, and a door that labels mail by the corpus stamp
+ * STAMP — the rows that lack it or carry another: the BACKFILL for every
+ * attachment indexed before the indexer stamped one
+ * (`emailedAttachmentConversation`), and the backstop for a stamp that
+ * drifted since. An unstamped attachment is not served where it must not
+ * be: the retrievable filter decides it from its file row, as mail, whatever
+ * the corpus says. But every scope column NULL reads as an org-wide hub row
+ * in the SQL pre-filter, so the row competes for every caller's document
+ * slots until it is stamped, and a door that labels mail by the corpus stamp
  * would read it as a document.
  *
- * The same walk RELEASES the corpus rows of attachments whose conversation
- * is gone or marked spam — dead by corpus-liveness (`liveness.ts`), the
- * verdict an email body gets. Every lane that kills a conversation queues
- * that release itself now, but none did before, and the reconcile's blob
- * walk restarts at its head each night with a bounded budget, so in a large
- * corpus it would never reach those rows: this pass visits every attachment
- * every night. Only refs the corpus still holds are handed to
- * `releaseCorpus` (`releaseCorpusRefs`, which re-decides each by liveness
- * and leaves the bytes to the file row), so a dead attachment costs one
- * release, not one a night.
+ * RELEASE — the same walk releases the corpus rows of attachments whose
+ * conversation is gone or marked spam: dead by corpus-liveness
+ * (`liveness.ts`), the verdict an email body gets. Every lane that kills a
+ * conversation queues that release itself now, but none did before, and the
+ * reconcile's blob walk restarts at its head each night with a bounded
+ * budget, so in a large corpus it would never reach those rows: this pass
+ * visits every attachment every night. Only refs the corpus still holds are
+ * handed to `releaseCorpus` (`releaseCorpusRefs`, which re-decides each by
+ * liveness and leaves the bytes to the file row), so a dead attachment costs
+ * one release, not one a night.
  *
- * Walks the organization's attachment rows — unbound file rows bound to a
- * conversation, live, and not a ref an active document holds (that ref
- * indexes as the document, and the scope pass clears any stamp it carries)
- * — a keyset page at a time, one corpus statement per page; the guard is
- * `IS DISTINCT FROM`, so the row count IS the number corrected and an
- * in-sync corpus writes nothing. `updated_at` is left alone: it is the hit's
- * modification time for a row with no source time, and a stamp is not an
- * edit of the attachment.
+ * CLEAR — a stamp can outlive the attachment it was written for. A file
+ * filed into a document indexes as that document, but a stamp that raced
+ * the filing stays on the row, as does the stamp of any row that stops being
+ * an attachment without a re-index, and the pre-filter keeps every stamped
+ * row out of every document door: the document is hidden from all of them.
+ * So a second walk reads the corpus rows that carry a stamp — email bodies
+ * aside: a `msg:` ref is decided by its inbound email — and hands each ref no
+ * attachment row backs to `releaseCorpus` too. A ref nothing keeps in the
+ * corpus goes; one something keeps (a document, a thread file) loses its
+ * stamp. A dead ref's stamp is never cleared: unstamped, the row would read
+ * as a hub row and be offered to content-hash clones.
+ *
+ * Both walks read the attachment rows through one statement
+ * (`readMailAttachments`) — unbound file rows bound to a conversation, live,
+ * and not a ref an active document holds, which indexes as the document — so
+ * a row the first walk stamps is never one the second clears. Keyset pages,
+ * one corpus statement per page; the guards make each row count the number
+ * changed, and an in-sync corpus writes nothing. `updated_at` is left alone:
+ * it is the hit's modification time for a row with no source time, and a
+ * stamp, added or taken off, is not an edit of the attachment.
  */
 export async function reconcileMailAttachmentStamps(
   sql: Sql,
@@ -1851,45 +1869,28 @@ export async function reconcileMailAttachmentStamps(
     organizationId: string;
     orgSlug: string;
     limit?: number;
-    /** De-index the corpus rows of these refs, reporting what went and what
+    /** De-index the corpus rows of these refs that nothing keeps in the
+     * corpus, reporting what went, what something still keeps, and what
      * failed — `releaseCorpusRefs` (`release.ts`), handed in so this module
      * does not import the release seam that imports it. */
-    releaseCorpus: (
-      refs: string[],
-    ) => Promise<Pick<ReleaseOutcome, 'released' | 'failures'>>;
+    releaseCorpus: MailReleaseCorpus;
   },
 ): Promise<MailAttachmentStampStats> {
   const pageSize = args.limit ?? ATTACHMENT_STAMP_PAGE;
   const stats: MailAttachmentStampStats = {
     scanned: 0,
     corrected: 0,
+    cleared: 0,
     released: 0,
     failures: 0,
   };
   let afterId: string | null = null;
   for (;;) {
-    const page: AttachmentStampRow[] = await sql<AttachmentStampRow[]>`
-      SELECT fm.id, fm.storage_ref AS "storageRef",
-             fm.conversation_id AS "conversationId",
-             (c.id IS NOT NULL AND c.status IS DISTINCT FROM 'spam')
-               AS "conversationLive"
-      FROM app.file_metadata fm
-      LEFT JOIN app.conversations c
-        ON c.id = fm.conversation_id AND c.org_id = fm.org_id
-      WHERE fm.org_id = ${args.organizationId}
-        AND fm.document_id IS NULL
-        AND fm.conversation_id IS NOT NULL
-        AND fm.storage_ref IS NOT NULL
-        AND (fm.lifecycle_status IS NULL OR fm.lifecycle_status = 'active')
-        AND NOT EXISTS (
-          SELECT 1 FROM app.documents d
-          WHERE d.org_id = fm.org_id AND d.file_ref = fm.storage_ref
-            AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
-        )
-        AND (${afterId}::text IS NULL OR fm.id > ${afterId})
-      ORDER BY fm.id
-      LIMIT ${pageSize}
-    `;
+    const page: AttachmentStampRow[] = await readMailAttachments(sql, {
+      organizationId: args.organizationId,
+      afterId,
+      limit: pageSize,
+    });
     if (page.length === 0) break;
     stats.scanned += page.length;
     const pool = await getKnowledgePoolForOrg(args.orgSlug);
@@ -1933,8 +1934,17 @@ export async function reconcileMailAttachmentStamps(
     if (page.length < pageSize) break;
     afterId = page.at(-1)?.id ?? null;
   }
+  const unbacked = await clearUnbackedMailStamps(sql, args, pageSize);
+  stats.cleared += unbacked.cleared;
+  stats.released += unbacked.released;
+  stats.failures += unbacked.failures;
   return stats;
 }
+
+/** `releaseCorpusRefs` as the stamp pass is handed it. */
+type MailReleaseCorpus = (
+  refs: string[],
+) => Promise<Pick<ReleaseOutcome, 'released' | 'kept' | 'failures'>>;
 
 /** One emailed attachment as the stamp pass reads it. */
 interface AttachmentStampRow {
@@ -1943,6 +1953,134 @@ interface AttachmentStampRow {
   conversationId: string;
   /** Its conversation exists and is not marked spam — corpus-liveness. */
   conversationLive: boolean;
+}
+
+/**
+ * The organization's emailed attachments as the stamp pass reads them — the
+ * ONE statement both of its walks decide by: unbound file rows bound to a
+ * conversation, live, and not a ref an active document holds, each read with
+ * its conversation (corpus-liveness: it exists and is not marked spam).
+ * Either a keyset page, `limit` rows after `afterId`, or every row holding
+ * one of `refs`.
+ */
+async function readMailAttachments(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    afterId?: string | null;
+    limit?: number;
+    refs?: readonly string[];
+  },
+): Promise<AttachmentStampRow[]> {
+  const afterId = args.afterId ?? null;
+  const refs = args.refs === undefined ? null : [...args.refs];
+  return sql<AttachmentStampRow[]>`
+    SELECT fm.id, fm.storage_ref AS "storageRef",
+           fm.conversation_id AS "conversationId",
+           (c.id IS NOT NULL AND c.status IS DISTINCT FROM 'spam')
+             AS "conversationLive"
+    FROM app.file_metadata fm
+    LEFT JOIN app.conversations c
+      ON c.id = fm.conversation_id AND c.org_id = fm.org_id
+    WHERE fm.org_id = ${args.organizationId}
+      AND fm.document_id IS NULL
+      AND fm.conversation_id IS NOT NULL
+      AND fm.storage_ref IS NOT NULL
+      AND (fm.lifecycle_status IS NULL OR fm.lifecycle_status = 'active')
+      AND NOT EXISTS (
+        SELECT 1 FROM app.documents d
+        WHERE d.org_id = fm.org_id AND d.file_ref = fm.storage_ref
+          AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
+      )
+      AND (${afterId}::text IS NULL OR fm.id > ${afterId})
+      AND (${refs}::text[] IS NULL OR fm.storage_ref = ANY(${refs}::text[]))
+    ORDER BY fm.id
+    LIMIT ${args.limit ?? null}
+  `;
+}
+
+/** A corpus row that carries a conversation stamp. */
+interface StampedCorpusRow {
+  fileId: string;
+  conversationId: string;
+}
+
+/**
+ * The stamp pass's second walk (CLEAR in `reconcileMailAttachmentStamps`):
+ * the organization's stamped corpus rows, email bodies aside, a keyset page
+ * at a time by ref. Every ref no attachment row backs goes to
+ * `releaseCorpus`; the stamp comes off each one it keeps.
+ */
+async function clearUnbackedMailStamps(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    orgSlug: string;
+    releaseCorpus: MailReleaseCorpus;
+  },
+  pageSize: number,
+): Promise<
+  Pick<MailAttachmentStampStats, 'cleared' | 'released' | 'failures'>
+> {
+  const counts = { cleared: 0, released: 0, failures: 0 };
+  const pool = await getKnowledgePoolForOrg(args.orgSlug);
+  let afterRef: string | null = null;
+  for (;;) {
+    const stamped: StampedCorpusRow[] = await pool.unsafe<StampedCorpusRow[]>(
+      `SELECT file_id AS "fileId", conversation_id AS "conversationId"
+         FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+        WHERE org_slug = $1 AND conversation_id IS NOT NULL
+          AND file_id NOT LIKE $2
+          AND ($3::text IS NULL OR file_id > $3)
+        ORDER BY file_id
+        LIMIT $4`,
+      [args.orgSlug, MESSAGE_REF_LIKE_PATTERN, afterRef, pageSize],
+    );
+    if (stamped.length === 0) break;
+    const backed = new Set(
+      (
+        await readMailAttachments(sql, {
+          organizationId: args.organizationId,
+          refs: stamped.map((row) => row.fileId),
+        })
+      ).map((row) => row.storageRef),
+    );
+    const unbacked = stamped.filter((row) => !backed.has(row.fileId));
+    if (unbacked.length > 0) {
+      const outcome = await args.releaseCorpus(
+        unbacked.map((row) => row.fileId),
+      );
+      counts.released += outcome.released.length;
+      counts.failures += outcome.failures.length;
+      const kept = new Set(outcome.kept);
+      const stale = unbacked.filter((row) => kept.has(row.fileId));
+      if (stale.length > 0) {
+        // Only the stamp this walk read comes off; a row stamped with another
+        // conversation meanwhile is left for the next night to judge.
+        const result = await pool.unsafe(
+          `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+              SET conversation_id = NULL
+             FROM jsonb_to_recordset($2::jsonb)
+                  AS v(file_id text, conversation_id text)
+            WHERE d.org_slug = $1 AND d.file_id = v.file_id
+              AND d.conversation_id = v.conversation_id`,
+          [
+            args.orgSlug,
+            pool.json(
+              stale.map((row) => ({
+                file_id: row.fileId,
+                conversation_id: row.conversationId,
+              })),
+            ),
+          ],
+        );
+        counts.cleared += result.count ?? 0;
+      }
+    }
+    if (stamped.length < pageSize) break;
+    afterRef = stamped.at(-1)?.fileId ?? null;
+  }
+  return counts;
 }
 
 /**
