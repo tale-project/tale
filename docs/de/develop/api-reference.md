@@ -1216,8 +1216,10 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
-# → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
+# → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], "dueDate": 1790719200000, "repeat": null, ... } }
 ```
+
+Eine gelesene Aufgabe enthält auch ihre Termine; über diese API lassen sie sich nur lesen. `startDate` und `dueDate` sind Unixzeit in Millisekunden, jeweils die Mitternacht, mit der der Kalendertag in der Zeitzone der Person beginnt, die ihn gesetzt hat, und erscheinen nur, wenn sie gesetzt sind. `repeat` ist immer vorhanden: `null`, wenn sich die Aufgabe nicht wiederholt, sonst ein `TaskRepeat` wie `{ "frequency": "weekly", "interval": 2, "weekdays": [2, 4], "timezone": "Europe/Zurich", "createOn": "dueDate" }`. `frequency` ist `daily`, `weekly`, `monthly` oder `yearly`, und `interval` reicht von 1 bis 99; `weekly` nennt `weekdays` von 0 (Sonntag) bis 6 (Samstag), `monthly` einen `monthDay` und `yearly` einen `month` und einen `monthDay`. `createOn` erscheint nur, und zwar als `"dueDate"`, wenn die nächste Aufgabe auch zu Beginn des Fälligkeitstags entsteht; fehlt es, entsteht sie, wenn diese Aufgabe erledigt oder abgebrochen wird. Wird eine wiederkehrende Aufgabe abgeschlossen, in der App oder durch eine hier freigegebene Prüfung, oder beginnt unter `createOn: "dueDate"` ihr Fälligkeitstag, entsteht ihre nächste Aufgabe in `todo`, und `repeatNextTaskId` nennt sie von da an. Wird diese nächste Aufgabe gelöscht, fällt `repeatNextTaskId` weg, doch diese Aufgabe erstellt trotzdem keine weitere (Vertrag 3.3.0).
 
 ### Kommentare und Arbeitsergebnisse lesen
 

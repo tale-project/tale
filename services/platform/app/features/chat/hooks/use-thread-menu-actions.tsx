@@ -22,7 +22,7 @@ import { useT } from '@/lib/i18n/client';
 import { PickerSearchList } from '../components/picker-search-list';
 import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
-import { useThreadSharing } from '../data/thread-sharing';
+import { threadShareUrl, useThreadSharing } from '../data/thread-sharing';
 import type { ChatProjectSummary, ChatThreadSummary } from '../types';
 
 export interface ThreadMenuActions {
@@ -97,9 +97,8 @@ export function useThreadMenuActions(
       toast({ title: t('share.shareFailed'), variant: 'destructive' });
       return;
     }
-    const url = `${window.location.origin}/dashboard/${organizationId}/chat/shared/${shareToken}`;
     // `copy` raises its own failure toast; the link is live either way.
-    if (await copy(url)) {
+    if (await copy(threadShareUrl(organizationId, shareToken))) {
       toast({ title: t('share.copied') });
     }
   };

@@ -96,6 +96,7 @@ import {
   CONTACT_TAGS_MAX,
   dataSourceSchema,
 } from '../../lib/shared/schemas/common.ts';
+import { taskRepeatSchema } from '../../lib/shared/task-repeat.ts';
 import { FREE_FORM_JSON_BOUNDS } from '../../lib/shared/utils/json-bounds.ts';
 
 export type Json = Record<string, unknown>;
@@ -752,6 +753,27 @@ const projectAgentInputSpec: Json = (() => {
       '(`PROJECT_AGENT_SECRET_UNKNOWN`), never pruned.',
   };
 })();
+
+/** A task's repeat rule: the shared zod schema every door validates a rule
+ * with, rendered to JSON Schema — one branch per frequency. */
+const taskRepeatSpec: Json = {
+  ...z.toJSONSchema(taskRepeatSchema, {
+    target: 'openapi-3.0',
+    io: 'output',
+  }),
+  description:
+    'How a task repeats: which calendar days, never a time of day, read in ' +
+    '`timezone` — the IANA zone of the person who set the rule. `daily` ' +
+    'steps days; `weekly` names `weekdays` (0 is Sunday … 6 is Saturday; ' +
+    'weeks run Monday to Sunday); `monthly` a `monthDay` (a shorter month ' +
+    'uses its last day); `yearly` a `month` (1 is January) and a `monthDay` ' +
+    '(29 February falls on the 28th in a common year); `interval` repeats ' +
+    'every N of them. `createOn` is present, as `dueDate`, when the next ' +
+    'task is also created at the start of the due date (midnight in ' +
+    '`timezone`) while this one is still open; absent, the next task is ' +
+    'created when this one is done or cancelled. Set in the app; read-only ' +
+    'on this API.',
+};
 
 /** The PUT body: the full configuration plus `expectedUpdatedAt`, the
  * optimistic precondition of a full replace. */
@@ -8081,6 +8103,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'status',
             'projectId',
             'labels',
+            'repeat',
             'createdAt',
             'updatedAt',
           ],
@@ -8125,10 +8148,45 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'board’s own archive) and cleared by `{archived: false}`; ' +
                 'read the state here before starting.',
             },
+            startDate: {
+              ...epochMs,
+              description:
+                'Epoch ms — present when the task has a start date. A task ' +
+                'date names a calendar day: the midnight that starts it in ' +
+                'the zone of whoever set it. Read-only on this API',
+            },
+            dueDate: {
+              ...epochMs,
+              description:
+                'Epoch ms — present when the task has a due date, a ' +
+                'calendar day like `startDate`. Read-only on this API',
+            },
+            repeat: {
+              ...nullable(ref('TaskRepeat')),
+              description:
+                'The rule the task repeats on, or null when it does not ' +
+                'repeat (a stored rule that no longer validates reads as ' +
+                'none). When a repeating task is closed — Done or ' +
+                'Cancelled, in the app or by an approved review here — ONE ' +
+                'next task is created in To do: dated to the rule’s next ' +
+                'occurrence, carrying the rule, the work (title, ' +
+                'description, priority, labels, attachments, the people ' +
+                'who still have access) and its subtasks; see ' +
+                '`repeatNextTaskId`. Read-only on this API',
+            },
+            repeatNextTaskId: {
+              type: 'string',
+              description:
+                'The task that continues this one’s series — present once ' +
+                'its close, or its due date under `createOn: "dueDate"`, ' +
+                'created it; closing this task again creates no other. ' +
+                'Absent before then, and again if that task is deleted',
+            },
             createdAt: epochMs,
             updatedAt: epochMs,
           },
         },
+        TaskRepeat: taskRepeatSpec,
         Actor: {
           type: 'object',
           additionalProperties: false,

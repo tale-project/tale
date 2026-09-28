@@ -6,66 +6,90 @@
  * private vs organization link, and the footer creates the link once. When
  * live, the URL and Copy link sit in one row; Preview and Include newer
  * messages are secondary actions underneath.
+ *
+ * The picker claims only what the status read answered: masked while it
+ * loads, and — when it failed — no option checked or selectable (the chat may
+ * still be shared) until Try again reads it back.
  */
 
 import { ActionRow } from '@tale/ui/action-row';
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { Stack } from '@tale/ui/layout';
+import { RadioGroup, RadioGroupItem } from '@tale/ui/radio-group';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
-import { Check, ExternalLink, Link2, Lock, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
-import type { ComponentType } from 'react';
+import { ExternalLink, Link2, Lock, RefreshCw } from 'lucide-react';
+import { useCallback, useId, useState } from 'react';
+import type { ComponentType, KeyboardEvent } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useChatQuery } from '../data/chat-backend';
-import { useThreadSharing } from '../data/thread-sharing';
+import {
+  threadShareUrl,
+  useThreadShareStatus,
+  useThreadSharing,
+} from '../data/thread-sharing';
 
 type ShareAccessMode = 'private' | 'organization';
 
+const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
+/** One option row: the whole row selects, the radio is the design-system
+ * control (one tab stop, arrow keys), named by the row's label alone. */
 function ShareAccessOption({
+  value,
   selected,
+  state,
   icon: Icon,
   label,
   description,
-  onSelect,
-  disabled,
 }: {
+  value: ShareAccessMode;
   selected: boolean;
+  /** `loading`: masked until the status read answers. `unknown`: the read
+   * failed, so the option takes no choice. `busy`: a change is in flight —
+   * the option keeps its focus but takes no choice. */
+  state: 'ready' | 'loading' | 'unknown' | 'busy';
   icon: ComponentType<{ className?: string }>;
   label: string;
   description: string;
-  onSelect: () => void;
-  disabled?: boolean;
 }) {
+  const id = useId();
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      disabled={disabled}
-      onClick={onSelect}
+    <label
+      htmlFor={`${id}-radio`}
       className={cn(
-        'flex w-full items-center gap-3 p-3 text-left transition-colors',
-        selected ? 'bg-muted/60' : 'hover:bg-muted/30',
-        disabled && 'cursor-not-allowed opacity-60',
+        'flex w-full items-center gap-3 p-3 transition-colors',
+        selected && 'bg-muted/60',
+        state === 'ready' && 'cursor-pointer',
+        state === 'ready' && !selected && 'hover:bg-muted/30',
+        state === 'unknown' && 'cursor-not-allowed opacity-60',
+        state === 'busy' && 'cursor-progress opacity-60',
       )}
     >
       <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
       <Stack gap={1} className="min-w-0 flex-1">
-        <Text className="text-sm font-medium">{label}</Text>
-        <Text variant="caption">{description}</Text>
+        <Text id={`${id}-label`} className="text-sm font-medium">
+          {label}
+        </Text>
+        <Text id={`${id}-description`} variant="caption">
+          {description}
+        </Text>
       </Stack>
-      {selected && (
-        <Check className="text-primary size-4 shrink-0" aria-hidden />
-      )}
-    </button>
+      <RadioGroupItem
+        id={`${id}-radio`}
+        value={value}
+        aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-description`}
+        aria-disabled={state === 'busy' || undefined}
+      />
+    </label>
   );
 }
 
@@ -79,32 +103,25 @@ function ShareChatDialogContent({
   const { t } = useT('chat');
   const navigate = useNavigate();
   const sharing = useThreadSharing(organizationId);
+  const status = useThreadShareStatus(organizationId, threadId);
   const [pending, setPending] = useState(false);
   const [publishFailed, setPublishFailed] = useState(false);
-  const [accessMode, setAccessMode] = useState<ShareAccessMode>('private');
+  // A choice the status does not show yet: the organization option before
+  // its link exists, or Keep private while the revocation is on its way.
+  const [draft, setDraft] = useState<ShareAccessMode | null>(null);
 
-  const status = useChatQuery('chat/threads:getThreadShareStatus', {
-    organizationId,
-    threadId,
-  });
-  const share = status.status === 'ready' ? status.data : undefined;
-  const isShared = share?.isShared === true;
-  const isShareable = share?.isShareable ?? true;
+  const known = status.state === 'known' ? status : null;
+  const isShared = known?.isShared === true;
+  const isShareable = known?.isShareable ?? true;
   const blockSharing = !isShareable && !isShared;
-  const statusLoading = status.status === 'loading';
+  const accessMode: ShareAccessMode | undefined =
+    known === null
+      ? undefined
+      : (draft ?? (isShared ? 'organization' : 'private'));
 
+  const shareToken = isShared ? (known?.shareToken ?? null) : null;
   const shareUrl =
-    isShared && share?.shareToken != null
-      ? `${window.location.origin}/dashboard/${organizationId}/chat/shared/${share.shareToken}`
-      : '';
-
-  useEffect(() => {
-    if (!open) {
-      setPublishFailed(false);
-      return;
-    }
-    setAccessMode(isShared ? 'organization' : 'private');
-  }, [open, isShared]);
+    shareToken !== null ? threadShareUrl(organizationId, shareToken) : '';
 
   const publish = useCallback(async () => {
     setPending(true);
@@ -122,7 +139,9 @@ function ShareChatDialogContent({
           ),
           variant: 'destructive',
         });
+        return;
       }
+      setDraft(null);
     } finally {
       setPending(false);
     }
@@ -130,32 +149,47 @@ function ShareChatDialogContent({
 
   const unshare = useCallback(async () => {
     setPending(true);
+    setDraft('private');
     try {
       const ok = await sharing.unshare(threadId);
       if (!ok) {
         toast({ title: t('share.unshareFailed'), variant: 'destructive' });
-        setAccessMode('organization');
         return;
       }
       toast({ title: t('share.unshared') });
     } finally {
+      // Whatever happened, the status now says it: revoked, or still live.
+      setDraft(null);
       setPending(false);
     }
   }, [sharing, t, threadId]);
 
-  const handleAccessMode = (mode: ShareAccessMode) => {
-    if (mode === accessMode || pending || statusLoading) return;
-    setAccessMode(mode);
+  const handleAccessMode = (value: string) => {
+    if (known === null || pending) return;
+    const mode: ShareAccessMode =
+      value === 'organization' ? 'organization' : 'private';
+    if (mode === accessMode) return;
     if (mode === 'private' && isShared) {
       void unshare();
+      return;
     }
+    setDraft(mode === 'organization' ? 'organization' : null);
   };
 
+  // While a change is in flight the focused option stays put: an arrow key
+  // would otherwise move focus onto an option the dialog cannot select yet.
+  const holdArrowsWhilePending = (event: KeyboardEvent) => {
+    if (pending && ARROW_KEYS.has(event.key)) event.preventDefault();
+  };
+
+  const optionState =
+    status.state === 'known' ? (pending ? 'busy' : 'ready') : status.state;
+
   const showCreateFooter =
+    known !== null &&
     !blockSharing &&
     accessMode === 'organization' &&
-    !isShared &&
-    !statusLoading;
+    !isShared;
 
   const dialogDescription = isShared
     ? t('share.snapshotHintShared')
@@ -187,32 +221,55 @@ function ShareChatDialogContent({
           </Text>
         ) : (
           <>
-            <div
-              role="radiogroup"
-              aria-label={t('share.accessPickerLabel')}
-              className="border-border divide-border divide-y overflow-hidden rounded-lg border"
-            >
-              <ShareAccessOption
-                selected={accessMode === 'private'}
-                icon={Lock}
-                label={t('share.keepPrivate')}
-                description={t('share.keepPrivateDescription')}
-                onSelect={() => handleAccessMode('private')}
-                disabled={pending || statusLoading}
-              />
-              <ShareAccessOption
-                selected={accessMode === 'organization'}
-                icon={Link2}
-                label={t('share.organizationLink')}
-                description={t('share.organizationLinkDescription')}
-                onSelect={() => handleAccessMode('organization')}
-                disabled={pending || statusLoading}
-              />
-            </div>
+            <Skeletonize loading={status.state === 'loading'}>
+              <RadioGroup
+                aria-label={t('share.accessPickerLabel')}
+                value={accessMode ?? ''}
+                onValueChange={handleAccessMode}
+                disabled={known === null}
+                aria-busy={pending || undefined}
+                onKeyDownCapture={holdArrowsWhilePending}
+                className="border-border divide-border gap-0 divide-y overflow-hidden rounded-lg border"
+              >
+                <ShareAccessOption
+                  value="private"
+                  selected={accessMode === 'private'}
+                  state={optionState}
+                  icon={Lock}
+                  label={t('share.keepPrivate')}
+                  description={t('share.keepPrivateDescription')}
+                />
+                <ShareAccessOption
+                  value="organization"
+                  selected={accessMode === 'organization'}
+                  state={optionState}
+                  icon={Link2}
+                  label={t('share.organizationLink')}
+                  description={t('share.organizationLinkDescription')}
+                />
+              </RadioGroup>
+            </Skeletonize>
+
+            {status.state === 'unknown' && (
+              <Alert
+                variant="destructive"
+                description={t('share.statusFailed')}
+              >
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={RefreshCw}
+                  className="mt-3"
+                  onClick={status.retry}
+                >
+                  {t('share.retry')}
+                </Button>
+              </Alert>
+            )}
 
             {accessMode === 'organization' && (isShared || pending) && (
               <Stack gap={3} className="min-w-0">
-                {isShared && shareUrl.length > 0 ? (
+                {shareUrl.length > 0 ? (
                   <CopyableField
                     value={shareUrl}
                     mono
@@ -228,7 +285,7 @@ function ShareChatDialogContent({
                   </Skeletonize>
                 )}
 
-                {isShared && (
+                {shareToken !== null && (
                   <ActionRow gap={2} className="min-w-0 flex-wrap">
                     <Button
                       variant="secondary"
@@ -238,10 +295,7 @@ function ShareChatDialogContent({
                         onOpenChange(false);
                         void navigate({
                           to: '/dashboard/$id/chat/shared/$shareToken',
-                          params: {
-                            id: organizationId,
-                            shareToken: share?.shareToken ?? '',
-                          },
+                          params: { id: organizationId, shareToken },
                         });
                       }}
                     >

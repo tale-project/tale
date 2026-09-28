@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 57 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 82 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -38,6 +38,14 @@ a project **agent** whose sandboxed harness can actually run — a live
 environment concern; without one, drive what you can (Start refusals surface
 in the run-failure banner) and mark the undrivable rows **ENVIRONMENT**.
 Mentions/assignment notifications need a second member (SETUP.md extras).
+The repeating-task boxes (TASK-F37–TASK-F44, TASK-B12–TASK-B24,
+TASK-A8–TASK-A11) need no agent; TASK-F43 alone needs a second member, and
+TASK-B24 an organization owner or admin, who alone may delete a task.
+TASK-B14 and TASK-B22 set due dates in the past, which the date picker
+accepts. The due-date scan runs every five minutes, so TASK-F40, TASK-F44,
+TASK-B22 and TASK-B24 wait up to five minutes for each next task it creates.
+TASK-B17 alone needs a deployed automation with a task contract bound to the
+project (as in AUTO-F32).
 
 > **Agent note**: board DnD is `dnd-kit` — a single `dragTo` drops the card
 > back at its source; drag with stepped mouse moves (down → several small
@@ -373,6 +381,167 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   after sending shows an empty composer. Local storage keeps it under
   `task-comment-draft-{userId}-{orgId}-{taskId}` until it is sent.
 
+### Repeating tasks
+
+- [ ] `TASK-F37` · **Pick a preset on a task without a due date** — Open a task
+  in **To do** with no **Due date** (`tasks.dueDate.label`) and no **Start
+  date** (`tasks.startDate.label`), open **Repeat** (`tasks.repeat.label`)
+  below it and pick **Weekly on** today's weekday; on a second such task pick
+  **Every weekday** (`recurrence.sentence.weekdays`); then **Create task**
+  (`tasks.actions.create`) with **Repeat** set to **Daily** → The popover lists
+  **Never** (`recurrence.never`) checked, **Daily**, **Every weekday** with the
+  badge **Mon–Fri** (`recurrence.workweekRange`), **Weekly on** today's
+  weekday, **Monthly on day** today's day and **Yearly on** today's date, then
+  **Custom** (`recurrence.custom`), and under them **No due date yet. Picking a
+  repeat sets it to the first matching day.** (`tasks.repeat.noDueDateHint`);
+  one click saves and closes it, focus back on the trigger; **Due date** then
+  holds the first matching day on or after today — today for **Weekly on**, and
+  for **Every weekday** today on a weekday or the coming Monday on a weekend —
+  and the trigger reads the rule in short (**Weekly · Tue**, **Weekdays**,
+  `recurrence.compact.weekdays`); reopened, the pick is checked and **Next due
+  dates** (`tasks.repeat.nextDueDates`) lists the three due dates after this
+  one; the card on **Board** and the row on **List** show the repeat icon,
+  whose tooltip reads **Repeats: Weekly on {weekday}**
+  (`tasks.repeat.indicator`); Activity records one **Repeat changed**
+  (`tasks.activity.repeatChanged`) from **Never** to the rule per pick; the
+  rule, the due date and the icon survive a reload. The created task carries
+  **Daily** with today as its due date.
+- [ ] `TASK-F38` · **Closing brings back one next task** — On a task that does
+  not repeat and is due today or later, pick **Repeat** → **Weekly on** its due
+  date's weekday; give it a **Start date** (`tasks.startDate.label`) two days
+  before its due date, a priority, a label, you as assignee, a reviewer, an
+  attachment, a comment and a **Blocked by** link (`tasks.detail.blockedBy`) to
+  another task, then set **Status** (`tasks.fields.status`) to **Done**
+  (`tasks.status.done`) → The toast **Next task created**
+  (`tasks.repeat.nextCreated`) reads **Due {date}** (`tasks.dueDate.due`) with
+  a **Stop repeating** button (`tasks.repeat.stop.action`) — leave it; exactly
+  one new task sits at the foot of **To do** with the next key, the same title,
+  description, priority, labels, assignee, reviewer, attachments (the file
+  opens) and repeat, a due date one week after the closed one and a start date
+  two days before that — and no comments, no **Blocked by** link and no
+  **Deliverables** (`tasks.outputs.label`); its Activity opens with **Created**
+  (`tasks.activity.created`). The closed task stays in **Done**; its card loses
+  the repeat icon, which the copy now carries; its **Repeat** still reads the
+  rule but opens nothing, its tooltip ending **This series continues on {key}.
+  Change the repeat there.** (`tasks.repeat.reason.continued`), and under it
+  **Next task: {key}** (`tasks.repeat.nextTask`) opens the copy, with **Stop
+  repeating** (`tasks.repeat.stop.action`) beside it; its Activity records
+  **Next task created** (`tasks.activity.repeatNext`) naming that key — all
+  after a reload. Dragging another repeating card into **Done** on the board
+  brings back one copy and the toast the same way.
+- [ ] `TASK-F39` · **A custom repeat, saved once** — On a task due on a Tuesday
+  that does not repeat yet: **Repeat** → **Custom** (`recurrence.custom`); in
+  the Custom view keep **Week** (`recurrence.editor.units.weekly`), raise the
+  step to 2 with **+** (`common.numberStepper.increase`), press **Th**
+  (`recurrence.weekdayChip.thursday`) beside the pressed **Tu**, go back with
+  **Back to presets** (`recurrence.back`), then open **Custom** again and
+  **Save** (`common.actions.save`) → The view opens on **Week** with the due
+  date's weekday pressed and the step between **Every** and **weeks**; **Next
+  due dates** follows every edit; back in the list the draft is kept — the
+  **Custom** row is checked with **Every 2 weeks on Tuesday and Thursday**
+  under it, and **Cancel** / **Save** show — and nothing is written before
+  **Save**. After it the popover closes, the trigger reads **Every 2 weeks**,
+  followed by **· Tue, Thu** only where the column has room (the tail drops
+  whole, never cut mid-word), the card's tooltip reads the whole sentence, and
+  Activity has exactly one **Repeat changed** row for the session; after a
+  reload **Custom** reopens on 2, weeks, Tuesday and Thursday. **Month** asks
+  **On day** (`recurrence.editor.onDay`) with the due date's day and, from 29
+  up, notes **Shorter months use their last day.**
+  (`recurrence.editor.lastDayHint`); **Year** asks **On** a month and a day and
+  notes **In other years, this falls on Feb 28.**
+  (`recurrence.editor.leapDayHint`) for 29 February; the step stays within 1 to
+  99 (a typed 0 or 100 is corrected on blur) and the last pressed weekday
+  cannot be turned off, so **Save** is never disabled.
+- [ ] `TASK-F40` · **Create the next task on the due date** — On a task that
+  repeats **Daily** and is due today, open **Repeat**, tick **Create the next
+  task on the due date** (`tasks.repeat.onDue.label`) and **Save**; do the same
+  on a second **Daily** task due in three days, then set it to **Done** before
+  its due date → The first task's checkbox reads **This one is already due, so
+  the next task is created right away.** (`tasks.repeat.onDue.descriptionNow`),
+  the second's **Even if this one is still open on {date}.**
+  (`tasks.repeat.onDue.description`) naming its due date; ticking brings
+  **Cancel** / **Save** into the preset view, and saving writes one **Repeat
+  changed** row; the trigger's icon becomes a calendar, its tooltip adds **The
+  next task is created on the due date, or sooner if this one is done or
+  cancelled first.** (`tasks.repeat.mode.dueDate`), and the card's tooltip
+  reads **Repeats: Daily, next task on the due date**
+  (`tasks.repeat.ruleOnDue`). Within five minutes, with no toast, the first
+  task — still open in its lane — gets its next task, due tomorrow and carrying
+  the same rule; both timelines credit **System**
+  (`tasks.timeline.systemActor`); the first task's **Repeat** locks with **Next
+  task: {key}** and **Stop repeating** under it and its card loses the icon,
+  and closing it later brings back nothing and no toast. The second task's
+  close brings back its next task at once, with the toast, as a close always
+  does.
+- [ ] `TASK-F41` · **Subtasks come back with their parent** — On a task that
+  repeats **Weekly on** its due date's weekday, add subtasks
+  (`tasks.detail.addSubtask`) A, with a due date two days before the parent's,
+  and B; make A block B (**Blocks**, `tasks.detail.blocks`), make B **Blocked
+  by** an unrelated task, comment on A, add a third subtask and archive it;
+  close A and B, then the parent → The next task holds copies of A and B only —
+  none of the archived one — each in **To do** (`tasks.status.todo`) whatever
+  its status was, with its title, description, priority, labels and people and
+  no comments; the copy of A is due one week after A was, two days before the
+  next task's due date; the copy of A blocks the copy of B, and neither is
+  blocked by the unrelated task; each copy names the new parent (**Part of
+  {key}**, `tasks.detail.partOf`), has no rule of its own and reads **With
+  {key}** (`tasks.repeat.withParent`) under **Repeat**; the original A and B
+  stay closed under the closed parent. A subtask under A comes back under the
+  copy of A the same way.
+- [ ] `TASK-F42` · **Stop repeating from the toast** — Close a repeating task
+  and press **Stop repeating** (`tasks.repeat.stop.action`) in the toast; close
+  a second one, switch to another tab (the toast waits while the window is in
+  the background), move its new next task to **In progress**
+  (`tasks.status.in_progress`) there, come back and press **Stop repeating**;
+  do the same with a third, but only rename its next task, leaving it in **To
+  do** → The first toast turns into **Repeat stopped**
+  (`tasks.repeat.stop.done`) — **The next task was removed.**
+  (`tasks.repeat.stop.removed`) — and the next task is gone from **To do** with
+  any subtasks, also after a reload, while the closed task's **Repeat** reads
+  **Never** with neither a **Next task** link nor **Stop repeating**, its
+  tooltip **This series has stopped.**
+  (`tasks.repeat.reason.stopped`), and its Activity records **Repeat
+  changed** to **Never**; reopened, its **Repeat** stays locked with that
+  reason, and closing it again brings back nothing. The second and the third
+  read **{key} was already changed, so it stays — it just won't repeat.**
+  (`tasks.repeat.stop.kept`): the next task stays where it was — in **In
+  progress**, or renamed in **To do** — its **Repeat** reads **Never** and its
+  card shows no repeat icon, closing it brings back nothing, and the closed
+  task keeps its **Next task** link, with no **Stop repeating** beside it and
+  its **Repeat** reading **Never**, its tooltip **This series has stopped.**
+  (`tasks.repeat.reason.stopped`).
+- [ ] `TASK-F43` · **Watchers follow the series** — With a second member B who
+  can see the project: as B open a repeating task you created and press
+  **Watch** (`tasks.watch.watch`); as yourself press **Unwatch**
+  (`tasks.watch.unwatch`) on it, then close it; as B comment on the next task,
+  then comment on it as yourself → On the next task B's details show
+  **Unwatch** — B watches it without pressing anything; until you comment,
+  yours show **Watch** — your unwatch carried over, although you created the
+  series — and B's comment rings no bell of yours unless it mentions you; B's
+  bell gets your comment. A watcher who lost access to the project before the
+  close does not follow the next task.
+- [ ] `TASK-F44` · **Stop repeating stays on the task** — Close a repeating
+  task and let its toast go; open the closed task and press **Stop repeating**
+  (`tasks.repeat.stop.action`) beside **Next task: {key}**
+  (`tasks.repeat.nextTask`) under **Repeat**; close a second one, move its next
+  task to **In progress** (`tasks.status.in_progress`), open the closed one on
+  its task page (`/dashboard/{org}/tasks/{taskId}`) and press **Stop
+  repeating** there; last, open the first task of a due-date series once the
+  scan has continued it (as in `TASK-F40`) and press it → The button sits
+  beside the **Next task** link in the board's dialog and on the task page
+  alike, spins while the stop runs, then disappears; the first stop shows
+  **Repeat stopped** (`tasks.repeat.stop.done`) with **The next task was
+  removed.** (`tasks.repeat.stop.removed`), and the next task and its link are
+  gone, also after a reload, while **Repeat** reads **Never** with **This
+  series has stopped.**
+  (`tasks.repeat.reason.stopped`); the second reads **{key} was already
+  changed, so it stays — it just won't repeat.** (`tasks.repeat.stop.kept`),
+  its link staying while **Repeat** reads **Never** with **This series has
+  stopped.** (`tasks.repeat.reason.stopped`); the due-date task, still open,
+  offers the button too, and after its stop it shows no repeat icon, its
+  **Repeat** reads **Never** and stays locked, and no further next task appears
+  within ten minutes.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -474,6 +643,167 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   since it counts what a save keeps; delete five, **Save**, reload → the line
   and the counter are gone and the description reads back at 20,000
   characters.
+- [ ] `TASK-B12` · **Reopen and close again** — On the task `TASK-F38` closed,
+  set **Status** back to **In progress** (`tasks.status.in_progress`); while it
+  is open, copy the `orgId` of any `…?orgId=` request in DevTools → Network and
+  run `fetch('/api/app/tasks/{taskId}?orgId={orgId}', {method: 'POST', headers:
+  {'content-type': 'application/json'}, body: JSON.stringify({repeat:
+  {frequency: 'daily', interval: 1, timezone: 'Europe/Zurich'}})})` in the
+  console; then set it to **Done** again, then drag its card to **Cancelled** →
+  No second copy appears in **To do** and no toast shows; while it is open
+  again its **Repeat** stays locked with **This series continues on {key}.**
+  (`tasks.repeat.reason.continued`) and its card shows no repeat icon, and the
+  hand-built rule answers 400 `TASK_REPEAT_INVALID` with `This task already
+  created its next task` — its **Repeat** keeps the rule it had and Activity
+  gains no **Repeat changed** row, also after a reload; **Next task** still
+  names the copy `TASK-F38` brought back.
+- [ ] `TASK-B13` · **Cancelled continues the series too** — Move a repeating
+  task from **To do** to **Cancelled** (`tasks.status.cancelled`) with the
+  **Status** picker, and drag another repeating card into **Cancelled** on the
+  board → Each brings back exactly one copy in **To do**, dated and filled as
+  for **Done**, with the toast.
+- [ ] `TASK-B14` · **A late or early close keeps the series on its days** —
+  Close a **Daily** task whose due date is a week ago (it badges **Overdue**,
+  `tasks.dueDate.overdue`); close a weekly task due three weeks ago; close a
+  weekly task due next week; close a **Monthly on day** 31 task due on a coming
+  31st whose next month has 30 days, then its copy → The daily copy is due
+  today and is the only copy — never yesterday or one per missed day; the late
+  weekly copy is due on the first matching weekday on or after today; the early
+  weekly copy is due one week after the closed task's due date, not on this
+  week's matching day; the monthly copy is due on the 30th, and its own copy on
+  the 31st again.
+- [ ] `TASK-B15` · **Never stops the series** — On an open copy choose
+  **Repeat** → **Never** (`recurrence.never`), then set it to **Done** → The
+  repeat icon leaves the card, the trigger reads **Never** in muted text, and
+  Activity records **Repeat changed** from the rule to **Never**; closing
+  brings back no copy and no toast; the tasks closed earlier keep their locked
+  repeat and their **Next task** link, and the one right before the copy no
+  longer offers **Stop repeating** (`tasks.repeat.stop.action`), its tooltip
+  now **This series has stopped.** (`tasks.repeat.reason.stopped`).
+- [ ] `TASK-B16` · **A subtask comes back with its parent, never on its own** —
+  On a task that repeats **Daily**, add a subtask (`tasks.detail.addSubtask`),
+  add a subtask under it, and open both; add a second subtask, archive it
+  (`tasks.actions.archive`) and open it; open a subtask of a task that does not
+  repeat; then close the subtasks and the parent → The first subtask names its
+  parent (**Part of {task}**, `tasks.detail.partOf`) and its **Repeat** reads
+  **With {parent key}** (`tasks.repeat.withParent`) at full contrast: a button
+  named **Repeat: With {parent key}** that opens nothing, its tooltip and
+  description **This subtask comes back with {parent}: each time {parent}
+  repeats, its next task gets a fresh copy of it.**
+  (`tasks.repeat.reason.subtask`); the subtask under it, the archived one and
+  the subtask of the task that does not repeat have no **Repeat** row; no
+  subtask card shows a repeat icon; closing a subtask brings back no copy and
+  no toast; the parent's close brings back one next task with fresh copies of
+  both levels (`TASK-F41`), while the closed subtasks stay under the closed
+  parent.
+- [ ] `TASK-B17` · **Handing a repeating task to an automation ends its
+  series** — (env-gated: a deployed automation with a task contract bound to
+  the project, e.g. a triage pack as in AUTO-F32, so the assignee picker lists
+  it under **Automations**, `tasks.assignee.automations`; without one mark
+  **ENVIRONMENT**) On a task in **To do** that repeats **Daily**, pick that
+  automation as **Assignee** (`tasks.fields.assignee`), then drag its card to
+  **Cancelled** (confirm if asked); in **Create task** pick **Daily** under
+  **Repeat**, then that automation as **Assignee** → The task's **Repeat**
+  reads **Never** and opens nothing, its tooltip **An automation runs this
+  task, so it doesn't repeat.** (`tasks.repeat.reason.automation`) — the first
+  row inside **More fields** (`tasks.detail.moreFields`) once the task shows
+  its automation, else under **Due date** — its card loses the repeat icon, and
+  Activity records **Repeat changed** from the rule to **Never**, also after a
+  reload; the cancel brings back no copy and no toast; in the dialog **Repeat**
+  stays in place but locks, reading **Never** with the same reason, once the
+  automation is picked, and the created task's card shows no repeat icon.
+- [ ] `TASK-B18` · **A closed task takes no new repeat** — Open a **Done** task
+  that never repeated, then set it back to **To do**; in **Create task** pick
+  **Daily** under **Repeat**, set **Status** (`tasks.fields.status`) to
+  **Done**, then **Cancelled**, then **To do**; pick **Daily** again, set
+  **Status** to **Done** and **Create task** → While **Done**, the task's
+  **Repeat** reads **Never** and opens nothing, its tooltip **Reopen this task
+  to change how it repeats.** (`tasks.repeat.reason.closed`); back in **To do**
+  it opens the popover again. In the dialog **Repeat** stays in place but
+  locks, reading **Never** with **Only open tasks repeat.**
+  (`tasks.repeat.reason.notOpen`), while **Status** is **Done** or
+  **Cancelled**, and under **To do** it reads **Never** again, the earlier pick
+  dropped; the task created into **Done** carries no repeat — its **Repeat**
+  reads **Never** and its card shows no repeat icon — and brings back no copy.
+- [ ] `TASK-B19` · **A later start date moves the first due date** — On an open
+  task with no **Due date** and a **Start date** a week from today, open
+  **Repeat** and pick **Daily**; in **Create task** set **Start date** to a
+  coming Saturday, pick **Every weekday** under **Repeat** and **Create task**
+  → The popover's **Weekly on** names the start date's weekday, not today's;
+  after the pick **Due date** holds the start date, not today, and the change
+  saves with no **Start date must be on or before the due date.** toast
+  (`tasks.startDate.afterDue`); the dialog fills **Due date** with the Monday
+  after that Saturday and creates the task with it; both dates survive a
+  reload.
+- [ ] `TASK-B20` · **German and French in the create dialog** — Switch the
+  language to Deutsch, open **Create task** (`tasks.actions.create`) in a 1280
+  px window, set **Due date** (`tasks.dueDate.label`), then set **Repeat**
+  (`tasks.repeat.label`) to every 2 weeks on Tuesday and Thursday through
+  **Custom**; repeat in French → The side panel is 17rem (272 px) wide and the
+  due date reads in full, never clipped; the **Wiederholen** / **Répéter**
+  trigger stays on one line — **Alle 2 Wochen** / **Toutes les 2 semaines**,
+  the weekday tail dropped whole, a French head too long for the column ending
+  in an ellipsis; in the popover the presets (**Jeden Werktag** with **Mo–Fr**,
+  **Tous les jours ouvrés** with **lun.–ven.**), the units, the step's words,
+  the weekday chips (**Mo Di Mi …** / **Lu Ma Me …**), **Nächste Fälligkeiten**
+  / **Prochaines échéances** (`tasks.repeat.nextDueDates`) with dates in the
+  language, and the due-date checkbox all fit without horizontal scrolling or
+  clipping.
+- [ ] `TASK-B21` · **Escape, a click outside and Cancel keep the saved repeat**
+  — On a repeating task open **Repeat** → **Custom**, change the unit and the
+  step, then press Escape; reopen it, tick **Create the next task on the due
+  date** (`tasks.repeat.onDue.label`), then click outside the popover; reopen
+  it, change the step in **Custom** and press **Cancel**
+  (`common.actions.cancel`); last, on **Year** open the month list and press
+  Escape → Each time the popover closes with focus back on the trigger, the
+  trigger, its icon and **Next due dates** read the saved rule, and Activity
+  gains no **Repeat changed** row, also after a reload; Escape in the month
+  list closes only the list, leaving the Custom view open with its draft.
+- [ ] `TASK-B22` · **A due-date series stops at 10 open tasks** — On a task
+  that repeats **Daily** with **Create the next task on the due date**
+  (`tasks.repeat.onDue.label`), set **Due date** to yesterday; each time the
+  series' newest task appears, set its **Due date** to yesterday too, until 10
+  of its tasks are open; wait ten minutes, then close one of the older ones →
+  Each re-dating adds one or two open tasks within ten minutes (the scan runs
+  every five), each due today or later; with 10 open the newest due one waits —
+  no 11th appears and the backend logs, at most once an hour for that task,
+  that its series already has 10 open tasks; within five minutes of the close
+  its next task appears.
+- [ ] `TASK-B23` · **A repeating task whose due date was cleared** — On a task
+  that repeats **Daily**, clear **Due date** (`tasks.dueDate.label`); open
+  **Repeat** and click the checked **Daily**; open it again, tick **Create the
+  next task on the due date** (`tasks.repeat.onDue.label`) with Space, untick
+  it, tick it again and **Save** (`common.actions.save`) → Opened, the popover
+  shows no **This task becomes due on {date}.** line
+  (`tasks.repeat.becomesDue`), and the checkbox is described by **No due date:
+  its next task is dated from the day this one closes.**
+  (`tasks.repeat.noDueDateSaved`); clicking **Daily** closes the popover and
+  writes nothing — **Due date** stays empty and Activity gains no **Repeat
+  changed** row, also after a reload; ticking brings **This task becomes due on
+  {date}.** naming today and the description **This one is already due, so the
+  next task is created right away.** (`tasks.repeat.onDue.descriptionNow`),
+  unticking brings the first description back without the line, and focus stays
+  on the checkbox throughout; **Save** writes the rule with today as **Due
+  date** and one **Repeat changed** row, also after a reload.
+- [ ] `TASK-B24` · **Deleting a task never splits a series** — As an
+  organization owner or admin, close a task A that repeats **Daily**, then its
+  next task B, which brings back C; **Delete** (`tasks.actions.delete`) B from
+  **Details**, reopen A and close it again, then close C; delete the task C
+  brought back, then reopen C and close it again; last, let a **Daily** task
+  due today with **Create the next task on the due date**
+  (`tasks.repeat.onDue.label`) get its next task (as in `TASK-F40`), delete
+  that next task, wait ten minutes, then close the first → A's second close
+  creates no task and no toast, and while A is open again its **Repeat** stays
+  locked, with no **Next task** link and no **Stop repeating**; C keeps the
+  repeat icon and its close brings back one next task with the toast; once that
+  task is deleted, C's **Repeat** tooltip reads **Its next task was deleted, so
+  this series has ended.** (`tasks.repeat.reason.nextDeleted`) with no **Next
+  task** link, and reopened, C shows no repeat icon, keeps **Repeat** locked,
+  and its second close creates nothing and no toast; once the due-date task's
+  next task is deleted, no new one appears while the first stays open and due —
+  its card shows no repeat icon, and its **Repeat**, still reading its rule, is
+  locked with the same reason — and its close creates nothing and no toast —
+  each also after a reload.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -525,6 +855,67 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   (`tasks.drag.dropped`) and the cancel (`tasks.drag.cancelled`) name the key;
   no id is ever spoken and focus stays on the title. Note the reader and its
   version: the Chromium specs read the live region's text, not the speech.
+- [ ] `TASK-A8` · **Repeat presets by keyboard** → Tab to **Repeat** in the
+  task details and open it with Enter; move with the arrow keys and pick with
+  Enter; open it again and press Escape; then Tab to a locked **Repeat** (a
+  closed task's) → The trigger is a button named **Repeat:**
+  (`recurrence.namePrefix`) followed by what it shows, e.g. **Repeat: Never**
+  or **Repeat: Weekly, Tue**, and described by the whole sentence and the mode;
+  the popover is a dialog named **Repeat** that opens with focus on the checked
+  preset; the presets are one radio group named **Presets**
+  (`recurrence.presets`) — the arrows move and loop, Home and End jump, and
+  moving never saves — then **Custom**, the checkbox and, when shown,
+  **Cancel** and **Save** follow in Tab order; Enter or Space saves the focused
+  preset and closes, Escape closes with nothing changed, and both times focus
+  returns to the trigger without its tooltip popping up; the locked trigger
+  stays focusable, is announced as unavailable with its reason, and Enter opens
+  nothing; a card's repeat icon is named like its tooltip (**Repeats: {rule}**,
+  `tasks.repeat.indicator`).
+- [ ] `TASK-A9` · **The Custom view by keyboard** → From the presets Tab to
+  **Custom** and press Enter; Tab through the view, switch the unit with the
+  arrow keys, type a step, toggle two weekdays with Space and press Enter in
+  the step field; reopen **Custom**, change the step, press **Back to presets**
+  (`recurrence.back`), enter **Custom** again and press Ctrl+Enter (⌘+Enter on
+  a Mac); repeat both saves inside **Create task** (`tasks.actions.create`) →
+  Entering puts focus on the checked unit; the view is a group named **Custom**
+  (`recurrence.custom`); Tab reaches **Back to presets**, the unit radio group
+  named **Unit** (`recurrence.editor.unit`, one stop, ← / →), the step
+  spinbutton named as it reads (**Every 2 weeks**), then the weekday chips — a
+  group named **On** (`recurrence.editor.onWeekdays`), one stop with roving
+  arrows, each a toggle button named by its full weekday that announces its
+  pressed state — then the checkbox, **Cancel** and **Save**; the stepper's −
+  and + are not Tab stops; a polite status reads the draft's sentence once
+  typing pauses, not on every key; Enter in the step field saves and closes,
+  **Back to presets** keeps the draft and returns focus to the **Custom** row,
+  and Ctrl+Enter / ⌘+Enter saves (**Save** carries `aria-keyshortcuts`); in
+  **Create task** neither key submits the dialog.
+- [ ] `TASK-A10` · **Repeat on a phone** → At 390 px open a task from Home,
+  press **Show details** (`tasks.detail.showDetails`), open **Repeat**, go to
+  **Custom** and back, press Escape, then open it again and pick a preset → The
+  popover opens over the bottom sheet inside the viewport and scrolls within
+  itself when the screen is short; focus stays in it; Escape closes the popover
+  only, leaving the sheet open with focus back on the **Repeat** trigger; the
+  preset saves, closes the popover and keeps the sheet; every target is at
+  least 24 px (preset rows 36, weekday chips 32).
+- [ ] `TASK-A11` · **Stop repeating by keyboard** → With a screen reader on,
+  open a repeating task from **Board** with Tab and Enter, set **Status**
+  (`tasks.fields.status`) to **Done** by keyboard, then Tab on to **Stop
+  repeating** (`tasks.repeat.stop.action`) and press Enter; on a second series,
+  with the network throttled (DevTools → Network → Slow 4G), press Enter on
+  **Stop repeating** and then Tab while it spins → The reader announces the
+  toast with its action's alternative text **You can also stop the repeat
+  later: open the task and choose "Stop repeating" under "Repeat".**
+  (`tasks.repeat.stop.altText`); the button follows the **Next task: {key}**
+  link in Tab order, is announced as a button named **Stop repeating**, shows a
+  visible focus ring and is at least 24 px tall; Enter stops the series — the
+  reader announces **Repeat stopped** (`tasks.repeat.stop.done`) — and the
+  button goes, focus landing on the **Repeat** trigger — never on the dialog or
+  the page — with its focus ring; the reader announces it as unavailable, and
+  once the task refreshes it reads **Repeat: Never** with **This series has
+  stopped.** (`tasks.repeat.reason.stopped`) as
+  its reason; Tab moves on within the dialog, and Escape still closes it and
+  returns focus to the card. On the second series focus stays on the control
+  Tab reached, inside the dialog, once the button goes.
 
 ## Performance
 

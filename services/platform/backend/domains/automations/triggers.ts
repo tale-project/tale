@@ -185,8 +185,9 @@ function namedList(count: number, names: readonly string[]): string {
 
 /** Better Auth creates `organization` when an api role boots. A pure worker
  * (`ROLE=worker`) runs only the app migrations, so on a fresh install its
- * scan can come before the table does. */
-async function organizationTableExists(sql: Sql): Promise<boolean> {
+ * scan can come before the table does — every scan that asks whether an
+ * organization still exists asks this first. */
+export async function organizationTableExists(sql: Sql): Promise<boolean> {
   const rows = await sql<{ present: boolean }[]>`
     SELECT to_regclass('"organization"') IS NOT NULL AS present
   `;

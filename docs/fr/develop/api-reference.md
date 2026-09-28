@@ -1465,8 +1465,10 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
-# → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
+# → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], "dueDate": 1790719200000, "repeat": null, ... } }
 ```
+
+La lecture d’une tâche renvoie aussi son calendrier, en lecture seule sur cette API. `startDate` et `dueDate` sont des horodatages Unix en millisecondes : chacun marque minuit au début du jour choisi, dans le fuseau horaire de la personne qui l’a réglé. Ils ne figurent dans la réponse que lorsqu’ils sont renseignés. `repeat` est toujours présent : `null` si la tâche ne se répète pas, sinon un `TaskRepeat` comme `{ "frequency": "weekly", "interval": 2, "weekdays": [2, 4], "timezone": "Europe/Zurich", "createOn": "dueDate" }`. `frequency` vaut `daily`, `weekly`, `monthly` ou `yearly`, et `interval` va de 1 à 99 ; `weekly` liste des `weekdays` de 0 (dimanche) à 6 (samedi), `monthly` prend un `monthDay` et `yearly` un `month` et un `monthDay`. `createOn` n’apparaît, sous la forme `"dueDate"`, que si la tâche suivante est aussi créée au début du jour d’échéance ; sans lui, la tâche suivante arrive quand celle-ci est terminée ou annulée. Quand une tâche récurrente est clôturée, dans l’application ou par une relecture approuvée ici, ou quand son jour d’échéance commence avec `createOn: "dueDate"`, sa tâche suivante est créée en `todo`, et `repeatNextTaskId` la désigne dès lors. Si cette tâche suivante est supprimée, `repeatNextTaskId` disparaît, mais la tâche n’en crée pas d’autre pour autant (contrat 3.3.0).
 
 ### Lire les commentaires et télécharger les livrables
 

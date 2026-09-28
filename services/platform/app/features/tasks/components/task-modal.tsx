@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type ClipboardEvent,
@@ -62,6 +63,7 @@ import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
+import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
 import {
   useAssignTask,
@@ -83,6 +85,7 @@ import {
   type ResolvedTaskSubjectContract,
 } from '../hooks/use-task-subject-contract';
 import {
+  TASK_TERMINAL_STATUSES,
   type TaskActorType,
   type TaskPriority,
   type TaskStatus,
@@ -91,6 +94,11 @@ import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
 import { subtaskProgress } from '../lib/subtasks';
 import { taskLimitRefusalMessage } from '../lib/task-limit-refusal';
+import {
+  canTaskRepeat,
+  taskAutomationOwned,
+  taskRepeatFieldState,
+} from '../lib/task-repeat-edit';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
 import { EditableDescription } from './editable-description';
@@ -124,6 +132,9 @@ import { TaskInputFilesCard } from './task-input-files';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
 import { TaskPageLayout } from './task-page-layout';
 import { TaskParentLink } from './task-parent-link';
+import { TaskRepeatField } from './task-repeat-field';
+import { TaskRepeatNextLink } from './task-repeat-next-link';
+import { TaskRepeatStopButton } from './task-repeat-stop-button';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
@@ -260,7 +271,7 @@ function ModalLayout({
         </Stack>
         <Stack
           as="aside"
-          className="shrink-0 md:-mr-2 md:min-h-0 md:w-[15.5rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
+          className="shrink-0 md:-mr-2 md:min-h-0 md:w-[17rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
         >
           {panel}
         </Stack>
@@ -302,7 +313,7 @@ function PropertyField({
     // property panel spans its FULL width, so a fixed-width control (a date)
     // fits beside its label with room to spare — stacking there spends a whole
     // row of a sheet that already scrolls. From md up the panel narrows to
-    // 15.5rem, where the label column plus that control no longer fit on one
+    // 17rem, where the label column plus that control no longer fit on one
     // line, so it goes back to stacked.
     const inlineWhenWide = stacked === 'md';
     return (
@@ -367,6 +378,7 @@ function TaskDetailsSkeleton({ showProject }: { showProject: boolean }) {
     t('fields.reviewer'),
     t('startDate.label'),
     t('dueDate.label'),
+    t('repeat.label'),
   ];
   return (
     <>
@@ -794,9 +806,21 @@ function CreateTaskBody({
   } | null>(null);
   const [dueDate, setDueDate] = useState<number | undefined>(undefined);
   const [startDate, setStartDate] = useState<number | undefined>(undefined);
+  const [repeat, setRepeat] = useState<TaskRepeat | null>(null);
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
+  // A rule belongs on open work a person or agent carries: a task created
+  // straight into Done or Cancelled would never come back, and one handed to
+  // an automation follows the automation's lifecycle. Choosing either drops
+  // the rule — so switching back does not revive it unseen — and the row
+  // reads Never, saying why.
+  const repeatState = taskRepeatFieldState({
+    mode: 'create',
+    canMutate: true,
+    status,
+    automationOwned: assignee?.type === 'app',
+  });
   // A pasted description over the cap is named under the field and holds
   // Create, as the task's own description editor does.
   const {
@@ -832,6 +856,10 @@ function CreateTaskBody({
         assigneeId: assignee?.id,
         startDate,
         dueDate,
+        repeat:
+          repeatState.kind === 'editable' && repeat !== null
+            ? repeat
+            : undefined,
       });
       toast({ title: t('actions.created'), variant: 'success' });
       onClose();
@@ -959,7 +987,14 @@ function CreateTaskBody({
         panel={
           <>
             <PropertyField label={t('fields.status')}>
-              <StatusPicker status={status} onChange={setStatus} align="end" />
+              <StatusPicker
+                status={status}
+                onChange={(next) => {
+                  setStatus(next);
+                  if (TASK_TERMINAL_STATUSES.has(next)) setRepeat(null);
+                }}
+                align="end"
+              />
             </PropertyField>
             <PropertyField label={t('fields.priority')}>
               <PriorityPicker
@@ -989,7 +1024,10 @@ function CreateTaskBody({
                     {assigneeName}
                   </span>
                 }
-                onAssign={(type, id) => setAssignee({ type, id })}
+                onAssign={(type, id) => {
+                  setAssignee({ type, id });
+                  if (!canTaskRepeat({ assigneeType: type })) setRepeat(null);
+                }}
                 onUnassign={() => setAssignee(null)}
               />
             </PropertyField>
@@ -1007,6 +1045,18 @@ function CreateTaskBody({
                 className="w-full"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
+              />
+            </PropertyField>
+            <PropertyField label={t('repeat.label')}>
+              <TaskRepeatField
+                value={repeat}
+                dueDate={dueDate}
+                startDate={startDate}
+                state={repeatState}
+                onChange={(patch) => {
+                  setRepeat(patch.repeat);
+                  if (patch.dueDate !== undefined) setDueDate(patch.dueDate);
+                }}
               />
             </PropertyField>
             <PanelDivider />
@@ -1104,6 +1154,14 @@ export function EditTaskBody({
   };
   const projectKey = project?.key ?? null;
   const { subtasks } = useSubtasks(taskId);
+  // The Repeat row's neighbours: a subtask's parent (does it repeat?) and the
+  // task a repeating one continues on. The links that name them read the
+  // same tasks, so these share their cache.
+  const { task: parentTask } = useTask(task?.parentTaskId);
+  const { task: repeatNextTask } = useTask(task?.repeatNextTaskId);
+  // The Repeat row's control, which takes focus back once "Stop repeating"
+  // beside it goes through and leaves.
+  const repeatControlId = useId();
   const { data: me } = useCurrentMemberContext(task?.organizationId);
   const {
     resolveActor,
@@ -1317,6 +1375,40 @@ export function EditTaskBody({
 
   const isArchived = task.archivedAt != null;
   const canMutate = canEdit && !isArchived;
+  // The rule is the open task's to change. A closed one keeps the rule it
+  // closed with, one that already continued its series has handed it on for
+  // good — even once that next task is deleted — and an automation's task
+  // never repeats: each locked, saying why. A subtask has no rule of its
+  // own: it comes back with a repeating parent, unless it is archived.
+  const repeatState = taskRepeatFieldState({
+    mode: 'details',
+    canMutate,
+    status: task.status,
+    parentTaskId: task.parentTaskId,
+    archived: isArchived,
+    parentRepeats: parentTask ? parentTask.repeat !== undefined : undefined,
+    parentLabel: parentTask
+      ? (formatTaskIdentifier(projectKey, parentTask.number) ??
+        parentTask.title)
+      : undefined,
+    automationOwned: taskAutomationOwned(task) || ownedBy !== null,
+    repeats: task.repeat !== undefined,
+    continued: task.repeatContinued === true,
+    nextTaskId: task.repeatNextTaskId,
+    nextRepeats: repeatNextTask
+      ? repeatNextTask.repeat !== undefined
+      : undefined,
+    nextTaskLabel: repeatNextTask
+      ? (formatTaskIdentifier(projectKey, repeatNextTask.number) ??
+        repeatNextTask.title)
+      : undefined,
+  });
+  // The series continues on a next task — both still carry the rule — and
+  // this viewer may change it: "Stop repeating" stays beside the next
+  // task's link, the "Next task created" toast's action, for as long as it
+  // applies.
+  const canStopRepeat =
+    repeatState.kind === 'locked' && repeatState.reason === 'continued';
   // The bound project folder of an automation-owned task, when its contract
   // takes folder input — the ONE condition that swaps the Attachments zone
   // for the folder zones, and that keeps paste out of folder-bound tasks
@@ -1435,6 +1527,40 @@ export function EditTaskBody({
       />
     </>
   );
+
+  const repeatField =
+    repeatState.kind === 'hidden' ? null : (
+      <PropertyField label={t('repeat.label')}>
+        <TaskRepeatField
+          id={repeatControlId}
+          value={task.repeat ?? null}
+          dueDate={task.dueDate}
+          startDate={task.startDate}
+          state={repeatState}
+          onChange={(patch) =>
+            void updateTask
+              .mutateAsync({ taskId: task._id, ...patch })
+              .catch(onMutationError)
+          }
+        />
+        {task.repeatNextTaskId !== undefined && (
+          <div className="flex flex-wrap items-center gap-x-1">
+            <TaskRepeatNextLink
+              nextTaskId={task.repeatNextTaskId}
+              projectKey={projectKey}
+              onOpenTask={onOpenTask}
+            />
+            {canStopRepeat && (
+              <TaskRepeatStopButton
+                taskId={task._id}
+                nextTaskId={task.repeatNextTaskId}
+                returnFocusTo={repeatControlId}
+              />
+            )}
+          </div>
+        )}
+      </PropertyField>
+    );
 
   const dependenciesField = (
     <TaskDependencies
@@ -1964,6 +2090,9 @@ export function EditTaskBody({
           }
         />
       </PropertyField>
+      {/* An automation's task keeps its Repeat row in the fold below: it
+          only says why the task does not repeat. */}
+      {ownedBy === null && repeatField}
 
       <PanelDivider />
       {/* Labels and dependencies are the BOARD's vocabulary. On an
@@ -1978,6 +2107,7 @@ export function EditTaskBody({
           className="shrink-0"
         >
           <Stack gap={4} className="pt-3">
+            {repeatField}
             {labelsField}
             {dependenciesField}
           </Stack>

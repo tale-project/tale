@@ -341,6 +341,9 @@ describe('upsertTaskByExternalRef — an archived task is read-only to the intak
     claimedAt: null,
     completedAt: null,
     externalClosedAt: null,
+    repeat: null,
+    repeatNextTaskId: null,
+    repeatContinued: false,
     createdBy: 'u-1',
     createdByType: 'user',
     createdAt: 1,
@@ -423,6 +426,9 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
     claimedAt: null,
     completedAt: null,
     externalClosedAt: null,
+    repeat: null,
+    repeatNextTaskId: null,
+    repeatContinued: false,
     createdBy: 'u-1',
     createdByType: 'user',
     createdAt: 1,
@@ -580,6 +586,83 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
       expect(inserted[4]).toBe('backlog');
     },
   );
+
+  const weekly = {
+    frequency: 'weekly',
+    interval: 1,
+    weekdays: [1],
+    timezone: 'Europe/Zurich',
+  };
+
+  it('the workflow engine’s close continues no series: a repeating task gets no copy', async () => {
+    const updates: Update[] = [];
+    const { tx, statements } = fakeDb((text, values) => {
+      if (text.startsWith('UPDATE app.tasks SET')) {
+        updates.push({ text, values });
+      }
+      return text.includes('FROM app.tasks WHERE org_id = ?')
+        ? [parked({ status: 'in_progress', repeat: weekly })]
+        : [];
+    });
+    await upsertTaskByExternalRef(tx, {
+      ...intake,
+      actorId: 'workflow',
+      externalState: 'closed',
+    });
+    // The close itself lands, and it is the only task write.
+    expect(updates).toHaveLength(1);
+    expect(column(updates[0], 'status')).toBe('done');
+    expect(
+      statements.some(
+        (text) =>
+          text.startsWith('INSERT INTO app.tasks') ||
+          text.includes('repeat_next_task_id') ||
+          text.includes('FOR UPDATE'),
+      ),
+    ).toBe(false);
+  });
+
+  it('handing an unassigned repeating task to its automation ends the series on the timeline', async () => {
+    const activity: unknown[][] = [];
+    const { tx, statements } = fakeDb((text, values) => {
+      if (text.startsWith('INSERT INTO app.task_activity')) {
+        activity.push(values);
+      }
+      return text.includes('FROM app.tasks WHERE org_id = ?')
+        ? [parked({ status: 'todo', repeat: weekly })]
+        : [];
+    });
+    await upsertTaskByExternalRef(tx, {
+      ...intake,
+      automationSlug: 'crm-desk',
+    });
+    expect(statements).toContain(
+      'UPDATE app.tasks SET repeat_rule = NULL WHERE id = ?',
+    );
+    expect(
+      activity.map((values) => [values[3], values[4], values[5], values[6]]),
+    ).toEqual([['agent', 'u-2', 'repeat.changed', JSON.stringify(weekly)]]);
+  });
+
+  it('a repeating task someone already holds keeps its rule through the intake', async () => {
+    const { tx, statements } = fakeDb((text) =>
+      text.includes('FROM app.tasks WHERE org_id = ?')
+        ? [
+            parked({
+              status: 'todo',
+              repeat: weekly,
+              assigneeType: 'user',
+              assigneeId: 'u-1',
+            }),
+          ]
+        : [],
+    );
+    await upsertTaskByExternalRef(tx, {
+      ...intake,
+      automationSlug: 'crm-desk',
+    });
+    expect(statements.some((text) => text.includes('repeat_rule'))).toBe(false);
+  });
 });
 
 /**
@@ -713,6 +796,9 @@ describe('upsertTaskByExternalRef — an over-long description is cut, like the 
     createdAt: 1,
     updatedAt: 1,
     archivedAt: null,
+    repeat: null,
+    repeatNextTaskId: null,
+    repeatContinued: false,
   };
 
   /** The create lane's INSERT values: (org, project, title, description, …). */
@@ -836,6 +922,9 @@ describe('upsertTaskByExternalRef — answers the title the task carries', () =>
     createdAt: 1,
     updatedAt: 1,
     archivedAt: null,
+    repeat: null,
+    repeatNextTaskId: null,
+    repeatContinued: false,
   };
   const snapshot = {
     id: '9042',

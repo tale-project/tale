@@ -189,6 +189,38 @@ describe('openapi spec ↔ /api/v1 router', () => {
 
 const ajv = new Ajv({ strict: false, allErrors: true });
 
+/**
+ * The document as Ajv reads it. OAS 3.0 spells a nullable reference as an
+ * `allOf` holding the `$ref` beside `nullable: true` (the only form a
+ * Reference Object allows — see the nullable guards below), but Ajv honours
+ * `nullable` only beside a `type` and refuses to compile it otherwise. Each
+ * such node becomes the `anyOf` it means — the reference, or null — so a
+ * response carrying one is held to its schema like any other.
+ */
+function forAjv(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(forAjv);
+  if (node === null || typeof node !== 'object') return node;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a non-null, non-array object
+  const record = node as Record<string, unknown>;
+  const wrapped =
+    record.nullable === true &&
+    record.type === undefined &&
+    Array.isArray(record.allOf) &&
+    record.allOf.length === 1;
+  if (wrapped) {
+    const { allOf, nullable: _nullable, ...rest } = record;
+    return {
+      ...Object.fromEntries(
+        Object.entries(rest).map(([key, value]) => [key, forAjv(value)]),
+      ),
+      anyOf: [forAjv((allOf as unknown[])[0]), { type: 'null' }],
+    };
+  }
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [key, forAjv(value)]),
+  );
+}
+
 /** A validator for the spec's `<status>` JSON response of `<method> <path>`. */
 function responseValidator(path: string, method: string, status: string) {
   const op = paths[path]?.[method];
@@ -199,7 +231,10 @@ function responseValidator(path: string, method: string, status: string) {
   const schema = content?.['application/json']?.schema as Json | undefined;
   if (!schema)
     throw new Error(`${method} ${path} ${status} has no JSON schema`);
-  return ajv.compile({ ...schema, components: spec.components });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- forAjv keeps the object shape it is given
+  return ajv.compile(
+    forAjv({ ...schema, components: spec.components }) as Json,
+  );
 }
 
 /** Tagged-template Sql double answering every query with `rows`; an
@@ -1114,6 +1149,119 @@ describe('new project routes answer the published wire schemas', () => {
           },
         ],
       });
+  });
+});
+
+/**
+ * A task's schedule and repeat rule are read-only on the wire: the dates
+ * as the board stores them, the rule as stored (zone and `createOn`
+ * included) or null, and the task that continues the series once it
+ * exists — each held to the published `Task` schema.
+ */
+describe('a task answers its schedule and how it repeats', () => {
+  const rule = {
+    frequency: 'monthly',
+    interval: 1,
+    monthDay: 30,
+    timezone: 'Europe/Zurich',
+    createOn: 'dueDate',
+  };
+  const base = {
+    id: 'task-1',
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    title: 'Close the books',
+    status: 'todo',
+    labelIds: [],
+    createdAt: 1,
+    updatedAt: 2,
+    discussionThreadId: null,
+    archivedAt: null,
+  };
+  const read = async (task: object): Promise<Json> => {
+    const sql = fakeSql([], (text) => {
+      if (text.includes('FROM app.projects')) return [project];
+      if (text.includes('FROM app.tasks WHERE id')) return [task];
+      return [];
+    });
+    const response = await mount(createTaskRestRoutes({ sql })).request(
+      'http://localhost/projects/p-1/tasks/task-1',
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Json;
+    const validate = responseValidator(
+      '/api/v1/projects/{id}/tasks/{taskId}',
+      'get',
+      '200',
+    );
+    expect(
+      validate(body),
+      JSON.stringify({ errors: validate.errors, body }),
+    ).toBe(true);
+    return body.task as Json;
+  };
+
+  it('a repeating task carries its dates, its rule and its next task', async () => {
+    const task = await read({
+      ...base,
+      startDate: 1_790_632_800_000,
+      dueDate: 1_790_719_200_000,
+      repeat: rule,
+      repeatNextTaskId: 'task-2',
+    });
+    expect(task).toMatchObject({
+      startDate: 1_790_632_800_000,
+      dueDate: 1_790_719_200_000,
+      repeat: rule,
+      repeatNextTaskId: 'task-2',
+    });
+  });
+
+  it('a task that does not repeat says so with null, and leaves out what it lacks', async () => {
+    const task = await read({
+      ...base,
+      startDate: null,
+      dueDate: null,
+      repeat: null,
+      repeatNextTaskId: null,
+    });
+    expect(task.repeat).toBeNull();
+    for (const key of ['startDate', 'dueDate', 'repeatNextTaskId']) {
+      expect(task).not.toHaveProperty(key);
+    }
+  });
+
+  it('a stored rule that no longer validates reads as none, as on the board', async () => {
+    const task = await read({
+      ...base,
+      repeat: { ...rule, timezone: 'Mars/Olympus_Mons' },
+      repeatNextTaskId: null,
+    });
+    expect(task.repeat).toBeNull();
+  });
+
+  it('publishes the rule as the doors validate it, one branch per frequency', () => {
+    const schemas = (spec.components as { schemas: Record<string, Json> })
+      .schemas;
+    const repeat = schemas.TaskRepeat;
+    const branches = (repeat?.oneOf ?? []) as Json[];
+    expect(
+      branches.map(
+        (branch) =>
+          (
+            (branch.properties as Record<string, Json>).frequency?.enum as
+              | string[]
+              | undefined
+          )?.[0],
+      ),
+    ).toEqual(['daily', 'weekly', 'monthly', 'yearly']);
+    for (const branch of branches) {
+      expect(branch.additionalProperties).toBe(false);
+      expect(branch.required).toEqual(
+        expect.arrayContaining(['frequency', 'interval', 'timezone']),
+      );
+    }
+    expect(schemas.Task?.required).toContain('repeat');
   });
 });
 

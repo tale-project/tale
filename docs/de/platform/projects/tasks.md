@@ -31,7 +31,7 @@ Eine hilfreiche Beschreibung nennt Ausgangsmaterial, gewünschtes Ergebnis und A
 
 <Frame caption="Die Aufgabendetails stellen Beschreibung, Anhänge, Teilaufgaben und Kommentare neben Zuständigkeit und Status.">
 
-![Die Aufgabe Sign off the launch checklist zeigt den Beschreibungsbereich, Anhänge, Teilaufgaben, Kommentare, Status, Zuständigkeit, Reviewer, Termine, Labels und Abhängigkeiten.](/images/platform/project-task-detail.webp)
+![Die Aufgabe Sign off the launch checklist zeigt den Beschreibungsbereich, Anhänge, Teilaufgaben, Kommentare, Status, Zuständigkeit, Reviewer, Termine, Wiederholung, Labels und Abhängigkeiten.](/images/platform/project-task-detail.webp)
 
 </Frame>
 
@@ -68,6 +68,55 @@ Erwähnungen in der Beschreibung der Aufgabe wirken beim Speichern genauso: Die 
 
 Nutze **Teilaufgaben** für Ergebnisse, die sich einzeln prüfen lassen. Eine Teilaufgabe nennt oben in ihren Details die übergeordnete Aufgabe (**Teil von …**); klicke darauf, um zu ihr zurückzukehren. Solange Teilaufgaben offen sind, lässt sich die übergeordnete Aufgabe nicht abschließen. Unter **Abhängigkeiten** siehst du, welche Aufgaben diese Aufgabe blockieren und welche sie selbst blockiert. Kreisförmige Abhängigkeiten sind nicht zulässig.
 
+## Wiederkehrende Aufgaben einrichten
+
+Kommt dieselbe Arbeit regelmäßig wieder, etwa ein wöchentlicher Statusbericht, gib der Aufgabe eine Wiederholung. Jedes Mal, wenn du sie abschließt, steht die nächste Aufgabe in **Zu erledigen** bereit, fällig am nächsten Tag, den die Wiederholung vorsieht.
+
+Klicke in den Details der Aufgabe oder im Dialog **Aufgabe erstellen** auf **Wiederholen** direkt unter **Fällig am** und wähle, wie sich die Aufgabe wiederholt. Deine Wahl wird gespeichert, sobald du sie anklickst:
+
+- **Nie**
+- **Täglich**
+- **Jeden Werktag**, von Montag bis Freitag
+- **Wöchentlich am …**, **Monatlich am …** oder **Jährlich am …**: Sie richten sich nach dem Tag des Fälligkeitsdatums. Hat die Aufgabe keines, zählt ihr Startdatum, wenn es noch bevorsteht, sonst der heutige Tag.
+
+![Das Menü Repeat der Aufgabe Sign off the launch checklist listet Never, Daily, Every weekday, Weekly on Monday (ausgewählt), Monthly on day 28, Yearly on Sep 28 und Custom, dazu die nächsten Fälligkeiten und die Option, die nächste Aufgabe am Fälligkeitstag zu erstellen.](/images/platform/project-task-repeat.webp)
+
+**Nächste Fälligkeiten** zeigt, wann die nächsten drei Aufgaben fällig werden. Hat die Aufgabe noch kein Fälligkeitsdatum, bekommt sie eines, sobald du eine Wiederholung wählst: den ersten passenden Tag ab heute oder ab ihrem Startdatum, wenn dieses später liegt. Eine monatliche Wiederholung am 31. fällt in kürzeren Monaten auf den letzten Tag des Monats. Entfernst du das Fälligkeitsdatum einer Aufgabe, die sich schon wiederholt, bleibt die Wiederholung bestehen: Die nächste Aufgabe entsteht dann, wenn du diese abschließt, fällig am ersten passenden Tag danach, und **Wiederholen** weist beim Öffnen darauf hin. Jede Änderung an der Wiederholung gibt der Aufgabe wieder ein Fälligkeitsdatum.
+
+### Eine eigene Wiederholung festlegen
+
+Für jeden anderen Rhythmus wählst du in derselben Liste **Benutzerdefiniert**. Wähle **Tag**, **Woche**, **Monat** oder **Jahr**, lege fest, wie oft die Aufgabe wiederkommt, und wähle die Wochentage, den Tag im Monat oder das Datum, etwa alle 2 Wochen am Dienstag und Donnerstag. **Nächste Fälligkeiten** passt sich jeder Änderung an. Mit **Speichern** übernimmst du die Wiederholung. **Abbrechen**, **Escape** oder ein Klick außerhalb der Liste verwerfen deine Änderungen; der Pfeil zurück führt zur Liste und behält sie bei.
+
+### Die nächste Aufgabe am Fälligkeitstag erstellen
+
+Normalerweise entsteht die nächste Aufgabe, sobald du diese auf **Erledigt** oder **Abgebrochen** setzt. Soll die Arbeit pünktlich wiederkommen, auch wenn die letzte Runde noch nicht fertig ist, öffne **Wiederholen** bei einer wiederkehrenden Aufgabe, wähle unter den Terminen **Nächste Aufgabe am Fälligkeitstag erstellen** und klicke auf **Speichern**. Die nächste Aufgabe entsteht dann zu Beginn des Fälligkeitstags, um Mitternacht in der Zeitzone der Person, die die Wiederholung eingerichtet hat, auch wenn diese Aufgabe noch offen ist. Ist die Aufgabe schon fällig, erscheint die nächste innerhalb weniger Minuten, und schließt du die Aufgabe vor ihrem Fälligkeitstag ab, entsteht die nächste sofort. In der Aktivität der Aufgabe steht **System** als Urheber. **Wiederholen** zeigt dann ein Kalendersymbol, und der Tooltip des Wiederholungssymbols auf dem **Board** und in der **Liste** endet mit **nächste Aufgabe am Fälligkeitstag**.
+
+Offene Aufgaben halten eine solche Serie nicht mehr auf, deshalb können sie sich stapeln, wenn niemand sie abschließt. Eine Serie hat nie mehr als 10 offene Aufgaben: Die nächste wartet, bis jemand eine davon abschließt.
+
+### Was die nächste Aufgabe mitbringt
+
+Die nächste Aufgabe hat eine eigene Kennung und beginnt in **Zu erledigen**. Sie übernimmt Titel, Beschreibung, Priorität, Labels, Anhänge, Zuständigkeit, Reviewer, die Personen, die die Aufgabe verfolgen, und die Wiederholung. Ihre Teilaufgaben kommen mit, jede wieder in **Zu erledigen** und mit Terminen, die um denselben Schritt verschoben sind, samt den Abhängigkeiten zwischen ihnen. Kommentare, Abhängigkeiten zu anderen Aufgaben, archivierte Teilaufgaben und die Dateien, die ein Agent erzeugt hat, bleiben bei der vorherigen Aufgabe. Personen kommen nur mit, solange sie noch Zugriff haben: die Zuständigkeit, solange sie noch so vergeben werden kann, der Reviewer, solange er das Projekt noch bearbeiten darf, und wer die Aufgabe verfolgt, solange er das Projekt noch sehen kann. Wer die Aufgabe nicht mehr verfolgt, verfolgt auch die nächste nicht, selbst wenn er sie erstellt hat.
+
+Die nächste Aufgabe ist am ersten passenden Tag nach dem Fälligkeitsdatum der vorherigen fällig, und ein Startdatum liegt wieder gleich viele Tage davor. Dieses Fälligkeitsdatum liegt nie in der Vergangenheit: Schließt du eine Aufgabe verspätet ab, ist die nächste heute oder am nächsten passenden Tag fällig. So sammeln sich für verpasste Termine keine überfälligen Aufgaben an.
+
+Unter **Wiederholen** verweist die vorherige Aufgabe auf die nächste, etwa mit **Nächste Aufgabe: WEB-13**. Öffnest du die vorherige Aufgabe wieder und schließt sie erneut ab, entsteht keine zweite. Auf dem **Board** und in der **Liste** kennzeichnet ein Wiederholungssymbol die Aufgabe, die die Serie gerade weiterführt; sein Tooltip nennt die Wiederholung.
+
+### Eine Serie beenden
+
+Schließt du eine wiederkehrende Aufgabe ab, nennt die Meldung **Nächste Aufgabe erstellt** das Fälligkeitsdatum der nächsten und bietet **Wiederholung beenden** an. Dieselbe Schaltfläche bleibt bei der Aufgabe, die die nächste erstellt hat, unter **Wiederholen** neben **Nächste Aufgabe**, solange sich die nächste Aufgabe noch wiederholt. Hat noch niemand die nächste Aufgabe angefasst (sie steht unverändert in **Zu erledigen**, ohne Kommentare und ohne Agentenlauf), wird sie samt ihren Teilaufgaben entfernt. Andernfalls bleibt sie bestehen und wiederholt sich nicht mehr. In beiden Fällen endet die Serie: Bei der Aufgabe, von der aus du sie beendet hast, zeigt **Wiederholen** dann **Nie**, und der Tooltip lautet **Die Serie wurde beendet.** Hast du die Schaltfläche unter **Wiederholen** verwendet, springt der Fokus danach auf **Wiederholen**. Du kannst auch bei der neuesten Aufgabe der Serie **Wiederholen** auf **Nie** stellen.
+
+Löschst du die neueste Aufgabe einer Serie, endet die Serie. Die Aufgabe davor erstellt keine weitere, auch wenn du sie wieder öffnest und erneut abschließt: Sie zeigt kein Wiederholungssymbol, und ihr Feld **Wiederholen** bleibt gesperrt, mit dem Tooltip **Die nächste Aufgabe wurde gelöscht, deshalb ist die Serie zu Ende.** Löschst du eine frühere Aufgabe, geht die Serie bei der neuesten weiter.
+
+### Wenn sich die Wiederholung nicht ändern lässt
+
+Zeige auf **Wiederholen** oder setze den Tastaturfokus darauf, um zu lesen, warum das Feld gesperrt ist:
+
+- Hat eine Aufgabe ihre nächste Aufgabe schon erstellt, führt diese die Serie weiter, und die Aufgabe selbst wiederholt sich nicht mehr, auch wenn du sie wieder öffnest. Solange die Serie weitergeht, änderst du die Wiederholung bei der nächsten Aufgabe; **Nächste Aufgabe** öffnet sie. Wurde die Serie beendet oder die nächste Aufgabe gelöscht, zeigt **Wiederholen** das an.
+- Jede andere Aufgabe in **Erledigt** oder **Abgebrochen** behält die Wiederholung, mit der sie abgeschlossen wurde. Öffne sie wieder, um die Wiederholung zu ändern.
+- Eine Teilaufgabe hat keine eigene Wiederholung. Solange sich die übergeordnete Aufgabe wiederholt, steht bei **Wiederholen** zum Beispiel **Mit WEB-3**, und jede nächste Aufgabe der übergeordneten bringt eine neue Kopie der Teilaufgabe mit. Eine archivierte Teilaufgabe hat kein Feld **Wiederholen**: Sie kommt nicht wieder. Folgt eine Arbeit ihrem eigenen Rhythmus, braucht sie eine eigene Aufgabe.
+- Eine Aufgabe, die einer Automatisierung gehört, wiederholt sich nicht. Weist du eine wiederkehrende Aufgabe einer Automatisierung zu, endet ihre Serie.
+- Im Dialog **Aufgabe erstellen** zeigt das Feld **Wiederholen** den Wert **Nie**, solange **Status** auf **Erledigt** oder **Abgebrochen** steht oder eine Automatisierung zuständig ist.
+
 ## Das Ergebnis vor dem Abschluss prüfen
 
 Vergleiche bei menschlicher Arbeit das Ergebnis mit dem Abschlusskriterium in der Beschreibung. Lies bei Agentenarbeit den Bericht in den Kommentaren und prüfe die erzeugten Dateien. Ein beendeter Lauf bedeutet, dass der Agent nicht mehr arbeitet; die menschliche Abnahme steht noch aus.
@@ -81,7 +130,7 @@ Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ei
 - Oben steht der Auftrag als Karte: Beschreibung, Anhänge und Teilaufgaben.
 - Darunter folgt die Diskussion wie ein Gespräch, mit den ältesten Einträgen zuerst und nach Tagen gegliedert. Sie verbindet die Kommentare mit dem Verlauf der Aufgabe, etwa Statuswechseln, Zuweisungen und Agentenläufen.
 - Das Kommentarfeld steht ganz unten. Zum Senden drückst du **⌘+Enter** oder **Ctrl+Enter** oder klickst auf die runde Senden-Schaltfläche; **Enter** allein beginnt eine neue Zeile. Mit `@` erwähnst du einen Agenten oder eine Person, mit derselben Wirkung wie im Dialog des Boards. Was du noch nicht gesendet hast, bleibt für diese Aufgabe im Feld stehen, hier wie im Dialog des Boards. Solange du woanders arbeitest, zeigt die Zeile der Aufgabe in **Start** den Hinweis **Entwurf**.
-- **Details** neben der Diskussion enthält Status, Priorität, Zuständigkeit, Reviewer, Termine, Labels und Abhängigkeiten, dazu **Verfolgen** und **Archivieren**. Inhaber und Administratoren der Organisation finden dort zusätzlich **Löschen**: Es entfernt die Aufgabe samt Teilaufgaben, Kommentaren und Dateien endgültig und stoppt ihre laufenden Agentenläufe. **Details ausblenden** am Ende der Kopfzeile blendet diesen Bereich aus, **Details einblenden** holt ihn zurück. Ist das Fenster zu schmal für beides nebeneinander, öffnet **Details einblenden** die Details stattdessen in einem Fenster über der Diskussion — von der Seite oder, auf dem Smartphone, vom unteren Bildschirmrand.
+- **Details** neben der Diskussion enthält Status, Priorität, Zuständigkeit, Reviewer, Termine, Wiederholung, Labels und Abhängigkeiten, dazu **Verfolgen** und **Archivieren**. Inhaber und Administratoren der Organisation finden dort zusätzlich **Löschen**: Es entfernt die Aufgabe samt Teilaufgaben, Kommentaren und Dateien endgültig und stoppt ihre laufenden Agentenläufe. **Details ausblenden** am Ende der Kopfzeile blendet diesen Bereich aus, **Details einblenden** holt ihn zurück. Ist das Fenster zu schmal für beides nebeneinander, öffnet **Details einblenden** die Details stattdessen in einem Fenster über der Diskussion — von der Seite oder, auf dem Smartphone, vom unteren Bildschirmrand.
 
 **Board** in der Kopfzeile öffnet das Aufgaben-Board des Projekts. Öffnest du eine Aufgabe dort, erscheint sie weiterhin im Dialog des Boards; beide Ansichten bearbeiten dieselbe Aufgabe. **Link kopieren**, das Link-Symbol neben **Board**, kopiert den Link zu dieser Aufgabenseite. Die Kennung der Aufgabe, etwa `WEB-2`, kopierst du mit einem Klick darauf in der Zeile unter dem Titel. Eine kurze Meldung bestätigt jede Kopie.
 

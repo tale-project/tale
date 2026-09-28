@@ -176,6 +176,9 @@ async function readCorpusStatuses(
  *    stale window;
  *  - a corpus lookup that THROWS leaves that org's rows for the next tick —
  *    a knowledge-db hiccup must not fail every file in the org;
+ *  - a status write that throws leaves that org's unsettled rows for the
+ *    next tick too, while the rows it already settled still reach the
+ *    lists and the orgs after it are still swept;
  *  - a recent `failed` row is reconciled too, so a false failure heals;
  *  - an already-failed row is never overwritten with the generic interrupted
  *    text — its real error is the more useful one.
@@ -248,82 +251,105 @@ export async function recoverStuckRagIndexing(
     // without a hint the browser keeps showing whatever state the page was
     // loaded with.
     const moved: { id: string }[] = [];
-    for (const row of rows) {
-      const status = statuses.get(row.storageRef) ?? null;
-      if (status?.status === 'completed') {
+    try {
+      for (const row of rows) {
+        const status = statuses.get(row.storageRef) ?? null;
+        if (status?.status === 'completed') {
+          const changed = await sql<{ id: string }[]>`
+            UPDATE app.file_metadata SET
+              rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
+              rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
+            WHERE id = ${row.id}
+            RETURNING id
+          `;
+          moved.push(...changed);
+          adopted += changed.length;
+          continue;
+        }
+        if (status?.status === 'failed') {
+          // The corpus knows the REAL error; refresh the row with it.
+          const changed = await sql<{ id: string }[]>`
+            UPDATE app.file_metadata SET
+              rag_status = 'failed',
+              rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
+              status_changed_at_ms = ${now}
+            WHERE id = ${row.id}
+            RETURNING id
+          `;
+          moved.push(...changed);
+          if (row.ragStatus !== 'failed') failed += changed.length;
+          continue;
+        }
+        if (status?.status === 'processing') {
+          const updatedAt =
+            status.updatedAt === null
+              ? Number.NaN
+              : Date.parse(status.updatedAt);
+          const fresh =
+            Number.isFinite(updatedAt) && Date.now() - updatedAt < staleMs;
+          if (fresh) {
+            // A live chain under a `failed` row is a false failure — flip it
+            // back so the person watches real progress, not a wrong error.
+            if (row.ragStatus === 'failed') {
+              const changed = await sql<{ id: string }[]>`
+                UPDATE app.file_metadata SET
+                  rag_status = 'running', rag_error = NULL,
+                  rag_error_code = NULL, status_changed_at_ms = ${now}
+                WHERE id = ${row.id}
+                RETURNING id
+              `;
+              moved.push(...changed);
+              revived += changed.length;
+            }
+            continue;
+          }
+        }
+        // Stale `processing` or never ingested: the job will not finish. An
+        // already-failed row keeps its own (possibly real) error.
+        if (row.ragStatus === 'failed') continue;
         const changed = await sql<{ id: string }[]>`
           UPDATE app.file_metadata SET
-            rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
-            rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
-          WHERE id = ${row.id}
-          RETURNING id
-        `;
-        moved.push(...changed);
-        adopted += changed.length;
-        continue;
-      }
-      if (status?.status === 'failed') {
-        // The corpus knows the REAL error; refresh the row with it.
-        const changed = await sql<{ id: string }[]>`
-          UPDATE app.file_metadata SET
-            rag_status = 'failed',
-            rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
+            rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
             status_changed_at_ms = ${now}
           WHERE id = ${row.id}
           RETURNING id
         `;
         moved.push(...changed);
-        if (row.ragStatus !== 'failed') failed += changed.length;
-        continue;
+        failed += changed.length;
       }
-      if (status?.status === 'processing') {
-        const updatedAt =
-          status.updatedAt === null ? Number.NaN : Date.parse(status.updatedAt);
-        const fresh =
-          Number.isFinite(updatedAt) && Date.now() - updatedAt < staleMs;
-        if (fresh) {
-          // A live chain under a `failed` row is a false failure — flip it
-          // back so the person watches real progress, not a wrong error.
-          if (row.ragStatus === 'failed') {
-            const changed = await sql<{ id: string }[]>`
-              UPDATE app.file_metadata SET
-                rag_status = 'running', rag_error = NULL,
-                rag_error_code = NULL, status_changed_at_ms = ${now}
-              WHERE id = ${row.id}
-              RETURNING id
-            `;
-            moved.push(...changed);
-            revived += changed.length;
-          }
-          continue;
-        }
-      }
-      // Stale `processing` or never ingested: the job will not finish. An
-      // already-failed row keeps its own (possibly real) error.
-      if (row.ragStatus === 'failed') continue;
-      const changed = await sql<{ id: string }[]>`
-        UPDATE app.file_metadata SET
-          rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
-          status_changed_at_ms = ${now}
-        WHERE id = ${row.id}
-        RETURNING id
-      `;
-      moved.push(...changed);
-      failed += changed.length;
+    } catch (error) {
+      // A write that throws — a lock or statement timeout, a dropped
+      // connection — defers this organization's unsettled rows to the next
+      // tick, as a corpus fault does. Each write is its own statement, so
+      // the rows already settled stay settled and are still told below,
+      // and the organizations after this one are still swept.
+      console.warn(
+        `[watchdog] rag settle failed for org ${orgSlug} after moving ${moved.length} row(s); deferring the rest:`,
+        error instanceof Error ? error.message : String(error),
+      );
     }
     if (moved.length > 0) {
-      // A document can bind a file while the corpus is read, or hold its
-      // metadata lock while a settle waits. Read ownership AFTER the writes
-      // in a fresh statement: an UPDATE RETURNING probe could still use the
-      // snapshot from before that bind committed. A later bind emits its
-      // own document hint after these settled statuses are visible.
-      const current = await sql<MovedStatusRow[]>`
-        SELECT fm.org_id AS "orgId",
-               ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
-        FROM app.file_metadata fm
-        WHERE fm.org_id = ${orgId} AND fm.id = ANY(${moved.map((row) => row.id)})
-      `;
-      await hintDocumentLists(sql, current);
+      try {
+        // A document can bind a file while the corpus is read, or hold its
+        // metadata lock while a settle waits. Read ownership AFTER the writes
+        // in a fresh statement: an UPDATE RETURNING probe could still use the
+        // snapshot from before that bind committed. A later bind emits its
+        // own document hint after these settled statuses are visible.
+        const current = await sql<MovedStatusRow[]>`
+          SELECT fm.org_id AS "orgId",
+                 ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+          FROM app.file_metadata fm
+          WHERE fm.org_id = ${orgId} AND fm.id = ANY(${moved.map((row) => row.id)})
+        `;
+        await hintDocumentLists(sql, current);
+      } catch (error) {
+        // The statuses are written; only the refetch nudge is lost. The
+        // organizations after this one are still swept.
+        console.warn(
+          `[watchdog] could not tell org ${orgSlug}'s document lists about ${moved.length} settled row(s):`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
   }
   if (adopted + failed + revived > 0) {

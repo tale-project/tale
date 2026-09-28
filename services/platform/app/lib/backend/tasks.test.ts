@@ -50,6 +50,9 @@ function wireTask(overrides: Record<string, unknown> = {}) {
     startDate: null,
     startNotifiedAt: null,
     dueDate: null,
+    repeat: null,
+    repeatNextTaskId: null,
+    repeatContinued: false,
     slaLevel: null,
     slaLevelAt: null,
     statusChangedAt: null,
@@ -200,6 +203,74 @@ describe('task read adapters', () => {
     expect(board.tasks[0]).not.toHaveProperty('dueDate');
   });
 
+  // The stored rule is read back leniently: a valid one arrives normalized,
+  // one that no longer validates (a zone the runtime dropped) reads as none,
+  // and the closed task names the copy it produced.
+  it('carries a repeat rule and the next copy, dropping a rule that no longer validates', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        tasks: [
+          wireTask({
+            repeat: {
+              frequency: 'weekly',
+              interval: 1,
+              weekdays: [4, 1],
+              timezone: 'Europe/Zurich',
+            },
+            repeatNextTaskId: 't2',
+          }),
+          wireTask({
+            id: 't3',
+            repeat: {
+              frequency: 'daily',
+              interval: 1,
+              timezone: 'Mars/Olympus_Mons',
+            },
+          }),
+        ],
+        truncated: false,
+        canEdit: true,
+      }),
+    );
+    const board = (await taskReadAdapters['tasks/queries:listTasksByProject']?.(
+      { organizationId: 'org-1', projectId: 'p1' },
+      {},
+    )?.queryFn()) as { tasks: Record<string, unknown>[] };
+    expect(board.tasks[0]?.repeat).toEqual({
+      frequency: 'weekly',
+      interval: 1,
+      weekdays: [1, 4],
+      timezone: 'Europe/Zurich',
+    });
+    expect(board.tasks[0]?.repeatNextTaskId).toBe('t2');
+    expect(board.tasks[1]).not.toHaveProperty('repeat');
+    expect(board.tasks[1]).not.toHaveProperty('repeatNextTaskId');
+  });
+
+  // Whether a task continued its series outlives the next task: its delete
+  // clears the pointer, never the flag. Absent while the task has not.
+  it('carries that a task continued its series, even once its next task is gone', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        tasks: [
+          wireTask({ repeatNextTaskId: 't2', repeatContinued: true }),
+          wireTask({ id: 't3', repeatContinued: true }),
+          wireTask({ id: 't4' }),
+        ],
+        truncated: false,
+        canEdit: true,
+      }),
+    );
+    const board = (await taskReadAdapters['tasks/queries:listTasksByProject']?.(
+      { organizationId: 'org-1', projectId: 'p1' },
+      {},
+    )?.queryFn()) as { tasks: Record<string, unknown>[] };
+    expect(board.tasks[0]?.repeatContinued).toBe(true);
+    expect(board.tasks[1]?.repeatContinued).toBe(true);
+    expect(board.tasks[1]).not.toHaveProperty('repeatNextTaskId');
+    expect(board.tasks[2]).not.toHaveProperty('repeatContinued');
+  });
+
   it('maps a missing task detail to null — the 0.4 answer', async () => {
     vi.spyOn(window, 'fetch').mockResolvedValue(
       jsonResponse(404, { error: 'TASK_NOT_FOUND' }),
@@ -288,6 +359,97 @@ describe('task write adapters', () => {
       status: 'in_progress',
       afterTaskId: 't2',
     });
+  });
+
+  // Closing a repeating task answers the copy it produced, so the app can
+  // say so; nulls become absent fields, as on every task.
+  it('answers the next copy a status change produced', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        nextTask: { id: 't2', number: 12, dueDate: null },
+      }),
+    );
+    await expect(
+      taskWriteAdapters['tasks/mutations:updateTaskStatus']?.run(
+        { taskId: 't1', status: 'done' },
+        { organizationId: 'org-1' },
+      ),
+    ).resolves.toEqual({ nextTask: { id: 't2', number: 12 } });
+  });
+
+  it('answers no next copy for a move that closed nothing repeating', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, { ok: true }),
+    );
+    await expect(
+      taskWriteAdapters['tasks/mutations:moveTask']?.run(
+        { taskId: 't1', status: 'done' },
+        { organizationId: 'org-1' },
+      ),
+    ).resolves.toEqual({});
+  });
+
+  it('keeps the other verbs answering null', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, { ok: true }),
+    );
+    await expect(
+      taskWriteAdapters['tasks/mutations:archiveTask']?.run(
+        { taskId: 't1' },
+        { organizationId: 'org-1' },
+      ),
+    ).resolves.toBeNull();
+  });
+
+  // "Stop repeating" is posted against the task whose close created the
+  // next one, and answers whether that untouched next task was taken back.
+  it.each([
+    [{ ok: true, removedNextTask: true }, true],
+    [{ ok: true, removedNextTask: false }, false],
+    [{ ok: true }, false],
+  ])(
+    'stops a series through the repeat/stop verb (%o)',
+    async (answer, removedNextTask) => {
+      const fetchSpy = vi
+        .spyOn(window, 'fetch')
+        .mockResolvedValue(jsonResponse(200, answer));
+
+      await expect(
+        taskWriteAdapters['tasks/mutations:stopTaskRepeat']?.run(
+          { taskId: 't1', nextTaskId: 't2' },
+          { organizationId: 'org-1' },
+        ),
+      ).resolves.toEqual({ removedNextTask });
+      const [url, init] = fetchSpy.mock.calls[0] ?? [];
+      expect(url).toBe('/api/app/tasks/t1/repeat/stop?orgId=org-1');
+      expect(init?.method).toBe('POST');
+      // The next task's id is the client's own bookkeeping, never sent.
+      expect(jsonBody(init)).toEqual({});
+    },
+  );
+
+  // The closed task's rule is gone, so every task read refreshes — except
+  // the next task's own: it may have been taken back, and a refetch of a
+  // task that is gone only logs a failed request.
+  it('refreshes the task reads after a series is stopped, holding back the next task', () => {
+    const client = new QueryClient();
+    const board = backendKey('org-1', 'task', 'by-project', 'p1');
+    const closed = backendKey('org-1', 'task', 'detail', 't1');
+    const next = backendKey('org-1', 'task', 'detail', 't2');
+    client.setQueryData(board, []);
+    client.setQueryData(closed, {});
+    client.setQueryData(next, {});
+
+    taskWriteAdapters['tasks/mutations:stopTaskRepeat']?.invalidate?.(
+      client,
+      { taskId: 't1', nextTaskId: 't2' },
+      { organizationId: 'org-1' },
+    );
+
+    expect(client.getQueryState(board)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(closed)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(next)?.isInvalidated).toBe(false);
   });
 
   it('deletes a label with the detach flag on the query string', async () => {

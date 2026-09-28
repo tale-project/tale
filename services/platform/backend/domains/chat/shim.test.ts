@@ -173,6 +173,72 @@ describe("chat shim 'tasks/search_for_chat:searchTasksForChat'", () => {
   });
 });
 
+describe("chat shim 'tasks/internal_queries:getTaskContextForAgent'", () => {
+  const rule = {
+    frequency: 'monthly',
+    interval: 1,
+    monthDay: 30,
+    timezone: 'Europe/Zurich',
+    createOn: 'dueDate',
+  };
+
+  /** Answers the task read with `task`, everything else with no rows. */
+  function taskSql(task: Record<string, unknown>): Sql {
+    const tag = (strings: TemplateStringsArray) =>
+      Promise.resolve(
+        strings.join('?').includes('discussion_thread_id') ? [task] : [],
+      );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call is exercised by the context read
+    return tag as unknown as Sql;
+  }
+
+  it('hands task_get the schedule and the repeat rule the row stores', async () => {
+    const context = chatShimHandlers(
+      taskSql({
+        _id: 'task_1',
+        title: 'Close the books',
+        status: 'todo',
+        projectId: 'proj_1',
+        startDate: 1_790_546_400_000,
+        dueDate: 1_790_632_800_000,
+        repeat: rule,
+      }),
+    )['tasks/internal_queries:getTaskContextForAgent'];
+    if (context === undefined) throw new Error('context handler missing');
+    const read = (await context({
+      taskId: 'task_1',
+      organizationId: 'org_1',
+    })) as { task: Record<string, unknown> };
+    expect(read.task).toMatchObject({
+      startDate: 1_790_546_400_000,
+      dueDate: 1_790_632_800_000,
+      repeat: rule,
+    });
+  });
+
+  it('leaves out what the task lacks, and reads a rule that no longer validates as none', async () => {
+    const context = chatShimHandlers(
+      taskSql({
+        _id: 'task_1',
+        title: 'Close the books',
+        status: 'todo',
+        projectId: 'proj_1',
+        startDate: null,
+        dueDate: null,
+        repeat: { ...rule, timezone: 'Mars/Olympus_Mons' },
+      }),
+    )['tasks/internal_queries:getTaskContextForAgent'];
+    if (context === undefined) throw new Error('context handler missing');
+    const read = (await context({
+      taskId: 'task_1',
+      organizationId: 'org_1',
+    })) as { task: Record<string, unknown> };
+    for (const key of ['startDate', 'dueDate', 'repeat']) {
+      expect(read.task).not.toHaveProperty(key);
+    }
+  });
+});
+
 describe("chat shim 'products/internal_queries:queryProducts'", () => {
   it('reads every user-facing field — the chat row is the only view of a product', async () => {
     const { sql, texts } = capturingSql();

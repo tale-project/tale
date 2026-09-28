@@ -17,6 +17,7 @@
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 
 import { getConversationMessageSortTime } from './message-order';
+import { cleanMessagePreview } from './message-preview';
 
 const LAST_MESSAGE_PREVIEW_MAX_CHARS = 200;
 
@@ -212,6 +213,17 @@ export function projectConversationItem(args: {
           created_at: isoTimestamp(args.contact.createdAt),
         };
   const lastMessage = messages[messages.length - 1];
+  // Clean the complete raw body before the cap can sever a style block.
+  // This is the same plain-text preview the Inbox's raw-message rows use,
+  // with link labels and layout cells, not the corpus's Markdown markers.
+  const lastRawMessage = args.messages[args.messages.length - 1];
+  const lastMessagePreview =
+    lastRawMessage !== undefined
+      ? cleanMessagePreview(lastRawMessage.content).slice(
+          0,
+          LAST_MESSAGE_PREVIEW_MAX_CHARS,
+        )
+      : undefined;
   return {
     _id: conversation.id,
     _creationTime: conversation.createdAt,
@@ -277,13 +289,6 @@ export function projectConversationItem(args: {
     messages,
     ...(args.pendingApproval ? { pendingApproval: args.pendingApproval } : {}),
     ...(contact.name !== undefined ? { senderName: contact.name } : {}),
-    ...(lastMessage !== undefined
-      ? {
-          lastMessagePreview: lastMessage.content.slice(
-            0,
-            LAST_MESSAGE_PREVIEW_MAX_CHARS,
-          ),
-        }
-      : {}),
+    ...(lastMessagePreview !== undefined ? { lastMessagePreview } : {}),
   };
 }

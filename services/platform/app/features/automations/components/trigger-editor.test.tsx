@@ -551,10 +551,10 @@ describe('TriggerEditor', () => {
       // title a heading, with the code as `InlineCode` inside it.
       const banner = screen
         .getByRole('heading', { name: 'Paused after repeated failures' })
-        .closest('[aria-live]');
+        .closest('[data-slot="alert"]');
+      expect(banner).toHaveAttribute('data-variant', 'warning');
       expect(banner).toHaveAttribute('aria-live', 'off');
       expect(banner).not.toHaveAttribute('role');
-      expect(banner).toHaveClass('bg-amber-50', 'border-amber-500/30');
       const code = screen.getByText('connector_error');
       expectInlineCode(code);
       expect(banner).toContainElement(code);

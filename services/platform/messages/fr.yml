@@ -1422,6 +1422,7 @@ chat:
     includeNewer: Inclure les messages plus récents
     creatingLink: Création du lien…
     retry: Réessayer
+    statusFailed: Impossible de charger l'état du partage. Ce chat est peut-être encore partagé avec ton organisation.
     copyLink: Copier le lien
     copied: Lien copié
     preview: Aperçu
@@ -7378,6 +7379,8 @@ tasks:
     dependencyAdded: Dépendance ajoutée
     dependencyRemoved: Dépendance supprimée
     agentRunRefused: Exécution refusée
+    repeatChanged: Répétition modifiée
+    repeatNext: Tâche suivante créée
   review:
     needsReview: Revue requise
     waitingOn: 'En attente de {name}'
@@ -7452,6 +7455,42 @@ tasks:
   startDate:
     label: Date de début
     afterDue: La date de début doit être antérieure ou égale à l'échéance.
+  repeat:
+    label: Répéter
+    indicator: 'Se répète : {rule}'
+    nextTask: 'Tâche suivante : {task}'
+    openNextTask: Ouvrir la tâche suivante
+    nextCreated: Tâche suivante créée
+    nextDueDates: Prochaines échéances
+    noDueDateHint: Pas encore d'échéance. Choisir une répétition la fixe au premier jour qui correspond.
+    becomesDue: 'Cette tâche arrivera à échéance le {date}.'
+    noDueDateSaved: 'Pas d''échéance : la tâche suivante sera datée à partir du jour où celle-ci sera terminée ou annulée.'
+    dueDateSet: 'L''échéance de cette tâche est maintenant le {date}.'
+    ruleOnDue: '{rule}, tâche suivante à l''échéance'
+    withParent: 'Avec {parent}'
+    onDue:
+      label: Créer la tâche suivante à l'échéance
+      description: 'Même si celle-ci est encore ouverte le {date}.'
+      descriptionNow: Celle-ci est déjà à échéance, la tâche suivante est donc créée tout de suite.
+    mode:
+      close: La tâche suivante est créée quand celle-ci est terminée ou annulée.
+      dueDate: La tâche suivante est créée à l'échéance, ou plus tôt si celle-ci est terminée ou annulée avant.
+    reason:
+      closed: Rouvre cette tâche pour modifier sa répétition.
+      continued: 'La série continue avec {task}. Modifie la répétition là-bas.'
+      continuedUnnamed: La série continue avec la tâche suivante. Modifie la répétition là-bas.
+      stopped: La série a été arrêtée.
+      nextDeleted: La tâche suivante a été supprimée, la série est donc terminée.
+      automation: Une automatisation gère cette tâche, elle ne se répète donc pas.
+      subtask: 'Cette sous-tâche revient avec {parent} : chaque fois que {parent} se répète, sa tâche suivante en reçoit une nouvelle copie.'
+      notOpen: Seules les tâches ouvertes se répètent.
+    stop:
+      action: Arrêter la répétition
+      altText: 'Tu peux aussi arrêter la répétition plus tard : ouvre la tâche et choisis « Arrêter la répétition » sous « Répéter ».'
+      done: Répétition arrêtée
+      removed: La tâche suivante a été supprimée.
+      kept: '{task} a déjà été modifiée, elle reste donc en place, mais ne se répétera plus.'
+      keptUnnamed: La tâche suivante a déjà été modifiée, elle reste donc en place, mais ne se répétera plus.
   mentionPreview:
     willRespond: '{slug} va répondre'
     willQueue: '{slug} va répondre (en file — limite de simultanéité atteinte)'

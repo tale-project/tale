@@ -20,8 +20,10 @@ import {
   useState,
 } from 'react';
 
+import { useTriggerTooltipGuard } from '../../hooks/use-trigger-tooltip-guard';
 import { FieldShell } from './field-shell';
 import { Label } from './label';
+import { OPTION_ROW_CLASSES, OPTION_ROW_INSET } from './option-row';
 import { selectTriggerClasses } from './select';
 
 export interface SearchableSelectOption {
@@ -336,13 +338,11 @@ function SearchableSelectBase({
     [onSearchChange],
   );
 
-  // Controlled state for the optional trigger tooltip. Closing the popover
-  // restores focus to the trigger, which Radix Tooltip reads as a
-  // focus-to-open and flashes the tooltip over the value the user just picked.
-  // `suppressTooltipRef` is a one-shot guard armed on popover close to swallow
-  // exactly that focus-restore open.
-  const [tooltipOpen, setTooltipOpen] = useState(false);
-  const suppressTooltipRef = useRef(false);
+  // Controlled state for the optional trigger tooltip: held shut while the
+  // popover is open, and armed on close to swallow the focus-restore open
+  // that would otherwise flash the tip over the value just picked.
+  const tooltipGuard = useTriggerTooltipGuard(isOpen);
+  const suppressTooltipOpen = tooltipGuard.suppressNextOpen;
 
   const setIsOpen = useCallback(
     (next: boolean) => {
@@ -397,24 +397,10 @@ function SearchableSelectBase({
       setIsOpen(nextOpen);
       if (!nextOpen) {
         updateSearch('');
-        // The popover restores focus to the trigger on close, which Radix
-        // Tooltip reads as a focus-to-open and flashes the tooltip over the
-        // value just picked. Arm a one-shot guard so that focus-driven open is
-        // swallowed (see the Root's onOpenChange). The focus restore is delayed
-        // until the close ANIMATION finishes (Radix keeps the content mounted
-        // for the ~150ms `animate-out`), so the guard can't be cleared on the
-        // next tick — it must outlive the animation. The one-shot consumes the
-        // restore whenever it lands; this timer is only a backstop that releases
-        // the guard if no focus restore ever fires (e.g. dismissed by a click
-        // far from the trigger), so a later genuine hover still works.
-        suppressTooltipRef.current = true;
-        setTooltipOpen(false);
-        window.setTimeout(() => {
-          suppressTooltipRef.current = false;
-        }, 500);
+        suppressTooltipOpen();
       }
     },
-    [setIsOpen, updateSearch],
+    [setIsOpen, updateSearch, suppressTooltipOpen],
   );
 
   const handleSelect = useCallback(
@@ -495,14 +481,8 @@ function SearchableSelectBase({
         <TooltipPrimitive.Root
           // Controlled so the tooltip is forced shut while the popover is
           // open and during the focus-restore that follows its close.
-          open={tooltipOpen && !isOpen}
-          onOpenChange={(next) => {
-            if (next && suppressTooltipRef.current) {
-              suppressTooltipRef.current = false;
-              return;
-            }
-            setTooltipOpen(next);
-          }}
+          open={tooltipGuard.open}
+          onOpenChange={tooltipGuard.onOpenChange}
         >
           <TooltipPrimitive.Trigger asChild>
             {popoverTrigger}
@@ -761,8 +741,8 @@ function SearchableSelectOptionItem({
       onClick={() => !option.disabled && onSelect(option.value)}
       onMouseEnter={() => onMouseEnter(index)}
       className={cn(
-        'group/option relative flex w-full cursor-default gap-2 text-left text-sm',
-        isSwitcher ? 'rounded-none px-3 py-2' : 'rounded-md p-2',
+        OPTION_ROW_CLASSES,
+        isSwitcher ? 'rounded-none px-3 py-2' : OPTION_ROW_INSET,
         isSwitcher &&
           option.group === undefined &&
           'border-border border-b last:border-b-0',

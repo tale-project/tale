@@ -21,7 +21,14 @@ interface Statement {
   values: unknown[];
 }
 
-function fakeTx(clearedIds: string[]): {
+interface ClearedRow {
+  id: string;
+  repeat: unknown;
+  createdByType: string;
+}
+
+/** Each cleared task: an id alone is a task a person filed, with no rule. */
+function fakeTx(cleared: (string | ClearedRow)[]): {
   tx: TransactionSql;
   statements: Statement[];
 } {
@@ -29,8 +36,14 @@ function fakeTx(clearedIds: string[]): {
   const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
-    if (text.startsWith('UPDATE app.tasks')) {
-      return Promise.resolve(clearedIds.map((id) => ({ id })));
+    if (text.startsWith('UPDATE app.tasks SET assignee_type')) {
+      return Promise.resolve(
+        cleared.map((row) =>
+          typeof row === 'string'
+            ? { id: row, repeat: null, createdByType: 'user' }
+            : row,
+        ),
+      );
     }
     return Promise.resolve([]);
   };
@@ -104,5 +117,35 @@ describe('clearAgentAssignmentsInTx', () => {
       ),
     ).toBe(false);
     expect(outbox.emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('ends the series of a repeating task an automation filed — nobody holds it now, so the automation owns it', async () => {
+    const weekly = {
+      frequency: 'weekly',
+      interval: 1,
+      weekdays: [1],
+      timezone: 'Europe/Zurich',
+    };
+    const { tx, statements } = fakeTx([
+      { id: 'task-filed', repeat: weekly, createdByType: 'app' },
+      { id: 'task-mine', repeat: weekly, createdByType: 'user' },
+    ]);
+    await clearAgentAssignmentsInTx(tx, args);
+    expect(
+      statements
+        .filter((s) => s.text.startsWith('UPDATE app.tasks SET repeat_rule'))
+        .map((s) => [s.text, s.values]),
+    ).toEqual([
+      ['UPDATE app.tasks SET repeat_rule = NULL WHERE id = ?', ['task-filed']],
+    ]);
+    expect(
+      statements
+        .filter((s) => s.text.startsWith('INSERT INTO app.task_activity'))
+        .map((s) => [s.values[1], s.values[5], s.values[6], s.values[7]]),
+    ).toEqual([
+      ['task-filed', 'assignee.changed', 'agent-1', null],
+      ['task-filed', 'repeat.changed', JSON.stringify(weekly), null],
+      ['task-mine', 'assignee.changed', 'agent-1', null],
+    ]);
   });
 });

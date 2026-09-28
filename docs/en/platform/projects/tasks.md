@@ -31,7 +31,7 @@ A useful description states the input, the requested output, and a check for com
 
 <Frame caption="The task details keep the description, attachments, subtasks, and comments beside ownership and status.">
 
-![The task Sign off the launch checklist shows its description area, attachments, subtasks, comments, status, assignee, reviewer, dates, labels, and dependencies.](/images/platform/project-task-detail.webp)
+![The task Sign off the launch checklist shows its description area, attachments, subtasks, comments, status, assignee, reviewer, dates, repeat, labels, and dependencies.](/images/platform/project-task-detail.webp)
 
 </Frame>
 
@@ -68,6 +68,55 @@ Mentions in the task description work the same way when you save the task: the p
 
 Use **Subtasks** to split work that has separately checkable results. A subtask names its parent at the top of its details (**Part of …**); click it to go back up. A parent task cannot close while its subtasks remain open. **Dependencies** shows which tasks block this task and which it blocks; circular dependencies are refused.
 
+## Repeat a task
+
+Give a task a repeat when the same work comes back on a schedule, such as a weekly status report. Each time the task closes, the next one appears in **To do**, due on the next day the repeat names.
+
+Click **Repeat** below **Due date**, in the task's details or in **Create task**, and choose how the task repeats. A choice is saved as soon as you click it:
+
+- **Never**
+- **Daily**
+- **Every weekday**, Monday to Friday
+- **Weekly on …**, **Monthly on day …**, or **Yearly on …**, which take their day from the due date; a task without one uses its start date if that is still ahead, or else today
+
+![The Repeat menu of the task Sign off the launch checklist lists Never, Daily, Every weekday, Weekly on Monday (checked), Monthly on day 28, Yearly on Sep 28 and Custom, with the next due dates and the option to create the next task on the due date.](/images/platform/project-task-repeat.webp)
+
+**Next due dates** shows when the next three tasks will be due. A task without a due date gets one when you choose a repeat: the first matching day from today, or from its start date when that is later. A monthly repeat on the 31st falls on the last day of shorter months. If you clear the due date of a task that already repeats, the repeat stays: the next task then comes when this one closes, due on the first matching day after that, and **Repeat** says so when you open it. Any change to the repeat gives the task a due date again.
+
+### Set a custom repeat
+
+For any other schedule, choose **Custom** in the same list. Pick **Day**, **Week**, **Month**, or **Year**, set how often the task comes back, and choose the weekdays, the day of the month, or the date, such as every 2 weeks on Tuesday and Thursday. **Next due dates** follows each change. Click **Save** to keep the repeat. **Cancel**, **Escape**, or a click outside the list discards your changes; the back arrow returns to the list and keeps them.
+
+### Create the next task on the due date
+
+Normally, the next task appears when you move this one to **Done** or **Cancelled**. When the work has to come back on time even if the last round isn't finished, open **Repeat** on a repeating task, select **Create the next task on the due date** below the dates, and click **Save**. The next task then appears at the start of the due date, midnight in the time zone of whoever set up the repeat, even while this task is still open. If the task is already due, the next one appears within a few minutes, and closing the task before its due date creates the next one at once. **System** appears as its creator in the task's activity. **Repeat** shows a calendar icon, and the tooltip of the repeat icon on **Board** and **List** ends in **next task on the due date**.
+
+Open tasks no longer hold such a series back, so they can pile up when nobody closes them. A series never has more than 10 open tasks: the next one waits until someone closes one of them.
+
+### What the next task brings back
+
+The next task has its own identifier and starts in **To do**. It keeps the title, description, priority, labels, attachments, assignee, reviewer, the people watching the task, and the repeat. Its subtasks come back with it, each in **To do** with its dates moved by the same step, along with the dependencies between them. Comments, dependencies on other tasks, archived subtasks, and the files an agent produced stay with the earlier task. People carry over only while they still have access: the assignee while they can still be assigned, the reviewer while they can still edit the project, and watchers while they can still see it. Whoever stopped watching the task doesn't watch the next one either, even if they created it.
+
+The next task is due on the first day the repeat names after the earlier task's due date, and a start date keeps the same number of days before it. That due date is never in the past: close a task late, and the next one is due today or on the next matching day, so missed dates don't pile up as overdue tasks.
+
+Under **Repeat**, the earlier task links to the next one, such as **Next task: WEB-13**; reopening the earlier task and closing it again creates no second one. On **Board** and **List**, a repeat icon marks the task that currently carries the series, and its tooltip names the repeat.
+
+### Stop a series
+
+When you close a repeating task, the message **Next task created** tells you when the next one is due and offers **Stop repeating**. The same button stays under **Repeat** on the task that created the next one, beside **Next task**, while the next task still repeats. If nobody has touched the next task yet (it is still in **To do**, unchanged, with no comments or agent runs), it is removed together with its subtasks. Otherwise it stays and no longer repeats. Either way, the series ends: on the task you stopped it from, **Repeat** reads **Never**, and its tooltip says **This series has stopped.** If you used the button under **Repeat**, the focus then moves to **Repeat**. You can also set **Repeat** to **Never** on the latest task of the series.
+
+Deleting the latest task of a series ends the series. The task before it doesn't create another one, even if you reopen it and close it again: it shows no repeat icon, and its **Repeat** stays locked, with the tooltip **Its next task was deleted, so this series has ended.** Deleting an earlier task leaves the series going on from the latest one.
+
+### When the repeat can't be changed
+
+Point at **Repeat**, or move the keyboard focus to it, to read why it is locked:
+
+- A task that already created its next task has handed the series on and doesn't repeat again, even if you reopen it. While the series goes on, change the repeat on the next task, which the **Next task** link opens. Once the series has stopped or its next task was deleted, **Repeat** says so.
+- Any other task in **Done** or **Cancelled** keeps the repeat it closed with. Reopen it to change the repeat.
+- A subtask has no repeat of its own. While its parent repeats, **Repeat** reads **With WEB-3**, for example, and each next task of the parent brings a fresh copy of the subtask. An archived subtask has no **Repeat**: it doesn't come back. Work that follows its own schedule needs a task of its own.
+- A task an automation owns doesn't repeat, and assigning a repeating task to an automation ends its series.
+- In **Create task**, **Repeat** reads **Never** while **Status** is **Done** or **Cancelled**, or while an automation is the assignee.
+
 ## Review the result before closing
 
 For a human-owned task, compare the work with the description’s completion check. For agent work, read the report in the task’s comments and inspect any produced files. A finished run means the agent has stopped working, not that a person has accepted the result.
@@ -81,7 +130,7 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 - The brief comes first as a card: the description, attachments, and subtasks.
 - The discussion follows like a conversation, oldest first under day labels. It combines the comments with the task's history, such as status changes, assignments, and agent runs.
 - The comment box sits at the bottom. Send with **⌘+Enter** or **Ctrl+Enter**, or with the round send button; **Enter** alone starts a new line. Type `@` to mention an agent or a person, with the same effect as in the board's dialog. Text you have not sent stays in the box for that task, here and in the board's dialog, and the task's row in Home shows **Draft** while you work elsewhere.
-- **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, labels, and dependencies, together with **Watch** and **Archive**. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
+- **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, repeat, labels, and dependencies, together with **Watch** and **Archive**. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
 
 **Board** in the header opens the project's task board. A task you open from the board still appears in its dialog; both views edit the same task. **Copy link**, the link icon beside **Board**, copies a link to this task page. To copy the task's identifier, such as `WEB-2`, click it in the line under the title; a message confirms each copy.
 

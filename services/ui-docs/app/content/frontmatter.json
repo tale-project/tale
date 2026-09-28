@@ -34,6 +34,13 @@
       "description": "Build labelled text fields with validation, read-only states, and appropriate password or secret handling."
     }
   },
+  "components/recurrence-picker": {
+    "slug": "components/recurrence-picker",
+    "frontmatter": {
+      "title": "Recurrence picker",
+      "description": "Let people choose how something repeats — one-click presets or a custom rule — and show the dates it produces."
+    }
+  },
   "components/tabs-and-navigation": {
     "slug": "components/tabs-and-navigation",
     "frontmatter": {
