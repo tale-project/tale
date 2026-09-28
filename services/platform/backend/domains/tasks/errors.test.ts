@@ -262,6 +262,11 @@ const ADMITTED = [
   "domains/tasks/service.ts 'TASK_TITLE_INVALID' refusal",
   // A constant.
   "domains/tasks/service.ts 'TASK_ATTACHMENTS_INVALID' TASK_ATTACHMENTS_MAX",
+  // The one static sentence both binding checks share (a top-level string
+  // literal in `domains/automations/store.ts`), so the run insert and the
+  // REST intake cannot word it apart again.
+  "domains/automations/store.ts 'AUTOMATION_PROJECT_FORBIDDEN' AUTOMATION_NOT_BOUND_SENTENCE",
+  "rest/v1-tasks.ts 'AUTOMATION_PROJECT_FORBIDDEN' AUTOMATION_NOT_BOUND_SENTENCE",
   // The competences a review policy requires and the responder lacks: the
   // organization's own governance names, told to the PERSON approving so
   // they know what to acquire. Only a user's approve runs that check

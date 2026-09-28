@@ -488,6 +488,9 @@ describe('project-scoped task intake', () => {
     expect(service.startWorkflowForTaskInTx).not.toHaveBeenCalled();
   });
 
+  // The sentence is the run insert's own (`AUTOMATION_NOT_BOUND_SENTENCE`),
+  // naming no automation: this door's copy said "this project" while the
+  // run insert said "that project" (TALE-75 review).
   it('still refuses a create whose workflow is bound to another project', async () => {
     const { request } = mount({ boundProjectIds: ['p-other'] });
     const res = await request(collection, 'POST', {
@@ -495,6 +498,10 @@ describe('project-scoped task intake', () => {
       runWorkflowSlug: 'triage',
     });
     expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'The automation is not bound to that project.',
+      code: 'AUTOMATION_PROJECT_FORBIDDEN',
+    });
     expect(service.upsertTaskByExternalRef).not.toHaveBeenCalled();
   });
 

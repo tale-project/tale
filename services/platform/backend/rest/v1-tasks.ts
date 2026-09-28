@@ -14,6 +14,7 @@ import {
 } from '../core/tasks/helpers.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
 import {
+  AUTOMATION_NOT_BOUND_SENTENCE,
   AutomationError,
   automationExists,
   bindingProjectIds,
@@ -349,7 +350,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (bindings.length > 0 && !bindings.includes(projectId)) {
         throw new AutomationError(
           'AUTOMATION_PROJECT_FORBIDDEN',
-          'The automation is not bound to that project.',
+          AUTOMATION_NOT_BOUND_SENTENCE,
           403,
         );
       }
