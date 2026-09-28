@@ -1,4 +1,6 @@
 auth:
+  sessionLapse:
+    paused: Deine Seite bleibt geöffnet. Kopiere alles, was du behalten möchtest. Wenn du bereit bist, schliesse offene Dialoge und wähle Anmelden.
   validation:
     passwordUppercase: Passwort muss einen Grossbuchstaben enthalten
   changePassword:

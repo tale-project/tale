@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
@@ -10,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   getSession: vi.fn(),
+  reload: vi.fn(),
   session: { isAuthenticated: true, isLoading: false },
 }));
 
@@ -52,11 +54,16 @@ const HERE = encodeURIComponent('/dashboard/org-1/products');
 function renderDashboard() {
   const Dashboard = (Route as unknown as { component: () => ReactNode })
     .component;
-  return render(<Dashboard />);
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <Dashboard />
+    </QueryClientProvider>,
+  );
 }
 
 beforeEach(() => {
   h.getSession.mockReset();
+  h.reload.mockClear();
   vi.useRealTimers();
   page = {
     href: 'http://localhost/dashboard/org-1/products',
@@ -74,7 +81,7 @@ beforeEach(() => {
       set href(value: string) {
         page.href = value;
       },
-      reload: vi.fn(),
+      reload: h.reload,
     },
   });
 });
@@ -145,7 +152,7 @@ describe('the dashboard after a session ends', () => {
         await vi.advanceTimersByTimeAsync(40_000);
       });
       expect(h.getSession).toHaveBeenCalledTimes(1);
-      expect(window.location.reload).not.toHaveBeenCalled();
+      expect(h.reload).not.toHaveBeenCalled();
       expect(page.href).not.toContain('/log-in');
     },
   );

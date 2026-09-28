@@ -1,4 +1,5 @@
 import { DirtyBlockerProvider } from '@tale/ui/editor/dirty-blocker-provider';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
@@ -12,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   getSession: vi.fn(),
+  realSession: false,
   session: { isAuthenticated: true, isLoading: false },
   outlet: (): ReactNode => null,
 }));
@@ -28,9 +30,14 @@ vi.mock('@tale/ui/i18n/client', () => ({
 vi.mock('@/lib/auth-client', () => ({
   authClient: { getSession: h.getSession, $store: { notify: vi.fn() } },
 }));
-vi.mock('@/app/hooks/use-session-user', () => ({
-  useSessionUser: () => h.session,
-}));
+vi.mock('@/app/hooks/use-session-user', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/app/hooks/use-session-user')>();
+  return {
+    ...actual,
+    useSessionUser: () => (h.realSession ? actual.useSessionUser() : h.session),
+  };
+});
 vi.mock('@/app/hooks/use-session-idle-watchdog', () => ({
   useSessionIdleWatchdog: () => undefined,
 }));
@@ -53,6 +60,8 @@ vi.mock('@/app/features/products/hooks/mutations', () => ({
 }));
 
 import { ProductCreateDialog } from '@/app/features/products/components/product-create-dialog';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import { currentUserQuery } from '@/app/lib/backend/account';
 import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
 import { LAPSED_SESSION_ANSWER } from '@/tests/utils/lapsed-session';
 
@@ -60,6 +69,12 @@ import { Route } from './dashboard';
 
 const realLocation = window.location;
 let href: string;
+let queryClient: QueryClient;
+function QueryWrapper({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}
 const Dashboard = (Route as unknown as { component: () => ReactNode })
   .component;
 const lapse = () =>
@@ -70,6 +85,12 @@ const lapse = () =>
     );
   });
 beforeEach(() => {
+  h.realSession = false;
+  queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: 300_000, gcTime: Infinity },
+    },
+  });
   h.getSession.mockReset().mockResolvedValue({ data: null, error: null });
   h.session = { isAuthenticated: true, isLoading: false };
   href = '/dashboard/org-1/products';
@@ -113,7 +134,7 @@ describe('confirmed session lapse with an unregistered product draft', () => {
           }),
         );
       const user = userEvent.setup();
-      render(<Dashboard />);
+      render(<Dashboard />, { wrapper: QueryWrapper });
       const name = screen.getByLabelText('products.edit.labels.name', {
         exact: false,
       });
@@ -157,7 +178,7 @@ describe('confirmed session lapse with an unregistered product draft', () => {
     },
   );
   it('keeps the mounted draft when the dashboard probe also becomes unauthenticated', async () => {
-    const view = render(<Dashboard />);
+    const view = render(<Dashboard />, { wrapper: QueryWrapper });
     const name = screen.getByLabelText('products.edit.labels.name', {
       exact: false,
     });
@@ -167,6 +188,44 @@ describe('confirmed session lapse with an unregistered product draft', () => {
     await screen.findByRole('button', { name: 'auth.sessionLapse.stayHere' });
     expect(name).toBeInTheDocument();
     expect(name).toHaveValue('Keep this draft');
+    expect(href).toBe('/dashboard/org-1/products');
+  });
+
+  it('refreshes the signed-out user cache when another tab restores the session', async () => {
+    h.realSession = true;
+    const user = { userId: 'restored-user', name: 'Synthetic member' };
+    queryClient.setQueryData(currentUserQuery().queryKey, user);
+    queryClient.setQueryData(sessionQueryOptions.queryKey, {
+      data: { user: { id: user.userId } },
+      error: null,
+    });
+    render(<Dashboard />, { wrapper: QueryWrapper });
+    const name = screen.getByLabelText('products.edit.labels.name', {
+      exact: false,
+    });
+    fireEvent.change(name, { target: { value: 'Keep through recovery' } });
+    act(() => {
+      queryClient.setQueryData(currentUserQuery().queryKey, null);
+    });
+    const signIn = await screen.findByRole('button', {
+      name: 'auth.sessionLapse.signIn',
+    });
+    expect(queryClient.getQueryData(currentUserQuery().queryKey)).toBeNull();
+    h.getSession.mockResolvedValue({
+      data: { user: { id: user.userId } },
+      error: null,
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ user }));
+    fireEvent.click(signIn);
+    await waitFor(() =>
+      expect(queryClient.getQueryData(currentUserQuery().queryKey)).toEqual(
+        user,
+      ),
+    );
+    expect(
+      screen.queryByRole('button', { name: 'auth.sessionLapse.stayHere' }),
+    ).not.toBeInTheDocument();
+    expect(name).toHaveValue('Keep through recovery');
     expect(href).toBe('/dashboard/org-1/products');
   });
 });

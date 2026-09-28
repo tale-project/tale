@@ -1,10 +1,11 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Outlet,
   createFileRoute,
   redirect,
   useNavigate,
 } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
@@ -15,7 +16,10 @@ import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect'
 import { useSessionUser } from '@/app/hooks/use-session-user';
 import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
 import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
-import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import {
+  invalidateAuthState,
+  sessionQueryOptions,
+} from '@/app/lib/auth/session-query';
 import {
   passwordExpiryQuery,
   twoFactorStatusQuery,
@@ -55,6 +59,7 @@ export const Route = createFileRoute('/dashboard')({
 });
 
 function DashboardRedirect() {
+  const queryClient = useQueryClient();
   const { isAuthenticated, isLoading } = useSessionUser();
   const [hasAuthenticated, setHasAuthenticated] = useState(isAuthenticated);
 
@@ -65,6 +70,15 @@ function DashboardRedirect() {
   // Once content has mounted, preserve its drafts through any later session
   // lapse. The initial signed-out probe below still owns cold entry.
   const recovery = useSessionLapseRedirect(isAuthenticated || hasAuthenticated);
+  const wasLapsed = useRef(false);
+  useEffect(() => {
+    if (wasLapsed.current && !recovery.isLapsed) {
+      // A different tab restored the session. Resume the backend's auth-gated
+      // readers too: their current-user cache may still contain null.
+      void invalidateAuthState(queryClient).catch(() => undefined);
+    }
+    wasLapsed.current = recovery.isLapsed;
+  }, [queryClient, recovery.isLapsed]);
 
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
