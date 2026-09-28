@@ -1,6 +1,8 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { projectConversationItem } from '@/lib/shared/conversations/conversation-item';
+
 import { useHomeData } from './use-home-data';
 
 const NOW = new Date(2026, 8, 23, 12, 0, 0).getTime();
@@ -106,6 +108,43 @@ beforeEach(() => {
 });
 
 describe('useHomeData', () => {
+  it('keeps literal text in the server-cleaned inbox preview', () => {
+    const html =
+      '<p>Your code is &lt;123456&gt;; type &amp;amp; literally.</p>';
+    const row = projectConversationItem({
+      conversation: {
+        id: 'c1',
+        organizationId: 'org-1',
+        channel: 'email',
+        status: 'open',
+        createdAt: NOW,
+      },
+      contact: null,
+      messages: [
+        {
+          id: 'm1',
+          direction: 'inbound',
+          content: html,
+          metadata: { html },
+          createdAt: NOW,
+        },
+      ],
+    });
+    reads.conversations.mockReturnValue({
+      results: [row],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useHomeData('org-1'));
+
+    expect(
+      result.current.items.find((item) => item.kind === 'conversation'),
+    ).toMatchObject({
+      preview: 'Your code is <123456>; type &amp; literally.',
+    });
+  });
+
   it('reads the open conversations for the stream, whatever the Inbox view shows', () => {
     const { result } = renderHook(() => useHomeData('org-1'));
 

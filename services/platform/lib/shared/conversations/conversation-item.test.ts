@@ -40,6 +40,32 @@ describe('API contact presentation', () => {
  * (`.awl a {color: #FFFFFF; te`) instead of the message's real text.
  */
 describe('HTML message previews', () => {
+  it('uses visible link labels without search markup or tracking URLs', () => {
+    const html =
+      '<h2>Account update</h2><p><a href="https://example.test/tracking?token=abc">Review your settings</a> to continue.</p>';
+    const item = projectConversationItem({
+      conversation: {
+        id: 'thread',
+        organizationId: 'org',
+        channel: 'email',
+        createdAt: 0,
+      },
+      contact: null,
+      messages: [
+        {
+          id: 'm0',
+          direction: 'inbound',
+          content: html,
+          createdAt: 0,
+          metadata: { html },
+        },
+      ],
+    });
+    expect(item.lastMessagePreview).toBe(
+      'Account update Review your settings to continue.',
+    );
+  });
+
   it('strips a long style block before truncating to 200 chars', () => {
     const style = `<style type="text/css">${'.awl a {color: #FFFFFF; text-decoration: none;} '.repeat(10)}</style>`;
     const html = `${style}<body><p>Your account was accessed from a new device.</p></body>`;

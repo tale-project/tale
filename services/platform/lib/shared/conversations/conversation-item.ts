@@ -16,8 +16,8 @@
 
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 
-import { messageBodyText } from '../../knowledge/message-body';
 import { getConversationMessageSortTime } from './message-order';
+import { cleanMessagePreview } from './message-preview';
 
 const LAST_MESSAGE_PREVIEW_MAX_CHARS = 200;
 
@@ -213,23 +213,16 @@ export function projectConversationItem(args: {
           created_at: isoTimestamp(args.contact.createdAt),
         };
   const lastMessage = messages[messages.length - 1];
-  // The row's list-preview text. Read off the RAW message (its `content` is
-  // `email.html || email.text`, per `messageBodyText`), so an HTML message's
-  // `<style>` block is stripped before the 200-char cut — cutting the raw
-  // markup first can sever a long style block's closing tag, and the
-  // stripper that runs on the client can no longer find it to remove.
-  // `tableCells: 'space'` because almost every commercial HTML email is a
-  // layout table, not data — the default `'pipe'` reads as a run of empty
-  // `| | | |` separators ahead of the message's real text.
+  // Clean the complete raw body before the cap can sever a style block.
+  // This is the same plain-text preview the Inbox's raw-message rows use,
+  // with link labels and layout cells, not the corpus's Markdown markers.
   const lastRawMessage = args.messages[args.messages.length - 1];
   const lastMessagePreview =
     lastRawMessage !== undefined
-      ? messageBodyText(lastRawMessage.content, lastRawMessage.metadata, {
-          tableCells: 'space',
-        })
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, LAST_MESSAGE_PREVIEW_MAX_CHARS)
+      ? cleanMessagePreview(lastRawMessage.content).slice(
+          0,
+          LAST_MESSAGE_PREVIEW_MAX_CHARS,
+        )
       : undefined;
   return {
     _id: conversation.id,

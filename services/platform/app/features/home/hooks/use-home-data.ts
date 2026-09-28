@@ -13,7 +13,6 @@ import type {
 } from '@/app/features/chat/types';
 import { useListConversationsPaginated } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
-import { cleanMessagePreview } from '@/app/features/conversations/lib/message-preview';
 import { useTasksAcrossProjects } from '@/app/features/tasks/hooks/queries';
 import type { TaskStatus } from '@/app/features/tasks/lib/display';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
@@ -98,7 +97,7 @@ export function toHomeConversationItem(
     status: isInboxStatus(row.status) ? row.status : fallbackStatus,
     ...(contactLabel !== undefined ? { contactLabel } : {}),
     ...(typeof row.lastMessagePreview === 'string'
-      ? { preview: cleanMessagePreview(row.lastMessagePreview) }
+      ? { preview: row.lastMessagePreview }
       : {}),
   };
 }
