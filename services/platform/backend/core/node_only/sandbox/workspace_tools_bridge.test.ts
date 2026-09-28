@@ -1111,6 +1111,64 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     });
   });
 
+  /** The task-domain writes a dispatch made: every call also writes its
+   * audit row, so `runMutation` alone says nothing. */
+  const taskWrites = (ctx: {
+    runMutation: { mock: { calls: unknown[][] } };
+  }): string[] =>
+    ctx.runMutation.mock.calls
+      .map((call) => fnName(call[0]))
+      .filter((name) => name.startsWith('tasks/'));
+
+  it.each([
+    ['', 'empty'],
+    [' \n\t ', 'whitespace-only'],
+  ])(
+    'task_comment refuses the %j body (%s) as empty, naming the range',
+    async (body) => {
+      const { dispatch } = await getActions();
+      const { ctx, readQuery } = createCtx({ actionContext: PROJECT_CTX });
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_comment',
+        callArgs: { taskId: 'task_1', body },
+      });
+      // The domain's own empty-comment sentence — the 1-to-10,000 range and
+      // its unit — not "task_comment needs {taskId, body}", which read as if
+      // the argument were missing.
+      expect(result).toEqual({
+        status: 'invalid_args',
+        message:
+          'The comment is empty — it takes 1 to ' +
+          `${taskLimitText(TASK_COMMENT_MAX)}.`,
+      });
+      // Refused on the argument alone: no scope read, no write.
+      expect(readQuery).not.toHaveBeenCalled();
+      expect(taskWrites(ctx)).toEqual([]);
+    },
+  );
+
+  it('task_comment keeps the generic sentence for a missing or non-string body', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({ actionContext: PROJECT_CTX });
+    for (const callArgs of [
+      { taskId: 'task_1' },
+      { taskId: 'task_1', body: 42 },
+      { body: 'Done.' },
+    ]) {
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_comment',
+        callArgs,
+      });
+      expect(result).toEqual({
+        status: 'invalid_args',
+        message: 'task_comment needs {taskId, body}.',
+      });
+    }
+    expect(taskWrites(ctx)).toEqual([]);
+  });
+
   it('task_comment answers a mention-directory outage as error, not invalid_args', async () => {
     const { dispatch } = await getActions();
     // What the write shim hands on for a CODED 5xx: the domain error itself,
@@ -1394,6 +1452,92 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     expect(mArgs.externalId).toBe('issue-42');
     expect(mArgs.projectId).toBe('proj_1');
     expect(mArgs.actorId).toBe('agent_7');
+  });
+
+  it.each([
+    ['', 'empty'],
+    ['   \n', 'whitespace-only'],
+  ])(
+    'task_upsert_by_external_ref refuses the %j title (%s) with the empty-title sentence',
+    async (title) => {
+      const { dispatch } = await getActions();
+      const { ctx } = createCtx({ actionContext: PROJECT_CTX });
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_upsert_by_external_ref',
+        callArgs: {
+          externalSystem: 'glitchtip',
+          externalId: 'issue-42',
+          title,
+        },
+      });
+      // The sentence task_create answers for the same title, not "needs
+      // {externalSystem, externalId, title}", which named no rule.
+      expect(result).toEqual({
+        status: 'invalid_args',
+        message: taskTitleRefusal(title),
+      });
+      expect(taskWrites(ctx)).toEqual([]);
+    },
+  );
+
+  it('task_upsert_by_external_ref keeps the generic sentence for a missing key or title', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({ actionContext: PROJECT_CTX });
+    for (const callArgs of [
+      { externalSystem: 'glitchtip', externalId: 'issue-42' },
+      { externalSystem: 'glitchtip', externalId: 'issue-42', title: 7 },
+      { externalSystem: 'glitchtip', externalId: ' ', title: '' },
+    ]) {
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_upsert_by_external_ref',
+        callArgs,
+      });
+      expect(result.status).toBe('invalid_args');
+      expect((result as { message: string }).message).toMatch(
+        /^task_upsert_by_external_ref needs \{externalSystem, externalId, title\}/,
+      );
+    }
+    expect(taskWrites(ctx)).toEqual([]);
+  });
+
+  it('task_upsert_by_external_ref hands an over-long title and description to the domain, which cuts them', async () => {
+    const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ taskId: 'task_5', created: true }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: PROJECT_CTX,
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentUpsertTaskByExternalRef')
+          ? upsert(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    const title = 't'.repeat(TASK_TITLE_MAX + 1);
+    const description = 'd'.repeat(TASK_DESCRIPTION_MAX + 1);
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_upsert_by_external_ref',
+      callArgs: {
+        externalSystem: 'glitchtip',
+        externalId: 'issue-42',
+        title: ` ${title} `,
+        description,
+      },
+    });
+    // Not refused: an import is cut to the caps (`upsertTaskByExternalRef`),
+    // as the signature says.
+    expect(result).toEqual({
+      status: 'ok',
+      output: { taskId: 'task_5', created: true },
+    });
+    expect(upsert.mock.calls[0]?.[1]).toMatchObject({ title, description });
+    // The write the refusals above are checked against.
+    expect(taskWrites(ctx)).toEqual([
+      'tasks/internal_mutations:agentUpsertTaskByExternalRef',
+    ]);
   });
 
   it('task_create on an ORG-level run needs an explicit projectId', async () => {
@@ -1887,10 +2031,14 @@ describe('workspaceToolStatusImpl', () => {
     );
     expect(comment).toContain('at most 16 locales in all');
 
-    // The sync cuts an over-long title rather than refusing it, and says so.
+    // The sync cuts an over-long title and description rather than refusing
+    // them, and says so.
     const upsert = signature('task_upsert_by_external_ref');
     expect(upsert).toContain(
       `title: string (a longer one is cut to ${taskLimitText(TASK_TITLE_MAX)}, ending in "…")`,
+    );
+    expect(upsert).toContain(
+      `description?: string (a longer one is cut to ${taskLimitText(TASK_DESCRIPTION_MAX)}, ending in "…")`,
     );
     expect(upsert).toContain(labels);
 

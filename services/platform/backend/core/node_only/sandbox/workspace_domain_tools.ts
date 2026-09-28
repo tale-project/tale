@@ -27,7 +27,9 @@ import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import type { Doc, Id } from '../../lib/rows';
 import {
+  importedTaskTitleRefusal,
   TASK_COMMENT_MAX,
+  taskCommentRefusal,
   taskLimitText,
   taskTitleRefusal,
 } from '../../tasks/helpers';
@@ -538,13 +540,21 @@ export async function runTaskTool(
 
     if (args.tool === 'task_comment') {
       const taskId = readString(callArgs.taskId);
-      const body = readString(callArgs.body);
-      if (taskId === undefined || body === undefined) {
+      if (taskId === undefined || typeof callArgs.body !== 'string') {
         return {
           status: 'invalid_args',
           message: 'task_comment needs {taskId, body}.',
         };
       }
+      // An empty (or whitespace-only) body is told so in the domain's own
+      // sentence, the range and its unit named, before any read. An
+      // over-long one goes on to the domain, which refuses it under its code
+      // with the same helper's sentence.
+      const bodyRefusal = taskCommentRefusal(callArgs.body);
+      if (bodyRefusal !== null && callArgs.body.trim() === '') {
+        return { status: 'invalid_args', message: bodyRefusal };
+      }
+      const body = callArgs.body.trim();
       const localized = taskCommentBodiesSchema
         .optional()
         .safeParse(callArgs.bodyByLocale);
@@ -623,11 +633,10 @@ export async function runTaskTool(
     // task_upsert_by_external_ref — the idempotent external-item sync.
     const externalSystem = readString(callArgs.externalSystem);
     const externalId = readString(callArgs.externalId);
-    const title = readString(callArgs.title);
     if (
       externalSystem === undefined ||
       externalId === undefined ||
-      title === undefined
+      typeof callArgs.title !== 'string'
     ) {
       return {
         status: 'invalid_args',
@@ -637,6 +646,14 @@ export async function runTaskTool(
           'key a re-run dedupes on.',
       };
     }
+    // A blank title answers the empty-title sentence task_create answers.
+    // Its length is never refused: the domain cuts an imported title, and
+    // its description, to the cap.
+    const titleRefusal = importedTaskTitleRefusal(callArgs.title);
+    if (titleRefusal !== null) {
+      return { status: 'invalid_args', message: titleRefusal };
+    }
+    const title = callArgs.title.trim();
     const createIfMissing = readBoolean(callArgs.createIfMissing) ?? true;
     const externalState =
       callArgs.externalState === 'open' || callArgs.externalState === 'closed'
