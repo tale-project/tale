@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
@@ -200,7 +200,7 @@ function intentOf(reconnectCredentialId: string | null): ConsentIntent {
  * vendor is asking for consent, and the callback writes as that person.
  */
 export async function connectorWriteAccess(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   userId: string,
 ): Promise<'allowed' | 'not_member' | 'role_forbidden'> {
@@ -287,7 +287,11 @@ export type StoreGrantOutcome =
   | { ok: true; credentialId: string; renewed: boolean }
   | {
       ok: false;
-      reason: 'credential_missing' | 'account_mismatch' | 'workspace_claimed';
+      reason:
+        | 'credential_missing'
+        | 'account_mismatch'
+        | 'workspace_claimed'
+        | 'forbidden';
     };
 
 /**
@@ -329,6 +333,22 @@ export async function storeOauth2Grant(
   try {
     return await sql.begin(async (tx): Promise<StoreGrantOutcome> => {
       await lockCredentialPair(tx, args.organizationId, args.connectorSlug);
+      // The token exchange can outlive the callback's access check. Lock the
+      // current membership before checking it again, so a demotion/removal
+      // either wins first and refuses this write, or waits for its commit.
+      // A fresh read after the lock also sees a revocation that was uncommitted
+      // when this statement began and made it wait.
+      await tx`
+        SELECT "id" FROM "member"
+        WHERE "organizationId" = ${args.organizationId} AND "userId" = ${args.userId}
+        FOR SHARE
+      `;
+      if (
+        (await connectorWriteAccess(tx, args.organizationId, args.userId)) !==
+        'allowed'
+      ) {
+        return { ok: false, reason: 'forbidden' };
+      }
       const lockGrant = (credentialId: string) =>
         findOauth2Grant(tx, {
           organizationId: args.organizationId,

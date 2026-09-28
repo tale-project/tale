@@ -617,6 +617,108 @@ export async function checkConnectorOauthIntent(
       `starts=${demotedStart.status}/${removedStart.status} (want 302), demoted=${outcomeOf(demoted)}, removed=${outcomeOf(removed)} (want forbidden), exchanges=${vendor.calls.length - callsBeforeDemoted} (want 0), unchanged=${JSON.stringify(afterAccess) === JSON.stringify(beforeDemotion)}`,
     );
 
+    // Revocation can also finish while the token endpoint is in flight.
+    // The pre-exchange check already passed; no grant may be saved using it.
+    for (const revocation of ['demoted', 'removed'] as const) {
+      await sql`
+        DELETE FROM "member"
+        WHERE "organizationId" = ${orgId} AND "userId" = ${developer.userId}
+      `;
+      await sql`
+        INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+        VALUES (gen_random_uuid(), ${orgId}, ${developer.userId}, 'developer', ${new Date()})
+      `;
+      const waitingStart = await start(
+        'gmail',
+        sales.credentialId,
+        developer.cookie,
+      );
+      const beforeWaiting = await rows('gmail');
+      const callsBeforeWaiting = vendor.calls.length;
+      let releaseExchange: () => void = () => undefined;
+      vendor.gate = new Promise<void>((resolve) => {
+        releaseExchange = resolve;
+      });
+      const waiting = complete(waitingStart.state, developer.userId);
+      const exchanging = await waitUntil(
+        async () => vendor.calls.length > callsBeforeWaiting,
+        10_000,
+      );
+      if (revocation === 'demoted') {
+        await sql`
+          UPDATE "member" SET "role" = 'member'
+          WHERE "organizationId" = ${orgId} AND "userId" = ${developer.userId}
+        `;
+      } else {
+        await sql`
+          DELETE FROM "member"
+          WHERE "organizationId" = ${orgId} AND "userId" = ${developer.userId}
+        `;
+      }
+      releaseExchange();
+      const settled = await waiting;
+      vendor.gate = null;
+      const afterWaiting = await rows('gmail');
+      record(
+        `connector oauth intent: ${revocation} during token exchange stores nothing`,
+        waitingStart.status === 302 &&
+          exchanging &&
+          outcomeOf(settled) === 'error/forbidden' &&
+          JSON.stringify(afterWaiting) === JSON.stringify(beforeWaiting),
+        `exchanging=${exchanging}, outcome=${outcomeOf(settled)} (want forbidden), unchanged=${JSON.stringify(afterWaiting) === JSON.stringify(beforeWaiting)}`,
+      );
+    }
+
+    // The revocation can already hold the member row when the callback's
+    // unlocked pre-check reads the old role. The store must wait and then
+    // check the committed role, not authorize from that earlier snapshot.
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (gen_random_uuid(), ${orgId}, ${developer.userId}, 'developer', ${new Date()})
+    `;
+    const revokingStart = await start('gmail', undefined, developer.cookie);
+    const beforeRevoking = await rows('gmail');
+    let releaseRevocation: () => void = () => undefined;
+    const revocationReleased = new Promise<void>((resolve) => {
+      releaseRevocation = resolve;
+    });
+    let holdRevocation: () => void = () => undefined;
+    const revocationHeld = new Promise<void>((resolve) => {
+      holdRevocation = resolve;
+    });
+    const revoking = sql.begin(async (tx) => {
+      await tx`
+        UPDATE "member" SET "role" = 'member'
+        WHERE "organizationId" = ${orgId} AND "userId" = ${developer.userId}
+      `;
+      holdRevocation();
+      await revocationReleased;
+    });
+    await revocationHeld;
+    const waitingForRevocation = complete(
+      revokingStart.state,
+      developer.userId,
+    );
+    const queuedBehindRevocation = await waitUntil(async () => {
+      const waiting = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'
+          AND query ILIKE '%FOR SHARE%' AND query ILIKE '%"member"%'
+      `;
+      return waiting[0]?.count !== '0';
+    }, 10_000);
+    releaseRevocation();
+    await revoking;
+    const revokedWhileWaiting = await waitingForRevocation;
+    const afterRevoking = await rows('gmail');
+    record(
+      'connector oauth intent: a store queued behind a membership revocation checks the committed role',
+      queuedBehindRevocation &&
+        outcomeOf(revokedWhileWaiting) === 'error/forbidden' &&
+        JSON.stringify(afterRevoking) === JSON.stringify(beforeRevoking),
+      `queued=${queuedBehindRevocation}, outcome=${outcomeOf(revokedWhileWaiting)} (want forbidden), unchanged=${JSON.stringify(afterRevoking) === JSON.stringify(beforeRevoking)}`,
+    );
+
     // ---- 9. a pending row the previous image minted ----------------------
     // Written with the old column list — no reconnect_credential_id. It
     // must read as an Add: a new credential, the default untouched.

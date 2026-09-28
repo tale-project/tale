@@ -60,6 +60,16 @@ function sqlWithRoutes(routes: Record<string, Route>) {
     ...values: unknown[]
   ): Promise<unknown[]> => {
     const text = strings.join('?');
+    if (text.includes('FROM "member"')) {
+      return Promise.resolve([
+        {
+          id: 'm-1',
+          organizationId: values[0],
+          userId: values[1],
+          role: 'developer',
+        },
+      ]);
+    }
     if (text.includes('INSERT INTO app.connector_team_routes')) {
       const teamId = String(values[0]);
       const organizationId = String(values[1]);
