@@ -719,6 +719,13 @@ automations:
     eventPlaceholder: Choisir un événement
     enabledLabel: Actif
     lastFired: 'Dernier déclenchement {at}'
+    failures:
+      pausedTitle: 'En pause après des échecs répétés'
+      pausedBody: '{count, plural, one {# exécution a échoué} other {# exécutions ont échoué}} d’affilée avec une erreur qu’une nouvelle tentative ne corrigera pas, la planification s’est donc désactivée. Corrige l’automatisation, puis réactive le déclencheur et enregistre.'
+      streak: '{count, plural, one {La dernière exécution a échoué} other {Les # dernières exécutions ont échoué}} avec une erreur qu’une nouvelle tentative ne corrigera pas.'
+      streakSchedule: 'Après {limit} échecs de ce type d’affilée, la planification se désactive.'
+      last: 'Dernier échec {at} :'
+      viewRun: 'Voir l’exécution'
     remove: Retirer le déclencheur
     removeTitle: Retirer le déclencheur ?
     removeBody: Supprime le déclencheur. L’automatisation et son historique de versions ne sont pas touchés.
@@ -1793,7 +1800,6 @@ conversations:
         Ce brouillon d'e-mail sera définitivement supprimé. Cette action
         est irréversible.
     sent: E-mail envoyé
-    uploadFailed: Échec de l'envoi de la pièce jointe
   updating: Mise à jour des conversations...
   bulk:
     sendMessages: Envoyer les messages
@@ -4720,6 +4726,9 @@ notificationPreferences:
       label: Escalades d'agent
       description: Quand un agent te pose une question ou escalade une tâche
         vers un humain.
+    automationAlerts:
+      label: Alertes d'automatisation
+      description: Quand la planification d'une automatisation se met en pause parce que ses exécutions échouent sans cesse.
     conversationMessages:
       label: Messages de conversation
       description: Quand un message d'un contact arrive dans Conversations.
@@ -6517,6 +6526,7 @@ settings:
         model_access.denied: Accès au modèle refusé
         ai.completion: Réponse IA
         ai.budget_blocked: Budget IA bloqué
+        automation.trigger.paused: Planification d'automatisation mise en pause
         create_connector: Connector créée
         delete_connector: Connector supprimée
         update_credential: Identifiants mis à jour
@@ -6626,6 +6636,7 @@ settings:
         agent: Agent
         workflow: Automatisation
         workflow_run: Exécution d'automatisation
+        automation_trigger: Déclencheur d'automatisation
         workflow_creation: Création d'automatisation
         workflow_update: Mise à jour d'automatisation
         customer: Contact
@@ -7004,6 +7015,8 @@ inbox:
   cloudSyncNeedsReauthBody: 'Tale n’a plus accès à {provider} avec ton compte, donc « {itemName} » n’est plus synchronisé. Reconnecte {provider} depuis Documents pour reprendre.'
   usageCreditsRequested: Crédits d’utilisation demandés
   usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
+  automationTriggerPaused: Planification en pause
+  automationTriggerPausedBody: '« {name} » a échoué {failures} fois de suite ({code}), sa planification est donc en pause. Corrige l’automatisation, puis réactive son déclencheur.'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.

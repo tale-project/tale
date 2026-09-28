@@ -184,8 +184,9 @@ export interface KnowledgePassage {
   /**
    * The document a passage came from, as `GET /api/v1/documents/{id}`
    * takes it for a Hub document — or, for a project file, the file id the
-   * project routes take; absent for a web page, a thread upload or an
-   * emailed attachment. The REST search answered it and the MCP tool did
+   * project routes take; absent for a web page or a thread upload (an
+   * emailed attachment never reaches this door: it is mail, which only the
+   * chat tools serve). The REST search answered it and the MCP tool did
    * not, so an MCP client could not follow a hit to its document without
    * a second search over REST (2026-09-19 evaluation, K8-1).
    */

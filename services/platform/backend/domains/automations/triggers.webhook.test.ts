@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +9,7 @@ import {
   hashWebhookToken,
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
+import { auditChainQueueKey } from '../audit_logs/service.ts';
 import { AutomationError, beginRunInTx } from './store.ts';
 import { createWebhookRoutes, dispatchAutomationEvent } from './triggers.ts';
 
@@ -536,19 +538,23 @@ describe('webhook door budgets', () => {
  * The event path is the schedule's twin inside the producer's transaction:
  * the fire stamp and the run it names land only when a run was inserted,
  * and a binding whose automation has nothing deployed records the skip —
- * it used to stamp "fired" before asking the store for a run at all.
+ * it used to stamp "fired" before asking the store for a run at all. The
+ * organization's audit chain is taken before the first stamp: a landing run
+ * of the same trigger audits first and writes the trigger row after, and a
+ * producer that emits before it audits used to hold the row the landing run
+ * waited on while waiting on the chain the landing run held.
  */
 describe('dispatchAutomationEvent stamps', () => {
-  const eventTx = () => {
+  const eventTx = (
+    triggers: { id: string; organizationId: string; name: string }[] = [
+      { id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' },
+    ],
+  ) => {
     const queries: { text: string; values: unknown[] }[] = [];
     const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?').replace(/\s+/g, ' ').trim();
       queries.push({ text, values });
-      if (text.includes('FROM app.automation_triggers')) {
-        return [
-          { id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' },
-        ];
-      }
+      if (text.includes('FROM app.automation_triggers')) return triggers;
       return [];
     };
     return {
@@ -620,6 +626,53 @@ describe('dispatchAutomationEvent stamps', () => {
       'not_deployed',
       'trigger-e',
     ]);
+  });
+
+  it('takes the audit chain before the first stamp, once per dispatch', async () => {
+    const { tx, queries } = eventTx([
+      { id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' },
+      { id: 'trigger-f', organizationId: 'org-1', name: 'crm/follow-up' },
+    ]);
+    vi.mocked(beginRunInTx)
+      .mockResolvedValueOnce({ runId: 'run-e', version: 3 })
+      .mockResolvedValueOnce(null);
+    await dispatchAutomationEvent(tx as unknown as TransactionSql, {
+      organizationId: 'org-1',
+      event: 'contact.created',
+      origin: 'platform',
+    });
+    const texts = queries.map((q) => q.text);
+    const locks = queries.filter((q) =>
+      q.text.includes('pg_advisory_xact_lock'),
+    );
+    expect(locks).toHaveLength(1);
+    expect(locks[0]?.values).toEqual([
+      RETRY_QUEUE_LOCK_CLASS,
+      auditChainQueueKey('org-1'),
+    ]);
+    const lockedAt = texts.findIndex((text) =>
+      text.includes('pg_advisory_xact_lock'),
+    );
+    const firstStamp = texts.findIndex((text) =>
+      text.startsWith('UPDATE app.automation_triggers'),
+    );
+    expect(firstStamp).toBeGreaterThan(-1);
+    expect(lockedAt).toBeLessThan(firstStamp);
+    expect(
+      texts.filter((text) => text.startsWith('UPDATE app.automation_triggers')),
+    ).toHaveLength(2);
+  });
+
+  it('takes no audit chain when no trigger listens for the event', async () => {
+    const { tx, queries } = eventTx([]);
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      { organizationId: 'org-1', event: 'contact.created', origin: 'platform' },
+    );
+    expect(outcome).toEqual({ started: [], refused: false });
+    expect(queries).toHaveLength(1);
+    expect(queries[0]?.text).toContain('FROM app.automation_triggers');
+    expect(beginRunInTx).not.toHaveBeenCalled();
   });
 
   it('fires nothing and stamps nothing for an event an automation raised', async () => {

@@ -288,13 +288,22 @@ export interface AutomationsContract {
       /** The last time this binding started a run — `lastRunId` names it. */
       lastFiredAt?: number;
       lastRunId?: string | null;
-      /** The last time it came due and started nothing, and why. */
+      /** The last time it came due and started nothing, and why — or, for
+       * `paused_after_failures`, when the schedule paused itself. */
       lastSkippedAt?: number | null;
       lastSkipReason?:
         | 'not_deployed'
         | 'unusable_cron'
         | 'start_refused'
+        | 'paused_after_failures'
         | null;
+      /** Permanent failures in a row among the runs it started since its
+       * last save; the last of them is `lastFailedAt` / `lastFailureCode` /
+       * `lastFailedRunId`. */
+      consecutiveFailures?: number;
+      lastFailedAt?: number | null;
+      lastFailureCode?: string | null;
+      lastFailedRunId?: string | null;
       hasToken: boolean;
       enabled: boolean;
       event?: string;

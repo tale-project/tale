@@ -6,6 +6,7 @@ import {
   uploadPolicyConfigSchema,
   type UploadPolicyConfig,
 } from '@tale/shared/schemas/governance';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
@@ -202,7 +203,7 @@ export function useLegalHoldReleaseRequestsPaginated(args: {
     args.organizationId
       ? { organizationId: args.organizationId, status: args.status }
       : 'skip',
-    { initialNumItems: args.initialNumItems ?? 25 },
+    { initialNumItems: args.initialNumItems ?? DEFAULT_LIST_PAGE_SIZE },
   );
 }
 

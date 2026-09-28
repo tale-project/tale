@@ -1,3 +1,4 @@
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { Plus } from 'lucide-react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -69,6 +70,23 @@ describe('MemberTable', () => {
       );
       await checkAccessibility(container, axeOptions);
     });
+  });
+
+  // Members used to show ten rows while every other settings list showed
+  // twenty; the window is the shared list page size now.
+  it('shows the shared list page size before loading more', () => {
+    const members = Array.from({ length: DEFAULT_LIST_PAGE_SIZE + 5 }, (_, i) =>
+      makeMember({
+        _id: `member-${i}`,
+        email: `member-${i}@example.com`,
+        displayName: `Person ${i}`,
+      }),
+    );
+    render(<MemberTable members={members} />);
+
+    expect(screen.getAllByText(/^Person \d+$/)).toHaveLength(
+      DEFAULT_LIST_PAGE_SIZE,
+    );
   });
 
   it('renders the add action as the standard toolbar button', async () => {

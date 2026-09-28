@@ -160,6 +160,12 @@ any toggled setting after the run.
   delivery** section (`notificationPreferences.deliveryTitle`) carries the
   **Email me actionable alerts** toggle
   (`notificationPreferences.fields.actionableEmail.label`)
+- [ ] `SET-F61` · **Automation alerts for owners and admins** — Open
+  `/dashboard/{org}/settings/notifications` as an owner or admin → the
+  **Automation alerts** toggle
+  (`notificationPreferences.fields.automationAlerts.label`) sits after
+  **Agent escalations**, on by default; flip it off → the state persists
+  across reload. As a member, editor or developer → no such toggle.
 - [ ] `SET-F11` · **Theme & language (Manage account)** — Click the **Manage
   account** trigger (top-right user icon, `auth.userButton.manageAccount`) →
   theme tabs (`auth.userButton.themeSystem` / `…themeLight` / `…themeDark`);
@@ -687,6 +693,37 @@ any toggled setting after the run.
   **Save** succeeds and the value survives a reload; above capacity + N the
   total explains `sandboxes.limits.totalExceedsCapacity` and Save stays
   disabled.
+- [ ] `SET-F62` · **A pinned workspace comes back** — As owner on
+  `/dashboard/{org}/settings/sandboxes`, while a project agent's task runs,
+  pin its workspace (row menu → **Pin**, `sandboxes.actions.pin`; toast
+  **Sandbox pinned**, `sandboxes.toast.pinned`) and let the task leave a file
+  in it; once the task finished, remove the container on the sandbox host
+  (`docker rm -f tale-sbx-ses-<sessionId>`) and reload the page (its mount
+  probe runs the sandbox sweep's reconcile, which also runs unattended every
+  five minutes) → Within a minute `docker ps` lists
+  `tale-sbx-ses-<sessionId>` again; the row still lists with its **Pinned**
+  badge (`sandboxes.status.pinned`) and **Running**
+  (`sandboxes.status.runtime.running`), never disappearing as destroyed; the
+  agent's next task finds its file where it left it; and on a stack with a
+  short `SANDBOX_SESSION_MAX_IDLE_MS` the container outlives that idle window,
+  so the pin holds on the spawner too.
+- [ ] `SET-F63` · **Settings lists page and create alike** — With more than
+  20 members (SET-F15 adds them), open `/dashboard/{org}/settings/members`,
+  `/dashboard/{org}/settings/teams` and `/dashboard/{org}/settings/api/rest`
+  (first with no API keys of your own, then with one), at 1280 px and at
+  390 px, in the light and in the dark theme → Members shows 20 rows over the
+  footer **Showing 20 of {n} members** (`common.pagination.showingFiltered`)
+  and the rest arrive as you scroll to its end. **Add member**
+  (`settings.organization.addMember`), **Create team**
+  (`settings.teams.createTeam`) and **Create API key**
+  (`settings.apiKeys.createKey`) are the same button: at the right end of the
+  table's toolbar at 1280 px (beside the search box where the list has one),
+  on a full-width row of its own at 390 px. With no keys the API page shows
+  exactly one **Create API key**, inside the empty state
+  (`emptyStates.apiKeys.title`), and it moves to the toolbar once a key
+  exists; **API docs** (`settings.apiDocs.openDocs`) sits under the table in
+  both states. No page scrolls sideways at 390 px, and every button label is
+  readable in both themes.
 
 ## Boundary & error tests
 

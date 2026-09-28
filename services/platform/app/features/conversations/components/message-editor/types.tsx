@@ -1,12 +1,24 @@
 import { FileIcon, ImageIcon, MusicIcon, VideoIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { Dispatch, ReactNode, SetStateAction } from 'react';
 
 import type { Message as ConversationMessage } from '../../types';
+
+/** A file whose bytes are already in storage, named as the send doors take
+ * it. An undone send hands its files back in this shape. */
+export interface StoredAttachment {
+  storageId: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
 
 export interface AttachedFile {
   id: string;
   file: File | null;
   type: 'image' | 'video' | 'audio' | 'document';
+  /** Set when the bytes are already in storage — a file an undone send
+   * handed back. A send names this blob instead of uploading `file`. */
+  stored?: StoredAttachment;
 }
 
 export interface MessageEditorProps {
@@ -18,6 +30,8 @@ export interface MessageEditorProps {
    * incomplete fields — not for the editor's own empty-body gate.
    */
   sendDisabledReason?: ReactNode;
+  /** Resolve only after sending succeeds; reject to retain the draft/files
+   * and let the editor report the failure. */
   onSave?: (
     message: string,
     attachments?: AttachedFile[],
@@ -38,13 +52,26 @@ export interface MessageEditorProps {
    */
   replyDestination?: string;
   onConversationResolved?: () => void;
-  pendingMessage?: Pick<ConversationMessage, 'id' | 'content'>;
   /**
-   * Fired on a successful send, before the editor remounts. Callers that seed
-   * via `pendingMessage` (undo-send restore) must clear that seed here so the
-   * remount does not re-initialize from a still-present draft — send runs
-   * inside `startTransition`, so clearing the seed at send-start can lag the
-   * remount.
+   * A draft to seed the composer with: an agent-drafted reply awaiting a
+   * person, or a send the person just undid. `attachments` are that send's
+   * files, handed back already in storage.
+   */
+  pendingMessage?: Pick<ConversationMessage, 'id' | 'content'> & {
+    attachments?: AttachedFile[];
+  };
+  /** Keep live files with the caller when it switches between reply editors. */
+  attachments?: AttachedFile[];
+  onAttachmentsChange?: Dispatch<SetStateAction<AttachedFile[]>>;
+  /** Fired once a seed is applied, so it cannot overwrite later draft edits. */
+  onPendingMessageApplied?: (
+    message: NonNullable<MessageEditorProps['pendingMessage']>,
+  ) => void;
+  /**
+   * Fired on a successful send, before the editor remounts. A caller keeping
+   * its seed until send completes can clear it here in the same React batch
+   * as the remount. Undo drafts instead clear on application so navigation
+   * preserves subsequent edits.
    */
   onPendingMessageConsumed?: () => void;
   hasMessageHistory?: boolean;
@@ -74,11 +101,35 @@ const FILE_TYPE_ICONS = {
   document: { Icon: FileIcon, colorClass: 'text-muted-foreground' },
 } as const;
 
-export function getFileType(file: File): AttachedFile['type'] {
-  if (file.type.startsWith('image/')) return 'image';
-  if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('audio/')) return 'audio';
+function fileTypeOf(contentType: string): AttachedFile['type'] {
+  if (contentType.startsWith('image/')) return 'image';
+  if (contentType.startsWith('video/')) return 'video';
+  if (contentType.startsWith('audio/')) return 'audio';
   return 'document';
+}
+
+export function getFileType(file: File): AttachedFile['type'] {
+  return fileTypeOf(file.type);
+}
+
+/** A file an undone send handed back, as the composer holds it. */
+export function storedAttachedFile(stored: StoredAttachment): AttachedFile {
+  return {
+    id: stored.storageId,
+    file: null,
+    type: fileTypeOf(stored.contentType),
+    stored,
+  };
+}
+
+/** The full name of an attached file, whether picked or handed back. */
+export function attachedFileName(attached: AttachedFile): string {
+  return attached.file?.name ?? attached.stored?.fileName ?? '';
+}
+
+/** The size in bytes of an attached file, when known. */
+export function attachedFileSize(attached: AttachedFile): number | undefined {
+  return attached.file?.size ?? attached.stored?.size;
 }
 
 export function getFileIcon(type: AttachedFile['type'], size = 'size-4') {
