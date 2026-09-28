@@ -3,10 +3,11 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { flattenNav } from '@/lib/content/nav';
+import { slugRoute } from '@/lib/content/paths';
 import {
   buildRedirectPathMap,
   deriveSectionRedirects,
-  navPageSlugs,
   normalizeRequestPath,
   parseRedirects,
   resolveRedirect,
@@ -35,11 +36,6 @@ const SLUG_PATTERN =
 
 function loadRedirects(): Record<string, string> {
   return parseRedirects(JSON.parse(fs.readFileSync(REDIRECTS_FILE, 'utf-8')));
-}
-
-/** A slug's route identity: `foo/index` and `foo` serve the same URL. */
-function routeOf(slug: string): string {
-  return slug === 'index' ? '' : slug.replace(/\/index$/, '');
 }
 
 /** Whether a route resolves to a real page — either `<route>.md(x)` or the
@@ -99,7 +95,7 @@ describe('redirects', () => {
     'every redirect target resolves to a real page under %s/',
     (locale) => {
       const findings: Finding[] = Object.entries(loadRedirects())
-        .filter(([, to]) => !pageExistsForRoute(locale, routeOf(to)))
+        .filter(([, to]) => !pageExistsForRoute(locale, slugRoute(to)))
         .map(([from, to]) => ({
           file: `${locale}/${to}`,
           line: 0,
@@ -114,7 +110,7 @@ describe('redirects', () => {
     const findings: Finding[] = [];
     for (const from of Object.keys(loadRedirects())) {
       for (const locale of BASE_LOCALES) {
-        if (pageExistsForRoute(locale, routeOf(from))) {
+        if (pageExistsForRoute(locale, slugRoute(from))) {
           findings.push({
             file: `${locale}/${from}`,
             line: 0,
@@ -130,11 +126,11 @@ describe('redirects', () => {
   it('no redirect chains — every target is a page, not another redirect', () => {
     const redirects = loadRedirects();
     const sourceByRoute = new Map(
-      Object.keys(redirects).map((from) => [routeOf(from), from]),
+      Object.keys(redirects).map((from) => [slugRoute(from), from]),
     );
     const findings: Finding[] = [];
     for (const [from, to] of Object.entries(redirects)) {
-      const next = sourceByRoute.get(routeOf(to));
+      const next = sourceByRoute.get(slugRoute(to));
       if (next !== undefined) {
         findings.push({
           file: 'redirects.json',
@@ -176,12 +172,14 @@ describe('derived redirects', () => {
   /** Every folder prefix of every navigation page, e.g. `platform/admin`. */
   const folders = [
     ...new Set(
-      navPageSlugs().flatMap((slug) => {
-        const segments = routeOf(slug).split('/');
-        return segments
-          .slice(1)
-          .map((_, depth) => segments.slice(0, depth + 1).join('/'));
-      }),
+      flattenNav()
+        .map(({ slug }) => slug)
+        .flatMap((slug) => {
+          const segments = slugRoute(slug).split('/');
+          return segments
+            .slice(1)
+            .map((_, depth) => segments.slice(0, depth + 1).join('/'));
+        }),
     ),
   ];
 
@@ -216,7 +214,10 @@ describe('derived redirects', () => {
   );
 
   it('no derived redirect shadows a page on disk in any locale', () => {
-    const derived = deriveSectionRedirects(navPageSlugs(), loadRedirects());
+    const derived = deriveSectionRedirects(
+      flattenNav().map(({ slug }) => slug),
+      loadRedirects(),
+    );
     const findings: Finding[] = [];
     for (const folder of Object.keys(derived)) {
       for (const locale of BASE_LOCALES) {

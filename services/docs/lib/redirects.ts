@@ -24,8 +24,9 @@
 
 import { stripLocalePrefix } from '@tale/ui/i18n/negotiate';
 
-import navJson from '../../../docs/nav.json';
 import redirectsJson from '../../../docs/redirects.json';
+import { flattenNav } from './content/nav';
+import { docPath, slugRoute } from './content/paths';
 import { BASE_LOCALES, type SupportedLocale } from './i18n/locales';
 
 /** One locale-expanded redirect: site-relative `from` → `to` URL paths. */
@@ -66,32 +67,6 @@ export function parseRedirects(value: unknown): Record<string, string> {
   return redirects as Record<string, string>;
 }
 
-interface RawNavGroup {
-  pages: ReadonlyArray<string | RawNavGroup>;
-}
-
-/** Every page slug in `nav.json`, in reading order. */
-export function navPageSlugs(
-  groups: readonly RawNavGroup[] = (
-    navJson as unknown as { groups: readonly RawNavGroup[] }
-  ).groups,
-): string[] {
-  const out: string[] = [];
-  const walk = (pages: RawNavGroup['pages']) => {
-    for (const entry of pages) {
-      if (typeof entry === 'string') out.push(entry);
-      else walk(entry.pages);
-    }
-  };
-  for (const group of groups) walk(group.pages);
-  return out;
-}
-
-/** A slug's route identity: `foo/index` and `foo` serve the same URL. */
-function routeOf(slug: string): string {
-  return slug === 'index' ? '' : slug.replace(/\/index$/, '');
-}
-
 /**
  * Section-folder redirects derived from the navigation: every folder prefix
  * of a page slug that is neither a page nor an explicit redirect source maps
@@ -102,11 +77,11 @@ export function deriveSectionRedirects(
   pageSlugs: readonly string[],
   explicit: Record<string, string>,
 ): Record<string, string> {
-  const pageRoutes = new Set(pageSlugs.map(routeOf));
-  const explicitRoutes = new Set(Object.keys(explicit).map(routeOf));
+  const pageRoutes = new Set(pageSlugs.map(slugRoute));
+  const explicitRoutes = new Set(Object.keys(explicit).map(slugRoute));
   const derived: Record<string, string> = {};
   for (const slug of pageSlugs) {
-    const segments = routeOf(slug).split('/');
+    const segments = slugRoute(slug).split('/');
     for (let depth = 1; depth < segments.length; depth += 1) {
       const folder = segments.slice(0, depth).join('/');
       if (
@@ -128,18 +103,12 @@ const EXPLICIT_REDIRECTS: Record<string, string> =
 
 /** Explicit moves plus the derived section folders (explicit entries win). */
 const DOCS_REDIRECTS: Record<string, string> = {
-  ...deriveSectionRedirects(navPageSlugs(), EXPLICIT_REDIRECTS),
+  ...deriveSectionRedirects(
+    flattenNav().map(({ slug }) => slug),
+    EXPLICIT_REDIRECTS,
+  ),
   ...EXPLICIT_REDIRECTS,
 };
-
-/** Site-relative URL for a (locale, slug) pair — mirrors `docPath` in
- *  `lib/content/paths.ts` (English at the canonical path, `de`/`fr`
- *  prefixed; a trailing `/index` collapses onto the directory URL). */
-function pathFor(locale: SupportedLocale, slug: string): string {
-  const cleaned = slug === 'index' ? '' : slug.replace(/\/index$/, '');
-  if (locale === 'en') return cleaned ? `/${cleaned}` : '/';
-  return cleaned ? `/${locale}/${cleaned}` : `/${locale}`;
-}
 
 /** Expand every locale-less slug pair into per-locale URL path pairs. */
 export function expandRedirects(
@@ -150,8 +119,8 @@ export function expandRedirects(
     for (const locale of BASE_LOCALES) {
       out.push({
         locale,
-        from: pathFor(locale, from),
-        to: pathFor(locale, to),
+        from: docPath(locale, from),
+        to: docPath(locale, to),
       });
     }
   }
