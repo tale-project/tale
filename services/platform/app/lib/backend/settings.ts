@@ -8,6 +8,7 @@
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
+  API_KEY_HINT_ENTITY,
   MEMBER_HINT_ENTITY,
   PROVIDER_CREDENTIAL_HINT_ENTITY,
   TEAM_HINT_ENTITY,
@@ -639,7 +640,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'api_key', 'org-list'),
+      queryKey: backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list'),
       queryFn: () =>
         backendFetch<{ keys: OrgApiKeyItem[] }>('/governance/api-keys', {
           orgId,
