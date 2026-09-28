@@ -154,7 +154,11 @@ describe('@tale/platform#test turbo inputs', () => {
 
   it('still hashes its own workspace', () => {
     // `$TURBO_DEFAULT$` stays in the list, or the suite's own sources drop out.
-    expect(hashed.has('services/platform/package.json')).toBe(true);
+    // Probe this file: turbo hashes `package.json` and `turbo.json` either way.
+    const self = toRepoPath(fileURLToPath(import.meta.url));
+    expect(hashed.has(self), `@tale/platform#test does not hash ${self}`).toBe(
+      true,
+    );
   });
 
   it('every input list keeps the root task inputs and the workspace sources', () => {
