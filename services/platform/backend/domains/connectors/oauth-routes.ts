@@ -1,12 +1,8 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { RECONNECT_CREDENTIAL_PARAM } from '../../../lib/shared/connector-consent.ts';
 import type { Auth } from '../../auth/auth.ts';
-import {
-  MembershipError,
-  requireOrganizationMember,
-} from '../../auth/membership.ts';
 import {
   requireSession,
   type AuthEnv,
@@ -18,7 +14,10 @@ import {
 } from '../../core/http_connectors/deployment_config.ts';
 import { renderConnectorErrorPage } from '../../core/http_connectors/error_page.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
-import { completeOauth2, startOauth2 } from './oauth.ts';
+import { completeOauth2, connectorWriteAccess, startOauth2 } from './oauth.ts';
+
+/** Longer than any id a credential row carries — a probe, not a Reconnect. */
+const CREDENTIAL_ID_MAX = 128;
 
 /**
  * `/api/connectors/oauth2` — the browser-facing halves of the connector
@@ -26,14 +25,17 @@ import { completeOauth2, startOauth2 } from './oauth.ts';
  *
  * `start` is session-gated: it must know WHO is asking and that their role
  * may add credentials to the named organization — connecting a connector IS
- * a credential write, just spelled as a consent flow. `callback` is
- * authorized by the single-use state row, which carries the organization the
- * credential is written for — nothing in the callback request can move it —
- * AND bound to the session on the returning browser: the completer must be
- * the member who started the flow, so a forwarded consent link cannot land a
- * stranger's vendor grant in the initiator's organization. A completion
- * without that session gets the same page as a forged state (not a JSON
- * 401): a person is looking at this in a browser tab.
+ * a credential write, just spelled as a consent flow. It also takes the
+ * consent's intent (`lib/shared/connector-consent.ts`): no `credentialId`
+ * adds a new credential, a `credentialId` reconnects that one (an OAuth grant of this organization and connector, or
+ * the flow does not start). `callback` is authorized by the single-use state
+ * row, which carries the organization, the connector and that intent —
+ * nothing in the callback request can move them — AND bound to the session
+ * on the returning browser: the completer must be the member who started the
+ * flow, so a forwarded consent link cannot land a stranger's vendor grant in
+ * the initiator's organization, and must still hold the role `start` checked.
+ * A completion without that session gets the same page as a forged state
+ * (not a JSON 401): a person is looking at this in a browser tab.
  *
  * Both answer HTML error pages rather than JSON: a person is looking at this
  * in a browser tab, mid-flow, and needs a way back to settings.
@@ -50,6 +52,7 @@ export function createConnectorOauthRoutes(deps: {
     kind: Parameters<typeof renderConnectorErrorPage>[0],
     organizationId?: string,
     base: string | null = null,
+    acceptLanguage = '',
   ): Response =>
     renderConnectorErrorPage(
       kind,
@@ -59,6 +62,7 @@ export function createConnectorOauthRoutes(deps: {
             organizationId,
             base ?? resolvePublicBaseUrl(),
           ),
+      acceptLanguage,
     );
 
   const plainText = (body: string, status: 401 | 403): Response =>
@@ -76,23 +80,20 @@ export function createConnectorOauthRoutes(deps: {
   app.get('/start', requireSession(deps.auth), async (c) => {
     const connectorSlug = c.req.query('connector') ?? '';
     const organizationId = c.req.query('organizationId') ?? '';
+    // Absent: an Add. Present, it must name something — an empty or absurd
+    // id is a broken Reconnect link, never quietly read as an Add.
+    const credentialId = c.req.query(RECONNECT_CREDENTIAL_PARAM);
     if (connectorSlug === '' || organizationId === '') {
       return errorPage('unsupported_connector');
     }
     const userId = c.get('sessionBundle').user.id;
-    let role: string;
-    try {
-      role = (await requireOrganizationMember(deps.sql, organizationId, userId))
-        .role;
-    } catch (error) {
-      if (error instanceof MembershipError) {
-        // Same answer for "no such organization" and "not your organization":
-        // the difference only helps someone enumerating org ids.
-        return plainText('You do not have access to this organization.', 403);
-      }
-      throw error;
+    const access = await connectorWriteAccess(deps.sql, organizationId, userId);
+    if (access === 'not_member') {
+      // Same answer for "no such organization" and "not your organization":
+      // the difference only helps someone enumerating org ids.
+      return plainText('You do not have access to this organization.', 403);
     }
-    if (defineAbilityFor(role).cannot('read', 'developerSettings')) {
+    if (access === 'role_forbidden') {
       return plainText(
         'Your role cannot connect connectors for this organization.',
         403,
@@ -102,10 +103,24 @@ export function createConnectorOauthRoutes(deps: {
     // The consent flow returns to the domain it started on: the session
     // cookie the callback needs lives there, not on the canonical origin.
     const origin = publicOrigin(c.req.raw);
+    if (
+      credentialId !== undefined &&
+      (credentialId.length === 0 || credentialId.length > CREDENTIAL_ID_MAX)
+    ) {
+      return errorPage(
+        'credential_missing',
+        organizationId,
+        resolvePublicBaseUrl(origin),
+        c.req.header('accept-language'),
+      );
+    }
     const outcome = await startOauth2(deps.sql, {
       connectorSlug,
       organizationId,
       userId,
+      ...(credentialId !== undefined
+        ? { reconnectCredentialId: credentialId }
+        : {}),
       publicOrigin: origin,
     });
     if (outcome.kind === 'error') {
@@ -113,6 +128,7 @@ export function createConnectorOauthRoutes(deps: {
         outcome.error,
         organizationId,
         resolvePublicBaseUrl(origin),
+        c.req.header('accept-language'),
       );
     }
     return new Response(null, {
@@ -146,6 +162,7 @@ export function createConnectorOauthRoutes(deps: {
           session?.session.activeOrganizationId ??
           undefined,
         resolvePublicBaseUrl(publicOrigin(c.req.raw)),
+        c.req.header('accept-language'),
       );
     }
     return new Response(null, {

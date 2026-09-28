@@ -1599,6 +1599,7 @@ common:
     rowErrorsTitle: '{count, plural, one {# Zeile wurde nicht importiert} other {# Zeilen wurden nicht importiert}}'
     rowError: 'Zeile {row}: {message}'
     moreRows: '… und {count} weitere'
+    tooManyRows: Diese Datei enthält {count} Zeilen zum Importieren, Tale importiert aber höchstens {max} auf einmal. Teile sie in kleinere Dateien auf und importiere jede einzeln.
     fields:
       name: Name
       price: Preis
@@ -1664,6 +1665,7 @@ common:
     required: '{field} ist erforderlich'
     maxLength: '{field} darf höchstens {max} Zeichen lang sein'
     email: Gib eine gültige E-Mail-Adresse ein
+    emailLocalPart: Verwende höchstens {max} Zeichen vor dem @
     phone: Gib eine Telefonnummer nur mit Ziffern und + ( ) - ein
     uploadFile: Lade eine Datei hoch
     unsupportedFileType: Nicht unterstützter Dateityp

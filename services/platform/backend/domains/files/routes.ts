@@ -60,7 +60,10 @@ const registerSchema = z.object({
   source: z
     .string()
     .max(100)
-    .refine((value) => value !== 'product-image')
+    .refine(
+      (value) => value !== 'product-image',
+      'is reserved for the product image upload',
+    )
     .optional(),
   /** Opt out of indexing for a surface that only needs the bytes (the 0.4
    * `skipRagIndexing`). Write-once true — a later save never clears it. */

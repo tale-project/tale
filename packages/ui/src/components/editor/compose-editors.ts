@@ -8,7 +8,11 @@ import type { EditorController } from './types';
  * Merge several editors into one controller for a surface that hosts a single
  * Save/Discard cluster over independent editable sections (e.g. the automation
  * Configuration form plus its project-bindings picker). Dirty / saving /
- * loading are OR-ed, validity AND-ed, and `dirtyKeys` unioned.
+ * loading are OR-ed, `dirtyKeys` unioned, and validity AND-ed over the
+ * DIRTY sections only: `save()` never touches a clean section, so its
+ * validity cannot matter to the group — an untouched section showing a
+ * refusal (a probe that named its empty fields) must not lock Save for an
+ * edit in another section.
  *
  * `save()` / `reset()` read the sub-editors through a ref, never a render
  * snapshot: the active-editor registry only re-registers when the four status
@@ -42,7 +46,7 @@ export function useComposedEditor(
   return {
     isDirty: active.some((e) => e.isDirty),
     isSaving: active.some((e) => e.isSaving),
-    isValid: active.every((e) => e.isValid),
+    isValid: active.every((e) => !e.isDirty || e.isValid),
     isLoading: active.some((e) => e.isLoading),
     dirtyKeys,
     save,
