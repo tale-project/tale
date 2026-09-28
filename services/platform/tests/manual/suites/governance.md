@@ -70,7 +70,8 @@ select lists only the current admin's keys (`useApiKeys`).
   project agent on a task, then run an automation whose agent step writes a
   short report → Both the task's agent report and the automation step's output
   end with **Finance desk.**, as a chat reply does; switch the section OFF,
-  save, and start the task agent again → the line no longer appears.
+  save, and use a new task and a new automation run with fresh conversations
+  → the line no longer appears.
 - [ ] `GOV-F2b` · **Voice-output toggle** — `policies-limits` → flip **Voice
   output enabled for this organization**
   (`governance.voiceOutput.enabledLabel`) — it **autosaves** (toast
