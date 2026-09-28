@@ -101,6 +101,7 @@ type ExtendErasureResult =
   ReturnsOf<'governance/erasure:extendErasureDeadline'>;
 type CloseMatterResult = ReturnsOf<'governance/legal_hold:closeLegalMatter'>;
 type CompetenceItem = ItemOf<'governance/competences:listCompetences'>;
+type OrgApiKeyItem = ItemOf<'governance/api_keys:listOrgApiKeys'>;
 type GrantCompetenceResult =
   ReturnsOf<'governance/competences:grantCompetence'>;
 
@@ -632,6 +633,17 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ holds: LegalHoldItem[] }>(`/legal-holds${qs}`, {
           orgId,
         }).then((body) => body.holds),
+    };
+  },
+  'governance/api_keys:listOrgApiKeys': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'api_key', 'org-list'),
+      queryFn: () =>
+        backendFetch<{ keys: OrgApiKeyItem[] }>('/governance/api-keys', {
+          orgId,
+        }).then((body) => body.keys),
     };
   },
   'governance/competences:listCompetences': (args, ctx) => {

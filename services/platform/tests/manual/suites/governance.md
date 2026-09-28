@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 56 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -94,9 +94,10 @@ select lists only the current admin's keys (`useApiKeys`).
   requests** (`governance.budgets.maxRequests`) → **Confirm**
   (`governance.budgets.confirm`) → reload → The rule row's **Scope** cell
   reads **ApiKey** (CSS-capitalized `scope`) and its **Target**
-  (`governance.budgets.target`) cell shows the chosen key's name (falls back
-  to the raw key id if the key isn't in the admin's list); the row survives
-  reload. **Precondition:** ≥1 API key exists (see Prerequisites)
+  (`governance.budgets.target`) cell shows the chosen key's name and its
+  owner, "CI Key · Dana" (falls back to the raw key id if the key is no longer
+  held by a member); the row survives reload. **Precondition:** ≥1 API key
+  exists (see Prerequisites)
 - [ ] `GOV-F4c` · **API-key budget refuses REST** — with the GOV-F4b rule
   saved at **Max requests** 1 → send twice through
   `POST /api/v1/threads/{id}/messages` with that key → The second send answers
@@ -104,6 +105,13 @@ select lists only the current admin's keys (`useApiKeys`).
   is `apiKey`, and
   nothing is queued; the same person's in-app chat is not refused by the key's
   cap. **Delete the rule after**
+- [ ] `GOV-F36` · **Cap a member's key** — As a Developer member, create an API
+  key "opencode"; as an Admin, open the GOV-F4b dialog → the **API key**
+  select lists the Developer's key as **opencode · <their name>** beside the
+  Admin's own keys, and no key of someone outside the organization; save a
+  rule on it → a REST send with the Developer's key over the cap answers 429
+  `BUDGET_EXCEEDED` as in GOV-F4c. `GET /api/app/governance/api-keys` as a
+  non-admin answers 403, and no response carries a key secret.
 - [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback
   Metrics** dashboard renders (`analytics.feedback.title`); with no feedback
   it shows the empty state **No feedback collected yet**
