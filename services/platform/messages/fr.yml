@@ -586,7 +586,6 @@ automations:
   navigation:
     editor: Éditeur
     general: Général
-    versions: Versions
     runs: Exécutions
   switcher:
     title: Changer d'automatisation
@@ -851,7 +850,6 @@ automations:
     noProjects: Cette organisation n’a pas encore de projets.
   versions:
     title: Versions
-    description: Chaque version enregistrée, la plus récente en premier — ouvre-la pour l'afficher sur le canvas. Une seule est en service à la fois.
     empty: Aucune version n’a encore été enregistrée.
     versionLabel: v{version}
     deployed: En service

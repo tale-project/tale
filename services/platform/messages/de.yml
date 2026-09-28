@@ -579,7 +579,6 @@ automations:
   navigation:
     editor: Editor
     general: Allgemein
-    versions: Versionen
     runs: Läufe
   switcher:
     title: Automatisierung wechseln
@@ -843,7 +842,6 @@ automations:
     noProjects: Diese Organisation hat noch keine Projekte.
   versions:
     title: Versionen
-    description: Alle gespeicherten Versionen, neueste zuerst — öffne eine, und der Canvas zeigt sie. Genau eine ist jeweils live.
     empty: Es wurde noch keine Version gespeichert.
     versionLabel: v{version}
     deployed: Live

@@ -548,7 +548,6 @@ automations:
   navigation:
     editor: Editor
     general: General
-    versions: Versions
     runs: Runs
   switcher:
     title: Switch automation
@@ -802,7 +801,6 @@ automations:
     noProjects: This organization has no projects yet.
   versions:
     title: Versions
-    description: Every saved version, newest first — open one to show it on the canvas. Exactly one is live at a time.
     empty: No versions saved yet.
     versionLabel: v{version}
     deployed: Live

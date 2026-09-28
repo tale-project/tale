@@ -133,6 +133,29 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useDeployAutomation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+vi.mock('@/app/hooks/use-navigation-items', () => ({
+  useNavigationItems: () => ({
+    primary: [
+      {
+        label: 'Home',
+        href: '/dashboard/org-test/home',
+        to: '/dashboard/$id/home',
+        params: { id: 'org-test' },
+      },
+    ],
+    pinned: [],
+  }),
+}));
+vi.mock(
+  '@/app/components/branding/branding-provider',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/components/branding/branding-provider')
+    >()),
+    useBrandingContext: () => ({ accentColor: null }),
+  }),
+);
+
 afterEach(cleanup);
 
 const ZOOM_CONTROLS = ['Zoom in', 'Zoom out', 'Reset view'];
@@ -144,13 +167,14 @@ function DashboardFrame() {
   return (
     <DirtyBlockerProvider>
       <AdaptiveHeaderProvider>
-        <div className="flex h-dvh w-full flex-col overflow-hidden">
+        <div className="mobile-nav-shell flex h-dvh w-full flex-col overflow-hidden">
           <header className="border-border border-b px-4 md:hidden">
             <AdaptiveHeaderSlot />
           </header>
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <Outlet />
           </main>
+          <MobileBottomNav organizationId="org-test" />
         </div>
       </AdaptiveHeaderProvider>
     </DirtyBlockerProvider>
