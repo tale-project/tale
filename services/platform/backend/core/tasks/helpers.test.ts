@@ -58,24 +58,26 @@ describe('truncateImportedDescription', () => {
   });
 });
 
-describe('the imported cut never splits an emoji', () => {
+describe('the imported cut never splits a grapheme', () => {
+  const cuts = [
+    ['title', truncateImportedTitle, TASK_TITLE_MAX],
+    ['description', truncateImportedDescription, TASK_DESCRIPTION_MAX],
+  ] as const;
+
   // 🎯 is two UTF-16 code units: a cut after its first half would leave a
   // lone surrogate, which storage writes as U+FFFD.
-  it.each([
-    ['title', truncateImportedTitle, TASK_TITLE_MAX],
-    ['description', truncateImportedDescription, TASK_DESCRIPTION_MAX],
-  ] as const)('steps back before a pair the %s cut lands in', (_, cut, max) => {
-    // The first half of an emoji sits at max - 2, where the cut ends.
-    const text = `${'a'.repeat(max - 2)}🎯${'b'.repeat(10)}`;
-    const result = cut(text);
-    expect(result).toBe(`${'a'.repeat(max - 2)}…`);
-    expect(result.isWellFormed()).toBe(true);
-  });
+  it.each(cuts)(
+    'steps back before a pair the %s cut lands in',
+    (_, cut, max) => {
+      // The first half of an emoji sits at max - 2, where the cut ends.
+      const text = `${'a'.repeat(max - 2)}🎯${'b'.repeat(10)}`;
+      const result = cut(text);
+      expect(result).toBe(`${'a'.repeat(max - 2)}…`);
+      expect(result.isWellFormed()).toBe(true);
+    },
+  );
 
-  it.each([
-    ['title', truncateImportedTitle, TASK_TITLE_MAX],
-    ['description', truncateImportedDescription, TASK_DESCRIPTION_MAX],
-  ] as const)(
+  it.each(cuts)(
     'keeps a whole emoji that ends where the %s cut ends',
     (_, cut, max) => {
       const text = `${'a'.repeat(max - 3)}🎯${'b'.repeat(10)}`;
@@ -83,6 +85,66 @@ describe('the imported cut never splits an emoji', () => {
       expect(cut(text)).toHaveLength(max);
     },
   );
+
+  /*
+   * One grapheme a reader sees as one character, made of several code
+   * points (spelled as escapes: the joiners and marks are invisible). The
+   * cut used to step back from a lone high surrogate only, so each of these,
+   * straddling the cut, lost its tail: the family became a man, the flag a
+   * lone regional indicator, the thumb lost its skin tone, the keycap its
+   * frame and the letter its accent.
+   */
+  const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+  const graphemes = [
+    ['a ZWJ family', family],
+    ['a flag', '\u{1F1E8}\u{1F1ED}'],
+    ['a skin-tone modifier', '\u{1F44D}\u{1F3FD}'],
+    ['a keycap', '1\uFE0F\u20E3'],
+    ['a combining mark', 'e\u0301'],
+  ] as const;
+
+  it('reads each of those as one grapheme of several code points', () => {
+    const segmenter = new Intl.Segmenter(undefined, {
+      granularity: 'grapheme',
+    });
+    for (const [, grapheme] of graphemes) {
+      expect([...segmenter.segment(grapheme)]).toHaveLength(1);
+      expect(grapheme.length).toBeGreaterThan(1);
+    }
+  });
+
+  describe.each(cuts)('the %s cut', (_, cut, max) => {
+    it.each(graphemes)('drops %s it lands inside, whole', (__, grapheme) => {
+      // Every start that puts unit max - 1 inside the grapheme: part of it
+      // would fit before the "…", and its tail runs past it.
+      for (let start = max - grapheme.length; start <= max - 2; start += 1) {
+        const kept = 'a'.repeat(start);
+        const result = cut(`${kept}${grapheme}${'b'.repeat(10)}`);
+        expect(result).toBe(`${kept}…`);
+        expect(result.isWellFormed()).toBe(true);
+      }
+    });
+
+    it.each(graphemes)('keeps %s that ends where it ends', (__, grapheme) => {
+      const kept = `${'a'.repeat(max - 1 - grapheme.length)}${grapheme}`;
+      const result = cut(`${kept}${'b'.repeat(10)}`);
+      expect(result).toBe(`${kept}…`);
+      expect(result).toHaveLength(max);
+    });
+  });
+
+  it('drops a ZWJ family whose first person alone would still fit', () => {
+    // The man ends at max - 1, where the old cut stopped: it kept him and
+    // dropped the rest of the family.
+    const kept = 'a'.repeat(TASK_TITLE_MAX - 3);
+    expect(truncateImportedTitle(`${kept}${family} and more`)).toBe(`${kept}…`);
+  });
+
+  it('leaves only the ellipsis when one grapheme alone is over the cap', () => {
+    // A letter under 250 combining marks is one grapheme of 251 code units.
+    const stacked = `Z${'\u0301'.repeat(250)}`;
+    expect(truncateImportedTitle(`${stacked} title`)).toBe('…');
+  });
 });
 
 describe('importedTaskTitleRefusal', () => {
