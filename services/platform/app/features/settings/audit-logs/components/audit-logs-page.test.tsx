@@ -19,29 +19,70 @@ import { AuditLogsPage } from './audit-logs-page';
 // All audit-page query hooks (page + child tabs) resolve to this one module.
 // The two trails are mutable so a test can load, fill or empty either; a
 // category narrows them on the server, so a categorised read answers
-// `filtered` instead. Every test starts from two empty, settled trails.
+// `filtered` instead, and `failed` settles every read as a failed first page.
+// Every test starts from two empty, settled trails.
+type Listing = 'audit' | 'errors';
+interface TrailArgs {
+  organizationId: string | undefined;
+  category?: string;
+}
 const trails = vi.hoisted(() => ({
   status: 'Exhausted' as 'LoadingFirstPage' | 'Exhausted',
   audit: [] as unknown[],
   errors: [] as unknown[],
   filtered: [] as unknown[],
+  failed: false,
+  /** Every read asked for, by the page and its tabs, in render order. */
+  reads: [] as { listing: Listing; organizationId: string | undefined }[],
 }));
-function trail(rows: unknown[], args: { category?: string }) {
+function trail(listing: Listing, args: TrailArgs) {
+  trails.reads.push({ listing, organizationId: args.organizationId });
+  // No organization is the hooks' skip: nothing is fetched, so the first
+  // page never arrives — as `useCachedPaginatedQuery` answers a 'skip'.
+  if (args.organizationId === undefined) {
+    return {
+      results: [],
+      status: 'LoadingFirstPage',
+      loadMore: vi.fn(),
+      isLoading: false,
+      error: null,
+      retry: vi.fn(),
+    };
+  }
+  // A failed first page settles as an exhausted, empty list carrying the
+  // error — as `useCachedPaginatedQuery` answers once its retries give up.
+  if (trails.failed) {
+    return {
+      results: [],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+      isLoading: false,
+      error: new Error('Request timed out'),
+      retry: vi.fn(),
+    };
+  }
   const loading = trails.status === 'LoadingFirstPage';
   return {
-    results: loading ? [] : args.category ? trails.filtered : rows,
+    results: loading ? [] : args.category ? trails.filtered : trails[listing],
     status: trails.status,
     loadMore: vi.fn(),
     isLoading: loading,
+    error: null,
+    retry: vi.fn(),
   };
 }
 vi.mock('@/app/features/settings/audit-logs/hooks/queries', () => ({
-  useListAuditLogsPaginated: (args: { category?: string }) =>
-    trail(trails.audit, args),
-  useListErrorLogsPaginated: (args: { category?: string }) =>
-    trail(trails.errors, args),
+  useListAuditLogsPaginated: (args: TrailArgs) => trail('audit', args),
+  useListErrorLogsPaginated: (args: TrailArgs) => trail('errors', args),
   useActivitySummary: () => ({ data: undefined, isLoading: false }),
 }));
+/** Every organization one listing was read for; `undefined` is a skip. */
+const readsOf = (listing: Listing) =>
+  new Set(
+    trails.reads
+      .filter((read) => read.listing === listing)
+      .map((read) => read.organizationId),
+  );
 
 const LOG_ROW = {
   _id: 'log_1',
@@ -85,8 +126,13 @@ vi.mock('@/app/features/settings/audit-logs/hooks/integrity', () => ({
 
 // Page renders for a permitted admin: ability allows orgSettings, member is an
 // owner (so the export buttons mount, matching the E2E owner storageState).
+// `denied` flips the ability for a test that needs the refused page.
+const ability = vi.hoisted(() => ({ denied: false }));
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true, cannot: () => false }),
+  useAbility: () => ({
+    can: () => !ability.denied,
+    cannot: () => ability.denied,
+  }),
   useAbilityLoading: () => false,
 }));
 
@@ -107,6 +153,9 @@ afterEach(() => {
   trails.audit = [];
   trails.errors = [];
   trails.filtered = [];
+  trails.failed = false;
+  trails.reads = [];
+  ability.denied = false;
 });
 
 // The DataTable reads the org id from the router; outside a RouterProvider that
@@ -280,6 +329,12 @@ describe('AuditLogsPage', () => {
       expect(filterButton()).toBeEnabled();
     });
 
+    it('stays usable when the trail failed to load, since its rows are unknown', () => {
+      trails.failed = true;
+      renderPage();
+      expect(filterButton()).toBeEnabled();
+    });
+
     it('stays usable when the picked category narrows the trail to nothing', () => {
       trails.audit = [LOG_ROW];
       renderPage('security');
@@ -293,6 +348,33 @@ describe('AuditLogsPage', () => {
 
       await user.click(screen.getByRole('tab', { name: 'Error logs' }));
       expect(filterButton()).toBeDisabled();
+    });
+
+    // The page watches the listing its tab reads — the same query, one cache
+    // entry — and skips the one that is not on show, so no second trail is
+    // fetched for a filter that cannot use it.
+    it('reads only the trail on show', async () => {
+      const { user, rerender } = renderPage();
+      expect(readsOf('audit')).toEqual(new Set(['org-1']));
+      expect(readsOf('errors')).toEqual(new Set([undefined]));
+
+      await user.click(screen.getByRole('tab', { name: 'Error logs' }));
+      // The outgoing Audit panel renders once more on its way out, so judge
+      // the page by a render made once the switch has settled.
+      trails.reads = [];
+      rerender(<ControlledAuditLogsPage />);
+      expect(readsOf('errors')).toEqual(new Set(['org-1']));
+      expect(readsOf('audit')).toEqual(new Set([undefined]));
+    });
+
+    it('reads no trail on a page the member may not see', () => {
+      ability.denied = true;
+      renderPage();
+      expect(
+        screen.queryByRole('heading', { name: 'Logs' }),
+      ).not.toBeInTheDocument();
+      expect(readsOf('audit')).toEqual(new Set([undefined]));
+      expect(readsOf('errors')).toEqual(new Set([undefined]));
     });
   });
 });
