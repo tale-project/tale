@@ -951,16 +951,56 @@ async function stampExtractionMetadata(
 
 /**
  * The conversation an emailed attachment's corpus row is stamped with: the
- * one its file row is bound to, unless the file has been filed into a
- * document — then it indexes as that document, under the document's scope.
- * The indexer's rule; the backfill (`reconcileMailAttachmentStamps`) walks
- * exactly the rows it stamps.
+ * one its file row is bound to, unless the file indexes as a document —
+ * filed into one, or unbound while an active document holds its ref
+ * (`heldByActiveDocument`, read by `activeDocumentHoldingRef`) — then it
+ * indexes under that document's scope. The indexer's rule, and the one both
+ * walks of the stamp pass read (`readMailAttachments`), so the backfill
+ * walks exactly the rows it stamps.
  */
 export function emailedAttachmentConversation(file: {
   readonly documentId: string | null;
   readonly conversationId?: string | null;
+  readonly heldByActiveDocument?: boolean;
 }): string | null {
-  return file.documentId === null ? (file.conversationId ?? null) : null;
+  if (file.documentId !== null || file.heldByActiveDocument === true) {
+    return null;
+  }
+  return file.conversationId ?? null;
+}
+
+/** A document's scope as the indexer stamps it on the corpus row. */
+interface DocumentScopeRow {
+  teamId: string | null;
+  teamTags: string[];
+  projectId: string | null;
+  folderId: string | null;
+  folderPath: string | null;
+}
+
+/**
+ * The active document that holds this ref as its file, with its scope — the
+ * one an unbound file row holding the same ref indexes as: the corpus row is
+ * the ref's, and the document's scope is what the scope pass writes back on
+ * it every night (`reconcileDocumentScopeStamps`). The stamp pass's walks
+ * exclude an attachment on this same condition (`readMailAttachments`).
+ */
+async function activeDocumentHoldingRef(
+  sql: Sql,
+  organizationId: string,
+  ref: string,
+): Promise<DocumentScopeRow | null> {
+  const rows = await sql<DocumentScopeRow[]>`
+    SELECT d.team_id AS "teamId", d.team_tags AS "teamTags",
+           d.project_id AS "projectId", d.folder_id AS "folderId",
+           d.folder_path AS "folderPath"
+    FROM app.documents d
+    WHERE d.org_id = ${organizationId} AND d.file_ref = ${ref}
+      AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
+    ORDER BY d.id
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
 }
 
 /**
@@ -1083,43 +1123,53 @@ export async function indexUploadedFile(
     );
     const piiConfig = parsePiiConfig(piiPolicy);
 
-    // Scope stamp from the bound document (hub/team/project), and its folder
-    // — the corpus filters on both; a NULL folder stamp made every
-    // folder-scoped search miss the document it was filed in.
-    let teamIds: string[] | null = null;
-    let projectId: string | null = null;
-    let folderPath: string | null = null;
+    // Scope stamp from the document the file indexes as (hub/team/project),
+    // and its folder — the corpus filters on both; a NULL folder stamp made
+    // every folder-scoped search miss the document it was filed in. That is
+    // the document the file is bound to, or, for an unbound file, an active
+    // document that holds the same ref: the corpus row is the ref's, and a
+    // re-index under no scope would blank that document's stamps until the
+    // nightly scope pass wrote them back.
+    let doc: DocumentScopeRow | null = null;
+    let heldByActiveDocument = false;
     if (file.documentId !== null) {
-      const docRows = await sql<
-        {
-          teamId: string | null;
-          teamTags: string[];
-          projectId: string | null;
-          folderId: string | null;
-          folderPath: string | null;
-        }[]
-      >`
+      const docRows = await sql<DocumentScopeRow[]>`
         SELECT team_id AS "teamId", team_tags AS "teamTags",
                project_id AS "projectId", folder_id AS "folderId",
                folder_path AS "folderPath"
         FROM app.documents WHERE id = ${file.documentId} LIMIT 1
       `;
-      const doc = docRows[0];
-      if (doc) {
-        teamIds = doc.teamTags.length > 0 ? doc.teamTags : null;
-        projectId = doc.projectId;
-        folderPath = await resolveDocumentFolderPath(
-          sql,
-          file.organizationId,
-          doc,
-        );
-      }
+      doc = docRows[0] ?? null;
+    } else {
+      doc = await activeDocumentHoldingRef(
+        sql,
+        file.organizationId,
+        file.storageRef,
+      );
+      heldByActiveDocument = doc !== null;
+    }
+    let teamIds: string[] | null = null;
+    let projectId: string | null = null;
+    let folderPath: string | null = null;
+    if (doc !== null) {
+      teamIds = doc.teamTags.length > 0 ? doc.teamTags : null;
+      projectId = doc.projectId;
+      folderPath = await resolveDocumentFolderPath(
+        sql,
+        file.organizationId,
+        doc,
+      );
     }
     // An emailed attachment is stamped with the conversation it arrived on
     // (`emailedAttachmentConversation`): the corpus pre-filter then keeps it
     // out of every door that does not wrap mail, and the chat tools label
-    // and wrap it as mail. A file filed into a document is that document's.
-    const conversationId = emailedAttachmentConversation(file);
+    // and wrap it as mail. A file filed into a document is that document's,
+    // and so is one whose ref an active document holds.
+    const conversationId = emailedAttachmentConversation({
+      documentId: file.documentId,
+      conversationId: file.conversationId,
+      heldByActiveDocument,
+    });
 
     await writeRagStatus(sql, fileId, {
       ragStatus: 'running',
@@ -1826,10 +1876,11 @@ export interface MailAttachmentStampStats {
  * one release, not one a night.
  *
  * CLEAR — a stamp can outlive the attachment it was written for. A file
- * filed into a document indexes as that document, but a stamp that raced
- * the filing stays on the row, as does the stamp of any row that stops being
- * an attachment without a re-index, and the pre-filter keeps every stamped
- * row out of every document door: the document is hidden from all of them.
+ * filed into a document indexes as that document, as does one whose ref an
+ * active document holds, but a stamp that raced the filing stays on the row,
+ * as does the stamp of any row that stops being an attachment without a
+ * re-index, and the pre-filter keeps every stamped row out of every document
+ * door: the document is hidden from all of them.
  * So a second walk reads the corpus rows that carry a stamp — email bodies
  * aside: a `msg:` ref is decided by its inbound email — and hands each ref no
  * attachment row backs to `releaseUnbacked`. A ref nothing keeps in the

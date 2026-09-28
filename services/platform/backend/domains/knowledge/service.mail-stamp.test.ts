@@ -79,14 +79,38 @@ interface Query {
 
 const REF = 's3:org-1/mail/cv.txt';
 
-/** The app database: one file row, bound as the fixture says, alive. */
+/** An active document, as both the indexer and the stamp pass's walks read
+ * one: the rule that sends a ref such a document holds to the document. */
+const ACTIVE_DOCUMENT =
+  "(d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')";
+
+/** The indexer's read of an active document holding the file's ref. */
+const isHolderRead = (query: Query) =>
+  query.text.includes('d.team_tags AS "teamTags"');
+
+/** A document's scope, as the indexer reads it. */
+interface DocumentScope {
+  teamTags: string[];
+  projectId: string | null;
+  folderId: string | null;
+  folderPath: string | null;
+}
+
+/** The app database: one file row, bound as the fixture says, alive — and,
+ * when `heldBy` says so, an active document holding the file's ref. */
 function fakeSql(
   log: Query[],
   file: { documentId: string | null; conversationId: string | null },
+  heldBy?: DocumentScope,
 ): Sql {
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$');
     log.push({ text, values });
+    if (isHolderRead({ text, values })) {
+      return Promise.resolve(
+        heldBy === undefined ? [] : [{ teamId: null, ...heldBy }],
+      );
+    }
     if (text.includes('FROM app.file_metadata WHERE id')) {
       return Promise.resolve([
         {
@@ -167,6 +191,47 @@ describe('indexUploadedFile — the conversation stamp', () => {
     });
   });
 
+  it('indexes an attachment whose ref an active document holds as that document, under no conversation', async () => {
+    // The corpus row is the ref's: stamped with the conversation, it would
+    // hide the document from every document door until the nightly clear,
+    // and under no scope it would blank the document's until the scope pass.
+    const log: Query[] = [];
+    await indexUploadedFile(
+      fakeSql(
+        log,
+        { documentId: null, conversationId: 'conv-1' },
+        {
+          teamTags: ['team-h'],
+          projectId: 'project-1',
+          folderId: null,
+          folderPath: 'Contracts',
+        },
+      ),
+      'file-1',
+    );
+    expect(vi.mocked(indexWholeDocument).mock.calls[0]?.[0]).toMatchObject({
+      fileId: REF,
+      conversationId: null,
+      teamIds: ['team-h'],
+      projectId: 'project-1',
+      folderPath: 'Contracts',
+    });
+    // The walks' rule: an active document with the ref as its file.
+    const holder = log.find(isHolderRead);
+    expect(holder?.values).toEqual(['org-1', REF]);
+    expect(holder?.text).toContain('d.file_ref = $');
+    expect(holder?.text).toContain(ACTIVE_DOCUMENT);
+  });
+
+  it('asks for a holding document only for an unbound file', async () => {
+    const log: Query[] = [];
+    await indexUploadedFile(
+      fakeSql(log, { documentId: 'doc-1', conversationId: 'conv-1' }),
+      'file-1',
+    );
+    expect(log.filter(isHolderRead)).toEqual([]);
+  });
+
   it('stamps no conversation on an ordinary upload', async () => {
     const log: Query[] = [];
     await indexUploadedFile(
@@ -206,6 +271,23 @@ describe('emailedAttachmentConversation', () => {
       }),
     ).toBeNull();
     expect(emailedAttachmentConversation({ documentId: null })).toBeNull();
+  });
+
+  it('is no conversation for an unbound file whose ref an active document holds', () => {
+    expect(
+      emailedAttachmentConversation({
+        documentId: null,
+        conversationId: 'conv-1',
+        heldByActiveDocument: true,
+      }),
+    ).toBeNull();
+    expect(
+      emailedAttachmentConversation({
+        documentId: null,
+        conversationId: 'conv-1',
+        heldByActiveDocument: false,
+      }),
+    ).toBe('conv-1');
   });
 });
 
@@ -537,6 +619,8 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
     const read = log[0]?.text ?? '';
     expect(read).toContain('NOT EXISTS');
     expect(read).toContain('d.file_ref = fm.storage_ref');
+    // The indexer's own rule for such a ref (`activeDocumentHoldingRef`).
+    expect(read).toContain(ACTIVE_DOCUMENT);
   });
 
   it('releases the corpus copy of an attachment whose conversation is gone or spam, and stamps only the live', async () => {
