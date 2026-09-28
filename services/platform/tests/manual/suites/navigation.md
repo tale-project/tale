@@ -543,8 +543,8 @@ loaded, and reads **No teams** for an account in none.
 - [ ] `NAV-B14` · **Contact support goes to the operator's page** — Start
   the platform with
   `TALE_CONTACT_SUPPORT_URL=https://support.example.com/help?source=tale`
-  (mode A: prefix it to `bun scripts/dev.ts`; a deployment: its `.env`, then
-  recreate the `platform` service). In DevTools, block
+  (mode A already does; a deployment: its `.env`, then recreate the
+  `platform` service). In DevTools, block
   `GET /api/app/projects/overview` and open `/dashboard/{org}/projects` →
   After the retries the error state's **contact support** link
   (`common.errors.contactSupport`) points at

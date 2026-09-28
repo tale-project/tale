@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { createPlaywrightConfig, devices } from '@tale/e2e/config';
 
+import { E2E_CONTACT_SUPPORT_URL } from './tests/e2e/helpers/env';
+
 /**
  * Full-app E2E suite (issue #179). Runs the platform smoke flows — auth
  * (login/logout/password/2FA), onboarding, chat (+ threads/search/prompts),
@@ -148,6 +150,10 @@ export default createPlaywrightConfig({
         // local (non-CI) `bun test:e2e` that spawns the stack would otherwise
         // steal focus on every run. The READY banner still prints the URL.
         TALE_DEV_OPEN: '0',
+        // A non-default support page, so `navigation.spec.ts` can prove the
+        // error displays' contact-support link follows the operator's
+        // setting (env → window.__ENV__ → the app-root provider → the link).
+        TALE_CONTACT_SUPPORT_URL: E2E_CONTACT_SUPPORT_URL,
         // Deterministic 32-byte (hex) key so the hermetic stack can encrypt
         // secret-box values (project secrets, guardrails) — without it
         // `convex/lib/secret_box.ts` throws and secret-create flows fail. A
@@ -160,8 +166,9 @@ export default createPlaywrightConfig({
         // `tests/manual/setup.md` §1A's mode-A command block mirrors this exact
         // env set (TALE_CONFIG_DIR, TALE_CONFIG_BUILTIN_DIR, TALE_PROVIDER_KEY_
         // E2E_MOCK, TALE_ALLOW_PRIVATE_PROVIDER_HOSTS, TALE_MOCK_CONNECTORS_
-        // BASE) for AI/manual testers — when you change a value or add/remove a
-        // var here, update that doc in the same change (#2633 was a drift here).
+        // BASE, and TALE_CONTACT_SUPPORT_URL above) for AI/manual testers —
+        // when you change a value or add/remove a var here, update that doc in
+        // the same change (#2633 was a drift here).
         ...(useMockLlm
           ? {
               // Hermetic config dir: seeds every new org with the single E2E
