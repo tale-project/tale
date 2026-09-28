@@ -32,6 +32,8 @@ Wer das Thema fortsetzen möchte, beginnt einen eigenen Chat. Die Momentaufnahme
 
 Wähle **Privat lassen** im Freigabedialog oder **Teilen beenden** im Menü des Chats in der Liste von **Start**. Der Link ist danach nicht mehr verfügbar. Auch das Löschen des ursprünglichen Chats beendet seine Freigabe.
 
+Kann der Dialog den Freigabestatus nicht laden, ist keine der beiden Optionen ausgewählt, und ein Hinweis sagt, dass der Chat möglicherweise noch geteilt ist. Wähle **Erneut versuchen**. Sobald der Status angezeigt wird, kannst du **Privat lassen** wählen. Ein bestehender Link funktioniert bis dahin weiter.
+
 Nach dem Beenden lässt sich der Chat über diesen Link nicht mehr öffnen. Bereits kopierten Text kannst du damit nicht zurückholen. Prüfe den Inhalt deshalb vor der ersten Freigabe.
 
 ## Stattdessen mit einem Projekt teilen
