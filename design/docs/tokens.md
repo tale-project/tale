@@ -48,9 +48,9 @@ Anchor values (light → dark, read `globals.css` for the rest): `bg-base` `#fff
 `--destructive` is red-700 in light (`#B91C1C`, the intent's `error.700` and `feedback.error.text`)
 since #3689: the one token colours error text, invalid borders and destructive fills alike, so it must
 clear 4.5:1 on every light surface error copy sits on: the page, cards and muted forms. Red-500
-(`#EF4444`) fails even on the page (3.76:1) and under white button text (3.60:1). Red-600 (`#DC2626`)
-passes on the page (4.83:1) but not on a muted form (4.40:1 on `--muted`). Red-700 holds 5.8:1 or
-more on all three. Dark keeps its lighter red.
+(`#EF4444`) fails even on the page (3.67:1) and under the button's near-white text (3.60:1). Red-600
+(`#DC2626`) passes on the page (4.71:1) but not on a muted form (4.39:1 on `--muted`). Red-700 holds
+5.8:1 or more on all three. Dark keeps its lighter red.
 
 Only `feedback.error.text` in the intent matches it. Until the design sources follow, these still read
 lighter than what ships: `text.error` and `border.error` (red-600), `button.danger.bg` (red-500) and
