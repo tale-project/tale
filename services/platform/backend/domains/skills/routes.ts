@@ -160,6 +160,7 @@ export function createSkillRoutes(deps: {
           viewer: who.viewer,
           storageId: body.data.storageId,
           ...(body.data.force !== undefined ? { force: body.data.force } : {}),
+          assertTeamsAssignable: who.assertTeamsAssignable,
         }),
       );
     } catch (error) {

@@ -23,13 +23,19 @@ import type { StoreAdapter } from '../../../lib/engine/core/slots';
 import { validate } from '../../../lib/engine/core/validate';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { readOrgSkill } from '../../../lib/skills/listing';
+import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing';
+import { parseSkillMd } from '../../../lib/skills/parse';
 import {
   canEditSkill,
   type UserSkillViewer,
 } from '../../../lib/skills/visibility';
 import { isRecord } from '../../../lib/utils/type-utils';
 import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
+import type { ParsedBundle } from '../skills/bundle_zip';
+import {
+  normalizedBundleFiles,
+  prepareBundleWrite,
+} from '../skills/file_actions';
 import {
   createOrgSkillReader,
   listSkillSlugs,
@@ -101,6 +107,10 @@ export interface UploadHost {
     teamIds: string[];
     isOrgAdmin: boolean;
   } | null>;
+  /** The audience rule for a carried team skill's `teams` — the
+   * organization's own teams, and for a non-admin only their own; throws the
+   * refusal the door answers. */
+  assertTeamsAssignable(teamIds: string[]): Promise<void>;
   /** The organization's store, for validation: subautomation references
    * resolve against it and `llm`/`agent` models are checked against what
    * the organization serves. Absent on a bare harness. */
@@ -240,12 +250,45 @@ function bundlesEqual(
   return true;
 }
 
+/** A carried skill as the parsed bundle the skill write rules read. */
+function carriedAsBundle(skill: CarriedSkill): ParsedBundle {
+  const { meta, body } = parseSkillMd(
+    skill.skillMdText,
+    `skills/${skill.slug}/SKILL.md`,
+  );
+  const files = skill.files.map((file) => ({
+    relPath: file.path,
+    content: Buffer.from(file.content),
+  }));
+  return {
+    slug: skill.slug,
+    meta,
+    body,
+    files,
+    totalBytes: files.reduce((sum, file) => sum + file.content.length, 0),
+  };
+}
+
+/** One carried skill's decision and the files it is written as. */
+interface SkillWrite {
+  skill: CarriedSkill;
+  parsed: ParsedBundle;
+  action: SkillReport['action'];
+  /** The bundle after the owner, private and audience rules. */
+  files: Array<{ path: string; content: Buffer }>;
+  /** The skill it replaces, for the audience rule's "changed teams". */
+  existing: OrgSkill | null;
+}
+
 /**
  * Decide what happens to each carried skill: `created` for a new slug,
- * `unchanged` for a byte-identical bundle, `replaced` when the caller
- * confirmed the slug. A differing bundle the caller may not edit refuses
- * outright; differing bundles not yet confirmed are collected for the
- * `needs_confirm` round-trip.
+ * `unchanged` for a bundle that already reads exactly as it would be
+ * written, `replaced` when the caller confirmed the slug. A carried skill is
+ * judged as the skill write rules would write it — the owner the library
+ * keeps (never the one a package declares), the private-retired rule — so
+ * an unchanged re-upload stays `unchanged`. A differing bundle the caller may
+ * not edit refuses outright; differing bundles not yet confirmed are
+ * collected for the `needs_confirm` round-trip.
  */
 async function planSkillWrites(
   orgSlug: string,
@@ -253,32 +296,30 @@ async function planSkillWrites(
   viewer: UserSkillViewer,
   overwriteSkills: readonly string[],
 ): Promise<
-  | {
-      kind: 'ok';
-      plan: { skill: CarriedSkill; action: SkillReport['action'] }[];
-    }
+  | { kind: 'ok'; plan: SkillWrite[] }
   | { kind: 'needs_confirm'; slugs: string[] }
 > {
   const overwrite = new Set(overwriteSkills);
-  const plan: { skill: CarriedSkill; action: SkillReport['action'] }[] = [];
+  const plan: SkillWrite[] = [];
   const unconfirmed: string[] = [];
   const forbidden: string[] = [];
   for (const skill of carried) {
-    const existing = await readSkillBundleFiles(orgSlug, skill.slug);
-    if (existing === null) {
-      plan.push({ skill, action: 'created' });
+    const parsed = carriedAsBundle(skill);
+    const stored = await readSkillBundleFiles(orgSlug, skill.slug);
+    if (stored === null) {
+      plan.push({
+        skill,
+        parsed,
+        action: 'created',
+        files: normalizedBundleFiles(parsed, viewer, null),
+        existing: null,
+      });
       continue;
     }
-    if (bundlesEqual(existing, skill.files)) {
-      plan.push({ skill, action: 'unchanged' });
-      continue;
-    }
+    let current: OrgSkill | null = null;
     let editable: boolean;
     try {
-      const current = await readOrgSkill(
-        createOrgSkillReader(orgSlug),
-        skill.slug,
-      );
+      current = await readOrgSkill(createOrgSkillReader(orgSlug), skill.slug);
       editable =
         current === null
           ? viewer.isOrgAdmin
@@ -291,6 +332,17 @@ async function planSkillWrites(
       );
       editable = viewer.isOrgAdmin;
     }
+    const files = normalizedBundleFiles(parsed, viewer, current);
+    if (bundlesEqual(stored, files)) {
+      plan.push({
+        skill,
+        parsed,
+        action: 'unchanged',
+        files,
+        existing: current,
+      });
+      continue;
+    }
     if (!editable) {
       forbidden.push(skill.slug);
       continue;
@@ -299,7 +351,7 @@ async function planSkillWrites(
       unconfirmed.push(skill.slug);
       continue;
     }
-    plan.push({ skill, action: 'replaced' });
+    plan.push({ skill, parsed, action: 'replaced', files, existing: current });
   }
   if (forbidden.length > 0) {
     refuse(
@@ -472,6 +524,18 @@ export async function uploadAutomationImpl(
       };
     }
 
+    // The team-audience rule for every skill about to be written, before
+    // any is: a refused team leaves the organization's skills untouched.
+    for (const entry of outcome.plan) {
+      if (entry.action === 'unchanged') continue;
+      await prepareBundleWrite({
+        parsed: entry.parsed,
+        uploader: viewer,
+        existing: entry.existing,
+        assertTeamsAssignable: (teamIds) => host.assertTeamsAssignable(teamIds),
+      });
+    }
+
     // Skills first: they are org config with their own history trail, and a
     // save refusal after them leaves nothing broken — re-uploading reports
     // them `unchanged`.
@@ -481,10 +545,7 @@ export async function uploadAutomationImpl(
         await writeSkillBundleFiles(
           host.orgSlug,
           entry.skill.slug,
-          entry.skill.files.map((file) => ({
-            path: file.path,
-            content: Buffer.from(file.content),
-          })),
+          entry.files,
         );
       } catch (error) {
         refuse(
