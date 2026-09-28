@@ -372,18 +372,13 @@ projects-list row ⋯ menu.
   agent no longer exists…** (`tasks.agentRun.agentMissing`); assigning a
   person or another agent brings the verbs back.
 - [ ] `PROJ-F35` · **New agents start with the document skills** — Agents tab
-  with all four document skills available → **New agent** → open **Skills, connectors & tools**
-  (`projects.agents.equipmentLabel`) → `docx`, `pptx`, `xlsx` and `pdf` are
-  already ticked and no other skill, connector or tool is; untick `pdf`,
-  refresh the catalog, then create the agent → its row counts three skills.
-  Editing an existing agent leaves its equipment exactly as saved. Cancel
-  and reopen creation → available document defaults return. On a project
-  missing a document skill, that skill is absent; a successfully loaded empty
-  catalog followed by a refresh does not add defaults to the open form.
-  Delay the first catalog response → defaults arrive once and preserve a
-  tool selected while waiting. Navigate to another project or organization
-  with creation or editing open → the old form closes; a fresh form uses
-  the destination project's catalog.
+  with all four document skills available → **New agent** → open **Skills,
+  connectors & tools** (`projects.agents.equipmentLabel`) → `docx`, `pptx`,
+  `xlsx` and `pdf` are already ticked and no other skill, connector or tool
+  is; untick `pdf`, fill the required fields and create the agent → its row
+  counts three skills, and reopening it shows `pdf` unticked. Editing an
+  existing agent leaves its equipment exactly as saved. (The catalog
+  lifecycle cases are automated: see `reference/automation.md`.)
 
 ## Boundary & error tests
 
