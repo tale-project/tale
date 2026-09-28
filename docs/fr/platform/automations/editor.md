@@ -17,9 +17,9 @@ Le sélecteur **Version** reste à droite des onglets Éditeur, Général et Ex�
 
 Sur téléphone, la navigation est compacte à l’ouverture d’une automatisation. Le canevas de l’éditeur occupe la hauteur disponible. Les commandes d’exécution et de mise en service se trouvent dans le canevas, à côté du zoom. Sélectionne un nœud pour ouvrir ses champs — avec Enregistrer et Abandonner — dans un panneau au bas de l’écran.
 
-<Frame caption="Sélectionne un nœud pour examiner ses champs. Les commandes à côté des onglets permettent de tester, d’enregistrer et de mettre en service.">
+<Frame caption="Sur un écran large, sélectionne un nœud pour examiner ses champs à côté du canvas.">
 
-![L’éditeur montre les nœuds connectés, les réglages du nœud sélectionné les onglets Éditeur, Versions et Exécutions, ainsi que les commandes de version et d’exécution.](/images/platform/automation-editor-canvas.webp)
+![L’éditeur montre les nœuds connectés et les champs du nœud sélectionné à côté du canvas.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
@@ -33,9 +33,9 @@ Les badges indiquent les conditions et boucles : `when`, `else of`, `for each`,
 
 ## Modifier un nœud
 
-Sélectionne un bloc pour ouvrir ses champs dans un panneau à côté du canvas. D’ici là, le canvas occupe toute la largeur. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais la validation avertit qu’une exécution en direct échouerait à ce nœud tant que son fournisseur n’est pas connecté. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
+Sélectionne un bloc pour ouvrir ses champs. Sur un écran large, le panneau apparaît à côté du canvas ; sans nœud sélectionné, le canvas occupe toute la largeur. Sur un écran plus étroit, les champs s’ouvrent dans un dialogue au-dessus du canvas. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais la validation avertit qu’une exécution en direct échouerait à ce nœud tant que son fournisseur n’est pas connecté. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
 
-Ouvre **Contrôle du flux** pour les conditions et répétitions. Si le nœud en a, la section est déjà ouverte. Clique sur le fond du canvas, sur **Fermer** ou appuie sur Échap hors d’un champ de texte pour refermer les champs du nœud. Les réglages du déclencheur et des projets se trouvent dans l’onglet **Général**. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
+Ouvre **Contrôle du flux** pour les conditions et répétitions. Si le nœud en a, la section est déjà ouverte. Utilise **Fermer** pour revenir au canvas. Sur un écran large, tu peux aussi fermer le panneau en cliquant sur le fond du canvas ou en appuyant sur Échap hors d’un champ de texte. Les réglages du déclencheur et des projets se trouvent dans l’onglet **Général**. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
 
 ## Enregistrer et tester une version
 

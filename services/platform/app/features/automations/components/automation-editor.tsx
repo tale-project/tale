@@ -178,7 +178,8 @@ export function AutomationEditor(props: AutomationEditorProps) {
 /**
  * The Editor tab: one automation's document on the canvas beside its node
  * inspector. The automation's own settings (trigger, project bindings) are
- * the General tab; the version history and the run log are their own tabs.
+ * the General tab; version history opens from the tab strip and the run log
+ * has its own tab.
  *
  * The canvas always shows a stored VERSION — versions are immutable, so what
  * is drawn is exactly what was saved and exactly what a run of that version
@@ -888,7 +889,10 @@ function AutomationEditorScope({
             if (!open) deselectNode();
           }}
         >
-          <ResponsiveDialogContent className="flex max-h-[85dvh] flex-col">
+          <ResponsiveDialogContent
+            hideClose
+            className="flex max-h-[85dvh] flex-col"
+          >
             {selectedNode !== null && (
               <>
                 <ResponsiveDialogTitle className="sr-only">

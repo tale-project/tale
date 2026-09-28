@@ -204,8 +204,8 @@ function AutomationDetailFrame({
         }
       >
         {/* Fill the layout's content height so the Editor tab's workbench can
-          take the room the strip leaves; auto-height tabs (the Versions and
-          Runs lists) size to content and top-align as before. */}
+          take the room the strip leaves; the Runs list sizes to content and
+          top-aligns as before. */}
         <Skeletonize
           loading={automationQuery.isPending}
           label={t('title')}

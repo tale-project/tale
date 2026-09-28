@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
+import { i18n } from '@/lib/i18n/i18n';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import { automationEditorSearchSchema } from '../lib/editor-search';
@@ -296,6 +297,40 @@ async function expectWholeCanvas() {
 }
 
 describe('automation editor workbench in Chromium', () => {
+  it.each([
+    ['en', 'Close'],
+    ['de', 'Schließen'],
+    ['fr', 'Fermer'],
+  ])(
+    'keeps one localized node close action on tablets in %s',
+    async (locale, closeLabel) => {
+      await page.viewport(900, 800);
+      const previousLanguage = i18n.language;
+      const previousLocale = localStorage.getItem('user-locale');
+      localStorage.setItem('user-locale', locale);
+      await i18n.changeLanguage(locale);
+      try {
+        renderEditorTab();
+        await userEvent.click(
+          await screen.findByRole('button', { name: /^pulls/i }),
+        );
+        const sheet = await screen.findByRole('dialog', { name: 'pulls' });
+        const closeActions = within(sheet).getAllByRole('button', {
+          name: /^(Close|Schließen|Fermer)$/,
+        });
+        expect(closeActions).toHaveLength(1);
+        expect(closeActions[0]).toHaveAccessibleName(closeLabel);
+        await userEvent.click(closeActions[0]!);
+        await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      } finally {
+        cleanup();
+        if (previousLocale === null) localStorage.removeItem('user-locale');
+        else localStorage.setItem('user-locale', previousLocale);
+        await i18n.changeLanguage(previousLanguage);
+      }
+    },
+  );
+
   it.each([320, 390, 1280])(
     'keeps detailed version history in the tab strip at %ipx',
     async (width) => {

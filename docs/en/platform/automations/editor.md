@@ -17,9 +17,9 @@ The **Version** selector stays at the right of the Editor, General and Runs tabs
 
 On a phone, opening an automation starts with compact navigation. The editor canvas fills the available height, and its run and deploy controls sit inside the canvas beside the zoom controls. Selecting a node opens its fields — and Save and Discard — in a panel at the bottom of the screen.
 
-<Frame caption="Select a node to inspect its fields. The actions beside the tabs control testing, saving, and deployment.">
+<Frame caption="On a wide screen, select a node to inspect its fields beside the canvas.">
 
-![The workflow editor shows connected nodes, the selected node’s settings, the Editor, Versions and Runs tabs, and version and run controls.](/images/platform/automation-editor-canvas.webp)
+![The workflow editor shows connected nodes and the selected node’s fields beside the canvas.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
@@ -33,9 +33,9 @@ Badges show conditions and loops: `when`, `else of`, `for each`, `repeat until`,
 
 ## Edit a node
 
-Select a box to open its fields in a panel beside the canvas; until you do, the canvas takes the full width. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has harness and equipment. The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but validation warns that a live run would fail at that node until its provider is connected. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
+Select a box to open its fields. On a wide screen, the panel opens beside the canvas; until you select a node, the canvas takes the full width. On narrower screens, the fields open in a dialog over the canvas. A `transform` has **Code**; an `llm` has prompt, model, and output-schema fields; an `agent` also has harness and equipment. The **Model** picker of an `llm` or `agent` node lists the models your organization’s connected providers serve; a model that is not listed can still be typed, but validation warns that a live run would fail at that node until its provider is connected. **Input** contains JSON values and references passed to the node. Incomplete JSON is reported and does not update the node.
 
-Open **Control flow** for conditions and iteration; it is already open on a node that has one. Click the empty canvas, **Close**, or press Escape outside a text field to close the node's fields. The automation's trigger and project settings are on the **General** tab. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
+Open **Control flow** for conditions and iteration; it is already open on a node that has one. Use **Close** to return to the canvas. On a wide screen, clicking the empty canvas or pressing Escape outside a text field also closes the panel. The automation's trigger and project settings are on the **General** tab. [Automation concepts](/platform/automations/concepts) explains the node types and expression rules.
 
 ## Save and test a version
 

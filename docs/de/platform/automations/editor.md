@@ -15,11 +15,11 @@ Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die 
 
 Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs Editor, Allgemein und Läufe. Sie zeigt Versionsnachrichten, Datum, Testergebnisse und die Live-Markierung. Wähle eine Zeile, um diese Version zu öffnen. Am Desktop stehen die Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
 
-Auf dem Smartphone startet eine geöffnete Automation mit kompakter Navigation. Die Arbeitsfläche des Editors nutzt die verfügbare Höhe. Lauf- und Bereitstellungsaktionen befinden sich innerhalb der Arbeitsfläche neben den Zoom-Steuerelementen. Wenn du einen Knoten auswählst, öffnen sich seine Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
+Auf dem Smartphone startet eine geöffnete Automatisierung mit kompakter Navigation. Die Arbeitsfläche des Editors nutzt die verfügbare Höhe. Lauf- und Bereitstellungsaktionen befinden sich innerhalb der Arbeitsfläche neben den Zoom-Steuerelementen. Wenn du einen Knoten auswählst, öffnen sich seine Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
 
-<Frame caption="Wähle einen Knoten, um seine Felder zu prüfen. Neben den Tabs stehen die Aktionen für Test, Speichern und Bereitstellung.">
+<Frame caption="Wähle auf einem breiten Bildschirm einen Knoten, um seine Felder neben dem Canvas zu prüfen.">
 
-![Der Workflow-Editor zeigt verbundene Knoten, die Einstellungen eines ausgewählten Knotens die Tabs Editor, Versionen und Läufe sowie die Versions- und Laufaktionen.](/images/platform/automation-editor-canvas.webp)
+![Der Workflow-Editor zeigt verbundene Knoten und die Felder des ausgewählten Knotens neben dem Canvas.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
@@ -33,9 +33,9 @@ Kennzeichnungen zeigen Bedingungen und Schleifen wie `when`, `else of`, `for eac
 
 ## Einen Knoten bearbeiten
 
-Wähle einen Kasten, um seine Felder in einem Bereich neben dem Canvas zu öffnen. Bis dahin nutzt der Canvas die ganze Breite. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Harness und Ausstattung. Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch die Validierung warnt, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
+Wähle einen Kasten, um seine Felder zu öffnen. Auf einem breiten Bildschirm erscheint der Bereich neben dem Canvas; ohne ausgewählten Knoten nutzt der Canvas die ganze Breite. Auf schmaleren Bildschirmen öffnen sich die Felder in einem Dialog über dem Canvas. Ein `transform` hat **Code**, ein `llm` Felder für Prompt, Modell und Ausgabeschema. Ein `agent` ergänzt Harness und Ausstattung. Die **Modell**-Auswahl einer `llm`- oder `agent`-Node listet die Modelle, die die verbundenen Anbieter deiner Organisation bedienen; ein nicht aufgeführtes Modell lässt sich eingeben, doch die Validierung warnt, dass ein Live-Lauf an dieser Node fehlschlägt, bis sein Anbieter verbunden ist. **Eingabe** enthält JSON-Werte und Referenzen für diesen Knoten. Unvollständiges JSON wird gemeldet und ändert den Knoten nicht.
 
-Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Hat der Knoten welche, ist der Abschnitt schon offen. Klicke auf den leeren Canvas, auf **Schließen** oder drücke Escape außerhalb eines Textfelds, um die Felder des Knotens zu schließen. Trigger und Projekteinstellungen der Automatisierung findest du im Tab **Allgemein**. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
+Öffne **Ablaufsteuerung** für Bedingungen und Wiederholungen. Hat der Knoten welche, ist der Abschnitt schon offen. Mit **Schließen** kehrst du zum Canvas zurück. Auf einem breiten Bildschirm schließt sich der Bereich auch, wenn du auf den leeren Canvas klickst oder Escape außerhalb eines Textfelds drückst. Trigger und Projekteinstellungen der Automatisierung findest du im Tab **Allgemein**. [Automatisierungsgrundlagen](/de/platform/automations/concepts) erklärt Knotentypen und Ausdrücke.
 
 ## Eine Version speichern und testen
 
