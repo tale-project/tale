@@ -429,7 +429,7 @@ export function GoogleDriveImportDialog({
                   <button
                     type="button"
                     onClick={() => handleBreadcrumbClick(index)}
-                    className="hover:text-blue-600 hover:underline"
+                    className="hover:text-primary hover:underline"
                   >
                     {index === 0 ? <Home className="size-4" /> : folder.name}
                   </button>

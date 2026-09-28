@@ -45,7 +45,7 @@ export function SharePointSitesTable({
                 <SharePointIcon className="size-5" />
               </Row>
               <div className="min-w-0 flex-1">
-                <div className="text-foreground cursor-pointer truncate font-medium hover:text-blue-600">
+                <div className="text-foreground hover:text-primary cursor-pointer truncate font-medium hover:underline">
                   {site.displayName}
                 </div>
                 {site.description && (

@@ -101,7 +101,7 @@ export function OneDriveFileTable({
                   <button
                     type="button"
                     title={item.name}
-                    className="text-foreground min-w-0 flex-1 cursor-pointer truncate text-left text-base font-medium hover:text-blue-600"
+                    className="text-foreground hover:text-primary min-w-0 flex-1 cursor-pointer truncate text-left text-base font-medium hover:underline"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleFolderClick(item);
