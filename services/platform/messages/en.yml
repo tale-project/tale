@@ -7893,7 +7893,7 @@ sandboxes:
     organizationSessionsHint: Currently running or starting, including idle sandboxes kept for reuse.
     cpu: Host CPU usage
     cpuUsage: '{used} / {total} cores'
-    cpuHint: Measured across all host workloads; an initial sample may be unavailable.
+    cpuHint: Measured across all host workloads.
     memory: Host memory usage
     memoryUsage: '{used} / {total} GiB'
     memoryHint: Used memory and total memory across the host, including other services.

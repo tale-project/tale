@@ -47,7 +47,7 @@ Lowering a limit affects future admissions; it does not interrupt active work. I
 | **Host CPU usage** | Recently used and total CPU cores for the host, including its other services. |
 | **Host memory usage** | Used and total host memory, including other services and allowing for reclaimable cache. |
 
-Measurements refresh every 15 seconds; **Refresh** requests a new observation. Check its timestamp before interpreting it. CPU usage needs two samples, and a first observation after a long gap can be unavailable. Remote hosts may expose totals without usage. Kubernetes namespace access does not expose host measurements. **Unavailable** means unknown, not zero.
+Measurements refresh every 15 seconds; **Refresh** requests a new observation. Check its timestamp before interpreting it. CPU usage is the change between two samples; a first observation after a long gap takes about a second longer. Remote hosts may expose totals without usage. Kubernetes namespace access does not expose host measurements. **Unavailable** means unknown, not zero.
 
 ## Explain an allocated or idle workspace
 
