@@ -137,10 +137,23 @@ export interface ConversationsContract {
     };
     returns: string;
   };
+  /**
+   * Cancel a queued send and hand its draft back: the markdown and the files
+   * it carried, as refs already in storage. `attachments` is absent from a
+   * server that predates it (mid-roll), so read it as "no files".
+   */
   'conversations/mutations:undoSendMessage': {
     kind: 'mutation';
     args: { messageId: string };
-    returns: { sourceMarkdown: null | string };
+    returns: {
+      sourceMarkdown: null | string;
+      attachments?: Array<{
+        storageId: string;
+        fileName: string;
+        size: number;
+        contentType: string;
+      }>;
+    };
   };
   'conversations/queries:approxCountConversationsByStatus': {
     kind: 'query';
