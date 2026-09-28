@@ -255,9 +255,14 @@ const DictationButtonComponent = forwardRef<
           aria-label={label}
           aria-busy={isTranscribing}
           aria-pressed={isListening}
+          // The inset ring is drawn on the button. Idle (ghost) that is the
+          // page, where `--ring` reads; listening it is the red fill, where
+          // `--ring` (the accent's text shade) vanishes for a red-family
+          // brand, so the ring takes the fill's ink like the primary variant.
           className={cn(
             'focus-visible:ring-ring relative rounded-full focus-visible:ring-2 focus-visible:ring-inset',
-            isListening && 'gap-2 px-3',
+            isListening &&
+              'focus-visible:ring-destructive-foreground gap-2 px-3',
           )}
         >
           {isTranscribing ? (
