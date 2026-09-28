@@ -184,19 +184,28 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
     // An attachment deleted while its best-effort blob delete failed, or a
     // release job out of retries: nothing references the ref any more, and
     // once its corpus row goes, nothing would reach the bytes again — the
-    // blob walk lists corpus refs only.
-    const { sql, statements } = fakeSql([{ id: 'org-1', slug: 'acme' }]);
+    // blob walk lists corpus refs only. Beside it, a ref a document still
+    // holds (the pass only takes its stamp off): the release decides each
+    // ref apart, so one call tells the two releases apart.
+    const { sql, statements } = fakeSql([{ id: 'org-1', slug: 'acme' }], {
+      's3:org-1/mail/filed.pdf': { corpusLive: true, blobLive: true },
+    });
     const { releaseCorpus, releaseUnbacked } = await wiredReleases(sql);
-    const outcome = await releaseUnbacked(['s3:org-1/mail/orphan.pdf']);
+    const outcome = await releaseUnbacked([
+      's3:org-1/mail/orphan.pdf',
+      's3:org-1/mail/filed.pdf',
+    ]);
     expect(outcome).toEqual({
       released: ['s3:org-1/mail/orphan.pdf'],
-      kept: [],
+      kept: ['s3:org-1/mail/filed.pdf'],
       failures: [],
     });
+    expect(deleteKnowledgeDocumentsBatch).toHaveBeenCalledTimes(1);
     expect(deleteKnowledgeDocumentsBatch).toHaveBeenCalledWith({
       orgSlug: 'acme',
       fileIds: ['s3:org-1/mail/orphan.pdf'],
     });
+    expect(deleteOrgObject).toHaveBeenCalledTimes(1);
     expect(deleteOrgObject).toHaveBeenCalledWith(
       'acme',
       'org-1/mail/orphan.pdf',
@@ -211,27 +220,6 @@ describe('runCorpusReconcile — the emailed attachments pass', () => {
     // keeps its bytes: its refs always have a live file row.
     await releaseCorpus(['s3:org-1/mail/cv.pdf']);
     expect(deleteOrgObject).toHaveBeenCalledTimes(1);
-  });
-
-  it('hands the stamp pass a ref something still keeps, its corpus rows and bytes untouched', async () => {
-    // Held by a document: the pass takes the stamp off, and that is all.
-    const { sql, statements } = fakeSql([{ id: 'org-1', slug: 'acme' }], {
-      's3:org-1/mail/filed.pdf': { corpusLive: true, blobLive: true },
-    });
-    const { releaseUnbacked } = await wiredReleases(sql);
-    const outcome = await releaseUnbacked(['s3:org-1/mail/filed.pdf']);
-    expect(outcome).toEqual({
-      released: [],
-      kept: ['s3:org-1/mail/filed.pdf'],
-      failures: [],
-    });
-    expect(deleteKnowledgeDocumentsBatch).not.toHaveBeenCalled();
-    expect(deleteOrgObject).not.toHaveBeenCalled();
-    expect(
-      statements.filter((text) =>
-        text.includes('DELETE FROM app.file_metadata'),
-      ),
-    ).toEqual([]);
   });
 
   it('logs each failed release of either walk', async () => {
