@@ -203,7 +203,7 @@ test.skipIf(process.platform === 'win32')(
     );
     expect(result.stdout).toContain('Manage Actions access');
     expect(result.summary).toContain(
-      'package tale-convex does not exist; nothing to clean',
+      'package tale-convex was not found or is not visible to this token; no versions cleaned',
     );
   },
 );

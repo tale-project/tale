@@ -90,7 +90,7 @@ jobs:
               {
                 echo "## Cleanup tale-${SVC}"
                 echo ""
-                echo "package tale-${SVC} does not exist; nothing to clean"
+                echo "package tale-${SVC} was not found or is not visible to this token; no versions cleaned"
               } >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
