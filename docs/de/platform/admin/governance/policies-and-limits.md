@@ -14,7 +14,7 @@ Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Richtli
 ## Ein Ausgabenbudget hinzufügen
 
 1. Wähle unter **Budgetregeln** die Aktion **Regel hinzufügen**.
-2. Wähle Bereich und Ziel. Nutze eine Rolle für eine Gruppe wie Redakteure, ein Team für gemeinsame Arbeit, eine Person für ein individuelles Limit, einen API-Schlüssel für einzelne Zugangsdaten oder die Organisation für eine gemeinsame Obergrenze. Die Liste der API-Schlüssel enthält jeden Schlüssel eines Mitglieds der Organisation mit dem Namen seiner Inhaberin oder seines Inhabers. So begrenzt du das Skript oder Coding-Tool einer einzelnen Person.
+2. Wähle Bereich und Ziel. Nutze eine Rolle für eine Gruppe wie Redakteure, ein Team für gemeinsame Arbeit, eine Person für ein individuelles Limit, einen API-Schlüssel für einzelne Zugangsdaten oder die Organisation für eine gemeinsame Obergrenze. Die Liste der API-Schlüssel enthält jeden aktiven Schlüssel eines Mitglieds der Organisation mit dem Namen seiner Inhaberin oder seines Inhabers. So begrenzt du das Skript oder Coding-Tool einer einzelnen Person.
 3. Wähle einen täglichen, wöchentlichen oder monatlichen Zeitraum. Setze mindestens ein positives Token-, Kosten- oder Anfragelimit. Kosten gibst du in USD an; ein leeres Feld begrenzt diese Größe durch die Regel nicht.
 4. Setze bei Bedarf **Warnschwelle (%)** zwischen 0 und 100, um vor Erreichen des Limits zu warnen.
 5. Wähle **Bestätigen**, speichere die ausstehenden Seitenänderungen und prüfe Bereich, Ziel, Zeitraum und Limits der gespeicherten Regel.

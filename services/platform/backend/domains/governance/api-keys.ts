@@ -2,12 +2,12 @@ import type { Sql } from 'postgres';
 
 /**
  * The API keys the budget editor can cap: every key held by a member of this
- * organization, masked. A key belongs to a person and works in each
- * organization they are a member of, so an admin sees the keys of this
- * organization's members only — never a non-member's — and a cap applies to
- * the key's spend in this organization. The secret never leaves the auth
- * store; the key's visible `start` is what the person saw when they created
- * it.
+ * organization that can still spend (neither disabled nor expired), masked.
+ * A key belongs to a person and works in each organization they are a member
+ * of, so an admin sees the keys of this organization's members only — never
+ * a non-member's — and a cap applies to the key's spend in this organization.
+ * The secret never leaves the auth store; the key's visible `start` is what
+ * the person saw when they created it.
  */
 export interface OrgApiKey {
   id: string;
@@ -48,9 +48,17 @@ export async function listOrgApiKeys(
       ON m."userId" = k."referenceId" AND m."organizationId" = ${organizationId}
     JOIN "user" u ON u."id" = k."referenceId"
     WHERE k."enabled" IS NOT FALSE
+      AND (k."expiresAt" IS NULL OR k."expiresAt" > now())
     ORDER BY u."name" NULLS LAST, k."createdAt"
     LIMIT ${ORG_API_KEY_LIMIT}
   `;
+  if (rows.length >= ORG_API_KEY_LIMIT) {
+    // A key past the bound is missing from the picker, and a rule on it shows
+    // its raw id in the Target cell: say so where an operator can see it.
+    console.warn(
+      `[governance/api-keys] organization ${organizationId} holds ${ORG_API_KEY_LIMIT} or more live keys; the budget picker lists the first ${ORG_API_KEY_LIMIT}`,
+    );
+  }
   return rows.map((row) => ({
     id: row.id,
     name: row.name,

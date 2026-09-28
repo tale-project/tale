@@ -501,11 +501,11 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy();
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
-  // API keys the current admin can attach a budget to (their own keys, the
-  // reuse-first source). A rule stores the raw `apiKeyId`, so a key that isn't
-  // in this list still shows its id in the table via the fallback below.
-  // Every member's key, not only the admin's own: a per-key cap is how an
-  // admin bounds one person's script or coding tool.
+  // The API keys an admin can attach a budget to: every member's live key,
+  // not only the admin's own — a per-key cap is how an admin bounds one
+  // person's script or coding tool. A rule stores the raw `apiKeyId`, so a key
+  // that isn't in this list (revoked, expired, or its holder left) still shows
+  // its id in the table via the fallback below.
   const { data: apiKeys } = useBackendQuery(
     'governance/api_keys:listOrgApiKeys',
     { organizationId },

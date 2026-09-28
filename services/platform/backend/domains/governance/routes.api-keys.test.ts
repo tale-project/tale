@@ -61,42 +61,70 @@ const KEY_ROW = {
   expiresAt: null,
 };
 
+const EXPIRING_ROW = {
+  id: 'key-2',
+  name: null,
+  start: 'tale_Cd',
+  userId: 'u-ben',
+  ownerName: null,
+  ownerEmail: 'ben@example.test',
+  createdAt: new Date('2026-09-02T00:00:00Z'),
+  expiresAt: new Date('2027-01-01T00:00:00Z'),
+};
+
 beforeEach(() => {
   caller.role = 'admin';
 });
 
 describe('GET /api-keys', () => {
-  it('lists the keys of this organization’s members, masked, for an admin', async () => {
-    const { sql, queries } = fakeSql([KEY_ROW]);
-    const res = await createGovernanceRoutes({
-      sql,
-      auth: {} as never,
-    } as never).request('/api-keys');
+  it.each(['admin', 'owner'])(
+    'lists the keys of this organization’s members, masked, for an %s',
+    async (role) => {
+      caller.role = role;
+      const { sql, queries } = fakeSql([KEY_ROW, EXPIRING_ROW]);
+      const res = await createGovernanceRoutes({
+        sql,
+        auth: {} as never,
+      } as never).request('/api-keys');
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({
-      keys: [
-        {
-          id: 'key-1',
-          name: 'opencode – Anna',
-          start: 'tale_Ab',
-          userId: 'u-anna',
-          ownerName: 'Anna',
-          ownerEmail: 'anna@example.test',
-          createdAt: Date.parse('2026-09-01T00:00:00Z'),
-          expiresAt: null,
-        },
-      ],
-    });
-    expect(JSON.stringify(body)).not.toMatch(/"key":/);
-    // Scoped to this organization's members; the secret column is never read.
-    const read = queries[0];
-    expect(read?.text).toContain('FROM "apikey" k');
-    expect(read?.text).toContain('JOIN "member" m');
-    expect(read?.values).toContain('org-1');
-    expect(read?.text).not.toMatch(/k\."key"/);
-  });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({
+        keys: [
+          {
+            id: 'key-1',
+            name: 'opencode – Anna',
+            start: 'tale_Ab',
+            userId: 'u-anna',
+            ownerName: 'Anna',
+            ownerEmail: 'anna@example.test',
+            createdAt: Date.parse('2026-09-01T00:00:00Z'),
+            expiresAt: null,
+          },
+          {
+            id: 'key-2',
+            name: null,
+            start: 'tale_Cd',
+            userId: 'u-ben',
+            ownerName: null,
+            ownerEmail: 'ben@example.test',
+            createdAt: Date.parse('2026-09-02T00:00:00Z'),
+            expiresAt: Date.parse('2027-01-01T00:00:00Z'),
+          },
+        ],
+      });
+      expect(JSON.stringify(body)).not.toMatch(/"key":/);
+      // Scoped to this organization's members; the secret column is never read.
+      const read = queries[0];
+      expect(read?.text).toContain('FROM "apikey" k');
+      expect(read?.text).toContain('JOIN "member" m');
+      expect(read?.values).toContain('org-1');
+      expect(read?.text).not.toMatch(/k\."key"/);
+      // Only keys that can still spend: neither disabled nor expired.
+      expect(read?.text).toContain('k."enabled" IS NOT FALSE');
+      expect(read?.text).toContain('k."expiresAt" > now()');
+    },
+  );
 
   it.each(['member', 'editor', 'developer'])('refuses a %s', async (role) => {
     caller.role = role;
