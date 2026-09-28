@@ -1701,6 +1701,68 @@ describe('DataResidencySettings', () => {
     expect(testStorage).not.toHaveBeenCalled();
   });
 
+  it('focuses the first refused field in page order on Test, as Save does', async () => {
+    // The required checks were listed before the length caps, so a blank
+    // Bucket took focus from the over-long Region above it.
+    setStorageFixture({
+      configured: true,
+      region: 'eu-central-1',
+      forcePathStyle: true,
+      bucket: 'org-blobs',
+      hasCredentials: true,
+    });
+    const { user } = render(<DataResidencySettings organizationId="org-1" />);
+    const section = sectionByHeading('Object storage');
+
+    await user.clear(within(section).getByRole('textbox', { name: 'Bucket' }));
+    const region = within(section).getByRole('textbox', { name: 'Region' });
+    await user.clear(region);
+    await user.click(region);
+    await user.paste('r'.repeat(101));
+    await user.click(
+      within(section).getByRole('button', { name: 'Test connection' }),
+    );
+
+    expect(
+      await within(section).findByText(
+        'Region must be 100 characters or fewer',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByText('Enter the bucket name.'),
+    ).toBeInTheDocument();
+    expect(region).toHaveFocus();
+    expect(testStorage).not.toHaveBeenCalled();
+  });
+
+  it('names an over-long endpoint by its short name', async () => {
+    setStorageFixture({
+      configured: true,
+      region: 'eu-central-1',
+      forcePathStyle: true,
+      bucket: 'org-blobs',
+      hasCredentials: true,
+    });
+    const { user } = render(<DataResidencySettings organizationId="org-1" />);
+    const section = sectionByHeading('Object storage');
+
+    const endpoint = within(section).getByRole('textbox', {
+      name: /^Endpoint/,
+    });
+    await user.click(endpoint);
+    await user.paste(`https://minio.example.com/${'e'.repeat(2_000)}`);
+    await user.click(
+      within(section).getByRole('button', { name: 'Test connection' }),
+    );
+
+    expect(
+      await within(section).findByText(
+        'Endpoint must be 2000 characters or fewer',
+      ),
+    ).toBeInTheDocument();
+    expect(testStorage).not.toHaveBeenCalled();
+  });
+
   it("holds the bucket to the door's length cap before Save", async () => {
     setStorageFixture({
       configured: true,
