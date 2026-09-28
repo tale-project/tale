@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 84 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 85 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -286,6 +286,21 @@ project (as in AUTO-F32).
   step…"; **Details** (`tasks.run.details`) shows the skill read from its
   `SKILL.md`, not a search of the workspace — env-gated: mark
   **ENVIRONMENT** without a credential that serves both harnesses.
+- [ ] `TASK-F46` · **Document skills work with the registries blocked** —
+  Set `SANDBOX_EGRESS_ALLOWLIST=^example\.invalid$` in the stack's `.env`,
+  recreate `sandbox-egress` and stop the project agent's running session so
+  the next run starts a fresh one; equip the agent with the `docx` and `pptx`
+  skills under **Skills, connectors & tools**
+  (`projects.agents.equipmentLabel`), then **Start agent**
+  (`tasks.agentRun.start`) on a task that asks for a one-page Word memo and a
+  three-slide deck with an icon on every slide → The run settles
+  **Completed** (`tasks.agentRuns.status.completed`) with a `.docx` and a
+  `.pptx` under **Deliverables** (`tasks.outputs.label`) that open with the
+  memo text and the slides' icons; **Details** (`tasks.run.details`) may show
+  the skills' `npm install -g` refused by the egress proxy, and the scripts
+  that `require('docx')` and `require('pptxgenjs')` run anyway; remove the
+  allowlist afterwards — env-gated: mark **ENVIRONMENT** without a runnable
+  harness.
 
 ### The task page
 
