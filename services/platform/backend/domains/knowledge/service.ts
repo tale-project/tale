@@ -1832,13 +1832,15 @@ export interface MailAttachmentStampStats {
  * content-hash clones. The corpus has a database of its own, so the app's
  * rows cannot guard the clear: the walk reads the backing again for every
  * stamp it took off, and a ref that turned back into a live attachment
- * meanwhile gets its stamp back.
+ * meanwhile gets its stamp back. A newly dead attachment gets its stamp
+ * back too before its corpus release: a failed release must never leave it
+ * available to ordinary content-hash clones.
  *
  * Both walks read the attachment rows through one statement
  * (`readMailAttachments`) — unbound file rows bound to a conversation, live,
  * and not a ref an active document holds, which indexes as the document — so
  * a row the first walk stamps is never one the second clears. Keyset pages,
- * one corpus statement per page; the guards make each row count the number
+ * batched corpus statements per page; the guards make each row count the number
  * changed, and an in-sync corpus writes nothing. `updated_at` is left alone:
  * it is the hit's modification time for a row with no source time, and a
  * stamp, added or taken off, is not an edit of the attachment.
@@ -1916,14 +1918,15 @@ type MailRelease = (
 ) => Promise<Pick<ReleaseOutcome, 'released' | 'kept' | 'failures'>>;
 
 /**
- * Stamp the corpus rows of live emailed attachments with their conversation
+ * Stamp the corpus rows of emailed attachments with their conversation
  * — only a row that lacks the stamp or carries another is written. The
  * first walk's statement, and the one that puts back a stamp the second
- * walk took off from a ref that turned back into an attachment. Answers the
- * rows written.
+ * walk took off from a ref that turned back into an attachment. A dead
+ * attachment's restored stamp keeps it isolated until its release succeeds.
+ * Answers the rows written.
  */
 async function stampMailAttachments(
-  pool: Sql,
+  pool: Sql | TransactionSql,
   orgSlug: string,
   rows: readonly AttachmentStampRow[],
 ): Promise<number> {
@@ -2065,7 +2068,10 @@ async function clearUnbackedMailStamps(
       const kept = new Set(outcome.kept);
       const stale = unbacked.filter((row) => kept.has(row.fileId));
       if (stale.length > 0) {
-        counts.cleared += await clearMailStamps(sql, pool, args, stale);
+        const cleared = await clearMailStamps(sql, pool, args, stale);
+        counts.cleared += cleared.cleared;
+        counts.unbackedReleased += cleared.unbackedReleased;
+        counts.unbackedFailures += cleared.unbackedFailures;
       }
     }
     if (stamped.length < pageSize) break;
@@ -2078,51 +2084,82 @@ async function clearUnbackedMailStamps(
  * Take the stamp off rows no attachment backs, then read their backing
  * again. The corpus lives in a database of its own, so the clear cannot be
  * guarded by the app rows it was decided on, and a ref can turn back into an
- * emailed attachment of a live conversation after the walk read it as
+ * emailed attachment after the walk read it as
  * none: the document holding it trashed or deleted while the file row stays
  * unbound, the file unfiled, a trashed file row restored. Each such row
- * gets the first walk's stamp back straight away rather than reading as a
- * hub row until the next night. Answers the stamps that stayed off.
+ * gets its stamp back straight away rather than reading as a hub row until
+ * the next night. A dead conversation's attachment is then released, with
+ * its stamp still protecting it if that release fails.
  */
 async function clearMailStamps(
   sql: Sql,
   pool: Sql,
-  args: { organizationId: string; orgSlug: string },
+  args: {
+    organizationId: string;
+    orgSlug: string;
+    releaseUnbacked: MailRelease;
+  },
   stale: readonly StampedCorpusRow[],
-): Promise<number> {
-  // Only the stamp this walk read comes off; a row stamped with another
-  // conversation meanwhile is left for the next night to judge.
-  const cleared = await pool.unsafe<{ fileId: string }[]>(
-    `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+): Promise<
+  Pick<
+    MailAttachmentStampStats,
+    'cleared' | 'unbackedReleased' | 'unbackedFailures'
+  >
+> {
+  const counts = { cleared: 0, unbackedReleased: 0, unbackedFailures: 0 };
+  // A restored stamp must commit with the clear: another indexer must
+  // never see its temporary NULL and clone mail context into an ordinary file.
+  const { cleared: clearedRows, backedAgain: currentAttachments } =
+    await pool.begin(async (tx) => {
+      // Only the stamp this walk read comes off; a row stamped with another
+      // conversation meanwhile is left for the next night to judge.
+      const cleared = await tx.unsafe<{ fileId: string }[]>(
+        `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         SET conversation_id = NULL
        FROM jsonb_to_recordset($2::jsonb)
             AS v(file_id text, conversation_id text)
       WHERE d.org_slug = $1 AND d.file_id = v.file_id
         AND d.conversation_id = v.conversation_id
       RETURNING d.file_id AS "fileId"`,
-    [
-      args.orgSlug,
-      pool.json(
-        stale.map((row) => ({
-          file_id: row.fileId,
-          conversation_id: row.conversationId,
-        })),
-      ),
-    ],
-  );
-  if (cleared.length === 0) return 0;
-  // As in the first walk, only an attachment of a live conversation is
-  // stamped: a dead one's corpus copy is its release's to take.
-  const backedAgain = (
-    await readMailAttachments(sql, {
-      organizationId: args.organizationId,
-      refs: cleared.map((row) => row.fileId),
-    })
-  ).filter((row) => row.conversationLive);
-  if (backedAgain.length === 0) return cleared.length;
-  await stampMailAttachments(pool, args.orgSlug, backedAgain);
-  const restamped = new Set(backedAgain.map((row) => row.storageRef));
-  return cleared.filter((row) => !restamped.has(row.fileId)).length;
+        [
+          args.orgSlug,
+          tx.json(
+            stale.map((row) => ({
+              file_id: row.fileId,
+              conversation_id: row.conversationId,
+            })),
+          ),
+        ],
+      );
+      const backedAgain =
+        cleared.length === 0
+          ? []
+          : await readMailAttachments(sql, {
+              organizationId: args.organizationId,
+              refs: cleared.map((row) => row.fileId),
+            });
+      if (backedAgain.length > 0) {
+        // Restore every attachment before a release can fail. Even dead mail
+        // must not donate its contextual headers to an ordinary content-hash clone.
+        await stampMailAttachments(tx, args.orgSlug, backedAgain);
+      }
+      return { cleared, backedAgain };
+    });
+  // The release takes its own corpus locks. Run it after the transaction
+  // commits, while its restored stamp already keeps the row out of clones.
+  const dead = currentAttachments
+    .filter((row) => !row.conversationLive)
+    .map((row) => row.storageRef);
+  if (dead.length > 0) {
+    const outcome = await args.releaseUnbacked(dead);
+    counts.unbackedReleased += outcome.released.length;
+    counts.unbackedFailures += outcome.failures.length;
+  }
+  const restamped = new Set(currentAttachments.map((row) => row.storageRef));
+  counts.cleared = clearedRows.filter(
+    (row) => !restamped.has(row.fileId),
+  ).length;
+  return counts;
 }
 
 /**

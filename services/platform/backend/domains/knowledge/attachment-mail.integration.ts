@@ -14,7 +14,9 @@
  * hidden from every document door until that pass takes the stamp off (the
  * scope pass leaves it: no sync failed), a ref that turns back into an
  * attachment while the pass clears its stamp gets the stamp back from the
- * same pass, a stamped row nothing holds is released by it with its bytes
+ * same pass, a dead attachment stays isolated from concurrent clones even
+ * when its release fails (and a retry keeps its file bytes), a stamped row
+ * nothing holds is released by it with its bytes
  * and the trashed file row that remembered them, and deleting the
  * conversation releases the corpus copy.
  * Needs the object store `checkFiles` seeds: an attachment has bytes. */
@@ -29,7 +31,12 @@ import { z } from 'zod';
 
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
 import { createChatToolExecutor } from '../../core/chat/assistant_tools.ts';
-import { getKnowledgePoolForOrg } from '../../core/knowledge/pool.ts';
+import { Embedder } from '../../core/knowledge/embedding.ts';
+import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
+import {
+  getKnowledgePoolForOrg,
+  resolveOrgUrl,
+} from '../../core/knowledge/pool.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers, resolveAccessScope } from '../chat/shim.ts';
 import {
@@ -128,6 +135,7 @@ export async function checkEmailedAttachments(
   let documentId = '';
   let orphanFileId = '';
   let orphanRef = '';
+  let cloneRef = '';
   try {
     // A key for the fake endpoint — unless an earlier lane left one the
     // model already resolves (the full run), so the lane also runs alone.
@@ -417,18 +425,55 @@ export async function checkEmailedAttachments(
     /** The nightly pass, wired as `runCorpusReconcile` wires it; `between`
      * runs once a release has judged its refs, before the pass writes what
      * that release decided. */
-    const stampPass = (between?: (refs: string[]) => Promise<void>) => {
+    const stampPass = (
+      between?: (refs: string[]) => Promise<void>,
+      atRecheck?: () => Promise<void>,
+      failRetriedRelease = false,
+    ) => {
+      let releaseJudged = false;
+      let recheckProbed = false;
       const judged = async <T>(refs: string[], outcome: T): Promise<T> => {
         await between?.(refs);
+        releaseJudged = true;
         return outcome;
       };
+      // Keep the reads real; pause only at the backing recheck, after its
+      // corpus clear has run, so another connection can try a clone then.
+      const appReads = new Proxy(sql, {
+        apply(target, thisArg, args: unknown[]) {
+          const strings = args[0];
+          if (
+            atRecheck !== undefined &&
+            releaseJudged &&
+            !recheckProbed &&
+            Array.isArray(strings) &&
+            strings.join('').includes('FROM app.file_metadata fm')
+          ) {
+            recheckProbed = true;
+            return atRecheck().then(() => Reflect.apply(target, thisArg, args));
+          }
+          return Reflect.apply(target, thisArg, args);
+        },
+      });
       const orgRef = { organizationId: orgId, orgSlug };
-      return reconcileMailAttachmentStamps(sql, {
+      return reconcileMailAttachmentStamps(appReads, {
         ...orgRef,
         releaseCorpus: async (refs) =>
           judged(refs, await releaseCorpusRefs(sql, { ...orgRef, refs })),
-        releaseUnbacked: async (refs) =>
-          judged(refs, await releaseRefs(sql, { ...orgRef, refs })),
+        releaseUnbacked: async (refs) => {
+          if (recheckProbed && failRetriedRelease) {
+            return {
+              released: [],
+              kept: [],
+              failures: refs.map((failedRef) => ({
+                ref: failedRef,
+                stage: 'corpus' as const,
+                message: 'itest corpus unavailable',
+              })),
+            };
+          }
+          return judged(refs, await releaseRefs(sql, { ...orgRef, refs }));
+        },
       });
     };
     const backfill = await stampPass();
@@ -615,6 +660,113 @@ export async function checkEmailedAttachments(
       `stamped before=${heldStamp === conversationId} (want true) document deleted between release and clear=${racedAway} (want true) cleared=${raced.cleared} (want 0) failures=${raced.unbackedFailures} stamp after=${racedRow?.conversationId === conversationId} (want true)`,
     );
 
+    // The same race with a spam conversation must release the corpus row,
+    // not leave a NULL stamp that offers mail context to content-hash clones.
+    // No verdict job races this probe: this is a legacy verdict with no
+    // release queued, and the document initially keeps the corpus alive.
+    documentId = randomUUID();
+    const deadHeldBy = documentId;
+    await sql`
+      INSERT INTO app.documents (
+        id, org_id, title, file_ref, mime_type, extension, source_provider,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${documentId}, ${orgId}, ${`cv-${suffix}.txt`}, ${ref}, 'text/plain',
+        'txt', 'upload', ${userId}, ${Date.now()}, ${Date.now()}
+      )
+    `;
+    await sql`UPDATE app.conversations SET status = 'spam' WHERE org_id = ${orgId} AND id = ${conversationId}`;
+    const privateChunks = await pool.unsafe<{ content: string }[]>(
+      `SELECT c.chunk_content AS content FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d ON d.id = c.document_id AND d.org_slug = c.org_slug
+       WHERE d.org_slug = $1 AND d.file_id = $2`,
+      [orgSlug, ref],
+    );
+    let deadRacedAway = false;
+    let cloneProbedDuringClear = false;
+    cloneRef = `s3:itest/${orgSlug}/public-copy-${suffix}.txt`;
+    const publicName = `ordinary-copy-${suffix}.txt`;
+    const tryClone = async () => {
+      cloneProbedDuringClear = true;
+      await indexWholeDocument({
+        sql: pool,
+        dbUrl: await resolveOrgUrl(orgSlug),
+        orgSlug,
+        fileId: cloneRef,
+        filename: publicName,
+        text,
+        embedder: new Embedder(
+          {
+            providerSlug: 'openai',
+            model: 'itest-embed',
+            dimensions: 8,
+            baseUrl: `http://127.0.0.1:${embedPort}/v1`,
+          },
+          'sk-itest-emailed-attachments',
+          { organizationId: orgId },
+        ),
+      });
+    };
+    const deadRaced = await stampPass(
+      async (refs) => {
+        if (!refs.includes(ref) || deadRacedAway) return;
+        await sql`DELETE FROM app.documents WHERE org_id = ${orgId} AND id = ${deadHeldBy}`;
+        deadRacedAway = true;
+      },
+      tryClone,
+      true,
+    );
+    await sql`DELETE FROM app.documents WHERE org_id = ${orgId} AND id = ${deadHeldBy}`;
+    documentId = '';
+    const deadRacedRow = await corpusRow();
+    const retainedFile = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.file_metadata WHERE org_id = ${orgId} AND id = ${fileId}
+    `;
+    const retainedBytes = await statOrgBlob(sql, orgId, ref);
+    const publicChunks = await pool.unsafe<{ content: string }[]>(
+      `SELECT c.chunk_content AS content FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d ON d.id = c.document_id AND d.org_slug = c.org_slug
+       WHERE d.org_slug = $1 AND d.file_id = $2`,
+      [orgSlug, cloneRef],
+    );
+    const privateName = `cv-${suffix}.txt`;
+    const donatedMailContext = publicChunks.some((chunk) =>
+      chunk.content.includes(privateName),
+    );
+    // A failed corpus release leaves the restored stamp visible. The next
+    // pass retries through the usual first walk and leaves the bytes alone.
+    const deadRetried = await stampPass();
+    const deadGoneOnRetry = (await corpusRow()) === undefined;
+    record(
+      'emailed attachment: a dead attachment stays isolated during clear and failed release, retries cleanly and cannot donate mail context to a clone',
+      deadRacedAway &&
+        cloneProbedDuringClear &&
+        deadRaced.cleared === 0 &&
+        deadRaced.unbackedReleased === 0 &&
+        deadRaced.unbackedFailures === 1 &&
+        deadRacedRow?.conversationId === conversationId &&
+        deadRetried.released >= 1 &&
+        deadRetried.failures === 0 &&
+        deadGoneOnRetry &&
+        retainedFile[0]?.count === '1' &&
+        retainedBytes !== null &&
+        privateChunks.some((chunk) => chunk.content.includes(privateName)) &&
+        publicChunks.some((chunk) => chunk.content.includes(publicName)) &&
+        !donatedMailContext,
+      `document removed=${deadRacedAway}, clone during clear=${cloneProbedDuringClear}, cleared=${deadRaced.cleared}, release failures=${deadRaced.unbackedFailures}, stamp retained=${deadRacedRow?.conversationId === conversationId}, retry released=${deadRetried.released}, corpus gone on retry=${deadGoneOnRetry}, file kept=${retainedFile[0]?.count}, bytes kept=${retainedBytes !== null}, ordinary chunks=${publicChunks.length}, donated mail context=${donatedMailContext} (want false)`,
+    );
+    await releaseRefs(sql, {
+      organizationId: orgId,
+      orgSlug,
+      refs: [cloneRef],
+    });
+    cloneRef = '';
+    await flip('open');
+    await waitFor(
+      async () => (await corpusRow())?.status === 'completed',
+      20_000,
+    );
+
     // A stamped corpus row nothing holds any more is released by the pass,
     // never un-stamped: unstamped, it would read as a hub row and be offered
     // to content-hash clones. Its bytes go with it: an attachment deleted
@@ -724,7 +876,7 @@ export async function checkEmailedAttachments(
       await releaseRefs(sql, {
         organizationId: orgId,
         orgSlug,
-        refs: leftovers.map((file) => file.ref),
+        refs: [...leftovers.map((file) => file.ref), cloneRef],
       })
         .then((outcome) => {
           if (outcome.failures.length > 0) {

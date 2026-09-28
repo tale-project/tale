@@ -274,6 +274,12 @@ function corpusPool(
   const statements: Statement[] = [];
   const pool = {
     json: (value: unknown) => ({ json: value }),
+    begin: async <T>(callback: (tx: unknown) => Promise<T>): Promise<T> => {
+      statements.push({ text: 'BEGIN', params: [] });
+      const result = await callback(pool);
+      statements.push({ text: 'COMMIT', params: [] });
+      return result;
+    },
     unsafe: (text: string, params: unknown[]) => {
       statements.push({ text, params });
       if (text.includes('conversation_id IS NOT NULL')) {
@@ -615,29 +621,69 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
     expect(result).toEqual({ ...QUIET, stampsScanned: 1 });
   });
 
-  it("leaves a ref that turned back into a dead conversation's attachment unstamped, for its release", async () => {
-    // As in the first walk: a dead conversation's corpus copy is not
-    // stamped, it is released.
-    const attachments: AttachmentRow[] = [];
-    const statements = corpusPool({
-      stamped: [{ fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' }],
-      onClear: () => {
-        attachments.push({
-          id: 'f9',
-          storageRef: 's3:org-1/filed.pdf',
-          conversationId: 'conv-1',
-          conversationLive: false,
-        });
-      },
-    });
-    const { releases } = releaser({ keep: ['s3:org-1/filed.pdf'] });
-    const result = await reconcileMailAttachmentStamps(
-      attachmentsSql(attachments, []),
-      { organizationId: 'org-1', orgSlug: 'acme', ...releases },
-    );
-    expect(statements.filter(isStamp)).toEqual([]);
-    expect(result).toMatchObject({ cleared: 1 });
-  });
+  it.each([false, true])(
+    'restores a dead attachment stamp before releasing it, including a failed release (%s)',
+    async (fails) => {
+      // A NULL stamp would offer the mail's contextual headers to ordinary
+      // content-hash clones. Keep it isolated until its release succeeds.
+      const attachments: AttachmentRow[] = [];
+      const statements = corpusPool({
+        stamped: [{ fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' }],
+        onClear: () => {
+          attachments.push({
+            id: 'f9',
+            storageRef: 's3:org-1/filed.pdf',
+            conversationId: 'conv-1',
+            conversationLive: false,
+          });
+        },
+      });
+      let calls = 0;
+      const releaseUnbacked = vi.fn(async (refs: string[]) => {
+        calls += 1;
+        if (calls === 1) return { kept: refs, released: [], failures: [] };
+        expect(statements.filter(isStamp)).toHaveLength(1);
+        expect(statements.at(-1)?.text).toBe('COMMIT');
+        return fails
+          ? {
+              kept: [],
+              released: [],
+              failures: refs.map((ref) => ({
+                ref,
+                stage: 'corpus' as const,
+                message: 'down',
+              })),
+            }
+          : { kept: [], released: refs, failures: [] };
+      });
+      const result = await reconcileMailAttachmentStamps(
+        attachmentsSql(attachments, []),
+        {
+          organizationId: 'org-1',
+          orgSlug: 'acme',
+          ...releaser().releases,
+          releaseUnbacked,
+        },
+      );
+      expect(releaseUnbacked).toHaveBeenCalledTimes(2);
+      expect(releaseUnbacked).toHaveBeenLastCalledWith(['s3:org-1/filed.pdf']);
+      expect(statements.find(isStamp)?.params).toEqual([
+        'acme',
+        {
+          json: [{ file_id: 's3:org-1/filed.pdf', conversation_id: 'conv-1' }],
+        },
+      ]);
+      expect(
+        statements.findIndex((statement) => statement.text === 'BEGIN'),
+      ).toBeLessThan(statements.findIndex(isClear));
+      expect(result).toEqual({
+        ...QUIET,
+        stampsScanned: 1,
+        unbackedReleased: fails ? 0 : 1,
+        unbackedFailures: fails ? 1 : 0,
+      });
+    },
+  );
 
   it('releases a stamped row nothing keeps, and never un-stamps it', async () => {
     // Unstamped, a dead attachment would read as a hub row and be offered to
