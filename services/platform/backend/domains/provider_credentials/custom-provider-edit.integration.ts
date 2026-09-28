@@ -4,11 +4,13 @@
  * references: no provider or model endpoint is ever called. */
 import { chmod } from 'node:fs/promises';
 
-import type { Sql } from 'postgres';
+import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { resolveProvidersDir } from '../../core/lib/providers/org_providers.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { updateCredentialWithDefinition } from './custom-provider-edit.ts';
 
 const definitionSnapshot = z.object({
   config: z
@@ -42,7 +44,7 @@ const refusal = z.object({ error: z.string() }).loose();
 export async function checkCustomProviderCredentialEdit(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
   const send = (
@@ -226,16 +228,62 @@ export async function checkCustomProviderCredentialEdit(
     `rename elsewhere → ${renamed.status}; older editor → ${staleCredentialOutcome} (want 409 CONFIG_VERSION_CONFLICT); readback definition unchanged=${afterStaleCredential.hash === v4.hash}, credential=${aElsewhere?.name}`,
   );
 
+  const orgSlug = await resolveOrgSlug(sql, ctx.orgId);
+  if (orgSlug === null) throw new Error('integration organization missing');
+  // PostgreSQL can commit before its acknowledgement is lost. Inject the
+  // failure at that exact boundary, after the real transaction commits;
+  // an error reaching the caller is not proof the database rolled back.
+  let loseAcknowledgement = true;
+  const lostAcknowledgementSql = new Proxy(sql, {
+    get(target, property, receiver) {
+      if (property !== 'begin') return Reflect.get(target, property, receiver);
+      return async (work: (tx: TransactionSql) => Promise<unknown>) => {
+        const result = await sql.begin(work);
+        if (loseAcknowledgement) {
+          loseAcknowledgement = false;
+          throw new Error('integration: COMMIT acknowledgement lost');
+        }
+        return result;
+      };
+    },
+  });
+  let lostAcknowledgement = false;
+  try {
+    await updateCredentialWithDefinition(
+      lostAcknowledgementSql,
+      { organizationId: ctx.orgId, userId: ctx.userId, role: 'owner' },
+      orgSlug,
+      a,
+      { name: 'Gateway committed', modelAllowlist: ['gateway-model'] },
+      aElsewhere?.hash ?? '',
+      {
+        config: providerDefinitionSchema.parse(config('Gateway committed', 7)),
+        expectedHash: v4.hash ?? '',
+      },
+    );
+  } catch (error) {
+    lostAcknowledgement =
+      error instanceof Error &&
+      error.message === 'integration: COMMIT acknowledgement lost';
+  }
+  const committedDefinition = await definition();
+  const committedCredential = await credential(a);
+  record(
+    'custom provider edit: a lost commit acknowledgement does not undo a committed definition',
+    lostAcknowledgement &&
+      committedDefinition.config?.baseUrl === url(7) &&
+      committedDefinition.config.displayName === 'Gateway committed' &&
+      committedCredential?.name === 'Gateway committed',
+    `injected acknowledgement loss=${lostAcknowledgement}; persisted definition=${committedDefinition.config?.displayName}, credential=${committedCredential?.name}`,
+  );
+
   // 5. The file is written last, in the same transaction: when it cannot be
   // written, the credential row that transaction already updated goes back.
-  const orgSlug = await resolveOrgSlug(sql, ctx.orgId);
-  if (orgSlug === null || process.getuid?.() === 0) {
+  if (process.getuid?.() === 0) {
     record(
       'custom provider edit: an unwritable definition takes the credential edit back (SKIPPED)',
       true,
-      orgSlug === null
-        ? 'the organization has no slug'
-        : 'running as root: a read-only directory does not refuse the write',
+      'running as root: a read-only directory does not refuse the write',
     );
     return;
   }
@@ -246,10 +294,10 @@ export async function checkCustomProviderCredentialEdit(
     unwritable = await edit(a, {
       name: 'Gateway A5',
       modelAllowlist: ['gateway-model'],
-      expectedHash: aElsewhere?.hash,
+      expectedHash: committedCredential?.hash,
       definition: {
         config: config('Gateway A5', 6),
-        expectedHash: v4.hash,
+        expectedHash: committedDefinition.hash,
       },
     });
   } finally {
@@ -260,9 +308,9 @@ export async function checkCustomProviderCredentialEdit(
   record(
     'custom provider edit: an unwritable definition takes the credential edit back',
     unwritable.status >= 500 &&
-      afterUnwritable.hash === v4.hash &&
-      aAfterUnwritable?.name === 'Gateway A elsewhere' &&
-      aAfterUnwritable.hash === aElsewhere?.hash,
-    `edit with a read-only providers directory → ${unwritable.status} (want 5xx); readback definition unchanged=${afterUnwritable.hash === v4.hash}, credential=${aAfterUnwritable?.name} (want Gateway A elsewhere)`,
+      afterUnwritable.hash === committedDefinition.hash &&
+      aAfterUnwritable?.name === 'Gateway committed' &&
+      aAfterUnwritable.hash === committedCredential?.hash,
+    `edit with a read-only providers directory → ${unwritable.status} (want 5xx); readback definition unchanged=${afterUnwritable.hash === committedDefinition.hash}, credential=${aAfterUnwritable?.name} (want Gateway committed)`,
   );
 }

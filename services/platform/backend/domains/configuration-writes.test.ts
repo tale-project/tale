@@ -83,9 +83,9 @@ function lockedSql(): Sql {
   return Object.assign(tag, { begin }) as unknown as Sql;
 }
 
-/** `sql`, whose next transaction fails at COMMIT: its work ran to the end,
- * then the database never made it durable. `meanwhile` runs in between,
- * as a writer that came after would. */
+/** The caller loses its next COMMIT acknowledgement after the transaction
+ * completes. The error cannot establish whether PostgreSQL committed.
+ * `meanwhile` models a later writer before the caller observes that error. */
 function failingCommit(sql: Sql, meanwhile?: () => Promise<void>): Sql {
   let failed = false;
   const begin = async (work: (tx: unknown) => Promise<unknown>) => {
@@ -220,9 +220,8 @@ describe('native file configuration preconditions', () => {
     expect(audit).not.toHaveBeenCalled();
   });
 
-  it('takes a published provider back when its save fails to commit', async () => {
+  it('does not rewind a provider after losing its COMMIT acknowledgement', async () => {
     const sql = lockedSql();
-    const file = join(directory, 'north/providers/local-chat.yml');
     const first = await saveProviderDefinition(
       sql,
       scope,
@@ -230,31 +229,32 @@ describe('native file configuration preconditions', () => {
       provider,
       null,
     );
-    const original = await readFile(file, 'utf8');
+    const changed = { ...provider, displayName: 'Changed' };
     await expect(
       saveProviderDefinition(
         failingCommit(sql),
         scope,
         provider.name,
-        { ...provider, displayName: 'Changed' },
+        changed,
         first.hash,
       ),
     ).rejects.toThrow('connection lost at COMMIT');
-    expect(await readFile(file, 'utf8')).toBe(original);
-    // A definition the failed save created is removed again.
+    expect(
+      (await readProviderDefinition('north', provider.name)).config,
+    ).toEqual(changed);
+    const created = { ...provider, name: 'other-chat' };
     await expect(
       saveProviderDefinition(
         failingCommit(sql),
         scope,
-        'other-chat',
-        { ...provider, name: 'other-chat' },
+        created.name,
+        created,
         null,
       ),
     ).rejects.toThrow('connection lost at COMMIT');
-    expect(await readProviderDefinition('north', 'other-chat')).toEqual({
-      config: null,
-      hash: null,
-    });
+    expect(
+      (await readProviderDefinition('north', created.name)).config,
+    ).toEqual(created);
   });
 
   it('never takes back a later writer after a failed commit', async () => {
@@ -288,6 +288,44 @@ describe('native file configuration preconditions', () => {
     const readback = await readProviderDefinition('north', provider.name);
     expect(readback.config?.displayName).toBe('Later');
     expect(readback.hash).toBe(later?.hash);
+  });
+
+  it('does not undo a later successful save of the same provider bytes', async () => {
+    const sql = lockedSql();
+    const first = await saveProviderDefinition(
+      sql,
+      scope,
+      provider.name,
+      provider,
+      null,
+    );
+    const changed = { ...provider, displayName: 'Changed' };
+    let accepted: { hash: string | null } | undefined;
+    const alongside = vi.fn(async () => undefined);
+    await expect(
+      saveProviderDefinition(
+        failingCommit(sql, async () => {
+          const current = await readProviderDefinition('north', provider.name);
+          accepted = await saveProviderDefinition(
+            sql,
+            scope,
+            provider.name,
+            changed,
+            current.hash,
+            { alongside },
+          );
+        }),
+        scope,
+        provider.name,
+        changed,
+        first.hash,
+      ),
+    ).rejects.toThrow('connection lost at COMMIT');
+    expect(alongside).toHaveBeenCalledOnce();
+    expect(await readProviderDefinition('north', provider.name)).toEqual({
+      config: changed,
+      hash: accepted?.hash,
+    });
   });
 
   it('takes a provider back when it fails its readback', async () => {

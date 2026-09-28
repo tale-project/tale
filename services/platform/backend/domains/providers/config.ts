@@ -83,34 +83,6 @@ async function restoreDefinition(
   invalidateCatalogFetchCache();
 }
 
-/**
- * The transaction that published `content` failed to commit, so its audit
- * row, and whatever rode `alongside`, never landed: take the file back to
- * its preimage, under the lock again and only while it still holds exactly
- * these bytes, so a writer that came after is never undone.
- */
-async function unpublishDefinition(
-  sql: Sql,
-  orgSlug: string,
-  name: string,
-  written: { file: string; content: string; preimage: string | null },
-): Promise<void> {
-  try {
-    await sql.begin((tx) =>
-      withConfigWriteLock(tx, orgSlug, 'providers', async () => {
-        const current = await readProviderDefinition(orgSlug, name);
-        if (current.hash === sha256(written.content))
-          await restoreDefinition(written.file, written.preimage);
-      }),
-    );
-  } catch (error) {
-    console.error(
-      `[providers] the save of "${name}" did not commit, and its file could not be taken back:`,
-      error,
-    );
-  }
-}
-
 export interface SaveProviderDefinitionOptions {
   /**
    * Database work that lands with the definition or not at all — the
@@ -163,11 +135,6 @@ export async function saveProviderDefinition(
     }
   }
   const content = stringifyYaml(parsed.data);
-  // Set once the file holds `content` and passed its readback: the file is
-  // the one write a failed commit cannot take back by itself.
-  const outcome: {
-    written?: { file: string; content: string; preimage: string | null };
-  } = {};
   const save = (tx: TransactionSql) =>
     withConfigWriteLock(tx, scope.orgSlug, 'providers', async () => {
       const current = await readProviderDefinition(scope.orgSlug, name);
@@ -227,7 +194,6 @@ export async function saveProviderDefinition(
             'The native provider did not pass its readback.',
           );
         }
-        outcome.written = { file, content, preimage };
         return saved;
       } catch (error) {
         // What fails its readback is not published: the preimage goes back
@@ -241,13 +207,12 @@ export async function saveProviderDefinition(
         throw error;
       }
     });
-  try {
-    return await sql.begin(save);
-  } catch (error) {
-    if (outcome.written !== undefined)
-      await unpublishDefinition(sql, scope.orgSlug, name, outcome.written);
-    throw error;
-  }
+  // A lost COMMIT acknowledgement does not prove rollback. Once this
+  // transaction ends, a later writer can also have accepted the same bytes.
+  // Never compensate outside its lock: that could undo a committed save.
+  // File/DB crash recovery needs a durable protocol; callers must read back
+  // an unknown outcome before retrying.
+  return sql.begin(save);
 }
 
 /**
