@@ -135,13 +135,15 @@ this guide focuses on **behaviour**, not link rot.
   (`docs.onThisPage`) is a collapsed disclosure above the article; opening it
   reveals the same headings, and choosing one scrolls to that section.
 - [ ] `NAV-F16` · **Guessed addresses** — Built server only — `curl -sI` a
-  section folder, its German twin, an `/en` address and a localized index:
-  `{base}/platform/automations`, `{base}/de/platform/automations`,
+  section folder, its German twin, its Markdown export, an `/en` address and a
+  localized index: `{base}/platform/automations`,
+  `{base}/de/platform/automations`, `{base}/de/platform/automations.md`,
   `{base}/en/platform/workspace/skills`, `{base}/de/llms.txt` → Each answers
-  **HTTP 301** straight to a page that answers 200 — `…/platform/automations/concepts`,
-  `…/de/platform/automations/concepts`, `…/platform/workspace/skills`,
-  `…/llms.txt`; no second hop (section folders derive from `docs/nav.json`'s
-  first page under them; `docs/redirects.json` wins).
+  **HTTP 301** straight to an address that answers 200 — `…/platform/automations/concepts`,
+  `…/de/platform/automations/concepts`, `…/de/platform/automations/concepts.md`,
+  `…/platform/workspace/skills`, `…/llms.txt`; no second hop (section folders
+  derive from `docs/nav.json`'s first page under them; `docs/redirects.json`
+  wins).
 
 ## Boundary & error tests
 

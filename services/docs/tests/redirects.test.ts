@@ -309,4 +309,25 @@ describe('derived redirects', () => {
     expect(resolveRedirect('/english/page', map)).toBeNull();
     expect(resolveRedirect('/new/page', map)).toBeNull();
   });
+
+  it('follows a moved page or section folder to its target .md export', () => {
+    const map = buildRedirectPathMap({
+      'old/page': 'new/page',
+      section: 'section/first',
+      home: 'index',
+    });
+    expect(resolveRedirect('/old/page.md', map)).toBe('/new/page.md');
+    expect(resolveRedirect('/de/section.md', map)).toBe('/de/section/first.md');
+    expect(resolveRedirect('/fr/old/page.md', map)).toBe('/fr/new/page.md');
+    expect(resolveRedirect('/en/old/page.md', map)).toBe('/new/page.md');
+    expect(resolveRedirect('/home.md', map)).toBe('/index.md');
+    expect(resolveRedirect('/de/home.md', map)).toBe('/de.md');
+    expect(resolveRedirect('/new/page.md', map)).toBeNull();
+    expect(resolveRedirect('/old/page.mdx', map)).toBeNull();
+  });
+
+  it('answers a real section folder .md guess with its first page export', () => {
+    const target = resolveRedirect('/de/platform/automations.md', paths);
+    expect(target).toBe(`${paths.get('/de/platform/automations')}.md`);
+  });
 });

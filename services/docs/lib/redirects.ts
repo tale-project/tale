@@ -17,12 +17,18 @@
  *  - a section folder that has no page of its own (`/platform/automations`)
  *    redirects to the first page under it in `nav.json` order — derived from
  *    the navigation, never hand-maintained, and `redirects.json` wins;
+ *  - the per-page Markdown export of a moved page or section folder
+ *    (`/platform/automations.md`) follows it to the target's export;
  *  - an `/en` prefix (English lives at the root) and a locale-prefixed
  *    `llms.txt` / `llms-full.txt` (one index covers every locale) resolve
  *    to the unprefixed address.
  */
 
 import { stripLocalePrefix } from '@tale/ui/i18n/negotiate';
+import {
+  pathnameToRouteUrl,
+  routeToMdUrl,
+} from '@tale/ui/seo/builders/md-paths';
 
 import redirectsJson from '../../../docs/redirects.json';
 import { flattenNav } from './content/nav';
@@ -147,22 +153,37 @@ export function normalizeRequestPath(pathname: string): string {
 const ROOT_ONLY_FILES = new Set(['llms.txt', 'llms-full.txt']);
 
 /**
+ * The redirect target for a page path or for its per-page Markdown export
+ * (`/old/page.md` follows `/old/page` to `/new/page.md`), if any.
+ */
+function lookupRedirect(
+  path: string,
+  paths: ReadonlyMap<string, string>,
+): string | undefined {
+  const moved = paths.get(path);
+  if (moved || !path.endsWith('.md')) return moved;
+  const page = paths.get(pathnameToRouteUrl(path));
+  return page === undefined ? undefined : routeToMdUrl(page);
+}
+
+/**
  * Where a request path should redirect, or `null` to serve it as is. The
- * path map covers moved pages and section folders; an `/en` prefix and a
- * locale-prefixed `llms.txt` resolve to their unprefixed address, landing
- * on the final page in one hop when that address is itself a redirect.
+ * path map covers moved pages and section folders, and their `.md` exports;
+ * an `/en` prefix and a locale-prefixed `llms.txt` resolve to their
+ * unprefixed address, landing on the final page in one hop when that
+ * address is itself a redirect.
  */
 export function resolveRedirect(
   pathname: string,
   paths: ReadonlyMap<string, string>,
 ): string | null {
   const path = normalizeRequestPath(pathname);
-  const moved = paths.get(path);
+  const moved = lookupRedirect(path, paths);
   if (moved) return moved;
 
   const unprefixed = stripLocalePrefix(path, ['en']);
   if (unprefixed) {
-    return paths.get(unprefixed) ?? unprefixed;
+    return lookupRedirect(unprefixed, paths) ?? unprefixed;
   }
 
   const [, locale, file, ...rest] = path.split('/');
