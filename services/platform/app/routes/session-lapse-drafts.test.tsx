@@ -228,4 +228,117 @@ describe('confirmed session lapse with an unregistered product draft', () => {
     expect(name).toHaveValue('Keep through recovery');
     expect(href).toBe('/dashboard/org-1/products');
   });
+
+  it('refreshes a cached signed-out probe on cold entry when the session is already live', async () => {
+    h.realSession = true;
+    const user = { userId: 'restored-user', name: 'Synthetic member' };
+    queryClient.setQueryData(currentUserQuery().queryKey, null);
+    queryClient.setQueryData(sessionQueryOptions.queryKey, {
+      data: { user: { id: user.userId } },
+      error: null,
+    });
+    h.getSession.mockResolvedValue({
+      data: { user: { id: user.userId } },
+      error: null,
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ user }));
+    render(<Dashboard />, { wrapper: QueryWrapper });
+    await waitFor(() =>
+      expect(queryClient.getQueryData(currentUserQuery().queryKey)).toEqual(
+        user,
+      ),
+    );
+    expect(
+      screen.getByLabelText('products.edit.labels.name', { exact: false }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'auth.sessionLapse.stayHere' }),
+    ).not.toBeInTheDocument();
+    expect(href).toBe('/dashboard/org-1/products');
+  });
+
+  it('refreshes a mounted signed-out probe when the first recheck already finds a live session', async () => {
+    h.realSession = true;
+    const user = { userId: 'restored-user', name: 'Synthetic member' };
+    queryClient.setQueryData(currentUserQuery().queryKey, user);
+    queryClient.setQueryData(sessionQueryOptions.queryKey, {
+      data: { user: { id: user.userId } },
+      error: null,
+    });
+    h.getSession.mockResolvedValue({
+      data: { user: { id: user.userId } },
+      error: null,
+    });
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => Response.json({ user }));
+    render(<Dashboard />, { wrapper: QueryWrapper });
+    const name = screen.getByLabelText('products.edit.labels.name', {
+      exact: false,
+    });
+    fireEvent.change(name, { target: { value: 'Keep without a prompt' } });
+    act(() => {
+      queryClient.setQueryData(currentUserQuery().queryKey, null);
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryData(currentUserQuery().queryKey)).toEqual(
+        user,
+      ),
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole('button', { name: 'auth.sessionLapse.stayHere' }),
+    ).not.toBeInTheDocument();
+    expect(name).toHaveValue('Keep without a prompt');
+    expect(href).toBe('/dashboard/org-1/products');
+  });
+
+  it.each(['null', '401'] as const)(
+    'does not loop when a live session refresh still gets %s from the user probe',
+    async (answer) => {
+      h.realSession = true;
+      const user = { userId: 'restored-user', name: 'Synthetic member' };
+      queryClient.setQueryData(currentUserQuery().queryKey, user);
+      queryClient.setQueryData(sessionQueryOptions.queryKey, {
+        data: { user: { id: user.userId } },
+        error: null,
+      });
+      h.getSession.mockResolvedValue({
+        data: { user: { id: user.userId } },
+        error: null,
+      });
+      const fetch = vi
+        .spyOn(globalThis, 'fetch')
+        .mockImplementation(async () =>
+          answer === 'null'
+            ? Response.json({ user: null })
+            : Response.json(LAPSED_SESSION_ANSWER.body, {
+                status: LAPSED_SESSION_ANSWER.status,
+              }),
+        );
+      render(<Dashboard />, { wrapper: QueryWrapper });
+      const name = screen.getByLabelText('products.edit.labels.name', {
+        exact: false,
+      });
+      fireEvent.change(name, {
+        target: { value: 'Keep without a request loop' },
+      });
+      act(() => {
+        queryClient.setQueryData(currentUserQuery().queryKey, null);
+      });
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+      // Include another refusal after the refresh has settled. Neither that
+      // answer nor the refresh's own 401 may trigger another invalidation.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      });
+      lapse();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(name).toHaveValue('Keep without a request loop');
+      expect(href).toBe('/dashboard/org-1/products');
+    },
+  );
 });

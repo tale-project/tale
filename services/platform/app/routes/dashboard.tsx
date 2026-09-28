@@ -71,14 +71,32 @@ function DashboardRedirect() {
   // lapse. The initial signed-out probe below still owns cold entry.
   const recovery = useSessionLapseRedirect(isAuthenticated || hasAuthenticated);
   const wasLapsed = useRef(false);
+  const consumedLiveVersion = useRef(0);
+  const refreshedSignedOutProbe = useRef(false);
   useEffect(() => {
-    if (wasLapsed.current && !recovery.isLapsed) {
-      // A different tab restored the session. Resume the backend's auth-gated
-      // readers too: their current-user cache may still contain null.
-      void invalidateAuthState(queryClient).catch(() => undefined);
+    if (isAuthenticated || (!wasLapsed.current && recovery.isLapsed)) {
+      refreshedSignedOutProbe.current = false;
+    }
+    if (consumedLiveVersion.current !== recovery.liveSessionVersion) {
+      consumedLiveVersion.current = recovery.liveSessionVersion;
+      if (
+        (wasLapsed.current || !isAuthenticated) &&
+        !refreshedSignedOutProbe.current
+      ) {
+        // Refresh a stale null probe even if the session was restored before
+        // our first check. A still-refused /users/me can itself emit a lapse:
+        // allow only one refresh until this unauthenticated episode ends.
+        refreshedSignedOutProbe.current = true;
+        void invalidateAuthState(queryClient).catch(() => undefined);
+      }
     }
     wasLapsed.current = recovery.isLapsed;
-  }, [queryClient, recovery.isLapsed]);
+  }, [
+    queryClient,
+    isAuthenticated,
+    recovery.isLapsed,
+    recovery.liveSessionVersion,
+  ]);
 
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
@@ -141,10 +159,9 @@ function DashboardRedirect() {
           setHasValidSession(valid);
           setSessionVerified(true);
           if (!valid) return;
-          // Better Auth has a live session but the Convex websocket never
-          // authenticated. Poke the session signal so the provider refetches
-          // its session atom and rebuilds the token fetch → ws auth chain.
-          authClient.$store.notify('$sessionSignal');
+          // The session is live but the backend probe may still cache null
+          // from before sign-in. Refresh the same auth-scoped reads as login.
+          void invalidateAuthState(queryClient).catch(() => undefined);
           // Last resort: if the kick doesn't authenticate within 8s, reload
           // once (what this state otherwise forces the user to do manually).
           // Guarded per tab so it can never loop; cleared on success above.
@@ -172,7 +189,7 @@ function DashboardRedirect() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [isLoading, isAuthenticated, hasAuthenticated]);
+  }, [isLoading, isAuthenticated, hasAuthenticated, queryClient]);
 
   useEffect(() => {
     if (!hasAuthenticated && sessionVerified && !hasValidSession) {

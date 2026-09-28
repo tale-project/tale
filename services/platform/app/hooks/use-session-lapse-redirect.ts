@@ -28,6 +28,7 @@ export function useSessionLapseRedirect(enabled: boolean) {
   const [state, setState] = useState<'none' | 'prompt' | 'paused'>('none');
   const [checking, setChecking] = useState(false);
   const [checkFailed, setCheckFailed] = useState(false);
+  const [liveSessionVersion, setLiveSessionVersion] = useState(0);
   const busy = useRef(false);
   const active = useRef(false);
   const leftAt = useRef<number | undefined>(undefined);
@@ -54,6 +55,7 @@ export function useSessionLapseRedirect(enabled: boolean) {
     }
     if (verdict === 'live') {
       setState('none');
+      setLiveSessionVersion((version) => version + 1);
     } else if (verdict === 'unknown') {
       if (confirmed) setCheckFailed(true);
     } else if (confirmed) {
@@ -86,6 +88,7 @@ export function useSessionLapseRedirect(enabled: boolean) {
     open: state === 'prompt',
     checking,
     checkFailed,
+    liveSessionVersion,
     setOpen: (open: boolean) => {
       choiceVersion.current += 1;
       setCheckFailed(false);
