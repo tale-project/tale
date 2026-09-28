@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-885 boxes across 21 suites. Every suite declares the ID prefix its
+888 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -46,7 +46,7 @@ directory and greppable as one token.
 | [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 55 |
 | [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 52 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 19 |
-| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 64 |
+| [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 65 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 30 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 18 |
@@ -54,7 +54,7 @@ directory and greppable as one token.
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 32 |
 | [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 96 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 20 |
-| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, review | 56 |
+| [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, review | 57 |
 | [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 13 |
 
 ## How a round runs
