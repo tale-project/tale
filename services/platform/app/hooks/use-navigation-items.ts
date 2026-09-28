@@ -10,9 +10,11 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { useAutomationsAvailability } from '@/app/features/automations/hooks/use-automations-availability';
 import { useUnreadConversationCount } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { isHomePath } from '@/app/features/home/lib/home-paths';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { type AppAction, type AppSubject } from '@/lib/permissions/ability';
 
@@ -77,6 +79,13 @@ export function useNavigationItems(businessId: string): NavigationItems {
   const { data: unreadConversations } = useUnreadConversationCount(
     hasInbox ? businessId : undefined,
   );
+  // Automations is a builder's section: Owners, Admins and Developers (the
+  // server's author gate) always see it; everyone else only once the
+  // organization runs a deployed organization automation they can follow.
+  // A presentation rule, not access control — the routes stay reachable.
+  const canAuthor = useAbility().can('read', 'developerSettings');
+  const { hasLiveOrgAutomation } = useAutomationsAvailability(businessId);
+  const showAutomations = canAuthor || hasLiveOrgAutomation;
   return useMemo(
     (): NavigationItems => ({
       primary: [
@@ -141,13 +150,17 @@ export function useNavigationItems(businessId: string): NavigationItems {
             },
           ],
         },
-        {
-          label: tNav('automations'),
-          to: '/dashboard/$id/automations',
-          params: { id: businessId },
-          href: `/dashboard/${businessId}/automations`,
-          icon: Workflow,
-        },
+        ...(showAutomations
+          ? [
+              {
+                label: tNav('automations'),
+                to: '/dashboard/$id/automations',
+                params: { id: businessId },
+                href: `/dashboard/${businessId}/automations`,
+                icon: Workflow,
+              },
+            ]
+          : []),
       ],
       pinned: [
         {
@@ -165,6 +178,13 @@ export function useNavigationItems(businessId: string): NavigationItems {
         },
       ],
     }),
-    [businessId, tNav, tKnowledge, unreadConversations, newChatShortcut],
+    [
+      businessId,
+      tNav,
+      tKnowledge,
+      unreadConversations,
+      newChatShortcut,
+      showAutomations,
+    ],
   );
 }

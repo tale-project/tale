@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 73 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -568,6 +568,14 @@ output:
       reload, and no run starts at the next minute. Turn **Enabled** on and
       **Save** → the banner and the streak line are gone, and the next
       failure counts from one.
+- [ ] `AUTO-F53` · **What a reader's list shows** — As a Member or Editor, open
+      **Automations** → only deployed automations are listed (no **Not
+      deployed** rows, no **Create automation** button); with none deployed
+      the empty state reads **No live automations**
+      (`automations.list.emptyReader.title`) with
+      `automations.list.emptyReader.description`. An Owner, Admin or Developer
+      in the same organization sees every automation, and an empty list tells
+      them `automations.list.empty.description` (use **Create automation**).
 
 ## Boundary & error tests
 

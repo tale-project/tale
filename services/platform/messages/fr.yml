@@ -605,7 +605,10 @@ automations:
     loadFailed: 'Impossible de charger les automatisations : {error}'
     empty:
       title: Aucune automatisation pour l’instant
-      description: Crée un agent avec un déclencheur ou importe un paquet de workflow.
+      description: Choisis « Créer une automatisation » pour partir d’un déclencheur et d’un agent, ou pour téléverser un paquet.
+    emptyReader:
+      title: Aucune automatisation en service
+      description: Une automatisation apparaît ici dès qu’un propriétaire, un administrateur ou un développeur la met en service.
   createMenu:
     blank: Vierge (trigger + agent)
   blank:

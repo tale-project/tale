@@ -567,7 +567,10 @@ automations:
     loadFailed: "Couldn't load automations: {error}"
     empty:
       title: No automations yet
-      description: Create an agent with a trigger, or upload a workflow package.
+      description: Choose Create automation to start from a trigger and an agent, or to upload a package.
+    emptyReader:
+      title: No live automations
+      description: An automation appears here once an Owner, Admin, or Developer deploys it.
   createMenu:
     blank: Blank (trigger + agent)
   blank:

@@ -598,7 +598,10 @@ automations:
     loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
     empty:
       title: Noch keine Automatisierungen
-      description: Erstelle einen Agenten mit Trigger oder lade ein Workflow-Paket hoch.
+      description: Wähle „Automatisierung erstellen“, um mit einem Trigger und einem Agenten zu beginnen oder ein Paket hochzuladen.
+    emptyReader:
+      title: Keine Automatisierungen live
+      description: Eine Automatisierung erscheint hier, sobald sie jemand mit der Rolle Inhaber, Admin oder Entwickler live schaltet.
   createMenu:
     blank: Leer (Trigger + Agent)
   blank:

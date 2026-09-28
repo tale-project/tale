@@ -12,6 +12,27 @@ vi.mock('@/app/features/conversations/hooks/use-inbox-availability', () => ({
   useInboxAvailability: () => inbox,
 }));
 
+// Who is looking (an author can read developer settings) and whether the
+// organization runs a deployed organization automation.
+const viewer = { canAuthor: true };
+const automations = { hasLiveOrgAutomation: false };
+
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({
+    can: (action: string, subject: string) =>
+      action === 'read' && subject === 'developerSettings'
+        ? viewer.canAuthor
+        : true,
+  }),
+}));
+
+vi.mock(
+  '@/app/features/automations/hooks/use-automations-availability',
+  () => ({
+    useAutomationsAvailability: () => ({ isLoading: false, ...automations }),
+  }),
+);
+
 vi.mock('@/app/features/conversations/hooks/queries', () => ({
   useUnreadConversationCount: (organizationId: string | undefined) => {
     unreadCalls.push(organizationId);
@@ -42,6 +63,8 @@ function homeItem() {
 }
 
 beforeEach(() => {
+  viewer.canAuthor = true;
+  automations.hasLiveOrgAutomation = false;
   inbox.hasInbox = true;
   unread.data = undefined;
   unreadCalls.length = 0;
@@ -56,6 +79,28 @@ describe('the rail', () => {
       'automations',
     ]);
     expect(pinned.map((item) => item.label)).toEqual(['userSettings']);
+  });
+});
+
+describe('the Automations entry', () => {
+  const labels = () => items().primary.map((item) => item.label);
+
+  it('always shows for people who build automations', () => {
+    viewer.canAuthor = true;
+    automations.hasLiveOrgAutomation = false;
+    expect(labels()).toContain('automations');
+  });
+
+  it('stays hidden for everyone else while nothing is live for them', () => {
+    viewer.canAuthor = false;
+    automations.hasLiveOrgAutomation = false;
+    expect(labels()).toEqual(['home', 'knowledge']);
+  });
+
+  it('shows for everyone once a deployed organization automation runs', () => {
+    viewer.canAuthor = false;
+    automations.hasLiveOrgAutomation = true;
+    expect(labels()).toEqual(['home', 'knowledge', 'automations']);
   });
 });
 

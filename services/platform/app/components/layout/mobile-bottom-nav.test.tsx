@@ -14,6 +14,18 @@ vi.mock('@/app/features/conversations/hooks/use-inbox-availability', () => ({
   useInboxAvailability: () => inbox,
 }));
 
+// The viewer below may author automations, so the Automations tab shows
+// whatever the organization runs.
+vi.mock(
+  '@/app/features/automations/hooks/use-automations-availability',
+  () => ({
+    useAutomationsAvailability: () => ({
+      isLoading: false,
+      hasLiveOrgAutomation: false,
+    }),
+  }),
+);
+
 vi.mock('@/app/features/conversations/hooks/queries', () => ({
   useUnreadConversationCount: (organizationId: string | undefined) => {
     unreadCalls.push(organizationId);

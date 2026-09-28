@@ -103,9 +103,17 @@ export function AutomationsList({
   const showProjectsColumn = projectId === undefined;
 
   const rows = useMemo<AutomationListRow[]>(() => {
-    const listed = [...(automationsQuery.data ?? [])].sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    // Someone who cannot build automations sees what the organization runs:
+    // deployed automations only, not the drafts and undeployed packages
+    // they could neither edit nor start.
+    const listed = [...(automationsQuery.data ?? [])]
+      .filter(
+        (automation) =>
+          canAuthor ||
+          ('deployedVersion' in automation &&
+            automation.deployedVersion !== undefined),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
     return listed.map((automation) => {
       const icon = automationDisplayIcon(automation.presentation);
       const row: AutomationListRow = {
@@ -129,7 +137,7 @@ export function AutomationsList({
       }
       return row;
     });
-  }, [automationsQuery.data, locale]);
+  }, [automationsQuery.data, locale, canAuthor]);
 
   const columns = useMemo<ColumnDef<AutomationListRow>[]>(() => {
     const cols: ColumnDef<AutomationListRow>[] = [
@@ -378,8 +386,12 @@ export function AutomationsList({
           }
           emptyState={{
             icon: Workflow,
-            title: t('list.empty.title'),
-            description: t('list.empty.description'),
+            title: canAuthor
+              ? t('list.empty.title')
+              : t('list.emptyReader.title'),
+            description: canAuthor
+              ? t('list.empty.description')
+              : t('list.emptyReader.description'),
             headingLevel: 2,
           }}
           {...list.tableProps}
