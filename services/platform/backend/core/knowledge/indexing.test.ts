@@ -321,6 +321,40 @@ describe('unchanged content is not re-embedded', () => {
     expect(db.params[index]?.[3]).toBe('msg:%');
   });
 
+  it('never clones an emailed attachment from another row', async () => {
+    // An attachment's chunks carry the name its sender gave it; a clone would
+    // announce another row's name instead — and a row stamped with its
+    // conversation is mail, which never borrows anything.
+    const db = fakeDb({ duplicateId: 'doc-original' });
+    const embedder = stubEmbedder();
+    await indexDocument({
+      ...ARGS,
+      fileId: 's3:acme/mail/cv.pdf',
+      filename: 'cv.pdf',
+      conversationId: 'conv_1',
+      sql: db.sql,
+      embedder,
+    });
+    const text = db.statements.join('\n');
+    expect(text).not.toContain('WITH copied AS');
+    expect(text).not.toMatch(/content_hash = \$2 AND status = 'completed'/);
+    expect(embedder.embedded.length).toBeGreaterThan(0);
+  });
+
+  it('never offers an emailed attachment as the source of a clone', async () => {
+    // Its header names the file its sender chose — often an applicant's own
+    // name — and a hub document cloned from it would carry that name to
+    // readers of a conversation they may have no right to see.
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+    const lookup = db.statements.find(
+      (statement) =>
+        statement.includes('content_hash = $2') &&
+        statement.includes('completed'),
+    );
+    expect(lookup).toContain('AND conversation_id IS NULL');
+  });
+
   it('looks for a duplicate only inside the same organization', async () => {
     // Reusing another organization's embeddings would copy its content and
     // reveal that it holds the same file.
