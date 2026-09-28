@@ -138,6 +138,24 @@ describe('ProjectOverview', () => {
     ).toBeInTheDocument();
   });
 
+  // Regression (#3522 review): the field row shows each hint beside its
+  // control, but the row's wrapper is a plain div, so only the control itself
+  // can carry its label and hint to a screen reader.
+  it('names and describes the name and description fields by their rows', () => {
+    renderOverview();
+
+    expect(
+      screen.getByRole('textbox', { name: 'Name' }),
+    ).toHaveAccessibleDescription(
+      'Shown in the projects list and the Home panel.',
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Description' }),
+    ).toHaveAccessibleDescription(
+      'A short summary that tells teammates what belongs here.',
+    );
+  });
+
   it('shows the read-only Project summary for viewers with a description', () => {
     projectFixture = {
       name: 'Getting started',
@@ -211,20 +229,17 @@ describe('ProjectOverview', () => {
 
   // The Instructions section IS its one field: the section header is the
   // textarea's label and hint, so the body is the bare textarea and its
-  // counter — no nested, unnamed form group between the two.
+  // counter — no nested, unnamed form group between the two. Asked of the
+  // accessibility tree, so an implicit group (a `<fieldset>`) fails it too;
+  // the page's own `<fieldset className="contents">` sits outside the section.
   it('frames the instructions textarea by its section alone', () => {
     renderOverview();
 
     const textarea = screen.getByRole('textbox', { name: 'Instructions' });
-    const section = textarea.closest('[data-settings-section]');
+    const section = textarea.closest<HTMLElement>('[data-settings-section]');
+    if (!section) throw new Error('no settings section around the textarea');
     expect(section).toHaveAccessibleName('Instructions');
-    for (
-      let el = textarea.parentElement;
-      el && el !== section;
-      el = el.parentElement
-    ) {
-      expect(el).not.toHaveAttribute('role', 'group');
-    }
+    expect(within(section).queryByRole('group')).toBeNull();
   });
 
   describe('save feedback', () => {
@@ -239,6 +254,14 @@ describe('ProjectOverview', () => {
       expect(
         await screen.findByText('Project name must be 1–80 characters.'),
       ).toBeInTheDocument();
+      // The row's hint joins the field's own error, never replaces it.
+      const nameField = screen.getByRole('textbox', { name: 'Name' });
+      expect(nameField).toHaveAccessibleDescription(
+        /Project name must be 1–80 characters\./,
+      );
+      expect(nameField).toHaveAccessibleDescription(
+        /Shown in the projects list and the Home panel\./,
+      );
       expect(mockToast).not.toHaveBeenCalled();
     });
 

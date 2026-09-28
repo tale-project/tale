@@ -5,6 +5,27 @@ import { Description } from '@tale/ui/description';
 import { FIELD_ROW_FRAME } from '@tale/ui/field-shell';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
+/**
+ * The ids a row hands its control. The row's wrapper is a plain `<div>`, and
+ * assistive tech ignores a name or a description on one, so a control that
+ * should be named and described by the row's own label and help points at
+ * them itself: `aria-labelledby={labelId}`, `aria-describedby={descriptionId}`.
+ */
+export interface SettingsRowControlIds {
+  /** The id of the row's visible label. */
+  labelId: string;
+  /** The id of the row's help text; `undefined` when the row has none. */
+  descriptionId: string | undefined;
+}
+
+/**
+ * The row's control: a node, or a function of the row's ids for a control
+ * that takes the row's label and help as its accessible name and description.
+ */
+export type SettingsRowChildren =
+  | ReactNode
+  | ((ids: SettingsRowControlIds) => ReactNode);
+
 interface SettingsRowProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
   'children'
@@ -21,8 +42,11 @@ interface SettingsRowProps extends Omit<
    * would squeeze helper text.
    */
   layout?: 'row' | 'stack';
-  /** Right-side control (switch, button, copy field, link). */
-  children: ReactNode;
+  /**
+   * Right-side control (switch, button, copy field, link) — or a function of
+   * the row's {@link SettingsRowControlIds} that renders it.
+   */
+  children: SettingsRowChildren;
 }
 
 /**
@@ -72,7 +96,11 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
           </span>
           {description && <Description id={descId}>{description}</Description>}
         </div>
-        <div className={cn(!stacked && 'shrink-0')}>{children}</div>
+        <div className={cn(!stacked && 'shrink-0')}>
+          {typeof children === 'function'
+            ? children({ labelId, descriptionId: descId })
+            : children}
+        </div>
       </div>
     );
   },

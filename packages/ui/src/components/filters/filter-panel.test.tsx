@@ -179,6 +179,48 @@ describe('FilterPanel', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('stays open when disabled mid-use, then gives way to the disabled button once closed', async () => {
+    const { user, rerender } = render(
+      <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Tags' }));
+
+    // The caller disables the panel under the reader — the last facet was
+    // unticked over an empty list, or the list went back to its first page.
+    rerender(
+      <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} disabled />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Messaging' }),
+    ).toBeInTheDocument();
+
+    // The reader closes it: now the button is disabled.
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeDisabled();
+
+    // A row lands: the panel is offered again, but nobody asked to open it.
+    rerender(<FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeEnabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('closes when its facets go away while open', async () => {
+    const { user, rerender } = render(
+      <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Filters' }),
+    ).toBeInTheDocument();
+
+    rerender(<FilterPanel filters={[]} onClearAll={vi.fn()} />);
+    rerender(<FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   describe('isFilterAffordanceDisabled', () => {
     it('disables an empty, unfiltered set', () => {
       expect(
@@ -190,6 +232,16 @@ describe('FilterPanel', () => {
       expect(
         isFilterAffordanceDisabled({
           isLoading: true,
+          itemCount: 0,
+          hasActiveFilters: false,
+        }),
+      ).toBe(false);
+    });
+
+    it('stays enabled when the read failed, since the set is unknown', () => {
+      expect(
+        isFilterAffordanceDisabled({
+          isError: true,
           itemCount: 0,
           hasActiveFilters: false,
         }),

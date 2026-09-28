@@ -44,7 +44,8 @@ export function ThreadHeader({
   return (
     <div
       className={cn(
-        '@container/thread-header relative flex h-13 shrink-0 items-center gap-3 px-4',
+        // Pin the header within its scroll container and above the mobile nav.
+        '@container/thread-header sticky top-0 z-40 flex h-13 shrink-0 items-center gap-3 px-4',
         !floating && 'border-border bg-background border-b',
         className,
       )}

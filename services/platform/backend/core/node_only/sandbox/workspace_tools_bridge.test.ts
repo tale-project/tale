@@ -593,6 +593,8 @@ describe('dispatchWorkspaceToolImpl', () => {
             filename: 'deck.pptx',
             sizeBytes: 900_000,
             indexing: { status: 'queued' },
+            heldByDocument: true,
+            extractable: true,
             reason: 'binary',
           });
         }

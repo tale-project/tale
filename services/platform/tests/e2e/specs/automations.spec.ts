@@ -86,7 +86,7 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
   );
 
   // The detail is tabbed like a project detail: Editor (active), General,
-  // Versions, Runs. Walk the strip — General carries the trigger; Versions
+  // Runs and the version picker. Walk the strip — General carries the trigger; Versions
   // lists the uploaded draft as v1, whose row deep-links the Editor to that
   // version; Runs says nothing ran yet.
   const tabs = page.getByRole('navigation', {
@@ -106,15 +106,11 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
     page.getByRole('heading', { name: t('automations.trigger.title') }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await tabs
-    .getByRole('link', { name: t('automations.navigation.versions') })
+    .getByRole('button', { name: t('automations.detail.versionSelect') })
     .click();
-  await page.waitForURL(
-    new RegExp(`/automations/${PROBE_SLUG}/versions(?:[?#]|$)`),
-    { timeout: TIMEOUT.NAV },
-  );
   await page
-    .getByRole('list', { name: t('automations.versions.title') })
-    .getByRole('link')
+    .getByRole('radiogroup', { name: t('automations.versions.title') })
+    .getByRole('radio')
     .first()
     .click();
   await page.waitForURL(

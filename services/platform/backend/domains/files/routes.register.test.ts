@@ -22,25 +22,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Auth } from '../../auth/auth.ts';
 import { RAG_ERROR_UNSUPPORTED_TYPE } from '../../core/knowledge/rag_error_codes.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { markRagQueued } from '../knowledge/service.ts';
+import { HELD_BY_DOCUMENT_SQL } from '../knowledge/status-hints.ts';
 import { createFileRoutes } from './routes.ts';
 import { registerUpload, stampImageVisionMetadata } from './service.ts';
 import { queueTranscription } from './transcription.ts';
 
 /** The register transaction, recording what runs on it. The queue marker and
- * the page-shape stamp stay mocked, so an `UPDATE app.file_metadata` here is
- * the status writer's, run for real. A freshly registered upload is held by
- * no document, so the writer's list probe answers false. */
+ * the page-shape stamp stay mocked, so a statement here is the status
+ * writer's, run for real. A freshly registered upload is held by no
+ * document, so every statement answers the writer's list probe with false —
+ * whatever its SQL says. */
 const db = vi.hoisted(() => {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('$');
-    statements.push({ text, values });
-    return Promise.resolve(
-      text.includes('RETURNING fm.org_id')
-        ? [{ orgId: 'org_1', listed: false }]
-        : [],
-    );
+    statements.push({ text: strings.join('$'), values });
+    return Promise.resolve([{ orgId: 'org_1', listed: false }]);
   };
   const tx = Object.assign(tag, { unsafe: (raw: string) => raw });
   return { statements, tx };
@@ -95,6 +93,10 @@ vi.mock('../knowledge/service.ts', async (importOriginal) => ({
 vi.mock('../../jobs/enqueue.ts', () => ({
   addJobInTx: vi.fn(() => Promise.resolve('job_1')),
 }));
+vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../realtime/outbox.ts')>()),
+  emitHintInTx: vi.fn(() => Promise.resolve()),
+}));
 vi.mock('./transcription.ts', () => ({
   queueTranscription: vi.fn(() => Promise.resolve()),
   retryTranscription: vi.fn(() => Promise.resolve()),
@@ -119,13 +121,12 @@ function register(body: Record<string, unknown>) {
   );
 }
 
+/** The status writer's statements: the ones that ask, in the write itself,
+ * whether a document holds the file. */
 const statusWrites = () =>
-  db.statements.filter((s) => s.text.includes('UPDATE app.file_metadata'));
+  db.statements.filter((s) => s.values.includes(HELD_BY_DOCUMENT_SQL));
 
-const hints = () =>
-  db.statements.filter((s) =>
-    s.text.includes('INSERT INTO app_realtime.outbox'),
-  );
+const hints = () => vi.mocked(emitHintInTx).mock.calls;
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -219,9 +220,9 @@ describe('POST /files/register — a file no lane will index', () => {
           'file_1',
         ]),
       );
-      // An attachment is on no document list: the writer asks, and the
-      // organization's open Documents lists are not told to refetch.
-      expect(writes[0]?.text).toContain('AS "listed"');
+      // An attachment is on no document list: the writer asks (that is how
+      // `statusWrites` finds it), and the organization's open Documents
+      // lists are not told to refetch.
       expect(hints()).toEqual([]);
       expect(markRagQueued).not.toHaveBeenCalled();
       expect(addJobInTx).not.toHaveBeenCalled();

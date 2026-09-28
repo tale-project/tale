@@ -49,7 +49,10 @@ function nextSteps(file: string, kind: MigrationKind): string {
       `     app's own code decides them — never a SQL copy of that rule\n` +
       `  2. read only the rows that can need the fill (FOR UPDATE), decide\n` +
       `     them with that rule, and write set-based, re-checking the\n` +
-      `     condition in the UPDATE, so a second run changes nothing\n` +
+      `     condition in the UPDATE, so a second run changes nothing — every\n` +
+      `     statement in this file: import only pure rules, never a domain\n` +
+      `     service, the realtime outbox or a job helper (they follow today's\n` +
+      `     schema, not the one at this number)\n` +
       `  3. keep it rolling-deploy safe: the PREVIOUS image is still serving\n` +
       `     while this applies\n` +
       `  4. pin its decision table in backend/db/data-migrations.test.ts, and\n` +

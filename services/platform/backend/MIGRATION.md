@@ -8,8 +8,10 @@ now lives under [`core/`](./core/). This file stays as the campaign's history:
 how each 0.5 surface got here and the semantics it carries.
 
 Schema changes now ship as numbered `.sql` files under
-[`db/migrations/`](./db/migrations/), applied at boot in filename order under
-one advisory lock ([`db/migrate.ts`](./db/migrate.ts)) — see the
+[`db/migrations/`](./db/migrations/), and a backfill that decides with the
+app's own code as a numbered `.ts` data migration beside them. Both apply at
+boot in filename order under one advisory lock
+([`db/migrate.ts`](./db/migrate.ts)) — see the
 [`create-migration`](../../../.agents/skills/create-migration/SKILL.md) skill.
 
 Legend: `pending` · `in-progress` · `done` · `dropped(reason)`

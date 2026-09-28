@@ -548,7 +548,6 @@ automations:
   navigation:
     editor: Editor
     general: General
-    versions: Versions
     runs: Runs
   switcher:
     title: Switch automation
@@ -747,6 +746,7 @@ automations:
       description: This automation has no version with that number — the link may be stale, or the number mistyped.
       openLatest: Open latest
     controlFlowTitle: Control flow
+    nodeSheetDescription: Edit the node's fields, then save or discard the change.
     agent:
       equipmentLabel: Equipment
       harnessDefault: Default (Claude Code)
@@ -801,7 +801,6 @@ automations:
     noProjects: This organization has no projects yet.
   versions:
     title: Versions
-    description: Every saved version, newest first — open one to show it on the canvas. Exactly one is live at a time.
     empty: No versions saved yet.
     versionLabel: v{version}
     deployed: Live
@@ -2870,8 +2869,11 @@ governance:
         to message bodies.
     chatFilterEvents:
       title: Chat filter events
-      description: Telemetry for content-filter triggers (PII, profanity, custom
-        rules). Useful for tuning the filter; carries quoted message excerpts.
+      description:
+        Telemetry for content-filter triggers (PII, profanity, custom
+        rules). Each event holds the filter, categories, direction and
+        counts, never the matched text. The Guardrails page and Chat health
+        show only the events still kept.
       placeholder: e.g. 90
       helper: Filter-event telemetry rows older than this will be deleted.
     notifications:
@@ -7274,6 +7276,21 @@ tasks:
     noTasks: No tasks
   list:
     showArchived: Show archived
+  # A keyboard drag on the Board or List: the title's instructions (they
+  # name the keys the title handles), then the live announcements. {task} is
+  # `KEY-12, Title` on pickup and `KEY-12` after it (the title when the
+  # project has no key); {status} is a `status.*` label. A drop names where
+  # the task was released, not a status change: a workflow can still refuse it.
+  drag:
+    instructions: Enter opens the task. Space picks it up; then the arrow keys move it, Space drops it and Escape cancels.
+    pickedUp: 'Picked up {task}. Status {status}, position {position} of {total}. Move it with the arrow keys, drop it with Space or cancel with Escape.'
+    over: 'Status {status}, position {position} of {total}.'
+    noTarget: Not over a status. Dropping here changes nothing.
+    dropped: 'Dropped {task} in status {status}, position {position} of {total}.'
+    droppedInPlace: 'Dropped {task} where it started, in status {status}, position {position} of {total}.'
+    droppedOutside: 'Dropped {task} outside the statuses. It stays in status {status}, position {position} of {total}.'
+    cancelled: 'Cancelled moving {task}. It stays in status {status}, position {position} of {total}.'
+    gone: The task is no longer here, so it was not moved.
   archived:
     badge: Archived
   archive:

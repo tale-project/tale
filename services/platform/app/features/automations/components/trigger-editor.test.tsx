@@ -91,6 +91,13 @@ const SCHEDULE_ROW = {
   enabled: true,
 };
 
+/** The design system's `InlineCode` (`@tale/ui`): a `<code>` chip in its
+ * mono face — which the hand-rolled `<code>` it replaced never set. */
+function expectInlineCode(element: HTMLElement) {
+  expect(element.tagName).toBe('CODE');
+  expect(element).toHaveClass('bg-muted', 'font-mono', 'text-xs');
+}
+
 /** The General tab's frame: its sections join one Save/Discard cluster. */
 function GeneralTab({ children }: { children: ReactNode }) {
   return (
@@ -286,22 +293,23 @@ describe('TriggerEditor', () => {
 
     // The minted token appears inside the ready-to-run curl command (the
     // "copy it now" alert and the persistent endpoint block both show it).
-    expect(
-      (
-        await screen.findAllByText(
-          /curl -X POST .*\/api\/automations\/webhook\/wht_secret_1/,
-        )
-      ).length,
-    ).toBeGreaterThan(0);
+    const commands = await screen.findAllByText(
+      /curl -X POST .*\/api\/automations\/webhook\/wht_secret_1/,
+    );
+    expect(commands).toHaveLength(2);
     expect(
       screen.getByText(/shown once and stored only as a hash/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /\/api\/projects\/<projectId>\/automations\/webhook\/wht_secret_1/,
-      ),
-    ).toBeInTheDocument();
+    const projectCommand = screen.getByText(
+      /\/api\/projects\/<projectId>\/automations\/webhook\/wht_secret_1/,
+    );
     expect(screen.queryByText(/\?projectId=/)).not.toBeInTheDocument();
+    // Each command is the design system's inline code, whole and wrapping,
+    // selected in one click.
+    for (const command of [...commands, projectCommand]) {
+      expectInlineCode(command);
+      expect(command).toHaveClass('break-all', 'select-all');
+    }
   });
 
   // No binding used to draw an ENABLED, empty schedule — indistinguishable
@@ -539,6 +547,20 @@ describe('TriggerEditor', () => {
       );
       // A standing state, not news: no live region on every visit.
       expect(screen.queryByRole('alert')).toBeNull();
+      // The design system's warning `Alert`, static (`live="off"`), its
+      // title a heading, with the code as `InlineCode` inside it.
+      const banner = screen
+        .getByRole('heading', { name: 'Paused after repeated failures' })
+        .closest('[aria-live]');
+      expect(banner).toHaveAttribute('aria-live', 'off');
+      expect(banner).not.toHaveAttribute('role');
+      expect(banner).toHaveClass('bg-amber-50', 'border-amber-500/30');
+      const code = screen.getByText('connector_error');
+      expectInlineCode(code);
+      expect(banner).toContainElement(code);
+      expect(banner).toContainElement(
+        screen.getByRole('link', { name: 'View run' }),
+      );
     });
 
     it('opens the last failed run under the project the tab is shown in', () => {
@@ -580,7 +602,10 @@ describe('TriggerEditor', () => {
         ),
       ).toBeVisible();
       expect(screen.getByText('auth_error')).toBeVisible();
+      expectInlineCode(screen.getByText('auth_error'));
       expect(screen.queryByText('Paused after repeated failures')).toBeNull();
+      // A line under the section, not a banner.
+      expect(screen.getByText('auth_error').closest('[aria-live]')).toBeNull();
     });
 
     it('counts a webhook streak without promising a pause', () => {

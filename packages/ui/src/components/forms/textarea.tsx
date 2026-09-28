@@ -65,6 +65,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       disabledReason,
       readOnly,
       id: providedId,
+      'aria-describedby': callerDescribedBy,
       ...props
     },
     ref,
@@ -89,8 +90,11 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     });
     const descriptionId = `${id}-description`;
     const hasError = !!errorMessage;
+    // Merge a caller's `aria-describedby` (help shown elsewhere, e.g. a
+    // settings row's description) with the ids the field owns, so it never
+    // clobbers the description and error associations (mirrors `Input`).
     const describedBy =
-      [description && descriptionId, hasError && errorId]
+      [description && descriptionId, hasError && errorId, callerDescribedBy]
         .filter(Boolean)
         .join(' ') || undefined;
     const [showShake, setShowShake] = React.useState(false);

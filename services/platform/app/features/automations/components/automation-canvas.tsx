@@ -25,6 +25,7 @@ import {
   useMemo,
   useRef,
   type CSSProperties,
+  type ReactNode,
 } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -75,6 +76,8 @@ export interface AutomationCanvasProps {
    * @default true
    */
   framed?: boolean;
+  /** Mobile editor actions, kept inside the canvas toolbar. */
+  centerActions?: ReactNode;
 }
 
 const EMPTY_STATUSES: ReadonlyMap<string, NodeRunStatus> = new Map();
@@ -109,6 +112,7 @@ function CanvasInner({
   inspectorId,
   runStatusByNode = EMPTY_STATUSES,
   framed = true,
+  centerActions,
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
   const { getViewport, setViewport } = useReactFlow();
@@ -253,6 +257,7 @@ function CanvasInner({
         icon={Workflow}
         title={t('canvas.empty.title')}
         description={t('canvas.empty.description')}
+        action={centerActions}
       />
     );
   }
@@ -284,6 +289,7 @@ function CanvasInner({
         aria-busy={isLayouting}
       >
         <FlowCanvas
+          centerActions={centerActions}
           nodes={nodes}
           edges={flowEdges}
           nodeTypes={NODE_TYPES}

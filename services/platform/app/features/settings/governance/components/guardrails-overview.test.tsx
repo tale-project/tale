@@ -18,7 +18,8 @@ vi.mock('@tale/ui/use-format-date', () => ({
 // toggle drives BOTH the three policy reads (status cards) and the events read
 // (table), since the overview's loading state covers all of them. A source or
 // kind filter narrows the events on the server, so a filtered read answers
-// `filteredEvents` instead; `eventsLoading` holds the events read alone.
+// `filteredEvents` instead; `eventsLoading` holds the events read alone, and
+// `eventsFailed` fails it.
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
@@ -28,6 +29,7 @@ const { state } = vi.hoisted(() => ({
     events: [] as unknown[],
     filteredEvents: [] as unknown[],
     eventsLoading: false,
+    eventsFailed: false,
   },
 }));
 
@@ -42,12 +44,13 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (_name: string, args: Record<string, unknown>) => ({
     data:
-      state.isLoading || state.eventsLoading
+      state.isLoading || state.eventsLoading || state.eventsFailed
         ? undefined
         : 'filterName' in args || 'kind' in args
           ? state.filteredEvents
           : state.events,
     isLoading: state.isLoading || state.eventsLoading,
+    isError: state.eventsFailed,
   }),
 }));
 
@@ -82,6 +85,7 @@ function setLoading() {
 beforeEach(() => {
   state.filteredEvents = [];
   state.eventsLoading = false;
+  state.eventsFailed = false;
 });
 
 describe('GuardrailsOverview', () => {
@@ -232,6 +236,13 @@ describe('GuardrailsOverview', () => {
     it('stays usable while the events load', () => {
       setLoaded();
       state.eventsLoading = true;
+      render(<GuardrailsOverview organizationId="org-1" />);
+      expect(filterButton()).toBeEnabled();
+    });
+
+    it('stays usable when the events failed to load, since they are unknown', () => {
+      setLoaded();
+      state.eventsFailed = true;
       render(<GuardrailsOverview organizationId="org-1" />);
       expect(filterButton()).toBeEnabled();
     });

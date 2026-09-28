@@ -12,6 +12,7 @@ import {
 
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportOneDriveFiles } from '../hooks/actions';
@@ -528,8 +529,7 @@ export function OneDriveImportDialog({
           importType === 'one-time'
             ? t('onedrive.importFailed')
             : t('onedrive.syncFailed'),
-        description:
-          error instanceof Error ? error.message : tCommon('errors.generic'),
+        description: failureDetail(error) ?? tCommon('errors.generic'),
         variant: 'destructive',
       });
     } finally {

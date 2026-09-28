@@ -72,6 +72,44 @@ describe('SettingsRow', () => {
       expect(description).toHaveTextContent('Adds a second login step');
     });
 
+    // The wrapper is a plain div, whose name and description assistive tech
+    // ignores — so the row hands its ids to a control that asks for them.
+    it('hands its label and description ids to a control rendered as a function', () => {
+      render(
+        <SettingsRow
+          label="Two-factor auth"
+          description="Adds a second login step"
+        >
+          {({ labelId, descriptionId }) => (
+            <button
+              type="button"
+              aria-labelledby={labelId}
+              aria-describedby={descriptionId}
+            />
+          )}
+        </SettingsRow>,
+      );
+      const control = screen.getByRole('button', { name: 'Two-factor auth' });
+      expect(control).toHaveAccessibleDescription('Adds a second login step');
+    });
+
+    it('hands no description id when the row has no description', () => {
+      render(
+        <SettingsRow label="Two-factor auth">
+          {({ labelId, descriptionId }) => (
+            <button
+              type="button"
+              aria-labelledby={labelId}
+              data-description-id={descriptionId ?? 'none'}
+            />
+          )}
+        </SettingsRow>,
+      );
+      expect(
+        screen.getByRole('button', { name: 'Two-factor auth' }),
+      ).toHaveAttribute('data-description-id', 'none');
+    });
+
     it('does not set aria-describedby without a description', () => {
       const { container } = render(
         <SettingsRow label="Two-factor auth">

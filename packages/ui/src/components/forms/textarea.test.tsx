@@ -97,6 +97,25 @@ describe('Textarea', () => {
       render(<Textarea label="Message" errorMessage="Invalid" />);
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
+
+    // A settings row renders the field's help beside it and points the field
+    // at it; that must join the field's own error, never replace it.
+    it('merges a caller aria-describedby with its own error', () => {
+      render(
+        <>
+          <p id="row-help">Shown to teammates.</p>
+          <Textarea
+            aria-label="Summary"
+            aria-describedby="row-help"
+            errorMessage="Too long"
+          />
+        </>,
+      );
+      const textarea = screen.getByRole('textbox', { name: 'Summary' });
+      expect(textarea).toHaveAccessibleDescription(
+        'Too long Shown to teammates.',
+      );
+    });
   });
 
   describe('border visibility', () => {

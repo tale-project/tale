@@ -52,7 +52,7 @@ export function RequestsListSection({
   // AccessDenied below regardless. The hook treats `undefined`
   // organizationId as `'skip'`.
   const canRead = ability.can('write', 'orgSettings');
-  const { results, status, loadMore } = useListErasureRequests({
+  const { results, status, loadMore, error } = useListErasureRequests({
     organizationId: canRead ? organizationId : undefined,
     statuses: statusFilter,
   });
@@ -194,6 +194,7 @@ export function RequestsListSection({
           // status picked there is nothing to narrow.
           disabled={isFilterAffordanceDisabled({
             isLoading: isInitialLoading,
+            isError: error !== null,
             itemCount: results.length,
             hasActiveFilters: statusFilter.length > 0,
             filters: filterConfigs,

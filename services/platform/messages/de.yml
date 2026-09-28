@@ -579,7 +579,6 @@ automations:
   navigation:
     editor: Editor
     general: Allgemein
-    versions: Versionen
     runs: Läufe
   switcher:
     title: Automatisierung wechseln
@@ -785,6 +784,8 @@ automations:
       description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
       openLatest: Neueste öffnen
     controlFlowTitle: Ablaufsteuerung
+    nodeSheetDescription: Bearbeite die Felder dieses Knotens, dann speichere die
+      Änderung oder verwirf sie.
     agent:
       equipmentLabel: Ausrüstung
       harnessDefault: Standard (Claude Code)
@@ -841,7 +842,6 @@ automations:
     noProjects: Diese Organisation hat noch keine Projekte.
   versions:
     title: Versionen
-    description: Alle gespeicherten Versionen, neueste zuerst — öffne eine, und der Canvas zeigt sie. Genau eine ist jeweils live.
     empty: Es wurde noch keine Version gespeichert.
     versionLabel: v{version}
     deployed: Live
@@ -2976,8 +2976,9 @@ governance:
       title: Chat-Filter-Ereignisse
       description:
         Telemetrie für Content-Filter-Auslöser (PII, Profanität, eigene
-        Regeln). Nützlich zum Tuning des Filters; enthält zitierte
-        Nachrichtenausschnitte.
+        Regeln). Jedes Ereignis enthält Filter, Kategorien, Richtung und
+        Anzahl, nie den gefundenen Text. Die Guardrails-Seite und der
+        Chat-Zustand zeigen nur die noch aufbewahrten Ereignisse.
       placeholder: z. B. 90
       helper: Filter-Ereignis-Telemetrie älter als dies wird gelöscht.
     notifications:
@@ -7150,6 +7151,20 @@ tasks:
     noTasks: Keine Aufgaben
   list:
     showArchived: Archivierte anzeigen
+  # Ziehen per Tastatur in Board und Liste: die Anleitung am Titel, dann die
+  # Live-Ansagen. {task} ist beim Aufnehmen `KEY-12, Titel`, danach `KEY-12`
+  # (ohne Projektschlüssel der Titel). Ein Ablegen nennt den Ort, keinen
+  # neuen Status: ein Workflow kann den Wechsel noch ablehnen.
+  drag:
+    instructions: Enter öffnet die Aufgabe. Die Leertaste nimmt sie auf; danach verschieben die Pfeiltasten sie, die Leertaste legt sie ab und Escape bricht ab.
+    pickedUp: 'Aufgenommen: {task}. Status {status}, Position {position} von {total}. Verschieben mit den Pfeiltasten, ablegen mit der Leertaste, abbrechen mit Escape.'
+    over: 'Status {status}, Position {position} von {total}.'
+    noTarget: Kein Status als Ziel. Hier ablegen ändert nichts.
+    dropped: 'Abgelegt: {task} im Status {status}, Position {position} von {total}.'
+    droppedInPlace: 'Abgelegt: {task} an der ursprünglichen Stelle im Status {status}, Position {position} von {total}.'
+    droppedOutside: 'Abgelegt ohne Status als Ziel: {task} bleibt im Status {status}, Position {position} von {total}.'
+    cancelled: 'Verschieben abgebrochen: {task} bleibt im Status {status}, Position {position} von {total}.'
+    gone: Die Aufgabe ist hier nicht mehr vorhanden und wurde nicht verschoben.
   archived:
     badge: Archiviert
   archive:

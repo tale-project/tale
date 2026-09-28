@@ -247,33 +247,40 @@ function ProjectOverviewContent({
                   description={t('settings.nameHint')}
                   required
                 >
-                  {/* The row owns the label, so the control carries its
-                      accessible name itself. `wrapperClassName="w-full"` lets
-                      the bare Input fill the row's control column so its
-                      skeleton mask matches the loaded width. */}
-                  <Input
-                    id="project-overview-name"
-                    aria-label={t('settings.name')}
-                    required
-                    maxLength={PROJECT_NAME_MAX}
-                    errorMessage={errors.name?.message}
-                    {...register('name')}
-                    wrapperClassName="w-full"
-                  />
+                  {/* The row owns the label and the hint, so the control
+                      points at both for its accessible name and description.
+                      `wrapperClassName="w-full"` lets the bare Input fill the
+                      row's control column so its skeleton mask matches the
+                      loaded width. */}
+                  {({ labelId, descriptionId }) => (
+                    <Input
+                      id="project-overview-name"
+                      aria-labelledby={labelId}
+                      aria-describedby={descriptionId}
+                      required
+                      maxLength={PROJECT_NAME_MAX}
+                      errorMessage={errors.name?.message}
+                      {...register('name')}
+                      wrapperClassName="w-full"
+                    />
+                  )}
                 </SettingsFieldRow>
 
                 <SettingsFieldRow
                   label={t('settings.description')}
                   description={t('settings.descriptionHint')}
                 >
-                  <Textarea
-                    id="project-overview-description"
-                    aria-label={t('settings.description')}
-                    rows={2}
-                    maxLength={PROJECT_DESCRIPTION_MAX}
-                    errorMessage={errors.description?.message}
-                    {...register('description')}
-                  />
+                  {({ labelId, descriptionId }) => (
+                    <Textarea
+                      id="project-overview-description"
+                      aria-labelledby={labelId}
+                      aria-describedby={descriptionId}
+                      rows={2}
+                      maxLength={PROJECT_DESCRIPTION_MAX}
+                      errorMessage={errors.description?.message}
+                      {...register('description')}
+                    />
+                  )}
                 </SettingsFieldRow>
 
                 <SettingsFieldRow
