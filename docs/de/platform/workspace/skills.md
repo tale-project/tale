@@ -85,6 +85,14 @@ Der Projektzugriff bestimmt die verfügbare Ausstattung, auch wenn du persönlic
 
 Eine Einschränkung der Sichtbarkeit verlangt eine Bestätigung, weil Agenten dadurch Zugriff verlieren können. Das Löschen hat dieselbe praktische Folge: Ein Lauf, der das fehlende Bundle benötigt, kann es nicht bereitstellen. Prüfe die Verwendung eines geteilten Skills, bevor du ihn einschränkst oder entfernst.
 
+## Sehen, wer einen Skill erstellt und geändert hat
+
+Die Spalte **Erstellt von** nennt das Mitglied, das den jeweiligen Skill erstellt hat. Suche in der Bibliothek nach einem Namen, um alles zu finden, was diese Person geteilt hat. Bei einem Skill ohne festgehaltenen Ersteller, etwa den Dokument-Skills, mit denen deine Organisation startet, steht dort **Mitgeliefert**, bei einem Skill aus einem verwalteten Konfigurations-Release **Konfigurations-Release**. Hat der Ersteller die Organisation verlassen, steht dort **Ehemaliges Mitglied**.
+
+Öffne einen Skill, um **Erstellt von** und **Zuletzt bearbeitet von** zu sehen: das Mitglied, dessen Speichern oder Hochladen in Tale die aktuelle Version erzeugt hat. **Zuletzt bearbeitet von** fehlt, wenn seit dem Erstellen niemand den Skill bearbeitet hat oder die Datei seit der letzten Bearbeitung außerhalb von Tale geändert wurde. Bei einem Konfigurations-Release nennt **Erstellt von** zusätzlich das Mitglied, dessen Upload ihn installiert hat. Auch die Skill-Liste in der [Ausrüstung eines Agenten](/de/platform/agents/skills) nennt unter jedem Skill seinen Ersteller.
+
+Tale hält das Erstellen, Bearbeiten, Hochladen und Löschen eines Skills sowie jede Änderung seiner Sichtbarkeit oder Teams im Audit-Log fest. Administratoren und Inhaber finden diese Einträge unter **Einstellungen > Richtlinien > Protokolle** in der Kategorie **Skill**.
+
 ## Dateireferenz
 
 Eine minimale `SKILL.md` sieht so aus:
@@ -105,6 +113,7 @@ Zitiere Belege und kennzeichne fehlende Informationen mit „Nicht angegeben“.
 | `name` | Entspricht dem Ordnernamen. `anthropic` und `claude` sind reserviert. |
 | `description` | Wann und warum das Modell den Skill lesen soll; höchstens 1.024 Zeichen. |
 | `visibility` / `teams` | `org` oder `team` mit Team-IDs. Die Oberfläche trägt diese Werte ein. |
+| `owner` | Die Benutzer-ID des Mitglieds, das den Skill erstellt hat. Tale setzt sie; ein Wert in einer hochgeladenen Datei wird ignoriert. |
 | `license` | Die vom Autor angegebenen Nutzungsbedingungen. |
 | `recommended-packages` | Empfohlene Abhängigkeiten; der Import installiert sie nicht. |
 | `disable-model-invocation` | Bittet um ausdrückliche Verwendung. Diese Metadaten sind eine Anweisung, keine Zugriffsbeschränkung. |
