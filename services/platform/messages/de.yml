@@ -7141,6 +7141,20 @@ tasks:
     noTasks: Keine Aufgaben
   list:
     showArchived: Archivierte anzeigen
+  # Ziehen per Tastatur in Board und Liste: die Anleitung am Titel, dann die
+  # Live-Ansagen. {task} ist beim Aufnehmen `KEY-12, Titel`, danach `KEY-12`
+  # (ohne Projektschlüssel der Titel). Ein Ablegen nennt den Ort, keinen
+  # neuen Status: ein Workflow kann den Wechsel noch ablehnen.
+  drag:
+    instructions: Enter öffnet die Aufgabe. Die Leertaste nimmt sie auf; danach verschieben die Pfeiltasten sie, die Leertaste legt sie ab und Escape bricht ab.
+    pickedUp: 'Aufgenommen: {task}. Status {status}, Position {position} von {total}. Verschieben mit den Pfeiltasten, ablegen mit der Leertaste, abbrechen mit Escape.'
+    over: 'Status {status}, Position {position} von {total}.'
+    noTarget: Kein Status als Ziel. Hier ablegen ändert nichts.
+    dropped: 'Abgelegt: {task} im Status {status}, Position {position} von {total}.'
+    droppedInPlace: 'Abgelegt: {task} an der ursprünglichen Stelle im Status {status}, Position {position} von {total}.'
+    droppedOutside: 'Abgelegt ohne Status als Ziel: {task} bleibt im Status {status}, Position {position} von {total}.'
+    cancelled: 'Verschieben abgebrochen: {task} bleibt im Status {status}, Position {position} von {total}.'
+    gone: Die Aufgabe ist hier nicht mehr vorhanden und wurde nicht verschoben.
   archived:
     badge: Archiviert
   archive:

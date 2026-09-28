@@ -7245,6 +7245,20 @@ tasks:
     noTasks: Aucune tâche
   list:
     showArchived: Afficher les archivées
+  # Glisser au clavier dans le tableau et la liste : les instructions du
+  # titre, puis les annonces en direct. {task} vaut `KEY-12, Titre` à la
+  # saisie, puis `KEY-12` (le titre si le projet n'a pas de clé). Un dépôt
+  # nomme l'endroit, pas un nouveau statut : un workflow peut encore le refuser.
+  drag:
+    instructions: Entrée ouvre la tâche. Espace la saisit ; ensuite, les touches fléchées la déplacent, Espace la dépose et Échap annule.
+    pickedUp: 'Tu as saisi {task}. Statut {status}, position {position} sur {total}. Déplace-la avec les touches fléchées, dépose-la avec Espace ou annule avec Échap.'
+    over: 'Statut {status}, position {position} sur {total}.'
+    noTarget: Aucun statut visé. Déposer ici ne change rien.
+    dropped: 'Tu as déposé {task} dans le statut {status}, position {position} sur {total}.'
+    droppedInPlace: "Tu as déposé {task} à sa place d'origine, dans le statut {status}, position {position} sur {total}."
+    droppedOutside: 'Tu as déposé {task} hors des statuts : elle reste dans le statut {status}, position {position} sur {total}.'
+    cancelled: 'Déplacement annulé : {task} reste dans le statut {status}, position {position} sur {total}.'
+    gone: "Cette tâche n'est plus affichée ici : elle n'a pas été déplacée."
   archived:
     badge: Archivée
   archive:
