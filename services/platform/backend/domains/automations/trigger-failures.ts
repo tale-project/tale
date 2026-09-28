@@ -16,7 +16,8 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  *   paused, which keeps it (below);
  * - a failure whose code the next occurrence would repeat
  *   (`isPermanentFailureCode`) adds one and becomes the trigger's last
- *   failure;
+ *   failure, except on a schedule its failures paused, which it leaves
+ *   alone (below);
  * - anything else — a transient code, no code — neither counts nor breaks
  *   the streak (a cancel never reaches `finishRun`).
  *
@@ -32,16 +33,19 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * delivery or a platform event, which a paused trigger would drop, while a
  * schedule's occurrence carries nothing a later run cannot redo.
  *
- * A paused schedule keeps the streak that paused it: a run still in flight
- * when the pause landed may succeed afterwards, and it must not leave a
- * paused schedule reading "0 runs in a row failed". Only a save clears it.
- * Paused means off AND stamped `paused_after_failures` — the test the
- * Trigger section's banner makes — never the stamp alone. The image before
- * 0124 re-enables a paused schedule without clearing the stamp (its bind
- * keeps the skip stamps of an unchanged kind), and nothing but a skip or a
- * later save overwrites it; a live schedule still carrying it must reset on
- * a success, or its permanent failures would add up across the successes
- * between them and pause it again for failures that were not in a row.
+ * A paused schedule keeps the streak and the last failure that paused it: a
+ * run still in flight when the pause landed may land afterwards, and neither
+ * way may it move them. A success must not leave a paused schedule reading
+ * "0 runs in a row failed"; a permanent failure must not count past the
+ * pause or replace the failure the banner names and links. Only a save
+ * clears them. Paused means off AND stamped `paused_after_failures` — the
+ * test the Trigger section's banner makes — never the stamp alone. The image
+ * before 0124 re-enables a paused schedule without clearing the stamp (its
+ * bind keeps the skip stamps of an unchanged kind), and nothing but a skip or
+ * a later save overwrites it; a live schedule still carrying it must reset
+ * on a success, or its permanent failures would add up across the successes
+ * between them and pause it again for failures that were not in a row, and
+ * must count a failure, or it could never pause again.
  *
  * Lock order — the organization's audit chain BEFORE any trigger row, in
  * every transaction that takes both:
@@ -181,7 +185,10 @@ async function countFailure(
   // A save moves `updated_at_ms` past the last counted failure; the streak
   // before it is stale and this failure starts a new one. `setTrigger`
   // resets the counter itself — this also covers a save by an image that
-  // predates the counter, mid-roll (0124).
+  // predates the counter, mid-roll (0124). The pause writes no
+  // `updated_at_ms`, so a run that overlapped it passes that test: a
+  // schedule its failures paused keeps the streak and the last failure that
+  // paused it, as on a success (the module note).
   const counted = await tx<CountedTrigger[]>`
     UPDATE app.automation_triggers SET
       consecutive_failures = CASE
@@ -193,6 +200,7 @@ async function countFailure(
       last_failure_code = ${outcome.failureCode},
       last_failed_run_id = ${outcome.runId}
     WHERE id = ${triggerId} AND org_id = ${outcome.organizationId}
+      AND (enabled OR last_skip_reason IS DISTINCT FROM 'paused_after_failures')
       AND updated_at_ms <= ${outcome.startedAt}
     RETURNING id, name, kind, enabled,
               consecutive_failures AS "consecutiveFailures"
