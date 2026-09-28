@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -5,7 +8,10 @@ import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ProjectAgentRow } from '../hooks/queries';
-import { ProjectAgentDialog } from './project-agent-dialog';
+import {
+  DOCUMENT_SKILL_SLUGS,
+  ProjectAgentDialog,
+} from './project-agent-dialog';
 
 const { updateAgent, previewState } = vi.hoisted(() => ({
   updateAgent: vi.fn().mockResolvedValue(undefined),
@@ -168,5 +174,65 @@ describe('ProjectAgentDialog model pin', () => {
     expect(updateAgent.mock.calls.at(-1)?.[0]).not.toHaveProperty(
       'modelProvider',
     );
+  });
+});
+
+describe('ProjectAgentDialog document skills', () => {
+  // What the project can see: two seeded document skills and a house skill.
+  const VISIBLE_SKILLS = [
+    { slug: 'docx', label: 'Word documents' },
+    { slug: 'pptx', label: 'Presentations' },
+    { slug: 'brief-summary', label: 'Brief summary' },
+  ];
+
+  function renderWithSkills(agent?: ProjectAgentRow) {
+    return render(
+      <ProjectAgentDialog
+        open
+        onOpenChange={() => undefined}
+        projectId={'p1' as string}
+        organizationId="org-1"
+        harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
+        models={MODELS}
+        skills={VISIBLE_SKILLS}
+        connectors={[]}
+        {...(agent !== undefined ? { agent } : {})}
+      />,
+    );
+  }
+
+  async function checkedState(
+    user: ReturnType<typeof renderWithSkills>['user'],
+    label: string,
+  ) {
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    const item = await screen.findByRole('menuitemcheckbox', { name: label });
+    const state = item.getAttribute('aria-checked');
+    await user.keyboard('{Escape}');
+    return state;
+  }
+
+  it('ticks the document skills the project can see on a new agent', async () => {
+    const { user } = renderWithSkills();
+    expect(await checkedState(user, 'Word documents')).toBe('true');
+    expect(await checkedState(user, 'Presentations')).toBe('true');
+    expect(await checkedState(user, 'Brief summary')).toBe('false');
+  });
+
+  it('never changes the equipment of an agent being edited', async () => {
+    const { user } = renderWithSkills(LEGACY_AGENT);
+    expect(await checkedState(user, 'Word documents')).toBe('false');
+    expect(await checkedState(user, 'Presentations')).toBe('false');
+  });
+
+  it('names skills every organization is seeded with', () => {
+    // The seed catalog the platform image copies into each new organization.
+    const seedRoot = resolve(
+      process.cwd(),
+      '../../configs/platform/custom/skills',
+    );
+    for (const slug of DOCUMENT_SKILL_SLUGS) {
+      expect(existsSync(resolve(seedRoot, slug, 'SKILL.md')), slug).toBe(true);
+    }
   });
 });

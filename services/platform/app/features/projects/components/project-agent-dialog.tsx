@@ -14,7 +14,7 @@ import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   SkillsMenu,
@@ -64,6 +64,17 @@ const EMPTY_BINDING: SkillsSelection = {
   tools: [],
 };
 
+/**
+ * The document skills a NEW agent starts with ticked — the Word, PowerPoint,
+ * Excel and PDF bundles every organization is seeded with
+ * (`configs/platform/custom/skills/`). Producing a document is the most
+ * common reason to create an agent, and an agent without them cannot write
+ * one; the person creating it can untick any. Only slugs the project can see
+ * are ticked, so a deleted or unshared one is skipped, and editing an
+ * existing agent never changes its equipment.
+ */
+export const DOCUMENT_SKILL_SLUGS = ['docx', 'pptx', 'xlsx', 'pdf'] as const;
+
 export function ProjectAgentDialog({
   open,
   onOpenChange,
@@ -91,6 +102,9 @@ export function ProjectAgentDialog({
   const [instructions, setInstructions] = useState('');
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Whether this opening of a create dialog already ticked the document
+  // skills — once, so unticking one sticks while the catalog refetches.
+  const documentSkillsSeeded = useRef(false);
 
   // Re-seed from the row each time the dialog opens; create mode seeds blank.
   useEffect(() => {
@@ -111,7 +125,22 @@ export function ProjectAgentDialog({
     setSecretNames(agent?.secrets ?? []);
     setInstructions(agent?.instructions ?? '');
     setNameError(undefined);
+    documentSkillsSeeded.current = false;
   }, [open, agent]);
+
+  // A new agent starts with the document skills the project can see ticked.
+  // The catalog may land after the dialog opens, so this waits for it.
+  useEffect(() => {
+    if (!open || agent || documentSkillsSeeded.current) return;
+    const visible = new Set(skills.map((option) => option.slug));
+    const defaults = DOCUMENT_SKILL_SLUGS.filter((slug) => visible.has(slug));
+    if (defaults.length === 0) return;
+    documentSkillsSeeded.current = true;
+    setBinding((current) => ({
+      ...current,
+      skills: [...new Set([...current.skills, ...defaults])],
+    }));
+  }, [open, agent, skills]);
 
   // The grantable platform tools, labelled per name with a read/write badge
   // and grouped by their org module (Tasks, Documents, …).
