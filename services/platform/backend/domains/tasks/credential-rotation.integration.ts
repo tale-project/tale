@@ -1,5 +1,5 @@
 /** Real Postgres proof of the credential-rotation retry: the failed mark
- * stamps `failure_code` (migration 0130), and the two readers of the task's
+ * stamps `failure_code` (migration 0132), and the two readers of the task's
  * run history — the retry budget and the kick plan's account exclusions —
  * tell a free rotation from an ordinary failure by it. */
 import { randomUUID } from 'node:crypto';
