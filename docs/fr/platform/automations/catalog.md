@@ -3,7 +3,7 @@ title: Créer ou importer une automatisation
 description: Choisis un point de départ, importe un paquet validé et prépare ses skills, paramètres et livrables avant la mise en service.
 ---
 
-Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Les rôles Propriétaire, Admin et Développeur peuvent les gérer. Commence par vérifier si une [automatisation fournie](/fr/platform/automations/builtin) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
+Ouvre **Automatisations** pour retrouver les workflows de ton organisation. Les rôles Propriétaire, Admin et Développeur peuvent les gérer. Les Membres et Éditeurs ne voient que les automatisations en service, et la section elle-même seulement quand il y en a une. Commence par vérifier si une [automatisation fournie](/fr/platform/automations/builtin) répond au besoin. Sinon, crée un brouillon que tu pourras tester avant sa mise en service.
 
 La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour comparer les workflows de triage fournis.
 

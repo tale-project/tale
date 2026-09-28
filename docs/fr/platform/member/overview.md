@@ -43,4 +43,4 @@ Un lien de notification ouvre la tâche, le document ou la conversation concern�
 
 ## Si une action manque
 
-Les Membres lisent la bibliothèque commune ; les Éditeurs et rôles supérieurs en entretiennent le contenu. Les automatisations et réglages techniques nécessitent des droits de Développeur ou d’administrateur. Demande l’accès adapté à ta tâche : une ressource visible n’est pas forcément modifiable. [Membres et rôles](/fr/platform/admin/members-and-roles) explique les différences.
+Les Membres lisent la bibliothèque commune ; les Éditeurs et rôles supérieurs en entretiennent le contenu. Les automatisations et réglages techniques nécessitent des droits de Développeur ou d’administrateur ; la section **Automatisations** apparaît pour toi dès que ton organisation a une automatisation en service que tu peux suivre. Demande l’accès adapté à ta tâche : une ressource visible n’est pas forcément modifiable. [Membres et rôles](/fr/platform/admin/members-and-roles) explique les différences.

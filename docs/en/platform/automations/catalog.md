@@ -3,7 +3,7 @@ title: Create or import an automation
 description: Choose a starting point, import a validated package and prepare its skills, settings and deliverables before deployment.
 ---
 
-Open **Automations** to find the workflows available in your organization. Owner, Admin and Developer roles can manage them. Start with a [built-in automation](/platform/automations/builtin) when it matches your task, or create a draft you can test before making it live.
+Open **Automations** to find the workflows available in your organization. Owner, Admin and Developer roles can manage them. Members and Editors see only the automations that are live, and the section itself only once one is. Start with a [built-in automation](/platform/automations/builtin) when it matches your task, or create a draft you can test before making it live.
 
 Search by name or slug. For example, enter `Triage` to compare the shipped triage workflows.
 

@@ -43,4 +43,4 @@ Ein Benachrichtigungslink öffnet die zugehörige Aufgabe, das Dokument oder die
 
 ## Wenn eine Aktion fehlt
 
-Mitglieder lesen die gemeinsame Bibliothek; Redakteure und höhere Rollen pflegen ihre Inhalte. Automatisierungen und technische Einrichtung brauchen Entwickler- oder Administratorrechte. Lass dir den nötigen Zugriff für deine Aufgabe geben. Eine sichtbare Ressource ist nicht automatisch bearbeitbar. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Unterschiede.
+Mitglieder lesen die gemeinsame Bibliothek; Redakteure und höhere Rollen pflegen ihre Inhalte. Automatisierungen und technische Einrichtung brauchen Entwickler- oder Administratorrechte; der Bereich **Automatisierungen** erscheint für dich, sobald deine Organisation eine Automatisierung live betreibt, die du verfolgen kannst. Lass dir den nötigen Zugriff für deine Aufgabe geben. Eine sichtbare Ressource ist nicht automatisch bearbeitbar. [Mitglieder und Rollen](/de/platform/admin/members-and-roles) erklärt die Unterschiede.
