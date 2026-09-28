@@ -27,14 +27,11 @@ jobs:
       fail-fast: false
       matrix:
         # Compose-stack services. Keep in sync with build.yml (build matrix +
-        # smoke/validate pull loops). Retired services (convex, controller)
-        # stay listed so their leftover PR image tags still get cleaned up;
-        # a package that no longer exists is skipped harmlessly.
+        # smoke/validate pull loops); tools/cli/scripts/deployment-ci.test.ts
+        # fails when this list and the build matrix differ.
         service:
           [
             db,
-            convex,
-            controller,
             platform,
             proxy,
             sandbox-llm-gateway,
@@ -56,12 +53,21 @@ jobs:
           # GHCR package names URL-encode the slash: `tale/tale-{svc}` → `tale%2Ftale-{svc}`.
           PACKAGE="tale%2Ftale-${SVC}"
           PREFIX="pr-${PR}-sha-"
+          # gh-api writes its error, status included ("… (HTTP 404)"), to
+          # stderr; both loops below read the status from this file.
+          err_log=$(mktemp)
+          trap 'rm -f "${err_log}"' EXIT
 
           echo "Looking up versions of ${OWNER}/${PACKAGE} tagged ${PREFIX}*"
 
-          # Retry the listing call up to 3 times for transient 5xx / network blips.
-          # Real auth errors (403/404) fail fast on the final attempt and surface
-          # as a step failure rather than being silently swallowed.
+          # Retry the listing call up to 3 times for transient 5xx / network
+          # blips. An error that outlasts the retries (a 403, say) fails the
+          # step rather than being silently swallowed. A 404 is not retried:
+          # the matrix tracks build.yml (deployment-ci.test.ts), so the
+          # package was either never pushed (a new service's first PR image)
+          # or does not grant this repository Actions access. Either way
+          # there is nothing this token can clean, so the job ends green with
+          # a warning that names both causes: the second leaves PR tags behind.
           #
           # NOTE: build.yml currently sets `platforms: linux/amd64` and
           # `provenance: false`, so each tag corresponds to exactly one OCI
@@ -74,8 +80,19 @@ jobs:
             if VERSION_IDS=$(gh api -H "Accept: application/vnd.github+json" \
               "/orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
               --paginate \
-              --jq "[.[] | select(any(.metadata.container.tags[]?; startswith(\"${PREFIX}\"))) | .id] | .[]"); then
+              --jq "[.[] | select(any(.metadata.container.tags[]?; startswith(\"${PREFIX}\"))) | .id] | .[]" \
+              2>"${err_log}"); then
               break
+            fi
+            cat "${err_log}" >&2
+            if grep -q "HTTP 404" "${err_log}"; then
+              echo "::warning::Package tale-${SVC} not found or not visible to this token (HTTP 404); nothing cleaned. Either its first image was never pushed, or this repository lost Actions access to it (package settings > Manage Actions access)."
+              {
+                echo "## Cleanup tale-${SVC}"
+                echo ""
+                echo "package tale-${SVC} was not found or is not visible to this token; no versions cleaned"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
             fi
             if [ "${attempt}" -lt 3 ]; then
               echo "List attempt ${attempt} failed, retrying after $((attempt * 2))s..."
@@ -99,10 +116,9 @@ jobs:
           deleted=0
           already_gone=0
           failures=0
-          err_log=$(mktemp)
           # Distinguish 404 ("already gone" — expected on close-mid-build races
           # or duplicate cleanup runs) from 403/5xx (real failures we should
-          # report). gh-api writes "gh: HTTP <code>: ..." to stderr on error.
+          # report).
           while read -r version_id; do
             [ -z "${version_id}" ] && continue
             echo "Deleting version ${version_id}..."
@@ -117,7 +133,6 @@ jobs:
               failures=$((failures + 1))
             fi
           done <<< "${VERSION_IDS}"
-          rm -f "${err_log}"
 
           {
             echo "## Cleanup tale-${SVC}"

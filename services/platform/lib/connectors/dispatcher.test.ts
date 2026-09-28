@@ -17,6 +17,7 @@ import {
   vi,
 } from 'vitest';
 
+import { importedTaskTitleRefusal } from '../../backend/core/tasks/helpers';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import {
@@ -373,6 +374,31 @@ describe('mock mode', () => {
     });
     expect(result.status).toBe('ok');
     expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  // A mock body can only throw, so a test run reports the task natives'
+  // blank-title refusal as a mock failure — the domain's sentence under
+  // `MOCK_BODY_FAILED` — where a live run answers `INPUT_INVALID` with the
+  // sentence alone (`natives/platform-tasks.test.ts`). The connector says so
+  // beside its mocks.
+  it("reports a task mock's blank-title refusal as a mock failure", async () => {
+    const error: unknown = await executeConnectorAction({
+      connector: 'task',
+      action: 'upsert',
+      input: {
+        projectId: 'p',
+        externalSystem: 'github',
+        externalId: 'example/web#1',
+        title: '   ',
+      },
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: { organizationId: ORG },
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ConnectorError);
+    expect((error as ConnectorError).code).toBe('MOCK_BODY_FAILED');
+    const { message } = error as ConnectorError;
+    expect(message).toMatch(/^the task\.upsert mock body failed: /);
+    expect(message).toContain(importedTaskTitleRefusal(' ') ?? '?');
   });
 });
 

@@ -410,7 +410,11 @@ describe('POST /projects/{id}/tasks/{taskId}/review', () => {
       actor,
     });
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ code: 'AUTOMATION_NOT_DEPLOYED' });
+    expect(await res.json()).toEqual({
+      error:
+        'The automation has no deployed version — deploy it before requesting changes through it.',
+      code: 'AUTOMATION_NOT_DEPLOYED',
+    });
     expect(
       queries.some((q) => q.text.includes('INSERT INTO app.rate_limits')),
     ).toBe(false);

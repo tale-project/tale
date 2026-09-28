@@ -163,14 +163,14 @@ export async function createDueRepeatCopies(
         if (orphans.length < 5) orphans.push(candidate.id);
         continue;
       }
-      const rule = parseTaskRepeat(candidate.repeat);
-      const dueAt =
-        rule === null ? null : repeatCopyDueAt(rule, candidate.dueDate);
-      if (dueAt === null || dueAt > now || automationOwnsTask(candidate)) {
-        result.notDue++;
-        continue;
-      }
       try {
+        const rule = parseTaskRepeat(candidate.repeat);
+        const dueAt =
+          rule === null ? null : repeatCopyDueAt(rule, candidate.dueDate);
+        if (dueAt === null || dueAt > now || automationOwnsTask(candidate)) {
+          result.notDue++;
+          continue;
+        }
         const written = await transactSerializable(sql, (tx) =>
           createDueRepeatCopy(tx, {
             organizationId: candidate.organizationId,

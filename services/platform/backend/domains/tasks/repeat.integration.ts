@@ -26,9 +26,10 @@ import {
   weekdayOf,
 } from '../../../lib/shared/task-repeat.ts';
 import { toJson } from '../../db/sql.ts';
+import { pgTaskStore } from '../connectors/task-store.ts';
 import { TaskError } from './errors.ts';
 import { createDueRepeatCopies } from './repeat-on-due.ts';
-import { stopTaskRepeat } from './repeat.ts';
+import { createDueRepeatCopy, stopTaskRepeat } from './repeat.ts';
 import {
   addTaskDependency,
   agentUpdateTaskStatusTrusted,
@@ -67,7 +68,8 @@ export async function checkTaskRepeat(
      AND rc.constraint_name = k.constraint_name
     WHERE c.table_schema = 'app' AND c.table_name = 'tasks'
       AND c.column_name IN (
-        'repeat_rule', 'repeat_next_task_id', 'repeat_continued_at_ms'
+        'repeat_rule', 'repeat_next_task_id', 'repeat_continued_at_ms',
+        'repeat_series_id', 'repeat_series_position'
       )
     ORDER BY c.column_name
   `;
@@ -80,9 +82,9 @@ export async function checkTaskRepeat(
   `;
   const indexDefinition = onDueIndex[0]?.definition ?? '';
   record(
-    'task repeat: 0130 adds the rule, the next-copy pointer (ON DELETE SET NULL), the continued stamp and the due-date scan’s partial index',
+    'task repeat: 0130 and 0132 add rule, pointer, continuation stamp, durable membership and due scan index',
     shape ===
-      'repeat_continued_at_ms:bigint:null, repeat_next_task_id:text:SET NULL, repeat_rule:jsonb:null' &&
+      'repeat_continued_at_ms:bigint:null, repeat_next_task_id:text:SET NULL, repeat_rule:jsonb:null, repeat_series_id:text:null, repeat_series_position:integer:null' &&
       indexDefinition.includes('(due_date_ms, id)') &&
       indexDefinition.includes("'dueDate'") &&
       indexDefinition.includes('repeat_continued_at_ms IS NULL') &&
@@ -847,4 +849,435 @@ export async function checkTaskRepeat(
       keptNext?.repeat === null,
     `answer=${JSON.stringify(touched)}, rows=${JSON.stringify(kept)}`,
   );
+
+  // A series can run for years: closed intermediate copies must not hide
+  // the live tail from Stop or old open copies from the due-date cap.
+  const makeLongSeries = async (count: number, open: Set<number>) => {
+    const ids = Array.from({ length: count }, () => randomUUID());
+    await transactSerializable(sql, async (tx) => {
+      for (const [index, id] of ids.entries()) {
+        await tx`
+          INSERT INTO app.tasks (
+            id, org_id, project_id, title, status, rank, created_by,
+            created_by_type, created_at_ms, updated_at_ms, due_date_ms,
+            repeat_rule, repeat_continued_at_ms, repeat_series_id,
+            repeat_series_position
+          ) VALUES (
+            ${id}, ${orgId}, ${projectId}, 'Long repeating series',
+            ${open.has(index) ? 'todo' : 'done'}, 'a0', ${userId}, 'user',
+            ${clock}, ${clock}, ${todayStart}, ${tx.json(toJson(onDue))},
+            ${index < count - 1 ? clock : null}, ${ids[0] ?? ''}, ${index}
+          )
+        `;
+      }
+      for (let index = 0; index < ids.length - 1; index += 1) {
+        await tx`
+          UPDATE app.tasks SET repeat_next_task_id = ${ids[index + 1] ?? null}
+          WHERE id = ${ids[index] ?? ''}
+        `;
+      }
+    });
+    return ids;
+  };
+  const longStopIds = await makeLongSeries(40, new Set([39]));
+  const longStopped = await transactSerializable(sql, (tx) =>
+    stopTaskRepeat(tx, auth, longStopIds[0] ?? ''),
+  );
+  const longStopRules = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.tasks
+    WHERE id = ANY(${longStopIds}) AND repeat_rule IS NOT NULL
+  `;
+  record(
+    'task repeat: Stop ends the live tail beyond 32 continued copies',
+    !longStopped.removedNextTask && longStopRules[0]?.count === 0,
+    `answer=${JSON.stringify(longStopped)}, rules left=${longStopRules[0]?.count}`,
+  );
+
+  const longCapIds = await makeLongSeries(
+    75,
+    new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 74]),
+  );
+  const capped = await transactSerializable(sql, (tx) =>
+    createDueRepeatCopy(tx, {
+      organizationId: orgId,
+      taskId: longCapIds.at(-1) ?? '',
+      now: clock,
+    }),
+  );
+  record(
+    'task repeat: the due-date cap counts open copies beyond 64 closed predecessors',
+    capped.kind === 'capped' && capped.openCopies === 10,
+    `answer=${JSON.stringify(capped)}`,
+  );
+
+  for (const copyIsBlocker of [false, true]) {
+    const original = await transactSerializable(sql, (tx) =>
+      createTask(tx, auth, {
+        projectId,
+        title: 'Repeat with an edited dependency',
+        status: 'todo',
+        dueDate: due,
+        repeat: rule,
+      }),
+    );
+    const next = await transactSerializable(sql, (tx) =>
+      updateTaskStatus(tx, auth, original, 'done'),
+    );
+    const nextId = next?.id ?? '';
+    const edge = {
+      blockerTaskId: copyIsBlocker ? nextId : keptCopyId,
+      blockedTaskId: copyIsBlocker ? keptCopyId : nextId,
+    };
+    await transactSerializable(sql, (tx) => addTaskDependency(tx, auth, edge));
+    const stoppedDependency = await transactSerializable(sql, (tx) =>
+      stopTaskRepeat(tx, auth, original),
+    );
+    const remainingDependency = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.task_dependencies
+      WHERE blocker_task_id = ${edge.blockerTaskId}
+        AND blocked_task_id = ${edge.blockedTaskId}
+    `;
+    record(
+      `task repeat: Stop keeps a copy with a user-added ${copyIsBlocker ? 'outgoing' : 'incoming'} dependency`,
+      !stoppedDependency.removedNextTask && remainingDependency[0]?.count === 1,
+      `answer=${JSON.stringify(stoppedDependency)}, edges left=${remainingDependency[0]?.count}`,
+    );
+  }
+
+  for (const deep of [false, true]) {
+    const count = deep ? 35 : 205;
+    const original = await transactSerializable(sql, (tx) =>
+      createTask(tx, auth, {
+        projectId,
+        title: deep ? 'Deep repeat work' : 'Wide repeat work',
+        status: 'todo',
+        dueDate: due,
+        repeat: rule,
+      }),
+    );
+    const ids = Array.from({ length: count }, () => randomUUID());
+    await transactSerializable(sql, async (tx) => {
+      for (const [index, id] of ids.entries()) {
+        await tx`
+          INSERT INTO app.tasks (
+            id, org_id, project_id, parent_task_id, title, status, rank,
+            created_by, created_by_type, created_at_ms, updated_at_ms
+          ) VALUES (
+            ${id}, ${orgId}, ${projectId},
+            ${deep ? (ids[index - 1] ?? original) : original},
+            ${`Repeated step ${index}`}, 'done', 'a0', ${userId}, 'user',
+            ${clock}, ${clock}
+          )
+        `;
+      }
+    });
+    const next = await transactSerializable(sql, (tx) =>
+      updateTaskStatus(tx, auth, original, 'done'),
+    );
+    const nextId = next?.id ?? '';
+    const copiedTree = await sql<{ id: string }[]>`
+      WITH RECURSIVE tree AS (
+        SELECT id FROM app.tasks WHERE parent_task_id = ${nextId}
+        UNION
+        SELECT t.id FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
+      ) SELECT id FROM tree
+    `;
+    const stoppedTree = await transactSerializable(sql, (tx) =>
+      stopTaskRepeat(tx, auth, original),
+    );
+    const left = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.tasks
+      WHERE id = ANY(${[nextId, ...copiedTree.map((row) => row.id)]})
+    `;
+    record(
+      `task repeat: ${deep ? 'depth beyond 32' : 'more than 200 subtasks'} copies completely and Stop leaves no orphan`,
+      copiedTree.length === count &&
+        stoppedTree.removedNextTask &&
+        left[0]?.count === 0,
+      `copied=${copiedTree.length}/${count}, stopped=${JSON.stringify(stoppedTree)}, left=${left[0]?.count}`,
+    );
+  }
+
+  // Hold the row until the due-date writer demonstrably waits on its lock.
+  // The human close then wins; SERIALIZABLE must retry the scan's stale
+  // snapshot and observe the continuation instead of making another copy.
+  const racingId = await transactSerializable(sql, (tx) =>
+    createTask(tx, auth, {
+      projectId,
+      title: 'Close races the due-date scan',
+      status: 'todo',
+      dueDate: todayStart,
+      repeat: onDue,
+    }),
+  );
+  let observedWait = false;
+  let releaseClose: (() => void) | undefined;
+  let acquiredLock: (() => void) | undefined;
+  const locked = new Promise<void>((resolve) => {
+    acquiredLock = resolve;
+  });
+  const release = new Promise<void>((resolve) => {
+    releaseClose = resolve;
+  });
+  const closing = sql.begin(async (tx) => {
+    await tx`SELECT id FROM app.tasks WHERE id = ${racingId} FOR UPDATE`;
+    acquiredLock?.();
+    await release;
+    return await updateTaskStatus(tx, auth, racingId, 'done');
+  });
+  await locked;
+  const racingScan = transactSerializable(sql, (tx) =>
+    createDueRepeatCopy(tx, {
+      organizationId: orgId,
+      taskId: racingId,
+      now: clock,
+    }),
+  );
+  try {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const waiting = await sql<{ waiting: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock'
+            AND query LIKE '%repeat_continued_at_ms%'
+        ) AS waiting
+      `;
+      if (waiting[0]?.waiting) {
+        observedWait = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  } finally {
+    releaseClose?.();
+  }
+  const [closedRace, scannedRace] = await Promise.all([closing, racingScan]);
+  const raceCopies = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM app.tasks
+    WHERE project_id = ${projectId} AND title = 'Close races the due-date scan'
+  `;
+  record(
+    'task repeat: a due-date writer blocked behind a close retries and creates no duplicate',
+    observedWait &&
+      closedRace !== null &&
+      scannedRace.kind === 'skipped' &&
+      raceCopies[0]?.count === 2,
+    `blocked=${observedWait}, close=${JSON.stringify(closedRace)}, scan=${JSON.stringify(scannedRace)}, rows=${raceCopies[0]?.count}`,
+  );
+
+  const continueDueSeries = async (repeatingId: string) => {
+    await transactSerializable(sql, (tx) =>
+      updateTask(tx, auth, { taskId: repeatingId, dueDate: todayStart }),
+    );
+    return await transactSerializable(sql, (tx) =>
+      createDueRepeatCopy(tx, {
+        organizationId: orgId,
+        taskId: repeatingId,
+        now: clock,
+      }),
+    );
+  };
+  const makeDueSeries = async (count: number) => {
+    const first = await transactSerializable(sql, (tx) =>
+      createTask(tx, auth, {
+        projectId,
+        title: 'Persistent series membership',
+        status: 'todo',
+        dueDate: todayStart,
+        repeat: onDue,
+      }),
+    );
+    const ids = [first];
+    while (ids.length < count) {
+      const next = await continueDueSeries(ids.at(-1) ?? '');
+      if (next.kind !== 'created')
+        throw new Error('Series fixture did not continue');
+      ids.push(next.copy.id);
+    }
+    return ids;
+  };
+
+  const gapIds = await makeDueSeries(10);
+  const membership = await sql<
+    { id: string; series: string; position: number }[]
+  >`
+    SELECT id, repeat_series_id AS series, repeat_series_position AS position
+    FROM app.tasks WHERE id = ANY(${gapIds}) ORDER BY repeat_series_position
+  `;
+  record(
+    'task repeat: every copy retains one durable identity and a unique ordered position',
+    membership.length === 10 &&
+      membership.every(
+        (row, index) =>
+          row.id === gapIds[index] &&
+          row.series === gapIds[0] &&
+          row.position === index,
+      ),
+    `members=${JSON.stringify(membership)}`,
+  );
+  const constraintCodes: string[] = [];
+  for (const position of [null, 0]) {
+    try {
+      await sql.begin(
+        (tx) => tx`
+        UPDATE app.tasks SET repeat_series_position = ${position}
+        WHERE id = ${gapIds.at(-1) ?? ''}
+      `,
+      );
+    } catch (error) {
+      if (error !== null && typeof error === 'object' && 'code' in error) {
+        constraintCodes.push(String(error.code));
+      }
+    }
+  }
+  record(
+    'task repeat: membership must be paired and positions cannot fork',
+    constraintCodes.join(',') === '23514,23505',
+    `constraint codes=${constraintCodes.join(',')}`,
+  );
+  await transactSerializable(sql, (tx) =>
+    deleteTask(tx, auth, gapIds[5] ?? ''),
+  );
+  const gapTail = gapIds.at(-1) ?? '';
+  // Turning the rule off and back on cannot reset the series' accumulated
+  // open work. Editing its interval does not create a new identity either.
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, auth, { taskId: gapTail, repeat: null }),
+  );
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, auth, {
+      taskId: gapTail,
+      repeat: { ...onDue, interval: 2 },
+    }),
+  );
+  const afterGap = await continueDueSeries(gapTail);
+  const atGapCap =
+    afterGap.kind === 'created'
+      ? await continueDueSeries(afterGap.copy.id)
+      : afterGap;
+  record(
+    'task repeat: deleting a middle copy and resetting the rule never forgets earlier open work',
+    afterGap.kind === 'created' &&
+      atGapCap.kind === 'capped' &&
+      atGapCap.openCopies === 10,
+    `ninth=${JSON.stringify(afterGap)}, tenth=${JSON.stringify(atGapCap)}`,
+  );
+  let branchRefused = false;
+  try {
+    await transactSerializable(sql, (tx) =>
+      updateTask(tx, auth, {
+        taskId: gapIds[0] ?? '',
+        repeat: { ...onDue, interval: 2 },
+      }),
+    );
+  } catch (error) {
+    branchRefused =
+      error instanceof TaskError && error.code === 'TASK_REPEAT_INVALID';
+  }
+  record(
+    'task repeat: a disconnected continued member cannot branch by resetting its rule',
+    branchRefused,
+    `refused=${branchRefused}`,
+  );
+
+  for (const deleteRoot of [false, true]) {
+    const ids = await makeDueSeries(5);
+    await transactSerializable(sql, (tx) => deleteTask(tx, auth, ids[2] ?? ''));
+    if (deleteRoot) {
+      await transactSerializable(sql, (tx) =>
+        deleteTask(tx, auth, ids[0] ?? ''),
+      );
+    }
+    const survivor = ids[deleteRoot ? 1 : 0] ?? '';
+    await transactSerializable(sql, (tx) => stopTaskRepeat(tx, auth, survivor));
+    const rules = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.tasks
+      WHERE id = ANY(${ids}) AND repeat_rule IS NOT NULL
+    `;
+    record(
+      `task repeat: Stop reaches disconnected members after deleting ${deleteRoot ? 'the root and a middle copy' : 'a middle copy'}`,
+      rules[0]?.count === 0,
+      `rules left=${rules[0]?.count}`,
+    );
+  }
+
+  for (const alreadyRepeating of [true, false]) {
+    const workflowTaskId = await transactSerializable(sql, (tx) =>
+      createTask(tx, auth, {
+        projectId,
+        title: 'Work before a concurrent edit',
+        description: 'The previous instructions',
+        priority: 'p2',
+        status: 'todo',
+        dueDate: due,
+        ...(alreadyRepeating ? { repeat: rule } : {}),
+      }),
+    );
+    let releaseEdit: (() => void) | undefined;
+    let editedTask: (() => void) | undefined;
+    const editReady = new Promise<void>((resolve) => {
+      editedTask = resolve;
+    });
+    const editRelease = new Promise<void>((resolve) => {
+      releaseEdit = resolve;
+    });
+    // A real user edit holds the task row while the workflow reads the
+    // previous version and blocks at its status UPDATE. Its retry must
+    // reload both copied content and a newly enabled rule.
+    const editing = sql.begin(async (tx) => {
+      await updateTask(tx, auth, {
+        taskId: workflowTaskId,
+        title: 'Work after the concurrent edit',
+        description: 'The latest instructions',
+        priority: 'p0',
+        repeat: rule,
+      });
+      editedTask?.();
+      await editRelease;
+    });
+    await editReady;
+    const workflowClose = pgTaskStore(sql).updateStatus({
+      organizationId: orgId,
+      taskId: workflowTaskId,
+      status: 'cancelled',
+    });
+    let waitedForEdit = false;
+    try {
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const waiting = await sql<{ waiting: boolean }[]>`
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%status_changed_at_ms%'
+          ) AS waiting
+        `;
+        if (waiting[0]?.waiting) {
+          waitedForEdit = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+    } finally {
+      releaseEdit?.();
+    }
+    const [, workflowResult] = await Promise.all([editing, workflowClose]);
+    const copiedWork = await sql<
+      { title: string; description: string; priority: string }[]
+    >`
+      SELECT copied.title, copied.description, copied.priority
+      FROM app.tasks original
+      JOIN app.tasks copied ON copied.id = original.repeat_next_task_id
+      WHERE original.org_id = ${orgId} AND original.id = ${workflowTaskId}
+    `;
+    record(
+      `task repeat: workflow cancellation retries an edit ${alreadyRepeating ? 'to existing repeat work' : 'that enables repeat'}`,
+      waitedForEdit &&
+        workflowResult.ok &&
+        copiedWork.length === 1 &&
+        copiedWork[0]?.title === 'Work after the concurrent edit' &&
+        copiedWork[0]?.description === 'The latest instructions' &&
+        copiedWork[0]?.priority === 'p0',
+      `blocked=${waitedForEdit}, answer=${JSON.stringify(workflowResult)}, copied=${JSON.stringify(copiedWork)}`,
+    );
+  }
 }

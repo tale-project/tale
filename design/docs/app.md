@@ -30,7 +30,7 @@ what is there, and the page shows the one thing you opened.
   tiles are muted; each shows a no-arrow tooltip to its right. Built from `@tale/ui` primitives, not a
   bespoke layout. A phone shows the same sections, from the same list, inside a floating, fully rounded bottom capsule. Its lightly translucent surface contains both icons and labels; one selected background glides between destinations. Scroll content continues behind it, with end clearance for the last item. Composers and page-action docks sit above it. The capsule is 60px tall with 20px icons and 11px labels. Downward scrolling reduces it to a 52px icon-only capsule, at most 280px wide and 4px lower; upward scrolling restores it. Both states keep 44px touch targets, accessible names and stable content clearance. The capsule hides while the software keyboard is open and returns when it closes.
 - **Section panels** — a section with navigation of its own opens it in a panel beside the page,
-  one frame for all of them: `SubPanel width="list"` (280px, full height, right border), a
+  one frame for all of them: `SubPanel width="list"` (280px by default, full height, right border), a
   `SubPanelHeader` naming the section in the same `h-13` row as a page header (border included, so
   the two rules meet as one line), then rows. Fixed pages are icon rows with a highlight that glides
   to the open page (`SectionNavPanel` — Settings). **Home** lists your work and needs no header
@@ -47,7 +47,8 @@ what is there, and the page shows the one thing you opened.
   accent unread dot in the same place for every kind; an item whose composer holds unsent text says
   **Draft** on its context line. The Inbox view adds the status switch, search, facets and
   multi-select with bulk verbs. The panel stays mounted across every Home route; on a phone it is the
-  Home screen itself. From the keyboard, ⌘\ folds it, ⌥↑/⌥↓ open the previous or next item of the
+  Home screen itself. On desktop its right edge resizes the panel from 280px to 480px, with
+  Left/Right keys on the focused divider; the browser remembers the width per organization. From the keyboard, ⌘\ folds it, ⌥↑/⌥↓ open the previous or next item of the
   list on screen from anywhere but a text field, and ↑/↓ move between a list's rows.
 - **Header** — per-page title row (`h-13`, `text-base` semibold `h1`) that always ends in exactly
   **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (Knowledge,

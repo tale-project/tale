@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { pickFilterOption } from '@tale/ui/testing/filters';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import {
   FilterPanel,
@@ -220,15 +221,75 @@ describe('FilterPanel', () => {
       screen.getByRole('checkbox', { name: 'Messaging' }),
     ).toBeInTheDocument();
 
-    // The reader closes it: now the button is disabled.
+    // The reader closes it: focus comes back to the button, which says it is
+    // unavailable, and it leaves the tab order once the reader moves on.
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeDisabled();
+    const button = screen.getByRole('button', { name: 'Filter' });
+    await waitFor(() => expect(button).toHaveFocus());
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    await user.tab();
+    expect(button).toBeDisabled();
 
     // A row lands: the panel is offered again, but nobody asked to open it.
     rerender(<FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Filter' })).toBeEnabled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps the focus on the button when Clear all leaves nothing to narrow', async () => {
+    // An empty list: the selection is all that keeps the filter usable.
+    function EmptyList() {
+      const [selected, setSelected] = useState(['code']);
+      return (
+        <FilterPanel
+          filters={[
+            tagFilter({ selectedValues: selected, onChange: setSelected }),
+          ]}
+          onClearAll={() => setSelected([])}
+          disabled={isFilterAffordanceDisabled({
+            itemCount: 0,
+            hasActiveFilters: selected.length > 0,
+          })}
+        />
+      );
+    }
+    const { user } = render(<EmptyList />);
+    const button = screen.getByRole('button', { name: 'Filter' });
+    await user.click(button);
+    await user.click(await screen.findByRole('button', { name: 'Clear all' }));
+
+    // The same button takes the focus back: a disabled one would drop it to
+    // the page, so it stays focusable and reads as unavailable instead.
+    await waitFor(() => expect(button).toHaveFocus());
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).not.toBeDisabled();
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.tab();
+    expect(button).toBeDisabled();
+  });
+
+  it('keeps a focused button focusable when the list empties under it', async () => {
+    const { user, rerender } = render(
+      <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />,
+    );
+    await user.tab();
+    const button = screen.getByRole('button', { name: 'Filter' });
+    expect(button).toHaveFocus();
+
+    rerender(
+      <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} disabled />,
+    );
+    expect(button).toHaveFocus();
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(button).not.toBeDisabled();
+    await user.click(button);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.tab();
+    expect(button).toBeDisabled();
   });
 
   it('closes when its facets go away while open', async () => {

@@ -134,8 +134,8 @@ export type TaskRepeatFieldState =
    *  this task's rule, or its next task's, was cleared since ("Stop
    *  repeating" clears this task's, whether it took the next task back or
    *  not). `nextDeleted`: the task continued its series and still carries
-   *  its rule, but that next task was deleted since, which ended the
-   *  series. */
+   *  its rule, but that next task was deleted since. This task cannot
+   *  continue again, even when a later task still carries the series. */
   | {
       kind: 'locked';
       reason: Exclude<TaskRepeatLockReason, 'subtask' | 'continued'>;

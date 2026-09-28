@@ -88,9 +88,11 @@ import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.t
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkCredentialRotationRetry } from './domains/tasks/credential-rotation.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
+import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
@@ -15202,9 +15204,10 @@ async function checkRestMachineJourney(
 
   // The owning automation's two absences are two refusals (round d,
   // S3-4c): a name nobody saved is 404 AUTOMATION_NOT_FOUND; a saved one
-  // with nothing deployed is 409 AUTOMATION_NOT_DEPLOYED, naming it — and
-  // neither creates the task. `journey/parked` is saved through the session
-  // surface (REST has no save) and never deployed.
+  // with nothing deployed is 409 AUTOMATION_NOT_DEPLOYED, whose sentence
+  // repeats no slug (TALE-75) — and neither creates the task.
+  // `journey/parked` is saved through the session surface (REST has no
+  // save) and never deployed.
   const appSend = (route: string, body: unknown): Promise<Response> =>
     fetch(`${base}${route}`, {
       method: 'POST',
@@ -15323,14 +15326,16 @@ async function checkRestMachineJourney(
       parkedOwner.status === 409 &&
       parkedOwnerBody.success &&
       parkedOwnerBody.data.code === 'AUTOMATION_NOT_DEPLOYED' &&
-      parkedOwnerBody.data.error.includes('journey/parked') &&
+      parkedOwnerBody.data.error.includes('no deployed version') &&
+      !parkedOwnerBody.data.error.includes('journey/parked') &&
       ghostStart.status === 404 &&
       ghostStartBody.success &&
       ghostStartBody.data.code === 'AUTOMATION_NOT_FOUND' &&
       parkedStart.status === 409 &&
       parkedStartBody.success &&
       parkedStartBody.data.code === 'AUTOMATION_NOT_DEPLOYED' &&
-      parkedStartBody.data.error.includes('journey/parked') &&
+      parkedStartBody.data.error.includes('no deployed version') &&
+      !parkedStartBody.data.error.includes('journey/parked') &&
       orphanRows[0]?.count === '0' &&
       parkedTrigger.success &&
       !parkedTrigger.data.deployed &&
@@ -52407,11 +52412,15 @@ async function checkWatchdogs(
   // cannot settle it as destroyed — the page used to empty itself of idle
   // workspaces on every open — while a genuine phantom (compute-holding
   // row, container gone) still heals. A PINNED row gone spawner-side is
-  // recreated under its id with its stored profile (`'"agent"'` jsonb, as
-  // the reserve writes it) and re-pinned, never settled; a live pinned one
-  // has its pin re-asserted. The pass is walked until every row of the lane
-  // has been probed: the fair rotation may need more than one batch when
-  // earlier lanes left never-visited compute-holding rows in this org.
+  // never settled: the pass queues its recreate (recorded here, so the
+  // harness worker never runs one against a stub spawner), and the queued
+  // job's body recreates it under its id with its stored profile
+  // (`'"agent"'` jsonb, as the reserve writes it) and re-pins it — the row
+  // is left `creating` (its host died mid-provision), so the recreate also
+  // flips it to `active`; a live pinned one has its pin re-asserted. The
+  // pass is walked until every row of the lane has been probed: the fair
+  // rotation may need more than one batch when earlier lanes left
+  // never-visited compute-holding rows in this org.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, profile, status, owner_type, owner_id, created_by,
@@ -52423,7 +52432,7 @@ async function checkWatchdogs(
       (${orgId}, 'wd-org-phantom', NULL, 'active', 'project_agent',
        'itest-wd-agent-gone', 'itest:wd', false, ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'active',
+      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'creating',
        'project_agent', 'itest-wd-agent-pinned-gone', 'itest:wd', true,
        ${now - 2 * 3_600_000}, ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-org-pinned-up', '"agent"'::jsonb, 'active',
@@ -52456,6 +52465,13 @@ async function checkWatchdogs(
     'wd-org-pinned-gone',
     'wd-org-pinned-up',
   ];
+  const orgScheduled: string[] = [];
+  const orgSchedule = async (
+    _sql: unknown,
+    args: { sessionId: string },
+  ): Promise<void> => {
+    orgScheduled.push(args.sessionId);
+  };
   let orgHealed = 0;
   let orgPasses = 0;
   while (!orgLaneRows.every((id) => orgProbed.includes(id)) && orgPasses < 8) {
@@ -52463,10 +52479,19 @@ async function checkWatchdogs(
       sql,
       orgId,
       orgSpawner,
+      orgSchedule,
     );
     orgHealed += pass.healed;
     orgPasses += 1;
   }
+  const createsBeforeJob = orgCreated.length;
+  const { recreatePinnedSession } =
+    await import('./domains/sandbox/service.ts');
+  const orgRecreate = await recreatePinnedSession(
+    sql,
+    { organizationId: orgId, sessionId: 'wd-org-pinned-gone' },
+    orgSpawner,
+  );
   const orgRows = await sql<{ sessionId: string; status: string }[]>`
     SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
     WHERE session_id LIKE 'wd-org-%'
@@ -52475,14 +52500,20 @@ async function checkWatchdogs(
     orgRows.find((r) => r.sessionId === sessionId)?.status;
   const orgCreates = orgCreated.map((body) => JSON.stringify(body));
   record(
-    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session is recreated in place and re-pinned',
+    'sandbox page reconcile probes only the org’s compute-holding rows: a hibernated project workspace survives a spawner 404, a phantom heals, a pinned session’s recreate is queued, and the job recreates it in place and re-pins it',
     !orgProbed.includes('wd-org-hibernated') &&
       orgStatusOf('wd-org-hibernated') === 'stopped' &&
       orgProbed.includes('wd-org-phantom') &&
       orgStatusOf('wd-org-phantom') === 'destroyed' &&
       orgHealed === 1 &&
-      // The pinned phantom: recreated under its id, org and stored profile,
-      // re-pinned, and its row still `active`.
+      // The page's pass queued the pinned phantom's recreate and created
+      // nothing itself…
+      createsBeforeJob === 0 &&
+      orgScheduled.includes('wd-org-pinned-gone') &&
+      orgScheduled.every((id) => id === 'wd-org-pinned-gone') &&
+      // …and the job recreated it under its id, org and stored profile,
+      // re-pinned it, and flipped its `creating` row to `active`.
+      orgRecreate === 'recreated' &&
       orgStatusOf('wd-org-pinned-gone') === 'active' &&
       orgCreates.length === 1 &&
       orgCreates[0] ===
@@ -52496,7 +52527,7 @@ async function checkWatchdogs(
       // The live pinned session: pin re-asserted, nothing created.
       orgStatusOf('wd-org-pinned-up') === 'active' &&
       orgPinned.includes('wd-org-pinned-up'),
-    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
+    `passes=${orgPasses} probed=${orgProbed.join(',')} rows=${orgRows.map((r) => `${r.sessionId}=${r.status}`).join(' ')} healed=${orgHealed} scheduled=${orgScheduled.join(',')} createdByPass=${createsBeforeJob} job=${orgRecreate} created=${orgCreates.join(';')} pinned=${orgPinned.join(',')}`,
   );
   // The pinned rows stay `active` by design; drop them so they hold no
   // project-agent slot of this org in the lanes after this one.
@@ -55607,6 +55638,10 @@ async function main(): Promise<void> {
         () => checkTaskRunStartFence(sql, authCtx, record),
       ],
       [
+        'checkCredentialRotationRetry',
+        () => checkCredentialRotationRetry(sql, authCtx, record),
+      ],
+      [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
       ],
@@ -55623,6 +55658,10 @@ async function main(): Promise<void> {
         () => checkProjectTaskMetrics(sql, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
+      [
+        'checkTaskRepeatSeriesUpgrade',
+        () => checkTaskRepeatSeriesUpgrade(sql, authCtx, record),
+      ],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),

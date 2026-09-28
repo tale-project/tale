@@ -102,7 +102,8 @@ in the pool**, so they run before the removals.
   "Authorization: Bearer $AI_GATEWAY_API_KEY"`** → only the Claude row comes
   back, carrying cc-gateway's own field names — `id`, `label`,
   `account_email`, `status`, `access_token`, `expires_at`, `scopes` — plus
-  `provider: "anthropic"`, identity and quota metadata. The ChatGPT token
+  `provider: "anthropic"`, the planned `refresh_at` (earlier than
+  `expires_at`), identity and quota metadata. The ChatGPT token
   appears nowhere in the body.
 - [ ] `ACCT-22` · **Use that response's `access_token` in the Claude command
   under the service README's "Use the tokens"** → Claude Code starts on that account
