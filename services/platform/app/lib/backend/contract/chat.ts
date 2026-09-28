@@ -233,16 +233,6 @@ export interface ChatContract {
       viewerIsOwner: boolean;
     };
   };
-  'chat/threads:getThreadShareStatus': {
-    kind: 'query';
-    args: { organizationId: string; threadId: string };
-    returns: null | {
-      isShared: boolean;
-      shareToken: null | string;
-      sharedAt: null | number;
-      isShareable: boolean;
-    };
-  };
   'chat/threads:listArchivedThreads': {
     kind: 'query';
     args: { cursor?: number; limit?: number; organizationId: string };

@@ -63,7 +63,6 @@ import {
   threadBranchesQuery,
   unbindVideoJobsRequest,
   arenaPairQuery,
-  threadShareStatusQuery,
 } from '@/app/lib/backend/chat';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import { backendKey } from '@/app/lib/backend/query-keys';
@@ -153,8 +152,6 @@ const HTTP_READS: Record<
     threadBranchesQuery(String(args.organizationId), String(args.rootThreadId)),
   'chat/search:searchChats': (args) =>
     chatSearchQuery(String(args.organizationId), String(args.query)),
-  'chat/threads:getThreadShareStatus': (args) =>
-    threadShareStatusQuery(String(args.organizationId), String(args.threadId)),
   'chat/arena:getArenaPair': (args) =>
     arenaPairQuery(String(args.organizationId), String(args.threadId)),
   'chat/messages:listMessages': (args) =>
