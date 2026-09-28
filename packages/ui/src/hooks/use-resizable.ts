@@ -75,6 +75,12 @@ export function useResizable(
     if (!isResizing) return undefined;
 
     const handleMouseMove = (e: MouseEvent) => {
+      // The release may happen outside the window, where our mouseup
+      // listener cannot observe it. A later unpressed move ends the drag.
+      if ((e.buttons & 1) === 0) {
+        setIsResizing(false);
+        return;
+      }
       if (!panelRef.current) return;
       const panelRect = panelRef.current.getBoundingClientRect();
       const newWidth =
@@ -86,16 +92,20 @@ export function useResizable(
 
     const handleMouseUp = () => setIsResizing(false);
 
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('blur', handleMouseUp);
 
     return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('blur', handleMouseUp);
     };
   }, [edge, isResizing, panelRef, minWidth, maxWidth, setWidth]);
 

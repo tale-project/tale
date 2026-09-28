@@ -8,6 +8,8 @@ import type {
   ChatThreadSummary,
 } from '@/app/features/chat/types';
 import { projectConversationItem } from '@/lib/shared/conversations/conversation-item';
+import { contrastRatio, deriveAccentPalette } from '@/lib/utils/color';
+import { painted } from '@/tests/utils/paint';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
@@ -170,6 +172,8 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup();
   document.documentElement.style.removeProperty('--primary');
+  document.documentElement.style.removeProperty('--ring');
+  document.documentElement.classList.remove('dark');
   backend.move.mockClear();
   backend.setArchived.mockClear();
   // The view, the projects disclosure and the drawer persist in localStorage.
@@ -619,6 +623,93 @@ describe('desktop Home panel resizing', () => {
       '480',
     );
   });
+
+  it('reads each organization width without overwriting the previous one', async () => {
+    window.localStorage.setItem(`home-panel-width-${ORG}`, '360');
+    window.localStorage.setItem('home-panel-width-org-other', '420');
+    backend.home = homeData([], []);
+    backend.location = { pathname: `/dashboard/${ORG}/chat`, search: {} };
+    const panelFor = (organizationId: string) => (
+      <div className="flex h-160">
+        <HomePanelProvider organizationId={organizationId}>
+          <HomePanel organizationId={organizationId} />
+        </HomePanelProvider>
+      </div>
+    );
+    const view = render(panelFor(ORG));
+    const first = screen.getByRole('separator');
+    expect(first).toHaveAttribute('aria-valuenow', '360');
+    first.focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(first).toHaveAttribute('aria-valuenow', '380');
+    await expect
+      .poll(() => window.localStorage.getItem(`home-panel-width-${ORG}`))
+      .toBe('380');
+    backend.location = { pathname: '/dashboard/org-other/chat', search: {} };
+    view.rerender(panelFor('org-other'));
+    expect(screen.getByRole('separator')).toHaveAttribute(
+      'aria-valuenow',
+      '420',
+    );
+    expect(window.localStorage.getItem(`home-panel-width-${ORG}`)).toBe('380');
+    expect(window.localStorage.getItem('home-panel-width-org-other')).toBe(
+      '420',
+    );
+  });
+
+  it('stops resizing when the browser loses the drag', async () => {
+    mountPanel();
+    const panel = document.getElementById('home-panel')!;
+    const separator = screen.getByRole('separator');
+    mouse(separator, 'mousedown', { x: box(panel).right - 2, y: 100 });
+    await expect.poll(() => document.body.style.cursor).toBe('col-resize');
+    window.dispatchEvent(new Event('blur'));
+    await nextFrame();
+    expect(document.body.style.cursor).toBe('');
+    mouse(document, 'mousemove', { x: box(panel).left + 420, y: 100 });
+    await nextFrame();
+    expect(separator).toHaveAttribute('aria-valuenow', '280');
+  });
+
+  it.each([
+    ['light', '#0066CC'],
+    ['dark', '#0066CC'],
+    ['light', '#0B0B2A'],
+    ['dark', '#0B0B2A'],
+    ['light', '#443366'],
+    ['dark', '#443366'],
+    ['light', '#F5F5F0'],
+    ['dark', '#F5F5F0'],
+  ] as const)(
+    'keeps the divider focus ring distinct in %s with accent %s',
+    async (theme, accent) => {
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      const palette = deriveAccentPalette(accent, theme);
+      document.documentElement.style.setProperty('--primary', palette.textHsl);
+      document.documentElement.style.setProperty('--ring', palette.textHsl);
+      mountPanel();
+      const separator = screen.getByRole('separator');
+      separator.focus();
+      await userEvent.keyboard('{ArrowRight}');
+      const style = getComputedStyle(separator);
+      const ring = style.boxShadow
+        .split(/,(?![^(]*\))/)
+        .map((layer) => layer.trim())
+        .find((layer) => layer.endsWith('0px 0px 0px 2px inset'));
+      expect(ring).toBeDefined();
+      const ringColor = ring!.replace(' 0px 0px 0px 2px inset', '');
+      const background = painted(
+        style.backgroundColor,
+        painted(
+          getComputedStyle(document.getElementById('home-panel')!)
+            .backgroundColor,
+        ),
+      );
+      expect(
+        contrastRatio(painted(ringColor, background), background),
+      ).toBeGreaterThanOrEqual(3);
+    },
+  );
 
   it('resizes with arrow keys and hides the handle on mobile or collapse', async () => {
     mountPanel();
