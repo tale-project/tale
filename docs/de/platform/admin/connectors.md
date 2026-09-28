@@ -8,9 +8,11 @@ Hinterlege Connector-Zugangsdaten, damit Tale Dienste wie Postfächer, Dateiabla
 ## Ein Konto verbinden
 
 1. Wähle **Zugangsdaten hinzufügen** und den Connector. Bereits konfigurierte Connectors stehen zuerst und können weitere Zugangsdaten erhalten.
-2. Prüfe das Feld **Name**. Es enthält bereits den Namen des Connectors. Heißen andere Zugangsdaten dieses Connectors schon so, hängt Tale eine Zahl an: `GitHub`, dann `GitHub 2`. Ein Name wie `Support-Postfach` oder `EU-Shop` ist beim Erstellen von Automatisierungen leichter zu erkennen. OAuth-Verbindungen verwenden dieses Feld nicht.
-3. Fülle die angebotene Authentifizierungsmethode aus. Bei OAuth wählst du **Verbinden** und erteilst den Zugriff beim Anbieter.
+2. Prüfe das Feld **Name**. Es enthält bereits den Namen des Connectors. Heißen andere Zugangsdaten dieses Connectors schon so, hängt Tale eine Zahl an: `GitHub`, dann `GitHub 2`. Ein Name wie `Support-Postfach` oder `EU-Shop` ist beim Erstellen von Automatisierungen leichter zu erkennen. Eine OAuth-Verbindung hat kein Namensfeld. Tale benennt sie nach derselben Regel, sobald du den Zugriff erteilt hast (ein zweiter Slack-Workspace erhält den Namen des Workspace), und mit **Zugangsdaten bearbeiten** kannst du sie umbenennen.
+3. Fülle die angebotene Authentifizierungsmethode aus. Bei OAuth wählst du **Verbinden** und erteilst den Zugriff beim Anbieter. Jedes **Verbinden** legt neue Zugangsdaten für das freigegebene Konto an und ersetzt nie bestehende. Melde dich beim Anbieter deshalb mit dem Konto an, das du hinzufügen willst.
 4. Schließe das Formular ab und prüfe den neuen Eintrag mit Connector, Konto oder Instanz und Status.
+
+Slack verbindet pro Workspace genau einen Satz Zugangsdaten. Gibst du einen bereits verbundenen Workspace erneut frei, erneuert Tale dessen Zugangsdaten, statt weitere anzulegen.
 
 Der Connector bestimmt die Felder. Verwende die tatsächlichen Zugangsdaten des Dienstkontos, keinen Tale-API-Schlüssel.
 
@@ -55,7 +57,9 @@ Bei OneDrive/SharePoint kann **Entra-ID-App aus SSO übernehmen** eine bestehend
 
 ## Eine Verbindung reparieren
 
-**Neu verbinden nötig** bedeutet, dass die gespeicherte OAuth-Berechtigung nicht mehr erneuert werden kann. Wähle **Neu verbinden** und gib das Konto erneut frei. Name und Verweise bleiben erhalten. Bewusst deaktivierte Zugangsdaten brauchen stattdessen **Aktivieren**.
+**Neu verbinden nötig** bedeutet, dass die gespeicherte OAuth-Berechtigung nicht mehr erneuert werden kann. Wähle im Menü dieser Zeile **Neu verbinden** und gib dasselbe Konto erneut frei. Tale erneuert genau diese Zugangsdaten: Name, Standard und Verweise bleiben erhalten, alle anderen Zugangsdaten bleiben unverändert. Bewusst deaktivierte Zugangsdaten aktiviert **Neu verbinden** nicht wieder; dafür gibt es **Aktivieren**.
+
+Werden die Zugangsdaten entfernt, bevor die Freigabe abgeschlossen ist, oder erlaubt dir deine Rolle das Verwalten von Zugangsdaten nicht mehr, speichert Tale nichts und nennt den Grund. Gib bei Slack den Workspace frei, den die Zugangsdaten bereits verbinden. Einen anderen Workspace lehnt Tale ab; verbinde ihn stattdessen über **Zugangsdaten hinzufügen**.
 
 Kann die Verbindung nicht starten, prüfe die OAuth-App. Lehnt der Anbieter die Rückkehr zu Tale ab, vergleiche die registrierte Weiterleitungsadresse mit der exakt in Tale gezeigten Adresse. Scheitert nach der Verbindung eine Aktion, prüfe die Kontorechte und den benötigten Berechtigungsumfang.
 
