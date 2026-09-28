@@ -96,6 +96,11 @@ const chatThreadRoute = (ctx: ShotContext, prompt: string): string => {
   return `/dashboard/${ctx.orgId}/chat/${threadId}`;
 };
 
+/** A label as a literal inside a RegExp. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 const FEEDBACK_PROMPT = DEMO_CHAT_PROMPTS[0];
 
 /** The Confidentiality notice section on Governance > Policies & Limits. */
@@ -295,6 +300,71 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
     capture: (page) =>
       page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
+  },
+  {
+    // The Repeat popover over the same task once a preset has dated it: the
+    // one-click presets read off its due date, the due dates of the tasks it
+    // will bring back, and the option to create the next one on the due
+    // date. `restore` puts the task back undated and not repeating, so the
+    // board and detail shots never show this rule.
+    name: 'project-task-repeat',
+    section: 'platform',
+    route: '/dashboard/:orgId/projects',
+    prepare: async (page, ctx) => {
+      const title = DEMO_PROJECTS[0].tasks[0].title;
+      await page.goto(projectRoute(ctx, '/tasks/board'));
+      await page.getByText(title, { exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: title });
+      const label = escapeRegExp(t('tasks.repeat.label'));
+      await dialog
+        .getByRole('button', { name: new RegExp(`^${label}:`) })
+        .click();
+      // "Weekly on <its weekday>", the fourth preset after Never, Daily and
+      // Every weekday: picking it saves the rule and dates the task.
+      await page
+        .getByRole('radiogroup', { name: t('recurrence.presets') })
+        .getByRole('radio')
+        .nth(3)
+        .click();
+      const never = escapeRegExp(t('recurrence.never'));
+      const repeating = dialog.getByRole('button', {
+        name: new RegExp(`^${label}: (?!${never}$)`),
+      });
+      await repeating.waitFor();
+      await repeating.click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('tasks.repeat.label') })
+        .getByText(t('tasks.repeat.nextDueDates')),
+    restore: async (page, ctx) => {
+      const title = DEMO_PROJECTS[0].tasks[0].title;
+      await page.evaluate(
+        async ({ orgId, taskTitle }) => {
+          const list = await fetch(`/api/app/tasks?orgId=${orgId}`, {
+            credentials: 'include',
+          });
+          const body: unknown = await list.json();
+          const rows =
+            typeof body === 'object' && body !== null && 'tasks' in body
+              ? (body as { tasks: { id: string; title: string }[] }).tasks
+              : [];
+          const task = rows.find((row) => row.title === taskTitle);
+          if (!task) throw new Error(`No task "${taskTitle}" to restore`);
+          const reset = await fetch(
+            `/api/app/tasks/${task.id}?orgId=${orgId}`,
+            {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ repeat: null, dueDate: null }),
+            },
+          );
+          if (!reset.ok) throw new Error(`Restore answered ${reset.status}`);
+        },
+        { orgId: ctx.orgId, taskTitle: title },
+      );
+    },
   },
   {
     name: 'projects-task-board',
