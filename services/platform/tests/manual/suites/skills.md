@@ -187,10 +187,10 @@ builtin skill from `configs/platform/custom/skills/`.
   team T1 only, upload a zip whose `SKILL.md` says `owner: <another member's
   id>` → the new skill lists you as its owner. Upload one that says
   `visibility: team` with the id of a team T2 you are not in (or an id that
-  does not exist) → the upload is refused naming the team, and no skill is
-  written. As a Developer, upload an automation package carrying the same two
-  skills → the same outcomes; re-uploading an unchanged package reports its
-  skills as unchanged, with no overwrite prompt.
+  does not exist) → the upload is refused because you cannot share with that
+  team, and no skill is written. As a Developer, upload an automation package
+  carrying the same two skills → the same outcomes; re-uploading an unchanged
+  package reports its skills as unchanged, with no overwrite prompt.
 
 ## Accessibility (WCAG 2.1 AA)
 
