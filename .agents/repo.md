@@ -63,7 +63,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **A data-model or org-config schema change ships a migration** — one numbered `.sql` file under
   `services/platform/backend/db/migrations/`, forward-only and safe to apply to a live deployment
   mid-roll; a backfill that must decide with the app's own code (never a SQL copy of it) is a
-  numbered `.ts` data migration in the same directory and order. The real-Postgres proof is
+  numbered `.ts` data migration in the same directory and order, which writes every statement
+  itself and imports only pure rules (it runs against the schema at its number, with the newest
+  image's code). The real-Postgres proof is
   `bun run --filter @tale/platform backend:integration` (there is no separate migrations gate or
   generated registry — filename order is the registry).
   Scaffold with `bun run gen:migration` and follow the

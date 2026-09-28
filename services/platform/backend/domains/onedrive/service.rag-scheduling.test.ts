@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RAG_ERROR_UNSUPPORTED_TYPE } from '../../core/knowledge/rag_error_codes.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createGoogleDriveImportDeps } from '../google_drive/service.ts';
+import { HELD_BY_DOCUMENT_SQL } from '../knowledge/status-hints.ts';
 import { createPgImportDeps, type PgSyncImportDeps } from './service.ts';
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
@@ -53,6 +54,11 @@ function fakeSql(
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$');
     statements.push({ text, values });
+    if (values.includes(HELD_BY_DOCUMENT_SQL)) {
+      // The status writer's list probe: the synced document holds its file,
+      // so a list shows the status.
+      return Promise.resolve([{ orgId: 'org-1', listed: true }]);
+    }
     if (text.includes('FROM app.documents WHERE id')) {
       return Promise.resolve([
         {
@@ -64,10 +70,6 @@ function fakeSql(
     }
     if (text.includes('FROM app.file_metadata')) {
       return Promise.resolve([row]);
-    }
-    if (text.includes('RETURNING fm.org_id')) {
-      // The synced document holds its file, so a list shows the status.
-      return Promise.resolve([{ orgId: 'org-1', listed: true }]);
     }
     return Promise.resolve([]);
   };

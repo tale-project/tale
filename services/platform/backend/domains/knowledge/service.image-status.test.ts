@@ -7,6 +7,8 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
+import { RAG_ERROR_IMAGE_NO_VISION } from '../../core/knowledge/rag_error_codes.ts';
+import { imageNoVisionError } from '../../core/knowledge/rag_unsupported.ts';
 import { indexUploadedFile } from './service.ts';
 
 interface Query {
@@ -61,6 +63,10 @@ describe('indexUploadedFile — images', () => {
     const writes = statusWrites(log);
     expect(writes).toHaveLength(1);
     expect(writes[0]).toContain('unsupported');
+    // The code and sentence every lane that fills an image's cause shares
+    // (`rag_unsupported.ts`; migration 0129 fills the rows written before).
+    expect(writes[0]).toContain(RAG_ERROR_IMAGE_NO_VISION);
+    expect(writes[0]).toContain(imageNoVisionError('photo.png'));
     expect(JSON.stringify(writes[0])).toMatch(/vision/i);
     expect(JSON.stringify(writes)).not.toContain('failed');
     // Decided from the name alone: no 'running' pass, no blob fetch.
