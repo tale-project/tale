@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 82 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 84 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -380,6 +380,14 @@ project (as in AUTO-F32).
   (the other task's composer is empty); sending clears it, and the reload
   after sending shows an empty composer. Local storage keeps it under
   `task-comment-draft-{userId}-{orgId}-{taskId}` until it is sent.
+- [ ] `TASK-F45` · **Dates read in the UI language** — Give a task a start
+  and a due date, then switch the language to **Deutsch** and to
+  **Français** and open the task and its **Due date** calendar each time → The
+  dates read like `29. Sep. 2026` and `29 sept. 2026`, never the English
+  `Sep 29, 2026`; the calendar's month and weekday names are German or French
+  and its week starts on Monday (in English, on Sunday); a screen reader
+  names the month group and day choices in that language too; the stored day does
+  not move — switching back to English shows the same date.
 
 ### Repeating tasks
 
@@ -916,6 +924,14 @@ project (as in AUTO-F32).
   its reason; Tab moves on within the dialog, and Escape still closes it and
   returns focus to the card. On the second series focus stays on the control
   Tab reached, inside the dialog, once the button goes.
+- [ ] `TASK-A12` · **Clear a date from the keyboard** — On a task you can edit
+  that has a due date, Tab to the date, then once more; press **Enter**; then
+  open a task you can only read → The second Tab lands on a button of its own
+  beside the date, named **Clear date** (`common.datePicker.clear`), with its
+  own focus ring while the field's ring goes out; **Enter** clears the date,
+  the ✕ goes away and focus is back on the date button, now **Pick a date**
+  (`common.datePicker.placeholder`), with no calendar opening; a screen
+  reader names the ✕ in German and French too; the read-only task shows no ✕.
 
 ## Performance
 
