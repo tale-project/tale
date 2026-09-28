@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -216,6 +217,58 @@ describe('ContactEditDialog', () => {
     });
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps a refusal's field-naming reason on the toast", async () => {
+    mockMutateAsync.mockRejectedValueOnce(
+      new AppError({
+        code: 'invalid body',
+        message: 'phone: Too big: expected string to have <=50 characters',
+      }),
+    );
+    const { user } = render(
+      <ContactEditDialog
+        contact={makeContact({ name: 'John' })}
+        isOpen={true}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByDisplayValue('John'), 'ny');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Couldn't update contact",
+          description:
+            'phone: Too big: expected string to have <=50 characters',
+          variant: 'destructive',
+        }),
+      );
+    });
+  });
+
+  it("names a phone over the door's cap under its field and sends nothing", async () => {
+    const { user } = render(
+      <ContactEditDialog
+        contact={makeContact({ name: 'John' })}
+        isOpen={true}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const phone = screen.getByDisplayValue('+1-555-0100');
+    await user.clear(phone);
+    await user.click(phone);
+    await user.paste('1'.repeat(51));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    expect(
+      await screen.findByText('Phone must be 50 characters or fewer'),
+    ).toBeInTheDocument();
+    expect(phone).toHaveAttribute('aria-invalid', 'true');
+    expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 
   describe('accessibility', () => {
