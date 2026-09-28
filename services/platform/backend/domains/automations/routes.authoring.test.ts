@@ -119,6 +119,16 @@ describe('app automation acceptance gate', () => {
     expect(await result.json()).toEqual({ name: 'double', version: 2 });
     expect(io.deploy).toHaveBeenCalledWith('double', 2, { testsPassed: true });
   });
+  it('names the missing document instead of saving nothing', async () => {
+    const result = await post('/double/save', { testsPassed: true });
+    expect(result.status).toBe(400);
+    expect(await result.json()).toEqual({
+      error: 'invalid body',
+      message: 'document: is required',
+      data: { issues: [{ path: 'document', message: 'is required' }] },
+    });
+    expect(io.save).not.toHaveBeenCalled();
+  });
   it('does not save a malformed document', async () => {
     const result = await post('/double/save', {
       document: { name: 'double', nodes: 'invalid' },
