@@ -2,14 +2,29 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
-import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
+import {
+  apiKeysQuery,
+  useApiKeys,
+} from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { cachedAbility } from '@/app/lib/loader-preload';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/api/rest')({
   head: () => ({ meta: seo('apiKeys') }),
+  // Warm the hook's cache without gating navigation on an unbounded list.
+  // Offline reads pause rather than reject, so even a caught/awaited read
+  // can prevent page paint. The table owns loading, error recovery and the
+  // Create action's placement once the initial result is known.
+  loader: ({ context, params }) => {
+    const ability = cachedAbility(context, params.id);
+    if (ability !== null && ability.cannot('read', 'developerSettings')) {
+      return;
+    }
+    void context.queryClient.prefetchQuery(apiKeysQuery(params.id));
+  },
   component: ApiRestPage,
 });
 
@@ -18,7 +33,7 @@ function ApiRestPage() {
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
 
-  const { data: apiKeys } = useApiKeys(organizationId);
+  const { data: apiKeys, error, refetch } = useApiKeys(organizationId);
 
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page.
@@ -44,7 +59,12 @@ function ApiRestPage() {
           </span>
         }
       >
-        <ApiKeysTable apiKeys={apiKeys} organizationId={organizationId} />
+        <ApiKeysTable
+          apiKeys={apiKeys}
+          organizationId={organizationId}
+          error={error}
+          onRetry={() => void refetch()}
+        />
       </SettingsSection>
     </SettingsPage>
   );

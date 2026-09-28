@@ -98,6 +98,9 @@ export function TrashPage({ organizationId }: Props) {
     () => ({
       resourceTypes: selectedTypes.length > 0 ? selectedTypes : undefined,
       cursor,
+      // The shared list size, named here because the server's default is 50.
+      // Not the Logs' larger page despite the same frame: why is in
+      // `audit-logs/logs-page-size.ts`.
       limit: DEFAULT_LIST_PAGE_SIZE,
     }),
     [selectedTypes, cursor],
