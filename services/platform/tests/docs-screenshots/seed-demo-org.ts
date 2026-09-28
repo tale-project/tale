@@ -510,6 +510,58 @@ const DOCUMENT_LABELS: IndexingLabels = {
   indexed: t('documents.rag.status.indexed'),
 };
 
+/**
+ * The project Files tab's upload dropzone — for an editor, the only thing the
+ * tab shows when the project has no files.
+ */
+function projectFilesDropzone(page: Page): Locator {
+  return page.getByRole('button', {
+    name: t('projects.files.addButton'),
+    exact: true,
+  });
+}
+
+/**
+ * One attached file's row on the project Files tab. The tab lists its files as
+ * a plain list, not a tree: every row sits beside its own Preview, History and
+ * Remove buttons, which a treeitem may not contain. The row is the list item
+ * whose row button carries the file name; a folder's item contains the items
+ * of its files, so the innermost match (the last in document order) is the
+ * file's own.
+ */
+export function projectFileRow(page: Page, fileName: string): Locator {
+  return page
+    .getByRole('list', { name: t('projects.files.treeLabel') })
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: fileName, exact: true }) })
+    .last();
+}
+
+/**
+ * Block until the project Files tab has answered its documents read.
+ *
+ * The tab mounts an editor's upload dropzone as soon as the project resolves,
+ * and a project without files shows nothing else: no list, no empty-state
+ * text. While the read is still in flight a list skeleton (a busy "Loading
+ * content" status) stands beside that same dropzone, so the dropzone alone is
+ * no answer — reading "no files" off a still-loading tab uploads duplicates.
+ * Settled is the list itself, or the dropzone once no skeleton is left on the
+ * page (the shell's own skeletons clear within the same second as the tab's).
+ * A project with folders can list them before its files arrive; the seeded
+ * projects hold none, and their files sit at the root.
+ */
+export async function settleProjectFiles(page: Page): Promise<void> {
+  await expect(
+    page
+      .getByRole('list', { name: t('projects.files.treeLabel') })
+      .or(projectFilesDropzone(page))
+      .first(),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(
+    page.getByRole('status', { name: t('skeleton.loading') }),
+  ).toHaveCount(0, { timeout: TIMEOUT.FIRST_PAINT });
+}
+
 /** Attach the demo files to the project's Knowledge tab (upload dropzone). */
 async function ensureProjectFiles(
   page: Page,
@@ -518,38 +570,26 @@ async function ensureProjectFiles(
   files: readonly DemoDocument[] = DEMO_PROJECT_FILES,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/files`);
-  // Settle on the tree (files exist) or the empty placeholder (none yet): the
-  // dropzone description above both paints before the query answers, so a
-  // presence check taken on it read "missing" and uploaded a duplicate.
-  const tree = page.getByRole('tree', { name: t('projects.files.treeLabel') });
-  await expect(
-    tree.or(page.getByText(t('projects.files.emptyTitle'))).first(),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await settleProjectFiles(page);
   for (const doc of files) {
-    if (
-      await isPresent(
-        tree.getByRole('treeitem', { name: doc.fileName, exact: true }),
-      )
-    ) {
-      continue;
-    }
+    if (await isPresent(projectFileRow(page, doc.fileName))) continue;
+    // The dropzone stays disabled while an earlier upload is still running,
+    // and a file handed to it then is dropped without a word.
+    await expect(projectFilesDropzone(page)).toBeEnabled({
+      timeout: TIMEOUT.PERSIST,
+    });
     await page.locator('#project-files-upload').setInputFiles({
       name: doc.fileName,
       mimeType: doc.mimeType,
       buffer: Buffer.from(doc.content),
     });
-    await expect(page.getByText(doc.fileName).first()).toBeVisible({
-      timeout: TIMEOUT.FIRST_PAINT,
-    });
-    await awaitIndexed(
-      tree.locator('li').filter({ hasText: doc.fileName }).first(),
-      PROJECT_FILE_LABELS.indexed,
-      doc.fileName,
-    );
+    const row = projectFileRow(page, doc.fileName);
+    await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await awaitIndexed(row, PROJECT_FILE_LABELS.indexed, doc.fileName);
   }
   for (const doc of files) {
     await retryFailedIndexing(
-      tree.locator('li').filter({ hasText: doc.fileName }).first(),
+      projectFileRow(page, doc.fileName),
       PROJECT_FILE_LABELS,
       doc.fileName,
     );
