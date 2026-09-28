@@ -752,6 +752,7 @@ describe('ProvidersSettings', () => {
       name: 'Qwen CN',
       providerSlug: 'qwen-cn',
       isDefault: true,
+      hash: 'c1',
     });
 
     /** Open the add flow and pick the pinned custom entry. */
@@ -943,8 +944,8 @@ describe('ProvidersSettings', () => {
             baseUrl: 'https://maas.example.test/v2',
             catalogSource: 'models-endpoint',
           },
-          // The version the facts on screen were read at.
-          reviewed: { definitionHash: 'h1' },
+          // The versions the facts on screen were read at.
+          reviewed: { credentialHash: 'c1', definitionHash: 'h1' },
         }),
       );
     });
@@ -963,7 +964,7 @@ describe('ProvidersSettings', () => {
           definitionHash: 'h2',
         },
       ];
-      fixtures.credentials = [customCredential];
+      fixtures.credentials = [{ ...customCredential, hash: 'c2' }];
       rerender(
         <WithHeaderSlot>
           <ProvidersSettings organizationId="org-1" />
@@ -994,7 +995,7 @@ describe('ProvidersSettings', () => {
             customProvider: expect.objectContaining({
               baseUrl: 'https://maas.example.test/v2',
             }),
-            reviewed: { definitionHash: 'h2' },
+            reviewed: { credentialHash: 'c2', definitionHash: 'h2' },
           }),
         ),
       );

@@ -120,12 +120,18 @@ const isOrgDefined = (vendor: ProviderVendor | null | undefined): boolean =>
   vendor !== undefined &&
   vendor.catalog.origin === 'organization';
 
-/** The version an organization-defined provider's facts are read at: the
- * hash the catalog listing gives the definition beside them. Absent while
- * the listing carries no hash, which the save refuses rather than guess. */
-function reviewedOf(vendor: ProviderVendor): { reviewed?: ReviewedVersions } {
+/** The versions an organization-defined provider's credential and its facts
+ * are read at: the credential listing's row hash, and the hash the catalog
+ * listing gives the definition beside those facts. Absent while the listing
+ * carries no hash, which the save refuses rather than guess. */
+function reviewedOf(
+  credential: MaskedCredential,
+  vendor: ProviderVendor,
+): { reviewed?: ReviewedVersions } {
   const definitionHash = vendor.catalog.definitionHash;
-  return definitionHash === undefined ? {} : { reviewed: { definitionHash } };
+  return definitionHash === undefined
+    ? {}
+    : { reviewed: { credentialHash: credential.hash, definitionHash } };
 }
 
 /** The facts an organization-defined provider's credential edits — read off
@@ -232,7 +238,7 @@ export interface ProviderCredentialExtras {
   /** Present while the setup step is the custom entry, or the credential
    * belongs to an organization-defined provider. Absent for a shipped one. */
   custom?: CustomProviderFacts;
-  /** For an organization-defined provider's credential: the version the
+  /** For an organization-defined provider's credential: the versions the
    * form was seeded at, which its Save names. Never edited. */
   reviewed?: ReviewedVersions;
 }
@@ -380,7 +386,7 @@ const providerExtras: CredentialExtraModule<
   fromCredential: (credential, vendor) => ({
     allowlist: credential.modelAllowlist ?? [],
     ...(vendor !== undefined && isOrgDefined(vendor)
-      ? { custom: factsOf(vendor), ...reviewedOf(vendor) }
+      ? { custom: factsOf(vendor), ...reviewedOf(credential, vendor) }
       : {}),
   }),
   // Blank facts count as the untouched baseline: the custom entry seeds

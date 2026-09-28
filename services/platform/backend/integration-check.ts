@@ -81,6 +81,7 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
+import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
@@ -55290,6 +55291,10 @@ async function main(): Promise<void> {
       [
         'checkProviderCredentialConfiguration',
         () => checkProviderCredentialConfiguration(sql, authCtx, record),
+      ],
+      [
+        'checkCustomProviderCredentialEdit',
+        () => checkCustomProviderCredentialEdit(sql, baseUrl, authCtx, record),
       ],
       [
         'checkBrokerAccountSelection',

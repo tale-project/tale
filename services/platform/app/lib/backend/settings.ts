@@ -1306,6 +1306,29 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null),
     invalidate: invalidateProviderReads,
   },
+  'provider_credentials/actions:updateCredentialWithDefinition': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}/with-definition`,
+        {
+          orgId: requireOrg(args, ctx),
+          // Strict on the server: exactly the fields the edit dialog sends
+          // for an organization-defined provider, and the two versions.
+          body: {
+            ...(typeof args.name === 'string' ? { name: args.name } : {}),
+            ...(args.modelAllowlist !== undefined
+              ? { modelAllowlist: args.modelAllowlist }
+              : {}),
+            ...(typeof args.endpointUrl === 'string'
+              ? { endpointUrl: args.endpointUrl }
+              : {}),
+            expectedHash: stringArg(args, 'expectedHash'),
+            definition: args.definition,
+          },
+        },
+      ).then(() => null),
+    invalidate: invalidateProviderReads,
+  },
   'provider_credentials/mutations:deleteCredential': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(

@@ -11,7 +11,6 @@ import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { parseYaml } from '../../../lib/shared/config/yaml';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -36,6 +35,7 @@ import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_tra
 import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
 import { appErrorHandler } from '../../error-reporting';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { parseNativeJsonBody } from '../../lib/native-json-body.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
@@ -101,15 +101,9 @@ export function createProviderSettingRoutes(deps: {
   app.put('/definitions/:name', async (c) => {
     const denied = requireDeveloper(c);
     if (denied) return denied;
-    const raw = await c.req.text();
     // JSON-only transport plus the native parser's duplicate-key refusal.
-    let value: unknown;
-    try {
-      value = JSON.parse(raw);
-    } catch {
-      return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
-    }
-    if (!parseYaml(raw).ok)
+    const value = parseNativeJsonBody(await c.req.text());
+    if (value === undefined)
       return c.json({ error: 'PROVIDER_DEFINITION_INVALID' }, 400);
     const body = z
       .strictObject({
