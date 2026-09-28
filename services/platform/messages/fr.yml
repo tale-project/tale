@@ -7466,6 +7466,7 @@ tasks:
     noDueDateHint: Pas encore d'échéance. Choisir une répétition la fixe au premier jour qui correspond.
     becomesDue: 'Cette tâche arrivera à échéance le {date}.'
     noDueDateSaved: 'Pas d''échéance : la tâche suivante sera datée à partir du jour où celle-ci sera terminée ou annulée.'
+    dateOutOfRange: Les prochaines dates dépassent la plage de dates prise en charge. Choisis une date antérieure.
     dueDateSet: 'L''échéance de cette tâche est maintenant le {date}.'
     ruleOnDue: '{rule}, tâche suivante à l''échéance'
     withParent: 'Avec {parent}'
@@ -7481,7 +7482,7 @@ tasks:
       continued: 'La série continue avec {task}. Modifie la répétition là-bas.'
       continuedUnnamed: La série continue avec la tâche suivante. Modifie la répétition là-bas.
       stopped: La série a été arrêtée.
-      nextDeleted: La tâche suivante a été supprimée, la série est donc terminée.
+      nextDeleted: La tâche suivante a été supprimée. Cette tâche ne peut plus se répéter.
       automation: Une automatisation gère cette tâche, elle ne se répète donc pas.
       subtask: 'Cette sous-tâche revient avec {parent} : chaque fois que {parent} se répète, sa tâche suivante en reçoit une nouvelle copie.'
       notOpen: Seules les tâches ouvertes se répètent.

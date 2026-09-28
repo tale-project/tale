@@ -77,9 +77,15 @@ Click **Repeat** below **Due date**, in the task's details or in **Create task**
 - **Every weekday**, Monday to Friday
 - **Weekly on …**, **Monthly on day …**, or **Yearly on …**, which take their day from the due date; a task without one uses its start date if that is still ahead, or else today
 
+<Frame caption="Choose a repeat in the task's details; the preview lists its next due dates.">
+
 ![The Repeat menu of the task Sign off the launch checklist lists Never, Daily, Every weekday, Weekly on Monday (checked), Monthly on day 28, Yearly on Sep 28 and Custom, with the next due dates and the option to create the next task on the due date.](/images/platform/project-task-repeat.webp)
 
+</Frame>
+
 **Next due dates** shows when the next three tasks will be due. A task without a due date gets one when you choose a repeat: the first matching day from today, or from its start date when that is later. A monthly repeat on the 31st falls on the last day of shorter months. If you clear the due date of a task that already repeats, the repeat stays: the next task then comes when this one closes, due on the first matching day after that, and **Repeat** says so when you open it. Any change to the repeat gives the task a due date again.
+
+If the dates exceed the supported calendar range, the preview explains this. Choose an earlier start or due date before setting the repeat.
 
 ### Set a custom repeat
 
@@ -89,7 +95,7 @@ For any other schedule, choose **Custom** in the same list. Pick **Day**, **Week
 
 Normally, the next task appears when you move this one to **Done** or **Cancelled**. When the work has to come back on time even if the last round isn't finished, open **Repeat** on a repeating task, select **Create the next task on the due date** below the dates, and click **Save**. The next task then appears at the start of the due date, midnight in the time zone of whoever set up the repeat, even while this task is still open. If the task is already due, the next one appears within a few minutes, and closing the task before its due date creates the next one at once. **System** appears as its creator in the task's activity. **Repeat** shows a calendar icon, and the tooltip of the repeat icon on **Board** and **List** ends in **next task on the due date**.
 
-Open tasks no longer hold such a series back, so they can pile up when nobody closes them. A series never has more than 10 open tasks: the next one waits until someone closes one of them.
+Open tasks no longer hold such a series back, so they can pile up when nobody closes them. A series never has more than 10 open tasks: the next one waits until someone closes one of them. Changing the repeat, or choosing **Never** and then a repeat again, still counts the tasks that remain open in the series.
 
 ### What the next task brings back
 
@@ -103,7 +109,7 @@ Under **Repeat**, the earlier task links to the next one, such as **Next task: W
 
 When you close a repeating task, the message **Next task created** tells you when the next one is due and offers **Stop repeating**. The same button stays under **Repeat** on the task that created the next one, beside **Next task**, while the next task still repeats. If nobody has touched the next task yet (it is still in **To do**, unchanged, with no comments or agent runs), it is removed together with its subtasks. Otherwise it stays and no longer repeats. Either way, the series ends: on the task you stopped it from, **Repeat** reads **Never**, and its tooltip says **This series has stopped.** If you used the button under **Repeat**, the focus then moves to **Repeat**. You can also set **Repeat** to **Never** on the latest task of the series.
 
-Deleting the latest task of a series ends the series. The task before it doesn't create another one, even if you reopen it and close it again: it shows no repeat icon, and its **Repeat** stays locked, with the tooltip **Its next task was deleted, so this series has ended.** Deleting an earlier task leaves the series going on from the latest one.
+Deleting the latest task of a series ends the series. The task before it doesn't create another one, even if you reopen it and close it again: it shows no repeat icon, and its **Repeat** stays locked, with the tooltip **Its next task was deleted. This task cannot repeat again.** Deleting an earlier task leaves the series going on from the latest one.
 
 ### When the repeat can't be changed
 

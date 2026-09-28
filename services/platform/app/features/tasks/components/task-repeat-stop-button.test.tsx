@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/queries')>()),
   useTask: (taskId: string | undefined) => ({
-    task: taskId === NEXT_ID ? mocks.next : null,
+    task: taskId === mocks.next?._id ? mocks.next : null,
     canEdit: true,
     canComment: true,
     isLoading: mocks.next === null,
@@ -193,6 +193,87 @@ describe('TaskRepeatStopButton — stopping', () => {
     });
     await waitFor(() => expect(stopButton()).toBeNull());
     expect(elsewhere).toHaveFocus();
+  });
+
+  it('offers the action again when the mounted panel changes to another task', async () => {
+    mocks.stopRepeat.mockResolvedValue({ removedNextTask: true });
+    const control = (taskId: string, nextTaskId: string) => (
+      <TaskRepeatStopButton taskId={taskId} nextTaskId={nextTaskId} />
+    );
+    const { user, rerender } = render(control(TASK_ID, NEXT_ID));
+    await user.click(stopButton() as HTMLElement);
+    await waitFor(() => expect(stopButton()).toBeNull());
+
+    mocks.next = { ...nextTask(weekly), _id: 'other-next' };
+    rerender(control('other-task', 'other-next'));
+    expect(stopButton()).toBeInTheDocument();
+    await user.click(stopButton() as HTMLElement);
+    expect(mocks.stopRepeat).toHaveBeenLastCalledWith({
+      taskId: 'other-task',
+      nextTaskId: 'other-next',
+    });
+  });
+
+  it('does not hide another task’s action when an earlier stop resolves', async () => {
+    let answer: (value: { removedNextTask: boolean }) => void = () => {};
+    mocks.stopRepeat.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const control = (taskId: string, nextTaskId: string) => (
+      <>
+        <button type="button" id={REPEAT_CONTROL_ID}>
+          Repeat
+        </button>
+        <TaskRepeatStopButton
+          taskId={taskId}
+          nextTaskId={nextTaskId}
+          returnFocusTo={REPEAT_CONTROL_ID}
+        />
+      </>
+    );
+    const { user, rerender } = render(control(TASK_ID, NEXT_ID));
+    await user.click(stopButton() as HTMLElement);
+    mocks.next = { ...nextTask(weekly), _id: 'other-next' };
+    rerender(control('other-task', 'other-next'));
+    const currentButton = stopButton() as HTMLElement;
+    currentButton.focus();
+    await act(async () => {
+      answer({ removedNextTask: true });
+    });
+    expect(stopButton()).toBe(currentButton);
+    expect(currentButton).toHaveFocus();
+  });
+
+  it('still restores focus when the same task refreshes before the stop answers', async () => {
+    let answer: (value: { removedNextTask: boolean }) => void = () => {};
+    mocks.stopRepeat.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const control = () => (
+      <>
+        <button type="button" id={REPEAT_CONTROL_ID}>
+          Repeat
+        </button>
+        <TaskRepeatStopButton
+          taskId={TASK_ID}
+          nextTaskId={NEXT_ID}
+          returnFocusTo={REPEAT_CONTROL_ID}
+        />
+      </>
+    );
+    const { user, rerender } = render(control());
+    await user.click(stopButton() as HTMLElement);
+    mocks.next = nextTask();
+    rerender(control());
+    expect(stopButton()).toBeNull();
+    await act(async () => {
+      answer({ removedNextTask: true });
+    });
+    expect(repeatControl()).toHaveFocus();
   });
 
   // The write's own error toast reports the failure; the button stays for

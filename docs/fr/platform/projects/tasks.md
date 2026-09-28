@@ -77,9 +77,15 @@ Clique sur **Répéter**, sous **Échéance**, dans les détails de la tâche ou
 - **Tous les jours ouvrés**, du lundi au vendredi
 - **Chaque semaine le …**, **Chaque mois le …** ou **Chaque année le …**, qui reprennent le jour de l’échéance ; sans échéance, celui de la date de début si elle est encore à venir, sinon celui d’aujourd’hui
 
+<Frame caption="Choisis la répétition dans les détails de la tâche ; l’aperçu indique les prochaines échéances.">
+
 ![Le menu Repeat de la tâche Sign off the launch checklist propose Never, Daily, Every weekday, Weekly on Monday (sélectionné), Monthly on day 28, Yearly on Sep 28 et Custom, avec les prochaines échéances et l’option de créer la tâche suivante à l’échéance.](/images/platform/project-task-repeat.webp)
 
+</Frame>
+
 **Prochaines échéances** indique quand les trois prochaines tâches arriveront à échéance. Une tâche sans échéance en reçoit une dès que tu choisis une répétition : le premier jour prévu à partir d’aujourd’hui, ou à partir de sa date de début si celle-ci est plus tardive. Une répétition mensuelle le 31 tombe le dernier jour des mois plus courts. Si tu retires l’échéance d’une tâche déjà récurrente, la répétition reste : la tâche suivante arrive alors quand tu clôtures celle-ci, avec pour échéance le premier jour prévu après la clôture, et **Répéter** le signale à l’ouverture. Toute modification de la répétition redonne une échéance à la tâche.
+
+Si les dates dépassent la plage de dates prise en charge, l’aperçu le signale. Choisis une date de début ou une échéance antérieure avant de définir la répétition.
 
 ### Définir une répétition personnalisée
 
@@ -89,7 +95,7 @@ Pour tout autre rythme, choisis **Personnalisé** dans la même liste. Choisis *
 
 Par défaut, la tâche suivante apparaît quand tu passes celle-ci à **Terminé** ou **Annulé**. Si le travail doit revenir à temps même quand la tâche précédente n’est pas terminée, ouvre **Répéter** sur une tâche récurrente, coche **Créer la tâche suivante à l'échéance** sous les dates et clique sur **Enregistrer**. La tâche suivante apparaît alors au début du jour d’échéance, à minuit dans le fuseau horaire de la personne qui a réglé la répétition, même si cette tâche est encore ouverte. Si la tâche est déjà à échéance, la suivante apparaît en quelques minutes, et si tu clôtures la tâche avant son jour d’échéance, la suivante est créée tout de suite. L’activité attribue cette création à **Système**. **Répéter** affiche alors une icône de calendrier, et l’infobulle de l’icône de répétition dans **Tableau** et **Liste** se termine par **tâche suivante à l'échéance**.
 
-Les tâches ouvertes ne retiennent plus une telle série : elles peuvent donc s’accumuler si personne ne les clôture. Une série ne compte jamais plus de 10 tâches ouvertes : la suivante attend que quelqu’un en clôture une.
+Les tâches ouvertes ne retiennent plus une telle série : elles peuvent donc s’accumuler si personne ne les clôture. Une série ne compte jamais plus de 10 tâches ouvertes : la suivante attend que quelqu’un en clôture une. Si tu modifies la répétition, ou choisis **Jamais** puis à nouveau une répétition, les tâches encore ouvertes dans la série restent comptées.
 
 ### Ce que reprend la tâche suivante
 
@@ -103,7 +109,7 @@ Sous **Répéter**, la tâche précédente renvoie à la suivante, par exemple *
 
 Quand tu clôtures une tâche récurrente, le message **Tâche suivante créée** indique l’échéance de la suivante et propose **Arrêter la répétition**. Le même bouton reste sous **Répéter** sur la tâche qui a créé la suivante, à côté de **Tâche suivante**, tant que la tâche suivante se répète. Si personne n’a encore touché à la tâche suivante (elle est toujours dans **À faire**, inchangée, sans commentaire ni exécution d’agent), elle est supprimée avec ses sous-tâches. Sinon, elle reste en place mais ne se répète plus. Dans les deux cas, la série s’arrête : sur la tâche depuis laquelle tu l’as arrêtée, **Répéter** affiche **Jamais**, et son infobulle indique **La série a été arrêtée.** Si tu as utilisé le bouton sous **Répéter**, le focus passe ensuite sur **Répéter**. Tu peux aussi ouvrir la tâche la plus récente de la série et régler son champ **Répéter** sur **Jamais**.
 
-Si tu supprimes la tâche la plus récente d’une série, la série s’arrête. La tâche précédente n’en crée pas d’autre, même si tu la rouvres puis la clôtures à nouveau : elle n’affiche pas d’icône de répétition, et son champ **Répéter** reste verrouillé, avec l’infobulle **La tâche suivante a été supprimée, la série est donc terminée.** Si tu supprimes une tâche plus ancienne, la série continue à partir de la plus récente.
+Si tu supprimes la tâche la plus récente d’une série, la série s’arrête. La tâche précédente n’en crée pas d’autre, même si tu la rouvres puis la clôtures à nouveau : elle n’affiche pas d’icône de répétition, et son champ **Répéter** reste verrouillé, avec l’infobulle **La tâche suivante a été supprimée. Cette tâche ne peut plus se répéter.** Si tu supprimes une tâche plus ancienne, la série continue à partir de la plus récente.
 
 ### Quand la répétition ne peut pas être modifiée
 

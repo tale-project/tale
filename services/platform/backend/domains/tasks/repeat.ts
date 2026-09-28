@@ -70,6 +70,8 @@ import {
  * two. The edit door refuses a new rule on a continued task for the same
  * reason (`repeatContinued` on its row), and the board reads that flag to
  * stop offering one.
+ * Durable series identity and ordered positions outlive those pointers,
+ * so deletion cannot hide open work from the cap or later copies from Stop.
  *
  * Two lanes continue a series, as the rule's `createOn` says:
  *
@@ -115,17 +117,6 @@ export interface TaskRepeatCopy {
  * task it would continue counted. A close always continues its series: it
  * takes one open task away as it adds one. */
 export const REPEAT_OPEN_COPIES_MAX = 10;
-
-/** How far back through a series the cap counts open copies. */
-const SERIES_WALK_MAX = 64;
-
-/** Subtasks come back with their parent this deep and this many at most —
- * the recursive delete's depth, and a copy the savepoint can afford. */
-const SUBTREE_DEPTH_MAX = 32;
-const SUBTREE_COPY_MAX = 200;
-
-/** How many copies ahead "Stop repeating" follows the series. */
-const STOP_CHAIN_MAX = 32;
 
 const DAY_MS = 86_400_000;
 
@@ -414,7 +405,10 @@ export async function createDueRepeatCopy(
 
 /** A task's series state and dates as its row lock reads them. */
 type LockedSeries = SeriesState &
-  Pick<TaskRow, 'status' | 'startDate' | 'dueDate'>;
+  Pick<TaskRow, 'status' | 'startDate' | 'dueDate'> & {
+    seriesId: string | null;
+    seriesPosition: number | null;
+  };
 
 /** The fields a copy is made of — the task itself, or one of its subtasks. */
 interface CopySource {
@@ -459,6 +453,8 @@ async function writeNextCopy(
   const lockedRows = await tx<LockedSeries[]>`
     SELECT repeat_rule AS "repeat",
            repeat_continued_at_ms::float8 AS "repeatContinuedAt",
+           repeat_series_id AS "seriesId",
+           repeat_series_position AS "seriesPosition",
            archived_at_ms::float8 AS "archivedAt",
            parent_task_id AS "parentTaskId", assignee_type AS "assigneeType",
            assignee_id AS "assigneeId", created_by_type AS "createdByType",
@@ -471,6 +467,10 @@ async function writeNextCopy(
   if (locked === undefined) return SKIPPED;
   const rule = seriesRule(locked);
   if (rule === null) return SKIPPED;
+  const series = {
+    id: locked.seriesId ?? task.id,
+    position: locked.seriesPosition ?? 0,
+  };
   if (lane.kind === 'dueDate') {
     // Still open, still continuing on its due date, and that day has begun
     // — a task closed, re-dated or switched back to "when done" since the
@@ -489,7 +489,7 @@ async function writeNextCopy(
   // close (or the scan) after the project is restored continues the series.
   if (project.archivedAt !== null) return SKIPPED;
   if (lane.kind === 'dueDate') {
-    const openCopies = await openCopiesInSeries(tx, task.id);
+    const openCopies = await openCopiesInSeries(tx, task, series.id);
     if (openCopies >= REPEAT_OPEN_COPIES_MAX) {
       return { kind: 'capped', openCopies };
     }
@@ -546,6 +546,7 @@ async function writeNextCopy(
     startDate: dates.startDate,
     dueDate: dates.dueDate,
     now,
+    series: { id: series.id, position: series.position + 1 },
   });
   await recordCopyCreated(tx, lane, task, copy, null, assignee);
 
@@ -571,7 +572,8 @@ async function writeNextCopy(
 
   await tx`
     UPDATE app.tasks
-    SET repeat_next_task_id = ${copy.id}, repeat_continued_at_ms = ${now}
+    SET repeat_next_task_id = ${copy.id}, repeat_continued_at_ms = ${now},
+        repeat_series_id = ${series.id}, repeat_series_position = ${series.position}
     WHERE id = ${task.id}
   `;
   await recordActivity(tx, {
@@ -600,6 +602,7 @@ async function insertTaskCopy(
     startDate: number | null;
     dueDate: number | null;
     now: number;
+    series?: { id: string; position: number };
   },
 ): Promise<{ id: string; number: number }> {
   const { source, now } = args;
@@ -611,7 +614,8 @@ async function insertTaskCopy(
       org_id, project_id, title, description, attachments, status, priority,
       label_ids, assignee_type, assignee_id, reviewer_user_id, parent_task_id,
       start_date_ms, due_date_ms, repeat_rule, rank, number, created_by,
-      created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
+      created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms,
+      repeat_series_id, repeat_series_position
     ) VALUES (
       ${source.organizationId}, ${source.projectId}, ${source.title},
       ${source.description},
@@ -622,7 +626,7 @@ async function insertTaskCopy(
       ${args.parentTaskId}, ${args.startDate}, ${args.dueDate},
       ${args.repeat !== null ? tx.json(toJson(args.repeat)) : null}, ${rank},
       ${number}, ${source.createdBy}, ${source.createdByType}, ${now}, ${now},
-      ${now}
+      ${now}, ${args.series?.id ?? null}, ${args.series?.position ?? null}
     )
     RETURNING id
   `;
@@ -722,9 +726,10 @@ async function recordCopyCreated(
  * Bring the task's subtasks back under its copy — every one not archived
  * (an archived subtask leaves its own subtree behind too), each fresh in To
  * do under its parent's copy, with no rule, dated by the same calendar step
- * as the parent. Depth-first order would let a child come before its
- * parent's copy; the read goes level by level, so every parent is copied
- * first. `copies` maps each original to its copy and grows as they land.
+ * as the parent. The read deduplicates ids so malformed cycles are finite;
+ * the queue copies parents before children. `copies` maps each original
+ * to its copy and grows as they land. The complete tree lands in the
+ * writer's transaction, never a silently truncated subset.
  */
 async function copySubtree(
   tx: TransactionSql,
@@ -743,11 +748,12 @@ async function copySubtree(
   const { task, copies } = args;
   const rows = await tx<SubtaskSource[]>`
     WITH RECURSIVE tree AS (
-      SELECT id, 0 AS depth FROM app.tasks WHERE id = ${task.id}
-      UNION ALL
-      SELECT t.id, tree.depth + 1
+      SELECT id FROM app.tasks WHERE id = ${task.id}
+      UNION
+      SELECT t.id
       FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
-      WHERE tree.depth < ${SUBTREE_DEPTH_MAX} AND t.archived_at_ms IS NULL
+      WHERE t.archived_at_ms IS NULL AND t.org_id = ${task.organizationId}
+        AND t.project_id = ${task.projectId}
     )
     SELECT t.id, t.org_id AS "organizationId", t.project_id AS "projectId",
            t.parent_task_id AS "parentTaskId", t.title, t.description,
@@ -758,20 +764,20 @@ async function copySubtree(
            t.due_date_ms::float8 AS "dueDate", t.created_by AS "createdBy",
            t.created_by_type AS "createdByType"
     FROM tree JOIN app.tasks t ON t.id = tree.id
-    WHERE tree.depth > 0 AND t.org_id = ${task.organizationId}
+    WHERE t.id <> ${task.id} AND t.org_id = ${task.organizationId}
       AND t.project_id = ${task.projectId}
-    ORDER BY tree.depth, t.number NULLS LAST, t.id
-    LIMIT ${SUBTREE_COPY_MAX + 1}
+    ORDER BY t.number NULLS LAST, t.id
   `;
-  if (rows.length > SUBTREE_COPY_MAX) {
-    console.warn(
-      `[tasks] task ${task.id}: its next repeating copy brings back only the first ${SUBTREE_COPY_MAX} subtasks`,
-    );
+  const children = new Map<string, SubtaskSource[]>();
+  for (const row of rows) {
+    const siblings = children.get(row.parentTaskId) ?? [];
+    siblings.push(row);
+    children.set(row.parentTaskId, siblings);
   }
-  for (const node of rows.slice(0, SUBTREE_COPY_MAX)) {
+  const queue = [...(children.get(task.id) ?? [])];
+  for (const node of queue) {
+    if (copies.has(node.id)) continue;
     const parentTaskId = copies.get(node.parentTaskId);
-    // A parent outside the copied levels (cut by the cap) takes its
-    // children with it.
     if (parentTaskId === undefined) continue;
     const { assignee, refusal } = await carriedAssignee(
       tx,
@@ -792,6 +798,7 @@ async function copySubtree(
       now: args.now,
     });
     copies.set(node.id, copy.id);
+    queue.push(...(children.get(node.id) ?? []));
     await recordCopyCreated(tx, args.lane, node, copy, parentTaskId, assignee);
   }
 }
@@ -887,23 +894,19 @@ async function carryWatchers(
   }
 }
 
-/** Open tasks of the series `headId` ends — it included — counted back
- * along the copies' pointers, as far as {@link SERIES_WALK_MAX} steps. */
+/** Count durable membership, not next-task links: a root or middle task
+ * can be deleted without making the older open work disappear. A first
+ * task not yet stamped with its identity counts by its own id. */
 async function openCopiesInSeries(
   tx: TransactionSql,
-  headId: string,
+  task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
+  seriesId: string,
 ): Promise<number> {
   const rows = await tx<{ open: number }[]>`
-    WITH RECURSIVE series AS (
-      SELECT id, status, archived_at_ms, 0 AS step
-      FROM app.tasks WHERE id = ${headId}
-      UNION ALL
-      SELECT t.id, t.status, t.archived_at_ms, series.step + 1
-      FROM app.tasks t JOIN series ON t.repeat_next_task_id = series.id
-      WHERE series.step < ${SERIES_WALK_MAX}
-    )
-    SELECT count(*)::int AS open FROM series
-    WHERE status NOT IN ('done', 'cancelled') AND archived_at_ms IS NULL
+    SELECT count(*)::int AS open FROM app.tasks
+    WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
+      AND (id = ${task.id} OR repeat_series_id = ${seriesId})
+      AND status NOT IN ('done', 'cancelled') AND archived_at_ms IS NULL
   `;
   return rows[0]?.open ?? 0;
 }
@@ -971,6 +974,7 @@ interface ChainTask {
   status: TaskStatus;
   repeat: unknown;
   repeatNextTaskId: string | null;
+  seriesPosition: number;
   createdAt: number;
   updatedAt: number;
   commentCount: number;
@@ -1015,19 +1019,39 @@ export async function stopTaskRepeat(
   const project = await loadProjectOrThrow(tx, task.projectId);
   assertTaskWritable(project, auth);
   assertTaskNotArchived(task);
-  const lockedRows = await tx<{ repeat: unknown }[]>`
-    SELECT repeat_rule AS "repeat" FROM app.tasks
+  const lockedRows = await tx<
+    {
+      repeat: unknown;
+      seriesId: string | null;
+      seriesPosition: number | null;
+    }[]
+  >`
+    SELECT repeat_rule AS "repeat", repeat_series_id AS "seriesId",
+           repeat_series_position AS "seriesPosition" FROM app.tasks
     WHERE id = ${task.id} FOR UPDATE
   `;
-  const chain = await loadSeriesAhead(tx, task);
+  const locked = lockedRows[0];
+  const members =
+    locked?.seriesId == null
+      ? []
+      : await loadSeriesMembers(tx, task, locked.seriesId);
+  const chain = members.filter(
+    (member) => member.seriesPosition > (locked?.seriesPosition ?? 0),
+  );
   let removedNextTask = false;
   if (chain.length > 0) {
     const tree = await loadChainTrees(tx, task, chain);
     if (await chainUntouched(tx, task, chain, tree)) {
       await takeBackCopies(tx, auth, task, chain, tree);
       removedNextTask = true;
-    } else {
-      for (const copy of chain) await clearSeriesRule(tx, auth, copy);
+    }
+  }
+  for (const member of members) {
+    if (
+      !removedNextTask ||
+      member.seriesPosition <= (locked?.seriesPosition ?? 0)
+    ) {
+      await clearSeriesRule(tx, auth, member);
     }
   }
   await clearSeriesRule(tx, auth, {
@@ -1037,43 +1061,31 @@ export async function stopTaskRepeat(
   return { removedNextTask };
 }
 
-/** The copies the series has made from `task` on — its next task, that
- * one's next, and so on — in order, each locked. */
-async function loadSeriesAhead(
+/** Every surviving member, including those disconnected by deletion. The
+ * source row is already locked; lock the rest in id order, then return
+ * immutable series order so only later copies can be taken back. */
+async function loadSeriesMembers(
   tx: TransactionSql,
   task: TaskRow,
+  seriesId: string,
 ): Promise<ChainTask[]> {
-  const steps = await tx<{ id: string }[]>`
-    WITH RECURSIVE chain AS (
-      SELECT repeat_next_task_id AS id, 1 AS step
-      FROM app.tasks
-      WHERE id = ${task.id} AND repeat_next_task_id IS NOT NULL
-      UNION ALL
-      SELECT t.repeat_next_task_id, chain.step + 1
-      FROM app.tasks t JOIN chain ON t.id = chain.id
-      WHERE t.repeat_next_task_id IS NOT NULL AND chain.step < ${STOP_CHAIN_MAX}
-    )
-    SELECT id FROM chain ORDER BY step
-  `;
-  if (steps.length === 0) return [];
-  const ids = steps.map((step) => step.id);
   const rows = await tx<ChainTask[]>`
     SELECT id, org_id AS "organizationId", project_id AS "projectId", title,
            status, repeat_rule AS "repeat",
            repeat_next_task_id AS "repeatNextTaskId",
+           repeat_series_position AS "seriesPosition",
            created_at_ms::float8 AS "createdAt",
            updated_at_ms::float8 AS "updatedAt",
            comment_count AS "commentCount",
            agent_run_count AS "agentRunCount",
            archived_at_ms::float8 AS "archivedAt"
     FROM app.tasks
-    WHERE org_id = ${task.organizationId} AND id = ANY(${ids})
+    WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
+      AND repeat_series_id = ${seriesId} AND id <> ${task.id}
+    ORDER BY id
     FOR UPDATE
   `;
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  return ids
-    .map((id) => byId.get(id))
-    .filter((row): row is ChainTask => row !== undefined);
+  return rows.toSorted((a, b) => a.seriesPosition - b.seriesPosition);
 }
 
 /** Every task under each copy of the chain, the copies themselves included,
@@ -1085,12 +1097,13 @@ async function loadChainTrees(
 ): Promise<ChainTreeRow[]> {
   return await tx<ChainTreeRow[]>`
     WITH RECURSIVE tree AS (
-      SELECT id, id AS root, 0 AS depth
+      SELECT id, id AS root
       FROM app.tasks WHERE id = ANY(${chain.map((copy) => copy.id)})
-      UNION ALL
-      SELECT t.id, tree.root, tree.depth + 1
+      UNION
+      SELECT t.id, tree.root
       FROM app.tasks t JOIN tree ON t.parent_task_id = tree.id
-      WHERE tree.depth < ${SUBTREE_DEPTH_MAX}
+      WHERE t.org_id = ${task.organizationId}
+        AND t.project_id = ${task.projectId}
     )
     SELECT t.id, tree.root, t.status,
            t.created_at_ms::float8 AS "createdAt",
@@ -1100,6 +1113,8 @@ async function loadChainTrees(
            t.archived_at_ms::float8 AS "archivedAt"
     FROM tree JOIN app.tasks t ON t.id = tree.id
     WHERE t.org_id = ${task.organizationId}
+    ORDER BY t.id
+    FOR UPDATE OF t
   `;
 }
 
@@ -1108,7 +1123,7 @@ async function loadChainTrees(
  * and every task under it in To do, never edited since (a copy's rows all
  * carry the one instant its write stamped, so a subtask someone added
  * later does not pass), never commented on, never run, not archived — and
- * the chain ends inside the walk rather than past it.
+ * the newest member has no unresolved continuation pointer.
  */
 async function chainUntouched(
   tx: TransactionSql,
@@ -1132,6 +1147,24 @@ async function chainUntouched(
   );
   if (!pristine) return false;
   const ids = tree.map((row) => row.id);
+  // Dependencies do not move updated_at_ms. A user's change anywhere in
+  // the copied tree makes it their work even if every task is still To do;
+  // outgoing edges record their activity on the OTHER task, so also keep
+  // any copy now connected to work outside this tree. Automatic copies
+  // create only internal dependencies and created/repeat.next activity.
+  const touched = await tx<{ id: string }[]>`
+    SELECT id FROM app.task_activity
+    WHERE task_id = ANY(${ids}) AND action NOT IN ('created', 'repeat.next')
+    LIMIT 1
+  `;
+  if (touched.length > 0) return false;
+  const externalDependencies = await tx<{ id: string }[]>`
+    SELECT id FROM app.task_dependencies
+    WHERE (blocker_task_id = ANY(${ids}) OR blocked_task_id = ANY(${ids}))
+      AND NOT (blocker_task_id = ANY(${ids}) AND blocked_task_id = ANY(${ids}))
+    LIMIT 1
+  `;
+  if (externalDependencies.length > 0) return false;
   const liveAgentRuns = await tx<{ id: string }[]>`
     SELECT id FROM app.project_agent_runs
     WHERE org_id = ${task.organizationId} AND task_id = ANY(${ids})
@@ -1173,7 +1206,7 @@ async function takeBackCopies(
     taskIds: tree.map((row) => row.id),
     closedReason: 'task_deleted',
   });
-  let repeatOf = task.id;
+  let previous: Pick<ChainTask, 'id' | 'repeatNextTaskId'> = task;
   for (const copy of chain) {
     await createAuditLog(
       tx,
@@ -1181,7 +1214,9 @@ async function takeBackCopies(
         previousState: { status: copy.status, title: copy.title },
         metadata: {
           reason: 'repeat_stopped',
-          repeatOf,
+          ...(previous.repeatNextTaskId === copy.id
+            ? { repeatOf: previous.id }
+            : { stoppedFromTaskId: task.id }),
           deletedChildCount:
             tree.filter((row) => row.root === copy.id).length - 1,
           releasedBlobRefCount: retired.releasedRefs.length,
@@ -1194,7 +1229,7 @@ async function takeBackCopies(
       entity: 'task',
       entityId: copy.id,
     });
-    repeatOf = copy.id;
+    previous = copy;
   }
 }
 
