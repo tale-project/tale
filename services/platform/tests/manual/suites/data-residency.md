@@ -261,8 +261,10 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   (`settings.dataResidency.orgStorage.errors.regionRequired`) under
   **Region**, no request; paste a 256-character **Bucket** → **Save** →
   **Bucket must be 255 characters or fewer**
-  (`common.validation.maxLength`). Never a result line or toast reading
-  `invalid body`.
+  (`common.validation.maxLength`). Clear **Bucket** and paste a
+  101-character **Region** → **Test connection** → focus lands on
+  **Region**, the first refused field on the page, as it does on **Save**.
+  Never a result line or toast reading `invalid body`.
 
 ## Deployment defaults
 

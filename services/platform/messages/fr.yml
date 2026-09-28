@@ -6738,6 +6738,7 @@ settings:
       externalS3: S3 externe
       region: Région
       endpoint: Endpoint (MinIO/R2 ; vide pour AWS)
+      endpointShort: Endpoint
       forcePathStyle: Forcer le path-style (MinIO/R2)
       accessKeyId: Access Key ID
       writeOnly: Écriture seule
