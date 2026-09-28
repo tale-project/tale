@@ -7,16 +7,16 @@
  * Semantics (2026-08-23, parity with the task lane): a failed turn re-kicks
  * immediately — no backoff, the harness already backed off per-request —
  * under a fixed in-node budget. Unlike the task lane there is no run-history
- * walk: the attempt counter lives on the agent cursor and dies with the node
- * execution, so only the progress reset survives from the streak semantics.
+ * walk: the attempt counter — and the streak of credential rotations — lives
+ * on the agent cursor and dies with the node execution, so only the progress
+ * reset survives from the streak semantics.
  */
 
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
   AUTO_RETRY_PROGRESS_MS,
+  CREDENTIAL_ROTATION_FREE_RETRIES,
 } from '../tasks/task_auto_retry';
-
-export { AUTO_RETRY_MAX_ATTEMPTS };
 
 /** Producer-side failure classification, stamped where each failure is
  * PRODUCED (the `agent_host.ts` settle sites) — never regex-derived from the
@@ -32,7 +32,12 @@ export type WorkflowAgentFailureCode =
   | 'ask_expired'
   /** The org's spend cap refused the start — the cap only moves with the
    * period or an admin, so a retry would only be refused again. */
-  | 'budget_exceeded';
+  | 'budget_exceeded'
+  /** The vendor answered 401 to a turn the subscription broker served: the
+   * broker refreshed the account under it, revoking the turn's token. The
+   * re-kick vends again and resumes, outside the budget
+   * ({@link planWorkflowAgentRetry}). */
+  | 'credential_rotated';
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, or
  * the operator ignored the agent's question for the whole ask TTL — a fresh
@@ -101,10 +106,7 @@ export function retryResumePrompt(reason: string): string {
  * turn that died before actually running reads as ZERO duration, never as
  * progress (the stamp racing the kick-side cursor commit loses the same
  * way, deliberately: a missing stamp must undercount, not reset). */
-export function executedMsOf(
-  launchedAt: number | undefined,
-  now: number,
-): number {
+function executedMsOf(launchedAt: number | undefined, now: number): number {
   if (launchedAt === undefined) return 0;
   return Math.max(0, now - launchedAt);
 }
@@ -112,7 +114,7 @@ export function executedMsOf(
 /** The attempt number the re-kick parks under: an attempt that executed past
  * the progress threshold proved the failure is not a rapid crash loop, so
  * the budget refreshes instead of counting toward exhaustion. */
-export function nextAttempt(prev: number, executedMs: number): number {
+function nextAttempt(prev: number, executedMs: number): number {
   return executedMs >= AUTO_RETRY_PROGRESS_MS ? 1 : prev + 1;
 }
 
@@ -124,7 +126,7 @@ const MAX_BURNED_BROKER_HASHES = 8;
 
 /** Fold the settled attempt's broker-token hash into the carried exclusion
  * list: deduped, most recent last, oldest dropped past the cap. */
-export function mergeBurnedHashes(
+function mergeBurnedHashes(
   prev: readonly string[] | undefined,
   current: string | undefined,
 ): string[] {
@@ -138,4 +140,74 @@ export function mergeBurnedHashes(
     merged.push(hash);
   }
   return merged.slice(-MAX_BURNED_BROKER_HASHES);
+}
+
+/** The parked attempt's retry state, as its cursor carries it. */
+export interface WorkflowAgentAttempt {
+  attempt?: number;
+  launchedAt?: number;
+  brokerTokenHash?: string;
+  burnedBrokerTokenHashes?: string[];
+  credentialRotations?: number;
+}
+
+/** What a re-kick of a failed attempt carries, and whether it may happen. */
+export interface WorkflowAgentRetryPlan {
+  /** Whether the budget admits the re-kick (the failure code's own gate,
+   * `isWorkflowAgentRetryable`, is the caller's). */
+  retry: boolean;
+  /** The attempt number the re-kick parks under. */
+  attempt: number;
+  /** The broker hashes the re-kick's vend steps past. */
+  burnedBrokerTokenHashes: string[];
+  /** Credential rotations in a row, the failed attempt's included (0 when
+   * it failed any other way) — carried so the next one can tell. */
+  credentialRotations: number;
+}
+
+/**
+ * Plan the re-kick of a failed attempt (task-lane parity with
+ * `resolveAutoRetryBudget`). An ordinary failure counts toward the budget —
+ * unless the attempt executed past the progress threshold — and burns its
+ * broker account. A credential rotation — the broker refreshed the account
+ * under the turn — is free up to `CREDENTIAL_ROTATION_FREE_RETRIES` in a row:
+ * the attempt number stays, the account stays in the pool, since it holds a
+ * fresh token. A rotation after a quarter of an hour of work starts a new
+ * streak; the third short one in a row takes the ordinary path, so a grant
+ * that is truly dead cannot loop.
+ */
+export function planWorkflowAgentRetry(
+  parked: WorkflowAgentAttempt,
+  failureCode: string | undefined,
+  now: number,
+): WorkflowAgentRetryPlan {
+  const attempt = parked.attempt ?? 0;
+  const executedMs = executedMsOf(parked.launchedAt, now);
+  const credentialRotations =
+    failureCode === 'credential_rotated'
+      ? executedMs >= AUTO_RETRY_PROGRESS_MS
+        ? 1
+        : (parked.credentialRotations ?? 0) + 1
+      : 0;
+  if (
+    credentialRotations > 0 &&
+    credentialRotations <= CREDENTIAL_ROTATION_FREE_RETRIES
+  ) {
+    return {
+      retry: true,
+      attempt,
+      burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
+      credentialRotations,
+    };
+  }
+  const retryAttempt = nextAttempt(attempt, executedMs);
+  return {
+    retry: retryAttempt <= AUTO_RETRY_MAX_ATTEMPTS,
+    attempt: retryAttempt,
+    burnedBrokerTokenHashes: mergeBurnedHashes(
+      parked.burnedBrokerTokenHashes,
+      parked.brokerTokenHash,
+    ),
+    credentialRotations,
+  };
 }

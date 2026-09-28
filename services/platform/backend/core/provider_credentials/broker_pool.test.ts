@@ -200,6 +200,34 @@ describe('diagnoseTokenMapping', () => {
     expect(diagnostics.unavailableCount).toBe(2);
   });
 
+  it('drops a Tale AI gateway token inside the hand-out floor when refresh_at is the mapped expiry', () => {
+    // The documented mapping: `refresh_at` — when the gateway's refresh
+    // revokes the token — with a safety margin of the gateway's hour-long
+    // floor. The vendor's later `expires_at` no longer decides.
+    const HOUR = 3_600_000;
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        {
+          access_token: 'refreshed-soon',
+          status: 'active',
+          expires_at: new Date(NOW + 4 * HOUR).toISOString(),
+          refresh_at: new Date(NOW + HOUR / 2).toISOString(),
+        },
+        {
+          access_token: 'long-lived',
+          status: 'active',
+          expires_at: new Date(NOW + 8 * HOUR).toISOString(),
+          refresh_at: new Date(NOW + 2 * HOUR).toISOString(),
+        },
+      ]),
+      { ...MAPPING, expiresField: 'refresh_at' },
+      NOW,
+      HOUR,
+    );
+    expect(diagnostics.usableTokens).toEqual(['long-lived']);
+    expect(diagnostics.expiredCount).toBe(1);
+  });
+
   it('keeps legacy SQLite integer account ids compatible and stable', () => {
     const diagnostics = diagnoseTokenMapping(
       pool([
@@ -294,6 +322,26 @@ describe('describeEmptyPool', () => {
     expect(diagnostics.missingAccountIdCount).toBe(1);
     expect(describeEmptyPool(diagnostics, MAPPING)).toContain('account_id');
   });
+  it('names both reasons a broker holds an account back', () => {
+    const diagnostics = diagnoseTokenMapping(
+      pool([
+        {
+          access_token: 'held',
+          status: 'active',
+          available: false,
+          available_at: NOW + 60_000,
+        },
+      ]),
+      MAPPING,
+      NOW,
+      SKEW,
+    );
+    const message = describeEmptyPool(diagnostics, MAPPING);
+    // A spent quota, or — Tale AI gateway's hand-out floor — a refresh due.
+    expect(message).toContain('quota exhausted');
+    expect(message).toContain('about to be refreshed');
+  });
+
   it('names the missed path', () => {
     const diagnostics = diagnoseTokenMapping({}, MAPPING, NOW, SKEW);
     expect(describeEmptyPool(diagnostics, MAPPING)).toContain('$.tokens');
