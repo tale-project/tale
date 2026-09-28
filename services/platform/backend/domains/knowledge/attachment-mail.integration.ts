@@ -719,10 +719,6 @@ export async function checkEmailedAttachments(
     await sql`DELETE FROM app.documents WHERE org_id = ${orgId} AND id = ${deadHeldBy}`;
     documentId = '';
     const deadRacedRow = await corpusRow();
-    const retainedFile = await sql<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM app.file_metadata WHERE org_id = ${orgId} AND id = ${fileId}
-    `;
-    const retainedBytes = await statOrgBlob(sql, orgId, ref);
     const publicChunks = await pool.unsafe<{ content: string }[]>(
       `SELECT c.chunk_content AS content FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
        JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d ON d.id = c.document_id AND d.org_slug = c.org_slug
@@ -737,6 +733,10 @@ export async function checkEmailedAttachments(
     // pass retries through the usual first walk and leaves the bytes alone.
     const deadRetried = await stampPass();
     const deadGoneOnRetry = (await corpusRow()) === undefined;
+    const retainedFile = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.file_metadata WHERE org_id = ${orgId} AND id = ${fileId}
+    `;
+    const retainedBytes = await statOrgBlob(sql, orgId, ref);
     record(
       'emailed attachment: a dead attachment stays isolated during clear and failed release, retries cleanly and cannot donate mail context to a clone',
       deadRacedAway &&
