@@ -56,4 +56,17 @@ describe('isConvexTransientError', () => {
     const error = new TypeError('Assignment to constant variable');
     expect(isConvexTransientError(error)).toBe(false);
   });
+
+  // The session gates these matched belonged to Convex's access token, which
+  // no longer exists; a session that has ended answers the same way on every
+  // retry, so none of its forms re-renders the layout.
+  it('returns false for a signed-out or lapsed session, in any form', () => {
+    for (const message of [
+      'Unauthenticated',
+      '{"code":"UNAUTHENTICATED"}',
+      '{"code":"UNAUTHORIZED","message":"Your session has ended. Sign in again."}',
+    ]) {
+      expect(isConvexTransientError(new Error(message))).toBe(false);
+    }
+  });
 });

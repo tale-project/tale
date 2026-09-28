@@ -351,6 +351,13 @@ analytics:
         model: Modèle
         agent: Agent
 auth:
+  sessionLapse:
+    title: Ta session a pris fin
+    description: Te reconnecter te fera quitter cette page. Les modifications non enregistrées risquent d'être perdues. Reste ici pour copier le travail que tu souhaites garder avant de continuer.
+    paused: Ta page reste ouverte. Copie le travail que tu souhaites garder. Quand tu es prêt, ferme les boîtes de dialogue ouvertes et choisis Se reconnecter.
+    stayHere: Rester ici
+    signIn: Se reconnecter
+    checkFailed: Ta session n'a pas pu être vérifiée. Reste ici et réessaie quand la connexion sera rétablie.
   oauth:
     title: 'Continuer avec Tale'
     request: '{application} souhaite te connecter avec Tale.'
@@ -8290,7 +8297,7 @@ sandboxes:
     organizationSessionsHint: Actuellement actives ou au démarrage, y compris les sandboxes inactives conservées pour être réutilisées.
     cpu: Utilisation du CPU de l'hôte
     cpuUsage: '{used} / {total} cœurs'
-    cpuHint: Mesure sur l'ensemble des processus de l'hôte ; le premier relevé peut manquer.
+    cpuHint: Mesure sur l'ensemble des processus de l'hôte.
     memory: Mémoire de l'hôte utilisée
     memoryUsage: '{used} / {total} Gio'
     memoryHint: Mémoire utilisée et totale de l'hôte, y compris les autres services.

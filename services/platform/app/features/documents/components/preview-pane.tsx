@@ -1,6 +1,7 @@
 import { cn } from '@tale/ui/cn';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import type { CSSProperties } from 'react';
 
 import { documentPageClasses } from './document-prose-classes';
 
@@ -27,6 +28,24 @@ export const previewPaneDocumentClasses = 'bg-muted p-4';
  * shorter than its block's own line height.
  */
 export const previewCodeTextClasses = 'font-mono text-xs leading-5';
+
+/**
+ * Sizes the number column of a source view to the file's widest line number
+ * (`.code-line-numbers` and `.code-text-column` in `@tale/ui`'s globals.css).
+ * Set it on the highlight's wrapper and on the plain fallback's text column
+ * alike, so a file past 9,999 lines keeps one text column in both.
+ */
+export function codeGutterStyle(text: string): CSSProperties {
+  let lines = 1;
+  for (
+    let at = text.indexOf('\n');
+    at !== -1;
+    at = text.indexOf('\n', at + 1)
+  ) {
+    lines += 1;
+  }
+  return { '--code-line-digits': String(lines).length };
+}
 
 export function PreviewPane({ children, className }: PreviewPaneProps) {
   return (

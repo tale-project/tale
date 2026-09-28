@@ -1,0 +1,159 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const h = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  reload: vi.fn(),
+  session: { isAuthenticated: true, isLoading: false },
+}));
+
+vi.mock('@tanstack/react-router', () => ({
+  createFileRoute: () => (options: Record<string, unknown>) => options,
+  redirect: vi.fn(),
+  useNavigate: () => vi.fn(),
+  Outlet: () => null,
+}));
+vi.mock('@/lib/auth-client', () => ({
+  authClient: { getSession: h.getSession, $store: { notify: vi.fn() } },
+}));
+vi.mock('@/app/hooks/use-session-user', () => ({
+  useSessionUser: () => h.session,
+}));
+vi.mock('@/app/hooks/use-session-idle-watchdog', () => ({
+  useSessionIdleWatchdog: () => undefined,
+}));
+vi.mock('@/app/components/layout/dashboard-shell-frame', () => ({
+  DashboardShellFrame: () => null,
+}));
+vi.mock('@/app/context/account-bootstrap-context', () => ({
+  useTwoFactorStatus: () => ({ authenticated: true, decision: 'allowed' }),
+}));
+vi.mock('@/app/context/account-bootstrap-provider', () => ({
+  AccountBootstrapProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
+import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
+
+import { Route } from './dashboard';
+
+const realLocation = window.location;
+/** jsdom cannot navigate; the dashboard leaves by a full load, so the
+ * assignment is what is observed. */
+let page: { href: string; pathname: string; search: string; hash: string };
+
+const HERE = encodeURIComponent('/dashboard/org-1/products');
+
+function renderDashboard() {
+  const Dashboard = (Route as unknown as { component: () => ReactNode })
+    .component;
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <Dashboard />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  h.getSession.mockReset();
+  h.reload.mockClear();
+  vi.useRealTimers();
+  page = {
+    href: 'http://localhost/dashboard/org-1/products',
+    pathname: '/dashboard/org-1/products',
+    search: '',
+    hash: '',
+  };
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: {
+      ...page,
+      get href() {
+        return page.href;
+      },
+      set href(value: string) {
+        page.href = value;
+      },
+      reload: h.reload,
+    },
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: realLocation,
+  });
+});
+
+describe('the dashboard after a session ends', () => {
+  it('takes a signed-in tab to sign-in on a lapsed-session answer, saying why', async () => {
+    h.session = { isAuthenticated: true, isLoading: false };
+    h.getSession.mockResolvedValue({ data: null, error: null });
+    renderDashboard();
+    expect(h.getSession).not.toHaveBeenCalled();
+
+    act(() => {
+      reportSessionLapsed();
+    });
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'sessionLapse.signIn',
+      }),
+    );
+    await waitFor(() =>
+      expect(page.href).toBe(`/log-in?redirectTo=${HERE}&reason=session-ended`),
+    );
+  });
+
+  // The probe's own lane is unchanged: it re-checks and redirects without a
+  // reason, and a lapsed-session answer does not start a second re-check.
+  it('keeps its own re-check when its probe finds nobody signed in', async () => {
+    h.session = { isAuthenticated: false, isLoading: false };
+    h.getSession.mockResolvedValue({ data: null, error: null });
+    renderDashboard();
+
+    act(() => {
+      reportSessionLapsed();
+    });
+
+    await waitFor(() => expect(page.href).toBe(`/log-in?redirectTo=${HERE}`));
+    expect(h.getSession).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['retry', 'recovery reload'] as const)(
+    'cancels the cold-entry %s when the dashboard unmounts',
+    async (mode) => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      sessionStorage.clear();
+      h.session = { isAuthenticated: false, isLoading: false };
+      h.getSession.mockResolvedValue(
+        mode === 'retry'
+          ? { data: null, error: { status: 503 } }
+          : { data: { user: { id: 'u-1' } }, error: null },
+      );
+      const view = renderDashboard();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      view.unmount();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(40_000);
+      });
+      expect(h.getSession).toHaveBeenCalledTimes(1);
+      expect(h.reload).not.toHaveBeenCalled();
+      expect(page.href).not.toContain('/log-in');
+    },
+  );
+});

@@ -39,6 +39,7 @@ cd services/platform && \
   TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \
   TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \
   TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \
+  TALE_CONTACT_SUPPORT_URL='https://support.example.com/help?source=tale' \
   bun scripts/dev.ts
 ```
 
@@ -51,7 +52,9 @@ of the real `builtin-configs/` catalog; without it, `scaffoldNewOrganization`
 falls back to the real catalog and `save-auth-state.ts`'s wait for "E2E
 Assistant" never resolves. `TALE_MOCK_CONNECTORS_BASE` redirects connector
 connectors' outbound HTTP to the gateway so you can connect/test connectors
-offline. The connector catalog in the fixtures is a symlink to the real
+offline. `TALE_CONTACT_SUPPORT_URL` points the error screens' **contact
+support** link at a placeholder help desk, as `navigation.spec.ts` expects.
+The connector catalog in the fixtures is a symlink to the real
 `builtin-configs/connectors`.)
 
 > **Wizard-created orgs are NOT provider-wired anymore** (observed live

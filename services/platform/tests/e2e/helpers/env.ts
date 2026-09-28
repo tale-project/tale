@@ -10,6 +10,16 @@
 export const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 
 /**
+ * The operator support page the E2E stack starts with
+ * (`TALE_CONTACT_SUPPORT_URL` in `playwright.config.ts`'s webServer env, and
+ * in the mode-A block of `tests/manual/setup.md` for a reused stack). The
+ * error displays' **contact support** link must point here, not at the
+ * `https://tale.dev/contact` default.
+ */
+export const E2E_CONTACT_SUPPORT_URL =
+  'https://support.example.com/help?source=tale';
+
+/**
  * A 0.5 entity id in a URL path. App rows use `gen_random_uuid()` stored as
  * text (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`); Better Auth / leftover
  * Convex ids stay unhyphenated. The old `[A-Za-z0-9]{16,}` pattern dies on

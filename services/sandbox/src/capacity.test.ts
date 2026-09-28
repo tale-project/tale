@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
 import type { K8sClient } from './backend/kubernetes/k8s-client.ts';
 import {
@@ -188,14 +188,18 @@ describe('infrastructure capacity observations', () => {
   });
 
   test('keeps measured totals if local usage is unavailable; no fake zero', async () => {
+    const sleep = mock(async () => {});
     const reader = new CapacityReader(config(), () => new Map(), {
       docker: dockerStub(),
       kernelRelease: () => 'other-machine',
+      sleep,
     });
     expect((await reader.forOrganization('a')).resources).toEqual({
       cpu: { totalCores: 2, usedCores: null },
       memory: { totalBytes: 1024_000, usedBytes: null },
     });
+    // Another machine's counters are never sampled, so nothing waits for them.
+    expect(sleep).not.toHaveBeenCalled();
   });
 
   test('an expired successful snapshot does not hide a later inventory failure', async () => {
@@ -217,31 +221,85 @@ describe('infrastructure capacity observations', () => {
   test('samples host CPU deltas and available memory, not configured container allocations', async () => {
     let now = 10_000;
     let busy = 100;
+    let idle = 100;
+    // While the reader waits for its own second sample, the two cores run at
+    // half load.
+    const sleep = mock(async (ms: number) => {
+      now += ms;
+      busy += 100;
+      idle += 100;
+    });
     const reader = new CapacityReader(config(), () => new Map(), {
       docker: dockerStub(),
       now: () => now,
+      sleep,
       kernelRelease: () => 'test-kernel',
       read: async (path) =>
         path === '/proc/stat'
-          ? `cpu ${busy} 0 0 100 0 0 0 0 50 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n`
+          ? `cpu ${busy} 0 0 ${idle} 0 0 0 0 50 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n`
           : 'MemTotal: 1000 kB\nMemAvailable: 400 kB\nMemFree: 10 kB\n',
     });
+    // The first poll has nothing to compare to: it takes a second sample
+    // itself instead of answering unknown.
     const first = await reader.forOrganization('a');
-    expect(first.resources.cpu.usedCores).toBeNull();
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledWith(1_000);
+    expect(first.resources.cpu.usedCores).toBe(1);
     expect(first.resources.memory.usedBytes).toBe(600 * 1024);
+    expect(first.observedAt).toBe(now);
+    // A poll within 30 s compares against the previous poll and does not wait.
     now += 6_000;
-    busy = 200;
+    busy += 200;
     const next = await reader.forOrganization('a');
+    expect(sleep).toHaveBeenCalledTimes(1);
     expect(next.resources.cpu.usedCores).toBe(2);
     expect(next.observedAt).toBe(now);
+    // After a closed or hidden page the hour-old sample is not a current
+    // reading: the poll re-primes with its own second sample.
     now += 3_600_000;
     busy += 100;
-    expect(
-      (await reader.forOrganization('a')).resources.cpu.usedCores,
-    ).toBeNull();
+    idle += 100;
+    expect((await reader.forOrganization('a')).resources.cpu.usedCores).toBe(1);
+    expect(sleep).toHaveBeenCalledTimes(2);
     now += 15_000;
-    busy += 100;
+    busy += 200;
     expect((await reader.forOrganization('a')).resources.cpu.usedCores).toBe(2);
+    expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  test('a failed second sample leaves the first CPU reading unknown but primes the next poll', async () => {
+    let now = 10_000;
+    let busy = 100;
+    let statReads = 0;
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker: dockerStub(),
+      now: () => now,
+      sleep: async (ms) => {
+        now += ms;
+      },
+      kernelRelease: () => 'test-kernel',
+      read: async (path) => {
+        if (path !== '/proc/stat')
+          return 'MemTotal: 1000 kB\nMemAvailable: 400 kB\n';
+        statReads += 1;
+        if (statReads === 2) throw new Error('stat unreadable');
+        return `cpu ${busy} 0 0 100 0 0 0 0 50 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n`;
+      },
+    });
+    try {
+      expect(
+        (await reader.forOrganization('a')).resources.cpu.usedCores,
+      ).toBeNull();
+      expect(warn).toHaveBeenCalledTimes(1);
+      now += 6_000;
+      busy += 100;
+      expect((await reader.forOrganization('a')).resources.cpu.usedCores).toBe(
+        2,
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('a remote Docker host never borrows the spawner machine usage', async () => {

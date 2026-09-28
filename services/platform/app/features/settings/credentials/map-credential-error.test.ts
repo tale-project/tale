@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  lapsedSessionRefusal,
+} from '@/tests/utils/lapsed-session';
+
 import {
   isOpaqueServerErrorMessage,
   mapCredentialError,
@@ -35,4 +42,20 @@ describe('mapCredentialError', () => {
       ),
     ).toBe('Something went wrong. Reload and try again.');
   });
+});
+
+// A credential refusal is shown verbatim; a lapsed session's is the app's
+// own sentence, in the admin's language.
+describe('mapCredentialError after a lapsed session', () => {
+  it.each(SHIPPED_LOCALES)(
+    'reads as the session-ended sentence (%s)',
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const refusal: unknown = await lapsedSessionRefusal().catch(
+        (error: unknown) => error,
+      );
+      expect(mapCredentialError(refusal)).toBe(SESSION_ENDED[locale]);
+      await i18n.changeLanguage('en');
+    },
+  );
 });

@@ -1241,6 +1241,71 @@ describe('SPA shell TALE_CONTACT_SUPPORT_URL', () => {
   });
 });
 
+/**
+ * The page's inline `__ENV__` script carries values the web tier does not
+ * choose: an operator's URL, the request's Accept-Language. Each must reach
+ * the page as written, and none may end the script early. The test reads the
+ * script the way a browser does (its text stops at the first `</script`) and
+ * runs it.
+ */
+describe('SPA shell inline __ENV__ script', () => {
+  const indexHtml =
+    '<!doctype html><html><head></head><body><script id="__ENV__">window.__ENV__ = \'__ENV_PLACEHOLDER__\'; window.__ACCEPT_LANGUAGE__ = \'__ACCEPT_LANGUAGE_PLACEHOLDER__\';</script><div id="root"></div></body></html>';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  async function runPage(opts: {
+    supportUrl?: string;
+    acceptLanguage?: string;
+  }): Promise<Record<string, unknown>> {
+    vi.stubEnv('SITE_URL', 'https://tale.example.com');
+    vi.stubEnv('TALE_CONTACT_SUPPORT_URL', opts.supportUrl);
+    const app = createApp(undefined, { indexHtml });
+    const res = await app.fetch(
+      new Request('http://platform:3000/', {
+        headers:
+          opts.acceptLanguage === undefined
+            ? {}
+            : { 'accept-language': opts.acceptLanguage },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const script = /<script\b[^>]*>([\s\S]*?)<\/script/i.exec(await res.text());
+    const window: Record<string, unknown> = {};
+    vm.runInNewContext(script?.[1] ?? '', { window });
+    return window;
+  }
+
+  test.each([
+    "https://support.example.com/a$'b",
+    'https://help.example.com/new?x=$`&y=$$',
+    'https://help.example.com/?a=$&b=1',
+  ])('hands the page %s unchanged', async (supportUrl) => {
+    const window = await runPage({ supportUrl });
+    expect(window.__ENV__).toMatchObject({
+      SITE_URL: 'https://tale.example.com',
+      TALE_CONTACT_SUPPORT_URL: supportUrl,
+    });
+  });
+
+  test.each([
+    "de-CH$'",
+    'fr$`',
+    '</script><script>window.injected = true</script>',
+    'en<!--',
+  ])('hands the page the Accept-Language %s unchanged', async (header) => {
+    const window = await runPage({ acceptLanguage: header });
+    expect(window.__ACCEPT_LANGUAGE__).toBe(header);
+    expect(window.__ENV__).toMatchObject({
+      SITE_URL: 'https://tale.example.com',
+    });
+    expect(window).not.toHaveProperty('injected');
+  });
+});
+
 describe('unrouted /api paths', () => {
   test('answer the JSON 404 envelope instead of the SPA shell', async () => {
     const app = createApp(baseEnv);

@@ -116,15 +116,14 @@ builtin skill from `configs/platform/custom/skills/`.
   `skills.viewer.binaryNotice`; a skill with only `SKILL.md` shows the
   tree-empty hint (`skills.detail.tree.empty`); selecting `SKILL.md` swaps
   back to the metadata + body editor.
-- [ ] `SKILL-F14` · **Asset viewer gutter** — In light and then in dark,
-  open a bundle's `.ts`, `.json`, `.md` and `.txt` assets; on a code asset
-  with a line longer than the pane, press **Toggle line wrap**
-  (`skills.viewer.toggleWrap`) off and on again → Code assets read like an
-  editor: small monospace type, one numbered row per source line and no
-  blank row between two lines. With wrap on, a long line continues under its
-  own text, never under the numbers; with wrap off it stays on one row and
-  the pane scrolls sideways. The `.md` asset renders as formatted markdown;
-  the `.txt` asset keeps the same monospace type without numbers.
+- [ ] `SKILL-F14` · **Asset viewer look** — In light and then in dark, open
+  a bundle's `.ts`, `.json`, `.md` and `.txt` assets, the first code asset
+  right after a reload → Characters line up in columns in the code and
+  `.txt` assets; keywords, strings and numbers of the `.ts` and `.json`
+  assets take distinct colours on the theme's code surface; every line
+  number can be read out at 100 % zoom; the `.md` asset renders as formatted
+  markdown (headings, lists, emphasis), not as numbered source; while the
+  first code asset loads, no row moves when the colours arrive.
 - [ ] `SKILL-F10` · **Edit & persist** — In the detail pane edit the
   **Description**, **Labels** (`skills.editor.labels`, comma-separated per
   `skills.editor.labelsHelp`), and body → **Save** (`common.actions.save`) →

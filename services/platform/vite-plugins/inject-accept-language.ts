@@ -1,5 +1,7 @@
 import type { Plugin } from 'vite';
 
+import { inlineScriptJson, replaceLiteral } from '../lib/utils/inline-script';
+
 /**
  * Vite plugin to inject the Accept-Language request header into the HTML
  * during dev. In production, server.ts handles this replacement instead.
@@ -24,9 +26,11 @@ export function injectAcceptLanguage(): Plugin {
             typeof chunk === 'string' &&
             chunk.includes('__ACCEPT_LANGUAGE_PLACEHOLDER__')
           ) {
-            const injected = chunk.replace(
+            // Verbatim and script-safe, as `server.ts` splices it.
+            const injected = replaceLiteral(
+              chunk,
               "'__ACCEPT_LANGUAGE_PLACEHOLDER__'",
-              JSON.stringify(acceptLanguage),
+              inlineScriptJson(acceptLanguage),
             );
             // @ts-expect-error — forwarding rest args to overloaded res.end signature
             return originalEnd(injected, ...rest);

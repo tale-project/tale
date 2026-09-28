@@ -58,7 +58,7 @@ export const Unavailable: Story = {
   args: { capacity: { status: 'unavailable', reason: 'unreachable' } },
 };
 
-export const FirstCpuSample: Story = {
+export const CpuUsageUnknown: Story = {
   args: {
     capacity: {
       ...snapshot,

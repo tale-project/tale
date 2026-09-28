@@ -310,6 +310,29 @@ export function startReactServer(opts: ReactServerOptions) {
     });
   }
 
+  // The file at `filePath`, or null when there is none. `exists()` answers
+  // false for a name the filesystem refuses, but `Bun.file` throws for one
+  // Bun refuses before it asks: a path of PATH_MAX bytes or more
+  // (`ENAMETOOLONG` — 1024 on macOS, 4096 on Linux), or one carrying a NUL.
+  // Such a name comes from the request URL and no file under `dist/` has it,
+  // so a refused name is a miss — the 404 page, not a reported 500.
+  async function existingFile(
+    filePath: string,
+    rel: string,
+  ): Promise<Bun.BunFile | null> {
+    try {
+      const file = Bun.file(filePath);
+      return (await file.exists()) ? file : null;
+    } catch (err) {
+      console.warn(`[${logPrefix}] file probe refused the request path`, {
+        path: rel.slice(0, 200),
+        length: rel.length,
+        reason: String(err).slice(0, 200),
+      });
+      return null;
+    }
+  }
+
   async function serveStatic(
     pathname: string,
     rangeHeader: string | null,
@@ -333,8 +356,8 @@ export function startReactServer(opts: ReactServerOptions) {
     if (/[\u0000-\u001f]/.test(rel)) return notFoundOrShell();
     const resolved = resolve(distDir, rel);
     if (resolved === distDir || resolved.startsWith(distPrefix)) {
-      const candidate = Bun.file(resolved);
-      if (await candidate.exists()) {
+      const candidate = await existingFile(resolved, rel);
+      if (candidate) {
         const ct = contentTypeFor(pathname);
         const headers: Record<string, string> = {
           ...(ct ? { 'content-type': ct } : {}),
@@ -366,8 +389,8 @@ export function startReactServer(opts: ReactServerOptions) {
         return new Response(candidate, { headers });
       }
       // Try the prerendered route HTML (e.g. /pricing → dist/pricing/index.html).
-      const routeHtml = Bun.file(join(resolved, 'index.html'));
-      if (await routeHtml.exists()) {
+      const routeHtml = await existingFile(join(resolved, 'index.html'), rel);
+      if (routeHtml) {
         return new Response(routeHtml, {
           headers: { 'cache-control': 'no-cache' },
         });

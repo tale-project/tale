@@ -4,17 +4,24 @@
  * `deleteRunInTx` — a FINISHED run goes with the ledger rows that would
  * otherwise answer a redelivery or a key replay with a run that is gone,
  * audited and hinted; a run still in flight is refused (the stepper needs
- * its row); a run that is not there answers `deleted: false`.
+ * its row); a run that is not there answers `deleted: false`. The delete
+ * clears the trigger that names the run (`ON DELETE SET NULL`), so the
+ * organization's audit chain is taken between the run's own row and that
+ * delete — the order a landing run takes them in (`trigger-failures.ts`).
  */
 
+import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
-vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
+vi.mock('../audit_logs/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../audit_logs/service.ts')>()),
+  createAuditLog: vi.fn(),
+}));
 
 import { emitHintInTx } from '../../realtime/outbox.ts';
-import { createAuditLog } from '../audit_logs/service.ts';
+import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
 import { automationTombstone, deleteRunInTx } from './store.ts';
 
 interface Statement {
@@ -82,6 +89,37 @@ describe('deleteRunInTx', () => {
     },
   );
 
+  it('takes the audit chain after the run’s own row and before the delete that clears its trigger', async () => {
+    const { tx, statements } = fakeRun({ status: 'failed' });
+    vi.mocked(createAuditLog).mockImplementationOnce(async () => {
+      statements.push({ text: 'createAuditLog', values: [] });
+      return 'audit-1';
+    });
+    await deleteRunInTx(tx, args);
+    const at = (predicate: (text: string) => boolean) =>
+      statements.findIndex((s) => predicate(s.text));
+    const runRow = at(
+      (text) =>
+        text.includes('FROM app.automation_runs') &&
+        text.includes('FOR UPDATE'),
+    );
+    const chain = at((text) => text.includes('pg_advisory_xact_lock'));
+    const firstDelete = at((text) => text.startsWith('DELETE FROM'));
+    const runDelete = at((text) =>
+      text.startsWith('DELETE FROM app.automation_runs'),
+    );
+    const audit = at((text) => text === 'createAuditLog');
+    expect(statements[chain]?.values).toEqual([
+      RETRY_QUEUE_LOCK_CLASS,
+      auditChainQueueKey('org-1'),
+    ]);
+    expect(runRow).toBeGreaterThan(-1);
+    expect(chain).toBeGreaterThan(runRow);
+    expect(firstDelete).toBeGreaterThan(chain);
+    expect(runDelete).toBeGreaterThan(chain);
+    expect(audit).toBeGreaterThan(runDelete);
+  });
+
   it.each(['queued', 'running', 'waiting'])(
     'refuses a %s run and deletes nothing',
     async (status) => {
@@ -93,6 +131,9 @@ describe('deleteRunInTx', () => {
       expect(statements.some((s) => s.text.startsWith('DELETE FROM'))).toBe(
         false,
       );
+      expect(
+        statements.some((s) => s.text.includes('pg_advisory_xact_lock')),
+      ).toBe(false);
       expect(createAuditLog).not.toHaveBeenCalled();
     },
   );

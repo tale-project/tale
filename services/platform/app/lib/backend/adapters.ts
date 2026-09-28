@@ -15,6 +15,7 @@
 
 import type { QueryClient } from '@tanstack/react-query';
 
+import { isLapsedSessionAnswer } from '@/app/lib/auth/session-lapse';
 import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
 import {
@@ -224,9 +225,26 @@ export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
  * `AppError` carrying `{ code, message, ...data }` — the 0.4 error
  * contract. Transport-ish failures (5xx, network) pass through untouched so
  * retry policies still see them as transient.
+ *
+ * A lapsed session is the one answer whose words are replaced: the session
+ * door's 401 `UNAUTHORIZED` (`backend/auth/session.ts`) tells an API client,
+ * in English, to send a key to the REST API. Its `message` and `userMessage`
+ * become the localized "session ended" sentence instead, so every reader of
+ * the refusal — a toast's reason, a surface's own `data.message`, a hook's
+ * default toast — tells the person to sign in again, in their language.
+ * The code stays `UNAUTHORIZED`; the wire keeps its sentence for API clients.
  */
 export function toBackendError(error: unknown): unknown {
   if (error instanceof BackendApiError && error.status < 500) {
+    if (isLapsedSessionAnswer(error.status, error.code)) {
+      const sessionEnded = i18n.t('errors.sessionEnded', { ns: 'common' });
+      return new AppError({
+        ...error.data,
+        code: error.code,
+        message: sessionEnded,
+        userMessage: sessionEnded,
+      });
+    }
     return new AppError({
       ...error.data,
       ...(error.code !== undefined ? { code: error.code } : {}),
@@ -276,8 +294,8 @@ export function isBackendRefusal(error: unknown): boolean {
  * door that answers only `{ error: <code> }` names why with nothing else.
  * Reads a raw-lane `BackendApiError` and an adapted `AppError` alike. A
  * lapsed session (`UNAUTHORIZED`) reads as the localized "session ended"
- * sentence. Undefined for a fault (a 5xx, a network failure) and for an
- * answer that carried no code (a proxy page).
+ * sentence ({@link toBackendError}). Undefined for a fault (a 5xx, a network
+ * failure) and for an answer that carried no code (a proxy page).
  */
 export function backendRefusalDetail(error: unknown): string | undefined {
   if (error instanceof BackendApiError && error.status >= 500) {
@@ -286,12 +304,6 @@ export function backendRefusalDetail(error: unknown): string | undefined {
   const refusal = toBackendError(error);
   const code = backendErrorCode(refusal);
   if (code === undefined) return undefined;
-  // A lapsed session: the door's sentence is guidance for an API client
-  // (`backendRefusalReason` withholds it), so the person reads why in their
-  // own language instead of a bare `UNAUTHORIZED`.
-  if (code === 'UNAUTHORIZED') {
-    return i18n.t('errors.sessionEnded', { ns: 'common' });
-  }
   return backendRefusalReason(refusal) ?? code;
 }
 

@@ -1,5 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 
+import {
+  holdSessionLapseRedirects,
+  releaseSessionLapseHoldOnLeave,
+} from '@/app/lib/auth/session-lapse';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { currentUserQuery } from '@/app/lib/backend/account';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
@@ -23,7 +27,16 @@ function useConvexAuthUser() {
   const isAuthenticated = !!user;
 
   const signOut = async () => {
-    await authClient.signOut();
+    // The caller owns the next hard navigation. Keep a late 401 (including a
+    // recheck already in flight) from leaving before this cleanup finishes.
+    const resumeLapseRedirects = holdSessionLapseRedirects();
+    try {
+      const result = await authClient.signOut();
+      if (result?.error) throw new Error(result.error.message);
+    } catch (error) {
+      resumeLapseRedirects();
+      throw error;
+    }
     // Forget the cached org name so the logged-out shell renders "Tale" rather
     // than the previous org's suffix (the sign-out flows hard-navigate, so the
     // next document title is composed from a fresh, empty cache).
@@ -32,6 +45,7 @@ function useConvexAuthUser() {
     // the next load can't hydrate the shell for the signed-out account
     // (#2386).
     clearMemberContextCache();
+    releaseSessionLapseHoldOnLeave(resumeLapseRedirects);
   };
 
   return {

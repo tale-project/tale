@@ -46,10 +46,12 @@ import { seo } from '@/lib/utils/seo';
 const searchSchema = z.object({
   redirectTo: z.string().optional(),
   // Why the user landed here. `idle` is set by the session idle watchdog and
-  // renders a "signed out due to inactivity" notice (#1502). `.catch` so an
-  // unknown value degrades to the plain login page instead of erroring the
-  // route.
-  reason: z.literal('idle').optional().catch(undefined),
+  // renders a "signed out due to inactivity" notice (#1502); `session-ended`
+  // by the dashboard when a session ended under an open tab, and renders the
+  // "your session has ended" notice (`useSessionLapseRedirect`). `.catch` so
+  // an unknown value degrades to the plain login page instead of erroring
+  // the route.
+  reason: z.enum(['idle', 'session-ended']).optional().catch(undefined),
   // Set by the SSO authorize/callback handlers when a sign-in fails
   // (`redirectWithError`). `error` is a translation key for a known Entra
   // AADSTS code, or a plain-text fallback otherwise; `error_code` is the raw
@@ -96,6 +98,7 @@ export function LogInPage() {
   const { t: tCommon } = useT('common');
 
   const signedOutForIdle = reason === 'idle';
+  const sessionEnded = reason === 'session-ended';
 
   // Conditional-access / MFA codes get the dedicated recovery UI (a "complete
   // MFA" or "blocked — contact admin" affordance); every other failure renders
@@ -462,6 +465,14 @@ export function LogInPage() {
             icon={Info}
             live="polite"
             description={tCommon('sessionIdle.signedOutNotice')}
+          />
+        )}
+        {sessionEnded && (
+          <Alert
+            variant="info"
+            icon={Info}
+            live="polite"
+            description={tCommon('errors.sessionEnded')}
           />
         )}
         {/* The hold stands but this load carries no inactivity reason (another

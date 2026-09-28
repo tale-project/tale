@@ -233,7 +233,7 @@ Laisse-le non défini pour conserver la durée de session par défaut. Si défin
 | -------------------------- | -------------------------- | ----------- |
 | `TALE_CONTACT_SUPPORT_URL` | `https://tale.dev/contact` | **Optionnel, lu par le service `platform`.** Cible du lien **contacter le support** sur les écrans d’erreur de l’application. Une URL absolue `http://` ou `https://`. |
 
-Indique ici ton propre service d’assistance pour que les personnes confrontées à une erreur joignent l’équipe qui exploite ton déploiement. Quand l’écran d’erreur connaît l’organisation, le lien ajoute `organizationId=<id>` à la chaîne de requête, après les paramètres que l’URL contient déjà. Toute autre valeur, par exemple `mailto:` ou une URL sans schéma, est ignorée avec un avertissement dans le journal du service `platform`, et le lien garde sa valeur par défaut.
+Indique ici ton propre service d’assistance pour que les personnes confrontées à une erreur joignent l’équipe qui exploite ton déploiement. Quand l’écran d’erreur connaît l’organisation, le lien ajoute `organizationId=<id>` à la chaîne de requête, après les paramètres que l’URL contient déjà, et remplace un paramètre `organizationId` qu’elle porte déjà. Toute autre valeur, par exemple `mailto:` ou une URL sans schéma, est ignorée avec un avertissement dans le journal du service `platform`, et le lien garde sa valeur par défaut.
 
 ## Infrastructure sandbox {#sandbox-infrastructure}
 

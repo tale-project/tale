@@ -1,17 +1,25 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Outlet,
   createFileRoute,
   redirect,
   useNavigate,
 } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
+import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
+import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
 import { useSessionUser } from '@/app/hooks/use-session-user';
-import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
+import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
+import {
+  invalidateAuthState,
+  sessionQueryOptions,
+} from '@/app/lib/auth/session-query';
 import {
   passwordExpiryQuery,
   twoFactorStatusQuery,
@@ -51,12 +59,44 @@ export const Route = createFileRoute('/dashboard')({
 });
 
 function DashboardRedirect() {
+  const queryClient = useQueryClient();
   const { isAuthenticated, isLoading } = useSessionUser();
+  const [hasAuthenticated, setHasAuthenticated] = useState(isAuthenticated);
 
   // Idle-timeout UX: warn and sign out proactively when the deployment sets
   // SESSION_IDLE_TIMEOUT_MINUTES. The authenticated layout is the right mount
   // point — it wraps every signed-in page and is gated on a live session.
   useSessionIdleWatchdog();
+  // Once content has mounted, preserve its drafts through any later session
+  // lapse. The initial signed-out probe below still owns cold entry.
+  const recovery = useSessionLapseRedirect(isAuthenticated || hasAuthenticated);
+  const wasLapsed = useRef(false);
+  const consumedLiveVersion = useRef(0);
+  const refreshedSignedOutProbe = useRef(false);
+  useEffect(() => {
+    if (isAuthenticated || (!wasLapsed.current && recovery.isLapsed)) {
+      refreshedSignedOutProbe.current = false;
+    }
+    if (consumedLiveVersion.current !== recovery.liveSessionVersion) {
+      consumedLiveVersion.current = recovery.liveSessionVersion;
+      if (
+        (wasLapsed.current || !isAuthenticated) &&
+        !refreshedSignedOutProbe.current
+      ) {
+        // Refresh a stale null probe even if the session was restored before
+        // our first check. A still-refused /users/me can itself emit a lapse:
+        // allow only one refresh until this unauthenticated episode ends.
+        refreshedSignedOutProbe.current = true;
+        void invalidateAuthState(queryClient).catch(() => undefined);
+      }
+    }
+    wasLapsed.current = recovery.isLapsed;
+  }, [
+    queryClient,
+    isAuthenticated,
+    recovery.isLapsed,
+    recovery.liveSessionVersion,
+  ]);
 
   const [sessionVerified, setSessionVerified] = useState(false);
   const [hasValidSession, setHasValidSession] = useState(true);
@@ -64,8 +104,14 @@ function DashboardRedirect() {
   useEffect(() => {
     if (isLoading) return undefined;
     if (isAuthenticated) {
+      setHasAuthenticated(true);
       // Healthy (or recovered) — re-arm the one-shot recovery reload below.
       sessionStorage.removeItem(CONVEX_AUTH_RELOAD_GUARD);
+      return undefined;
+    }
+
+    if (hasAuthenticated) {
+      reportSessionLapsed();
       return undefined;
     }
 
@@ -113,10 +159,9 @@ function DashboardRedirect() {
           setHasValidSession(valid);
           setSessionVerified(true);
           if (!valid) return;
-          // Better Auth has a live session but the Convex websocket never
-          // authenticated. Poke the session signal so the provider refetches
-          // its session atom and rebuilds the token fetch → ws auth chain.
-          authClient.$store.notify('$sessionSignal');
+          // The session is live but the backend probe may still cache null
+          // from before sign-in. Refresh the same auth-scoped reads as login.
+          void invalidateAuthState(queryClient).catch(() => undefined);
           // Last resort: if the kick doesn't authenticate within 8s, reload
           // once (what this state otherwise forces the user to do manually).
           // Guarded per tab so it can never loop; cleared on success above.
@@ -144,31 +189,27 @@ function DashboardRedirect() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, hasAuthenticated, queryClient]);
 
   useEffect(() => {
-    if (sessionVerified && !hasValidSession) {
-      const basePath = getEnv('BASE_PATH');
-      const pathname = window.location.pathname;
-      const routePath = basePath
-        ? pathname.replace(new RegExp(`^${basePath}`), '')
-        : pathname;
-      const returnTo =
-        routePath + window.location.search + window.location.hash;
-      window.location.href = `${basePath}/log-in?redirectTo=${encodeURIComponent(returnTo)}`;
+    if (!hasAuthenticated && sessionVerified && !hasValidSession) {
+      redirectToLogIn();
     }
-  }, [sessionVerified, hasValidSession]);
+  }, [sessionVerified, hasValidSession, hasAuthenticated]);
 
   // Paint the dashboard shell immediately while the Convex websocket
   // authenticates (was a blank `null` — the main cause of the cold-load
   // "nothing on screen for seconds" feel).
-  if (isLoading || (!isAuthenticated && !sessionVerified)) {
+  if (
+    !hasAuthenticated &&
+    (isLoading || (!isAuthenticated && !sessionVerified))
+  ) {
     return <DashboardShellFrame />;
   }
 
   // Hard-redirecting to /log-in (effect above) — keep the shell up so the
   // transition doesn't flash blank.
-  if (sessionVerified && !hasValidSession) {
+  if (!hasAuthenticated && sessionVerified && !hasValidSession) {
     return <DashboardShellFrame />;
   }
 
@@ -176,9 +217,12 @@ function DashboardRedirect() {
   // password-expiry) for the whole dashboard subtree and let the 2FA gate
   // read them.
   return (
-    <AccountBootstrapProvider>
-      <DashboardTwoFactorGate />
-    </AccountBootstrapProvider>
+    <>
+      <AccountBootstrapProvider>
+        <DashboardTwoFactorGate />
+      </AccountBootstrapProvider>
+      <SessionLapseRecovery recovery={recovery} />
+    </>
   );
 }
 

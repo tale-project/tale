@@ -3,7 +3,7 @@
 import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   hashWebhookToken,
@@ -34,6 +34,8 @@ async function webhook(
     undeployed?: boolean;
     /** The rate-limit rule whose budget is spent. */
     spent?: 'webhook:ip' | 'webhook:trigger';
+    /** No `organization` row carries the trigger's org id any more. */
+    orgMissing?: boolean;
   } = {},
 ) {
   const token = mintWebhookToken();
@@ -69,9 +71,17 @@ async function webhook(
   /** Every rate-limit charge, as `<rule> <key>`, in order. */
   const charges: string[] = [];
   const queries: string[] = [];
+  /** The trigger's switch, which the door's disable of an orphan flips. */
+  const trigger = { enabled: options.enabled ?? true };
   const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     queries.push(text);
+    if (text.includes('SET enabled = false')) {
+      // The conditional disable: still enabled, organization still gone.
+      if (!trigger.enabled || options.orgMissing !== true) return [];
+      trigger.enabled = false;
+      return [{ organizationId: 'org-1', name: 'billing/dunning' }];
+    }
     if (text.includes('INSERT INTO app.rate_limits')) {
       charges.push(`${String(values[0])} ${String(values[1])}`);
       return options.spent === values[0] ? [] : [{ value: '1' }];
@@ -87,7 +97,8 @@ async function webhook(
               organizationId: 'org-1',
               name: 'billing/dunning',
               tokenHash,
-              enabled: options.enabled ?? true,
+              enabled: trigger.enabled,
+              orgMissing: options.orgMissing ?? false,
             },
           ]
         : [];
@@ -197,10 +208,21 @@ async function webhook(
         },
       },
     );
-  return { deliver, bindings, projects, ledger, runs, charges, queries };
+  return {
+    deliver,
+    bindings,
+    projects,
+    ledger,
+    runs,
+    charges,
+    queries,
+    trigger,
+  };
 }
 
 beforeEach(() => vi.clearAllMocks());
+// A `console.warn` spy must not outlive a test whose assertion failed.
+afterEach(() => vi.restoreAllMocks());
 
 describe('explicit project webhook scope', () => {
   it('uses only the URL project without requiring an API key or session', async () => {
@@ -411,6 +433,65 @@ describe('organization webhook scope and delivery contract', () => {
     expect((await disabled.deliver('p-1')).status).toBe(404);
   });
 
+  /**
+   * The organization behind a genuine token is gone (a deletion before 0.5.9
+   * left the binding behind, or 0125 kept it under a legal hold): whoever
+   * still holds the URL starts nothing. The first delivery switches the
+   * binding off and names it once; every answer is the 404 a disabled URL
+   * gets, so the door says nothing about the organization.
+   */
+  it.each([undefined, 'p-1'])(
+    'starts no run for a trigger whose organization no longer exists, at scope %s, and disables it once',
+    async (projectId) => {
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      const { deliver, ledger, runs, charges, queries, trigger } =
+        await webhook({ orgMissing: true });
+      const lookup = queries.length;
+
+      const first = await deliver(projectId, { deliveryId: 'evt-1' });
+      expect(first.status).toBe(404);
+      expect(await first.json()).toEqual({
+        error: 'Not found',
+        code: 'NOT_FOUND',
+      });
+      expect(trigger.enabled).toBe(false);
+      const retire = queries
+        .slice(lookup)
+        .find((text) => text.includes('SET enabled = false'));
+      // The write re-checks the switch and the organization itself.
+      expect(retire).toContain('t.enabled = true');
+      expect(retire).toContain(
+        'NOT EXISTS ( SELECT 1 FROM "organization" o WHERE o."id" = t.org_id )',
+      );
+      expect(
+        queries.find((text) => text.includes('FROM app.automation_triggers')),
+      ).toContain('AS "orgMissing"');
+
+      // A retry now meets a disabled URL: the same 404, no second line.
+      const retry = await deliver(projectId, { deliveryId: 'evt-1' });
+      expect(retry.status).toBe(404);
+
+      expect(beginRunInTx).not.toHaveBeenCalled();
+      expect(runs.size).toBe(0);
+      expect(ledger.size).toBe(0);
+      // Charged to the sender, never to the dead binding's own budget.
+      expect(charges).toEqual([
+        'webhook:ip ip:203.0.113.7',
+        'webhook:ip ip:203.0.113.7',
+      ]);
+      expect(
+        queries.filter((text) => text.includes('SET enabled = false')),
+      ).toHaveLength(1);
+      const lines = warn.mock.calls.filter((call) =>
+        String(call[0]).includes('whose organization no longer exists'),
+      );
+      expect(lines).toHaveLength(1);
+      expect(String(lines[0]?.[0])).toContain('org-1/billing/dunning');
+    },
+  );
+
   it('stamps Cache-Control: no-store on every answer, the 202 and the refusals alike', async () => {
     // The door is mounted outside `/api/v1`, so the REST stamper never saw
     // it: a bad token's 404 and the 413 carried no directive at all, and a
@@ -546,15 +627,23 @@ describe('webhook door budgets', () => {
  */
 describe('dispatchAutomationEvent stamps', () => {
   const eventTx = (
-    triggers: { id: string; organizationId: string; name: string }[] = [
-      { id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' },
-    ],
+    triggers: {
+      id: string;
+      organizationId: string;
+      name: string;
+      orgMissing?: boolean;
+    }[] = [{ id: 'trigger-e', organizationId: 'org-1', name: 'crm/welcome' }],
+    /** What the conditional disable of orphaned bindings gets back. */
+    retired: { organizationId: string; name: string }[] = [],
   ) => {
     const queries: { text: string; values: unknown[] }[] = [];
     const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?').replace(/\s+/g, ' ').trim();
       queries.push({ text, values });
-      if (text.includes('FROM app.automation_triggers')) return triggers;
+      if (text.includes('SET enabled = false')) return retired;
+      if (text.includes('FROM app.automation_triggers')) {
+        return triggers.map((trigger) => ({ orgMissing: false, ...trigger }));
+      }
       return [];
     };
     return {
@@ -673,6 +762,97 @@ describe('dispatchAutomationEvent stamps', () => {
     expect(queries).toHaveLength(1);
     expect(queries[0]?.text).toContain('FROM app.automation_triggers');
     expect(beginRunInTx).not.toHaveBeenCalled();
+  });
+
+  it('starts no run for an event of an organization that no longer exists, and disables its listening triggers', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const orphans = [
+      {
+        id: 'trigger-e',
+        organizationId: 'org-gone',
+        name: 'crm/welcome',
+        orgMissing: true,
+      },
+      {
+        id: 'trigger-f',
+        organizationId: 'org-gone',
+        name: 'crm/follow-up',
+        orgMissing: true,
+      },
+    ];
+    const { tx, queries } = eventTx(orphans, [
+      { organizationId: 'org-gone', name: 'crm/welcome' },
+      { organizationId: 'org-gone', name: 'crm/follow-up' },
+    ]);
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-gone',
+        event: 'conversation.message_received',
+        payload: { conversationId: 'c-1' },
+        origin: 'platform',
+      },
+    );
+
+    expect(outcome).toEqual({ started: [], refused: true });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    const texts = queries.map((q) => q.text);
+    expect(texts[0]).toContain('AS "orgMissing"');
+    // Neither a fire nor a skip is stamped: the binding is switched off,
+    // after the audit chain like every other write to a trigger here.
+    expect(
+      texts.filter(
+        (text) =>
+          text.includes('SET last_fired_at_ms') ||
+          text.includes('SET last_skipped_at_ms'),
+      ),
+    ).toHaveLength(0);
+    const retiredAt = texts.findIndex((text) =>
+      text.includes('SET enabled = false'),
+    );
+    const lockedAt = texts.findIndex((text) =>
+      text.includes('pg_advisory_xact_lock'),
+    );
+    expect(lockedAt).toBeGreaterThan(-1);
+    expect(retiredAt).toBeGreaterThan(lockedAt);
+    const retire = queries[retiredAt];
+    expect(retire?.values[0]).toEqual(['trigger-e', 'trigger-f']);
+    expect(retire?.text).toContain('t.enabled = true');
+    expect(retire?.text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM "organization" o WHERE o."id" = t.org_id )',
+    );
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+      '[automations] event "conversation.message_received": disabled 2 trigger(s) whose organization no longer exists: org-gone/crm/welcome, org-gone/crm/follow-up',
+    ]);
+  });
+
+  it('stays silent when another dispatch disabled the orphaned triggers first', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { tx, queries } = eventTx(
+      [
+        {
+          id: 'trigger-e',
+          organizationId: 'org-gone',
+          name: 'crm/welcome',
+          orgMissing: true,
+        },
+      ],
+      [],
+    );
+    const outcome = await dispatchAutomationEvent(
+      tx as unknown as TransactionSql,
+      {
+        organizationId: 'org-gone',
+        event: 'contact.created',
+        origin: 'platform',
+      },
+    );
+    expect(outcome).toEqual({ started: [], refused: true });
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(
+      queries.filter((q) => q.text.includes('SET enabled = false')),
+    ).toHaveLength(1);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('fires nothing and stamps nothing for an event an automation raised', async () => {

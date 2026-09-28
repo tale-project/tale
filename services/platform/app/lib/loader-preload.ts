@@ -1,4 +1,7 @@
-import type { PolicyType } from '@tale/shared/schemas/governance';
+import {
+  isPolicyReadableByMember,
+  type PolicyType,
+} from '@tale/shared/schemas/governance';
 
 import {
   activeOrganizationId,
@@ -6,6 +9,7 @@ import {
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
+  toBackendError,
 } from '@/app/lib/backend/adapters';
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
@@ -66,6 +70,12 @@ export function ensureConvexQuery<Name extends QueryName>(
   throw new MissingBackendRowError(name);
 }
 
+function abilityOf(memberContext: MemberContextView): AppAbility {
+  return defineAbilityFor(
+    memberContext?.status === 'ok' ? memberContext.role : null,
+  );
+}
+
 /**
  * The caller's ability in one organization, when the dashboard route's
  * member-context read has already settled in the cache — null while it
@@ -79,7 +89,7 @@ export function cachedAbility(
     memberContextQuery(organizationId).queryKey,
   );
   if (cached === undefined || cached === null) return null;
-  return defineAbilityFor(cached.status === 'ok' ? cached.role : null);
+  return abilityOf(cached);
 }
 
 /**
@@ -108,11 +118,14 @@ export function ensureOrgSettingsQuery<Name extends QueryName>(
  * route's `beforeLoad` found has since ended (signed out in another tab,
  * expired, revoked). That is the auth state, not a preload failure worth
  * logging: the page's own reads meet the same answer. Anything else
- * propagates to the caller for diagnostics.
+ * propagates to the caller for diagnostics. A raw-lane read (the member
+ * context) rejects with the `BackendApiError` an adapted read normalizes;
+ * both are read alike.
  */
 function isLapsedSessionError(error: unknown): boolean {
-  if (!(error instanceof AppError)) return false;
-  const data: unknown = error.data;
+  const refusal = toBackendError(error);
+  if (!(refusal instanceof AppError)) return false;
+  const data: unknown = refusal.data;
   return (
     typeof data === 'object' &&
     data !== null &&
@@ -122,37 +135,72 @@ function isLapsedSessionError(error: unknown): boolean {
 }
 
 /**
+ * Which governance policies a settings loader may ask for (#3098). The
+ * governance pages are admin-only (`read orgSettings`), so once the member
+ * context has settled the answer is all or nothing. On a cold deep link it
+ * has not: TanStack runs the dashboard's loader, which starts that read,
+ * beside the page's. A policy any member may read then warms at once, and
+ * an admin-only one waits for the caller's role, joining the dashboard's
+ * read in flight rather than asking twice. So a member's visit never asks
+ * for a policy the server refuses them. A member-context read that fails
+ * rejects the admin-only reads with its error (a lapsed session is
+ * swallowed like the policy reads' own 401), so none is asked for.
+ */
+function governancePolicyGate(
+  context: RouterContext,
+  organizationId: string,
+): (policyType: PolicyType) => boolean | Promise<boolean> {
+  const cached = cachedAbility(context, organizationId);
+  if (cached !== null) {
+    const canRead = cached.can('read', 'orgSettings');
+    return () => canRead;
+  }
+  let adminGate: Promise<boolean> | undefined;
+  return (policyType) => {
+    if (isPolicyReadableByMember(policyType)) return true;
+    adminGate ??= context.queryClient
+      .ensureQueryData(memberContextQuery(organizationId))
+      .then((memberContext) =>
+        abilityOf(memberContext).can('read', 'orgSettings'),
+      );
+    return adminGate;
+  };
+}
+
+/**
  * Warm every governance policy a settings page reads, in parallel, from its
  * route `loader`. Each is a bounded single-row `getPolicy` read, so awaiting
  * the lot costs ~one round-trip on the already-open socket — and in exchange
  * the page's skeleton-aware editors render their REAL content on first paint
  * (no skeleton flash, no staggered reveal). The `RouteProgressBar` covers the
- * brief loader wait. Always `.catch` at the call site so a transient/auth
- * error never fails the transition — the editors' own loading + access checks
- * still render correctly.
+ * brief loader wait. Only what the caller may read is asked for
+ * ({@link governancePolicyGate}); a skipped policy resolves `undefined`.
+ * Always `.catch` at the call site so a transient/auth error never fails the
+ * transition — the editors' own loading + access checks still render
+ * correctly.
  */
 export function ensureGovernancePolicies(
   context: RouterContext,
   organizationId: string,
   policyTypes: readonly PolicyType[],
 ) {
+  const mayRead = governancePolicyGate(context, organizationId);
   return Promise.all(
-    policyTypes.map((policyType) =>
-      ensureOrgSettingsQuery(
-        context,
-        organizationId,
-        'governance/queries:getPolicy',
-        {
-          organizationId,
-          policyType,
-        },
-      ).catch((error: unknown) => {
-        // A lapsed session is expected, not a preload failure; swallow it so
-        // it never reaches the caller's warning log. Real errors still
-        // propagate.
+    policyTypes.map(async (policyType) => {
+      try {
+        if (!(await mayRead(policyType))) return undefined;
+        return await ensureConvexQuery(
+          context,
+          'governance/queries:getPolicy',
+          { organizationId, policyType },
+        );
+      } catch (error: unknown) {
+        // A lapsed session — met by the member-context read or the policy
+        // read — is expected, not a preload failure; swallow it so it never
+        // reaches the caller's warning log. Real errors still propagate.
         if (isLapsedSessionError(error)) return undefined;
         throw error;
-      }),
-    ),
+      }
+    }),
   );
 }

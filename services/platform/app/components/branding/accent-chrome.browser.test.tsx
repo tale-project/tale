@@ -9,6 +9,7 @@ import { NotificationRow } from '@/app/features/notifications/components/notific
 import { CitationLink } from '@/app/features/shared/markdown/citation-link';
 import type { CitationInfo } from '@/app/features/shared/markdown/use-citations';
 import { contrastRatio, deriveAccentPalette } from '@/lib/utils/color';
+import { painted } from '@/tests/utils/paint';
 import { cleanup, render, screen } from '@/tests/utils/render';
 
 import { BrandingProvider } from './branding-provider';
@@ -61,21 +62,6 @@ afterEach(() => {
   cleanup();
   document.documentElement.classList.remove('dark');
 });
-
-/** Any computed CSS colour, laid over `under`, as the `#rrggbb` it paints. */
-function painted(css: string, under = '#ffffff'): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1;
-  canvas.height = 1;
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('no 2d canvas');
-  context.fillStyle = under;
-  context.fillRect(0, 0, 1, 1);
-  context.fillStyle = css;
-  context.fillRect(0, 0, 1, 1);
-  const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
-  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
-}
 
 const CITATION: CitationInfo = {
   number: 1,

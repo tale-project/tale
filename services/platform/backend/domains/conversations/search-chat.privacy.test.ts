@@ -7,16 +7,24 @@
  * whole inbox to any member.
  *
  * 0.4 proved it end to end through convex-test over a seeded world. Here
- * {@link worldSql} plays that part: an in-memory world answering the
- * statements the leg issues the way Postgres would, applying ONLY the
- * predicates the SQL carries. Drop an `org_id` filter and the foreign rows
- * come back, exactly as they would from the database — which is what gives
- * the cross-organization cases their teeth. A statement it does not know
- * throws, so a change to the leg's SQL surfaces here instead of passing
- * against a stale stand-in. The real-database counterpart is narrower: the
- * `checkChatConversationSearchLeg` lane of `backend:integration` proves the
- * subject, body and contact matches and the admin / own-row member / stranger
- * split on the live schema.
+ * {@link worldSql} plays that part: an in-memory world that parses each
+ * statement the leg issues — its SELECT list, its FROM, its WHERE clause as
+ * the AND/OR tree it is written as, its ORDER BY and its LIMIT — and answers
+ * it the way Postgres would. It applies ONLY the predicates the SQL carries,
+ * combined the way the SQL combines them, and returns ONLY the columns the
+ * SELECT names. Drop an `org_id` filter, turn an `AND` into an `OR`, or drop
+ * a column from a projection, and the answer changes exactly as the
+ * database's would — which is what gives the cross-organization and
+ * assignment cases their teeth. Anything outside that small grammar throws: a
+ * predicate that is not `col = ?` or `col ILIKE ANY(?::text[])` (a literal
+ * comparison, `IS NULL`, `<>`), a FROM or join it does not model, a cast or an
+ * ORDER BY it does not implement, a parameter it cannot place. So a change to
+ * the leg's SQL surfaces here instead of passing against a stale stand-in.
+ *
+ * The real-database counterpart is narrower, and not a CI job: the
+ * `checkChatConversationSearchLeg` lane of the local `backend:integration`
+ * run proves the subject, body and contact matches and the admin / own-row
+ * member / stranger split on the live schema.
  */
 
 import type { Sql } from 'postgres';
@@ -28,6 +36,7 @@ import {
 } from './search-chat.ts';
 
 type Row = Record<string, unknown>;
+type Predicate = (row: Row) => boolean;
 
 interface World {
   members: { organizationId: string; userId: string; role: string }[];
@@ -61,15 +70,15 @@ interface World {
   }[];
 }
 
-/** One table (or join) the leg reads: its rows keyed by the column names its
- * predicates use (quotes stripped), the one ORDER BY the fake implements for
- * it, and the SELECT list's projection. */
+/** One table (or join) the leg reads: the exact FROM clause it answers, its
+ * rows keyed by every column it carries — named the way the statements name
+ * them, qualified for a join, quotes stripped — and the one ORDER BY the fake
+ * implements for it. */
 interface Table {
   from: string;
   rows: (world: World) => Row[];
   columns: readonly string[];
   orderBy?: { text: string; compare: (a: Row, b: Row) => number };
-  project: (row: Row) => Row;
 }
 
 const num = (value: unknown): number => (typeof value === 'number' ? value : 0);
@@ -79,13 +88,12 @@ const descText = (a: unknown, b: unknown): number =>
 
 const TABLES: readonly Table[] = [
   {
-    from: 'FROM "member"',
+    from: '"member"',
     rows: (world) => world.members,
-    columns: ['organizationId', 'userId'],
-    project: (row) => ({ role: row.role }),
+    columns: ['organizationId', 'userId', 'role'],
   },
   {
-    from: 'FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"',
+    from: '"teamMember" tm JOIN "team" t ON t."id" = tm."teamId"',
     rows: (world) =>
       world.teamMembers.flatMap((tm) =>
         world.teams
@@ -93,31 +101,25 @@ const TABLES: readonly Table[] = [
           .map((team) => ({
             'tm.teamId': tm.teamId,
             'tm.userId': tm.userId,
+            't.id': team.id,
             't.organizationId': team.organizationId,
           })),
       ),
-    columns: ['tm.userId', 't.organizationId'],
-    project: (row) => ({ teamId: row['tm.teamId'] }),
+    columns: ['tm.teamId', 'tm.userId', 't.id', 't.organizationId'],
   },
   {
-    from: 'FROM app.contacts',
+    from: 'app.contacts',
     rows: (world) => world.contacts,
-    columns: ['org_id', 'name', 'email', 'external_id'],
+    columns: ['id', 'org_id', 'name', 'email', 'external_id', 'created_at_ms'],
     orderBy: {
       text: 'created_at_ms DESC',
       compare: (a, b) => desc(a.created_at_ms, b.created_at_ms),
     },
-    project: (row) => ({
-      _id: row.id,
-      name: row.name,
-      email: row.email,
-      externalId: row.external_id,
-    }),
   },
   {
-    from: 'FROM app.conversation_messages',
+    from: 'app.conversation_messages',
     rows: (world) => world.messages,
-    columns: ['org_id'],
+    columns: ['org_id', 'conversation_id', 'content', 'delivered_at_ms', 'seq'],
     orderBy: {
       text: 'delivered_at_ms DESC NULLS LAST, seq DESC',
       compare: (a, b) =>
@@ -126,31 +128,27 @@ const TABLES: readonly Table[] = [
         desc(a.delivered_at_ms, b.delivered_at_ms) ||
         desc(a.seq, b.seq),
     },
-    project: (row) => ({
-      conversationId: row.conversation_id,
-      content: row.content,
-    }),
   },
   {
-    from: 'FROM app.conversations',
+    from: 'app.conversations',
     rows: (world) => world.conversations,
-    columns: ['org_id'],
+    columns: [
+      'id',
+      'org_id',
+      'subject',
+      'status',
+      'channel',
+      'last_message_at_ms',
+      'assignee_user_id',
+      'assignee_team_id',
+      'contact_id',
+    ],
     orderBy: {
       text: 'coalesce(last_message_at_ms, 0) DESC, id DESC',
       compare: (a, b) =>
         desc(a.last_message_at_ms, b.last_message_at_ms) ||
         descText(a.id, b.id),
     },
-    project: (row) => ({
-      _id: row.id,
-      subject: row.subject,
-      status: row.status,
-      channel: row.channel,
-      lastMessageAt: row.last_message_at_ms,
-      assigneeUserId: row.assignee_user_id,
-      assigneeTeamId: row.assignee_team_id,
-      contactId: row.contact_id,
-    }),
   },
 ];
 
@@ -175,75 +173,207 @@ function likeToRegExp(pattern: string): RegExp {
   return new RegExp(`^${source}$`, 'is');
 }
 
+/** The one statement shape the leg issues; `?` marks each bound parameter. */
+const STATEMENT =
+  /^SELECT (?<select>.+?) FROM (?<from>.+?)(?: WHERE (?<where>.+?))?(?: ORDER BY (?<orderBy>.+?))?(?: LIMIT (?<limit>\?|\d+))?$/;
+
+/** A SELECT item: a column, optionally cast, optionally aliased. */
+const SELECT_ITEM =
+  /^(?<column>(?:\w+\.)?"?\w+"?)(?:::(?<cast>\w+))?(?: AS "?(?<alias>\w+)"?)?$/;
+
+function columnOf(table: Table, name: string, text: string): string {
+  const column = unquote(name);
+  if (!table.columns.includes(column)) {
+    throw new Error(`the fake has no column ${column}: ${text}`);
+  }
+  return column;
+}
+
+/** The SELECT list as a projection: only the named columns come back, under
+ * the name Postgres gives them (the alias, else the bare column name). */
+function parseSelect(
+  table: Table,
+  select: string,
+  text: string,
+): (row: Row) => Row {
+  const items = select.split(',').map((item) => {
+    const groups = SELECT_ITEM.exec(item.trim())?.groups;
+    if (groups?.column === undefined) {
+      throw new Error(`the fake cannot project ${item.trim()}: ${text}`);
+    }
+    if (groups.cast !== undefined && groups.cast !== 'float8') {
+      throw new Error(`the fake implements no cast ::${groups.cast}: ${text}`);
+    }
+    const source = columnOf(table, groups.column, text);
+    const alias = groups.alias ?? source.split('.').pop() ?? source;
+    return { source, alias, numeric: groups.cast === 'float8' };
+  });
+  return (row) =>
+    Object.fromEntries(
+      items.map(({ source, alias, numeric }) => {
+        const value = row[source];
+        return [alias, numeric && value !== null ? Number(value) : value];
+      }),
+    );
+}
+
+/**
+ * The WHERE clause as the boolean tree it is written as — `OR` binding looser
+ * than `AND`, parentheses grouping — over the only two predicates the leg
+ * uses. NULL never equals anything, as in SQL; with no `NOT` in the grammar,
+ * treating UNKNOWN as false filters exactly as Postgres does.
+ */
+function parseWhere(
+  table: Table,
+  where: string,
+  bind: () => unknown,
+  text: string,
+): Predicate {
+  const tokens = [
+    ...where.matchAll(/"[^"]*"|[A-Za-z_]\w*|::\w+(?:\[\])?|\S/g),
+  ].map((match) => match[0]);
+  let at = 0;
+  const peek = (): string | undefined => tokens[at]?.toUpperCase();
+  const take = (expected?: string): string => {
+    const token = tokens[at];
+    if (
+      token === undefined ||
+      (expected !== undefined && token.toUpperCase() !== expected)
+    ) {
+      throw new Error(
+        `the fake cannot read WHERE ${where} at ${token ?? 'its end'}` +
+          `${expected === undefined ? '' : ` (wanted ${expected})`}: ${text}`,
+      );
+    }
+    at += 1;
+    return token;
+  };
+  const column = (): string => {
+    let name = take();
+    if (peek() === '.') {
+      take('.');
+      name = `${name}.${take()}`;
+    }
+    return columnOf(table, name, text);
+  };
+  const factor = (): Predicate => {
+    if (peek() === '(') {
+      take('(');
+      const inner = disjunction();
+      take(')');
+      return inner;
+    }
+    const name = column();
+    if (peek() === '=') {
+      take('=');
+      take('?');
+      const value = bind();
+      return (row) => value !== null && row[name] === value;
+    }
+    if (peek() !== 'ILIKE') {
+      throw new Error(
+        `the fake reads only \`col = ?\` and \`col ILIKE ANY(?::text[])\`, not ${where}: ${text}`,
+      );
+    }
+    for (const token of ['ILIKE', 'ANY', '(', '?', '::TEXT[]', ')']) {
+      take(token);
+    }
+    const patterns = bind();
+    if (!Array.isArray(patterns)) {
+      throw new Error(`ILIKE ANY binds no array: ${text}`);
+    }
+    const expressions = patterns.map((pattern) =>
+      likeToRegExp(String(pattern)),
+    );
+    return (row) => {
+      const cell = row[name];
+      return (
+        typeof cell === 'string' &&
+        expressions.some((expression) => expression.test(cell))
+      );
+    };
+  };
+  const conjunction = (): Predicate => {
+    const parts = [factor()];
+    while (peek() === 'AND') {
+      take('AND');
+      parts.push(factor());
+    }
+    return (row) => parts.every((part) => part(row));
+  };
+  const disjunction = (): Predicate => {
+    const parts = [conjunction()];
+    while (peek() === 'OR') {
+      take('OR');
+      parts.push(conjunction());
+    }
+    return (row) => parts.some((part) => part(row));
+  };
+  const predicate = disjunction();
+  if (at !== tokens.length) {
+    throw new Error(
+      `the fake cannot read WHERE ${where} at ${tokens[at]}: ${text}`,
+    );
+  }
+  return predicate;
+}
+
 function evaluate(
   world: World,
   strings: TemplateStringsArray,
   values: unknown[],
 ): Row[] {
   const text = collapse(strings.join('?'));
-  const table = TABLES.find((candidate) => text.includes(candidate.from));
-  if (!table) throw new Error(`the fake knows no such statement: ${text}`);
-
-  const equalities: [string, unknown][] = [];
-  const likes: [string, string[]][] = [];
-  let limit = Number.POSITIVE_INFINITY;
-  values.forEach((value, index) => {
-    const before = collapse(strings[index] ?? '');
-    const equality = /([\w."]+) =$/.exec(before);
-    const like = /([\w."]+) ILIKE ANY\($/.exec(before);
-    if (equality?.[1] !== undefined) {
-      equalities.push([unquote(equality[1]), value]);
-    } else if (like?.[1] !== undefined && Array.isArray(value)) {
-      likes.push([unquote(like[1]), value.map(String)]);
-    } else if (before.endsWith('LIMIT')) {
-      limit = Number(value);
-    } else {
-      throw new Error(
-        `parameter ${index} binds nothing the fake reads: ${text}`,
-      );
-    }
-  });
-  const literalLimit = /\bLIMIT (\d+)\b/.exec(text)?.[1];
-  if (literalLimit !== undefined) limit = Number(literalLimit);
-  for (const [column] of [...equalities, ...likes]) {
-    if (!table.columns.includes(column)) {
-      throw new Error(`the fake has no column ${column}: ${text}`);
-    }
+  const parts = STATEMENT.exec(text)?.groups;
+  const table = TABLES.find((candidate) => candidate.from === parts?.from);
+  if (parts?.select === undefined || !table) {
+    throw new Error(`the fake knows no such statement: ${text}`);
   }
 
-  // Every `col = ?` must hold; the ILIKE ANY predicates are one OR group,
-  // which is how the contact leg writes them.
-  let rows = table.rows(world).filter(
-    (row) =>
-      equalities.every(
-        ([column, value]) => value !== null && row[column] === value,
-      ) &&
-      (likes.length === 0 ||
-        likes.some(([column, patterns]) => {
-          const cell = row[column];
-          return (
-            typeof cell === 'string' &&
-            patterns.some((pattern) => likeToRegExp(pattern).test(cell))
-          );
-        })),
-  );
+  let bound = 0;
+  const bind = (): unknown => {
+    if (bound >= values.length) {
+      throw new Error(`the statement binds fewer parameters: ${text}`);
+    }
+    bound += 1;
+    return values[bound - 1];
+  };
+  const project = parseSelect(table, parts.select, text);
+  const matches =
+    parts.where === undefined
+      ? () => true
+      : parseWhere(table, parts.where, bind, text);
+  let limit = Number.POSITIVE_INFINITY;
+  if (parts.limit !== undefined) {
+    limit = Number(parts.limit === '?' ? bind() : parts.limit);
+  }
+  if (bound !== values.length) {
+    throw new Error(
+      `the fake placed ${bound} of ${values.length} parameters: ${text}`,
+    );
+  }
 
-  const orderBy = /ORDER BY (.+?)(?: LIMIT\b|$)/.exec(text)?.[1];
-  if (orderBy !== undefined) {
-    if (orderBy !== table.orderBy?.text) {
-      throw new Error(`the fake implements no ORDER BY ${orderBy}: ${text}`);
+  let rows = table.rows(world).filter(matches);
+  if (parts.orderBy !== undefined) {
+    if (parts.orderBy !== table.orderBy?.text) {
+      throw new Error(
+        `the fake implements no ORDER BY ${parts.orderBy}: ${text}`,
+      );
     }
     rows = rows.toSorted(table.orderBy.compare);
   }
-  return rows.slice(0, limit).map(table.project);
+  return rows.slice(0, limit).map(project);
 }
 
-/** A `sql` stand-in answering from `world`, recording every statement. */
+/** A `sql` stand-in answering from `world`, recording every statement. A
+ * statement the fake cannot read rejects, as a failing query would. */
 function worldSql(world: World) {
   const statements: string[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     statements.push(collapse(strings.join('?')));
-    return Promise.resolve(evaluate(world, strings, values));
+    return new Promise<Row[]>((resolve) => {
+      resolve(evaluate(world, strings, values));
+    });
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
   return { sql: tag as unknown as Sql, statements };
@@ -572,6 +702,26 @@ describe('searchConversationsForChat — the contact leg', () => {
     ]);
   });
 
+  it('answers only the newest contacts past the contact match cap', async () => {
+    // 26 contacts match against a cap of 25: the scan runs newest first, so
+    // the oldest contact's conversation is the one left out.
+    const conversationIds: string[] = [];
+    for (let index = 0; index < 26; index += 1) {
+      conversationIds.push(
+        addConversation({
+          subject: `Contact case ${index}`,
+          contactId: addContact(`Wilhelmina ${index}`),
+          lastMessageAt: 600,
+        }),
+      );
+    }
+    const found = await search(ADMIN, 'wilhelmina', { limit: 50 });
+    expect(found.conversations).toHaveLength(25);
+    expect(found.conversations.map((row) => row._id)).not.toContain(
+      conversationIds[0],
+    );
+  });
+
   it("scopes a team-queued contact match to that team's members", async () => {
     const contactId = addContact('Wilhelmina Baker');
     addConversation({
@@ -793,11 +943,42 @@ describe('searchConversationsForChat — the message-body leg', () => {
     expect(found.truncated).toBe(true);
   });
 
-  it('skips the body walk entirely for a listing', async () => {
-    // A listing has no term, so there is nothing to match and no reason to
-    // pay for the walk.
+  it('stops at the match cap, and a walk the cap stopped is not partial', async () => {
+    // 51 matches among the newest 400 of 451 messages. The walk stops at the
+    // 50th, before it could reach the scan cap — like a limit-break, that is
+    // a full answer, never `truncated` (the 0.4 contract).
+    const filler = addConversation({
+      subject: 'Nothing matching here',
+      assigneeUserId: ASSIGNEE,
+      lastMessageAt: 1,
+    });
+    for (let index = 0; index < 400; index += 1) {
+      addMessage(filler, `filler ${index}`, 1 + index);
+    }
+    const matching: string[] = [];
+    for (let index = 0; index < 51; index += 1) {
+      matching.push(
+        seedWithBody(`Serial XJ-4417, unit ${index}.`, {
+          assigneeUserId: ASSIGNEE,
+        }),
+      );
+      const message = world.messages.at(-1);
+      if (message) message.delivered_at_ms = 2_000 + index;
+    }
+    const found = await search(ASSIGNEE, 'XJ-4417', { limit: 100 });
+    expect(found.conversations).toHaveLength(50);
+    // The oldest match is the one the cap left behind.
+    expect(found.conversations.map((row) => row._id)).not.toContain(
+      matching[0],
+    );
+    expect(found.truncated).toBe(false);
+  });
+
+  it('skips the body and contact walks entirely for a listing', async () => {
+    // The flag alone turns the words off — even with a term that would
+    // otherwise drive both pre-passes, a listing pays for neither.
     seedWithBody('irrelevant', { assigneeUserId: ASSIGNEE });
-    const found = await search(ASSIGNEE, '', { list: true });
+    const found = await search(ASSIGNEE, 'irrelevant', { list: true });
     expect(found.truncated).toBe(false);
     expect(found.conversations.length).toBeGreaterThan(0);
     expect(
@@ -807,5 +988,58 @@ describe('searchConversationsForChat — the message-body leg', () => {
           text.includes('app.contacts'),
       ),
     ).toBe(false);
+  });
+});
+
+// The fake is what gives the cases above their teeth, so its own reading of
+// the SQL is pinned too: a stand-in that silently widened, narrowed or
+// ignored part of a statement would let a privacy regression pass.
+describe('worldSql — reads the statement, not a shape it assumes', () => {
+  it('combines conditions the way the WHERE clause does', async () => {
+    const { sql } = worldSql(world);
+    const both = await sql<Row[]>`
+      SELECT "userId" FROM "member"
+      WHERE "organizationId" = ${OTHER_ORG} AND "userId" = ${ADMIN}
+    `;
+    const either = await sql<Row[]>`
+      SELECT "userId" FROM "member"
+      WHERE "organizationId" = ${OTHER_ORG} OR "userId" = ${ADMIN}
+    `;
+    expect(both).toEqual([]);
+    expect(either).toEqual([{ userId: ADMIN }]);
+  });
+
+  it('returns only the columns the SELECT names, under their aliases', async () => {
+    const { sql } = worldSql(world);
+    const rows = await sql<Row[]>`
+      SELECT id AS "_id", last_message_at_ms::float8 AS "lastMessageAt"
+      FROM app.conversations WHERE org_id = ${ORG}
+      ORDER BY coalesce(last_message_at_ms, 0) DESC, id DESC
+      LIMIT 1
+    `;
+    expect(rows).toEqual([{ _id: 'conv_0001', lastMessageAt: 400 }]);
+  });
+
+  it('refuses a predicate it cannot evaluate rather than ignoring it', async () => {
+    const { sql } = worldSql(world);
+    await expect(
+      sql`SELECT id FROM app.conversations WHERE org_id = ${ORG} AND status <> 'closed'`,
+    ).rejects.toThrow(/reads only/);
+    await expect(
+      sql`SELECT id FROM app.conversations WHERE org_id = ${ORG} AND assignee_team_id IS NULL`,
+    ).rejects.toThrow(/reads only/);
+  });
+
+  it('refuses a column, a join or an ORDER BY it does not model', async () => {
+    const { sql } = worldSql(world);
+    await expect(
+      sql`SELECT body FROM app.conversations WHERE org_id = ${ORG}`,
+    ).rejects.toThrow(/no column body/);
+    await expect(
+      sql`SELECT c.id FROM app.conversations c JOIN app.contacts k ON k.id = c.contact_id WHERE c.org_id = ${ORG}`,
+    ).rejects.toThrow(/knows no such statement/);
+    await expect(
+      sql`SELECT id FROM app.conversations WHERE org_id = ${ORG} ORDER BY subject`,
+    ).rejects.toThrow(/no ORDER BY/);
   });
 });

@@ -20,6 +20,12 @@ import type { SpawnerConfig } from './types.ts';
 
 export type RuntimeState = 'running' | 'starting' | 'stopped';
 
+/** Polls normally arrive every 15 seconds; an older previous sample would
+ * average over a closed or hidden page, which is not a current reading. */
+const PREVIOUS_CPU_SAMPLE_MAX_AGE_MS = 30_000;
+/** How long an unprimed poll waits for its own second sample. */
+const CPU_PRIME_SAMPLE_MS = 1_000;
+
 export interface RuntimeObservation {
   sessionId: string | null;
   organizationId: string | null;
@@ -211,6 +217,7 @@ interface CapacityDependencies {
   kernelRelease?: () => string;
   client?: K8sClient;
   now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** One observer per spawner. The five-second inventory cache and in-flight
@@ -224,6 +231,7 @@ export class CapacityReader {
   private readonly read: (path: string) => Promise<string>;
   private readonly kernelRelease: () => string;
   private readonly now: () => number;
+  private readonly sleep: (ms: number) => Promise<void>;
   private readonly client: K8sClient | undefined;
 
   constructor(
@@ -235,6 +243,9 @@ export class CapacityReader {
     this.read = deps.read ?? ((path) => readFile(path, 'utf8'));
     this.kernelRelease = deps.kernelRelease ?? release;
     this.now = deps.now ?? Date.now;
+    this.sleep =
+      deps.sleep ??
+      ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.client =
       cfg.backend === 'kubernetes'
         ? (deps.client ?? makeK8sClient(cfg.k8s.namespace))
@@ -442,14 +453,32 @@ export class CapacityReader {
     }
     if (memory !== null) resources.memory.usedBytes = memory.usedBytes;
     if (cpu !== null && cpu.cores === resources.cpu.totalCores) {
-      const sampledAt = this.now();
-      // Polls normally arrive every 15 seconds. Re-prime after a closed or
-      // throttled page: an hour-long average is not a current usage reading.
-      resources.cpu.usedCores = usedCpuCores(
-        sampledAt - this.previousCpuAt <= 30_000 ? this.previousCpu : null,
-        cpu,
-      );
-      this.previousCpu = cpu;
+      let sampledAt = this.now();
+      let before =
+        sampledAt - this.previousCpuAt <= PREVIOUS_CPU_SAMPLE_MAX_AGE_MS
+          ? this.previousCpu
+          : null;
+      let after = cpu;
+      if (before === null) {
+        // Usage is the change between two samples. The first poll, and the
+        // first one after a closed or hidden page, has nothing recent to
+        // compare to; only the page polls, so nothing else primes it. Take
+        // the second sample here instead of answering unknown for a poll.
+        await this.sleep(CPU_PRIME_SAMPLE_MS);
+        let second: CpuCounters | null = null;
+        try {
+          second = parseCpuCounters(await this.read('/proc/stat'));
+        } catch (error) {
+          console.warn('[sandbox] second CPU sample failed:', error);
+        }
+        if (second !== null) {
+          before = cpu;
+          after = second;
+          sampledAt = this.now();
+        }
+      }
+      resources.cpu.usedCores = usedCpuCores(before, after);
+      this.previousCpu = after;
       this.previousCpuAt = sampledAt;
     } else this.previousCpu = null;
     return resources;

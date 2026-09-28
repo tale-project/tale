@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 50 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -319,7 +319,9 @@ compute codes from the enrollment secret.
   afterwards.
 - [ ] `AUTH-B12` · **A session that ends under an open tab** — As an admin,
   load `/dashboard/{org}/chat` in tab 1 and visit a project's **Overview** and
-  the **Documents** page; in a second tab **Log out**
+  the **Documents** page; in tab 1's DevTools block the request URL
+  `*/api/auth/get-session*` (Network → request blocking) so the tab holds
+  instead of opening sign-in (AUTH-B14); in a second tab **Log out**
   (`auth.userButton.logOut`). Back in tab 1, without reloading, with the
   console open and within five minutes of that load (the cached session's
   lifetime) → (a) the project → **Environment** shows **Admin access
@@ -331,10 +333,54 @@ compute codes from the enrollment secret.
   **You're not allowed to manage this organization's data residency.**
   (`settings.dataResidency.orgStorage.errors.forbidden`), never the server's
   English sentence; (d) **Settings → Governance → Policies & limits** leaves no
-  `Failed to preload policies-limits policies` warning; (e) **Settings →
-  Account** → change **Name** → **Save** → the error toast names **Your
-  session has ended. Sign in again.** (`common.errors.sessionEnded`), never
-  "send an API key". Reload tab 1 → `/log-in`.
+  `Failed to preload policies-limits policies` warning (the `[auth] Session
+  re-check … failed` warnings are the block's); (e) **Settings → Account** →
+  change **Name** → **Save** → the error toast names **Your session has
+  ended. Sign in again.** (`common.errors.sessionEnded`), never "send an API
+  key". Remove the block and reload tab 1 → `/log-in`.
+- [ ] `AUTH-B13` · **A lapsed session's toasts, in each language** — As an
+  admin with **Manage account → Language** (`auth.userButton.language`) on
+  Deutsch, visit `/dashboard/{org}/contacts`, `/dashboard/{org}/products`,
+  `/dashboard/{org}/websites` and `/dashboard/{org}/settings/branding` in
+  tab 1, hold it as in AUTH-B12 (block `*/api/auth/get-session*`) and **Log
+  out** in a second tab. In tab 1, within five minutes of those visits, do
+  (a) contacts **Add contact** (`contacts.addButton`) → **From your device**
+  (`contacts.importMenu.fromDevice`) → a one-row CSV → **Import**
+  (`contacts.import.import`); (b) products **Add product**
+  (`products.addButton`) → **From your device**
+  (`products.importMenu.fromDevice`) → a one-row CSV → **Import**
+  (`common.actions.import`); (c) **Add product** → **Manual entry**
+  (`products.importMenu.manualEntry`) → a name → **Create**
+  (`common.actions.create`); (d) a product's **Edit** (`common.actions.edit`)
+  → a new name → **Save** (`common.actions.save`); (e) websites **Add
+  website** (`websites.addButton`) → a domain → **Save**; (f) branding
+  **Reset** (`common.actions.reset`) → **Reset**; then switch the language
+  to Français and to English and repeat (a) → every error toast keeps its
+  localized title (`contacts.import.error`, `products.import.error`,
+  `products.create.toast.error`, `products.edit.toast.error`,
+  `websites.toast.addError`, `toast.error.brandingUpdateFailed.title`) with
+  **Deine Sitzung ist beendet. Melde dich erneut an.**, **Ta session a pris
+  fin. Reconnecte-toi.** or **Your session has ended. Sign in again.**
+  (`common.errors.sessionEnded`) beneath, never "send an API key" and never
+  English under a German or French title.
+- [ ] `AUTH-B14` · **A lapsed session preserves drafts until you choose sign-in** — As an
+  admin, open `/dashboard/{org}/products` in tab 1, choose **Add product** →
+  **Manual entry**, and type a name and description without saving. In tab 2,
+  **Log out** (`auth.userButton.logOut`). Trigger a request in tab 1, including
+  a background refresh → **Your session has ended** (`auth.sessionLapse.title`)
+  asks before leaving and warns that signing in may lose unsaved changes.
+  Choose **Stay here** (`auth.sessionLapse.stayHere`) → both values remain and
+  focus returns to the field you were editing, where the text can be copied;
+  repeated refused requests do not reopen the confirmation. Copy the work,
+  close the product dialog, then reach **Sign in** (`auth.sessionLapse.signIn`)
+  in the standing notice by keyboard → the confirmation reopens. Confirm →
+  `/log-in?redirectTo=<products page>&reason=session-ended` shows
+  **Your session has ended. Sign in again.** (`common.errors.sessionEnded`);
+  sign in → back on the products page, where copied input can be re-entered.
+  Repeat with Deutsch and Français → the decision and standing notice are
+  localized. Repeat while delaying the session recheck and typing before its
+  answer → the new draft is also retained. Restore the session in another tab
+  before confirming → the recheck keeps the page open and removes the notice.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -84,3 +84,23 @@ describe('LogInPage – signed-out-for-inactivity notice (#1502)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
+
+// The dashboard sends a tab whose session ended under it here
+// (`useSessionLapseRedirect`); the page says why, in the words the refused
+// action's toast used.
+describe('LogInPage – session-ended notice', () => {
+  it('renders the session-ended notice above the form when reason=session-ended', () => {
+    mockSearch.value = {
+      reason: 'session-ended',
+      redirectTo: '/dashboard/org-1/products',
+    };
+
+    render(<LogInPage />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('errors.sessionEnded');
+    expect(screen.queryByText('sessionIdle.signedOutNotice')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'login.loginButton' }),
+    ).toBeInTheDocument();
+  });
+});

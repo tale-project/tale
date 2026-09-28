@@ -6,6 +6,7 @@ import { resolveSiteOrigins } from '@tale/shared/utils/site-urls';
 import { type Plugin } from 'vite';
 
 import { parseContactSupportUrl } from '../lib/contact-support-url';
+import { inlineScriptJson, replaceLiteral } from '../lib/utils/inline-script';
 
 interface EnvConfig {
   SITE_URL: string;
@@ -61,8 +62,9 @@ export function injectEnv(): Plugin {
         if (isProduction) {
           return html;
         }
-        const envScript = `window.__ENV__ = ${JSON.stringify(envConfig)};`;
-        return html.replace(
+        const envScript = `window.__ENV__ = ${inlineScriptJson(envConfig)};`;
+        return replaceLiteral(
+          html,
           /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
           envScript,
         );
@@ -78,7 +80,7 @@ export function injectEnv(): Plugin {
     // through to Vite's own static handler.
     configurePreviewServer(server) {
       const env = getEnvConfig();
-      const envScript = `window.__ENV__ = ${JSON.stringify(env)};`;
+      const envScript = `window.__ENV__ = ${inlineScriptJson(env)};`;
       const indexPath = join(server.config.build.outDir, 'index.html');
       // The build uses a relative `base` ('./'), so lazy-loaded route chunks
       // resolve their `./assets/…` URLs against the current path — on a deep
@@ -126,16 +128,22 @@ export function injectEnv(): Plugin {
           (Array.isArray(req.headers['accept-language'])
             ? req.headers['accept-language'][0]
             : req.headers['accept-language']) ?? '';
-        const html = template
-          .replace(
-            /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
-            envScript,
-          )
-          .replace(
-            "'__ACCEPT_LANGUAGE_PLACEHOLDER__'",
-            JSON.stringify(acceptLanguage),
-          )
-          .replace('<head>', `<head>\n    <base href="${basePath}/">`);
+        // Verbatim and script-safe, as `server.ts` splices them.
+        let html = replaceLiteral(
+          template,
+          /window\.__ENV__\s*=\s*['"]__ENV_PLACEHOLDER__['"];/,
+          envScript,
+        );
+        html = replaceLiteral(
+          html,
+          "'__ACCEPT_LANGUAGE_PLACEHOLDER__'",
+          inlineScriptJson(acceptLanguage),
+        );
+        html = replaceLiteral(
+          html,
+          '<head>',
+          `<head>\n    <base href="${basePath}/">`,
+        );
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store');

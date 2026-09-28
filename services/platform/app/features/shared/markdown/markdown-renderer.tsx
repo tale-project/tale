@@ -38,7 +38,7 @@ export const markdownWrapperStyles = cn(
   '[&_h6]:mt-4 [&_h6]:mb-2 [&_h6]:font-bold',
   '[&_a]:text-info-foreground [&_a]:no-underline [&_a:hover]:underline',
   '[&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:px-1 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:font-mono [&_code:not(pre_code)]:text-[0.875em]',
-  '[&_pre_code]:block [&_pre_code]:min-w-full [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-xs [&_pre_code]:leading-relaxed [&_pre_code]:whitespace-pre',
+  '[&_pre_code]:block [&_pre_code]:min-w-full [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-xs [&_pre_code]:leading-5 [&_pre_code]:whitespace-pre',
   '[&_blockquote]:border-border [&_blockquote]:text-muted-foreground [&_blockquote]:my-2 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:italic',
   '[&_hr]:border-border [&_hr]:my-4 [&_hr]:border-0 [&_hr]:border-t',
   '[&_img]:rounded-lg [&_img]:shadow-sm',

@@ -349,6 +349,13 @@ analytics:
         model: Modell
         agent: Agent
 auth:
+  sessionLapse:
+    title: Deine Sitzung ist beendet
+    description: Zum Anmelden verlässt du diese Seite. Ungespeicherte Änderungen können verloren gehen. Bleib hier, um alles zu kopieren, was du behalten möchtest.
+    paused: Deine Seite bleibt geöffnet. Kopiere alles, was du behalten möchtest. Wenn du bereit bist, schließe offene Dialoge und wähle Anmelden.
+    stayHere: Hier bleiben
+    signIn: Anmelden
+    checkFailed: Deine Sitzung konnte nicht geprüft werden. Bleib hier und versuche es erneut, sobald die Verbindung wiederhergestellt ist.
   oauth:
     title: 'Mit Tale fortfahren'
     request: '{application} möchte dich mit Tale anmelden.'
@@ -8199,7 +8206,7 @@ sandboxes:
     organizationSessionsHint: Aktuell laufend oder startend, auch Sandboxes im Leerlauf, die zur Wiederverwendung bereitstehen.
     cpu: CPU-Auslastung des Hosts
     cpuUsage: '{used} / {total} Kerne'
-    cpuHint: Messung über alle Prozesse auf dem Host; die erste Messung kann fehlen.
+    cpuHint: Messung über alle Prozesse auf dem Host.
     memory: Speichernutzung des Hosts
     memoryUsage: '{used} / {total} GiB'
     memoryHint: Genutzter und gesamter Host-Speicher, einschließlich anderer Dienste.

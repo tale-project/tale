@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 50 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 52 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -137,13 +137,13 @@ records and delete them after.
   preview** (`documents.preview.closePreview`) closes the dialog and returns
   focus to the row. An unpreviewable type shows **Preview not available**
   (`documents.preview.notAvailable`).
-- [ ] `KNOW-F30` · **Source preview rhythm** — In light and then in dark,
-  preview a `.ts`, a `.json` and a `.txt` document, watching one code file
-  while it loads → Each reads like an editor: small monospace type on tight,
-  even rows. A code file numbers every row in the left gutter with no blank
-  row between two source lines and scrolls a long line sideways; a `.txt`
-  file keeps the same type without numbers and wraps; nothing changes size
-  between the loading skeleton, the plain text and the highlighted text.
+- [ ] `KNOW-F30` · **Source preview look** — In light and then in dark,
+  preview a `.ts`, a `.json` and a `.txt` document, the first code file right
+  after a reload → Characters line up in columns in all three; keywords,
+  strings and numbers of the `.ts` and `.json` files take distinct colours on
+  the same grey canvas as the `.txt` text, with no white or black box behind
+  the code; every line number can be read out at 100 % zoom; while the first
+  code file loads, no row moves or changes size when the colours arrive.
 - [ ] `KNOW-F8` · **Upload ODT** — Documents → **Upload documents**
   (`documents.upload.importDocuments`) → **From your device**
   (`documents.upload.fromYourDevice`) → attach a small **`.odt`** file →

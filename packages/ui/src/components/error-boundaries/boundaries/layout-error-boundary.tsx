@@ -13,21 +13,17 @@ interface LayoutErrorBoundaryProps {
   organizationId?: string;
 }
 
+/**
+ * Whether a caught render error is worth a silent re-render. A signed-out or
+ * lapsed session is not: it answers the same way on every retry, so it goes
+ * straight to the fallback.
+ */
 export function isConvexTransientError(error: Error): boolean {
   const msg = error.message || '';
   return (
     msg.includes('timed out') ||
     msg.includes('Function execution') ||
     msg.includes('overloaded') ||
-    // Session rotation (e.g. TOTP verify on enrollment creates a new
-    // session + deletes the old one) briefly invalidates the cached
-    // Convex access token. Live queries sent in that window reach the
-    // server with a token whose session is gone and throw. The retry
-    // backoff gives the client time to refresh its token. Match both
-    // Convex's native sentence form and our structured `AppError`
-    // payload (`{"code":"UNAUTHENTICATED"}`, #2013), which is upper-cased.
-    msg.includes('Unauthenticated') ||
-    msg.includes('UNAUTHENTICATED') ||
     // Convex agent SDK reactive hooks can briefly see undefined properties
     // during WebSocket reconnection (e.g., useDeltaStreams accessing
     // streams.messages before query results settle)

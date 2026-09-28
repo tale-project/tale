@@ -1,10 +1,18 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { toast } from '@tale/ui/use-toast';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -368,3 +376,77 @@ describe('WebsiteCreateDialog', () => {
     });
   });
 });
+
+// The session door's 401 names the REST API in English; the person whose
+// session ended reads why in their own language, under the localized title,
+// whether one website or a URL list was being added.
+describe.each(SHIPPED_LOCALES)(
+  'WebsiteCreateDialog after a lapsed session (%s)',
+  (locale) => {
+    const t = (key: string, params?: Record<string, string>) =>
+      i18n.getFixedT(locale, 'websites')(key, params);
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      saveLocale(locale);
+    });
+    afterEach(forgetSavedLocale);
+
+    it('says the session has ended when the website cannot be added', async () => {
+      createWebsiteMock.mockImplementation(
+        (_args: unknown, opts: { onError: (e: unknown) => void }) => {
+          void lapsedSessionRefusal().catch(opts.onError);
+        },
+      );
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await fillAndSubmit(user);
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith({
+          title: t('toast.addError'),
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+      expect(JSON.stringify(vi.mocked(toast).mock.calls)).not.toContain(
+        'API key',
+      );
+    });
+
+    it('says the session has ended when the URL list cannot be added', async () => {
+      createWebsiteAsyncMock.mockImplementation(lapsedSessionRefusal);
+      const { user } = render(
+        <WebsiteCreateDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await user.click(screen.getByRole('radio', { name: t('addMode.list') }));
+      await user.type(
+        screen.getByLabelText(t('urlList')),
+        'https://example.com/page',
+      );
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith({
+          title: t('toast.addListPartial', { domains: 'example.com' }),
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+    });
+  },
+);

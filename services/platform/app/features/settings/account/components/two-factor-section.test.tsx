@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
+import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 // Regression cover for #2085[19]: disabling 2FA from the Account page must
@@ -9,8 +12,9 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 // design is warn-not-block (the enrollment wall is the actual enforcement),
 // so the disable call itself must keep working.
 
-const { mockStatus } = vi.hoisted(() => ({
+const { mockStatus, showBackupCodes } = vi.hoisted(() => ({
   mockStatus: { value: {} },
+  showBackupCodes: vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
@@ -25,6 +29,7 @@ vi.mock('@tale/ui/use-toast', () => ({
 
 vi.mock('@/lib/auth-client', () => ({
   authClient: {
+    getSession: vi.fn(),
     twoFactor: {
       disable: vi.fn().mockResolvedValue({}),
       enable: vi.fn(),
@@ -37,7 +42,7 @@ vi.mock('@/lib/auth-client', () => ({
 // The backup-codes dialog lives in a root provider; the section only needs
 // the show() callback.
 vi.mock('./backup-codes-dialog-provider', () => ({
-  useShowBackupCodes: () => vi.fn(),
+  useShowBackupCodes: () => showBackupCodes,
 }));
 
 // FormDialog resolves the org id from router params for its unsaved-changes
@@ -109,5 +114,133 @@ describe('TwoFactorSection – disable under org enforcement', () => {
         password: 'hunter2!',
       }),
     );
+  });
+});
+
+describe('TwoFactorSection session rotation', () => {
+  const originalLocation = window.location;
+  let navigations: string[];
+
+  function AccountWithLapseRecovery() {
+    useSessionLapseRedirect(true);
+    return <TwoFactorSection />;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigations = [];
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        pathname: '/dashboard/org-1/settings/account',
+        search: '',
+        hash: '',
+        set href(value: string) {
+          navigations.push(value);
+        },
+      },
+    });
+    vi.mocked(authClient.getSession).mockResolvedValue({
+      data: null,
+      error: null,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    });
+  });
+
+  it('keeps enrollment and its backup codes while the new session cookie is pending', async () => {
+    mockStatus.value = { ...enrolledStatus(false), twoFactorEnabled: false };
+    vi.mocked(authClient.twoFactor.enable).mockResolvedValue({
+      data: {
+        method: 'totp',
+        totpURI: 'otpauth://totp/Tale:test?secret=JBSWY3DPEHPK3PXP&issuer=Tale',
+        backupCodes: ['test-backup-code'],
+      },
+      error: null,
+    });
+    let verified = () => {};
+    vi.mocked(authClient.twoFactor.verifyTotp).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          verified = () =>
+            resolve({
+              data: { token: 'new-session', user: {} } as never,
+              error: null,
+            });
+        }),
+    );
+    const { user } = render(<AccountWithLapseRecovery />);
+    await user.click(screen.getByRole('button', { name: 'Enable two-factor' }));
+    let dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Password'), 'test-password');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    dialog = await screen.findByRole('dialog', {
+      name: 'Set up two-factor authentication',
+    });
+    await user.type(
+      within(dialog).getByLabelText('Verification code'),
+      '123456',
+    );
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Verify and enable' }),
+    );
+    expect(authClient.twoFactor.verifyTotp).toHaveBeenCalledOnce();
+
+    // The server has retired the old token, but this response has not yet
+    // installed the replacement cookie in the browser.
+    await act(async () => {
+      reportSessionLapsed();
+    });
+    expect(navigations).toEqual([]);
+    expect(authClient.getSession).not.toHaveBeenCalled();
+    vi.mocked(authClient.getSession).mockResolvedValue({
+      data: { user: { id: 'u-1' }, session: { id: 'new-session' } } as never,
+      error: null,
+    });
+    await act(async () => {
+      verified();
+    });
+
+    await waitFor(() =>
+      expect(showBackupCodes).toHaveBeenCalledWith(['test-backup-code']),
+    );
+    await waitFor(() => expect(authClient.getSession).toHaveBeenCalledOnce());
+    expect(navigations).toEqual([]);
+  });
+
+  it('waits for the replacement cookie when disabling two-factor authentication', async () => {
+    mockStatus.value = enrolledStatus(false);
+    let disabled = () => {};
+    vi.mocked(authClient.twoFactor.disable).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          disabled = () => resolve({ data: { status: true }, error: null });
+        }),
+    );
+    const { user } = render(<AccountWithLapseRecovery />);
+    await user.click(screen.getByRole('button', { name: 'Disable' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Password'), 'test-password');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    expect(authClient.twoFactor.disable).toHaveBeenCalledOnce();
+    await act(async () => {
+      reportSessionLapsed();
+    });
+    expect(navigations).toEqual([]);
+    expect(authClient.getSession).not.toHaveBeenCalled();
+    vi.mocked(authClient.getSession).mockResolvedValue({
+      data: { user: { id: 'u-1' }, session: { id: 'new-session' } } as never,
+      error: null,
+    });
+    await act(async () => {
+      disabled();
+    });
+    await waitFor(() => expect(authClient.getSession).toHaveBeenCalledOnce());
+    expect(navigations).toEqual([]);
   });
 });
