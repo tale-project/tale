@@ -20,7 +20,11 @@ import { auditChainQueueKey, createAuditLog } from '../audit_logs/service.ts';
 import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
 import { releaseRefs } from '../knowledge/release.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
-import { runRetentionCleanup, sweepOrgPhase2 } from './service.ts';
+import {
+  CHAT_FILTER_EVENT_MAX_BATCHES,
+  runRetentionCleanup,
+  sweepOrgPhase2,
+} from './service.ts';
 
 vi.mock('../../lib/org-config.ts', () => ({
   readGovernancePolicyForOrg: vi.fn(),
@@ -314,6 +318,71 @@ describe('runRetentionCleanup — the run audit trail', () => {
       deleted: 4,
       categories: { chatFilterEvents: { deleted: 4 } },
     });
+  });
+
+  it('drains guardrail events batch after batch in one transaction, one row for the run', async () => {
+    givenPolicy({
+      chatFilterEventsEnabled: true,
+      chatFilterEventsRetentionDays: 30,
+    });
+    // Two full batches, then a short one: the whole backlog goes this run.
+    const batches = [ids(1_000, 'a-'), ids(1_000, 'b-'), ids(7, 'c-')];
+    const fake = fakeSql(
+      orgRun({
+        'DELETE FROM app.chat_filter_events': () => batches.shift() ?? [],
+      }),
+    );
+
+    const results = await runRetentionCleanup(fake.sql);
+
+    const deletes = fake.statements.filter((s) =>
+      s.text.startsWith('DELETE FROM app.chat_filter_events'),
+    );
+    expect(deletes).toHaveLength(3);
+    expect(new Set(deletes.map((s) => s.tx))).toEqual(
+      new Set([deletes[0]?.tx]),
+    );
+    expect(results.org_1?.chatFilterEvents).toBe(2_007);
+    const events = appendOf('chat_filter_event.retention_deleted');
+    expect(events.tx).not.toBeNull();
+    expect(events.tx).toBe(deletes[0]?.tx);
+    expect(events.row.metadata).toEqual({
+      category: 'chatFilterEvents',
+      deleted: 2_007,
+    });
+    expect(appendOf('retention.run_completed').row.status).toBe('success');
+  });
+
+  it('stops a guardrail-event backlog at the run’s ceiling and leaves the rest for the next run', async () => {
+    givenPolicy({
+      chatFilterEventsEnabled: true,
+      chatFilterEventsRetentionDays: 30,
+    });
+    // Every batch comes back full: a backlog larger than one run may take.
+    const fake = fakeSql(
+      orgRun({
+        'DELETE FROM app.chat_filter_events': () => ids(1_000, 'event-'),
+      }),
+    );
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+
+    const results = await runRetentionCleanup(fake.sql);
+
+    const deletes = fake.statements.filter((s) =>
+      s.text.startsWith('DELETE FROM app.chat_filter_events'),
+    );
+    expect(deletes).toHaveLength(CHAT_FILTER_EVENT_MAX_BATCHES);
+    const ceiling = CHAT_FILTER_EVENT_MAX_BATCHES * 1_000;
+    expect(results.org_1?.chatFilterEvents).toBe(ceiling);
+    expect(
+      appendOf('chat_filter_event.retention_deleted').row.metadata,
+    ).toEqual({ category: 'chatFilterEvents', deleted: ceiling });
+    // A spent ceiling is no failure: the next night carries on.
+    expect(appendOf('retention.run_completed').row.status).toBe('success');
+    expect(info).toHaveBeenCalledWith(
+      expect.stringContaining('the next run carries on'),
+    );
+    info.mockRestore();
   });
 
   it('leaves guardrail events alone while their category is off or has no window', async () => {

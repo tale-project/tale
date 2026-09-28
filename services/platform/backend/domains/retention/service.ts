@@ -55,6 +55,14 @@ import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH_LIMIT = 1_000;
 
+/**
+ * DELETE rounds the chat-filter-event sweep may take in one run (50,000
+ * events per organization). A backlog beyond it — the first run after the
+ * category is enabled on months of history — drains over the following
+ * nights instead of in one long transaction.
+ */
+export const CHAT_FILTER_EVENT_MAX_BATCHES = 50;
+
 export class RetentionError extends Error {
   readonly code: string;
   readonly status: 400 | 404 | 409;
@@ -706,6 +714,13 @@ async function sweepNotifications(
  * protects by. A held member's events stay as long as their chat does, and
  * the filter lives in SQL so held rows can never fill the batch. An event
  * whose thread is gone has no owner left to hold it.
+ *
+ * Unlike its siblings, the category DRAINS: a chat turn can raise several
+ * events, so one org can write more than a batch a day, and a single batch
+ * per run would never catch up. It deletes batch after batch until one
+ * comes back short or `CHAT_FILTER_EVENT_MAX_BATCHES` is spent, all in ONE
+ * transaction, so the run still leaves one destruction row whose count
+ * commits with the rows it names.
  */
 async function sweepChatFilterEvents(
   sql: Sql,
@@ -721,24 +736,32 @@ async function sweepChatFilterEvents(
   if (cutoff === null) return;
   const protectedIds = [...holds.userMembershipIds];
   await destroyInTx(sql, trail, async (tx) => {
-    const rows = await tx<{ id: string }[]>`
-      DELETE FROM app.chat_filter_events
-      WHERE id IN (
-        SELECT e.id FROM app.chat_filter_events e
-        WHERE e.org_id = ${org.organizationId}
-          AND e.created_at_ms < ${cutoff}
-          AND (${protectedIds.length === 0}
-               OR NOT EXISTS (
-                 SELECT 1 FROM app.thread_metadata tm
-                 WHERE tm.thread_id = e.thread_id
-                   AND tm.org_id = ${org.organizationId}
-                   AND tm.user_id = ANY(${protectedIds})
-               ))
-        LIMIT ${BATCH_LIMIT}
-      )
-      RETURNING id
-    `;
-    return { deleted: rows.length };
+    let deleted = 0;
+    for (let round = 0; round < CHAT_FILTER_EVENT_MAX_BATCHES; round += 1) {
+      const rows = await tx<{ id: string }[]>`
+        DELETE FROM app.chat_filter_events
+        WHERE id IN (
+          SELECT e.id FROM app.chat_filter_events e
+          WHERE e.org_id = ${org.organizationId}
+            AND e.created_at_ms < ${cutoff}
+            AND (${protectedIds.length === 0}
+                 OR NOT EXISTS (
+                   SELECT 1 FROM app.thread_metadata tm
+                   WHERE tm.thread_id = e.thread_id
+                     AND tm.org_id = ${org.organizationId}
+                     AND tm.user_id = ANY(${protectedIds})
+                 ))
+          LIMIT ${BATCH_LIMIT}
+        )
+        RETURNING id
+      `;
+      deleted += rows.length;
+      if (rows.length < BATCH_LIMIT) return { deleted };
+    }
+    console.info(
+      `[retention] org ${org.organizationId}: chat filter events stopped at ${deleted} deleted this run; the next run carries on`,
+    );
+    return { deleted };
   });
 }
 
