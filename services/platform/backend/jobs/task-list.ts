@@ -242,6 +242,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/tasks/date-notifications.ts');
       await enforceTaskDateNotifications(deps.sql);
     },
+    'tasks.repeat_on_due': async (_payload, context) => {
+      const { createDueRepeatCopies } =
+        await import('../domains/tasks/repeat-on-due.ts');
+      await createDueRepeatCopies(deps.sql, { signal: context?.signal });
+    },
     'maintenance.rate_limit_gc': async () => {
       // Any row idle for 7 days is past every window/refill horizon.
       const cutoff = Date.now() - 7 * 24 * 3_600_000;

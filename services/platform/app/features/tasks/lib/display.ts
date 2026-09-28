@@ -89,6 +89,8 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   'attachments.changed': 'activity.attachmentsChanged',
   'startDate.changed': 'activity.startDateChanged',
   'dueDate.changed': 'activity.dueDateChanged',
+  'repeat.changed': 'activity.repeatChanged',
+  'repeat.next': 'activity.repeatNext',
   'reviewer.changed': 'activity.reviewerChanged',
   'comment.added': 'activity.commentAdded',
   'dependency.added': 'activity.dependencyAdded',

@@ -28,6 +28,8 @@ export interface TaskPayloads {
   'tts.gc_chunks': Record<string, never>;
   /** Task start/due/overdue notification ladder (hourly). */
   'tasks.enforce_dates': Record<string, never>;
+  /** Continue repeating tasks whose due day began (every five minutes). */
+  'tasks.repeat_on_due': Record<string, never>;
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
   /** Start a task's owning automation (the comment-@mention trigger). */
@@ -365,6 +367,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'governance.revoke_idle_sessions': { retryLimit: 1, expireInSeconds: 300 },
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },
   'tasks.enforce_dates': { retryLimit: 1, expireInSeconds: 600 },
+  // Every task is its own transaction and the writer re-decides under the
+  // task's lock, so a retry that overlaps the attempt it replaces creates
+  // nothing twice; the scan stops on the job's signal at its expiry.
+  'tasks.repeat_on_due': { retryLimit: 1, expireInSeconds: 300 },
   'projects.repair_rollups': { retryLimit: 1, expireInSeconds: 600 },
   // The steer owns its OWN retry ladder (it re-enqueues itself with an
   // attempt counter, tight then coarse), so pg-boss must not add a second
