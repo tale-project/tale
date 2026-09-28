@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
+import {
+  CHAT_ASSISTANT,
+  CHAT_ASSISTANT_SLUG,
+  TALE_DOCS_INDEX_URL,
+} from './assistant';
 
 /**
  * The instructions are a SUBTRACTIVE contract: persona, product boundary,
@@ -10,11 +14,6 @@ import { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
  */
 
 const instructions = CHAT_ASSISTANT.instructions ?? '';
-
-/** The public docs index — fixed, never derived from this deployment's site
- * origin (a self-hosted `TALE_SITE_URL` would point at a docs host that does
- * not exist). */
-const TALE_DOCS_INDEX = 'https://docs.tale.dev/llms.txt';
 
 describe('CHAT_ASSISTANT', () => {
   it('keeps the fixed slug the executors audit-log under', () => {
@@ -49,14 +48,16 @@ describe('CHAT_ASSISTANT', () => {
     expect(instructions.length).toBeLessThan(1800);
     // Tale's own documentation is the one address the persona may name — it
     // grounds questions about the product itself, not an eval's sources.
-    expect(instructions.replaceAll(TALE_DOCS_INDEX, '')).not.toMatch(
+    expect(instructions.replaceAll(TALE_DOCS_INDEX_URL, '')).not.toMatch(
       /https?:\/\//,
     );
   });
 
   it('answers questions about Tale from its documentation, never guessed URLs', () => {
     expect(instructions).toContain('QUESTIONS ABOUT TALE');
-    expect(instructions).toContain(TALE_DOCS_INDEX);
+    expect(instructions).toContain(TALE_DOCS_INDEX_URL);
+    // The public docs, never a host derived from this deployment's origin.
+    expect(TALE_DOCS_INDEX_URL).toBe('https://docs.tale.dev/llms.txt');
     expect(instructions).toMatch(/never guess a docs URL/i);
     expect(instructions).toMatch(/latest release/i);
   });
