@@ -13,14 +13,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { previewCodeTextClasses } from '@/app/features/documents/components/preview-pane';
+import {
+  codeGutterStyle,
+  previewCodeTextClasses,
+} from '@/app/features/documents/components/preview-pane';
 import {
   markdownComponents,
   markdownWrapperStyles,
 } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
-import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
+import {
+  highlightCode,
+  MAX_SHIKI_BYTES,
+  resolveLanguage,
+} from '@/lib/utils/shiki';
 import {
   getFileExtensionLower,
   getTextFileCategory,
@@ -112,7 +119,7 @@ export function SkillAssetViewer({
       ? 'not_found'
       : null;
   const size = new TextEncoder().encode(content).length;
-  const oversize = useShiki && content.length > 64_000;
+  const oversize = useShiki && content.length > MAX_SHIKI_BYTES;
 
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
   // Wrapped by default: the pane is for READING an asset, and schema files
@@ -213,7 +220,12 @@ export function SkillAssetViewer({
         </HStack>
         <div className="min-h-0 flex-1 overflow-auto">
           {isLoading ? (
-            <div className="p-4 text-sm">
+            <div
+              className={cn(
+                'p-4',
+                isMarkdown ? 'text-sm' : previewCodeTextClasses,
+              )}
+            >
               <SkeletonText lines={10} />
             </div>
           ) : isImage ? (
@@ -259,6 +271,7 @@ export function SkillAssetViewer({
           ) : useShiki && highlightedHtml && !oversize ? (
             <div
               ref={highlightRef}
+              style={codeGutterStyle(content)}
               className={cn(
                 'code-line-numbers [&_pre]:m-0! [&_pre]:p-4!',
                 previewCodeTextClasses,
@@ -288,7 +301,20 @@ export function SkillAssetViewer({
                   wrap ? 'break-words whitespace-pre-wrap' : 'overflow-auto',
                 )}
               >
-                <code className="text-foreground">{content}</code>
+                {/* A code asset awaiting its highlight starts its text in
+                    the numbered column, so the text stays put when the
+                    highlight lands. */}
+                <code
+                  style={
+                    useShiki && !oversize ? codeGutterStyle(content) : undefined
+                  }
+                  className={cn(
+                    'text-foreground',
+                    useShiki && !oversize && 'code-text-column block',
+                  )}
+                >
+                  {content}
+                </code>
               </pre>
             </>
           )}
