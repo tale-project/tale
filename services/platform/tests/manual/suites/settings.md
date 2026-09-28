@@ -701,7 +701,8 @@ any toggled setting after the run.
   in it; once the task finished, remove the container on the sandbox host
   (`docker rm -f tale-sbx-ses-<sessionId>`) and reload the page (its mount
   probe runs the sandbox sweep's reconcile, which also runs unattended every
-  five minutes) → Within a minute `docker ps` lists
+  five minutes, and queues the recreate for the worker; the page answers
+  without waiting for it); wait for the queued recreate to finish → `docker ps` lists
   `tale-sbx-ses-<sessionId>` again; the row still lists with its **Pinned**
   badge (`sandboxes.status.pinned`) and **Running**
   (`sandboxes.status.runtime.running`), never disappearing as destroyed; the
