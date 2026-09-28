@@ -16,13 +16,16 @@ import { describe, expect, it } from 'vitest';
  * without anyone deciding it may travel.
  *
  * This guard reads every `new TaskError(…)` and `new TaskReviewError(…)` in
- * the backend, and every `new ProjectError(…)` the task domain throws, and
- * admits a message that is a literal or is built only from what
- * {@link ADMITTED} names: the shared limit sentences
- * (`core/tasks/helpers.ts`'s `task*Refusal`, which state a cap, its unit and
- * a measured length — `helpers.test.ts` pins them), plain constants, and the
- * one reviewed exception listed there with its reason. A new piece fails
- * here until it is either made static or reviewed onto the list.
+ * the backend, and every `new ProjectError(…)` a task door can relay: the
+ * task domain's own, and those of each projects-domain function a task door
+ * reaches ({@link projectFunctionsReached}) — the app door's `handleError`
+ * relays every `ProjectError` beside `TaskError`. It admits a message that
+ * is a literal or is built only from what {@link ADMITTED} names: the shared
+ * limit sentences (`core/tasks/helpers.ts`'s `task*Refusal`, which state a
+ * cap, its unit and a measured length — `helpers.test.ts` pins them), plain
+ * constants, and the one reviewed exception listed there with its reason. A
+ * new piece fails here until it is either made static or reviewed onto the
+ * list.
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -38,18 +41,146 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+const backendPath = (file: string): string =>
+  path.relative(BACKEND, file).split(path.sep).join('/');
+
+const parse = (file: string): ts.SourceFile =>
+  ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+
+/**
+ * Where a task refusal is answered from, as backend paths: the task domain
+ * and its app door, the folder the external-issue intake mints, the REST
+ * task door, the workflow task natives' store and the agent's write shim.
+ */
+const TASK_DOORS = [
+  'domains/tasks/',
+  'domains/folders/service.ts',
+  'rest/v1-tasks.ts',
+  'domains/connectors/task-store.ts',
+  'domains/sandbox/workspace-write-shim.ts',
+];
+
+/** The module's top-level functions by name, declared or assigned. */
+function topLevelFunctions(tree: ts.SourceFile): Map<string, ts.Node> {
+  const functions = new Map<string, ts.Node>();
+  for (const statement of tree.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      functions.set(statement.name.text, statement);
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.initializer) {
+          functions.set(declaration.name.text, declaration.initializer);
+        }
+      }
+    }
+  }
+  return functions;
+}
+
+/** The top-level function or constant a node sits in, by name. */
+function topLevelName(node: ts.Node): string | undefined {
+  let current = node;
+  while (!ts.isSourceFile(current.parent)) current = current.parent;
+  if (ts.isFunctionDeclaration(current)) return current.name?.text;
+  if (ts.isVariableStatement(current)) {
+    const [declaration] = current.declarationList.declarations;
+    return declaration && ts.isIdentifier(declaration.name)
+      ? declaration.name.text
+      : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * The functions of each `domains/projects/` module a task door reaches: the
+ * ones a door imports, and every function of the same module those call in
+ * turn. A `ProjectError` one of them throws reaches the door's answer.
+ */
+function projectFunctionsReached(
+  files: readonly string[],
+): Map<string, Set<string>> {
+  const imported = new Map<string, Set<string>>();
+  for (const file of files) {
+    const relative = backendPath(file);
+    if (
+      relative.endsWith('.integration.ts') ||
+      !TASK_DOORS.some((door) => relative.startsWith(door))
+    ) {
+      continue;
+    }
+    for (const statement of parse(file).statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        statement.importClause?.isTypeOnly === true
+      ) {
+        continue;
+      }
+      const target = backendPath(
+        path.resolve(path.dirname(file), statement.moduleSpecifier.text),
+      ).replace(/(\.ts)?$/, '.ts');
+      const bindings = statement.importClause?.namedBindings;
+      if (
+        !target.startsWith('domains/projects/') ||
+        bindings === undefined ||
+        !ts.isNamedImports(bindings)
+      ) {
+        continue;
+      }
+      const names = imported.get(target) ?? new Set<string>();
+      for (const element of bindings.elements) {
+        if (!element.isTypeOnly) {
+          names.add((element.propertyName ?? element.name).text);
+        }
+      }
+      imported.set(target, names);
+    }
+  }
+  const reached = new Map<string, Set<string>>();
+  for (const [module, names] of imported) {
+    const functions = topLevelFunctions(parse(path.join(BACKEND, module)));
+    const seen = new Set<string>();
+    const queue = [...names];
+    for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
+      const body = functions.get(name);
+      if (body === undefined || seen.has(name)) continue;
+      seen.add(name);
+      const visit = (node: ts.Node): void => {
+        if (ts.isIdentifier(node) && functions.has(node.text)) {
+          queue.push(node.text);
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(body);
+    }
+    reached.set(module, seen);
+  }
+  return reached;
+}
+
 /** `<file> <code> <piece>` for every non-literal piece of a refusal's
  * message — a template's interpolations, or the whole expression when the
  * message is not a template at all. */
 function interpolatedPieces(): string[] {
   const pieces: string[] = [];
-  for (const file of sourceFiles(BACKEND)) {
+  const files = sourceFiles(BACKEND);
+  const reached = projectFunctionsReached(files);
+  for (const file of files) {
     const source = readFileSync(file, 'utf8');
     if (!/new (TaskError|TaskReviewError|ProjectError)\(/.test(source)) {
       continue;
     }
-    const relative = path.relative(BACKEND, file).split(path.sep).join('/');
+    const relative = backendPath(file);
     const inTasks = relative.startsWith('domains/tasks/');
+    const reachedHere = reached.get(relative);
+    const relayed = (node: ts.Node): boolean =>
+      inTasks || reachedHere?.has(topLevelName(node) ?? '') === true;
     const tree = ts.createSourceFile(
       file,
       source,
@@ -62,7 +193,7 @@ function interpolatedPieces(): string[] {
         ts.isIdentifier(node.expression) &&
         (node.expression.text === 'TaskError' ||
           node.expression.text === 'TaskReviewError' ||
-          (inTasks && node.expression.text === 'ProjectError'))
+          (node.expression.text === 'ProjectError' && relayed(node)))
       ) {
         const [code, message] = node.arguments ?? [];
         if (
@@ -109,6 +240,22 @@ const ADMITTED = [
 ].sort();
 
 describe('task refusal sentences', () => {
+  it('follow every projects-domain function a task door reaches', () => {
+    // The doors' own imports, and what those call in turn: an access check
+    // throws through `assertSameOrg` before its own refusals.
+    const reached = projectFunctionsReached(sourceFiles(BACKEND));
+    expect([...reached.keys()]).toEqual(['domains/projects/service.ts']);
+    expect([...(reached.get('domains/projects/service.ts') ?? [])]).toEqual(
+      expect.arrayContaining([
+        'assertSameOrg',
+        'assertWritable',
+        'getProjectAuthContext',
+        'listProjects',
+        'loadProjectOrThrow',
+      ]),
+    );
+  });
+
   it('carry no value beyond the shared limit sentences and constants', () => {
     expect(
       interpolatedPieces(),

@@ -8,10 +8,12 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
+  importedTaskTitleRefusal,
   TASK_ATTACHMENTS_MAX,
   taskCommentRefusal,
   taskDescriptionRefusal,
   taskLabelCountRefusal,
+  taskLabelNameRefusal,
   taskTitleRefusal,
 } from '../../core/tasks/helpers.ts';
 import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
@@ -125,10 +127,11 @@ const DOMAIN_REFUSAL_CODE = 'domainRefusalCode';
  * does ({@link invalidBody}) — before a rate-limit slot is charged or a row
  * is read, and however far past the cap the value is. The schema used to
  * carry caps of its own above the domain's (a title ≤ 500, a description ≤
- * 50,000, ≤ 100 labels, a comment `.min(1)`), and a value one of those
- * refused answered a bare `invalid body` that named no limit and could not
- * tell an empty title or comment from an over-long one. The domain keeps its
- * own check: the REST and agent doors reach it without this schema.
+ * 50,000, ≤ 100 labels, a label name ≤ 100, a comment `.min(1)`), and a
+ * value one of those refused answered a bare `invalid body` that named no
+ * limit and could not tell an empty title or comment from an over-long one.
+ * The domain keeps its own check: the REST and agent doors reach it without
+ * this schema.
  */
 function refusedAsDomain<T>(
   schema: z.ZodType<T>,
@@ -163,6 +166,19 @@ const labelsSchema = refusedAsDomain(
   z.array(z.string()),
   'TASK_LABELS_INVALID',
   (labels) => taskLabelCountRefusal(labels.length),
+);
+// One catalog label's name, as the label create and rename take it.
+const labelNameSchema = refusedAsDomain(
+  z.string(),
+  'TASK_LABELS_INVALID',
+  taskLabelNameRefusal,
+);
+// The title of an imported task: only a blank one is refused. Its length is
+// the domain's to decide, and the upsert cuts it (`truncateImportedTitle`).
+const importedTitleSchema = refusedAsDomain(
+  z.string(),
+  'TASK_TITLE_INVALID',
+  importedTaskTitleRefusal,
 );
 const commentBodySchema = z.object({
   body: refusedAsDomain(z.string(), 'TASK_COMMENT_INVALID', taskCommentRefusal),
@@ -472,16 +488,20 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
             setupFolderName: z.string().max(255).optional(),
           })
           .optional(),
-        title: z.string().min(1).max(500),
+        // An import's title and description are cut to the board's caps
+        // by the domain, never refused for their length: caps of this
+        // door's own (500, 50,000) answered a bare `invalid body` and
+        // stored a description no other door could write.
+        title: importedTitleSchema,
         externalUrl: z.string().max(2048).optional(),
-        description: z.string().max(50_000).optional(),
-        labels: z.array(z.string()).max(100).optional(),
+        description: z.string().optional(),
+        labels: labelsSchema.optional(),
         runWorkflowSlug: z.string().max(200).optional(),
         automationSlug: z.string().max(200).optional(),
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return invalidBody(c, body.error);
     }
     const args = body.data;
     if (!args.externalId === !args.ensureFolder) {
@@ -668,11 +688,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({
         projectId: z.string().min(1),
-        name: z.string().min(1).max(100),
+        name: labelNameSchema,
       })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return invalidBody(c, body.error);
     }
     try {
       const auth = await authCtx(c);
@@ -687,10 +707,10 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
 
   app.post('/labels/:labelId/rename', async (c) => {
     const body = z
-      .object({ name: z.string().min(1).max(100) })
+      .object({ name: labelNameSchema })
       .safeParse(await c.req.json());
     if (!body.success) {
-      return invalidBodyResponse(c, body.error);
+      return invalidBody(c, body.error);
     }
     try {
       const auth = await authCtx(c);

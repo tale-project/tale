@@ -1098,7 +1098,7 @@ Repeating an active task’s external reference updates its title and descriptio
 
 ### Bind a setup folder and choose automation ownership
 
-`description`, `labels`, `externalUrl`, and `setupFolderName` are optional; `title` takes up to 200 UTF-16 code units (most emoji count as 2) and `externalUrl` must be an absolute `http(s)` URL — a longer title or another scheme returns **400** rather than a silently altered task. `setupFolderName` binds the task to one of the project's root folders by name — matched without regard to case — and stores that folder's id as the task's `externalUrl`: the Setup-folder binding a folder-driven automation reads off its task input, resolved again on every repeat.
+`description`, `labels`, `externalUrl`, and `setupFolderName` are optional. `title` takes up to 200 UTF-16 code units (most emoji count as 2) and `description` up to 20,000; `labels` takes up to 50 names of up to 50 code units each. `externalUrl` must be an absolute `http(s)` URL. A value past its limit, or another scheme, returns **400** rather than a silently altered task. `setupFolderName` binds the task to one of the project's root folders by name — matched without regard to case — and stores that folder's id as the task's `externalUrl`: the Setup-folder binding a folder-driven automation reads off its task input, resolved again on every repeat.
 
 A name no root folder of the project carries returns **400**, `SETUP_FOLDER_MISSING`, and nothing is created; sent beside `externalUrl`, it returns **400**, `INVALID_BODY`. Labels keep their spelling: a name is trimmed and NFC-normalized, matched against the project's catalog without regard to case, created with the spelling you sent when it is new, and read back as stored in the order you sent — so `["Bug", "P1"]` reads back as `["Bug", "P1"]`, while `["bug"]` on a project that already has `Bug` wears that existing label (two names differing only in case are one label, never two).
 
@@ -1160,7 +1160,7 @@ curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>
 
 ### Read comments and download deliverables
 
-Comment writes accept optional `bodyByLocale` alongside the canonical `body`, and comment reads return it when present. Supply equivalent nonblank translations for `en`, `de` and `fr`; additional language or language-region keys such as `nl`, `it` and `de-CH` are allowed. Each value is trimmed and limited to 10,000 UTF-16 code units (most emoji count as 2), with at most 16 locales per comment. Render the reader's exact locale, then its base language, then `en`, then `body`. Attribution remains the key holder's. A plain-text edit in Tale clears the old translations so they cannot hide the edit.
+A comment's canonical `body` is trimmed and takes 1 to 10,000 UTF-16 code units (most emoji count as 2). Comment writes also accept an optional `bodyByLocale`, which comment reads return when present. Supply equivalent nonblank translations for `en`, `de` and `fr`; additional language or language-region keys such as `nl`, `it` and `de-CH` are allowed. Each value is trimmed and held to the same limit, with at most 16 locales per comment. Render the reader's exact locale, then its base language, then `en`, then `body`. Attribution remains the key holder's. A plain-text edit in Tale clears the old translations so they cannot hide the edit.
 
 Task and workflow agents receive instructions to preserve the language established by the task title and description, falling back to the organization's default agent language. Generated title-template words, quarter identifiers, source-document languages and the run starter's UI locale do not establish the task language. The same policy applies to operator questions, resumed turns and related task creation. This is model guidance; localized progress snapshots let clients select a translation independently of the canonical task language.
 
@@ -1204,7 +1204,7 @@ curl --fail --silent --show-error "$TALE_URL/openapi.json" \
   | jq -r '.components.schemas.Error.properties.code.enum[]'
 ```
 
-**400: correct the request before retrying.** Invalid bodies return `INVALID_BODY` with `data.issues`. Each issue has a field path, such as `price` or `contacts.2.email`, and a short message suitable for display: `is required`, `must be a string`, `must not be blank`, `must be at most 200 characters`, or `must be one of "a", "b"`. Unknown keys are reported under their own names. Branch on `code`, not this human-readable wording.
+**400: correct the request before retrying.** Invalid bodies return `INVALID_BODY` with `data.issues`. Each issue has a field path, such as `price` or `contacts.2.email`, and a short message suitable for display: `is required`, `must be a string`, `must not be blank`, `must be at most 200 UTF-16 code units`, or `must be one of "a", "b"`. Unknown keys are reported under their own names. Branch on `code`, not this human-readable wording.
 
 Body validation rejects missing required values, incorrect types, unknown keys, malformed JSON, invalid UTF-8, NUL characters, unpaired UTF-16 surrogates, integers beyond 2^53 − 1, and numbers outside the field's permitted range. A search `limit` in the JSON body is rejected when out of range; it is not clamped. The API reads JSON regardless of `Content-Type` and does not return 415 for these bodies.
 

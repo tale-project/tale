@@ -7,8 +7,10 @@
  * carried caps of its own (an empty title or comment, a title over 500, a
  * description over 50,000, more than 100 labels, a comment over 10,000) that
  * answered a bare `invalid body`. Every one now answers the domain's code
- * with the domain's own sentence. The domain runs for real here, on a stub
- * connection.
+ * with the domain's own sentence, on the label create and rename too. The
+ * external-issue intake refuses a blank title and too many labels the same
+ * way, and cuts an over-long title and description as every import does.
+ * The domain runs for real here, on a stub connection.
  */
 
 import type { Context } from 'hono';
@@ -19,6 +21,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 import {
   TASK_COMMENT_MAX,
   TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
   TASK_LABELS_MAX,
   TASK_TITLE_MAX,
 } from '../../core/tasks/helpers.ts';
@@ -49,6 +52,10 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
       },
   };
 });
+// The trail a created task leaves (its audit chain, its event row) is not
+// what these tests judge, and it needs rows the stub does not keep.
+vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
+vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));
 
 import { createTaskRoutes } from './routes.ts';
 
@@ -68,18 +75,30 @@ const TASK = {
 };
 
 /** A postgres.js stand-in for the door and its serializable transaction:
- * the project and task reads answer, every other statement answers
- * nothing, and every statement is recorded. */
-function stubSql(): { sql: Sql; statements: string[] } {
+ * the project and task reads answer, the external-ref intake's create lane
+ * lands (its project probe, its number, its insert), every other statement
+ * answers nothing, and every statement is recorded with its values. */
+function stubSql(): { sql: Sql; statements: string[]; values: unknown[][] } {
   const statements: string[] = [];
-  const tag = (strings: TemplateStringsArray) => {
+  const values: unknown[][] = [];
+  const tag = (strings: TemplateStringsArray, ...bound: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push(text);
+    values.push(bound);
     if (text.startsWith('SELECT ? FROM app.projects WHERE id = ?')) {
       return Promise.resolve([PROJECT]);
     }
     if (text.startsWith('SELECT ? FROM app.tasks WHERE id = ?')) {
       return Promise.resolve([TASK]);
+    }
+    if (text.startsWith('SELECT id FROM app.projects WHERE id = ?')) {
+      return Promise.resolve([{ id: PROJECT.id }]);
+    }
+    if (text.startsWith('UPDATE app.projects SET task_counter')) {
+      return Promise.resolve([{ taskCounter: 1 }]);
+    }
+    if (text.startsWith('INSERT INTO app.tasks')) {
+      return Promise.resolve([{ id: 't-new' }]);
     }
     return Promise.resolve([]);
   };
@@ -93,14 +112,19 @@ function stubSql(): { sql: Sql; statements: string[] } {
     },
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the members the door's reads and transaction reach
-  return { sql: sql as unknown as Sql, statements };
+  return { sql: sql as unknown as Sql, statements, values };
 }
 
 async function send(
   route: string,
   body: unknown,
-): Promise<{ status: number; json: unknown; statements: string[] }> {
-  const { sql, statements } = stubSql();
+): Promise<{
+  status: number;
+  json: unknown;
+  statements: string[];
+  values: unknown[][];
+}> {
+  const { sql, statements, values } = stubSql();
   const response = await createTaskRoutes({
     sql,
     auth: {} as never,
@@ -109,7 +133,12 @@ async function send(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return { status: response.status, json: await response.json(), statements };
+  return {
+    status: response.status,
+    json: await response.json(),
+    statements,
+    values,
+  };
 }
 
 const writes = (statements: string[]): string[] =>
@@ -276,4 +305,112 @@ describe.each([
     expect(sent.json).toEqual(COMMENT_OVER_LONG);
     expect(writes(sent.statements)).toEqual([]);
   });
+});
+
+const LABEL_EMPTY = {
+  error: 'TASK_LABELS_INVALID',
+  message: 'A label name is empty — it takes 1 to 50 UTF-16 code units.',
+};
+const labelOverLong = (length: number) => ({
+  error: 'TASK_LABELS_INVALID',
+  message:
+    'A label name is capped at 50 UTF-16 code units (most emoji count as ' +
+    `2); this one has ${length}.`,
+});
+
+describe.each([
+  ['POST /api/app/tasks/labels', '/labels', { projectId: 'p1' }],
+  ['POST /api/app/tasks/labels/:labelId/rename', '/labels/l1/rename', {}],
+])('%s names the refused label name limit', (_door, route, rest) => {
+  // An empty name and one over the schema's old cap of 100 answered a bare
+  // `invalid body`; a name of 51 to 100 reached the domain's sentence.
+  it.each(['', '   '])(
+    'answers the empty name %j as empty, with the range',
+    async (name) => {
+      const sent = await send(route, { ...rest, name });
+      expect(sent.status).toBe(400);
+      expect(sent.json).toEqual(LABEL_EMPTY);
+      expect(writes(sent.statements)).toEqual([]);
+    },
+  );
+
+  it.each([TASK_LABEL_CHARS_MAX + 1, 101])(
+    'answers a name of %i code units with the cap, before any read',
+    async (length) => {
+      const sent = await send(route, { ...rest, name: 'l'.repeat(length) });
+      expect(sent.status).toBe(400);
+      expect(sent.json).toEqual(labelOverLong(length));
+      expect(sent.statements).toEqual([]);
+    },
+  );
+});
+
+describe('POST /api/app/tasks/from-external-issue names what it refuses and cuts what it imports', () => {
+  const intake = { projectId: 'p1', externalSystem: 'crm', externalId: 'c-1' };
+  const inserted = (sent: Awaited<ReturnType<typeof send>>): unknown[] => {
+    const index = sent.statements.findIndex((text) =>
+      text.startsWith('INSERT INTO app.tasks'),
+    );
+    return index === -1 ? [] : (sent.values[index] ?? []);
+  };
+
+  it.each(['', '   '])(
+    'answers the empty title %j as empty, with the range',
+    async (title) => {
+      const sent = await send('/from-external-issue', { ...intake, title });
+      expect(sent.status).toBe(400);
+      expect(sent.json).toEqual(EMPTY);
+      expect(writes(sent.statements)).toEqual([]);
+    },
+  );
+
+  it.each([TASK_LABELS_MAX + 1, 101])(
+    'answers %i labels with the count cap',
+    async (count) => {
+      const sent = await send('/from-external-issue', {
+        ...intake,
+        title: 'Fits',
+        labels: Array.from({ length: count }, (_, index) => `label-${index}`),
+      });
+      expect(sent.status).toBe(400);
+      expect(sent.json).toEqual({
+        error: 'TASK_LABELS_INVALID',
+        message: `A task carries at most 50 labels; ${count} were given.`,
+      });
+      expect(writes(sent.statements)).toEqual([]);
+    },
+  );
+
+  it('answers a label name over 50 code units with its cap, from the domain', async () => {
+    const sent = await send('/from-external-issue', {
+      ...intake,
+      title: 'Fits',
+      labels: ['l'.repeat(TASK_LABEL_CHARS_MAX + 1)],
+    });
+    expect(sent.status).toBe(400);
+    expect(sent.json).toEqual(labelOverLong(TASK_LABEL_CHARS_MAX + 1));
+    expect(inserted(sent)).toEqual([]);
+  });
+
+  it.each([
+    [TASK_TITLE_MAX + 1, TASK_DESCRIPTION_MAX + 1],
+    // Past the door's old caps, which answered a bare `invalid body`.
+    [501, 50_001],
+  ])(
+    'cuts a title of %i and a description of %i code units, as every import does',
+    async (titleLength, descriptionLength) => {
+      const sent = await send('/from-external-issue', {
+        ...intake,
+        title: 't'.repeat(titleLength),
+        description: 'd'.repeat(descriptionLength),
+      });
+      expect(sent.status).toBe(200);
+      expect(sent.json).toEqual({ taskId: 't-new', created: true });
+      // (org, project, title, description, …): both at their caps, "…" last.
+      expect(inserted(sent).slice(2, 4)).toEqual([
+        `${'t'.repeat(TASK_TITLE_MAX - 1)}…`,
+        `${'d'.repeat(TASK_DESCRIPTION_MAX - 1)}…`,
+      ]);
+    },
+  );
 });
