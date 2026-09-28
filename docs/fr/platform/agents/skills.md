@@ -26,7 +26,7 @@ Les anciens skills privés ne peuvent pas équiper un agent de projet. La même 
 
 Les nœuds agent d’une automatisation déclarent les skills dont ils ont besoin. Une exécution liée à un projet utilise l’accès de ce projet. Une exécution au niveau de l’organisation peut seulement utiliser les skills de l’organisation. Ton appartenance personnelle à d’autres équipes n’élargit pas ces accès.
 
-Lors de la préparation de la sandbox, Tale met les bundles équipés à disposition sous forme de fichiers. Pour chaque skill, l’agent reçoit un extrait de la description, limité à 300 caractères, et le chemin de ses instructions `SKILL.md`. Cet extrait l’aide à choisir un skill pour une tâche formulée librement ; il sert à la sélection, pas de consigne à exécuter. Les fichiers complémentaires se trouvent à côté des instructions.
+Lors de la préparation de la sandbox, Tale met les bundles équipés à disposition sous forme de fichiers. Pour chaque skill, l’agent reçoit un extrait de la description, limité à 300 caractères, et le chemin de ses instructions `SKILL.md`. Cet extrait l’aide à choisir un skill pour une tâche formulée librement ; c’est une aide au choix, pas une consigne à exécuter. Les fichiers complémentaires se trouvent à côté des instructions.
 
 Pour un skill marqué `disable-model-invocation`, la liste demande à l’agent d’attendre que la tâche le nomme explicitement. Cette consigne ne constitue pas un contrôle d’accès. Limite l’équipement aux besoins de la tâche et précise la procédure quand elle compte. La disponibilité d’un skill ne prouve pas à elle seule que le résultat suit ses instructions.
 
