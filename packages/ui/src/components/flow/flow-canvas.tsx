@@ -148,7 +148,10 @@ function FlowCornerControls({ memo }: { memo: FitMemo }) {
   const { zoomIn, zoomOut } = useReactFlow();
   const fitAndRemember = useFitAndRemember(memo);
   return (
-    <Panel position="bottom-left" className="flex flex-col gap-1">
+    <Panel
+      position="bottom-left"
+      className="mb-[max(1rem,var(--mobile-nav-clearance-live,0px))]! flex flex-col gap-1"
+    >
       <Button
         size="icon"
         variant="secondary"
@@ -193,7 +196,10 @@ function FlowCenterToolbar({
   const { t } = useT('common');
   if (!centerActions && !onOpenAi) return null;
   return (
-    <Panel position="bottom-center" className="mb-4">
+    <Panel
+      position="bottom-center"
+      className="mr-0! mb-[max(1rem,var(--mobile-nav-clearance-live,0px))]! ml-6! w-max max-w-[calc(100%-6rem)] md:ml-0! md:max-w-[calc(100%-2rem)]"
+    >
       <HStack
         gap={2}
         className="ring-border bg-background rounded-lg p-1 shadow-sm ring-1"

@@ -51,7 +51,6 @@ import {
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
   RAG_ERROR_EMBEDDING_UPSTREAM,
   RAG_ERROR_EMPTY,
-  RAG_ERROR_IMAGE_NO_VISION,
   RAG_ERROR_INDEXER_ERROR,
   RAG_ERROR_MALFORMED,
   RAG_ERROR_NOT_TEXT,
@@ -60,6 +59,10 @@ import {
   RAG_ERROR_UNSUPPORTED_TYPE,
 } from '../../core/knowledge/rag_error_codes.ts';
 import {
+  unsupportedByName,
+  unsupportedTypeError,
+} from '../../core/knowledge/rag_unsupported.ts';
+import {
   searchKnowledge,
   type SearchKnowledgeArgs,
 } from '../../core/knowledge/search.ts';
@@ -67,7 +70,6 @@ import { ExtractionError } from '../../core/lib/knowledge/extraction/errors.ts';
 import {
   extractDocument,
   type ExtractedDocument,
-  isImageFile,
   isSupported,
 } from '../../core/lib/knowledge/extraction/router.ts';
 import { extractTextFromTextBytes } from '../../core/lib/knowledge/extraction/text.ts';
@@ -85,7 +87,6 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
 import { indexingStateFrom } from '../file_metadata/indexing-state.ts';
 import {
   documentFolderPathFrom,
@@ -105,6 +106,11 @@ import {
   type MessageCandidate,
   type UnboundFileCandidate,
 } from './retrievable.ts';
+import {
+  HELD_BY_DOCUMENT_SQL,
+  hintDocumentLists,
+  type MovedStatusRow,
+} from './status-hints.ts';
 
 /**
  * Knowledge (RAG) — the retrieval and ingest lanes over the knowledge
@@ -577,9 +583,9 @@ async function requireOrgSlug(
  * be queued). Only the plain-text extractor's own extensions are served, and
  * only under {@link ON_DEMAND_TEXT_MAX_BYTES}: anything else needs the
  * indexer's extractors and pages through its chunks, so the answer for it is
- * the file's TRUE indexing state — and whether a document holds the file,
- * the one kind of file a person can index by hand — which the caller turns
- * into the miss.
+ * the file's TRUE indexing state — whether a document holds the file, the one
+ * kind of file a person can index by hand, and whether an index run could
+ * read it at all — which the caller turns into the miss.
  *
  * Admission is the CALLER's job (the shared reader checks the ref through
  * `filterRetrievableRagFileIds` first); this reads the org's own row only,
@@ -630,6 +636,8 @@ export async function readFileTextOnDemand(
     sizeBytes: row.size,
     indexing,
     heldByDocument: row.heldByDocument,
+    // False when the indexer's by-name rule already decides a run's answer.
+    extractable: unsupportedByName(row.fileName) === null,
     reason,
   });
   if (!isOnDemandReadableName(row.fileName)) return unreadable('binary');
@@ -761,37 +769,14 @@ export async function ensureDefaultCorpusSchema(): Promise<void> {
 }
 
 /**
- * The file rows a document list shows, as SQL over a file row aliased `fm`:
- * those a document holds as its current blob. Every list renders the status
- * through exactly this join (`documents.file_ref` = the row's `storage_ref`,
- * indexed as `documents_org_file_ref`), and the one door that starts an index
- * run by hand (`queueRagIndexingRetry`, behind Index now and Reindex) reaches
- * a file the same way. A row no document holds is an attachment — a chat,
- * task or email file — which no list shows and no door indexes.
- */
-export const HELD_BY_DOCUMENT_SQL =
-  'EXISTS (SELECT 1 FROM app.documents d ' +
-  'WHERE d.org_id = fm.org_id AND d.file_ref = fm.storage_ref)';
-
-/**
  * Move a file's indexing state, and TELL the surfaces watching it.
  *
- * The document list renders this column (`ragStatus`, joined onto the file
- * row by blob ref), and a browser only refetches when a hint names the entity
- * it is holding. Without the hint the row keeps whatever state the page was
- * loaded with — an upload that indexed in three seconds reads "Indexing"
- * until someone reloads by hand, which is what shipped.
- *
- * Org-wide (`entityId: null`): the status lives on the FILE row while the
- * surface is keyed by DOCUMENT, and the list is what has to re-read. Hints
- * carry identity, never data, so the extra breadth costs one refetch of a
- * page the user is already looking at. That is also why a row no list shows
- * ({@link HELD_BY_DOCUMENT_SQL}) gets no hint: an attachment's status is read
- * by the composer's own poll (`/files/statuses`) and the chat turn, and a
- * hint for it would only make every open Documents list in the organization
- * refetch for nothing — once per chat or task upload. A lane that writes the
- * status before its document holds the file emits the document's own hint
- * when it does.
+ * The document list renders this column, and a browser only refetches when a
+ * hint names the entity it is holding. Without the hint the row keeps
+ * whatever state the page was loaded with — an upload that indexed in three
+ * seconds reads "Indexing" until someone reloads by hand, which is what
+ * shipped. The write asks whether a document holds the file and hints the
+ * lists only then (`status-hints.ts`): an attachment is on no list.
  *
  * `ragError` and `ragErrorCode` travel together: the prose is what the failed-
  * indexing dialog prints, the code (`rag_error_codes.ts`) is what it branches
@@ -810,7 +795,7 @@ async function writeRagStatus(
     ragIndexedAt?: number | null;
   },
 ): Promise<void> {
-  const rows = await sql<{ orgId: string; listed: boolean }[]>`
+  const rows = await sql<MovedStatusRow[]>`
     UPDATE app.file_metadata fm SET
       rag_status = coalesce(${patch.ragStatus ?? null}, rag_status),
       rag_progress = ${patch.ragProgress ?? null},
@@ -821,25 +806,19 @@ async function writeRagStatus(
     RETURNING fm.org_id AS "orgId",
               ${sql.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
   `;
-  const row = rows[0];
-  if (row === undefined || !row.listed) return;
-  await emitHintInTx(sql, {
-    orgId: row.orgId,
-    entity: 'document',
-    entityId: null,
-  });
+  await hintDocumentLists(sql, rows);
 }
 
 /**
  * Land a file no text extractor reads on its terminal state: `unsupported`
  * with `unsupported_type`. The indexer writes it when such a file reaches the
- * job; a lane that can tell from the name alone (a sync import's `.loop`, an
- * upload's `.zip`, a replaced `.doc`) writes the same state through
- * {@link markRagUnsupportedIfNoExtractor} instead of queueing a job the
- * indexer would only refuse — and instead of leaving the status empty, which
- * the document list reads as "Not indexed" with a retry that can never
- * succeed and REST as `pending`. One writer, so every lane carries the same
- * sentence and code.
+ * job (`unsupportedByName`); a lane that can tell from the name alone (a sync
+ * import's `.loop`, an upload's `.zip`, a replaced `.doc`) writes the same
+ * state through {@link markRagUnsupportedIfNoExtractor} instead of queueing a
+ * job the indexer would only refuse — and instead of leaving the status
+ * empty, which the document list reads as "Not indexed" with a retry that can
+ * never succeed and REST as `pending`. Both take the sentence and the code
+ * from `rag_unsupported.ts`, so every lane carries the same pair.
  */
 async function markRagUnsupportedType(
   sql: Sql,
@@ -851,12 +830,6 @@ async function markRagUnsupportedType(
     ragError: unsupportedTypeError(fileName),
     ragErrorCode: RAG_ERROR_UNSUPPORTED_TYPE,
   });
-}
-
-/** The sentence `unsupported_type` carries — the failed-indexing dialog, REST
- * `indexing.error` and the retry door's refusal all print it. */
-export function unsupportedTypeError(fileName: string): string {
-  return `No text extractor exists for "${fileName}".`;
 }
 
 /**
@@ -1054,24 +1027,16 @@ export async function indexUploadedFile(
     return;
   }
 
-  if (!isSupported(file.fileName)) {
-    await markRagUnsupportedType(sql, fileId, file.fileName);
-    return;
-  }
-  // Images route to the vision extractor, and the vision seam is retired
-  // (`extraction/vision_client.ts`): `extractText` below is called with no
-  // vision client, so an image can only ever yield '' — which used to land as
-  // 'failed — Indexing skipped (empty)', a badge that invites the user to
-  // retry a capability that does not exist. An image with nothing to index is
-  // the honest, terminal 'unsupported', decided before any bytes are fetched.
-  // Drop this branch when the vision lane returns and a client is wired in.
-  if (isImageFile(file.fileName)) {
+  // A file no extractor reads, and an image while no vision lane is wired,
+  // land on their honest, terminal 'unsupported' before any bytes are
+  // fetched — the by-name rule the `rag_fetch` miss and the data migrations
+  // read too (`unsupportedByName`).
+  const refused = unsupportedByName(file.fileName);
+  if (refused !== null) {
     await writeRagStatus(sql, fileId, {
       ragStatus: 'unsupported',
-      ragError:
-        `Images cannot be indexed for search: no vision (OCR) model lane is ` +
-        `available to read "${file.fileName}".`,
-      ragErrorCode: RAG_ERROR_IMAGE_NO_VISION,
+      ragError: refused.error,
+      ragErrorCode: refused.code,
     });
     return;
   }
@@ -1406,37 +1371,33 @@ export async function requeueEmbeddingBlockedDocuments(
   args: { organizationId: string },
 ): Promise<{ requeued: number }> {
   return await sql.begin(async (tx) => {
-    const rows = await tx<{ id: string }[]>`
-      UPDATE app.file_metadata SET
+    const rows = await tx<({ id: string } & MovedStatusRow)[]>`
+      UPDATE app.file_metadata fm SET
         rag_status = 'queued',
         rag_queued_at_ms = ${Date.now()},
         rag_error = NULL,
         rag_error_code = NULL
-      WHERE org_id = ${args.organizationId}
-        AND rag_status = 'failed'
-        AND rag_error_code IN (
+      WHERE fm.org_id = ${args.organizationId}
+        AND fm.rag_status = 'failed'
+        AND fm.rag_error_code IN (
           ${RAG_ERROR_EMBEDDING_NOT_CONFIGURED},
           ${RAG_ERROR_EMBEDDING_PROVIDER_REFUSED},
           ${RAG_ERROR_EMBEDDING_UPSTREAM}
         )
-        AND skip_rag_indexing IS DISTINCT FROM true
-      RETURNING id
+        AND fm.skip_rag_indexing IS DISTINCT FROM true
+      RETURNING fm.id, fm.org_id AS "orgId",
+                ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
     `;
     for (const row of rows) {
       await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
     }
-    // The document lists only refetch on a hint (`writeRagStatus`), and the
-    // worker's first 'running' write per file is minutes away behind a
-    // backlog — until then every other viewer kept seeing 'failed — no
-    // embedding model' with the Settings deep link for a problem the admin
-    // had just fixed. Org-wide, like the sibling re-queue's.
-    if (rows.length > 0) {
-      await emitHintInTx(tx, {
-        orgId: args.organizationId,
-        entity: 'document',
-        entityId: null,
-      });
-    }
+    // The document lists only refetch on a hint, and the worker's first
+    // 'running' write per file is minutes away behind a backlog — until then
+    // every other viewer kept seeing 'failed — no embedding model' with the
+    // Settings deep link for a problem the admin had just fixed. Once, and
+    // only when a requeued row is on a list: a batch of chat attachments
+    // tells no one.
+    await hintDocumentLists(tx, rows);
     return { requeued: rows.length };
   });
 }

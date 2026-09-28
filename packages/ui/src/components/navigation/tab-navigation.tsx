@@ -70,6 +70,8 @@ export interface TabNavigationProps {
   prefetch?: boolean;
   /** Additional content to render (e.g., buttons, dropdowns) */
   children?: ReactNode;
+  /** A navigation control that stays in the strip at every breakpoint. */
+  trailing?: ReactNode;
   /**
    * When true (default), applies sticky positioning and z-index.
    * When false, renders without sticky for use inside StickyHeader wrapper.
@@ -99,6 +101,7 @@ export function TabNavigation({
   ariaLabel,
   prefetch = true,
   children,
+  trailing,
   standalone = true,
   dirtyKeys,
   overflow = 'scroll',
@@ -669,6 +672,11 @@ export function TabNavigation({
             )}
           >
             {children}
+          </div>
+        )}
+        {trailing && (
+          <div className="bg-background relative z-[1] flex shrink-0 items-center py-2 pr-4 pl-2">
+            {trailing}
           </div>
         )}
       </nav>

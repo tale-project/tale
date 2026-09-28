@@ -37,7 +37,11 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
   const [closing, setClosing] = useState<MatterRow | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { data: matters, isLoading } = useLegalMatters(organizationId, {
+  const {
+    data: matters,
+    isLoading,
+    isError,
+  } = useLegalMatters(organizationId, {
     status: statusFilter,
   });
 
@@ -159,6 +163,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           // is guaranteed empty.
           disabled={isFilterAffordanceDisabled({
             isLoading,
+            isError,
             itemCount: matters?.length ?? 0,
             hasActiveFilters: statusFilter !== 'all',
           })}

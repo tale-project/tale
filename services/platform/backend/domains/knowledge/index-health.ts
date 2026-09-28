@@ -26,13 +26,17 @@ import {
   RAG_ERROR_INDEX_REPAIR_FAILED,
 } from '../../core/knowledge/rag_error_codes.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
 import {
   writeNotificationForOrgs,
   type WriteNotificationArgs,
 } from '../notifications/service.ts';
+import {
+  HELD_BY_DOCUMENT_SQL,
+  hintDocumentLists,
+  type MovedStatusRow,
+} from './status-hints.ts';
 
 /**
  * Knowledge index health — the boot step, the bring-your-own hook, and the
@@ -663,7 +667,8 @@ const PARKED_BY_INDEX = [
  * Re-queue every file whose indexing was refused because the index was bad,
  * in id order, a bounded batch per transaction, until none is left. Clearing
  * the code in the same UPDATE is what makes the loop terminate; the hint
- * refreshes the document lists already showing the parked rows.
+ * refreshes the document lists already showing the parked rows — none for a
+ * batch of attachments, which no list shows (`status-hints.ts`).
  */
 async function requeueRefusedFiles(
   sql: Sql,
@@ -673,7 +678,7 @@ async function requeueRefusedFiles(
   let total = 0;
   for (;;) {
     const requeued = await sql.begin(async (tx) => {
-      const rows = await tx<{ id: string; orgId: string }[]>`
+      const rows = await tx<({ id: string } & MovedStatusRow)[]>`
         WITH picked AS (
           SELECT id FROM app.file_metadata
            WHERE rag_error_code = ANY(${[...PARKED_BY_INDEX]})
@@ -682,19 +687,18 @@ async function requeueRefusedFiles(
            LIMIT ${REQUEUE_BATCH}
            FOR UPDATE SKIP LOCKED
         )
-        UPDATE app.file_metadata f
+        UPDATE app.file_metadata fm
            SET rag_status = 'queued', rag_error = NULL, rag_error_code = NULL,
                rag_queued_at_ms = ${Date.now()}
           FROM picked
-         WHERE f.id = picked.id
-        RETURNING f.id, f.org_id AS "orgId"
+         WHERE fm.id = picked.id
+        RETURNING fm.id, fm.org_id AS "orgId",
+                  ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
       `;
       for (const row of rows) {
         await addJobInTx(tx, 'rag.index_file', { fileId: row.id });
       }
-      for (const orgId of new Set(rows.map((row) => row.orgId))) {
-        await emitHintInTx(tx, { orgId, entity: 'document', entityId: null });
-      }
+      await hintDocumentLists(tx, rows);
       return rows.length;
     });
     total += requeued;
@@ -706,7 +710,8 @@ async function requeueRefusedFiles(
  * Re-stamp the files parked as "being rebuilt — resumes automatically" once
  * the rebuild is known to have failed: the operator prose and code the
  * failed-indexing dialog branches on, and a hint so the lists showing the
- * old note refresh. One statement — a stamp change, not a claim.
+ * old note refresh (only an organization with such a row on a list). One
+ * statement — a stamp change, not a claim.
  */
 async function failRefusedFiles(
   sql: Sql,
@@ -715,17 +720,16 @@ async function failRefusedFiles(
 ): Promise<number> {
   if (orgIds.length === 0) return 0;
   return sql.begin(async (tx) => {
-    const rows = await tx<{ orgId: string }[]>`
-      UPDATE app.file_metadata
+    const rows = await tx<MovedStatusRow[]>`
+      UPDATE app.file_metadata fm
          SET rag_error = ${indexUnavailableMessage('repair_failed', indexName(index))},
              rag_error_code = ${RAG_ERROR_INDEX_REPAIR_FAILED}
        WHERE rag_error_code = ${RAG_ERROR_INDEX_REBUILDING}
          AND org_id = ANY(${[...orgIds]})
-      RETURNING org_id AS "orgId"
+      RETURNING fm.org_id AS "orgId",
+                ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
     `;
-    for (const orgId of new Set(rows.map((row) => row.orgId))) {
-      await emitHintInTx(tx, { orgId, entity: 'document', entityId: null });
-    }
+    await hintDocumentLists(tx, rows);
     return rows.length;
   });
 }

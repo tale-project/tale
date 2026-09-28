@@ -14,7 +14,11 @@ import {
  */
 describe('AUTOMATION_EDITOR_WORKBENCH_GRID', () => {
   it('fills the Editor tab instead of computing a viewport cap', () => {
-    expect(AUTOMATION_EDITOR_WORKBENCH_GRID).toContain('lg:flex-1');
+    // Unconditional, not `lg:` only: a picked node never grows this row at
+    // any width — below `lg` it opens in a sheet over the canvas instead of
+    // a stacked column, so the canvas has no compact case to floor on.
+    expect(AUTOMATION_EDITOR_WORKBENCH_GRID).toContain('flex-1');
+    expect(AUTOMATION_EDITOR_WORKBENCH_GRID).not.toContain('lg:flex-1');
     expect(AUTOMATION_EDITOR_WORKBENCH_GRID).toContain('min-h-[24rem]');
     expect(AUTOMATION_EDITOR_WORKBENCH_GRID).not.toContain('100dvh');
     expect(AUTOMATION_EDITOR_WORKBENCH_GRID).toContain(

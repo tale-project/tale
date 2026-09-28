@@ -22,8 +22,9 @@ import { viewerIsAdmin } from './service.ts';
  * by the assignment predicate); the contact leg prefilters in SQL and reads
  * at most {@link CONTACT_SCAN_CAP} recent candidates (mail ingest mints a
  * contact per correspondent, so the address book is the one table here that
- * grows without bound). A match older than a cap is invisible — `truncated`
- * states the limit.
+ * grows without bound). A match older than a cap is invisible. `truncated`
+ * states only the conversation and message scan caps; the contact scan cap
+ * and both match caps cut the answer silently.
  */
 
 const SCAN_CAP = 300;

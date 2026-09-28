@@ -30,7 +30,7 @@ export function detectIsStandalone(): boolean {
 
 /** Detect iOS/iPadOS, including iPadOS's desktop-style user agent.
  * This identifies the platform, not a browser engine or its zoom policy. */
-export function detectIsIOS(): boolean {
+function detectIsIOS(): boolean {
   if (typeof window === 'undefined') return false;
   const ua = window.navigator.userAgent;
   return (

@@ -299,18 +299,7 @@ export function NodeInspector({
   );
 }
 
-function NodeFields({
-  headingId,
-  node,
-  nodeType,
-  catalogUnavailable,
-  runView,
-  readOnly,
-  onChange,
-  organizationId,
-  projectId,
-  onDeselect,
-}: {
+export interface NodeFieldsProps {
   headingId: string;
   node: NodeDef;
   nodeType: NodeTypeSummary | undefined;
@@ -321,7 +310,26 @@ function NodeFields({
   organizationId: string;
   projectId?: string;
   onDeselect?: () => void;
-}) {
+}
+
+/**
+ * The node's own fields, with no outer chrome — `NodeInspector`'s `card` and
+ * `panel` variants wrap this in a bordered section; the Editor tab's mobile
+ * sheet (`AutomationEditor`) renders it directly inside a `ResponsiveDialog`
+ * instead, since a sheet's chrome is the dialog's, not this component's.
+ */
+export function NodeFields({
+  headingId,
+  node,
+  nodeType,
+  catalogUnavailable,
+  runView,
+  readOnly,
+  onChange,
+  organizationId,
+  projectId,
+  onDeselect,
+}: NodeFieldsProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const isAgent = node.type === 'agent';

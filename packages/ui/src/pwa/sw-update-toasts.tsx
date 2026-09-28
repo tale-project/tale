@@ -31,7 +31,7 @@ export function SwUpdateToasts() {
           action: (
             <div className={toastActionGroupClassName}>
               <ToastPrimitives.Close asChild>
-                <Button type="button" variant="ghost" size="sm">
+                <Button type="button" variant="secondary" size="sm">
                   {labels.updateLater}
                 </Button>
               </ToastPrimitives.Close>

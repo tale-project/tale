@@ -16,7 +16,10 @@ export function SessionLapseRecovery({
   return (
     <>
       {!recovery.open && (
-        <div className="fixed inset-x-3 top-[calc(0.75rem+var(--safe-top))] z-40 mx-auto max-w-lg">
+        // `z-50`, the page's sticky headers' layer: rendered after the page,
+        // the notice paints over them, and every dialog and sheet, portaled
+        // to `<body>` after the app root, still paints over it.
+        <div className="fixed inset-x-3 top-[calc(0.75rem+var(--safe-top))] z-50 mx-auto max-w-lg">
           <Alert
             title={t('sessionLapse.title')}
             description={t('sessionLapse.paused')}

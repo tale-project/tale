@@ -70,6 +70,7 @@ function makeTask(
   title: string,
   rank: string,
   parentTaskId?: string,
+  overrides: Partial<TaskRow> = {},
 ): TaskRow {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- component fixture: unused backend fields are omitted
   return {
@@ -87,6 +88,7 @@ function makeTask(
     createdByType: 'user',
     createdAt: 0,
     updatedAt: 0,
+    ...overrides,
   } as TaskRow;
 }
 
@@ -102,6 +104,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   localStorage.removeItem('tale.platform.tasks.all.collapsedStatuses');
+  localStorage.removeItem('user-locale');
   document.documentElement.classList.remove('dark');
 });
 
@@ -293,3 +296,192 @@ it.each([400, 1280])(
     expect(onOpenTask).not.toHaveBeenCalled();
   },
 );
+
+// A keyboard drag speaks through dnd-kit's live region. Real task ids are
+// UUIDs, and none may ever be read out (#3561): the fixtures below use them.
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const welcome = makeTask(
+  '064d7f56-a6e7-4131-9078-b4d86022cdf0',
+  'Welcome — meet your assistant',
+  'a0',
+  undefined,
+  { projectKey: undefined, number: 1 },
+);
+const overview = makeTask(
+  '5f877e73-3645-440a-93c4-1fe75819b223',
+  'Draft a company overview',
+  'a1',
+  undefined,
+  { projectKey: undefined, number: 2 },
+);
+const checklist = makeTask(
+  '856b7e51-238c-473d-8985-d3d09a892793',
+  'Draft the onboarding checklist',
+  'a2',
+  undefined,
+  { projectKey: undefined, number: 3, status: 'in_progress' },
+);
+
+/** Every distinct text the live region shows, as Chromium exposes it. */
+function recordAnnouncements() {
+  const lines: string[] = [];
+  const observer = new MutationObserver(() => {
+    const text =
+      document.querySelector('[id^="DndLiveRegion"]')?.textContent ?? '';
+    if (text !== '' && lines.at(-1) !== text) lines.push(text);
+  });
+  observer.observe(document.body, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+  return {
+    lines,
+    stop: () => observer.disconnect(),
+    /** Resolves once the region says `line` (its latest text). */
+    said: (line: string) => expect.poll(() => lines.at(-1)).toBe(line),
+  };
+}
+
+function instructionsOf(title: HTMLElement): string | null | undefined {
+  const id = title.getAttribute('aria-describedby');
+  return id === null ? null : document.getElementById(id)?.textContent;
+}
+
+describe('keyboard drag announcements (real Chromium)', () => {
+  it.each([
+    { layout: 'List', keys: [' ', '{ArrowDown}', '{ArrowDown}', '{Escape}'] },
+    { layout: 'Board', keys: [' ', '{ArrowRight}', '{Escape}'] },
+  ])(
+    'never reads a task id aloud while dragging in the $layout',
+    async ({ layout, keys }) => {
+      await page.viewport(1280, 900);
+      const tasks = [welcome, overview, checklist];
+      render(
+        layout === 'List' ? (
+          <TasksList tasks={tasks} projectKey="GS" canEdit />
+        ) : (
+          <KanbanBoard tasks={tasks} projectKey="GS" canEdit />
+        ),
+      );
+      const said = recordAnnouncements();
+      screen.getByRole('button', { name: welcome.title }).focus();
+      for (const key of keys) {
+        const before = said.lines.length;
+        await userEvent.keyboard(key);
+        await expect.poll(() => said.lines.length).toBeGreaterThan(before);
+      }
+      said.stop();
+      const spoken = said.lines.join('\n');
+      expect(spoken).not.toMatch(UUID);
+      for (const task of tasks) expect(spoken).not.toContain(task._id);
+    },
+  );
+
+  it('names the List task, its status and position, and restores focus on Escape', async () => {
+    await page.viewport(1280, 900);
+    render(<TasksList tasks={[welcome, overview]} projectKey="GS" canEdit />);
+    const said = recordAnnouncements();
+    const title = screen.getByRole('button', { name: welcome.title });
+    expect(instructionsOf(title)).toBe(
+      'Enter opens the task. Space picks it up; then the arrow keys move it, Space drops it and Escape cancels.',
+    );
+    title.focus();
+    await userEvent.keyboard(' ');
+    await said.said(
+      'Picked up GS-1, Welcome — meet your assistant. Status To do, position 1 of 2. Move it with the arrow keys, drop it with Space or cancel with Escape.',
+    );
+    await userEvent.keyboard('{ArrowDown}');
+    await said.said('Status To do, position 2 of 2.');
+    // Past the last row: the next status, empty.
+    await userEvent.keyboard('{ArrowDown}');
+    await said.said('Status In progress, position 1 of 1.');
+    await userEvent.keyboard('{Escape}');
+    await said.said(
+      'Cancelled moving GS-1. It stays in status To do, position 1 of 2.',
+    );
+    await expect
+      .poll(() => document.activeElement?.textContent)
+      .toBe(welcome.title);
+    expect(mutations.move).not.toHaveBeenCalled();
+    said.stop();
+    for (const line of said.lines) {
+      expect(line).not.toMatch(UUID);
+    }
+  });
+
+  it('speaks German on the Board, drops into an empty status and keeps focus on the moved title', async () => {
+    await page.viewport(1280, 900);
+    localStorage.setItem('user-locale', 'de-DE');
+    render(
+      <KanbanBoard
+        tasks={[welcome, overview, checklist]}
+        projectKey="GS"
+        canEdit
+      />,
+    );
+    const title = await screen.findByRole('button', { name: welcome.title });
+    await expect
+      .poll(() => instructionsOf(title))
+      .toBe(
+        'Enter öffnet die Aufgabe. Die Leertaste nimmt sie auf; danach verschieben die Pfeiltasten sie, die Leertaste legt sie ab und Escape bricht ab.',
+      );
+    const said = recordAnnouncements();
+    title.focus();
+    await userEvent.keyboard(' ');
+    await said.said(
+      'Aufgenommen: GS-1, Welcome — meet your assistant. Status Zu erledigen, Position 1 von 2. Verschieben mit den Pfeiltasten, ablegen mit der Leertaste, abbrechen mit Escape.',
+    );
+    // The first press already crosses into the next status: the tilted
+    // drag card is not what dnd-kit measures.
+    await userEvent.keyboard('{ArrowRight}');
+    await said.said('Status In Bearbeitung, Position 1 von 2.');
+    await userEvent.keyboard('{ArrowRight}');
+    await said.said('Status In Prüfung, Position 1 von 1.');
+    await userEvent.keyboard(' ');
+    await said.said('Abgelegt: GS-1 im Status In Prüfung, Position 1 von 1.');
+    await expect.poll(() => mutations.move.mock.calls.length).toBe(1);
+    expect(mutations.move).toHaveBeenCalledWith({
+      taskId: welcome._id,
+      status: 'in_review',
+      beforeTaskId: undefined,
+      afterTaskId: undefined,
+    });
+    await expect
+      .poll(() => document.activeElement?.textContent)
+      .toBe(welcome.title);
+    said.stop();
+    for (const line of said.lines) {
+      expect(line).not.toMatch(UUID);
+    }
+  });
+
+  it('names a task without a key by its title and never falls back to its id once it is gone (French)', async () => {
+    await page.viewport(400, 900);
+    localStorage.setItem('user-locale', 'fr-FR');
+    const view = render(<TasksList tasks={[welcome, overview]} canEdit />);
+    const title = await screen.findByRole('button', { name: overview.title });
+    await expect
+      .poll(() => instructionsOf(title))
+      .toBe(
+        'Entrée ouvre la tâche. Espace la saisit\u00a0; ensuite, les touches fléchées la déplacent, Espace la dépose et Échap annule.',
+      );
+    const said = recordAnnouncements();
+    title.focus();
+    await userEvent.keyboard(' ');
+    await said.said(
+      'Tu as saisi Draft a company overview. Statut À faire, position 2 sur 2. Déplace-la avec les touches fléchées, dépose-la avec Espace ou annule avec Échap.',
+    );
+    // Deleted or archived elsewhere while it is held.
+    view.rerender(<TasksList tasks={[welcome]} canEdit />);
+    await userEvent.keyboard('{Escape}');
+    await said.said(
+      "Cette tâche n'est plus affichée ici\u00a0: elle n'a pas été déplacée.",
+    );
+    expect(mutations.move).not.toHaveBeenCalled();
+    said.stop();
+    for (const line of said.lines) {
+      expect(line).not.toMatch(UUID);
+    }
+  });
+});

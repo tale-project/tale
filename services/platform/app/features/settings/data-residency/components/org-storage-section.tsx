@@ -113,10 +113,11 @@ const FORM_ID = 'org-storage-form';
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
-/** Each capped field with the label its length refusal names. */
+/** Each capped field, in page order, with the label its length refusal
+ * names (the endpoint's short name: its field label carries a hint). */
 const CAPPED_FIELDS = [
   ['region', 'dataResidency.storage.region'],
-  ['endpoint', 'dataResidency.storage.endpoint'],
+  ['endpoint', 'dataResidency.storage.endpointShort'],
   ['bucket', 'dataResidency.orgStorage.bucket'],
   ['prefix', 'dataResidency.orgStorage.prefix'],
   ['accessKeyId', 'dataResidency.storage.accessKeyId'],
@@ -124,6 +125,10 @@ const CAPPED_FIELDS = [
 ] as const satisfies ReadonlyArray<
   readonly [keyof typeof OBJECT_STORAGE_CONNECTION_MAX, string]
 >;
+
+const PAGE_ORDER: readonly (keyof StorageForm)[] = CAPPED_FIELDS.map(
+  ([field]) => field,
+);
 
 /**
  * What the door would refuse in these values, named per field in the
@@ -186,7 +191,11 @@ function storageFormIssues(
       message: t('dataResidency.orgStorage.errors.credentialsPair'),
     });
   }
-  return issues;
+  // In page order, so Test focuses the first refused field the way Save
+  // does: a blank bucket must not take focus from an over-long region.
+  return issues.sort(
+    (a, b) => PAGE_ORDER.indexOf(a.path) - PAGE_ORDER.indexOf(b.path),
+  );
 }
 
 export function OrgStorageSection({

@@ -1,22 +1,15 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { AutomationVersionsTab } from '@/app/features/automations/components/automation-versions-tab';
-import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { paramToAutomationSlug } from '@/lib/automations/slug';
-
+/** Retained history links open the version picker beside the editor tabs. */
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/versions',
 )({
-  component: ProjectAutomationVersionsPage,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor',
+      params,
+      search: { history: true },
+      replace: true,
+    });
+  },
 });
-
-function ProjectAutomationVersionsPage() {
-  const { id: organizationId, projectId, automationSlug } = Route.useParams();
-  return (
-    <AutomationVersionsTab
-      organizationId={organizationId}
-      automationSlug={paramToAutomationSlug(automationSlug)}
-      projectId={asProjectId(projectId)}
-    />
-  );
-}

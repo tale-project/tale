@@ -164,7 +164,9 @@ function ActivityLogViewInner({
           left-aligned in the view's toolbar row, with the page's export menu
           in the actions slot on the same baseline. Single-select; clearing it
           falls back to the default period rather than an unfiltered view,
-          because the summary always needs a window. */}
+          because the summary always needs a window. The period widens the
+          result set, so the shared disabled rule below never fires while it
+          is on the bar — not even for a narrowing filter added beside it. */}
       <DataTableFilters
         filters={filters}
         disabled={isFilterAffordanceDisabled({

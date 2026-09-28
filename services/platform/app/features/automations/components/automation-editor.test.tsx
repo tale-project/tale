@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
+import { AutomationVersionPicker } from './automation-version-picker';
+import { AutomationVersionPickerTarget } from './automation-version-picker-target';
+
 /**
  * The automation page is an editor: its draft lives in the browser and a save
  * APPENDS a version, so these tests hold it to the unified editor contract —
@@ -162,6 +165,7 @@ vi.mock('@tanstack/react-router', async () => {
   // import initializes. Resolve its dependency inside the factory itself.
   const { forwardRef } = await import('react');
   return {
+    useNavigate: () => vi.fn(),
     Link: forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
       { to, params: _params, children, ...rest },
       ref,
@@ -245,17 +249,29 @@ function EditorHarness(props: EditorProps) {
  * harness is keyed on the identity props the way a URL's search belongs to
  * that URL — another automation starts on its latest version.
  */
+function VersionPickerHost({ children }: { children: React.ReactNode }) {
+  const [target, setTarget] = useState<HTMLDivElement | null>(null);
+  return (
+    <AutomationVersionPickerTarget value={target}>
+      <div ref={setTarget} />
+      {children}
+    </AutomationVersionPickerTarget>
+  );
+}
+
 function page(props: EditorProps = {}) {
   return (
     <ActiveEditorProvider>
-      <EditorHarness
-        key={JSON.stringify([
-          props.organizationId ?? 'org-1',
-          props.automationSlug ?? 'billing/dunning',
-          props.projectId ?? null,
-        ])}
-        {...props}
-      />
+      <VersionPickerHost>
+        <EditorHarness
+          key={JSON.stringify([
+            props.organizationId ?? 'org-1',
+            props.automationSlug ?? 'billing/dunning',
+            props.projectId ?? null,
+          ])}
+          {...props}
+        />
+      </VersionPickerHost>
     </ActiveEditorProvider>
   );
 }
@@ -332,6 +348,20 @@ function inspector(): HTMLElement | null {
 }
 
 describe('AutomationEditor', () => {
+  it('never falls back into the editor when the version tab target is absent', () => {
+    render(
+      <AutomationVersionPicker
+        portal
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+        currentVersion={2}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Version' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('omits the pack description from the workbench header', () => {
     state.presentation = {
       name: 'Chase overdue invoices',
@@ -458,7 +488,7 @@ describe('AutomationEditor', () => {
   it('drops the header deploy after switching to the live version', async () => {
     const { user } = renderPage();
     await user.click(versionPicker());
-    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+    await user.click(screen.getByRole('radio', { name: /^v2/ }));
     expect(versionPicker()).toHaveTextContent('v2');
     expect(versionPicker()).not.toHaveTextContent('Live');
     // The one Live badge beside the name — the history is its own tab now.
@@ -474,7 +504,7 @@ describe('AutomationEditor', () => {
     expect(screen.getByRole('button', { name: 'Deploy v3' })).toBeVisible();
 
     await user.click(versionPicker());
-    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+    await user.click(screen.getByRole('radio', { name: /^v2/ }));
 
     expect(versionPicker()).toHaveTextContent('v2');
     expect(versionPicker()).not.toHaveTextContent('Live');
@@ -491,7 +521,7 @@ describe('AutomationEditor', () => {
       const props = projectId === undefined ? {} : { projectId };
       const { user, rerender } = renderPage(props);
       await user.click(versionPicker());
-      await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+      await user.click(screen.getByRole('radio', { name: /^v2/ }));
       expect(versionPicker()).toHaveTextContent('v2');
 
       // A sibling may have fewer versions. Keeping v2 would ask for a version
@@ -550,7 +580,7 @@ describe('AutomationEditor', () => {
   it('reports a picked version to the route and lands on the latest after a save', async () => {
     const { user } = renderPage();
     await user.click(versionPicker());
-    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+    await user.click(screen.getByRole('radio', { name: /^v2/ }));
     expect(onSelectVersion).toHaveBeenLastCalledWith(2);
     expect(versionPicker()).toHaveTextContent('v2');
 
@@ -1023,7 +1053,7 @@ describe('AutomationEditor', () => {
     await editTheNode(user);
 
     await user.click(versionPicker());
-    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+    await user.click(screen.getByRole('radio', { name: /^v2/ }));
     expect(screen.getByText('Show another version?')).toBeVisible();
 
     // Backing out of the question leaves the draft exactly where it was.
@@ -1034,7 +1064,7 @@ describe('AutomationEditor', () => {
     expect(whenField()).toHaveValue('x');
 
     await user.click(versionPicker());
-    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+    await user.click(screen.getByRole('radio', { name: /^v2/ }));
     await user.click(
       screen.getByRole('button', { name: 'Discard and switch' }),
     );

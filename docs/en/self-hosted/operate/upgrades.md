@@ -63,7 +63,7 @@ If the new group does not become healthy within `HEALTH_CHECK_TIMEOUT`, the depl
 
 ## Check migrations and the user outcome
 
-The backend applies numbered SQL migrations at boot under a session advisory lock. Other replicas wait for that migration path. A migration error prevents the new backend from starting normally; inspect its error and the database before retrying. Forward-only migrations are not undone by changing an image tag.
+At boot, the backend applies its numbered migrations in file-name order under a session advisory lock. SQL migrations change the schema; TypeScript data migrations update existing rows by the application's own rules. The `app_migrations` table records both kinds by file name, so each runs once per database. Other replicas wait for that migration path. A migration error prevents the new backend from starting normally; inspect its error and the database before retrying. Forward-only migrations are not undone by changing an image tag.
 
 `tale migrate` refreshes built-in organization defaults; it is not a command for rolling database migrations backward. Review whether local configuration was meant to be replaced before using host-config override options.
 

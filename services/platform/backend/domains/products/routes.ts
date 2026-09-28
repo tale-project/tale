@@ -56,11 +56,25 @@ const productInputSchema = z.object({
   name: productNameSchema,
 });
 
+/**
+ * The app door's image: the managed-upload path an upload returned, else
+ * the shared external-URL rule with its own reasons. A `z.union` of the
+ * two answered every refusal as `invalid_union` "Invalid input", which
+ * dropped the one reason the product form leaves to this door: a host that
+ * is not public ("must name a public host — …").
+ */
+const productAppImageUrlSchema = z.string().transform((value, ctx) => {
+  if (isProductImageUrl(value)) return value;
+  const external = productImageUrlSchema.safeParse(value);
+  if (!external.success) {
+    for (const issue of external.error.issues) ctx.addIssue({ ...issue });
+    return z.NEVER;
+  }
+  return external.data;
+});
+
 const productAppInputSchema = productInputSchema.extend({
-  imageUrl: z
-    .union([productImageUrlSchema, z.string().refine(isProductImageUrl)])
-    .nullable()
-    .optional(),
+  imageUrl: productAppImageUrlSchema.nullable().optional(),
 });
 
 function handleError<E extends OrgEnv>(

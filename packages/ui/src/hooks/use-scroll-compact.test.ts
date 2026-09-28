@@ -87,3 +87,22 @@ it('tracks panes mounted after the navigation effect', () => {
   scroll(90);
   expect(result.current.compact).toBe(false);
 });
+
+it('forces compact for the route floor: scroll, expand and breakpoint changes cannot lift it, leaving does', () => {
+  const { result, rerender } = renderHook(
+    ({ route, forceCompact }) => useScrollCompact(route, false, forceCompact),
+    { initialProps: { route: '/automation/editor', forceCompact: true } },
+  );
+  expect(result.current.compact).toBe(true);
+  // The bar's own tap-to-expand affordance must not win against the page's
+  // floor — an automation canvas that expanded on tap would crowd its own
+  // floating Deploy/Test actions right after the tap that triggered it.
+  act(() => result.current.expand());
+  expect(result.current.compact).toBe(true);
+  scroll(-20);
+  expect(result.current.compact).toBe(true);
+  rerender({ route: '/automation/versions', forceCompact: true });
+  expect(result.current.compact).toBe(true);
+  rerender({ route: '/automations', forceCompact: false });
+  expect(result.current.compact).toBe(false);
+});

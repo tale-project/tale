@@ -586,7 +586,6 @@ automations:
   navigation:
     editor: Éditeur
     general: Général
-    versions: Versions
     runs: Exécutions
   switcher:
     title: Changer d'automatisation
@@ -791,6 +790,8 @@ automations:
       description: Cette automatisation n’a aucune version portant ce numéro — le lien est peut-être périmé, ou le numéro mal saisi.
       openLatest: Ouvrir la plus récente
     controlFlowTitle: Contrôle du flux
+    nodeSheetDescription: Modifie les champs de ce nœud, puis enregistre la
+      modification ou abandonne-la.
     agent:
       equipmentLabel: Équipement
       harnessDefault: Par défaut (Claude Code)
@@ -849,7 +850,6 @@ automations:
     noProjects: Cette organisation n’a pas encore de projets.
   versions:
     title: Versions
-    description: Chaque version enregistrée, la plus récente en premier — ouvre-la pour l'afficher sur le canvas. Une seule est en service à la fois.
     empty: Aucune version n’a encore été enregistrée.
     versionLabel: v{version}
     deployed: En service
@@ -3018,8 +3018,10 @@ governance:
       title: Événements chat-filter
       description:
         Télémétrie des déclencheurs de filtre de contenu (PII, profanité,
-        règles personnalisées). Utile pour ajuster le filtre ; contient des
-        extraits de messages cités.
+        règles personnalisées). Chaque événement contient le filtre, les
+        catégories, la direction et les comptages, jamais le texte détecté.
+        La page Garde-fous et la Santé de l'assistant n'affichent que les
+        événements encore conservés.
       placeholder: ex. 90
       helper: Les lignes de télémétrie de filtre plus anciennes seront supprimées.
     notifications:
@@ -6745,6 +6747,7 @@ settings:
       externalS3: S3 externe
       region: Région
       endpoint: Endpoint (MinIO/R2 ; vide pour AWS)
+      endpointShort: Endpoint
       forcePathStyle: Forcer le path-style (MinIO/R2)
       accessKeyId: Access Key ID
       writeOnly: Écriture seule
@@ -7244,6 +7247,20 @@ tasks:
     noTasks: Aucune tâche
   list:
     showArchived: Afficher les archivées
+  # Glisser au clavier dans le tableau et la liste : les instructions du
+  # titre, puis les annonces en direct. {task} vaut `KEY-12, Titre` à la
+  # saisie, puis `KEY-12` (le titre si le projet n'a pas de clé). Un dépôt
+  # nomme l'endroit, pas un nouveau statut : un workflow peut encore le refuser.
+  drag:
+    instructions: Entrée ouvre la tâche. Espace la saisit ; ensuite, les touches fléchées la déplacent, Espace la dépose et Échap annule.
+    pickedUp: 'Tu as saisi {task}. Statut {status}, position {position} sur {total}. Déplace-la avec les touches fléchées, dépose-la avec Espace ou annule avec Échap.'
+    over: 'Statut {status}, position {position} sur {total}.'
+    noTarget: Aucun statut visé. Déposer ici ne change rien.
+    dropped: 'Tu as déposé {task} dans le statut {status}, position {position} sur {total}.'
+    droppedInPlace: "Tu as déposé {task} à sa place d'origine, dans le statut {status}, position {position} sur {total}."
+    droppedOutside: 'Tu as déposé {task} hors des statuts : elle reste dans le statut {status}, position {position} sur {total}.'
+    cancelled: 'Déplacement annulé : {task} reste dans le statut {status}, position {position} sur {total}.'
+    gone: "Cette tâche n'est plus affichée ici : elle n'a pas été déplacée."
   archived:
     badge: Archivée
   archive:
