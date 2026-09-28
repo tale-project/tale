@@ -865,7 +865,9 @@ if [ "$1" = "daemon" ]; then
   export PYTHONPATH=/agent/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
   export PIP_DISABLE_PIP_VERSION_CHECK=1
   export NPM_CONFIG_PREFIX=/agent/.runtime/deps/node
-  export NODE_PATH=/agent/.runtime/deps/node/lib/node_modules
+  # The session prefix comes first, so a package an exec installs wins over
+  # the image's baked document-skill libraries (Dockerfile) behind it.
+  export NODE_PATH=/agent/.runtime/deps/node/lib/node_modules:/opt/tale/document-node/node_modules
   export PATH=/agent/.runtime/deps/python/bin:/agent/.runtime/deps/node/bin:$PATH
 
   # The image's built-in skills (/opt/agents/skills) are runnerd's: it links

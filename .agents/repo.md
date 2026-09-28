@@ -167,7 +167,10 @@ Repo-dev skills live in [`.agents/skills/`](skills/); run `bun run skills:sync` 
 The product skills are not repo-dev workflows: they live under
 [`configs/platform/custom/skills/`](../configs/platform/custom/skills/) as the builtin catalog every
 org is seeded with — `visual-aspect-analyzer` (also baked into the sandbox image for its
-Playwright/Chromium deps) plus the official document skills `docx`, `pdf`, `pptx`, `xlsx`.
+Playwright/Chromium deps) plus the official document skills `docx`, `pdf`, `pptx`, `xlsx`, whose
+Python and Node libraries the sandbox image bakes from hash-locked files
+(`services/sandbox-runtime/document-python-requirements.txt`, `document-node/`) while the skills
+themselves stay org-seeded.
 
 ## Lint debt ledger
 

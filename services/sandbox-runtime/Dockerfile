@@ -12,7 +12,8 @@
 #
 # Layers: python:3.12-slim-bookworm + uv + Node 24 + fontconfig (Pillow) +
 # the pinned coding-agent CLIs (claude, opencode, hermes, gemini, codex, pi,
-# openclaw, qwen, cursor) + gh + Playwright/Chromium + ripgrep/fd/git. Every
+# openclaw, qwen, cursor) + gh + Playwright/Chromium + ripgrep/fd/git + the
+# hash-locked Python and Node libraries of the builtin document skills. Every
 # harness the platform registry marks managed must have its exec binary
 # here — the image conformance test walks the registry.
 
@@ -298,14 +299,33 @@ RUN set -eux; \
     rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
     gh --version
 
-# Generic document libraries are ready in both session profiles without a
-# first-run download. Hashes cover the complete Python 3.12 dependency graph
-# and both supported Linux architectures; binary-only refuses source builds.
-# Install before Hermes, whose PyYAML pin is the same, so these bytes are
-# checked on their first install. The vision tool keeps its isolated venv.
+# Generic document libraries, plus the ones the builtin document skills
+# (configs/platform/custom/skills/{docx,pdf,pptx,xlsx}) import, are ready in
+# both session profiles without a first-run download, so a deployment whose
+# sandbox egress blocks PyPI still gets the skills' full toolchain. Hashes cover
+# the complete Python 3.12 dependency graph and both supported Linux
+# architectures; binary-only refuses source builds. Install before Hermes,
+# whose pins (PyYAML, Pillow, requests, certifi, cryptography, packaging) the
+# lock resolves to, so these bytes are checked on their first install and the
+# Hermes install keeps them. The vision tool keeps its isolated venv.
 COPY services/sandbox-runtime/document-python-requirements.txt /opt/tale/document-python-requirements.txt
 RUN python3 -m pip install --no-cache-dir --require-hashes --only-binary=:all: \
       -r /opt/tale/document-python-requirements.txt
+
+# The Node libraries the builtin document skills `require()` (docx, pptxgenjs,
+# and the icon set pptxgenjs.md renders through react/react-dom/sharp), for the
+# same egress-restricted deployments. `npm ci` installs exactly the committed
+# lock and checks every tarball against its integrity hash, and
+# --ignore-scripts keeps every package's install script from running (none of
+# these needs one). NODE_PATH makes them resolvable from any working directory;
+# the session entrypoint puts the per-session npm prefix in front of it, so a
+# skill's own `npm install -g` still wins over the baked copy.
+COPY services/sandbox-runtime/document-node/package.json services/sandbox-runtime/document-node/package-lock.json /opt/tale/document-node/
+RUN cd /opt/tale/document-node \
+    && npm ci --ignore-scripts --omit=dev --no-audit --no-fund \
+    && npm cache clean --force \
+    && NODE_PATH=/opt/tale/document-node/node_modules node -e "for (const m of ['docx', 'pptxgenjs', 'react', 'react-dom/server', 'react-icons/fa', 'sharp']) require(m)"
+ENV NODE_PATH=/opt/tale/document-node/node_modules
 
 # Hermes Agent (pinned PyPI wheel) + Tale NDJSON wrapper for sandbox runs.
 RUN pip install --no-cache-dir "hermes-agent==${HERMES_AGENT_VERSION}" \

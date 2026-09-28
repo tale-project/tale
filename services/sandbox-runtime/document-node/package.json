@@ -1,0 +1,16 @@
+{
+  "name": "tale-sandbox-document-node",
+  "private": true,
+  "description": "Node libraries the builtin document skills require, baked into the sandbox runtime image",
+  "dependencies": {
+    "docx": "9.8.1",
+    "pptxgenjs": "4.0.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-icons": "5.7.0",
+    "sharp": "0.35.5"
+  },
+  "overrides": {
+    "image-size": "2.0.4"
+  }
+}
