@@ -55,6 +55,19 @@ describe.each(SHIPPED_LOCALES)(
 );
 
 it('keeps the words of a failure that is not a refusal', async () => {
+  runTest.mockRejectedValue(new Error('The provider timed out'));
+  const { user } = render(
+    <TestConnectionPanel organizationId="org-1" disabled={false} />,
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Run test' }));
+
+  expect(await screen.findByText('The provider timed out')).toBeVisible();
+});
+
+// The browser's own words for a request that got no answer ("Failed to
+// fetch", "Load failed") are English and differ per engine.
+it('says a lost connection in words', async () => {
   runTest.mockRejectedValue(new TypeError('Failed to fetch'));
   const { user } = render(
     <TestConnectionPanel organizationId="org-1" disabled={false} />,
@@ -62,5 +75,10 @@ it('keeps the words of a failure that is not a refusal', async () => {
 
   await user.click(screen.getByRole('button', { name: 'Run test' }));
 
-  expect(await screen.findByText('Failed to fetch')).toBeVisible();
+  expect(
+    await screen.findByText(
+      "Couldn't reach Tale. Check your connection and try again.",
+    ),
+  ).toBeVisible();
+  expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
 });

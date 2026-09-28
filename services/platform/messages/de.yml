@@ -1694,6 +1694,7 @@ common:
     generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
     failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
     sessionEnded: Deine Sitzung ist beendet. Melde dich erneut an.
+    connectionLost: Tale ist nicht erreichbar. Prüfe deine Verbindung und versuch es erneut.
   notFound:
     title: Seite nicht gefunden
     description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
