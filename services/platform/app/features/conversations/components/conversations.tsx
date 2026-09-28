@@ -22,6 +22,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
+import { BULK_CONVERSATION_LIMIT } from '@/lib/shared/conversations/bulk-limit';
 
 import {
   ALL_READ_STATES,
@@ -201,6 +202,7 @@ export function Conversations({
     },
     bulk: {
       isBulkProcessing,
+      bulkProgress,
       bulkSendDialog,
       openBulkSendDialog,
       closeBulkSendDialog,
@@ -279,7 +281,19 @@ export function Conversations({
         hidden={!!selectedConversationId || isActivateEmpty || composing}
         overlay={
           isBulkProcessing ? (
-            <LoadingOverlay message={tConversations('updating')} />
+            <LoadingOverlay
+              message={
+                // A selection larger than one request goes out in batches,
+                // counted off here until the last one settles.
+                bulkProgress !== null &&
+                bulkProgress.total > BULK_CONVERSATION_LIMIT
+                  ? tConversations('bulk.progress', {
+                      settled: bulkProgress.settled,
+                      total: bulkProgress.total,
+                    })
+                  : tConversations('updating')
+              }
+            />
           ) : undefined
         }
       >

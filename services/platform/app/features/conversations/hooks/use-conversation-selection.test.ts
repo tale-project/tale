@@ -80,4 +80,22 @@ describe('useConversationSelection', () => {
     expect(result.current.selectAllChecked).toBe(true);
     expect(result.current.selectedCount).toBe(all.length);
   });
+
+  // What a bulk verb could not change stays selected on its own — an "all"
+  // selection becomes exactly those rows, so a retry reaches no other.
+  it('narrows a selection to the rows it names', () => {
+    const { result } = renderHook(() => useConversationSelection(all));
+
+    act(() => {
+      result.current.handleSelectAll(true);
+    });
+    act(() => {
+      result.current.selectOnly(['c']);
+    });
+
+    expect(result.current.selectedCount).toBe(1);
+    expect(result.current.isConversationSelected('c')).toBe(true);
+    expect(result.current.isConversationSelected('a')).toBe(false);
+    expect(result.current.selectAllChecked).toBe('indeterminate');
+  });
 });

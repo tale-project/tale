@@ -57,6 +57,7 @@ import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
+import { BULK_CONVERSATION_LIMIT } from '@/lib/shared/conversations/bulk-limit';
 
 import { useEnteringKeys } from '../hooks/use-entering-keys';
 import { toHomeConversationItem } from '../hooks/use-home-data';
@@ -285,6 +286,16 @@ export function HomeInboxList({
   ];
 
   const busy = bulk.isBulkProcessing;
+  // A selection larger than one request goes out in batches; the bar counts
+  // them off in place of the selection count until the last one settles.
+  const bulkProgressText =
+    bulk.bulkProgress !== null &&
+    bulk.bulkProgress.total > BULK_CONVERSATION_LIMIT
+      ? tConversations('bulk.progress', {
+          settled: bulk.bulkProgress.settled,
+          total: bulk.bulkProgress.total,
+        })
+      : undefined;
 
   return (
     <>
@@ -342,9 +353,13 @@ export function HomeInboxList({
               aria-label={tCommon('aria.selectAll')}
             />
             <span className="ml-1 min-w-0 flex-1 truncate text-xs font-medium tabular-nums">
-              {tConversations('bulk.selectedCount', {
-                count: selection.selectedCount,
-              })}
+              {bulkProgressText ??
+                tConversations('bulk.selectedCount', {
+                  count: selection.selectedCount,
+                })}
+            </span>
+            <span role="status" className="sr-only">
+              {bulkProgressText}
             </span>
             {status === 'open' && (
               <>

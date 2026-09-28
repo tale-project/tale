@@ -3,6 +3,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { BULK_CONVERSATION_LIMIT } from '../../../lib/shared/conversations/bulk-limit.ts';
 import { hasBodyOrAttachments } from '../../../lib/shared/conversations/outbound-content.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
@@ -603,8 +604,14 @@ export function createConversationRoutes(deps: {
       .enum(['close', 'reopen', 'spam', 'archive', 'unarchive'])
       .safeParse(c.req.param('verb'));
     if (!verb.success) return c.json({ error: 'unknown bulk verb' }, 404);
+    // The Inbox sends a larger selection in batches of this size.
     const body = z
-      .object({ conversationIds: z.array(z.string().max(64)).min(1).max(200) })
+      .object({
+        conversationIds: z
+          .array(z.string().max(64))
+          .min(1)
+          .max(BULK_CONVERSATION_LIMIT),
+      })
       .safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
     // Scope every named row through the viewer's own visibility first.

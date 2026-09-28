@@ -1813,6 +1813,7 @@ conversations:
     sent: E-mail envoyé
   updating: Mise à jour des conversations...
   bulk:
+    progress: 'Mise à jour des conversations... {settled} sur {total}'
     sendMessages: Envoyer les messages
     close: Fermer
     reopen: Rouvrir

@@ -31,6 +31,7 @@ const {
   addMessageToConversation,
   assignConversation,
   assignConversationTeam,
+  bulkSetConversationStatus,
   undoSendMessage,
   retrySendMessage,
   discardOutboundMessage,
@@ -48,6 +49,7 @@ const {
   addMessageToConversation: vi.fn(),
   assignConversation: vi.fn(),
   assignConversationTeam: vi.fn(),
+  bulkSetConversationStatus: vi.fn(),
   undoSendMessage: vi.fn(),
   retrySendMessage: vi.fn(),
   discardOutboundMessage: vi.fn(),
@@ -70,6 +72,7 @@ vi.mock('./service.ts', async (importOriginal) => {
     addMessageToConversation,
     assignConversation,
     assignConversationTeam,
+    bulkSetConversationStatus,
   };
 });
 
@@ -118,6 +121,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
   };
 });
 
+import { BULK_CONVERSATION_LIMIT } from '../../../lib/shared/conversations/bulk-limit.ts';
 import { appJsonBody } from '../../lib/app-json-body.ts';
 import { createConversationRoutes } from './routes.ts';
 import { ConversationError, viewerCanWrite } from './service.ts';
@@ -667,6 +671,53 @@ describe('conversations route — the assignment doors name their target', () =>
       },
     );
   }
+});
+
+/**
+ * The status verbs take at most `BULK_CONVERSATION_LIMIT` ids a request —
+ * the number the Inbox batches a larger selection by, so the two cannot
+ * disagree (#3733).
+ */
+describe('conversations route — a bulk verb names at most one batch', () => {
+  const post = (count: number) =>
+    makeApp().request('/bulk/close?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        conversationIds: Array.from({ length: count }, (_, i) => `c${i}`),
+      }),
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadVisibleConversation.mockResolvedValue({ id: 'c' });
+    bulkSetConversationStatus.mockImplementation(
+      async (_sql: unknown, args: { conversationIds: string[] }) => ({
+        successCount: args.conversationIds.length,
+        failedCount: 0,
+        errors: [],
+      }),
+    );
+  });
+
+  it('takes a full batch', async () => {
+    const res = await post(BULK_CONVERSATION_LIMIT);
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      successCount: BULK_CONVERSATION_LIMIT,
+      failedCount: 0,
+    });
+  });
+
+  it('refuses one id more, naming the field, before any row is read', async () => {
+    const res = await post(BULK_CONVERSATION_LIMIT + 1);
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      data: { issues: [{ path: 'conversationIds' }] },
+    });
+    expect(loadVisibleConversation).not.toHaveBeenCalled();
+    expect(bulkSetConversationStatus).not.toHaveBeenCalled();
+  });
 });
 
 /**

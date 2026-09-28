@@ -1746,6 +1746,7 @@ conversations:
     sent: Email sent
   updating: Updating conversations...
   bulk:
+    progress: 'Updating conversations... {settled} of {total}'
     sendMessages: Send messages
     close: Close
     reopen: Reopen
