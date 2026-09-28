@@ -26,7 +26,7 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
@@ -440,20 +440,35 @@ export async function checkEmailedAttachments(
       };
       // Keep the reads real; pause only at the backing recheck, after its
       // corpus clear has run, so another connection can try a clone then.
+      // The recheck reads on its clear's own app transaction (its statement
+      // timeout is local to it), and only that transaction's reads pause: a
+      // recheck on the pool never reaches the pause, and the lane says so.
+      const pausing = (atx: TransactionSql): TransactionSql =>
+        new Proxy(atx, {
+          apply(target, thisArg, args: unknown[]) {
+            const strings = args[0];
+            if (
+              atRecheck !== undefined &&
+              releaseJudged &&
+              !recheckProbed &&
+              Array.isArray(strings) &&
+              strings.join('').includes('FROM app.file_metadata fm')
+            ) {
+              recheckProbed = true;
+              return atRecheck().then(() =>
+                Reflect.apply(target, thisArg, args),
+              );
+            }
+            return Reflect.apply(target, thisArg, args);
+          },
+        });
       const appReads = new Proxy(sql, {
-        apply(target, thisArg, args: unknown[]) {
-          const strings = args[0];
-          if (
-            atRecheck !== undefined &&
-            releaseJudged &&
-            !recheckProbed &&
-            Array.isArray(strings) &&
-            strings.join('').includes('FROM app.file_metadata fm')
-          ) {
-            recheckProbed = true;
-            return atRecheck().then(() => Reflect.apply(target, thisArg, args));
+        get(target, property, receiver) {
+          if (property !== 'begin') {
+            return Reflect.get(target, property, receiver);
           }
-          return Reflect.apply(target, thisArg, args);
+          return (callback: (atx: TransactionSql) => Promise<unknown>) =>
+            sql.begin((atx) => callback(pausing(atx)));
         },
       });
       const orgRef = { organizationId: orgId, orgSlug };
