@@ -44,7 +44,7 @@ export function SharePointDrivesTable({
                 <Database className="size-4 text-amber-600 dark:text-amber-400" />
               </Row>
               <div className="min-w-0 flex-1">
-                <div className="text-foreground hover:text-primary cursor-pointer truncate font-medium hover:underline">
+                <div className="text-foreground cursor-pointer truncate font-medium hover:underline">
                   {drive.name}
                 </div>
                 {drive.description && (
