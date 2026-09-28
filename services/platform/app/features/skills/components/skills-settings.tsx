@@ -11,7 +11,7 @@ import {
   TableIconCell,
   tableIconCellSkeleton,
 } from '@tale/ui/data-table/table-icon-cell';
-import { useListPage } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
@@ -30,8 +30,6 @@ import {
 import { SkillCreateDialog } from './skill-create-dialog';
 import { SkillDetailDialog } from './skill-pane-dialog';
 import { SkillUploadDialog } from './skill-upload-dialog';
-
-const PAGE_SIZE = 25;
 
 interface SkillSummary {
   slug: string;
@@ -235,7 +233,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
       type: 'query',
       data: skillsQuery.isPending ? undefined : rows,
     },
-    pageSize: PAGE_SIZE,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
     search: {
       fields: ['slug', 'description', 'labelText'],
       placeholder: t('searchPlaceholder'),

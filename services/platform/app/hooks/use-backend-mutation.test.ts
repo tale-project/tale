@@ -47,6 +47,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
 import { useMutation } from '@tanstack/react-query';
 
 import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import {
   LAPSED_SESSION_ANSWER,
   SESSION_ENDED,
@@ -122,6 +123,32 @@ describe('useBackendMutation', () => {
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
+    );
+  });
+
+  it("describes a refused body by the field it names, not 'Try again'", () => {
+    useBackendMutation(mutationName);
+    getRegisteredOnError()(
+      new AppError({
+        code: 'invalid body',
+        message: 'email: Invalid email address',
+      }),
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'email: Invalid email address',
+        variant: 'destructive',
+      }),
+    );
+  });
+
+  it('keeps the generic description for any other failure', () => {
+    useBackendMutation(mutationName);
+    getRegisteredOnError()(
+      new AppError({ code: 'FORBIDDEN', message: 'internal text' }),
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'error.generic.description' }),
     );
   });
 

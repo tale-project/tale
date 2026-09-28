@@ -50,16 +50,25 @@ import { checkNativeIdentity } from './auth/oidc-integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
-import { TASK_TITLE_MAX } from './core/tasks/helpers.ts';
+import {
+  TASK_COMMENT_MAX,
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_TITLE_MAX,
+  taskLimitText,
+} from './core/tasks/helpers.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
+import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
+import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
@@ -70,6 +79,7 @@ import { checkProviderCredentialConfiguration } from './domains/provider_credent
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
@@ -25424,9 +25434,11 @@ async function checkMailboxSyncLane(
     `;
     // The #3220 decision on the row the bind produced: retrievable inside
     // the scope of the conversation it arrived on — the admin reaches Bob's
-    // unassigned thread, the plain inbox member does not. Dispatched the way
-    // the reused search/fetch modules dispatch it: the identity travels as a
-    // top-level `userId`, and the shim resolves the member role behind it.
+    // unassigned thread, the plain inbox member does not — and, being mail,
+    // only through the door that asks for it (the chat tools, which wrap it
+    // as untrusted). Dispatched the way the reused search/fetch modules
+    // dispatch it: the identity travels as a top-level `userId`, and the
+    // shim resolves the member role behind it.
     const filterRetrievable =
       knowledgeShimHandlers(sql)[
         'documents/internal_queries:filterRetrievableRagFileIds'
@@ -25435,12 +25447,19 @@ async function checkMailboxSyncLane(
     const memberRows = await sql<{ id: string }[]>`
       SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
     `;
-    const retrievableFor = async (callerUserId: string | undefined) =>
+    const retrievableFor = async (
+      callerUserId: string | undefined,
+      asksForMail = true,
+    ) =>
       z.array(z.string()).parse(
         await filterRetrievable({
           organizationId: orgId,
           fileIds: [attachment?.storageRef ?? ''],
-          access: { teamIds: [], includeConversationScoped: true },
+          access: {
+            teamIds: [],
+            includeConversationScoped: true,
+            ...(asksForMail ? { includeConversationMessages: true } : {}),
+          },
           ...(callerUserId !== undefined ? { userId: callerUserId } : {}),
         }),
       );
@@ -25449,6 +25468,7 @@ async function checkMailboxSyncLane(
       memberRows[0]?.id ?? 'no-such-user',
     );
     const nobodySees = await retrievableFor(undefined);
+    const otherDoorSees = await retrievableFor(userId, false);
     record(
       'emailed attachment: the bind un-skips, queues and dispatches indexing inside the conversation scope',
       attachmentRows.length === 1 &&
@@ -25460,8 +25480,9 @@ async function checkMailboxSyncLane(
         adminSees.length === 1 &&
         adminSees[0] === attachment.storageRef &&
         memberSees.length === 0 &&
-        nobodySees.length === 0,
-      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0) anonymous=${nobodySees.length} (want 0)`,
+        nobodySees.length === 0 &&
+        otherDoorSees.length === 0,
+      `rows=${attachmentRows.length} (want 1) boundTo=${attachment?.contactEmail ?? 'null'} (want bob@ext.test) skip=${attachment?.skip ?? 'null'} (want false) ragStatus=${attachment?.ragStatus ?? 'null'} (want queued/running/completed) receivedAt=${attachment?.mailReceivedAt !== null && attachment?.mailReceivedAt !== undefined}, indexJobs=${indexJobs[0]?.count} (want 1), admin=${adminSees.length} (want 1) member=${memberSees.length} (want 0) anonymous=${nobodySees.length} (want 0) doorThatDidNotAsk=${otherDoorSees.length} (want 0)`,
     );
 
     // Outbound send through the same door (system caller: runs + audited).
@@ -27164,15 +27185,17 @@ async function checkChatMailAttachmentListing(
   const seedConversation = async (
     subject: string,
     assignment: { userId?: string; teamId?: string },
+    state: { status?: string; lifecycleStatus?: string } = {},
   ): Promise<string> => {
     const rows = await sql<{ id: string }[]>`
       INSERT INTO app.conversations (org_id, subject, status, channel,
                                      direction, assignee_user_id,
                                      assignee_team_id, last_message_at_ms,
-                                     created_at_ms)
-      VALUES (${org}, ${subject}, 'open', 'email', 'inbound',
-              ${assignment.userId ?? null}, ${assignment.teamId ?? null},
-              ${now}, ${now})
+                                     lifecycle_status, created_at_ms)
+      VALUES (${org}, ${subject}, ${state.status ?? 'open'}, 'email',
+              'inbound', ${assignment.userId ?? null},
+              ${assignment.teamId ?? null}, ${now},
+              ${state.lifecycleStatus ?? null}, ${now})
       RETURNING id
     `;
     return rows[0]?.id ?? '';
@@ -27180,6 +27203,14 @@ async function checkChatMailAttachmentListing(
   const unassigned = await seedConversation('Unassigned application', {});
   const mine = await seedConversation('Assigned to me', { userId: memberId });
   const ours = await seedConversation('Assigned to my team', { teamId });
+  // Mail retrieval refuses (a spam verdict, the Trash) is not listed either,
+  // even to the admin who may read every conversation.
+  const junk = await seedConversation('Marked as spam', {}, { status: 'spam' });
+  const expired = await seedConversation(
+    'Expired by the retention window',
+    { userId: memberId },
+    { lifecycleStatus: 'expired' },
+  );
 
   const bind = async (
     conversationId: string,
@@ -27203,6 +27234,8 @@ async function checkChatMailAttachmentListing(
   await bind(ours, 'ours-newest.pdf', now - 1000);
   await bind(unassigned, 'triage-middle.pdf', now - 3000);
   await bind(mine, 'mine-trashed.pdf', now - 500, { trashed: true });
+  await bind(junk, 'spam-newest.pdf', now - 100, { ragStatus: 'completed' });
+  await bind(expired, 'expired-newest.pdf', now - 200);
   // A file with no mail arrival time is not an emailed attachment.
   await sql`
     INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
@@ -27262,7 +27295,8 @@ async function checkChatMailAttachmentListing(
 
   record(
     'chat mail-attachment listing (assignment scope, arrival order, truncated)',
-    // Newest arrival first, the trashed row skipped, the non-mail row absent.
+    // Newest arrival first, the trashed row skipped, the non-mail row absent,
+    // and nothing of a spam or an expired conversation.
     names(admin) === 'ours-newest.pdf|triage-middle.pdf|mine-older.pdf' &&
       !admin.truncated &&
       // A plain member never sees the unassigned triage row.
@@ -36850,6 +36884,7 @@ async function checkAutomationRunToolLane(
     'ask_human',
     'task_find',
     'task_create',
+    'task_comment',
     'task_update_status',
     'task_upsert_by_external_ref',
     'document_create',
@@ -36945,6 +36980,36 @@ async function checkAutomationRunToolLane(
   const overLongRows = await sql<{ id: string }[]>`
     SELECT id FROM app.tasks
     WHERE org_id = ${orgId} AND title = ${overLongTitle}
+  `;
+  // The domain's own refusals reach the model with the sentence that names
+  // the limit, beside their code: a description and a label over the cap on
+  // create, and a comment over the cap. Nothing lands for any of them.
+  const overLongDescription = await dispatch(pinnedToken, 'task_create', {
+    title: 'Overlong description',
+    description: 'd'.repeat(TASK_DESCRIPTION_MAX + 1),
+  });
+  const overLongLabelName = `itest-${'l'.repeat(TASK_LABEL_CHARS_MAX)}`;
+  const overLongLabel = await dispatch(pinnedToken, 'task_create', {
+    title: 'Overlong label',
+    labels: ['itest-fits', overLongLabelName],
+  });
+  const overLongComment = await dispatch(pinnedToken, 'task_comment', {
+    taskId,
+    body: 'c'.repeat(TASK_COMMENT_MAX + 1),
+  });
+  const limitRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${orgId}
+      AND title IN ('Overlong description', 'Overlong label')
+  `;
+  const limitLabels = await sql<{ id: string }[]>`
+    SELECT id FROM app.task_labels
+    WHERE project_id = ${boundProjectId}
+      AND name IN ('itest-fits', ${overLongLabelName})
+  `;
+  const limitComments = await sql<{ messageId: string }[]>`
+    SELECT message_id AS "messageId" FROM app.task_discussion_message_meta
+    WHERE task_id = ${taskId}
   `;
   const found = await dispatch(pinnedToken, 'task_find', {});
   const moved = await dispatch(pinnedToken, 'task_update_status', {
@@ -37250,7 +37315,7 @@ async function checkAutomationRunToolLane(
     `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status}${syncedFirst.status === 'ok' ? '' : ` (first: ${syncedFirst.raw})`}${syncedAgain.status === 'ok' ? '' : ` (again: ${syncedAgain.raw})`} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
   );
   const namesTitleLimit = overLong.raw.includes(
-    `capped at ${TASK_TITLE_MAX} characters`,
+    `capped at ${taskLimitText(TASK_TITLE_MAX)}`,
   );
   record(
     'task_create refuses an over-long title at the tool door, naming the limit',
@@ -37259,6 +37324,31 @@ async function checkAutomationRunToolLane(
       !overLong.raw.includes('TASK_TITLE_INVALID') &&
       overLongRows.length === 0,
     `status=${overLong.status} (want invalid_args), namesLimit=${namesTitleLimit}, rows=${overLongRows.length} (want 0), raw=${overLong.raw.slice(0, 200)}`,
+  );
+  const namesDescriptionLimit = overLongDescription.raw.includes(
+    'TASK_DESCRIPTION_INVALID: The task description is capped at ' +
+      taskLimitText(TASK_DESCRIPTION_MAX),
+  );
+  const namesLabelLimit = overLongLabel.raw.includes(
+    'TASK_LABELS_INVALID: A label name is capped at ' +
+      taskLimitText(TASK_LABEL_CHARS_MAX),
+  );
+  const namesCommentLimit = overLongComment.raw.includes(
+    'TASK_COMMENT_INVALID: The comment is capped at ' +
+      taskLimitText(TASK_COMMENT_MAX),
+  );
+  record(
+    'task tools relay the domain’s limit sentence for a description, a label and a comment over the cap',
+    overLongDescription.status === 'invalid_args' &&
+      namesDescriptionLimit &&
+      overLongLabel.status === 'invalid_args' &&
+      namesLabelLimit &&
+      overLongComment.status === 'invalid_args' &&
+      namesCommentLimit &&
+      limitRows.length === 0 &&
+      limitLabels.length === 0 &&
+      limitComments.length === 0,
+    `description=${overLongDescription.status}/${namesDescriptionLimit}, label=${overLongLabel.status}/${namesLabelLimit}, comment=${overLongComment.status}/${namesCommentLimit} (want invalid_args/true each), rows=${limitRows.length} labels=${limitLabels.length} comments=${limitComments.length} (want 0 each), raw=${[overLongDescription, overLongLabel, overLongComment].map((answer) => answer.raw.slice(0, 160)).join(' | ')}`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
@@ -43376,6 +43466,31 @@ async function checkRetention(
       9, 'imap_smtp', ${userId}, ${ancientConv}, ${ancient}, ${ancient}
     ) RETURNING id
   `;
+  // Its corpus copy, as the indexer leaves it: stamped with its
+  // conversation. The window releases it with the file, as it releases the
+  // conversation's email bodies.
+  const { ensureDefaultCorpusSchema: ensureRetentionCorpus } =
+    await import('./domains/knowledge/service.ts');
+  await ensureRetentionCorpus();
+  const { getKnowledgePoolForOrg: retentionCorpusFor } =
+    await import('./core/knowledge/pool.ts');
+  const retentionCorpus = await retentionCorpusFor(orgSlug);
+  await retentionCorpus.unsafe(
+    `INSERT INTO private_knowledge.documents
+         (org_slug, file_id, filename, status, conversation_id)
+     VALUES ($1, 's3:itest/conv-attachment', 'invoice.pdf', 'completed', $2)
+     ON CONFLICT (org_slug, file_id) DO UPDATE SET
+         status = 'completed', conversation_id = EXCLUDED.conversation_id`,
+    [orgSlug, ancientConv],
+  );
+  const convAttachmentCorpusRows = async (): Promise<string | undefined> =>
+    (
+      await retentionCorpus.unsafe<{ count: string }[]>(
+        `SELECT count(*)::text AS count FROM private_knowledge.documents
+          WHERE org_slug = $1 AND file_id = 's3:itest/conv-attachment'`,
+        [orgSlug],
+      )
+    )[0]?.count;
 
   const { runRetentionCleanup } =
     await import('./domains/retention/service.ts');
@@ -43504,6 +43619,7 @@ async function checkRetention(
     SELECT count(*)::text AS count FROM app.file_metadata
     WHERE id = ${convAttachment[0]?.id ?? ''}
   `;
+  const convAttachmentCorpusLeft = await convAttachmentCorpusRows();
   record(
     'retention: external conversations age by last message, org hold freezes',
     // The org hold froze the ancient conversation on the first run.
@@ -43515,9 +43631,11 @@ async function checkRetention(
       // The email BODIES ride the parent's ON DELETE CASCADE...
       convBodiesLeft.length === 0 &&
       // ...and the stored mail attachment, which no temp-file sweep can
-      // reach, goes with them instead of outliving the mail forever.
-      convAttachmentGone[0]?.count === '0',
-    `frozenConv=${frozenConv[0]?.count} (want 1), left=${convLeft.map((row) => row.subject).join(',')} (want rt-conv-fresh,rt-conv-silent), bodies=${convBodiesLeft.length} attachment=${convAttachmentGone[0]?.count} (both want 0)`,
+      // reach, goes with them instead of outliving the mail forever — its
+      // corpus copy with it.
+      convAttachmentGone[0]?.count === '0' &&
+      convAttachmentCorpusLeft === '0',
+    `frozenConv=${frozenConv[0]?.count} (want 1), left=${convLeft.map((row) => row.subject).join(',')} (want rt-conv-fresh,rt-conv-silent), bodies=${convBodiesLeft.length} attachment=${convAttachmentGone[0]?.count} attachmentCorpus=${convAttachmentCorpusLeft} (all want 0)`,
   );
 
   // With a deletion grace configured the conversation sweep is TWO-PASS
@@ -54465,6 +54583,15 @@ async function main(): Promise<void> {
           }),
       ],
       [
+        'checkEmailedAttachments',
+        () =>
+          checkEmailedAttachments(sql, authCtx, `itest-${orgSuffix}`, {
+            record,
+            waitFor,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
+      ],
+      [
         'checkChat',
         () => checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
@@ -54598,8 +54725,16 @@ async function main(): Promise<void> {
         () => checkAutomationTriggerDelivery(sql, baseUrl, authCtx),
       ],
       [
+        'checkTriggerPauseAfterFailures',
+        () => checkTriggerPauseAfterFailures(sql, authCtx, record),
+      ],
+      [
         'checkDeletedOrgSchedules',
         () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
+      [
+        'checkTriggerStreakLockOrder',
+        () => checkTriggerStreakLockOrder(sql, authCtx, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
@@ -54899,6 +55034,10 @@ async function main(): Promise<void> {
         },
       ],
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
+      [
+        'checkSandboxRetiredTablesDropped',
+        () => checkSandboxRetiredTablesDropped(sql, record),
+      ],
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),

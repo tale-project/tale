@@ -15,6 +15,8 @@ import { TriggerEditor } from './trigger-editor';
 interface AutomationGeneralTabProps {
   organizationId: string;
   automationSlug: string;
+  /** Set on the project's route: what the tab links opens under it. */
+  projectId?: string | undefined;
 }
 
 /**
@@ -42,6 +44,7 @@ export function AutomationGeneralTab(props: AutomationGeneralTabProps) {
 function AutomationGeneralScope({
   organizationId,
   automationSlug,
+  projectId,
 }: AutomationGeneralTabProps) {
   const ability = useAbility();
   // Mirrors the backend: triggers and bindings are developer-gated writes.
@@ -61,6 +64,7 @@ function AutomationGeneralScope({
             name={automationSlug}
             canEdit={canEdit}
             deployedVersion={automationQuery.data?.deployedVersion}
+            projectId={projectId}
           />
           <ProjectBindingsSection
             organizationId={organizationId}

@@ -90,10 +90,21 @@ First check **Enabled**, the deployed version and the last-fired information. Th
 | `not_deployed` | Deploy a tested version. A saved draft is insufficient. |
 | `start_refused` | Compare the deployed input schema with the trigger’s actual wrapper and resolve the reported validation or start error. |
 | `unusable_cron` | Correct the expression or timezone and save it again. Other schedules continue while this one is skipped. |
+| `paused_after_failures` | The schedule turned itself off after repeated failures. See [When a schedule pauses itself](#when-a-schedule-pauses-itself). |
 | Webhook credential refused | Check the current URL and enabled state. Unknown and disabled tokens intentionally receive the same refusal. |
 | Run exists but did not finish | Open [execution logs](/platform/automations/execution-logs); the start succeeded and the issue is inside the run. |
 
 The last-fired timestamp advances when a run actually starts. A due trigger that cannot start work records a skip instead. This separates a broken schedule from a workflow that started and later failed.
+
+## When a schedule pauses itself
+
+A schedule whose runs fail the same way at every occurrence would otherwise keep failing indefinitely. Tale counts the runs a trigger starts that fail with an error a retry won't fix: the automation's own code (`node_error`), a connector (`connector_error`), a model reply that does not match its schema (`llm_output_invalid`), or the organization's model provider (`auth_error`, `missing_api_key`, `credit_exhausted`, `model_not_found`). A successful run resets the count. Other failures, such as a rate limit or an unreachable provider, neither count nor reset it.
+
+After five such failures in a row, the schedule turns **Enabled** off and records `paused_after_failures`. The **Trigger** section then shows the pause, the last failure's code and time, and **View run**, which opens that run. While runs are failing but the schedule is still on, the section shows how many failed in a row. Owners and Admins get a bell notification, which also reaches them by email when the organization has a connected mailbox, and the audit log records the pause. They can switch these notices off with **Automation alerts** under **Settings > Notifications**.
+
+Open the failed run to read the error, and fix the automation or its connection. Then turn on **Enabled** and save. Saving the trigger starts a new count, whether it turns the schedule back on or leaves it off, and marks the notices read.
+
+Webhook and platform-event triggers count failures the same way but are never paused. Their runs carry a delivery or an event, which a paused trigger would drop.
 
 ## Pause or replace the trigger
 

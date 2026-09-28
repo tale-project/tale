@@ -44,8 +44,11 @@ vi.mock('../hooks/use-teams-table-config', () => ({
   }),
 }));
 
-vi.mock('./teams-action-menu', () => ({
-  TeamsActionMenu: () => <button type="button">Create team</button>,
+// The dialog's own form is covered by `team-create-dialog.test.tsx`; here it
+// only has to say whether the table opened it.
+vi.mock('./team-create-dialog', () => ({
+  TeamCreateDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Create team dialog" /> : null,
 }));
 
 // Bulk delete runs the same atomic door as the single-row dialog
@@ -86,6 +89,31 @@ describe('TeamsTable', () => {
 
     expect(container.querySelector('.overscroll-contain')).toBeNull();
     expect(container.querySelector('.overflow-x-auto')).not.toBeNull();
+  });
+
+  // The create button is DataTable's standard `addAction`: the toolbar keeps
+  // it beside the search box, rows or none, and it opens the create dialog.
+  describe('create action', () => {
+    it.each([
+      ['with teams', [makeTeam()]],
+      ['when empty', []],
+    ])('opens the create dialog from the toolbar %s', async (_, teams) => {
+      const { user } = renderTable(
+        <TeamsTable teams={teams} organizationId="org-1" />,
+      );
+
+      const create = screen.getAllByRole('button', { name: 'Create team' });
+      expect(create).toHaveLength(1);
+      expect(
+        screen.queryByRole('dialog', { name: 'Create team dialog' }),
+      ).toBeNull();
+
+      await user.click(create[0] as HTMLElement);
+
+      expect(
+        screen.getByRole('dialog', { name: 'Create team dialog' }),
+      ).toBeInTheDocument();
+    });
   });
 
   describe('accessibility', () => {

@@ -154,9 +154,18 @@ export interface TriggerView {
   lastFiredAt?: number;
   lastRunId?: string;
   /** The last time the binding came due and started nothing, and why:
-   * `not_deployed`, `unusable_cron` or `start_refused`. */
+   * `not_deployed`, `unusable_cron` or `start_refused` — or when a schedule
+   * paused itself, `paused_after_failures`. */
   lastSkippedAt?: number;
   lastSkipReason?: string;
+  /** Permanent failures in a row among the runs it started since it was
+   * last saved; a schedule pauses itself when they reach the threshold.
+   * A host that keeps no streak (the selftest store) leaves it out. */
+  consecutiveFailures?: number;
+  /** The last of those failures: when, its `failureCode`, and its run. */
+  lastFailedAt?: number;
+  lastFailureCode?: string;
+  lastFailedRunId?: string;
 }
 
 /** What binding a trigger changed besides recording it: `revoked` names a

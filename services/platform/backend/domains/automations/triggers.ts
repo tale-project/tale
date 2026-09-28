@@ -25,11 +25,13 @@ import {
   checkIpRateLimit,
   checkKeyedRateLimit,
 } from '../../lib/rate-limit.ts';
+import { lockAuditChain } from '../audit_logs/service.ts';
 import {
   AutomationError,
   beginRunInTx,
   getRun,
   resolveRunProject,
+  type TriggerSkipReason,
 } from './store.ts';
 
 /**
@@ -102,9 +104,11 @@ const TRIGGER_COLUMNS = `
   updated_at_ms::float8 AS "updatedAt"
 `;
 
-/** Why a binding came due and started nothing — the ledger's closed set
- * (the column's CHECK, migration 0096). */
-type SkipReason = 'not_deployed' | 'unusable_cron' | 'start_refused';
+/** Why a binding came due and started nothing — the delivery paths' part of
+ * the ledger's closed set (`TriggerSkipReason`; the column's CHECK). The
+ * rest, a schedule that paused itself, is stamped by `trigger-failures.ts`
+ * when a run lands. */
+type SkipReason = Exclude<TriggerSkipReason, 'paused_after_failures'>;
 
 /** A schedule whose expression cannot be read is left alone until its next
  * edit; should the stamp that keeps it out of the page ever fail to hold,
@@ -285,10 +289,15 @@ export async function scanScheduledTriggers(
       // precede the run it names and a start that fails to commit takes
       // its claim with it. What the deployed version refuses keeps its
       // claim — rolling it back would retry the same refusal every minute.
+      // Re-check the binding as well as the cursor: a run may have paused
+      // it, or a person may have saved it, since this page was read. That
+      // stale occurrence has no authority to start another run.
       const outcome = await sql.begin(async (tx) => {
         const claimed = await tx<{ id: string }[]>`
           UPDATE app.automation_triggers SET last_due_at_ms = ${due}
           WHERE id = ${trigger.id}
+            AND kind = 'schedule' AND enabled = true
+            AND updated_at_ms = ${trigger.updatedAt}
             AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
                  OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${due})
           RETURNING id
@@ -375,7 +384,17 @@ export async function scanScheduledTriggers(
 }
 
 /** Platform events → enabled `event` triggers of the org. Events raised BY
- * an automation run never fire triggers (loop safety). */
+ * an automation run never fire triggers (loop safety).
+ *
+ * Before it stamps a trigger, the dispatch takes the organization's audit
+ * chain (`lockAuditChain`): a run of that trigger landing meanwhile holds
+ * the chain for its audit row and only then writes the trigger's failure
+ * streak (`trigger-failures.ts`), so the chain comes first here too. Most
+ * producers audit before they emit and hold it already; one that emits
+ * first (a comment edit, a conversation opened before its first message, an
+ * external-ref intake) now takes it at the dispatch instead of at its own
+ * audit a few statements later — never the trigger row first, which is
+ * what deadlocked against the landing run. */
 export async function dispatchAutomationEvent(
   tx: TransactionSql,
   args: {
@@ -396,6 +415,8 @@ export async function dispatchAutomationEvent(
     WHERE org_id = ${args.organizationId} AND kind = 'event'
       AND enabled = true AND event = ${args.event}
   `;
+  if (triggers.length === 0) return { started: [], refused: false };
+  await lockAuditChain(tx, args.organizationId);
   const started: string[] = [];
   for (const trigger of triggers) {
     // The producer's transaction carries the run AND the stamp that names

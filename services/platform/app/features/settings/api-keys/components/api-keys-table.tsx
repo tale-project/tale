@@ -1,20 +1,20 @@
 'use client';
 
-import { Button, buttonVariants } from '@tale/ui/button';
+import { buttonVariants } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { Stack } from '@tale/ui/layout';
 import { useListPage } from '@tale/ui/use-list-page';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { BookOpen, Key, Plus } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import { useRevokeApiKey } from '../hooks/use-api-keys';
 import { useApiKeysTableConfig } from '../hooks/use-api-keys-table-config';
 import type { ApiKey } from '../types';
-import { ApiKeysActionMenu } from './api-keys-action-menu';
+import { ApiKeyCreateDialog } from './api-key-create-dialog';
 
 interface ApiKeysTableProps {
   apiKeys: ApiKey[] | undefined;
@@ -47,8 +47,8 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
   const { t: tSettings } = useT('settings');
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  // Lifted so the action menu and the empty-state CTA share one dialog.
   const [createOpen, setCreateOpen] = useState(false);
+  const createTriggerRef = useRef<HTMLButtonElement>(null);
   const revokeApiKey = useRevokeApiKey(organizationId);
 
   const handleClearSelection = useCallback(() => {
@@ -76,8 +76,6 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
     },
   });
 
-  const hasKeys = apiKeys && apiKeys.length > 0;
-
   return (
     <Stack gap={0}>
       <DataTable
@@ -86,49 +84,19 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
         enableRowSelection
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        actionMenu={
-          <ApiKeysActionMenu
-            organizationId={organizationId}
-            createOpen={createOpen}
-            onCreateOpenChange={setCreateOpen}
-          />
-        }
+        // The standard create affordance. With no search box on this table,
+        // DataTable puts it in the empty state while there are no keys and in
+        // the toolbar once there are — one Create button either way.
+        addAction={{
+          triggerRef: createTriggerRef,
+          label: tSettings('apiKeys.createKey'),
+          icon: Plus,
+          onClick: () => setCreateOpen(true),
+        }}
         emptyState={{
           icon: Key,
           title: tEmpty('apiKeys.title'),
-          description: (
-            <>
-              {/* `text-balance` evens the two lines so the last word never
-                  strands on its own line (the "REST API" orphan). */}
-              <span className="block text-balance">
-                {tEmpty('apiKeys.description')}
-              </span>
-              {/* Both CTAs share one horizontal row: the primary "Create" and
-                  the secondary docs link sit side by side rather than stacked. */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Plus}
-                  onClick={() => setCreateOpen(true)}
-                >
-                  {tSettings('apiKeys.createKey')}
-                </Button>
-                <a
-                  href="/docs"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonVariants({
-                    variant: 'secondary',
-                    size: 'sm',
-                  })}
-                >
-                  <BookOpen className="mr-2 size-4" />
-                  {tSettings('apiDocs.openDocs')}
-                </a>
-              </div>
-            </>
-          ),
+          description: tEmpty('apiKeys.description'),
         }}
         footer={
           <BulkDeleteBar
@@ -140,7 +108,15 @@ export function ApiKeysTable({ apiKeys, organizationId }: ApiKeysTableProps) {
         }
         {...list.tableProps}
       />
-      {hasKeys && <ApiDocsLink />}
+      {/* Below the table in every state, so the docs never move between the
+          empty state and the list. */}
+      <ApiDocsLink />
+      <ApiKeyCreateDialog
+        restoreFocusRef={createTriggerRef}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        organizationId={organizationId}
+      />
     </Stack>
   );
 }

@@ -7,6 +7,7 @@ import {
 } from '@tale/ui/data-table/column-builders';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
@@ -115,7 +116,7 @@ export function useApiKeysTableConfig(
     // scrolled from there (#2381, same trap fixed for skills in #2436). Let the
     // settings page own the single vertical scroll instead.
     stickyLayout: false,
-    pageSize: 20,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
     infiniteScroll: false,
   };
 }
