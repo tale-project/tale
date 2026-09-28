@@ -433,7 +433,11 @@ describe('ConnectorsSettings', () => {
         dialog.queryByRole('textbox', { name: /^Name/ }),
       ).not.toBeInTheDocument();
       await user.click(dialog.getByRole('button', { name: 'Connect' }));
-      expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'slack');
+      // An explicit Add: the callback stores a NEW credential, never the
+      // default in its place (#3711).
+      expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'slack', {
+        kind: 'add',
+      });
       expect(createCredential).not.toHaveBeenCalled();
     });
 
@@ -648,6 +652,40 @@ describe('ConnectorsSettings', () => {
       expect(
         menu.queryByRole('menuitem', { name: /Replace/ }),
       ).not.toBeInTheDocument();
+    });
+
+    it('reconnects exactly the row whose menu was used, not the default', async () => {
+      fixtures.connectors = [slackConnector];
+      fixtures.credentials = [
+        credential({
+          id: 'cred-default',
+          name: 'Workspace grant',
+          connectorSlug: 'slack',
+          authMethod: 'oauth2',
+          isDefault: true,
+        }),
+        credential({
+          id: 'cred-sales',
+          name: 'Sales workspace',
+          connectorSlug: 'slack',
+          authMethod: 'oauth2',
+          status: 'needs-reauth',
+        }),
+      ];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Sales workspace' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Reconnect',
+        }),
+      );
+      expect(goToAuthorization).toHaveBeenCalledTimes(1);
+      expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'slack', {
+        kind: 'reconnect',
+        credentialId: 'cred-sales',
+      });
     });
 
     it('deletes only after an explicit confirm', async () => {
