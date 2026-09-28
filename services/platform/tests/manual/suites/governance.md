@@ -44,7 +44,8 @@ Stack up + signed in per [SETUP.md](../setup.md) as owner/admin. Mock mode (A)
 is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
 target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
-select lists only the current admin's keys (`useApiKeys`).
+select lists every member's live key, read from
+`GET /api/app/governance/api-keys` (disabled and expired keys are left out).
 
 > **Agent note**: save → reload → assert the **persisted control state**,
 > never the toast. Voice output autosaves on toggle (no Save button); the
@@ -110,8 +111,10 @@ select lists only the current admin's keys (`useApiKeys`).
   select lists the Developer's key as **opencode · <their name>** beside the
   Admin's own keys, and no key of someone outside the organization; save a
   rule on it → a REST send with the Developer's key over the cap answers 429
-  `BUDGET_EXCEEDED` as in GOV-F4c. `GET /api/app/governance/api-keys` as a
-  non-admin answers 403, and no response carries a key secret.
+  `BUDGET_EXCEEDED` as in GOV-F4c. With the dialog still open, the Developer
+  creates a second key in their own session → it joins the select within
+  seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
+  answers 403, and no response carries a key secret.
 - [ ] `GOV-F6` · **Feedback metrics** — `feedback` → Read-only **Feedback
   Metrics** dashboard renders (`analytics.feedback.title`); with no feedback
   it shows the empty state **No feedback collected yet**
