@@ -13,15 +13,24 @@ import { ProjectSharingSection } from './project-sharing-section';
  * to be mistaken for a narrowing: the removed team was "no longer in the
  * upcoming set", although everyone, that team included, keeps access.
  */
-const { updateSharing, orgTeams } = vi.hoisted(() => ({
-  updateSharing: vi.fn(),
-  orgTeams: {
+type OrgTeam = {
+  id: string;
+  name: string;
+  memberCount: number;
+  createdAt: number;
+};
+
+const { updateSharing, orgTeams } = vi.hoisted(() => {
+  // `current` is `undefined` (and `loading` true) while the org's teams load.
+  const teams: { current: OrgTeam[] | undefined; loading: boolean } = {
     current: [
       { id: 't-one', name: 'Team One', memberCount: 2, createdAt: 0 },
       { id: 't-two', name: 'Team Two', memberCount: 3, createdAt: 0 },
     ],
-  },
-}));
+    loading: false,
+  };
+  return { updateSharing: vi.fn(), orgTeams: teams };
+});
 
 vi.mock('../hooks/mutations', () => ({
   useUpdateProjectSharing: () => ({
@@ -30,7 +39,10 @@ vi.mock('../hooks/mutations', () => ({
   }),
 }));
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => ({ teams: orgTeams.current, isLoading: false }),
+  useOrgTeams: () => ({
+    teams: orgTeams.current,
+    isLoading: orgTeams.loading,
+  }),
   useTeamNames: () => ({
     nameOf: (id: string) => ({ 't-one': 'Team One', 't-two': 'Team Two' })[id],
     isLoading: false,
@@ -105,12 +117,26 @@ describe('ProjectSharingSection', () => {
   });
 });
 
+const AUDIENCE_HELP =
+  /^The teams that can see this project\. Empty means everyone in the organization\./;
+
 describe('ProjectSharingSection accessibility', () => {
   it('names the Audience combobox', () => {
     renderSection([]);
     expect(
       screen.getByRole('combobox', { name: 'Audience' }),
     ).toBeInTheDocument();
+  });
+
+  // Regression (#3522 review): the row shows the help beside the picker, but
+  // only the combobox itself can carry it to a screen reader — the row's
+  // wrapper is a plain div. Before a narrowing change the user must hear that
+  // an empty audience means the whole organization.
+  it('describes the Audience combobox by the row’s help', () => {
+    renderSection(['t-one']);
+    const combobox = screen.getByRole('combobox', { name: 'Audience' });
+    expect(combobox).toHaveAccessibleName('Audience');
+    expect(combobox).toHaveAccessibleDescription(AUDIENCE_HELP);
   });
 });
 
@@ -121,39 +147,45 @@ describe('ProjectSharingSection accessibility', () => {
  * inside the divided field list, not a free-standing (and unnamed) form group.
  */
 describe('ProjectSharingSection chrome', () => {
-  /** The settings field row around `content`, and the label it names itself with. */
+  /** The settings field row around `content`, by the row's own marker. */
   function fieldRowAround(content: HTMLElement) {
-    const row =
-      content.parentElement?.closest<HTMLElement>('[aria-labelledby]');
-    if (!row) throw new Error('no labelled row around the content');
-    const label = document.getElementById(
-      row.getAttribute('aria-labelledby') ?? '',
-    );
-    return { row, label };
+    const row = content.closest<HTMLElement>('[data-settings-field-row]');
+    if (!row) throw new Error('no settings field row around the content');
+    return row;
+  }
+
+  /** A `role="group"` nothing names — noise a screen reader announces. */
+  function unnamedGroups() {
+    return screen
+      .queryAllByRole('group')
+      .filter(
+        (group) =>
+          !group.hasAttribute('aria-labelledby') &&
+          !group.hasAttribute('aria-label'),
+      );
   }
 
   it('puts the Audience picker in a field row with its help beside it', () => {
     const { container } = renderSection(['t-one']);
-    const combobox = screen.getByRole('combobox', { name: 'Audience' });
-    const { row, label } = fieldRowAround(combobox);
+    const row = fieldRowAround(
+      screen.getByRole('combobox', { name: 'Audience' }),
+    );
 
-    expect(label).toHaveTextContent('Audience');
+    expect(within(row).getByText('Audience')).toBeInTheDocument();
     expect(row.className).toContain(FIELD_ROW_FRAME);
-    expect(
-      within(row).getByText(/The teams that can see this project/),
-    ).toBeInTheDocument();
+    expect(within(row).getByText(AUDIENCE_HELP)).toBeInTheDocument();
     // No `<label>` pointing at the combobox div, and no unnamed group.
     expect(container.querySelector('label')).toBeNull();
-    expect(screen.queryByRole('group')).not.toBeInTheDocument();
+    expect(unnamedGroups()).toHaveLength(0);
   });
 
   it('shows a non-admin the effective audience in the same kind of row', () => {
     renderSection(['t-two'], false);
-    const { row, label } = fieldRowAround(screen.getByText('Team Two'));
+    const row = fieldRowAround(screen.getByText('Team Two'));
 
-    expect(label).toHaveTextContent('Effective audience');
+    expect(within(row).getByText('Effective audience')).toBeInTheDocument();
     expect(row.className).toContain(FIELD_ROW_FRAME);
-    expect(screen.queryByRole('group')).not.toBeInTheDocument();
+    expect(unnamedGroups()).toHaveLength(0);
   });
 
   it('offers the create-a-team link in the Audience row when there are no teams', () => {
@@ -161,15 +193,40 @@ describe('ProjectSharingSection chrome', () => {
     orgTeams.current = [];
     try {
       renderSection([]);
-      const link = screen.getByRole('link', { name: 'Create a team' });
-      const { row, label } = fieldRowAround(link);
+      const row = fieldRowAround(
+        screen.getByRole('link', { name: 'Create a team' }),
+      );
 
-      expect(label).toHaveTextContent('Audience');
+      expect(within(row).getByText('Audience')).toBeInTheDocument();
       expect(row.className).toContain(FIELD_ROW_FRAME);
       expect(within(row).getByText(/No teams yet\./)).toBeInTheDocument();
       expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     } finally {
       orgTeams.current = previous;
+    }
+  });
+
+  // Regression (#3522 review): the org's teams are `undefined` until they
+  // load, and the row used to read that as "no teams" — telling an
+  // administrator of an org with teams to go and create one.
+  it('holds the Audience row while the teams load, never claiming there are none', () => {
+    const previous = orgTeams.current;
+    orgTeams.current = undefined;
+    orgTeams.loading = true;
+    try {
+      renderSection(['t-one']);
+      const row = fieldRowAround(
+        screen.getByRole('status', { name: /Loading/ }),
+      );
+
+      expect(within(row).getByText('Audience')).toBeInTheDocument();
+      expect(screen.queryByText(/No teams yet\./)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: 'Create a team' }),
+      ).not.toBeInTheDocument();
+    } finally {
+      orgTeams.current = previous;
+      orgTeams.loading = false;
     }
   });
 });

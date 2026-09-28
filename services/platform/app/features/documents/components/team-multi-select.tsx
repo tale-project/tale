@@ -28,14 +28,19 @@ interface TeamMultiSelectProps {
   id?: string;
   /**
    * Visible label above the picker; it names the combobox (a `<label
-   * htmlFor>` cannot name a `role="combobox"` div). Pass it, or `aria-label`
-   * when the surrounding layout already shows the words — never neither.
+   * htmlFor>` cannot name a `role="combobox"` div). Pass it — or, when the
+   * surrounding layout already shows the words, `aria-labelledby` pointing at
+   * them (`aria-label` when they have no id) — never none of the three.
    */
   label?: ReactNode;
   /** Accessible name when no visible `label` is rendered. */
   'aria-label'?: string;
+  /** Id of the visible words that name the picker, e.g. a settings row's label. */
+  'aria-labelledby'?: string;
   /** Help text under the picker, tied to it as its description. */
   description?: ReactNode;
+  /** Id of help text shown elsewhere, e.g. a settings row's description. */
+  'aria-describedby'?: string;
 }
 
 /**
@@ -55,7 +60,9 @@ export function TeamMultiSelect({
   id,
   label,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
   description,
+  'aria-describedby': ariaDescribedBy,
 }: TeamMultiSelectProps) {
   const { t } = useT('common');
 
@@ -78,7 +85,9 @@ export function TeamMultiSelect({
       id={id}
       label={label}
       aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
       description={description}
+      aria-describedby={ariaDescribedBy}
       value={selectedTeamIds}
       onValueChange={onSelectionChange}
       options={options}

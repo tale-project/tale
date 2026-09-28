@@ -166,6 +166,38 @@ describe('MultiSelect', () => {
       ).toBeInTheDocument();
     });
 
+    // A settings row shows the label and help itself, next to the picker; the
+    // combobox (and its listbox) must still be named and described by them.
+    it('takes its name and description from elements the caller renders', async () => {
+      const { user } = renderDefault({
+        'aria-labelledby': 'row-label',
+        'aria-describedby': 'row-help',
+      });
+      render(
+        <>
+          <span id="row-label">Fruits</span>
+          <p id="row-help">Empty means every fruit.</p>
+        </>,
+      );
+      const combobox = screen.getByRole('combobox', { name: 'Fruits' });
+      expect(combobox).toHaveAccessibleDescription('Empty means every fruit.');
+
+      await user.click(combobox);
+      expect(screen.getByRole('listbox')).toHaveAccessibleName('Fruits');
+    });
+
+    it('adds a caller description to its own', () => {
+      renderDefault({
+        label: 'Fruits',
+        description: 'Pick any.',
+        'aria-describedby': 'row-help',
+      });
+      render(<p id="row-help">Empty means every fruit.</p>);
+      expect(
+        screen.getByRole('combobox', { name: 'Fruits' }),
+      ).toHaveAccessibleDescription('Pick any. Empty means every fruit.');
+    });
+
     it('marks the default trigger disabled', () => {
       renderDefault({ disabled: true });
       expect(screen.getByRole('combobox')).toHaveAttribute(

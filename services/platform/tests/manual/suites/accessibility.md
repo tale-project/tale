@@ -127,7 +127,7 @@ component-level axe coverage comes from `vitest-axe` via
   Documents → **Upload documents** → **From your device**, a row's **Assign
   team**, a project's **New project** and **Sharing** section, and a skill's
   **Team** visibility; read each team combobox in the accessibility tree →
-  Its accessible name is the visible words above it (**Assign to teams**
+  Its accessible name is the visible words above or beside it (**Assign to teams**
   `documents.upload.selectTeams`, **Team** `documents.teamTags.team`,
   `projects.create.audienceLabel`, `projects.settings.audience`,
   `skills.visibility.teamsLabel`), never unnamed; axe `aria-input-field-name`

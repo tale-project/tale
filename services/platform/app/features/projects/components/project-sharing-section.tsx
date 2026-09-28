@@ -1,6 +1,7 @@
 'use client';
 
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
@@ -43,7 +44,7 @@ export function ProjectSharingSection({
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
   // What the viewer may ASSIGN (an admin: every team) — the picker's options.
-  const { teams: assignableTeams } = useOrgTeams();
+  const { teams: assignableTeams, isLoading: teamsLoading } = useOrgTeams();
   // Every team by name — the read-only summary must name a team the viewer
   // is not in, too.
   const { nameOf } = useTeamNames();
@@ -130,16 +131,22 @@ export function ProjectSharingSection({
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
         >
-          <Text variant="muted">
-            {t('sharing.noTeamsHint')}{' '}
-            <Link
-              to="/dashboard/$id/settings/teams"
-              params={{ id: organizationId }}
-              className="text-primary hover:underline"
-            >
-              {t('sharing.noTeamsCreateLink')}
-            </Link>
-          </Text>
+          {/* No teams until the org's teams have loaded: "No teams yet" would
+              be false for an org that has them, so hold the row meanwhile. */}
+          {teamsLoading ? (
+            <Spinner size="sm" label={tCommon('actions.loading')} />
+          ) : (
+            <Text variant="muted">
+              {t('sharing.noTeamsHint')}{' '}
+              <Link
+                to="/dashboard/$id/settings/teams"
+                params={{ id: organizationId }}
+                className="text-primary hover:underline"
+              >
+                {t('sharing.noTeamsCreateLink')}
+              </Link>
+            </Text>
+          )}
         </SettingsFieldRow>
       </SettingsFieldList>
     );
@@ -152,16 +159,20 @@ export function ProjectSharingSection({
           label={t('settings.audience')}
           description={t('settings.audienceHelp')}
         >
-          {/* The row shows the label, so the combobox carries its accessible
-              name itself — a `<label htmlFor>` cannot name a combobox div. */}
-          <TeamMultiSelect
-            aria-label={t('settings.audience')}
-            teams={assignableTeams}
-            selectedTeamIds={teamIds}
-            onSelectionChange={handleChange}
-            orgWideLabel={t('list.sharingOrgWide')}
-            disabled={isPending}
-          />
+          {/* The row shows the label and the help, so the combobox points at
+              both itself: a screen reader hears "Audience" and that an empty
+              audience means the whole organization before it narrows one. */}
+          {({ labelId, descriptionId }) => (
+            <TeamMultiSelect
+              aria-labelledby={labelId}
+              aria-describedby={descriptionId}
+              teams={assignableTeams}
+              selectedTeamIds={teamIds}
+              onSelectionChange={handleChange}
+              orgWideLabel={t('list.sharingOrgWide')}
+              disabled={isPending}
+            />
+          )}
         </SettingsFieldRow>
       </SettingsFieldList>
 

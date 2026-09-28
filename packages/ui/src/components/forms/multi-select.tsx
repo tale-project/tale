@@ -93,8 +93,24 @@ export interface MultiSelectProps {
   sideOffset?: number;
   /** Additional className for the popover content. */
   contentClassName?: string;
-  /** Accessible label for the listbox. */
+  /**
+   * Accessible name for the listbox, and for the default trigger when it has
+   * no `label` and no `aria-labelledby`.
+   */
   'aria-label'?: string;
+  /**
+   * Id(s) of the element(s) that name the default trigger — for a layout that
+   * shows the label itself (a settings row). Wins over `label` and
+   * `aria-label` on the trigger, and names the listbox when no `aria-label`
+   * does. Ignored by a custom `trigger`, which owns its own ARIA.
+   */
+  'aria-labelledby'?: string;
+  /**
+   * Id(s) of help text rendered elsewhere that describes the default trigger
+   * — a settings row's description. Added to the trigger's own `description`,
+   * never replacing it. Ignored by a custom `trigger`.
+   */
+  'aria-describedby'?: string;
   /** Custom filter function; defaults to case-insensitive match on label + description. */
   filterFn?: (option: MultiSelectOption, query: string) => boolean;
   /**
@@ -178,6 +194,8 @@ function MultiSelectBase({
   sideOffset = 4,
   contentClassName,
   'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
   filterFn,
   removeChipLabel,
   optionAction,
@@ -191,6 +209,15 @@ function MultiSelectBase({
   const triggerId = providedId ?? `${instanceId}-trigger`;
   const descriptionId = `${instanceId}-description`;
   const labelId = `${instanceId}-label`;
+  // A `<label htmlFor>` cannot name a role="combobox" div, so name the
+  // trigger explicitly: the caller's labelling element (a settings row's
+  // label), else the visible `label`, else `aria-label`.
+  const triggerLabelledBy = ariaLabelledBy ?? (label ? labelId : undefined);
+  // The trigger's own description plus any help the caller renders elsewhere.
+  const triggerDescribedBy =
+    [description ? descriptionId : undefined, ariaDescribedBy]
+      .filter(Boolean)
+      .join(' ') || undefined;
 
   const valueSet = useMemo(() => new Set(value), [value]);
 
@@ -363,11 +390,9 @@ function MultiSelectBase({
         aria-controls={isOpen ? listboxId : undefined}
         aria-disabled={disabled || undefined}
         aria-invalid={error || undefined}
-        // A `<label htmlFor>` cannot name a role="combobox" div, so name the
-        // trigger explicitly: prefer the visible label, fall back to aria-label.
-        aria-labelledby={label ? labelId : undefined}
-        aria-label={label ? undefined : ariaLabel}
-        aria-describedby={description ? descriptionId : undefined}
+        aria-labelledby={triggerLabelledBy}
+        aria-label={triggerLabelledBy ? undefined : ariaLabel}
+        aria-describedby={triggerDescribedBy}
         onKeyDown={(e) => {
           if (disabled) return;
           if (e.key === 'Enter' || e.key === ' ') {
@@ -490,6 +515,7 @@ function MultiSelectBase({
               role="listbox"
               aria-multiselectable="true"
               aria-label={ariaLabel}
+              aria-labelledby={ariaLabel ? undefined : ariaLabelledBy}
               // With no search input the listbox itself is the focusable, keyboard
               // -operable control, so it carries tabIndex + the roving descendant.
               tabIndex={searchable ? undefined : 0}
