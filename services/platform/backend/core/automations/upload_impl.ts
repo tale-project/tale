@@ -293,7 +293,9 @@ interface SkillWrite {
  * written, `replaced` when the caller confirmed the slug. A carried skill is
  * judged as the skill write rules would write it — the owner the library
  * keeps (never the one a package declares), the private-retired rule — so
- * an unchanged re-upload stays `unchanged`. A differing bundle the caller may
+ * an unchanged re-upload stays `unchanged`, and so does a bundle that still
+ * matches the package byte for byte because it was installed before those
+ * rules applied to carried skills. A differing bundle the caller may
  * not edit refuses outright; differing bundles not yet confirmed are
  * collected for the `needs_confirm` round-trip.
  */
@@ -340,7 +342,12 @@ async function planSkillWrites(
       editable = viewer.isOrgAdmin;
     }
     const files = normalizedBundleFiles(parsed, viewer, current);
-    if (bundlesEqual(stored, files)) {
+    // A bundle installed before carried skills followed the owner rule was
+    // written exactly as the package carried it, usually with no owner. The
+    // same package re-uploaded changes nothing on disk, so it stays
+    // `unchanged`: it neither adopts the skill for its uploader nor refuses
+    // one who could not edit it.
+    if (bundlesEqual(stored, files) || bundlesEqual(stored, skill.files)) {
       plan.push({
         skill,
         parsed,
@@ -363,7 +370,7 @@ async function planSkillWrites(
   if (forbidden.length > 0) {
     refuse(
       'SKILL_CONFLICT_FORBIDDEN',
-      `You cannot overwrite the existing skill(s) ${forbidden.sort().join(', ')} — they belong to another member.`,
+      `You cannot overwrite the existing skill(s) ${forbidden.sort().join(', ')} — you do not have permission to edit them.`,
     );
   }
   if (unconfirmed.length > 0) {

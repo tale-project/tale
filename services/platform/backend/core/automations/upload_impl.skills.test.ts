@@ -195,4 +195,55 @@ describe('an automation package carrying a skill', () => {
     });
     expect(writeSkillBundleFiles).not.toHaveBeenCalled();
   });
+
+  describe('installed ownerless, before carried skills followed the owner rule', () => {
+    /** The library holds the package's SKILL.md exactly as it was carried. */
+    function installVerbatim(skill: string) {
+      vi.mocked(readSkillBundleFiles).mockResolvedValue([
+        {
+          path: 'SKILL.md',
+          contentBase64: Buffer.from(skill).toString('base64'),
+        },
+      ]);
+      vi.mocked(readOrgSkill).mockResolvedValue({
+        slug: 'triage',
+        path: 'skills/triage/SKILL.md',
+        ...parseSkillMd(skill, 'SKILL.md'),
+        etag: '"1"',
+        updatedAt: 1,
+      });
+    }
+
+    it('reports the same package re-uploaded by a Developer as unchanged', async () => {
+      installVerbatim(skillMd(''));
+
+      const again = await uploadAutomationImpl(
+        hostFor(await pack(skillMd(''))),
+        { storageId: 's3:y' },
+      );
+      expect(again).toMatchObject({
+        ok: true,
+        skills: [{ slug: 'triage', action: 'unchanged' }],
+      });
+      expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+    });
+
+    it('still refuses a Developer who changes it, since only an admin edits an ownerless skill', async () => {
+      installVerbatim(skillMd(''));
+
+      const run = uploadAutomationImpl(
+        hostFor(await pack(skillMd('').replace('# Triage', '# Changed'))),
+        { storageId: 's3:y', overwriteSkills: ['triage'] },
+      );
+      await expect(run).rejects.toMatchObject({
+        data: {
+          code: 'SKILL_CONFLICT_FORBIDDEN',
+          message: expect.stringContaining(
+            'you do not have permission to edit them',
+          ),
+        },
+      });
+      expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+    });
+  });
 });
