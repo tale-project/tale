@@ -796,8 +796,8 @@ project (as in AUTO-F32).
   creates no task and no toast, and while A is open again its **Repeat** stays
   locked, with no **Next task** link and no **Stop repeating**; C keeps the
   repeat icon and its close brings back one next task with the toast; once that
-  task is deleted, C's **Repeat** tooltip reads **Its next task was deleted, so
-  this series has ended.** (`tasks.repeat.reason.nextDeleted`) with no **Next
+  task is deleted, C's **Repeat** tooltip reads **Its next task was deleted.
+  This task cannot repeat again.** (`tasks.repeat.reason.nextDeleted`) with no **Next
   task** link, and reopened, C shows no repeat icon, keeps **Repeat** locked,
   and its second close creates nothing and no toast; once the due-date task's
   next task is deleted, no new one appears while the first stays open and due —

@@ -91,6 +91,7 @@ import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.i
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
+import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
@@ -55652,6 +55653,10 @@ async function main(): Promise<void> {
         () => checkProjectTaskMetrics(sql, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
+      [
+        'checkTaskRepeatSeriesUpgrade',
+        () => checkTaskRepeatSeriesUpgrade(sql, authCtx, record),
+      ],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),

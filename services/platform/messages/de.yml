@@ -7367,6 +7367,7 @@ tasks:
     noDueDateHint: Noch kein Fälligkeitsdatum. Wählst du eine Wiederholung, wird die Aufgabe am ersten passenden Tag fällig.
     becomesDue: 'Diese Aufgabe wird am {date} fällig.'
     noDueDateSaved: 'Kein Fälligkeitsdatum: Die Fälligkeit der nächsten Aufgabe richtet sich nach dem Tag, an dem diese erledigt oder abgebrochen wird.'
+    dateOutOfRange: Die nächsten Termine liegen außerhalb des unterstützten Datumsbereichs. Wähle ein früheres Datum.
     dueDateSet: 'Diese Aufgabe ist jetzt am {date} fällig.'
     ruleOnDue: '{rule}, nächste Aufgabe am Fälligkeitstag'
     withParent: 'Mit {parent}'
@@ -7382,7 +7383,7 @@ tasks:
       continued: 'Die Serie geht bei {task} weiter. Ändere die Wiederholung dort.'
       continuedUnnamed: Die Serie geht bei der nächsten Aufgabe weiter. Ändere die Wiederholung dort.
       stopped: Die Serie wurde beendet.
-      nextDeleted: Die nächste Aufgabe wurde gelöscht, deshalb ist die Serie zu Ende.
+      nextDeleted: Die nächste Aufgabe wurde gelöscht. Diese Aufgabe kann sich nicht noch einmal wiederholen.
       automation: Eine Automatisierung führt diese Aufgabe aus, deshalb wiederholt sie sich nicht.
       subtask: 'Diese Teilaufgabe kommt mit {parent} wieder: Jedes Mal, wenn sich {parent} wiederholt, bekommt die nächste Aufgabe eine neue Kopie von ihr.'
       notOpen: Nur offene Aufgaben wiederholen sich.

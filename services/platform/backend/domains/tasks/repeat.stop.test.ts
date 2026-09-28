@@ -153,6 +153,7 @@ function copy(id: string, overrides: Record<string, unknown> = {}) {
     status: 'todo',
     repeat: rule,
     repeatNextTaskId: null,
+    seriesPosition: Number(id.replace('t-', '')) - 1,
     createdAt: WRITTEN,
     updatedAt: WRITTEN,
     commentCount: 0,
@@ -184,11 +185,13 @@ interface Statement {
 
 interface Script {
   task?: TaskRow;
-  chain?: string[];
+  seriesPosition?: number;
   copies?: ReturnType<typeof copy>[];
   tree?: ReturnType<typeof treeRow>[];
   liveAgentRun?: boolean;
   liveAutomationRun?: boolean;
+  editedActivity?: boolean;
+  externalDependency?: boolean;
 }
 
 function fakeTx(script: Script): {
@@ -199,17 +202,26 @@ function fakeTx(script: Script): {
   const statements: Statement[] = [];
   const answer = (text: string): unknown[] => {
     if (text.startsWith('SELECT ? FROM app.tasks WHERE id = ?')) return [task];
-    if (text.startsWith('SELECT repeat_rule AS "repeat" FROM app.tasks')) {
-      return [{ repeat: task.repeat }];
-    }
-    if (text.startsWith('WITH RECURSIVE chain AS')) {
-      return (script.chain ?? []).map((id) => ({ id }));
+    if (text.startsWith('SELECT repeat_rule AS "repeat", repeat_series_id')) {
+      return [
+        {
+          repeat: task.repeat,
+          seriesId: 't-1',
+          seriesPosition: script.seriesPosition ?? 0,
+        },
+      ];
     }
     if (text.startsWith('SELECT id, org_id AS "organizationId"')) {
       // Heap order, not chain order: the service puts them in order.
       return [...(script.copies ?? [])].toReversed();
     }
     if (text.startsWith('WITH RECURSIVE tree AS')) return script.tree ?? [];
+    if (text.startsWith('SELECT id FROM app.task_activity')) {
+      return script.editedActivity === true ? [{ id: 'activity-1' }] : [];
+    }
+    if (text.startsWith('SELECT id FROM app.task_dependencies')) {
+      return script.externalDependency === true ? [{ id: 'edge-1' }] : [];
+    }
     if (text.startsWith('SELECT id FROM app.project_agent_runs')) {
       return script.liveAgentRun === true ? [{ id: 'run-1' }] : [];
     }
@@ -253,7 +265,6 @@ function activity(statements: Statement[]) {
 }
 
 const untouched: Script = {
-  chain: ['t-2'],
   copies: [copy('t-2')],
   tree: [treeRow('t-2', 't-2'), treeRow('c-1', 't-2')],
 };
@@ -341,7 +352,6 @@ describe('stopping a series whose next task nobody has touched', () => {
 
   it('takes back every copy the series has made since, in order', async () => {
     const { tx } = fakeTx({
-      chain: ['t-2', 't-3'],
       copies: [copy('t-2', { repeatNextTaskId: 't-3' }), copy('t-3')],
       tree: [
         treeRow('t-2', 't-2'),
@@ -373,6 +383,43 @@ describe('stopping a series whose next task nobody has touched', () => {
     await expect(stopTaskRepeat(tx, auth('editor'), 't-1')).resolves.toEqual({
       removedNextTask: true,
     });
+  });
+
+  it('takes back a disconnected untouched later copy without inventing its predecessor', async () => {
+    const { tx } = fakeTx({
+      task: closedTask({ repeatNextTaskId: null }),
+      copies: [copy('t-3')],
+      tree: [treeRow('t-3', 't-3')],
+    });
+    await expect(stopTaskRepeat(tx, auth(), 't-1')).resolves.toEqual({
+      removedNextTask: true,
+    });
+    expect(retireTasksInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ taskIds: ['t-3'] }),
+    );
+    const deletion = vi
+      .mocked(createAuditLog)
+      .mock.calls.find(([, row]) => row.action === 'task.deleted');
+    expect(deletion?.[1].metadata).toMatchObject({ stoppedFromTaskId: 't-1' });
+    expect(deletion?.[1].metadata).not.toHaveProperty('repeatOf');
+  });
+
+  it('stops every member but only reclaims copies after the selected task', async () => {
+    const { tx, statements } = fakeTx({
+      task: closedTask({ id: 't-2', repeatNextTaskId: 't-3' }),
+      seriesPosition: 1,
+      copies: [copy('t-1', { repeatNextTaskId: 't-2' }), copy('t-3')],
+      tree: [treeRow('t-3', 't-3')],
+    });
+    await expect(stopTaskRepeat(tx, auth(), 't-2')).resolves.toEqual({
+      removedNextTask: true,
+    });
+    expect(retireTasksInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ taskIds: ['t-3'] }),
+    );
+    expect(ruleClears(statements)).toEqual(['t-1', 't-2']);
   });
 });
 
@@ -425,6 +472,11 @@ describe('a next task someone has touched stays', () => {
       },
     ],
     ['a run is live on it', { ...untouched, liveAgentRun: true }],
+    ['a dependency was edited', { ...untouched, editedActivity: true }],
+    [
+      'it blocks a task outside the copied tree',
+      { ...untouched, externalDependency: true },
+    ],
     [
       'an automation run is live on it',
       { ...untouched, liveAutomationRun: true },
@@ -535,7 +587,9 @@ describe('who may stop a series', () => {
     const rows = statements.find((s) =>
       s.text.startsWith('SELECT id, org_id AS "organizationId"'),
     );
-    expect(rows?.text).toContain('WHERE org_id = ? AND id = ANY(?) FOR UPDATE');
-    expect(rows?.values).toEqual(['org-1', ['t-2']]);
+    expect(rows?.text).toContain(
+      'WHERE org_id = ? AND project_id = ? AND repeat_series_id = ? AND id <> ? ORDER BY id FOR UPDATE',
+    );
+    expect(rows?.values).toEqual(['org-1', 'p-1', 't-1', 't-1']);
   });
 });
