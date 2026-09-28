@@ -17,7 +17,7 @@ import {
   startReactServer,
 } from '@tale/ui/server';
 
-import { buildRedirectPathMap, normalizeRequestPath } from './lib/redirects';
+import { buildRedirectPathMap, resolveRedirect } from './lib/redirects';
 
 const monitoring = initServerMonitoring({
   dsn: process.env.SENTRY_DSN,
@@ -32,9 +32,10 @@ const artifacts = await createPrecompiledServer({
   dir: resolve(import.meta.dir, 'dist-seo'),
 });
 
-// Old → new URL paths for moved or merged pages (`docs/redirects.json`,
-// baked into the bundle at build time). Checked before static serving so
-// stale inbound links 301 to the new locale-preserving path.
+// Old → new URL paths for moved or merged pages (`docs/redirects.json`)
+// and for section folders without a page of their own (derived from
+// `docs/nav.json`), baked into the bundle at build time. Checked before
+// static serving so stale or guessed links 301 to a real page.
 const redirectPaths = buildRedirectPathMap();
 
 startReactServer({
@@ -48,7 +49,7 @@ startReactServer({
   securityHeaders: defaultReactServerSecurityHeaders,
   extraRoutes: (request, url) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') return null;
-    const target = redirectPaths.get(normalizeRequestPath(url.pathname));
+    const target = resolveRedirect(url.pathname, redirectPaths);
     if (!target) return null;
     return new Response(null, {
       status: 301,

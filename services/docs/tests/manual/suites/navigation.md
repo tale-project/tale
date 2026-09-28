@@ -1,6 +1,6 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 22 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 23 boxes
 
 Exercise every way a reader moves through the docs — the navigation rail
 (`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
@@ -27,7 +27,7 @@ guide ([search.md](search.md)).
 ## Preconditions
 
 Bring the site up per [SETUP.md](../setup.md) — either mode for
-NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10) and the PWA
+NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16) and the PWA
 rows (NAV-F11/NAV-F12) need the **built** server (mode A, or `build` + `start`
 per SETUP.md) — the vite dev server serves no 301s, no prerendered stubs, and
 registers no service worker. The rail tree is build-time static;
@@ -134,6 +134,14 @@ this guide focuses on **behaviour**, not link rot.
   long page → The right-hand outline rail is gone and **On this page**
   (`docs.onThisPage`) is a collapsed disclosure above the article; opening it
   reveals the same headings, and choosing one scrolls to that section.
+- [ ] `NAV-F16` · **Guessed addresses** — Built server only — `curl -sI` a
+  section folder, its German twin, an `/en` address and a localized index:
+  `{base}/platform/automations`, `{base}/de/platform/automations`,
+  `{base}/en/platform/workspace/skills`, `{base}/de/llms.txt` → Each answers
+  **HTTP 301** straight to a page that answers 200 — `…/platform/automations/concepts`,
+  `…/de/platform/automations/concepts`, `…/platform/workspace/skills`,
+  `…/llms.txt`; no second hop (section folders derive from `docs/nav.json`'s
+  first page under them; `docs/redirects.json` wins).
 
 ## Boundary & error tests
 

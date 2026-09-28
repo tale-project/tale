@@ -5,8 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildRedirectPathMap,
+  deriveSectionRedirects,
+  navPageSlugs,
   normalizeRequestPath,
   parseRedirects,
+  resolveRedirect,
 } from '@/lib/redirects';
 
 import { assertNoFindings, type Finding } from './lib/findings';
@@ -152,5 +155,132 @@ describe('redirects', () => {
     expect(paths.size).toBe(3);
     expect(normalizeRequestPath('/old/page/')).toBe('/old/page');
     expect(normalizeRequestPath('/')).toBe('/');
+  });
+});
+
+/**
+ * Contract for the addresses answered on top of `redirects.json`: every
+ * section folder under a navigation page lands on a real page in every
+ * locale (in one hop, never shadowing a page), an `/en` prefix resolves to
+ * the root, and a locale-prefixed `llms.txt` resolves to the one index.
+ */
+describe('derived redirects', () => {
+  const paths = buildRedirectPathMap();
+
+  /** Site-relative URL for a route in a locale (English at the root). */
+  const urlFor = (locale: string, route: string) =>
+    locale === 'en'
+      ? `/${route}`.replace(/\/$/, '') || '/'
+      : `/${locale}/${route}`.replace(/\/$/, '');
+
+  /** Every folder prefix of every navigation page, e.g. `platform/admin`. */
+  const folders = [
+    ...new Set(
+      navPageSlugs().flatMap((slug) => {
+        const segments = routeOf(slug).split('/');
+        return segments
+          .slice(1)
+          .map((_, depth) => segments.slice(0, depth + 1).join('/'));
+      }),
+    ),
+  ];
+
+  it.each(BASE_LOCALES)(
+    'every section folder resolves to a real page under %s/',
+    (locale) => {
+      const findings: Finding[] = [];
+      for (const folder of folders) {
+        if (pageExistsForRoute(locale, folder)) continue;
+        const target = paths.get(urlFor(locale, folder));
+        const targetRoute = target
+          ?.replace(locale === 'en' ? /^\// : new RegExp(`^/${locale}/?`), '')
+          .replace(/\/$/, '');
+        if (target === undefined || targetRoute === undefined) {
+          findings.push({
+            file: `${locale}/${folder}`,
+            line: 0,
+            rule: 'section-folder-unresolved',
+            detail: `section folder "${folder}" has no page and no redirect — ${urlFor(locale, folder)} would 404`,
+          });
+        } else if (!pageExistsForRoute(locale, targetRoute)) {
+          findings.push({
+            file: `${locale}/${folder}`,
+            line: 0,
+            rule: 'section-folder-target-missing',
+            detail: `section folder "${folder}" redirects to ${target}, which is not a page under docs/${locale}/`,
+          });
+        }
+      }
+      assertNoFindings(findings, `Unresolved section folders under ${locale}/`);
+    },
+  );
+
+  it('no derived redirect shadows a page on disk in any locale', () => {
+    const derived = deriveSectionRedirects(navPageSlugs(), loadRedirects());
+    const findings: Finding[] = [];
+    for (const folder of Object.keys(derived)) {
+      for (const locale of BASE_LOCALES) {
+        if (pageExistsForRoute(locale, folder)) {
+          findings.push({
+            file: `${locale}/${folder}`,
+            line: 0,
+            rule: 'derived-redirect-shadows-page',
+            detail: `"${folder}" is a page under docs/${locale}/ but missing from nav.json, so the derived redirect would shadow it — add the page to nav.json`,
+          });
+        }
+      }
+    }
+    assertNoFindings(findings, 'Derived redirects shadowing pages');
+  });
+
+  it('no redirect target is itself a redirect source', () => {
+    const findings: Finding[] = [...paths]
+      .filter(([, to]) => paths.has(to))
+      .map(([from, to]) => ({
+        file: 'redirects',
+        line: 0,
+        rule: 'redirect-chain',
+        detail: `${from} → ${to} chains into ${paths.get(to)}`,
+      }));
+    assertNoFindings(findings, 'Redirect chains');
+  });
+
+  it('derives the first page in reading order and lets explicit entries win', () => {
+    const slugs = [
+      'index',
+      'guide/index',
+      'guide/basics/first',
+      'guide/basics/second',
+      'guide/advanced/deep/page',
+      'moved/section/page',
+    ];
+    expect(
+      deriveSectionRedirects(slugs, { moved: 'guide/basics/first' }),
+    ).toEqual({
+      'guide/basics': 'guide/basics/first',
+      'guide/advanced': 'guide/advanced/deep/page',
+      'guide/advanced/deep': 'guide/advanced/deep/page',
+      'moved/section': 'moved/section/page',
+    });
+  });
+
+  it('resolves /en prefixes and locale-prefixed llms files in one hop', () => {
+    const map = buildRedirectPathMap({
+      'old/page': 'new/page',
+      section: 'section/first',
+    });
+    expect(resolveRedirect('/en', map)).toBe('/');
+    expect(resolveRedirect('/en/', map)).toBe('/');
+    expect(resolveRedirect('/en/new/page', map)).toBe('/new/page');
+    expect(resolveRedirect('/en/old/page', map)).toBe('/new/page');
+    expect(resolveRedirect('/en/section/', map)).toBe('/section/first');
+    expect(resolveRedirect('/de/llms.txt', map)).toBe('/llms.txt');
+    expect(resolveRedirect('/fr/llms-full.txt', map)).toBe('/llms-full.txt');
+    expect(resolveRedirect('/en/llms.txt', map)).toBe('/llms.txt');
+    expect(resolveRedirect('/de/old/page', map)).toBe('/de/new/page');
+    expect(resolveRedirect('/de/llms.txt/extra', map)).toBeNull();
+    expect(resolveRedirect('/es/llms.txt', map)).toBeNull();
+    expect(resolveRedirect('/english/page', map)).toBeNull();
+    expect(resolveRedirect('/new/page', map)).toBeNull();
   });
 });

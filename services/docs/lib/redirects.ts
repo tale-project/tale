@@ -10,8 +10,19 @@
  * serves as 301s and `scripts/prerender.ts` writes meta-refresh stubs for.
  * The contract (targets exist, sources don't, no chains) is guarded by
  * `tests/redirects.test.ts`.
+ *
+ * Two families of addresses people and language models guess are answered
+ * on top of that map, so a near miss lands on a page instead of a 404:
+ *
+ *  - a section folder that has no page of its own (`/platform/automations`)
+ *    redirects to the first page under it in `nav.json` order — derived from
+ *    the navigation, never hand-maintained, and `redirects.json` wins;
+ *  - an `/en` prefix (English lives at the root) and a locale-prefixed
+ *    `llms.txt` / `llms-full.txt` (one index covers every locale) resolve
+ *    to the unprefixed address.
  */
 
+import navJson from '../../../docs/nav.json';
 import redirectsJson from '../../../docs/redirects.json';
 import { BASE_LOCALES, type SupportedLocale } from './i18n/locales';
 
@@ -53,8 +64,71 @@ export function parseRedirects(value: unknown): Record<string, string> {
   return redirects as Record<string, string>;
 }
 
+interface RawNavGroup {
+  pages: ReadonlyArray<string | RawNavGroup>;
+}
+
+/** Every page slug in `nav.json`, in reading order. */
+export function navPageSlugs(
+  groups: readonly RawNavGroup[] = (
+    navJson as unknown as { groups: readonly RawNavGroup[] }
+  ).groups,
+): string[] {
+  const out: string[] = [];
+  const walk = (pages: RawNavGroup['pages']) => {
+    for (const entry of pages) {
+      if (typeof entry === 'string') out.push(entry);
+      else walk(entry.pages);
+    }
+  };
+  for (const group of groups) walk(group.pages);
+  return out;
+}
+
+/** A slug's route identity: `foo/index` and `foo` serve the same URL. */
+function routeOf(slug: string): string {
+  return slug === 'index' ? '' : slug.replace(/\/index$/, '');
+}
+
+/**
+ * Section-folder redirects derived from the navigation: every folder prefix
+ * of a page slug that is neither a page nor an explicit redirect source maps
+ * to the first page under it in reading order. The targets are navigation
+ * pages, so no derived entry can chain into another redirect.
+ */
+export function deriveSectionRedirects(
+  pageSlugs: readonly string[],
+  explicit: Record<string, string>,
+): Record<string, string> {
+  const pageRoutes = new Set(pageSlugs.map(routeOf));
+  const explicitRoutes = new Set(Object.keys(explicit).map(routeOf));
+  const derived: Record<string, string> = {};
+  for (const slug of pageSlugs) {
+    const segments = routeOf(slug).split('/');
+    for (let depth = 1; depth < segments.length; depth += 1) {
+      const folder = segments.slice(0, depth).join('/');
+      if (
+        pageRoutes.has(folder) ||
+        explicitRoutes.has(folder) ||
+        folder in derived
+      ) {
+        continue;
+      }
+      derived[folder] = slug;
+    }
+  }
+  return derived;
+}
+
 /** The validated slug map, baked into the bundle at build time. */
-const DOCS_REDIRECTS: Record<string, string> = parseRedirects(redirectsJson);
+const EXPLICIT_REDIRECTS: Record<string, string> =
+  parseRedirects(redirectsJson);
+
+/** Explicit moves plus the derived section folders (explicit entries win). */
+const DOCS_REDIRECTS: Record<string, string> = {
+  ...deriveSectionRedirects(navPageSlugs(), EXPLICIT_REDIRECTS),
+  ...EXPLICIT_REDIRECTS,
+};
 
 /** Site-relative URL for a (locale, slug) pair — mirrors `docPath` in
  *  `lib/content/paths.ts` (English at the canonical path, `de`/`fr`
@@ -96,4 +170,39 @@ export function buildRedirectPathMap(
 export function normalizeRequestPath(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, '');
   return trimmed === '' ? '/' : trimmed;
+}
+
+/** Site-wide files served once at the root for every locale. */
+const ROOT_ONLY_FILES = new Set(['llms.txt', 'llms-full.txt']);
+
+/**
+ * Where a request path should redirect, or `null` to serve it as is. The
+ * path map covers moved pages and section folders; an `/en` prefix and a
+ * locale-prefixed `llms.txt` resolve to their unprefixed address, landing
+ * on the final page in one hop when that address is itself a redirect.
+ */
+export function resolveRedirect(
+  pathname: string,
+  paths: ReadonlyMap<string, string>,
+): string | null {
+  const path = normalizeRequestPath(pathname);
+  const moved = paths.get(path);
+  if (moved) return moved;
+
+  if (path === '/en' || path.startsWith('/en/')) {
+    const unprefixed = path === '/en' ? '/' : path.slice('/en'.length);
+    return paths.get(unprefixed) ?? unprefixed;
+  }
+
+  const [, locale, file, ...rest] = path.split('/');
+  if (
+    rest.length === 0 &&
+    file !== undefined &&
+    ROOT_ONLY_FILES.has(file) &&
+    (BASE_LOCALES as readonly string[]).includes(locale ?? '') &&
+    locale !== 'en'
+  ) {
+    return `/${file}`;
+  }
+  return null;
 }
