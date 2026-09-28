@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { isMissingAutomationRead } from './errors';
+import { i18n } from '@/lib/i18n/i18n';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  lapsedSessionRefusal,
+} from '@/tests/utils/lapsed-session';
+
+import { automationErrorMessage, isMissingAutomationRead } from './errors';
 
 describe('isMissingAutomationRead', () => {
   it("treats the store's null as missing", () => {
@@ -46,4 +53,21 @@ describe('isMissingAutomationRead', () => {
       }),
     ).toBe(false);
   });
+});
+
+// The builder shows the store's own sentence verbatim; a lapsed session's
+// sentence is the app's, in the author's language — never the session door's
+// guidance for API clients.
+describe('automationErrorMessage', () => {
+  it.each(SHIPPED_LOCALES)(
+    "reads a lapsed session's refusal as the session-ended sentence (%s)",
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const refusal: unknown = await lapsedSessionRefusal().catch(
+        (error: unknown) => error,
+      );
+      expect(automationErrorMessage(refusal)).toBe(SESSION_ENDED[locale]);
+      await i18n.changeLanguage('en');
+    },
+  );
 });

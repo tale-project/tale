@@ -124,19 +124,20 @@ describe('backendRefusalReason', () => {
     expect(backendRefusalReason(undefined)).toBeUndefined();
   });
 
-  // The session door's sentence is guidance for an API client (send a key to
-  // the REST API), in English; a toast must not show it to a person whose
-  // session ended.
-  it("is undefined for a lapsed session's 401, never the API-key sentence", () => {
+  // A lapsed session needs no case of its own: the app's normalization
+  // (`toBackendError`) already put the person's sentence where the door's
+  // guidance for API clients was, and the reader hands it on. The whole lane
+  // — the door's answer, normalized, read — is `app/lib/backend/adapters.test.ts`.
+  it("hands on a lapsed session's sentence like any other", () => {
     expect(
       backendRefusalReason(
         new AppError({
           code: 'UNAUTHORIZED',
-          message:
-            'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1',
+          message: 'Your session has ended. Sign in again.',
+          userMessage: 'Your session has ended. Sign in again.',
         }),
       ),
-    ).toBeUndefined();
+    ).toBe('Your session has ended. Sign in again.');
   });
 });
 

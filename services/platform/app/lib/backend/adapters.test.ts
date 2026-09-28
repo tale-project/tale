@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
+import {
+  backendErrorMessage,
+  backendRefusalReason,
+  backendUserMessage,
+} from '@/lib/utils/backend-error';
+import {
+  LAPSED_SESSION_ANSWER,
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  lapsedSessionRefusal,
+} from '@/tests/utils/lapsed-session';
 
 import {
   backendErrorFromResponse,
@@ -11,7 +23,18 @@ import {
   runAdapted,
   toBackendError,
 } from './adapters';
-import { BackendApiError } from './api-client';
+import { BackendApiError, backendApiErrorFromBody } from './api-client';
+
+/** The session door's 401 as a raw `fetch` answer, as the upload lanes read it. */
+function lapsedSessionResponse(): Response {
+  return Response.json(LAPSED_SESSION_ANSWER.body, {
+    status: LAPSED_SESSION_ANSWER.status,
+  });
+}
+
+afterEach(async () => {
+  await i18n.changeLanguage('en');
+});
 
 describe('toBackendError', () => {
   it('turns a deterministic 4xx into a AppError carrying code + data', () => {
@@ -40,6 +63,68 @@ describe('toBackendError', () => {
     const plain = new Error('socket hang up');
     expect(toBackendError(plain)).toBe(plain);
   });
+
+  // The session door's sentence tells an API client, in English, to send a
+  // key to the REST API. The person whose session ended reads the app's own
+  // sentence in their language, from every field a surface might show.
+  it.each(SHIPPED_LOCALES)(
+    "words a lapsed session's 401 as the session-ended sentence (%s)",
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const normalized = toBackendError(
+        backendApiErrorFromBody(
+          LAPSED_SESSION_ANSWER.status,
+          LAPSED_SESSION_ANSWER.body,
+        ),
+      );
+      expect(normalized).toBeInstanceOf(AppError);
+      if (!(normalized instanceof AppError)) return;
+      expect(normalized.data).toEqual({
+        code: 'UNAUTHORIZED',
+        message: SESSION_ENDED[locale],
+        userMessage: SESSION_ENDED[locale],
+      });
+      expect(normalized.message).not.toContain('API key');
+    },
+  );
+
+  it('keeps the sentence of every other 401', () => {
+    const normalized = toBackendError(
+      new BackendApiError(401, 'The key has expired', 'API_KEY_EXPIRED'),
+    );
+    expect(normalized).toMatchObject({
+      data: { code: 'API_KEY_EXPIRED', message: 'The key has expired' },
+    });
+  });
+});
+
+/**
+ * No surface special-cases the lapsed session: each reads the refusal it
+ * was handed, and the normalization already put the person's words there.
+ */
+describe("a lapsed session's refusal, read by any surface", () => {
+  it.each(SHIPPED_LOCALES)(
+    'reads as the session-ended sentence (%s)',
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const refusal: unknown = await lapsedSessionRefusal().catch(
+        (error: unknown) => error,
+      );
+      expect(refusal).toBeInstanceOf(AppError);
+      // The toasts' reason under a localized title (imports, product dialogs,
+      // branding, website create) …
+      expect(backendRefusalReason(refusal)).toBe(SESSION_ENDED[locale]);
+      // … the surfaces that show the handler's sentence verbatim …
+      expect(backendErrorMessage(refusal, 'fallback')).toBe(
+        SESSION_ENDED[locale],
+      );
+      // … and the write hooks' default toast.
+      expect(backendUserMessage(refusal, 'fallback')).toBe(
+        SESSION_ENDED[locale],
+      );
+      expect(backendRefusalDetail(refusal)).toBe(SESSION_ENDED[locale]);
+    },
+  );
 });
 
 describe('runAdapted', () => {
@@ -141,26 +226,25 @@ describe('backendRefusalDetail', () => {
   // The session door's flat 401 names `UNAUTHORIZED` beside a sentence for
   // API clients (send a key to the REST API, in English). A person whose
   // session ended reads the localized sentence instead, on the adapted lane
-  // and on a raw lane alike.
-  it("reads a lapsed session's 401 as the localized session-ended sentence", async () => {
-    const sentence =
-      'Missing or invalid session — sign in, or send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1';
-    expect(
-      backendRefusalDetail(
-        new AppError({ code: 'UNAUTHORIZED', message: sentence }),
-      ),
-    ).toBe('Your session has ended. Sign in again.');
-    const raw = await backendErrorFromResponse(
-      new Response(JSON.stringify({ error: sentence, code: 'UNAUTHORIZED' }), {
-        status: 401,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-    expect(raw).toBeInstanceOf(AppError);
-    expect(backendRefusalDetail(raw)).toBe(
-      'Your session has ended. Sign in again.',
-    );
-  });
+  // and on the raw lanes alike (the chat turn's `BackendApiError`, an
+  // upload's answer).
+  it.each(SHIPPED_LOCALES)(
+    "reads a lapsed session's 401 as the localized session-ended sentence (%s)",
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      expect(
+        backendRefusalDetail(
+          backendApiErrorFromBody(
+            LAPSED_SESSION_ANSWER.status,
+            LAPSED_SESSION_ANSWER.body,
+          ),
+        ),
+      ).toBe(SESSION_ENDED[locale]);
+      const raw = await backendErrorFromResponse(lapsedSessionResponse());
+      expect(raw).toBeInstanceOf(AppError);
+      expect(backendRefusalDetail(raw)).toBe(SESSION_ENDED[locale]);
+    },
+  );
 
   it('says nothing for a fault or for an answer without a code', () => {
     expect(

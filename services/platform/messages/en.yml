@@ -335,6 +335,13 @@ analytics:
         model: Model
         agent: Agent
 auth:
+  sessionLapse:
+    title: Your session has ended
+    description: Signing in leaves this page. Unsaved changes may be lost. Stay here to copy any work you want to keep before continuing.
+    paused: Your page is still open. Copy any work you want to keep. When you are ready, close any open dialog and choose Sign in.
+    stayHere: Stay here
+    signIn: Sign in
+    checkFailed: Your session could not be checked. Stay here and try again when your connection is restored.
   oauth:
     title: 'Continue with Tale'
     request: '{application} wants to sign you in with Tale.'

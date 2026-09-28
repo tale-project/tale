@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { toast } from '@tale/ui/use-toast';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 // The dialog's row accounting: a row the parser refused and a row the door
@@ -162,3 +169,37 @@ describe('ProductsImportDialog', () => {
     expect(await rowErrorsAlert()).toHaveTextContent('name: must not be blank');
   });
 });
+
+// The session door's 401 names the REST API in English; the person whose
+// session ended reads why in their own language, under the localized title.
+describe.each(SHIPPED_LOCALES)(
+  'ProductsImportDialog after a lapsed session (%s)',
+  (locale) => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      saveLocale(locale);
+    });
+    afterEach(forgetSavedLocale);
+
+    it('says the session has ended under the import error title', async () => {
+      parseFile.mockResolvedValue({
+        data: [{ name: 'Kettle' }],
+        rows: [2],
+        errors: [],
+        rowErrors: [],
+      });
+      bulkCreate.mockImplementation(lapsedSessionRefusal);
+      const { onClose } = await importFile();
+
+      await waitFor(() =>
+        expect(toastMock).toHaveBeenCalledWith({
+          title: 'products.import.error',
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+      expect(JSON.stringify(toastMock.mock.calls)).not.toContain('API key');
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  },
+);

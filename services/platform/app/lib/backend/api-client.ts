@@ -6,10 +6,15 @@
  *
  * Auth rides the Better Auth session cookie (same-origin; the auth client
  * already talks to `/api/auth`), so there is no token plumbing here — a 401
- * surfaces as a `BackendApiError` the caller (or the router's error
- * recovery) can act on.
+ * surfaces as a `BackendApiError` the caller can act on, and the session
+ * door's is reported so the dashboard takes the tab to sign-in
+ * (`app/hooks/use-session-lapse-redirect.ts`).
  */
 
+import {
+  isLapsedSessionAnswer,
+  reportSessionLapsed,
+} from '@/app/lib/auth/session-lapse';
 import { isAbortError } from '@/lib/utils/abort-error';
 
 import {
@@ -80,7 +85,9 @@ export function eventsUrl(orgId: string): string {
  * guards, the API 404). The handler's `message`, else its `error`, is the
  * message; a non-empty string `code`, else `error`, is the code; `data`
  * rides beside them. A body that is not an object (a proxy page, an empty
- * 502) keeps the status text.
+ * 502) keeps the status text. The session door's 401 is also reported as a
+ * lapsed session (`app/lib/auth/session-lapse.ts`), whichever lane read it,
+ * so the dashboard can take the tab to sign-in.
  */
 export function backendApiErrorFromBody(
   status: number,
@@ -106,6 +113,9 @@ export function backendApiErrorFromBody(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object just above
       data = record.data as Record<string, unknown>;
     }
+  }
+  if (isLapsedSessionAnswer(status, code)) {
+    reportSessionLapsed();
   }
   return new BackendApiError(status, message, code, data);
 }

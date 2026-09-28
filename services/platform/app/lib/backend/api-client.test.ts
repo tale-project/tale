@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { onSessionLapsed } from '@/app/lib/auth/session-lapse';
+import { LAPSED_SESSION_ANSWER } from '@/tests/utils/lapsed-session';
+
 import {
   BackendApiError,
   backendApiErrorFromBody,
@@ -328,6 +331,62 @@ describe('backendApiErrorFromBody', () => {
       code,
       message,
     });
+  });
+});
+
+/**
+ * Whichever lane meets the session door's 401 — `backendFetch`, a raw
+ * answer an upload reads, the chat turn's own parse — tells the dashboard
+ * the session has ended, so it can take the tab to sign-in. No other
+ * refusal does.
+ */
+describe('the lapsed-session report', () => {
+  let stop: (() => void) | undefined;
+  afterEach(() => {
+    stop?.();
+    stop = undefined;
+  });
+  function listen(): ReturnType<typeof vi.fn> {
+    const heard = vi.fn();
+    stop = onSessionLapsed(heard);
+    return heard;
+  }
+
+  it('is raised once by each lane that reads the session door', async () => {
+    const heard = listen();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse(LAPSED_SESSION_ANSWER.status, LAPSED_SESSION_ANSWER.body),
+    );
+    await expect(backendFetch('/users/me')).rejects.toMatchObject({
+      status: 401,
+      code: 'UNAUTHORIZED',
+    });
+    expect(heard).toHaveBeenCalledTimes(1);
+
+    await readBackendApiError(
+      jsonResponse(LAPSED_SESSION_ANSWER.status, LAPSED_SESSION_ANSWER.body),
+    );
+    expect(heard).toHaveBeenCalledTimes(2);
+
+    backendApiErrorFromBody(
+      LAPSED_SESSION_ANSWER.status,
+      LAPSED_SESSION_ANSWER.body,
+    );
+    expect(heard).toHaveBeenCalledTimes(3);
+  });
+
+  it('is not raised by any other refusal', async () => {
+    const heard = listen();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      jsonResponse(403, { error: 'RBAC_FORBIDDEN' }),
+    );
+    await expect(backendFetch('/projects')).rejects.toBeInstanceOf(
+      BackendApiError,
+    );
+    backendApiErrorFromBody(401, { error: 'bad key', code: 'INVALID_API_KEY' });
+    backendApiErrorFromBody(403, { error: 'no', code: 'UNAUTHORIZED' });
+    backendApiErrorFromBody(401, null);
+    expect(heard).not.toHaveBeenCalled();
   });
 });
 

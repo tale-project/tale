@@ -46,7 +46,12 @@ vi.mock('@tale/ui/i18n/client', () => ({
 
 import { useMutation } from '@tanstack/react-query';
 
+import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
 import { AppError } from '@/lib/shared/errors/app-error';
+import {
+  LAPSED_SESSION_ANSWER,
+  SESSION_ENDED,
+} from '@/tests/utils/lapsed-session';
 
 import { useBackendMutation } from './use-backend-mutation';
 
@@ -69,6 +74,31 @@ function getRegisteredOnError() {
 describe('useBackendMutation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  // The session door's 401 is guidance for API clients; the app's
+  // normalization words it for the person, so the default toast says the
+  // session ended instead of "something went wrong".
+  it('says a lapsed session has ended in the default toast', async () => {
+    const { toBackendError } = await vi.importActual<
+      typeof import('@/app/lib/backend/adapters')
+    >('@/app/lib/backend/adapters');
+    const refusal = toBackendError(
+      backendApiErrorFromBody(
+        LAPSED_SESSION_ANSWER.status,
+        LAPSED_SESSION_ANSWER.body,
+      ),
+    );
+    useBackendMutation(mutationName);
+    const options = mockUseMutation.mock.calls[0]?.[0] as {
+      onError: (error: unknown) => void;
+    };
+    options.onError(refusal);
+    expect(mockToast).toHaveBeenCalledWith({
+      title: 'error.generic.title',
+      description: SESSION_ENDED.en,
+      variant: 'destructive',
+    });
   });
 
   it('returns a mutation result object', () => {

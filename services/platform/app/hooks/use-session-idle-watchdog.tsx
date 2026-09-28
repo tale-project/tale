@@ -11,6 +11,10 @@ import { holdProxyHandoff } from '@/app/features/auth/lib/proxy-handoff';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useSessionUser } from '@/app/hooks/use-session-user';
+import {
+  holdSessionLapseRedirects,
+  releaseSessionLapseHoldOnLeave,
+} from '@/app/lib/auth/session-lapse';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
@@ -172,6 +176,9 @@ export function useSessionIdleWatchdog(): void {
     const signOutForIdle = async (): Promise<void> => {
       if (signingOut) return;
       signingOut = true;
+      // This lane always navigates, even if the sign-out request fails. It
+      // must install the proxy hold and retain reason=idle before leaving.
+      const resumeLapseRedirects = holdSessionLapseRedirects();
       try {
         await authClient.signOut();
       } catch (err) {
@@ -188,6 +195,7 @@ export function useSessionIdleWatchdog(): void {
       // the inactivity notice is actually seen.
       holdProxyHandoff();
       const basePath = getEnv('BASE_PATH');
+      releaseSessionLapseHoldOnLeave(resumeLapseRedirects);
       window.location.href = `${basePath}/log-in?reason=idle`;
     };
 
