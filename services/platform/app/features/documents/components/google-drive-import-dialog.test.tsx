@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { i18n } from '@/lib/i18n/i18n';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  lapsedSessionRefusal,
+} from '@/tests/utils/lapsed-session';
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -215,5 +222,35 @@ describe('GoogleDriveImportDialog', () => {
     expect(toast).not.toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
     );
+  });
+
+  // The refusal's own `message` is its serialized payload; the import toast
+  // used to show `{"code":"UNAUTHORIZED",…}` under its title.
+  describe.each(SHIPPED_LOCALES)('after a lapsed session (%s)', (locale) => {
+    afterEach(async () => {
+      await i18n.changeLanguage('en');
+    });
+
+    it('says the session ended when the import is refused', async () => {
+      await i18n.changeLanguage(locale);
+      mockImportFiles.mockImplementationOnce(lapsedSessionRefusal);
+      const user = userEvent.setup();
+      render(<GoogleDriveImportDialog {...defaultProps} />);
+
+      await selectMeetingsAndImport(user);
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith({
+          title: 'documents.googledrive.importFailed',
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+      expect(toast).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: expect.stringContaining('"code"'),
+        }),
+      );
+    });
   });
 });

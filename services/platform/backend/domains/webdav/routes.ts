@@ -15,6 +15,7 @@ import {
   requireHmacSecret,
 } from '../../core/webdav/helpers.ts';
 import { requestTarget } from '../../lib/http-hygiene.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
   checkOrganizationRateLimit,
@@ -133,8 +134,8 @@ export function createWebdavAdminRoutes(deps: {
     }
     const body = z
       .object({ label: z.string().min(1).max(64) })
-      .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'INVALID_LABEL' }, 400);
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const organizationId = c.get('orgId');
     const userId = c.get('sessionBundle').user.id;
     try {

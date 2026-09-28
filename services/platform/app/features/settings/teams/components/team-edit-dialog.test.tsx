@@ -3,18 +3,27 @@ import {
   QueryClientProvider,
   useQuery,
 } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { backendKey } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { i18n } from '@/lib/i18n/i18n';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  lapsedSessionRefusal,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
+import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 import { TeamEditDialog } from './team-edit-dialog';
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-a',
 }));
-vi.mock('@tale/ui/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+const toast = vi.hoisted(() => vi.fn());
+vi.mock('@tale/ui/use-toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/auth-client', () => ({
   authClient: { organization: { updateTeam: vi.fn() } },
 }));
@@ -22,11 +31,23 @@ const members = vi.hoisted(() => [{ _id: 'tm-a', userId: 'user-a' }]);
 vi.mock('../hooks/queries', () => ({
   useTeamMembers: () => ({ teamMembers: members }),
 }));
+const addMember = vi.hoisted(() => vi.fn());
 vi.mock('../hooks/mutations', () => ({
-  useAddTeamMember: () => ({ mutateAsync: vi.fn() }),
+  useAddTeamMember: () => ({ mutateAsync: addMember }),
   useRemoveTeamMember: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('./team-member-checklist', () => ({ TeamMemberChecklist: () => null }));
+// Stands in for the member list: one press adds a second member.
+vi.mock('./team-member-checklist', () => ({
+  TeamMemberChecklist: ({
+    onToggleMember,
+  }: {
+    onToggleMember: (userId: string) => void;
+  }) => (
+    <button type="button" onClick={() => onToggleMember('user-b')}>
+      Add user-b
+    </button>
+  ),
+}));
 
 const key = backendKey('org-a', 'team', 'org-list');
 let storedName = 'Original team';
@@ -129,5 +150,75 @@ describe('TeamEditDialog', () => {
     ).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     client.clear();
+  });
+
+  // Better Auth's session middleware answers a rename whose session has
+  // ended with 401 `UNAUTHORIZED` and the English "Unauthorized", which the
+  // dialog toasted under the localized title; a change of members alone is
+  // refused by the session door itself.
+  describe.each(SHIPPED_LOCALES)('after a lapsed session (%s)', (locale) => {
+    beforeEach(async () => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+    });
+    // Unmount first: the app shell still applying the saved language would
+    // otherwise switch it back after the reset.
+    afterEach(async () => {
+      cleanup();
+      await forgetSavedLocale();
+    });
+
+    it.each(['a rename', 'a new member'] as const)(
+      'says the session ended for %s',
+      async (change) => {
+        vi.mocked(authClient.organization.updateTeam).mockResolvedValue({
+          data: null,
+          error: {
+            status: 401,
+            statusText: 'UNAUTHORIZED',
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+          },
+        });
+        addMember.mockImplementation(lapsedSessionRefusal);
+        const settings = i18n.getFixedT(locale, 'settings');
+        const client = new QueryClient();
+        const { user } = render(
+          <QueryClientProvider client={client}>
+            <TeamEditDialog
+              team={{
+                id: 'team-a',
+                name: storedName,
+                memberCount: 1,
+                createdAt: 0,
+              }}
+              organizationId="org-a"
+              open
+              onOpenChange={vi.fn()}
+            />
+          </QueryClientProvider>,
+        );
+        if (change === 'a rename') {
+          const name = screen.getByRole('textbox');
+          await user.clear(name);
+          await user.type(name, 'Renamed team');
+        } else {
+          await user.click(screen.getByRole('button', { name: 'Add user-b' }));
+        }
+        await user.click(
+          screen.getByRole('button', { name: settings('teams.saveChanges') }),
+        );
+
+        await waitFor(() =>
+          expect(toast).toHaveBeenCalledWith({
+            title: settings('teams.teamUpdateFailed'),
+            description: SESSION_ENDED[locale],
+            variant: 'destructive',
+          }),
+        );
+        expect(addMember).toHaveBeenCalledTimes(change === 'a rename' ? 0 : 1);
+        client.clear();
+      },
+    );
   });
 });

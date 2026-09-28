@@ -1599,6 +1599,7 @@ common:
     rowErrorsTitle: '{count, plural, one {# Zeile wurde nicht importiert} other {# Zeilen wurden nicht importiert}}'
     rowError: 'Zeile {row}: {message}'
     moreRows: '… und {count} weitere'
+    tooManyRows: Diese Datei enthält {count} Zeilen zum Importieren, Tale importiert aber höchstens {max} auf einmal. Teile sie in kleinere Dateien auf und importiere jede einzeln.
     fields:
       name: Name
       price: Preis
@@ -1664,6 +1665,7 @@ common:
     required: '{field} ist erforderlich'
     maxLength: '{field} darf höchstens {max} Zeichen lang sein'
     email: Gib eine gültige E-Mail-Adresse ein
+    emailLocalPart: Verwende höchstens {max} Zeichen vor dem @
     phone: Gib eine Telefonnummer nur mit Ziffern und + ( ) - ein
     uploadFile: Lade eine Datei hoch
     unsupportedFileType: Nicht unterstützter Dateityp
@@ -1694,6 +1696,7 @@ common:
     generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
     failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
     sessionEnded: Deine Sitzung ist beendet. Melde dich erneut an.
+    connectionLost: Tale ist nicht erreichbar. Prüfe deine Verbindung und versuch es erneut.
   notFound:
     title: Seite nicht gefunden
     description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.
@@ -2597,6 +2600,7 @@ documents:
     compareSelected: Auswahl vergleichen
     comparing: Vergleicht…
     compareFailed: Versionen konnten nicht verglichen werden
+    compareOffline: Der Versionsvergleich ist derzeit nicht verfügbar.
     backToList: Zurück zu den Versionen
     versionLabel: Version vom {date}
     selectAsCompare: Zum Vergleich wählen

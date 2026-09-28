@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 30 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 36 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -61,14 +61,29 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
 > (`settings.credentials.createdToast`) plus a new table row. Stored secrets
 > are never read back: every secret field starts blank, including in Replace
 > secret. The first credential of an (org, connector) pair becomes its
-> **default** automatically.  **CONN-F15/CONN-F16 need mode B** plus a
+> **default** automatically.  **CONN-F15/CONN-F16, CONN-F19/CONN-F20 and
+> CONN-B7/CONN-B9/CONN-B10 need a consent round trip**: mode B plus a
 > registered OAuth app (`CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` / `…_CLIENT_SECRET`
-> env vars): consent is a real full-page navigation to the vendor. In mode A,
-> assert the hand-off (the browser leaves for
-> `…/http_api/api/connectors/oauth2/start?connector=…`) rather than a
-> completed grant. On success the callback lands back on
+> env vars, or the organization's **OAuth apps** card), or a loopback fake
+> vendor (below). Consent is a full-page navigation. In mode A without one,
+> assert the hand-off instead: **Connect** leaves for
+> `…/http_api/api/connectors/oauth2/start?connector=…&organizationId=…` with
+> no `credentialId`, a row's **Reconnect** for the same URL plus
+> `&credentialId=<that row's id>`. On success the callback lands back on
 > `…/settings/connectors?connected=<slug>` — the page does **not** read that
-> param (no toast); the new row is the proof.
+> param (no toast); the rows are the proof. Tell accounts apart by the row's
+> masked preview in `GET /api/app/connector-credentials?orgId=…`
+> (`maskedPreview`, `updatedAt`).
+>
+> **A loopback fake vendor** replaces the real one without touching the
+> product: copy `configs/platform/system` outside the clone, point only the
+> connector's `authorizeUrl`/`tokenUrl` at an `https://127.0.0.1:<port>/…`
+> fake that redirects back with a code and answers standard token JSON (a
+> throwaway CA trusted through `NODE_EXTRA_CA_CERTS`; the token exchange
+> refuses plain `http`), and start the stack with `TALE_CONFIG_SYSTEM_DIR` on
+> the copy. Keep every other egress on a dead proxy so no real vendor is
+> reachable. A fake that can hold on a consent page is what CONN-B7 and
+> CONN-B9 need.
 
 ## Functional tests
 
@@ -175,7 +190,10 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   `…/http_api/api/connectors/oauth2/start?connector=slack&organizationId=…`;
   after consent the browser lands on `…/settings/connectors?connected=slack`
   and a new row exists: method **OAuth**, named after the connector, default
-  if first. No toast — the row is the assertion. In **mode A** (no Slack app
+  if first. No toast — the row is the assertion. Connecting a second
+  workspace adds a row named after it (**Slack (<workspace>)**); consenting
+  again for a workspace already connected renews its row instead of adding
+  one. In **mode A** (no Slack app
   registered) Step 2 instead explains that the app is set up by the
   deployment operator (`settings.connectors.card.oauthAppMissingDeployment`)
   — it must never point at the OAuth apps card below, which carries no Slack
@@ -186,9 +204,10 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   menu → **Reconnect** (`settings.connectors.credential.reconnect`) → The
   row's detail line explains re-consent
   (`settings.connectors.credential.needsReauthHint`, or `…needsReauthDetail`
-  when the server recorded a reason). **Reconnect** leads the menu and
-  triggers the same hand-off as CONN-F15; the refreshed grant clears the
-  badge.
+  when the server recorded a reason). **Reconnect** leads the menu; its
+  hand-off names this row (`&credentialId=`), and the refreshed grant clears
+  THIS row's badge — same name, same **Default** state, no row added and no
+  other row changed.
 - [ ] `CONN-F17` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → Section **MCP endpoint** (`settings.mcpEndpoint.title`) with a copyable
   endpoint URL ending `/api/v1/mcp` (`settings.mcpEndpoint.copyEndpoint`),
@@ -201,6 +220,18 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   `/dashboard/{org}/settings/mcp`, then
   `/dashboard/{org}/settings/mcp-servers` → Each redirects in one hop to
   `…/settings/connectors` (URL settles there; the table renders).
+- [ ] `CONN-F19` · **A second OAuth account** — With **Gmail** connected
+  once (its row holds mailbox A), **Add credential** → **Gmail** →
+  **Connect** and consent as mailbox B → A second row **Gmail 2** appears,
+  not default; the **Gmail** row keeps mailbox A (its `maskedPreview` and
+  `updatedAt` unchanged). The first account is never replaced. Same for
+  Outlook, Google Drive and Teams.
+- [ ] `CONN-F20` · **Reconnect a non-default row** — With two Gmail rows,
+  mark the non-default one stale (see CONN-F16) → its menu → **Reconnect**
+  → consent → That row renews (badge cleared, name and non-default state
+  kept); the default row is byte-for-byte unchanged. A Reconnect on a
+  **Disabled** row renews its grant but leaves it **Disabled** — **Enable**
+  is what returns it.
 
 ## Boundary & error tests
 
@@ -235,6 +266,25 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   fixed server-rendered error page — "This connection link has expired" — with
   a way back to connector settings. No vendor text, no request data, and no
   script on the page; nothing was stored.
+- [ ] `CONN-B7` · **Reconnect target removed mid-consent** — Start
+  **Reconnect** on a row; while the vendor's consent screen is open, delete
+  that row from a second tab; then consent → The fixed page "This credential
+  cannot be reconnected"; nothing was saved and no other row changed — the
+  grant never lands on the default instead.
+- [ ] `CONN-B8` · **Tampered reconnect link** — Open
+  `…/http_api/api/connectors/oauth2/start?connector=gmail&organizationId=…&credentialId=…`
+  with the id of a Slack row, of another organization's credential, an
+  unknown id, or `credentialId=` empty → The same fixed page before any
+  vendor page; no consent starts. Adding `credentialId=` to a callback URL
+  changes nothing: the target rides the server-side state only.
+- [ ] `CONN-B9` · **Access lost mid-consent** — A Developer starts
+  **Connect**; while the vendor's consent screen is open, an Admin changes
+  their role to Member (or removes them); then consent → The fixed page "You
+  can no longer connect connectors here"; nothing was saved.
+- [ ] `CONN-B10` · **Slack Reconnect in another workspace** — On a Slack row
+  → **Reconnect** → consent in a different workspace than the row's → The
+  fixed page "That is a different workspace"; nothing was saved. Reconnect
+  in the row's own workspace renews it.
 
 ## Accessibility (WCAG 2.1 AA)
 

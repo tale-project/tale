@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { useT } from '@/lib/i18n/client';
 
 import type { DocumentComparisonResult } from '../components/document-comparison/comparison-types';
 
@@ -30,8 +31,12 @@ function isDocumentComparisonResult(
 export function useDocumentComparison({
   organizationId,
 }: UseDocumentComparisonOptions) {
+  const { t } = useT('documents');
+  // The history dialog reports a failed comparison itself, in its toast and
+  // under the version picker; the hook's default toast would say it twice.
   const { mutateAsync: compareAction } = useBackendAction(
     'documents/compare_documents:compareDocuments',
+    { errorToast: false },
   );
   const [state, setState] = useState<ComparisonState>({
     result: null,
@@ -56,7 +61,9 @@ export function useDocumentComparison({
           comparisonFileName: args.comparisonFileName,
         });
         if (!isDocumentComparisonResult(result)) {
-          throw new Error('Invalid comparison response');
+          // An answer of the wrong shape is a fault, not words for the
+          // person: `failureDetail` shows no runtime error's message.
+          throw new TypeError('Invalid comparison response');
         }
         setState({
           result,
@@ -65,12 +72,13 @@ export function useDocumentComparison({
         });
         return result;
       } catch (err) {
-        const message = failureDetail(err) ?? 'Comparison failed';
+        // A refusal's own words, else the localized line for a fault.
+        const message = failureDetail(err) ?? t('history.compareFailed');
         setState({ result: null, error: message, isPending: false });
         throw err;
       }
     },
-    [compareAction, organizationId],
+    [compareAction, organizationId, t],
   );
 
   const reset = useCallback(() => {

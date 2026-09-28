@@ -114,6 +114,7 @@
     "./error-boundaries/suspense-boundary": "./src/components/error-boundaries/core/suspense-boundary.tsx",
     "./error-boundaries/types": "./src/components/error-boundaries/core/types.ts",
     "./error-boundaries/use-error-logger": "./src/components/error-boundaries/hooks/use-error-logger.ts",
+    "./error-message": "./src/lib/error-message.ts",
     "./external-link": "./src/components/site/external-link.tsx",
     "./field": "./src/components/forms/field.tsx",
     "./field-shell": "./src/components/forms/field-shell.tsx",

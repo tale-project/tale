@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import * as z from 'zod';
 
+import { authClientError } from '@/app/lib/auth/auth-client-error';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
@@ -141,7 +142,7 @@ export function TeamEditDialog({
             });
             return;
           }
-          throw new Error(result.error.message || 'Failed to update team');
+          throw authClientError(result.error);
         }
         await queryClient.invalidateQueries({
           queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
@@ -178,19 +179,25 @@ export function TeamEditDialog({
         );
         if (failures.length > 0) {
           console.warn('Some membership changes failed:', failures);
-          // A partial save is not a success: say what was refused. The one
-          // refusal with its own sentence is the server's last-member rule
-          // (`TEAM_LAST_MEMBER`, 409) — every other one shows its code.
+          // A partial save is not a success: say what was refused. A lapsed
+          // session says so in its own words, and so does the server's
+          // last-member rule (`TEAM_LAST_MEMBER`, 409); every other refusal
+          // is counted.
+          const lapsed = failures.find(
+            (f) => backendErrorCode(f.reason) === 'UNAUTHORIZED',
+          );
           const lastMember = failures.some(
             (f) => backendErrorCode(f.reason) === 'TEAM_LAST_MEMBER',
           );
           toast({
             title: tSettings('teams.teamUpdateFailed'),
-            description: lastMember
-              ? tSettings('teams.lastMemberHint')
-              : tSettings('teams.membershipChangesFailed', {
-                  count: failures.length,
-                }),
+            description: lapsed
+              ? failureDetail(lapsed.reason)
+              : lastMember
+                ? tSettings('teams.lastMemberHint')
+                : tSettings('teams.membershipChangesFailed', {
+                    count: failures.length,
+                  }),
             variant: 'destructive',
           });
           await queryClient.invalidateQueries({

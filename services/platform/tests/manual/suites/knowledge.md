@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 52 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 54 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -535,9 +535,9 @@ records and delete them after.
   **Save** → under the field **Name must be 300 characters or fewer**
   (`common.validation.maxLength`), nothing sent; the same for a
   51-character **Phone**, a 21-character **Locale** (`en-` and 18 letters)
-  and an **Email** with 65 characters before the `@`
-  (`common.validation.email`); 300 characters of name with spaces around
-  them save trimmed. **Edit** a contact → the same rules on **Save**.
+  and an **Email** with 65 characters before the `@` → **Use at most 64
+  characters before the @** (`common.validation.emailLocalPart`); 300
+  characters of name with spaces around them save trimmed. **Edit** a contact → the same rules on **Save**.
   Products → **Add product** → **Or paste a URL**
   (`products.edit.pasteUrl`) → `example.com/cat.png` → **Next** stays on
   **Basics** with `products.edit.validation.imageUrl` under **Image URL**;
@@ -547,6 +547,21 @@ records and delete them after.
   `http://169.254.169.254/cat.png` → **Create** → the toast's second line
   reads `imageUrl: must name a public host — …`, never
   `imageUrl: Invalid input`.
+- [ ] `KNOW-B14` · **An import over the row cap asks for a split** —
+  Products → **Add product** → **From your device** with a CSV of 1,001
+  product rows → **Import** → toast **Couldn't import products**
+  (`products.import.error`) whose second line (`common.import.tooManyRows`)
+  names the 1001 rows and the cap of 1000; DevTools Network shows no
+  `POST /api/app/products/bulk` and no product is created. The same file cut
+  to 1,000 rows imports. Contacts → **Upload contacts** with 1,001 rows →
+  the same line under **Import error** (`contacts.import.error`), nothing
+  sent. Repeat in German and French: the line reads in the locale.
+- [ ] `KNOW-B15` · **Clearing a contact's phone clears it** — Contacts → a
+  manually entered contact with a **Phone** → **Edit** → clear **Phone** →
+  **Save** → toast **Contact updated** (`contacts.updateSuccess`); reload →
+  the details show no phone. DevTools Network: the
+  `POST /api/app/contacts/<id>` body carries `"phone":null`, never
+  `"phone":""`, which the door reads as a phone that was not sent.
 
 ## Accessibility (WCAG 2.1 AA)
 

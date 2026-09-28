@@ -8,7 +8,8 @@
  * runs in `forceSecret` mode: a flat KEY = value list where every row is
  * encrypted and masked. Saving upserts via `setProjectSecret`; removing a row
  * deletes it. Values are never returned to the client, so a stored secret shows
- * a mask and the field clears for a clean re-type.
+ * a mask and the field clears for a clean re-type. The editor reports a failed
+ * save in its own toast, so a write rejects with the sentence that toast shows.
  */
 import { Alert } from '@tale/ui/alert';
 import { ContentArea } from '@tale/ui/content-area';
@@ -19,6 +20,7 @@ import {
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { ShieldAlert } from 'lucide-react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
@@ -39,6 +41,7 @@ export function ProjectSecretsTab({
   projectId: string;
 }) {
   const { t } = useT('projectSecrets');
+  const { t: tCommon } = useT('common');
   const {
     secrets,
     isLoading,
@@ -91,6 +94,15 @@ export function ProjectSecretsTab({
     isSecret: true,
   }));
 
+  // What the editor's failure toast says under its title: a refusal's own
+  // words (a lapsed session's "Your session has ended…"), or the generic line
+  // for a fault. Never the thrown error's message: a refusal serializes its
+  // payload there.
+  const saveFailure = (error: unknown) =>
+    new Error(failureDetail(error) ?? tCommon('errors.generic'), {
+      cause: error,
+    });
+
   return (
     <ProjectSecretsLayout>
       {isArchived ? <ProjectReadOnlyBanner reason="archived" /> : null}
@@ -100,19 +112,27 @@ export function ProjectSecretsTab({
         isLoading={isLoading}
         disabled={isArchived}
         onSet={async ({ key, value }) => {
-          await setSecret.mutateAsync({
-            organizationId,
-            projectId,
-            name: key,
-            value,
-          });
+          try {
+            await setSecret.mutateAsync({
+              organizationId,
+              projectId,
+              name: key,
+              value,
+            });
+          } catch (error) {
+            throw saveFailure(error);
+          }
         }}
         onDelete={async (key) => {
-          await deleteSecret.mutateAsync({
-            organizationId,
-            projectId,
-            name: key,
-          });
+          try {
+            await deleteSecret.mutateAsync({
+              organizationId,
+              projectId,
+              name: key,
+            });
+          } catch (error) {
+            throw saveFailure(error);
+          }
         }}
       />
     </ProjectSecretsLayout>

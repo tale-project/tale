@@ -24,6 +24,14 @@ export const CONTACT_TAG_MAX = 60;
 export const CONTACT_TAGS_MAX = 50;
 export const CONTACT_NOTES_MAX = 10_000;
 
+/**
+ * How many rows one contact file import sends. The app door refuses a
+ * longer list whole (`POST /api/app/contacts/bulk`), so the import dialog
+ * checks the parsed file against the same number and asks for a split
+ * before sending, instead of a 400 that names no row.
+ */
+export const CONTACT_IMPORT_ROWS_MAX = 1_000;
+
 const dataSourceLiterals = [
   'manual_import',
   'file_upload',

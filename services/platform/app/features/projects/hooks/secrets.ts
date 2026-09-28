@@ -13,10 +13,16 @@ export function useProjectSecrets(projectId: string | undefined) {
   return { secrets: data ?? [], isLoading, error, isError };
 }
 
+// The Environment tab's editor reports a failed write in its own toast;
+// the hook's default toast would report the same failure a second time.
 export function useSetProjectSecret() {
-  return useBackendAction('projects/secrets/actions:setProjectSecret');
+  return useBackendAction('projects/secrets/actions:setProjectSecret', {
+    errorToast: false,
+  });
 }
 
 export function useDeleteProjectSecret() {
-  return useBackendAction('projects/secrets/actions:deleteProjectSecret');
+  return useBackendAction('projects/secrets/actions:deleteProjectSecret', {
+    errorToast: false,
+  });
 }

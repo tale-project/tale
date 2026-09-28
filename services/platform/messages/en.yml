@@ -1547,6 +1547,7 @@ common:
     rowErrorsTitle: '{count, plural, one {# row was not imported} other {# rows were not imported}}'
     rowError: 'Row {row}: {message}'
     moreRows: '…and {count} more'
+    tooManyRows: This file has {count} rows to import, and Tale imports at most {max} at a time. Split it into smaller files and import each one.
     fields:
       name: Name
       price: Price
@@ -1612,6 +1613,7 @@ common:
     required: '{field} is required'
     maxLength: '{field} must be {max} characters or fewer'
     email: Enter a valid email address
+    emailLocalPart: Use at most {max} characters before the @
     phone: Enter a phone number using digits and + ( ) - only
     uploadFile: Upload a file
     unsupportedFileType: Unsupported file type
@@ -1642,6 +1644,7 @@ common:
     generic: Something went wrong — try again, or reload the page if it keeps happening.
     failedToCopy: Couldn't copy to clipboard
     sessionEnded: Your session has ended. Sign in again.
+    connectionLost: Couldn't reach Tale. Check your connection and try again.
   notFound:
     title: Page not found
     description: The page you're looking for doesn't exist or may have been moved.
@@ -2500,6 +2503,7 @@ documents:
     compareSelected: Compare selected
     comparing: Comparing…
     compareFailed: Couldn't compare versions
+    compareOffline: Comparing versions is currently unavailable.
     backToList: Back to versions
     versionLabel: Version from {date}
     selectAsCompare: Select to compare

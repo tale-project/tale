@@ -69,6 +69,7 @@ import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
+import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
@@ -23550,6 +23551,8 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-000000000000000000000',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      // An Add: these probes exercise the workspace route, not a Reconnect.
+      reconnectCredentialId: null,
     });
     // Point the catalog at a fixture whose slack `tokenUrl` is the fake
     // vendor — `TALE_CONFIG_SYSTEM_DIR` is the catalog's own root override,
@@ -23688,6 +23691,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-222222222222222222222',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const reconnected = await oauth.completeOauth2(
       sql,
@@ -23735,6 +23739,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-333333333333333333333',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const secondConnected = await oauth.completeOauth2(
       sql,
@@ -23775,8 +23780,18 @@ async function checkConnectorOauth(
     // holds this org's Slack credential (one credential per connector name),
     // so only a fresh organization walks the store-then-claim path — and the
     // credential it must not keep would have been its FIRST, i.e. its default.
+    // The initiator is a developer there: the callback re-checks the
+    // membership and role the start door checked.
     vendorTeam = { id: 'T-ITEST-RACE' };
     const raceOrgId = 'itest-race-org';
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${raceOrgId}, 'Itest race org', ${raceOrgId}, now())
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (gen_random_uuid(), ${raceOrgId}, ${userId}, 'developer', now())
+    `;
     const raceState = 'itest-oauth-state-race';
     await oauth.createPendingAuthorization(sql, {
       stateHash: await hashStateToken(raceState),
@@ -23785,6 +23800,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-222222222222222222222',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const credentialService =
       await import('./domains/connector_credentials/service.ts');
@@ -23858,6 +23874,9 @@ async function checkConnectorOauth(
         raceRoute[0]?.orgId === 'some-other-org',
       `outcome=${raced.kind}/${raced.kind === 'error' ? raced.error : '-'} (want workspace_claimed), queuedBehindHolder=${queuedBehindHolder}, loserCredentials=${raceCredentials[0]?.count} (want 0) default=${raceCredentials[0]?.isDefault}, routeOwner=${raceRoute[0]?.orgId}`,
     );
+    // The suite user belongs to the suite organization alone again.
+    await sql`DELETE FROM "member" WHERE "organizationId" = ${raceOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${raceOrgId}`;
 
     // ---- an expired grant is refreshed on resolve --------------------------
     // The happy-path credential's token is made stale in place (the same
@@ -23998,6 +24017,7 @@ async function checkConnectorOauth(
       connectorSlug: 'slack',
       codeVerifier: 'itest-verifier-value-111111111111111111111',
       redirectUri: `${base}/api/connectors/oauth2/callback`,
+      reconnectCredentialId: null,
     });
     const refused = await oauth.completeOauth2(
       sql,
@@ -55559,6 +55579,10 @@ async function main(): Promise<void> {
         () => checkConnectorCredentials(sql, baseUrl, authCtx),
       ],
       ['checkConnectorOauth', () => checkConnectorOauth(sql, baseUrl, authCtx)],
+      [
+        'checkConnectorOauthIntent',
+        () => checkConnectorOauthIntent(sql, baseUrl, record),
+      ],
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
