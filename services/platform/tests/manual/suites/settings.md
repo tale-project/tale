@@ -356,12 +356,13 @@ any toggled setting after the run.
   at a chat with a cited reply, the Home panel with an unread item, and this
   page, in **Light theme** and **Dark theme** (`auth.userButton.themeLight` /
   `…themeDark`) → The **Branding preview** shows what the app shows; primary
-  buttons and the chat's send button wear the accent, rimmed in it, with a
-  legible label or arrow; Tab onto one draws a ring inside it in its label's
-  colour; Home's unread dots and the view switcher's attention dots wear the
-  accent, never a fixed blue; a citation, a link and the open settings row
-  stay readable — a deeper shade of the accent on the light theme, a lighter
-  one on the dark — and nothing set in the accent reads pale on the page.
+  buttons and the chat's send button wear the accent (rimmed in it on the
+  light theme) with a legible label or arrow; Tab onto one draws a ring inside
+  it in its label's colour; Home's unread dots and the view switcher's
+  attention dots wear the accent, never a fixed blue; a citation, a link and
+  the open settings row stay readable — a deeper shade of the accent on the
+  light theme, a lighter one on the dark — and nothing set in the accent reads
+  pale on the page.
 - [ ] `SET-F29` · **Branding images & reset** — Same page → **Upload logo**
   (`settings.branding.uploadLogo`) / **Upload favicon**
   (`settings.branding.uploadFavicon`); then the header's **Reset** action

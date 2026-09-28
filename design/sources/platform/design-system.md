@@ -1605,7 +1605,7 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 
 - Default: `$surface-primary` fill, `$border-hover` 1px stroke, cornerRadius 8, shadow, Lucide `list-filter` 16x16 `$text-tertiary` + "Filter" Inter 14px `$text-secondary`
 - Active (dropdown open): `$surface-active` fill, `$border-primary` stroke
-- Filters applied: blue dot indicator (8x8 `$badge-text` ellipse) at top-right corner
+- Filters applied: accent dot indicator (8x8 ellipse, `$badge-text` in the file; ships as `--primary`, the organization accent) at top-right corner
 
 **Design decisions:**
 
@@ -1639,7 +1639,7 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 | Documents-FilterCollapsed - Dark   | `XzV5V` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Documents-FilterExpanded           | `CoQnq` | Light | Filter dropdown — RAG status section expanded with checkboxes (Indexed + Failed checked). Uses `FilterDropdown/Documents/Expanded` component ref                                                                                                                                                                                                                                                                                                   |
 | Documents-FilterExpanded - Dark    | `kt3jE` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Documents-FilterSelected           | `n5PzR` | Light | Filter dropdown — all sections collapsed with selection count badges. Blue dot on filter button. Uses `FilterDropdown/Documents/Selected` component ref                                                                                                                                                                                                                                                                                            |
+| Documents-FilterSelected           | `n5PzR` | Light | Filter dropdown — all sections collapsed with selection count badges. Accent dot on filter button. Uses `FilterDropdown/Documents/Selected` component ref                                                                                                                                                                                                                                                                                          |
 | Documents-FilterSelected - Dark    | `JCf7T` | Dark  | Dark variant                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **Table columns:** Document (file-text icon + name), Size, Source (Upload/API), RAG status (badge: Indexed/Processing/Reindexing/Failed), Teams, Uploaded by, Modified (chevron-down sort indicator)
@@ -1783,7 +1783,7 @@ Reusable filter panel that appears below the toolbar when the "Filter" button is
 3. User checks/unchecks options → badge count updates, "Clear all" appears in header
 4. User clicks section header again → section collapses, badge remains (Selected state)
 5. User clicks outside dropdown → dropdown closes
-6. Active filter indicator (blue dot) appears on toolbar filter button when any filters are applied
+6. Active filter indicator (accent dot, `--primary`) appears on toolbar filter button when any filters are applied
 
 **Context menu trigger:** Right-click on any table row, or click the `...` (ellipsis) icon in the Actions column. Row highlights with `$surface-active` on hover/right-click.
 
