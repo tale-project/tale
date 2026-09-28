@@ -95,12 +95,21 @@ export async function checkDeletedOrgDoors(
     return rows[0]?.count ?? -1;
   };
 
-  // Every line the doors write, so "named once" is observed, not assumed.
+  // Every line the doors write, so "named once" is observed, not assumed —
+  // and every dispatch fault, which `emitEvent` logs and swallows, so a
+  // failing check says why.
   const lines: string[] = [];
+  const faults: string[] = [];
   const warn = console.warn;
+  const error = console.error;
   console.warn = (...args: unknown[]) => {
     lines.push(args.map(String).join(' '));
     warn(...args);
+  };
+  console.error = (...args: unknown[]) => {
+    const line = args.map(String).join(' ');
+    if (line.includes('automation dispatch failed')) faults.push(line);
+    error(...args);
   };
   const deliveries: { status: number; code: string }[] = [];
   let hookRuns = -1;
@@ -143,6 +152,7 @@ export async function checkDeletedOrgDoors(
     listener = await stateOf(eventId);
   } finally {
     console.warn = warn;
+    console.error = error;
     // Only a door that failed this proof started runs; they go too.
     await sql`DELETE FROM app.automation_runs WHERE org_id = ${deadOrgId}`;
     await sql`
@@ -180,7 +190,8 @@ export async function checkDeletedOrgDoors(
       listener?.enabled === false &&
       listener.lastFiredAt === null &&
       listener.lastSkipReason === null &&
-      naming(eventName).length === 1,
-    `runs=${eventRuns} (want 0), enabled=${listener?.enabled} (want false), fired=${listener?.lastFiredAt ?? 'never'}, skip=${listener?.lastSkipReason ?? 'none'}, lines naming it=${naming(eventName).length} (want 1)`,
+      naming(eventName).length === 1 &&
+      faults.length === 0,
+    `runs=${eventRuns} (want 0), enabled=${listener?.enabled} (want false), fired=${listener?.lastFiredAt ?? 'never'}, skip=${listener?.lastSkipReason ?? 'none'}, lines naming it=${naming(eventName).length} (want 1), dispatch faults=${faults.length === 0 ? 'none' : faults.join(' | ')}`,
   );
 }
