@@ -16,7 +16,7 @@
  * panel at its border instead of at a gutter.
  */
 export const AUTOMATION_EDITOR_WORKBENCH_GRID =
-  'grid min-h-[24rem] lg:flex-1 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
+  'grid min-h-[24rem] flex-1 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
 
 /**
  * A run's canvas + inspector row sits above the run's effects, agent log and
