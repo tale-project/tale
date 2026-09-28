@@ -44,6 +44,9 @@ export async function claimRecoveryResume(
       /** The lane's own op kind — the run-card and metric reads are keyed
        * on it, so a row created under any other kind stays invisible. */
       kind: SandboxAgentOpKind;
+      /** The harness the abandoned turn runs on, so the row the watchdog
+       * creates counts under it like one the host opened. */
+      harness?: string;
       deadlineMs: number;
     };
   },
@@ -72,11 +75,12 @@ export async function claimRecoveryResume(
     if (row === undefined) {
       await tx`
         INSERT INTO app.sandbox_session_ops (
-          org_id, session_id, exec_id, kind, status, deadline_ms,
+          org_id, session_id, exec_id, kind, status, harness, deadline_ms,
           started_at_ms, heartbeat_at_ms, resumed_by
         ) VALUES (
           ${args.createMissing.organizationId}, ${args.sessionId},
           ${args.execId}, ${args.createMissing.kind}, 'running',
+          ${args.createMissing.harness ?? null},
           ${args.createMissing.deadlineMs}, ${now}, ${now}, 'watchdog'
         )
         ON CONFLICT (session_id, exec_id) DO NOTHING

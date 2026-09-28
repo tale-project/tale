@@ -18808,6 +18808,10 @@ async function checkTurnReattach(
       opStatus?: string;
       /** How long ago the RUN row was last touched (default: 10 min). */
       updatedAgoMs?: number;
+      /** The harness the run was kicked on (default: the one the session
+       * below is stamped with). An agent switched to another harness keeps
+       * its standing session, so the two differ. */
+      harness?: string;
     },
   ): Promise<{ runId: string; sessionId: string; execId: string }> => {
     const sessionId = `reattach-session-${suffix}`;
@@ -18850,8 +18854,8 @@ async function checkTurnReattach(
         updated_at_ms
       ) VALUES (
         ${orgId}, ${taskId}, ${projectId}, ${agentId}, ${sessionId},
-        ${execId}, 'claude-code', 'itest-model', 'manual', ${userId},
-        'running', ${now - 600_000}, ${now + 3_600_000},
+        ${execId}, ${opts.harness ?? 'claude-code'}, 'itest-model', 'manual',
+        ${userId}, 'running', ${now - 600_000}, ${now + 3_600_000},
         ${now - (opts.updatedAgoMs ?? 600_000)}
       ) RETURNING id
     `;
@@ -18861,13 +18865,15 @@ async function checkTurnReattach(
   // Four shapes: an abandoned turn (stale lease), a LIVE one (fresh
   // heartbeat), a start that died before writing its op row, and a run a
   // restart-steer JUST rotated (fresh run row, no op row for the new exec
-  // yet) — alive, not abandoned.
+  // yet) — alive, not abandoned. The abandoned and the op-less run were
+  // kicked after their agent left the harness its session is stamped with.
   const abandoned = await mkRun('stale', {
     withOp: true,
     heartbeatAgoMs: 10 * 60_000,
+    harness: 'codex',
   });
   const live = await mkRun('live', { withOp: true, heartbeatAgoMs: 5_000 });
-  const noOp = await mkRun('noop', { withOp: false });
+  const noOp = await mkRun('noop', { withOp: false, harness: 'pi' });
   const justRotated = await mkRun('rotated', {
     withOp: false,
     updatedAgoMs: 5_000,
@@ -18904,9 +18910,14 @@ async function checkTurnReattach(
     }),
   );
   const createdOp = await sql<
-    { resumedBy: string | null; status: string; kind: string }[]
+    {
+      resumedBy: string | null;
+      status: string;
+      kind: string;
+      harness: string | null;
+    }[]
   >`
-    SELECT resumed_by AS "resumedBy", status, kind
+    SELECT resumed_by AS "resumedBy", status, kind, harness
     FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
@@ -18936,9 +18947,74 @@ async function checkTurnReattach(
       createdOp[0]?.resumedBy === 'watchdog' &&
       createdOp[0]?.status === 'running' &&
       createdOp[0]?.kind === 'task-agent' &&
+      // …under the harness the RUN was kicked on, not the one its standing
+      // session was created with.
+      createdOp[0]?.harness === 'pi' &&
       recoveredCard?.op?.execId === noOp.execId &&
       bumpedOp[0]?.resumedBy === 'watchdog',
-    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind} runCard=${recoveredCard?.op?.execId ?? 'null'}`,
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind}/${createdOp[0]?.harness} (want harness pi) runCard=${recoveredCard?.op?.execId ?? 'null'}`,
+  );
+
+  // Migration 0127 names the ops written before the column existed. A
+  // task-agent op takes the harness of ITS RUN — here `codex`, under a
+  // session stamped `claude-code`; an op that already records one keeps it;
+  // a workflow-agent op takes its per-run session's stamp, and one whose
+  // session has none stays unnamed rather than guessed.
+  await sql`
+    UPDATE app.sandbox_session_ops SET harness = 'pi'
+    WHERE session_id = ${live.sessionId} AND exec_id = ${live.execId}
+  `;
+  for (const [suffix, agentKind] of [
+    ['wf-stamped', 'codex'],
+    ['wf-bare', null],
+  ] as const) {
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        agent_kind, created_at_ms, expires_at_ms
+      ) VALUES (${orgId}, ${`reattach-session-${suffix}`}, 'active',
+                'workflow_run', ${`reattach-run-${suffix}:@workflow`},
+                ${userId}, ${agentKind}, ${now}, ${now + 3_600_000})
+    `;
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, started_at_ms
+      ) VALUES (${orgId}, ${`reattach-session-${suffix}`},
+                ${`reattach-exec-${suffix}`}, 'workflow-agent', 'running',
+                ${now})
+    `;
+  }
+  const harnessBackfill = await readFile(
+    new URL(
+      './db/migrations/0127_sandbox_session_ops_harness.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const opHarnesses = async () => {
+    const rows = await sql<{ execId: string; harness: string | null }[]>`
+      SELECT exec_id AS "execId", harness FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+      ORDER BY exec_id
+    `;
+    return JSON.stringify(rows.map((row) => [row.execId, row.harness]));
+  };
+  await sql.unsafe(harnessBackfill);
+  const backfilledHarnesses = await opHarnesses();
+  await sql.unsafe(harnessBackfill);
+  const backfilledHarnessesAgain = await opHarnesses();
+  const wantHarnesses = JSON.stringify([
+    [live.execId, 'pi'],
+    [noOp.execId, 'pi'],
+    [abandoned.execId, 'codex'],
+    ['reattach-exec-wf-bare', null],
+    ['reattach-exec-wf-stamped', 'codex'],
+  ]);
+  record(
+    'harness turns: migration 0127 names an op by its run, keeps a recorded harness, and is idempotent',
+    backfilledHarnesses === wantHarnesses &&
+      backfilledHarnessesAgain === backfilledHarnesses,
+    `backfilled=${backfilledHarnesses} (want ${wantHarnesses}), idempotent=${backfilledHarnessesAgain === backfilledHarnesses}`,
   );
 
   // Leave nothing behind: live sessions hold sandbox slots, and settled
@@ -19424,7 +19500,9 @@ async function checkWorkflowTurnReattach(
               deadlineAt,
               providerSlug: 'itestauto',
               gatewayModel: 'itestauto/agent-model',
-              harness: 'claude-code',
+              // Not the harness the run's session below is stamped with: a
+              // run's agent nodes may each run their own.
+              harness: 'codex',
               input: { model: 'agent-model', prompt: 'probe' },
             },
           },
@@ -19527,9 +19605,14 @@ async function checkWorkflowTurnReattach(
   );
   const driveKeys = objectAt(driveJobs[0]?.data ?? null, '');
   const createdOp = await sql<
-    { resumedBy: string | null; status: string; kind: string }[]
+    {
+      resumedBy: string | null;
+      status: string;
+      kind: string;
+      harness: string | null;
+    }[]
   >`
-    SELECT resumed_by AS "resumedBy", status, kind
+    SELECT resumed_by AS "resumedBy", status, kind, harness
     FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
@@ -19549,8 +19632,11 @@ async function checkWorkflowTurnReattach(
       createdOp[0]?.status === 'running' &&
       // The lane's own kind — the run dialog's `getAgentNodeSandboxOp` and
       // the metric folds are keyed on it.
-      createdOp[0]?.kind === 'workflow-agent',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}`,
+      createdOp[0]?.kind === 'workflow-agent' &&
+      // The harness of the NODE's turn (the run cursor), not the one the
+      // run's session was opened with.
+      createdOp[0]?.harness === 'codex',
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want harness codex)`,
   );
 
   // Leave nothing for later sweeps or metrics folds to trip over.
@@ -47692,6 +47778,17 @@ async function checkMetricsSurface(
       (${orgId}, 'mx-sess', 'mx-e7', 'task-agent', 'completed',
        'awaiting_human', 0, 1, ${now - 15_000}, ${now - 14_000})
   `;
+  // The agent was switched to another harness and ran one more turn in the
+  // same standing session: the op records `pi`, the session still says
+  // `claude-code`.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      continuation_count, harness, started_at_ms, finished_at_ms
+    ) VALUES
+      (${orgId}, 'mx-sess', 'mx-e8', 'task-agent', 'completed', 'completed',
+       0, 'pi', ${now - 13_000}, ${now - 12_000})
+  `;
 
   // ---- probes ------------------------------------------------------------
   const usage = z
@@ -47887,7 +47984,13 @@ async function checkMetricsSurface(
       durationP95Ms: z.union([z.number(), z.null()]),
       spentCents: z.number(),
       byHarness: z.array(
-        z.object({ harness: z.string(), total: z.number() }).loose(),
+        z
+          .object({
+            harness: z.string(),
+            total: z.number(),
+            completed: z.number(),
+          })
+          .loose(),
       ),
     })
     .loose()
@@ -47898,25 +48001,47 @@ async function checkMetricsSurface(
         )
       ).json(),
     );
+  const piTurns = turns.success
+    ? turns.data.byHarness.find((row) => row.harness === 'pi')
+    : undefined;
   const turnsOk =
     turns.success &&
-    turns.data.total === 6 &&
-    turns.data.completed === 1 &&
+    turns.data.total === 7 &&
+    turns.data.completed === 2 &&
     turns.data.failed === 3 &&
     turns.data.cancelled === 1 &&
     turns.data.timeout === 1 &&
     turns.data.recovered === 1 &&
     turns.data.successRate !== null &&
-    Math.abs(turns.data.successRate - 1 / 5) < 1e-9 &&
+    Math.abs(turns.data.successRate - 2 / 6) < 1e-9 &&
     turns.data.durationP95Ms === 15_000 &&
     turns.data.spentCents === 10 &&
+    // The six ops that record no harness fall back to the session's stamp;
+    // the one that records `pi` is a pi turn, whatever its session says.
+    turns.data.byHarness.length === 2 &&
     turns.data.byHarness[0]?.harness === 'claude-code' &&
-    turns.data.byHarness[0].total === 6;
+    turns.data.byHarness[0].total === 6 &&
+    piTurns?.total === 1 &&
+    piTurns.completed === 1;
+  const harnessHealthAfter = z
+    .object({
+      health: z.array(
+        z.object({ harness: z.string(), recentTotal: z.number() }).loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/sandbox/harness-health?orgId=${orgId}`)
+      ).json(),
+    );
+  const piHealth = harnessHealthAfter.success
+    ? harnessHealthAfter.data.health.find((row) => row.harness === 'pi')
+    : undefined;
   record(
-    'metrics: external-turn outcomes + percentiles',
-    turnsOk,
+    'metrics: external-turn outcomes + percentiles, named by the harness the op records',
+    turnsOk && piHealth?.recentTotal === 1,
     turns.success
-      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents}`
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
       : 'shape-fail',
   );
 

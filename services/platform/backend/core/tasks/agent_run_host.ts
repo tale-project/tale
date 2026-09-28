@@ -616,6 +616,7 @@ async function mintTurnServing(
           kind: 'task-agent',
           defaultBudgetCents: workflowAgentBudgetCents(),
           modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+          harness: args.harness,
         },
       ),
     );
@@ -1038,6 +1039,7 @@ export async function startTaskAgentTurnImpl(
           kind: 'task-agent',
           status: 'running',
           modelRef: prepared.modelRef,
+          harness: args.harness,
           deadlineMs: args.deadlineAt,
           heartbeatAt: Date.now(),
           ...(prepared.mintedKeyId !== undefined
@@ -2204,6 +2206,7 @@ export async function steerTaskAgentTurnImpl(
       kind: 'task-agent',
       status: 'running',
       modelRef: prepared.modelRef,
+      harness: args.harness,
       deadlineMs: args.deadlineAt,
       heartbeatAt: Date.now(),
       ...(prepared.mintedKeyId !== undefined
