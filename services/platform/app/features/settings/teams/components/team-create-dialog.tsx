@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState, useMemo } from 'react';
 import * as z from 'zod';
 
+import { authClientError } from '@/app/lib/auth/auth-client-error';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
@@ -106,7 +107,7 @@ export function TeamCreateDialog({
           });
           return;
         }
-        throw new Error(result.error.message || 'Failed to create team');
+        throw authClientError(result.error);
       }
       await queryClient.invalidateQueries({
         queryKey: backendEntityPrefix(organizationId, TEAM_HINT_ENTITY),
@@ -114,7 +115,8 @@ export function TeamCreateDialog({
 
       const teamId = result.data?.id;
       if (!teamId) {
-        throw new Error('Team ID not returned');
+        // An answer of the wrong shape is a fault, not words for the toast.
+        throw new TypeError('createTeam answered no team id');
       }
 
       // Add selected members to the team

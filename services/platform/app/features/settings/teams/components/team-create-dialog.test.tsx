@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authClient } from '@/lib/auth-client';
+import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  forgetSavedLocale,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
+import { cleanup, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { TeamCreateDialog } from './team-create-dialog';
 
@@ -15,8 +22,9 @@ vi.mock('@tanstack/react-query', async (original) => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
+const toast = vi.hoisted(() => vi.fn());
 vi.mock('@tale/ui/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast }),
 }));
 
 vi.mock('@/lib/auth-client', () => ({
@@ -192,6 +200,92 @@ describe('TeamCreateDialog', () => {
         await screen.findByText('A team with this name already exists'),
       ).toBeInTheDocument();
       expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    });
+  });
+
+  /** Name a team and press Create, in whatever language the page is in. */
+  async function createTeamNamed(name: string) {
+    const settings = i18n.getFixedT(i18n.language, 'settings');
+    const { user } = render(
+      <TeamCreateDialog
+        organizationId="org-1"
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await user.type(screen.getByRole('textbox'), name);
+    await user.click(
+      screen.getByRole('button', { name: settings('teams.createTeam') }),
+    );
+  }
+
+  // Better Auth answers a create whose session has ended with a bare 401; the
+  // dialog toasted "Failed to create team" in English under the localized
+  // title.
+  describe('after a lapsed session', () => {
+    beforeEach(() => {
+      toast.mockClear();
+    });
+    // Unmount first: the app shell still applying the saved language would
+    // otherwise switch it back after the reset.
+    afterEach(async () => {
+      cleanup();
+      await forgetSavedLocale();
+    });
+
+    it.each(SHIPPED_LOCALES)('says the session ended (%s)', async (locale) => {
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      vi.mocked(authClient.organization.createTeam).mockResolvedValue({
+        data: null,
+        error: { status: 401, statusText: 'UNAUTHORIZED' },
+      });
+
+      await createTeamNamed('Finance');
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith({
+          title: i18n.t('teams.teamCreateFailed', { ns: 'settings' }),
+          description: SESSION_ENDED[locale],
+          variant: 'destructive',
+        }),
+      );
+    });
+  });
+
+  describe('a failure with no words for the person', () => {
+    beforeEach(() => {
+      toast.mockClear();
+    });
+
+    it.each([
+      {
+        failure: 'a refusal without a message',
+        answer: {
+          data: null,
+          error: { status: 500, statusText: 'Internal Server Error' },
+        },
+      },
+      {
+        failure: 'an answer that names no team',
+        answer: { data: { name: 'Finance' }, error: null },
+      },
+    ])('shows only the title for $failure', async ({ answer }) => {
+      vi.mocked(authClient.organization.createTeam).mockResolvedValue(
+        answer as Awaited<
+          ReturnType<typeof authClient.organization.createTeam>
+        >,
+      );
+
+      await createTeamNamed('Finance');
+
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith({
+          title: "Couldn't create team",
+          description: undefined,
+          variant: 'destructive',
+        }),
+      );
     });
   });
 });
