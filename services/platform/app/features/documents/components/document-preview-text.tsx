@@ -6,7 +6,11 @@ import { useTheme } from '@tale/ui/theme';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
+import {
+  highlightCode,
+  MAX_SHIKI_BYTES,
+  resolveLanguage,
+} from '@/lib/utils/shiki';
 import {
   getFileExtensionLower,
   getTextFileCategory,
@@ -17,6 +21,7 @@ import {
   useTextPreview,
 } from '../hooks/use-document-preview';
 import {
+  codeGutterStyle,
   PreviewContentSkeleton,
   PreviewPane,
   previewCodeTextClasses,
@@ -47,11 +52,18 @@ export function DocumentPreviewText({
     category === 'config' ||
     category === 'data';
   const shikiTheme = resolvedTheme === 'dark' ? 'min-dark' : 'min-light';
+  // Until its highlight lands, a code file under both caps is laid out the
+  // way the highlight will lay it out: unwrapped, in the numbered column.
+  const willHighlight =
+    isCodeFile &&
+    !!ext &&
+    !!content &&
+    content.length <=
+      Math.min(TEXT_PREVIEW_HIGHLIGHT_MAX_CHARS, MAX_SHIKI_BYTES);
 
   useEffect(() => {
     setHighlightedHtml(null);
-    if (!content || !isCodeFile || !ext) return undefined;
-    if (content.length > TEXT_PREVIEW_HIGHLIGHT_MAX_CHARS) return undefined;
+    if (!content || !willHighlight) return undefined;
 
     let cancelled = false;
     const lang = resolveLanguage(ext);
@@ -61,7 +73,7 @@ export function DocumentPreviewText({
     return () => {
       cancelled = true;
     };
-  }, [content, ext, isCodeFile, shikiTheme]);
+  }, [content, ext, willHighlight, shikiTheme]);
 
   const highlightRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -92,6 +104,7 @@ export function DocumentPreviewText({
         (isCodeFile && highlightedHtml ? (
           <div
             ref={highlightRef}
+            style={codeGutterStyle(content)}
             className={cn(
               'code-line-numbers w-full [&_pre]:m-0! [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-0!',
               previewCodeTextClasses,
@@ -102,10 +115,21 @@ export function DocumentPreviewText({
             className={cn(
               'm-0! bg-transparent! p-0!',
               previewCodeTextClasses,
-              isCodeFile && 'pl-12!',
+              // Scroll sideways like the highlight's `pre`, but never shrink
+              // into a second vertical scroller inside the pane.
+              willHighlight && 'shrink-0 overflow-x-auto',
             )}
           >
-            <code className="text-foreground wrap-break-word whitespace-pre-wrap">
+            <code
+              style={isCodeFile ? codeGutterStyle(content) : undefined}
+              className={cn(
+                'text-foreground',
+                isCodeFile && 'code-text-column block',
+                willHighlight
+                  ? 'whitespace-pre'
+                  : 'wrap-break-word whitespace-pre-wrap',
+              )}
+            >
               {content}
             </code>
           </pre>

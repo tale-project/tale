@@ -460,30 +460,49 @@
     counter-reset: line;
   }
 
+  /* The number column holds the widest number: 2rem fits four digits, and a
+     view of a longer file sets `--code-line-digits` to widen it. The text
+     starts one 1rem gap after the numbers. A view's plain fallback puts its
+     text in the same column with `.code-text-column`, so nothing moves when
+     the highlight lands. */
+  .code-line-numbers,
+  .code-text-column {
+    --code-gutter: max(2rem, calc(var(--code-line-digits, 0) * 1ch));
+    --code-text-offset: calc(var(--code-gutter) + 1rem);
+  }
+
+  .code-text-column {
+    padding-left: var(--code-text-offset);
+  }
+
   /* One row per source line. Shiki joins its `.line` spans with a literal
      newline, so a block-level row left an empty line box after every line
      and double-spaced the file; an inline-block row ends at that newline.
-     The 3rem hanging indent (2rem gutter + 1rem gap) keeps a wrapped row's
+     The hanging indent (the number column + the gap) keeps a wrapped row's
      continuation under its own text instead of under the numbers. */
   .code-line-numbers .line {
     display: inline-block;
     width: 100%;
     vertical-align: top;
-    padding-left: 3rem;
-    text-indent: -3rem;
+    padding-left: var(--code-text-offset);
+    text-indent: calc(-1 * var(--code-text-offset));
   }
 
+  /* Quieter than the code by colour alone: at half opacity the numbers
+     read about 2:1 on the preview canvases, under the 4.5:1 AA floor.
+     `--color-fg-subtle`, the colour of `.code-block-numbered` below, reads
+     4.4:1 on the document preview's light `bg-muted` canvas, so these keep
+     `--muted-foreground` (4.6:1 there). */
   .code-line-numbers .line::before {
     counter-increment: line;
     content: counter(line);
     display: inline-block;
-    min-width: 2rem;
+    min-width: var(--code-gutter);
     margin-right: 1rem;
     text-indent: 0;
     text-align: right;
     color: hsl(var(--muted-foreground));
     user-select: none;
-    opacity: 0.5;
   }
 
   @media (prefers-reduced-motion: reduce) {
