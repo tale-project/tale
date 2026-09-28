@@ -37176,6 +37176,12 @@ async function checkAutomationRunToolLane(
     taskId,
     body: 'c'.repeat(TASK_COMMENT_MAX + 1),
   });
+  // An empty comment is told so in the sentence the app door answers too,
+  // before any read; `limitComments` below proves nothing landed.
+  const blankComment = await dispatch(pinnedToken, 'task_comment', {
+    taskId,
+    body: ' \n ',
+  });
   const limitRows = await sql<{ id: string }[]>`
     SELECT id FROM app.tasks
     WHERE org_id = ${orgId}
@@ -37292,6 +37298,41 @@ async function checkAutomationRunToolLane(
     WHERE org_id = ${orgId} AND external_system = 'itest-tracker'
       AND external_id = 'ISSUE-7'
   `;
+  // The sync cuts an over-long description to the cap as it cuts a title,
+  // on the create and on the reconcile, and refuses a blank title with the
+  // sentence task_create answers.
+  const storedBody = async (externalId: string) =>
+    (
+      await sql<{ description: string | null }[]>`
+        SELECT description FROM app.tasks
+        WHERE org_id = ${orgId} AND external_system = 'itest-limits'
+          AND external_id = ${externalId}
+      `
+    ).map((row) => row.description);
+  const cutCreate = await dispatch(pinnedToken, 'task_upsert_by_external_ref', {
+    externalSystem: 'itest-limits',
+    externalId: 'LONG-1',
+    title: 'A long issue body',
+    description: `${'d'.repeat(TASK_DESCRIPTION_MAX)} and the rest`,
+  });
+  const cutCreateBody = await storedBody('LONG-1');
+  const cutReconcile = await dispatch(
+    pinnedToken,
+    'task_upsert_by_external_ref',
+    {
+      externalSystem: 'itest-limits',
+      externalId: 'LONG-1',
+      title: 'A long issue body',
+      description: `${'e'.repeat(TASK_DESCRIPTION_MAX)} and the rest`,
+    },
+  );
+  const cutReconcileBody = await storedBody('LONG-1');
+  const blankSyncTitle = await dispatch(
+    pinnedToken,
+    'task_upsert_by_external_ref',
+    { externalSystem: 'itest-limits', externalId: 'BLANK-1', title: '  ' },
+  );
+  const blankSyncRows = await storedBody('BLANK-1');
 
   // --- the org-wide run: bounded by its automation's bindings.
   const needsProject = await dispatch(orgToken, 'task_create', {
@@ -37528,6 +37569,38 @@ async function checkAutomationRunToolLane(
       limitLabels.length === 0 &&
       limitComments.length === 0,
     `description=${overLongDescription.status}/${namesDescriptionLimit}, label=${overLongLabel.status}/${namesLabelLimit}, comment=${overLongComment.status}/${namesCommentLimit} (want invalid_args/true each), rows=${limitRows.length} labels=${limitLabels.length} comments=${limitComments.length} (want 0 each), raw=${[overLongDescription, overLongLabel, overLongComment].map((answer) => answer.raw.slice(0, 160)).join(' | ')}`,
+  );
+  const namesEmptyComment = blankComment.raw.includes(
+    `The comment is empty — it takes 1 to ${taskLimitText(TASK_COMMENT_MAX)}.`,
+  );
+  const namesEmptyTitle = blankSyncTitle.raw.includes(
+    `The task title is empty — it takes 1 to ${taskLimitText(TASK_TITLE_MAX)}.`,
+  );
+  record(
+    'task tools answer an empty comment and a blank sync title with the shared empty sentence',
+    blankComment.status === 'invalid_args' &&
+      namesEmptyComment &&
+      limitComments.length === 0 &&
+      blankSyncTitle.status === 'invalid_args' &&
+      namesEmptyTitle &&
+      blankSyncRows.length === 0,
+    `comment=${blankComment.status}/${namesEmptyComment}, title=${blankSyncTitle.status}/${namesEmptyTitle} (want invalid_args/true each), comments=${limitComments.length} rows=${blankSyncRows.length} (want 0 each), raw=${[blankComment, blankSyncTitle].map((answer) => answer.raw.slice(0, 160)).join(' | ')}`,
+  );
+  const describeBody = (bodies: (string | null)[]): string =>
+    bodies
+      .map((body) =>
+        body === null ? 'null' : `${body.length}:${body.slice(-2)}`,
+      )
+      .join(',') || 'no-row';
+  record(
+    'task_upsert_by_external_ref cuts an over-long description to the cap, on the create and the reconcile',
+    cutCreate.status === 'ok' &&
+      cutReconcile.status === 'ok' &&
+      cutCreateBody.length === 1 &&
+      cutCreateBody[0] === `${'d'.repeat(TASK_DESCRIPTION_MAX - 1)}…` &&
+      cutReconcileBody.length === 1 &&
+      cutReconcileBody[0] === `${'e'.repeat(TASK_DESCRIPTION_MAX - 1)}…`,
+    `create=${cutCreate.status} → ${describeBody(cutCreateBody)}, reconcile=${cutReconcile.status} → ${describeBody(cutReconcileBody)} (want ok → ${TASK_DESCRIPTION_MAX}:"…" each)`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';

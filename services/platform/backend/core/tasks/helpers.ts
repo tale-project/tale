@@ -114,6 +114,20 @@ export function taskCommentRefusal(body: string): string | null {
 }
 
 /**
+ * Imported text, trimmed and cut to `max` UTF-16 code units ending in "…".
+ * The cut never ends on the first half of a surrogate pair: a lone half is
+ * no character, and storage writes it as U+FFFD.
+ */
+function cutImportedText(text: string, max: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= max) return trimmed;
+  let end = max - 1;
+  const last = trimmed.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${trimmed.slice(0, end).trimEnd()}…`;
+}
+
+/**
  * Coerce an externally-sourced task title (e.g. a GitHub issue title) to fit
  * `TASK_TITLE_MAX`. Unlike the human/agent create paths — which *reject* an
  * over-long title so the author can shorten it — an imported title is not under
@@ -124,9 +138,33 @@ export function taskCommentRefusal(body: string): string | null {
  * fallback for that (GitHub issues always carry a title, so it's defensive).
  */
 export function truncateImportedTitle(title: string): string {
-  const trimmed = title.trim();
-  if (trimmed.length <= TASK_TITLE_MAX) return trimmed;
-  return `${trimmed.slice(0, TASK_TITLE_MAX - 1).trimEnd()}…`;
+  return cutImportedText(title, TASK_TITLE_MAX);
+}
+
+/**
+ * Coerce an externally-sourced task description (an issue body, a ticket's
+ * text) to fit `TASK_DESCRIPTION_MAX`, the way {@link truncateImportedTitle}
+ * fits a title. Nobody at the import site wrote it (a GitHub issue body runs
+ * to 65,536), and refusing it would fail the whole item: its create and
+ * every later reconcile. Storing it whole would leave a description no other
+ * door could write, which the board's own edit then refuses. A door where
+ * the caller writes the text (the board, `task_create`, the REST intake)
+ * refuses a longer one by name instead. The full text stays reachable via
+ * `externalUrl`. Returns an empty string for a blank description.
+ */
+export function truncateImportedDescription(description: string): string {
+  return cutImportedText(description, TASK_DESCRIPTION_MAX);
+}
+
+/**
+ * Why an imported title is refused, or null. Its length never is: an
+ * over-long one is cut ({@link truncateImportedTitle}). A blank one names
+ * nothing, and is refused with the empty-title sentence every door answers.
+ */
+export function importedTaskTitleRefusal(title: string): string | null {
+  return title.trim() === ''
+    ? emptyRefusal('The task title', TASK_TITLE_MAX)
+    : null;
 }
 
 /** The task fields a workflow-run subject is built from. */

@@ -13,6 +13,8 @@ import {
   taskLimitText,
   taskTitleRefusal,
   taskWorkflowSubjectInput,
+  importedTaskTitleRefusal,
+  truncateImportedDescription,
   truncateImportedTitle,
 } from './helpers';
 
@@ -30,6 +32,72 @@ describe('truncateImportedTitle', () => {
 
   it('answers an empty string for a blank title', () => {
     expect(truncateImportedTitle('   ')).toBe('');
+  });
+});
+
+describe('truncateImportedDescription', () => {
+  it('keeps a description within the cap verbatim (trimmed)', () => {
+    const fits = 'd'.repeat(TASK_DESCRIPTION_MAX);
+    expect(truncateImportedDescription(`\n${fits}  `)).toBe(fits);
+  });
+
+  it('cuts an over-long description to the cap, ending in an ellipsis', () => {
+    const cut = truncateImportedDescription(
+      `${'d'.repeat(TASK_DESCRIPTION_MAX)} and more`,
+    );
+    expect(cut).toHaveLength(TASK_DESCRIPTION_MAX);
+    expect(cut).toBe(`${'d'.repeat(TASK_DESCRIPTION_MAX - 1)}…`);
+    // The same rule the title's cut follows.
+    expect(truncateImportedDescription('x'.repeat(50_000))).toHaveLength(
+      TASK_DESCRIPTION_MAX,
+    );
+  });
+
+  it('answers an empty string for a blank description', () => {
+    expect(truncateImportedDescription(' \n ')).toBe('');
+  });
+});
+
+describe('the imported cut never splits an emoji', () => {
+  // 🎯 is two UTF-16 code units: a cut after its first half would leave a
+  // lone surrogate, which storage writes as U+FFFD.
+  it.each([
+    ['title', truncateImportedTitle, TASK_TITLE_MAX],
+    ['description', truncateImportedDescription, TASK_DESCRIPTION_MAX],
+  ] as const)('steps back before a pair the %s cut lands in', (_, cut, max) => {
+    // The first half of an emoji sits at max - 2, where the cut ends.
+    const text = `${'a'.repeat(max - 2)}🎯${'b'.repeat(10)}`;
+    const result = cut(text);
+    expect(result).toBe(`${'a'.repeat(max - 2)}…`);
+    expect(result.isWellFormed()).toBe(true);
+  });
+
+  it.each([
+    ['title', truncateImportedTitle, TASK_TITLE_MAX],
+    ['description', truncateImportedDescription, TASK_DESCRIPTION_MAX],
+  ] as const)(
+    'keeps a whole emoji that ends where the %s cut ends',
+    (_, cut, max) => {
+      const text = `${'a'.repeat(max - 3)}🎯${'b'.repeat(10)}`;
+      expect(cut(text)).toBe(`${'a'.repeat(max - 3)}🎯…`);
+      expect(cut(text)).toHaveLength(max);
+    },
+  );
+});
+
+describe('importedTaskTitleRefusal', () => {
+  it('refuses a blank title with the empty sentence every door answers', () => {
+    for (const title of ['', '   \n']) {
+      expect(importedTaskTitleRefusal(title)).toBe(taskTitleRefusal(title));
+    }
+    expect(importedTaskTitleRefusal('')).toBe(
+      'The task title is empty — it takes 1 to 200 UTF-16 code units.',
+    );
+  });
+
+  it('never refuses an imported title for its length: the import cuts it', () => {
+    expect(importedTaskTitleRefusal('x'.repeat(TASK_TITLE_MAX + 1))).toBeNull();
+    expect(importedTaskTitleRefusal('Fits')).toBeNull();
   });
 });
 

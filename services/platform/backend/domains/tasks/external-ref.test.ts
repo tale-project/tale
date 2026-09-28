@@ -1,6 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  TASK_DESCRIPTION_MAX,
+  TASK_TITLE_MAX,
+} from '../../core/tasks/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRunInTx } from '../automations/store.ts';
@@ -639,6 +643,123 @@ describe('the external ref is canonical at the lookup and the write', () => {
     expect(vi.mocked(createAuditLog).mock.calls.at(-1)?.[1]).toMatchObject({
       metadata: { externalSystem: 'crm', externalId: 'café-001' },
     });
+  });
+});
+
+/**
+ * Imported text is cut to the board's caps, never refused: the upsert is the
+ * import verb, and one long issue body must not fail its item's create and
+ * every reconcile after it. The title always was cut; the description used to
+ * be stored at any length, where the board's own edit then refused it.
+ */
+describe('upsertTaskByExternalRef — an over-long description is cut, like the title', () => {
+  const longBody = `${'d'.repeat(TASK_DESCRIPTION_MAX)} and the rest of the body`;
+  const cutBody = `${'d'.repeat(TASK_DESCRIPTION_MAX - 1)}…`;
+  const intake = {
+    organizationId: 'org-1',
+    actorId: 'agent-1',
+    projectId: 'p-1',
+    externalSystem: 'crm',
+    externalId: 'case-7',
+    dedupeScope: 'project' as const,
+  };
+  const existing: TaskRow = {
+    id: 't-7',
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    title: 'Case 7',
+    description: 'Short',
+    attachments: null,
+    outputs: null,
+    number: 7,
+    status: 'todo',
+    priority: null,
+    labelIds: [],
+    assigneeType: null,
+    assigneeId: null,
+    reviewerUserId: null,
+    parentTaskId: null,
+    commentCount: 0,
+    rank: 'a0',
+    externalSystem: 'crm',
+    externalId: 'case-7',
+    externalUrl: null,
+    threadId: null,
+    discussionThreadId: null,
+    sourceDiscussionThreadId: null,
+    startDate: null,
+    startNotifiedAt: null,
+    dueDate: null,
+    slaLevel: null,
+    slaLevelAt: null,
+    statusChangedAt: 1,
+    totalCostCents: null,
+    agentRunCount: 0,
+    lastAgentRunAt: null,
+    claimedAt: null,
+    completedAt: null,
+    externalClosedAt: null,
+    createdBy: 'u-1',
+    createdByType: 'user',
+    createdAt: 1,
+    updatedAt: 1,
+    archivedAt: null,
+  };
+
+  /** The create lane's INSERT values: (org, project, title, description, …). */
+  async function created(description: string): Promise<unknown[]> {
+    let inserted: unknown[] = [];
+    const { tx } = fakeDb((text, values) => {
+      if (text.startsWith('INSERT INTO app.tasks')) {
+        inserted = values;
+        return [{ id: 't-new' }];
+      }
+      if (text.startsWith('SELECT id FROM app.projects'))
+        return [{ id: 'p-1' }];
+      if (text.startsWith('UPDATE app.projects SET task_counter'))
+        return [{ taskCounter: 7 }];
+      return [];
+    });
+    await expect(
+      upsertTaskByExternalRef(tx, {
+        ...intake,
+        title: 't'.repeat(TASK_TITLE_MAX + 1),
+        description,
+      }),
+    ).resolves.toEqual({ taskId: 't-new', created: true });
+    return inserted;
+  }
+
+  /** The description the reconcile lane's UPDATE writes. */
+  async function reconciled(description: string): Promise<unknown> {
+    let update: { text: string; values: unknown[] } | undefined;
+    const { tx } = fakeDb((text, values) => {
+      if (text.startsWith('UPDATE app.tasks SET')) update = { text, values };
+      return text.includes('FROM app.tasks WHERE org_id = ?') ? [existing] : [];
+    });
+    await expect(
+      upsertTaskByExternalRef(tx, { ...intake, title: 'Case 7', description }),
+    ).resolves.toEqual({ taskId: 't-7', created: false });
+    const columns = [...(update?.text ?? '').matchAll(/(\w+) = \?/g)].map(
+      (match) => match[1],
+    );
+    return update?.values[columns.indexOf('description')];
+  }
+
+  it('creates the task with both cut to their caps, ending in "…"', async () => {
+    const inserted = await created(longBody);
+    expect(inserted[2]).toBe(`${'t'.repeat(TASK_TITLE_MAX - 1)}…`);
+    expect(inserted[3]).toBe(cutBody);
+  });
+
+  it('reconciles an existing task with the description cut to the cap', async () => {
+    await expect(reconciled(longBody)).resolves.toBe(cutBody);
+  });
+
+  it('keeps a description at the cap as sent, trimmed', async () => {
+    const atCap = 'd'.repeat(TASK_DESCRIPTION_MAX);
+    expect((await created(`  ${atCap}\n`))[3]).toBe(atCap);
+    await expect(reconciled(`${atCap} `)).resolves.toBe(atCap);
   });
 });
 
