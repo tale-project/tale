@@ -2,11 +2,12 @@
 
 /**
  * The serving model's context window — and the organization's Custom
- * instructions — reach every exec an automation agent node launches — the kick's scheduled start and the answered-ask resume —
- * through the REAL hosts, with only external I/O replaced and the model's
- * catalog entry stubbed. Without it Claude Code assumes a 200,000-token
- * window for a model it does not know, and a turn on a local model serving
- * 32,768 grows far past what that model can prefill in time.
+ * instructions — reach every exec an automation agent node launches (the
+ * kick's scheduled start and the answered-ask resume) through the REAL
+ * hosts, with only external I/O replaced and the model's catalog entry
+ * stubbed. Without it Claude Code assumes a 200,000-token window for a model
+ * it does not know, and a turn on a local model serving 32,768 grows far past
+ * what that model can prefill in time.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -384,7 +385,7 @@ describe('an automation agent turn', () => {
 describe("the organization's Custom instructions", () => {
   const HOUSE_RULE = 'Sign every report as the Finance desk.';
 
-  it('lead the instructions of an agent step start and of its resume', async () => {
+  it('lead the instructions of an agent node start and of its resume', async () => {
     servesWindow(32_768);
     io.systemPrompt = { enabled: true, mandatoryInstructions: HOUSE_RULE };
     const start = makeCtx({ status: 'running' });

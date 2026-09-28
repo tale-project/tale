@@ -1098,6 +1098,7 @@ export async function startTaskAgentTurnImpl(
       const mandatoryInstructions = await readMandatoryInstructions(
         ctx,
         args.organizationId,
+        '[task-agent]',
       );
       const instructions = [
         // The organization's Custom instructions lead, as on a chat turn.
@@ -2242,6 +2243,7 @@ export async function steerTaskAgentTurnImpl(
     const mandatoryInstructions = await readMandatoryInstructions(
       ctx,
       args.organizationId,
+      '[task-agent]',
     );
     const instructions = [
       // The organization's Custom instructions lead, as on a chat turn.

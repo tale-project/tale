@@ -1267,6 +1267,7 @@ export async function startWorkflowAgentTurnImpl(
       const mandatoryInstructions = await readMandatoryInstructions(
         ctx,
         args.organizationId,
+        '[agent-host]',
       );
       const instructions = [
         // The organization's Custom instructions lead, as on a chat turn.
@@ -1857,6 +1858,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       const mandatoryInstructions = await readMandatoryInstructions(
         ctx,
         args.organizationId,
+        '[agent-host]',
       );
       const instructions = [
         // The organization's Custom instructions lead, as on a chat turn.

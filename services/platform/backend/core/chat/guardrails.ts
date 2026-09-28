@@ -62,11 +62,14 @@ type TurnPolicyType =
   | 'system_prompt';
 
 /** One policy through the seam, re-validated: an absent or corrupt file
- * reads as "no policy" — a bad governance file must never brick chat. */
+ * reads as "no policy" — a bad governance file must never brick chat or an
+ * agent run. `logTag` names the lane that asked, so a warning about a corrupt
+ * file lands where the operator triaging that lane looks for it. */
 async function readPolicy<T extends TurnPolicyType>(
   ctx: ActionCtx,
   organizationId: string,
   policyType: T,
+  logTag: string,
 ): Promise<ReturnType<(typeof POLICY_SCHEMAS)[T]['parse']> | null> {
   const raw: unknown = await ctx.runQuery(
     internal.governance.internal_queries.getPolicyConfigInternal,
@@ -76,7 +79,7 @@ async function readPolicy<T extends TurnPolicyType>(
   const parsed = POLICY_SCHEMAS[policyType].safeParse(raw);
   if (!parsed.success) {
     console.warn(
-      `[chat] ignoring unparseable ${policyType} policy for organization ${organizationId}: ${parsed.error.issues[0]?.message ?? 'invalid'}`,
+      `${logTag} ignoring unparseable ${policyType} policy for organization ${organizationId}: ${parsed.error.issues[0]?.message ?? 'invalid'}`,
     );
     return null;
   }
@@ -84,16 +87,18 @@ async function readPolicy<T extends TurnPolicyType>(
   return parsed.data as ReturnType<(typeof POLICY_SCHEMAS)[T]['parse']>;
 }
 
+const CHAT_LOG_TAG = '[chat]';
+
 /** The four policy files a turn reads, in one parallel slot. */
 export async function readTurnPolicies(
   ctx: ActionCtx,
   organizationId: string,
 ): Promise<TurnPolicies> {
   const [chatFilter, pii, moderation, systemPrompt] = await Promise.all([
-    readPolicy(ctx, organizationId, 'chat_filter'),
-    readPolicy(ctx, organizationId, 'pii_config'),
-    readPolicy(ctx, organizationId, 'moderation_provider'),
-    readPolicy(ctx, organizationId, 'system_prompt'),
+    readPolicy(ctx, organizationId, 'chat_filter', CHAT_LOG_TAG),
+    readPolicy(ctx, organizationId, 'pii_config', CHAT_LOG_TAG),
+    readPolicy(ctx, organizationId, 'moderation_provider', CHAT_LOG_TAG),
+    readPolicy(ctx, organizationId, 'system_prompt', CHAT_LOG_TAG),
   ]);
   return { chatFilter, pii, moderation, systemPrompt };
 }
@@ -110,16 +115,24 @@ export function mandatoryInstructionsFor(
 
 /**
  * The org's mandatory instructions alone, for an agent run — a project agent
- * working a task or an automation's agent step. Same policy file and rules
+ * working a task or an automation's agent node. Same policy file and rules
  * as a chat turn's first block (absent when missing, disabled, blank or
  * unparseable), so "Custom instructions" reaches every agent the settings
- * page says it does, placed ahead of the agent's own instructions.
+ * page says it does, placed ahead of the agent's own instructions. `logTag`
+ * is the calling host's log prefix, so a corrupt policy file is reported
+ * under the run that read it rather than under chat.
  */
 export async function readMandatoryInstructions(
   ctx: ActionCtx,
   organizationId: string,
+  logTag: string,
 ): Promise<string | undefined> {
-  const systemPrompt = await readPolicy(ctx, organizationId, 'system_prompt');
+  const systemPrompt = await readPolicy(
+    ctx,
+    organizationId,
+    'system_prompt',
+    logTag,
+  );
   return systemPrompt === null
     ? undefined
     : effectiveMandatoryInstructions(systemPrompt);
