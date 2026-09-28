@@ -1800,7 +1800,6 @@ conversations:
         Ce brouillon d'e-mail sera définitivement supprimé. Cette action
         est irréversible.
     sent: E-mail envoyé
-    uploadFailed: Échec de l'envoi de la pièce jointe
   updating: Mise à jour des conversations...
   bulk:
     sendMessages: Envoyer les messages
