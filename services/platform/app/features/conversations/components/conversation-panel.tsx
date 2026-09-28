@@ -476,7 +476,7 @@ export function ConversationPanel({
       // the scroller below can bound its height. Without this it collapses to a
       // plain block, the inner `overflow-y-auto` never engages, and the reading
       // pane grows past the viewport instead of scrolling.
-      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      className="mobile-nav-clearance mobile-nav-inset flex min-h-0 min-w-0 flex-1 flex-col"
     >
       {/* The composer/banner footer is a flex SIBLING of the scroller — never
           inside the scroll container — so it cannot move with content. */}

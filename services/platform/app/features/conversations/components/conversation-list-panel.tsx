@@ -24,7 +24,7 @@ export function ConversationListPanel({
     >
       <Stack
         gap={0}
-        className="min-h-0 flex-1 overflow-y-auto pb-[length:var(--mobile-floating-actions-pad,0px)]"
+        className="mobile-nav-clearance min-h-0 flex-1 overflow-y-auto pb-[calc(var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))]"
       >
         {children}
       </Stack>

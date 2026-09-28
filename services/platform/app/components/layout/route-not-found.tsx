@@ -108,7 +108,7 @@ function StandaloneNotFound() {
         id="main-content"
         tabIndex={-1}
         gap={0}
-        className="flex-1 pb-[calc(3.5rem+var(--safe-bottom))] outline-none"
+        className="mobile-nav-clearance mobile-nav-inset flex-1 outline-none"
       >
         <NotFoundState href="/dashboard" />
       </Stack>
