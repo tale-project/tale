@@ -8287,7 +8287,7 @@ sandboxes:
     organizationSessionsHint: Actuellement actives ou au démarrage, y compris les sandboxes inactives conservées pour être réutilisées.
     cpu: Utilisation du CPU de l'hôte
     cpuUsage: '{used} / {total} cœurs'
-    cpuHint: Mesure sur l'ensemble des processus de l'hôte ; le premier relevé peut manquer.
+    cpuHint: Mesure sur l'ensemble des processus de l'hôte.
     memory: Mémoire de l'hôte utilisée
     memoryUsage: '{used} / {total} Gio'
     memoryHint: Mémoire utilisée et totale de l'hôte, y compris les autres services.

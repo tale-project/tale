@@ -8197,7 +8197,7 @@ sandboxes:
     organizationSessionsHint: Aktuell laufend oder startend, auch Sandboxes im Leerlauf, die zur Wiederverwendung bereitstehen.
     cpu: CPU-Auslastung des Hosts
     cpuUsage: '{used} / {total} Kerne'
-    cpuHint: Messung über alle Prozesse auf dem Host; die erste Messung kann fehlen.
+    cpuHint: Messung über alle Prozesse auf dem Host.
     memory: Speichernutzung des Hosts
     memoryUsage: '{used} / {total} GiB'
     memoryHint: Genutzter und gesamter Host-Speicher, einschließlich anderer Dienste.
