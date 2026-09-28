@@ -164,10 +164,11 @@ The following example is the broker credential document built by the [AI provide
     "tokenField": "access_token",
     "statusField": "status",
     "activeValue": "active",
-    "expiresField": "expires_at"
+    "expiresField": "refresh_at"
   },
   "targetEnvVar": "CLAUDE_CODE_OAUTH_TOKEN",
-  "selection": "round-robin"
+  "selection": "round-robin",
+  "expirySkewMs": 3600000
 }
 ```
 
@@ -194,7 +195,7 @@ Keep `id` stable when the account's access token rotates, so retries recognize t
 
 Older brokers can omit the optional metadata. Without `id`, retry identity falls back to a hash of the token, so it cannot recognize an account after its token changes. Missing quota information leaves an account eligible; it does not establish that quota remains.
 
-Tale AI gateway excludes an account when a fresh usage snapshot reports a global session or weekly window at 100% and its reset has not passed. A vendor's explicit limit signal (`usage.limited: true`) also makes the account unavailable, even when its displayed utilization is lower or missing. Model-specific limits do not exclude the whole account. Usage is considered stale after 15 minutes, so unknown or stale readings leave the account eligible; an exhausted window with no reset time is held only while its reading is fresh. The next token request refreshes stale usage where the vendor supports it. After the applicable reset, the account can rejoin the pool. Provider-side rejection is still possible between usage refreshes.
+Tale AI gateway excludes an account when a fresh usage snapshot reports a global session or weekly window at 100% and its reset has not passed. A vendor's explicit limit signal (`usage.limited: true`) also makes the account unavailable, even when its displayed utilization is lower or missing. Model-specific limits do not exclude the whole account. Usage is considered stale after 15 minutes, so unknown or stale readings leave the account eligible; an exhausted window with no reset time is held only while its reading is fresh. The next token request refreshes stale usage where the vendor supports it. After the applicable reset, the account can rejoin the pool. Provider-side rejection is still possible between usage refreshes. The gateway also reports an account as unavailable until its planned token refresh, `refresh_at`, once that refresh is less than an hour away (the gateway's default hand-out floor), so no turn starts on a token that is about to be revoked.
 
 ### Selection and recovery
 
@@ -202,9 +203,13 @@ Tale AI gateway excludes an account when a fresh usage snapshot reports a global
 
 When an account returns HTTP 429, Tale excludes it from new selections for this organization and credential for 60 seconds. Retries prefer accounts not yet tried during that run's failure streak. If every otherwise usable account was tried, retries may reuse one; quota and cooldown exclusions still apply.
 
-Unless overridden, pool requests time out after 10 seconds and accept at most 262,144 bytes. A mapped token expiry must be more than five minutes away. Keep the status and expiry mappings when using Tale AI gateway so inactive or nearly expired tokens are skipped. Expiry values may be ISO timestamps or Unix timestamps in seconds or milliseconds.
+When the vendor answers HTTP 401 during a turn served by a broker token, that token was revoked while the agent worked. Tale AI gateway's own refresh does this: Anthropic revokes the access token a refresh replaces. Tale then fetches a fresh token from the broker and continues the same conversation. Two such interruptions in a row neither count toward the run's automatic retries nor exclude the account, which already holds a new token. A third in a row counts like any other failure, so an account authorization that no longer works cannot retry forever. An interruption after at least fifteen minutes of work starts the count again.
 
-If the pool has no usable account, inspect broker authorization, account status, expiry, quota resets and the response mapping. Renew the account authorization or wait for quota recovery as appropriate, then verify a completed task or automation reply with the intended provider and runtime. A successful broker fetch alone does not test the vendor connection.
+Unless overridden, pool requests time out after 10 seconds and accept at most 262,144 bytes. A mapped token expiry must be further away than the expiry safety margin, `expirySkewMs`, which defaults to five minutes. With Tale AI gateway, keep the status mapping and map `refresh_at` as the expiry: it is the moment the gateway's own refresh ends the token, earlier than the vendor's `expires_at`. Set `expirySkewMs` to the gateway's hand-out floor, 3,600,000 ms for its default hour, so no turn starts on a token with less than an hour left. Expiry values may be ISO timestamps or Unix timestamps in seconds or milliseconds.
+
+The margin protects the start of a turn, not its full length. A task or automation agent can work for up to 12 hours, while an Anthropic access token is valid for eight. Expect a longer turn to be interrupted by a 401 when its token is refreshed, and to continue on a fresh token as described above.
+
+If the pool has no usable account, inspect broker authorization, account status, token expiry and planned refreshes, quota resets and the response mapping. Renew the account authorization, or wait for the quota reset or the token refresh, as appropriate. Then verify a completed task or automation reply with the intended provider and runtime. A successful broker fetch alone does not test the vendor connection.
 
 ## Broker secrets from the environment
 
