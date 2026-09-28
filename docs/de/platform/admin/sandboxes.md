@@ -65,7 +65,7 @@ Inhaber und Admins finden im Zeilenmenü diese Aktionen:
 | --- | --- |
 | **Aufgabe stoppen** | Bricht alle laufenden Vorgänge dieses Arbeitsbereichs ab. Prüfe zuerst die Aufgabenliste; ein Agent kann mehrere Aufgaben bearbeiten. |
 | **Anpinnen** / **Lösen** | Nimmt den Arbeitsbereich von der automatischen Inaktivitäts- und Ablaufbereinigung aus oder stellt die normale Bereinigung wieder her. Eine angeheftete Belegung kann weiter Kapazität beanspruchen. Verschwindet die Umgebung eines angehefteten Arbeitsbereichs, etwa nach einem Neustart des Hosts, startet Tale sie mit den Workspace-Dateien neu; der Arbeitsbereich bleibt angeheftet. |
-| **Löschen** | Fragt nach Bestätigung, bricht laufende Arbeit ab und entfernt Sandbox und Workspace-Dateien. Die Anheftung wird zuerst gelöst. Schlägt das Löschen fehl, bleibt der Arbeitsbereich ohne Anheftung in der Liste und du kannst **Löschen** erneut versuchen; bis dahin gilt für ihn die normale Inaktivitäts- und Ablaufbereinigung. Der nächste Agentenstart erzeugt eine neue Umgebung. |
+| **Löschen** | Fragt nach Bestätigung, bricht laufende Arbeit ab und entfernt Sandbox und Workspace-Dateien. Die Anheftung wird zuerst gelöst. Schlägt das Löschen fehl, bleibt der Arbeitsbereich ohne Anheftung in der Liste und du kannst **Löschen** erneut versuchen, um ihn vollständig zu entfernen. Der nächste Agentenstart erzeugt eine neue Umgebung. |
 
 Stoppe die Aufgabe, wenn die Arbeit enden, ihre Dateien aber bleiben sollen. Sichere vor dem Löschen benötigte Ergebnisse und lies die Bestätigung. Automatische Rückgewinnung inaktiver Kapazität bewahrt Workspace-Dateien; ausdrückliches Löschen entfernt sie.
 
