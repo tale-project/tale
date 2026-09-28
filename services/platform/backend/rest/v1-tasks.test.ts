@@ -332,7 +332,7 @@ describe('project-scoped task intake', () => {
     expect(await long.json()).toMatchObject({
       code: 'INVALID_BODY',
       // The cap names the unit it counts, as the domain and the reference
-      // do — not the formatter's default "characters".
+      // do — the formatter's default used to say "characters".
       data: {
         issues: [
           {

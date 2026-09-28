@@ -7219,6 +7219,7 @@ tasks:
   fields:
     title: Title
     description: Description
+    descriptionTooLong: This description has {length} characters; the limit is {max}. Shorten it to save. Most emoji count as 2.
     assignee: Assignee
     reviewer: Reviewer
     priority: Priority
@@ -7410,6 +7411,8 @@ tasks:
     unwatch: Unwatch
   errors:
     PROJECT_ARCHIVED: This project is archived. Restore it to change its tasks.
+    TASK_TITLE_INVALID: A title needs 1 to {max} characters. Most emoji count as 2.
+    TASK_DESCRIPTION_INVALID: This description is too long to save. It can have up to {max} characters, and most emoji count as 2.
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'

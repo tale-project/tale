@@ -10,6 +10,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { TASK_LABEL_CHARS_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -22,8 +23,6 @@ import {
 import { useTaskLabels } from '../hooks/queries';
 import { labelColor } from '../lib/labels';
 import { TaskLabelBadge } from './task-label-badge';
-
-const MAX_LABEL_LENGTH = 50;
 
 /**
  * Project-scoped label catalog manager. Rename and delete live here; create
@@ -163,7 +162,7 @@ export function LabelManageDialog({
                           <input
                             autoFocus
                             value={editName}
-                            maxLength={MAX_LABEL_LENGTH}
+                            maxLength={TASK_LABEL_CHARS_MAX}
                             disabled={busy}
                             onChange={(e) => setEditName(e.target.value)}
                             onKeyDown={(e) => {
@@ -250,7 +249,7 @@ export function LabelManageDialog({
                 <input
                   type="text"
                   value={newName}
-                  maxLength={MAX_LABEL_LENGTH}
+                  maxLength={TASK_LABEL_CHARS_MAX}
                   disabled={busy}
                   placeholder={t('labels.namePlaceholder')}
                   aria-label={t('labels.namePlaceholder')}

@@ -65,6 +65,7 @@ beforeEach(() => {
   vi.mocked(upsertTaskByExternalRef).mockResolvedValue({
     taskId: 'task-1',
     created: true,
+    title: 'Issue',
   });
 });
 
@@ -72,7 +73,7 @@ describe('task import authorization and reconciliation policy', () => {
   it('reuses project dedupe and preserves local progress on every repeat', async () => {
     await expect(
       pgTaskStore(sql).upsert({ ...input, caller: workflow }),
-    ).resolves.toEqual({ taskId: 'task-1', created: true });
+    ).resolves.toEqual({ taskId: 'task-1', created: true, title: 'Issue' });
     expect(getRun).toHaveBeenCalledWith(tx, 'org-1', 'run-1');
     expect(resolveRunProject).toHaveBeenCalledWith(tx, {
       organizationId: 'org-1',
@@ -194,10 +195,13 @@ describe('task import authorization and reconciliation policy', () => {
   });
 
   it('locks a batch in stable source order while returning the original issue order', async () => {
+    // Each result carries the title the domain answered — the one the task
+    // carries (cut, or kept by a source reconcile) — never the one sent.
     vi.mocked(upsertTaskByExternalRef).mockImplementation(
       async (_tx, issue) => ({
         taskId: issue.externalId,
         created: true,
+        title: `Stored ${issue.title}`,
       }),
     );
     const issues = [
@@ -216,8 +220,8 @@ describe('task import authorization and reconciliation policy', () => {
         issues,
       }),
     ).resolves.toEqual([
-      { taskId: 'example/web#2', created: true, title: 'Second' },
-      { taskId: 'example/web#1', created: true, title: 'First' },
+      { taskId: 'example/web#2', created: true, title: 'Stored Second' },
+      { taskId: 'example/web#1', created: true, title: 'Stored First' },
     ]);
     expect(
       vi

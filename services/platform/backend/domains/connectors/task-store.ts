@@ -144,7 +144,9 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
               projectId,
               issue,
             );
-            results.push({ index, value: { ...result, title: issue.title } });
+            // The domain answers the title the task carries after the write
+            // (cut, or kept by a source reconcile), not the one sent.
+            results.push({ index, value: result });
           }
           return results
             .sort((left, right) => left.index - right.index)
