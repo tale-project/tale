@@ -10,6 +10,7 @@ import {
   type EditorController,
 } from '@tale/ui/editor';
 import { Field } from '@tale/ui/field';
+import { InlineCode } from '@tale/ui/inline-code';
 import { Input } from '@tale/ui/input';
 import {
   SearchableSelect,
@@ -20,6 +21,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
+import { Link } from '@tanstack/react-router';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import {
   useCallback,
@@ -32,6 +34,8 @@ import {
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
+import { PERMANENT_FAILURES_BEFORE_PAUSE } from '@/backend/core/automations/failure';
+import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
 
@@ -51,6 +55,10 @@ type TriggerKind = (typeof TRIGGER_KINDS)[number];
 function isTriggerKind(value: string): value is TriggerKind {
   return (TRIGGER_KINDS as readonly string[]).includes(value);
 }
+
+type StoredTrigger = NonNullable<
+  ReturnType<typeof useAutomationTriggers>['data']
+>[number];
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** What the General tab's strip lights its unsaved dot for. */
@@ -83,6 +91,7 @@ export function TriggerEditor({
   /** Authoring is developer-gated server-side; readers still see the binding. */
   canEdit,
   deployedVersion,
+  projectId,
 }: {
   organizationId: string;
   name: string;
@@ -90,6 +99,9 @@ export function TriggerEditor({
   /** The version triggers start — undefined while nothing is deployed, when
    * the section says a schedule will not start rather than when it will. */
   deployedVersion?: number | undefined;
+  /** The project whose route shows the section, if any: a run it links
+   * opens under the same project, as the run list's rows do. */
+  projectId?: string | undefined;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
@@ -371,6 +383,15 @@ export function TriggerEditor({
           </Text>
         )}
 
+        {stored !== undefined && (
+          <TriggerFailureNotice
+            organizationId={organizationId}
+            projectId={projectId}
+            name={name}
+            trigger={stored}
+          />
+        )}
+
         {!showForm && !triggersQuery.isPending && (
           <div className="flex flex-col items-start gap-2">
             <Text as="p" variant="muted" className="text-sm">
@@ -584,5 +605,105 @@ export function TriggerEditor({
         />
       </SettingsSection>
     </Skeletonize>
+  );
+}
+
+/**
+ * What the binding's failure streak says (`trigger-failures.ts`): a schedule
+ * its failures paused — a standing banner until someone saves the trigger —
+ * or runs failing in a row that will pause a schedule, each with the last
+ * failure's code and a way into its run. Silent while the streak is empty.
+ */
+function TriggerFailureNotice({
+  organizationId,
+  projectId,
+  name,
+  trigger,
+}: {
+  organizationId: string;
+  projectId: string | undefined;
+  name: string;
+  trigger: StoredTrigger;
+}) {
+  const { t } = useT('automations');
+  const { formatDate } = useFormatDate();
+  const count = trigger.consecutiveFailures ?? 0;
+  const paused =
+    !trigger.enabled && trigger.lastSkipReason === 'paused_after_failures';
+  if (!paused && count === 0) return null;
+
+  const lastFailure =
+    trigger.lastFailedAt != null && trigger.lastFailureCode != null ? (
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        <span>
+          {t('trigger.failures.last', {
+            at: formatDate(new Date(trigger.lastFailedAt), 'long'),
+          })}
+        </span>
+        <InlineCode>{trigger.lastFailureCode}</InlineCode>
+        {trigger.lastFailedRunId != null && (
+          <Link
+            // The run opens where the section is shown: under the project
+            // when the tab is, as the run list's rows open it.
+            {...(projectId
+              ? {
+                  to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId' as const,
+                  params: {
+                    id: organizationId,
+                    projectId,
+                    automationSlug: automationSlugToParam(name),
+                    runId: trigger.lastFailedRunId,
+                  },
+                }
+              : {
+                  to: '/dashboard/$id/automations/$automationSlug/runs/$runId' as const,
+                  params: {
+                    id: organizationId,
+                    automationSlug: automationSlugToParam(name),
+                    runId: trigger.lastFailedRunId,
+                  },
+                })}
+            className="text-foreground focus-visible:ring-ring rounded-sm underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {t('trigger.failures.viewRun')}
+          </Link>
+        )}
+      </span>
+    ) : null;
+
+  if (paused) {
+    return (
+      <Alert
+        variant="warning"
+        // A standing state, not an event: announcing it on every visit to
+        // the tab would repeat what the page already shows.
+        live="off"
+        title={t('trigger.failures.pausedTitle')}
+        description={
+          <span className="flex flex-col gap-1">
+            <span>{t('trigger.failures.pausedBody', { count })}</span>
+            {lastFailure}
+          </span>
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Text as="p" variant="muted" className="text-xs">
+        {t('trigger.failures.streak', { count })}
+        {trigger.kind === 'schedule' &&
+          trigger.enabled &&
+          ` ${t('trigger.failures.streakSchedule', {
+            limit: PERMANENT_FAILURES_BEFORE_PAUSE,
+          })}`}
+      </Text>
+      {lastFailure !== null && (
+        <Text as="div" variant="muted" className="text-xs">
+          {lastFailure}
+        </Text>
+      )}
+    </div>
   );
 }
