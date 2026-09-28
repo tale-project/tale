@@ -9,6 +9,7 @@ import {
   questionSetSchema,
   type QuestionSet,
 } from '../../../../lib/shared/schemas/questions';
+import { TASK_COMMENT_LOCALES_MAX } from '../../../../lib/shared/schemas/task-comment';
 import { readDocumentText } from '../../knowledge/document_text';
 import {
   FETCH_WINDOW_CHARS,
@@ -25,11 +26,18 @@ import {
   WRITE_EFFECT_TOOLS,
 } from '../../sandbox/tool_names';
 import type { SessionActionSubject } from '../../sandbox/workspace_access';
-import { TASK_TITLE_MAX } from '../../tasks/helpers';
+import {
+  TASK_COMMENT_MAX,
+  TASK_DESCRIPTION_MAX,
+  TASK_LABEL_CHARS_MAX,
+  TASK_TITLE_MAX,
+  taskLimitText,
+} from '../../tasks/helpers';
 import {
   isWorkspaceTaskTool,
   runDocumentCreate,
   runTaskTool,
+  TASK_LABELS_CAP,
   WORKSPACE_TASK_TOOLS,
 } from './workspace_domain_tools';
 import {
@@ -86,6 +94,21 @@ const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, SessionActionSubject> = {
   product_find: 'products',
   website_find: 'websites',
 };
+
+/** A length cap as a signature states it, from the shared task limits. */
+function atMost(max: number): string {
+  return `≤ ${taskLimitText(max)}`;
+}
+
+/** Closes every signature whose args carry a length cap: the unit is a
+ * string's length, which counts most emoji as two. */
+const LENGTH_UNIT_NOTE = 'Most emoji count as 2 code units.';
+
+/** The `labels` arg both task writers take, with the bridge's own cap on how
+ * many are kept and the domain's cap on each name. */
+const LABELS_ARG =
+  `labels?: string[] (the first ${TASK_LABELS_CAP} are kept, each ` +
+  `${atMost(TASK_LABEL_CHARS_MAX)})`;
 
 /** Human-facing one-liners the status listing relays to the model. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -144,17 +167,21 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Read one task in full — description, project, subtasks, blockers, and ' +
     'recent comments. Args: {taskId: string, commentLimit?: number}.',
   task_create:
-    `Create a task. Args: {title: string (≤ ${TASK_TITLE_MAX} characters), ` +
-    'description?: string, projectId?: ' +
+    `Create a task. Args: {title: string (${atMost(TASK_TITLE_MAX)}), ` +
+    `description?: string (${atMost(TASK_DESCRIPTION_MAX)}), projectId?: ` +
     "string (fixed to the run's project on a project-bound run; required on " +
-    'an org-level run), priority?: "p0"|"p1"|"p2"|"p3", labels?: string[], ' +
+    `an org-level run), priority?: "p0"|"p1"|"p2"|"p3", ${LABELS_ARG}, ` +
     'status?: "backlog"|"todo" (default backlog), parentTaskId?: string}. ' +
+    `${LENGTH_UNIT_NOTE} ` +
     'Check for an existing task first — task_find, or ' +
     'task_upsert_by_external_ref for anything synced from an external system.',
   task_comment:
     "Add a markdown comment to a task's discussion. " +
-    'Args: {taskId: string, body: string, bodyByLocale?: {en: string, de: string, fr: string, [locale: string]: string}}. ' +
-    'Keep body in the task language; for UI progress provide equivalent nonblank translations in bodyByLocale (at most 10,000 characters each).',
+    `Args: {taskId: string, body: string (${atMost(TASK_COMMENT_MAX)}), ` +
+    'bodyByLocale?: {en: string, de: string, fr: string, [locale: string]: string}}. ' +
+    'Keep body in the task language; for UI progress provide equivalent ' +
+    'nonblank translations in bodyByLocale (the same limit each, at most ' +
+    `${TASK_COMMENT_LOCALES_MAX} locales in all). ${LENGTH_UNIT_NOTE}`,
   task_update_status:
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
@@ -163,11 +190,14 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
     'task, keyed by (externalSystem, externalId) — a re-run updates the ' +
     'existing task instead of duplicating it. Args: {externalSystem: string, ' +
-    'externalId: string, title: string, description?: string, externalUrl?: ' +
-    'string, labels?: string[], priority?: "p0"|"p1"|"p2"|"p3", ' +
+    'externalId: string, title: string (a longer one is cut to ' +
+    `${taskLimitText(TASK_TITLE_MAX)}, ending in "…"), description?: ` +
+    `string, externalUrl?: string, ${LABELS_ARG}, ` +
+    'priority?: "p0"|"p1"|"p2"|"p3", ' +
     'externalState?: "open"|"closed" (closed applies the sync close policy), ' +
     'projectId?: string (as in task_create), createIfMissing?: boolean ' +
-    '(default true), dedupeScope?: "org"|"project" (default org)}.',
+    `(default true), dedupeScope?: "org"|"project" (default org)}. ` +
+    LENGTH_UNIT_NOTE,
   document_create:
     'Save a text document into the organization Documents hub. Args: {name: ' +
     'string (a file name, e.g. "report.md"), content: string, contentType?: ' +

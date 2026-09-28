@@ -256,24 +256,61 @@ describe('fetchDocumentByFileId — access scope', () => {
   it('hands an emailed attachment to the Convex re-check, hub visibility notwithstanding', async () => {
     // Its scope columns are all NULL, so scope-by-set would read it as an
     // org-hub document and serve it. It must instead reach the re-check, which
-    // is the only code that can see the conversation's assignment.
+    // is the only code that can see the conversation's assignment — and only
+    // for the door that asked for mail.
     corpusWith({ team_id: null, project_id: null, conversation_id: 'conv_1' });
-    validateLiveFile.mockImplementation(async () => []);
-    const denied = await fetchDocumentByFileId('acme', 'file_9', {
+    const mailDoor = {
       ...SCOPED,
+      userId: 'u-1',
       includeConversationScoped: true,
-    });
+      includeConversationMessages: true,
+    };
+    validateLiveFile.mockImplementation(async () => []);
+    const denied = await fetchDocumentByFileId('acme', 'file_9', mailDoor);
     expect(denied).toBeNull();
     expect(validateLiveFile).toHaveBeenCalled();
 
     validateLiveFile.mockImplementation(
       async (_ref: unknown, args: { fileIds: string[] }) => args.fileIds,
     );
-    const served = await fetchDocumentByFileId('acme', 'file_9', {
-      ...SCOPED,
-      includeConversationScoped: true,
+    const served = await fetchDocumentByFileId('acme', 'file_9', mailDoor);
+    expect(served).toMatchObject({
+      text: 'SCOPED BODY',
+      // Said, so the door wraps it as mail.
+      conversationId: 'conv_1',
     });
-    expect(served?.text).toBe('SCOPED BODY');
+    const [, filterArgs] = validateLiveFile.mock.calls.at(-1) ?? [];
+    expect(filterArgs).toMatchObject({
+      fileIds: ['file_9'],
+      access: { includeConversationMessages: true },
+    });
+  });
+
+  it('never loads an emailed attachment for a door that did not ask for mail', async () => {
+    // The MCP door and a user-keyed sandbox session carry the member's
+    // conversation scope; neither wraps mail, so the attachment is the same
+    // miss as nothing there — its text never read, no re-check paid for.
+    corpusWith({ team_id: null, project_id: null, conversation_id: 'conv_1' });
+    for (const access of [
+      { ...SCOPED, userId: 'u-1', includeConversationScoped: true },
+      {
+        ...SCOPED,
+        userId: 'u-1',
+        includeConversationScoped: true,
+        includeConversationMessages: false,
+      },
+      {
+        ...SCOPED,
+        includeConversationScoped: false,
+        includeConversationMessages: true,
+      },
+    ]) {
+      expect(await fetchDocumentByFileId('acme', 'file_9', access)).toBeNull();
+    }
+    expect(unsafe.mock.calls.some(([text]) => text.includes('.chunks'))).toBe(
+      false,
+    );
+    expect(validateLiveFile).not.toHaveBeenCalled();
   });
 
   it('never loads an email body for a door that did not ask for one', async () => {

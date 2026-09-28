@@ -18,6 +18,7 @@ import {
   readSkillForViewer,
   saveSkillForViewer,
 } from '../../core/skills/file_actions.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { assertSkillTeamsAssignable, skillErrorResponse } from './errors.ts';
 import { unequipDeletedSkill } from './unequip.ts';
@@ -122,7 +123,7 @@ export function createSkillRoutes(deps: {
   app.put('/:slug', async (c) => {
     const body = editSchema.safeParse(await c.req.json());
     if (!body.success) {
-      return c.json({ error: 'invalid body' }, 400);
+      return invalidBodyResponse(c, body.error);
     }
     try {
       const who = await caller(c);
@@ -149,7 +150,7 @@ export function createSkillRoutes(deps: {
         force: z.boolean().optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const who = await caller(c);
       return c.json(

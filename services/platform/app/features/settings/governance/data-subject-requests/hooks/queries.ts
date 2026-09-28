@@ -1,3 +1,5 @@
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
+
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import type { ErasureStatus } from '@/backend/core/governance/erasure_constants';
@@ -18,7 +20,7 @@ export function useListErasureRequests(args: {
               : undefined,
         }
       : 'skip',
-    { initialNumItems: args.initialNumItems ?? 25 },
+    { initialNumItems: args.initialNumItems ?? DEFAULT_LIST_PAGE_SIZE },
   );
 }
 

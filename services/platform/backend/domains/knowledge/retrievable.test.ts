@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decideMessageRetrievable,
   decideRetrievable,
+  type AccessScopeArg,
   type DocCandidate,
   type MessageCandidate,
   type UnboundFileCandidate,
@@ -23,6 +24,8 @@ const unboundFile = (
   lifecycleStatus: null,
   threadId: null,
   conversationId: null,
+  conversationLifecycleStatus: null,
+  conversationStatus: null,
   ...overrides,
 });
 
@@ -235,28 +238,80 @@ describe('decideRetrievable', () => {
  * supplies the conversations it may read (already decided by
  * `conversationAssignmentAllows`) rather than this decision deriving them
  * from org membership — a second copy of that rule is how a reader ends up
- * publishing an inbox.
+ * publishing an inbox. And it is MAIL: text an outsider chose, which only a
+ * door that wraps it as untrusted may serve — decided exactly like an email
+ * body.
  */
 describe('decideRetrievable — the conversation branch', () => {
-  const mail = (conversationId: string) =>
-    unboundFile({ conversationId, threadId: null });
+  const mail = (
+    conversationId: string,
+    overrides: Partial<UnboundFileCandidate> = {},
+  ) =>
+    unboundFile({
+      conversationId,
+      threadId: null,
+      conversationStatus: 'open',
+      ...overrides,
+    });
+  /** The chat tools' scope: the one door that asks for mail. */
+  const mailDoor = {
+    conversationIds: ['conv_1'],
+    includeConversationScoped: true,
+    includeConversationMessages: true,
+  };
 
-  it('admits an attachment whose conversation the caller may read', () => {
+  it('admits an attachment whose conversation the caller may read, for the door that asked', () => {
+    expect(decideRetrievable([], [mail('conv_1')], mailDoor)).toBe(true);
+    // A closed or archived conversation is still history worth citing.
+    for (const conversationStatus of ['closed', 'archived', null]) {
+      expect(
+        decideRetrievable(
+          [],
+          [mail('conv_1', { conversationStatus })],
+          mailDoor,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('denies every door that did not ask for mail — REST, the MCP door, the sandbox bridge', () => {
+    // Each of them may read the conversation — the MCP door and a
+    // user-keyed sandbox session resolve the same member scope the chat
+    // does — but none wraps mail as untrusted, so none may serve it.
+    const { includeConversationMessages: _asked, ...notAsked } = mailDoor;
+    expect(decideRetrievable([], [mail('conv_1')], notAsked)).toBe(false);
     expect(
-      decideRetrievable([], [mail('conv_1')], { conversationIds: ['conv_1'] }),
-    ).toBe(true);
+      decideRetrievable([], [mail('conv_1')], {
+        ...mailDoor,
+        includeConversationMessages: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('denies the scopeless caller, like an email body', () => {
+    // It used to admit here as "the system caller"; nothing without a person
+    // reads mail through this filter (ingest, purge and the reconcile ask
+    // `liveness.ts`), so admitting only let an org-wide door serve
+    // unwrapped mail.
+    expect(decideRetrievable([], [mail('conv_1')], undefined)).toBe(false);
   });
 
   it('denies one whose conversation the caller may not read', () => {
     // The row exists and is alive; the caller simply is not on that inbox
     // row. Org membership must not be enough.
     expect(
-      decideRetrievable([], [mail('conv_2')], { conversationIds: ['conv_1'] }),
+      decideRetrievable([], [mail('conv_2')], {
+        ...mailDoor,
+        conversationIds: ['conv_1'],
+      }),
     ).toBe(false);
   });
 
   it('denies when the caller has no conversations at all', () => {
-    expect(decideRetrievable([], [mail('conv_1')], {})).toBe(false);
+    const { conversationIds: _none, ...noConversations } = mailDoor;
+    expect(decideRetrievable([], [mail('conv_1')], noConversations)).toBe(
+      false,
+    );
   });
 
   it('is not widened by team or project scope', () => {
@@ -264,9 +319,12 @@ describe('decideRetrievable — the conversation branch', () => {
     // member of every team still sees only their own conversations.
     expect(
       decideRetrievable([], [mail('conv_1')], {
+        ...mailDoor,
+        conversationIds: [],
         teamIds: ['team_a'],
         projectIds: ['proj_a'],
         includeHub: true,
+        isAdmin: true,
       }),
     ).toBe(false);
   });
@@ -276,7 +334,7 @@ describe('decideRetrievable — the conversation branch', () => {
     // still not be searched.
     expect(
       decideRetrievable([], [mail('conv_1')], {
-        conversationIds: ['conv_1'],
+        ...mailDoor,
         includeConversationScoped: false,
       }),
     ).toBe(false);
@@ -286,28 +344,88 @@ describe('decideRetrievable — the conversation branch', () => {
     expect(
       decideRetrievable(
         [],
-        [unboundFile({ conversationId: 'conv_1', lifecycleStatus: 'trashed' })],
-        { conversationIds: ['conv_1'] },
+        [mail('conv_1', { lifecycleStatus: 'trashed' })],
+        mailDoor,
       ),
     ).toBe(false);
   });
 
-  it('admits for the system caller, which is not a person', () => {
-    // Ingest and purge run unscoped; `access === undefined` is that lane.
-    expect(decideRetrievable([], [mail('conv_1')], undefined)).toBe(true);
+  it('darkens the attachments of a trashed or expired conversation at once', () => {
+    for (const conversationLifecycleStatus of ['trashed', 'expired']) {
+      expect(
+        decideRetrievable(
+          [],
+          [mail('conv_1', { conversationLifecycleStatus })],
+          mailDoor,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it('never answers from an attachment of a conversation marked spam', () => {
+    expect(
+      decideRetrievable(
+        [],
+        [mail('conv_1', { conversationStatus: 'spam' })],
+        mailDoor,
+      ),
+    ).toBe(false);
   });
 
   it('never surfaces an attachment under a folder filter', () => {
     // A folder is a document concept; an emailed attachment is filed
     // nowhere, so a folder-scoped search must not reach it.
+    expect(decideRetrievable([], [mail('conv_1')], mailDoor, 'Reports')).toBe(
+      false,
+    );
+  });
+
+  it('decides an attachment exactly as it decides an email body of the same conversation', () => {
+    // One rule for both kinds of mail: every door, every conversation
+    // state, every caller answers the same for a file bound to the
+    // conversation as for a message that arrived on it.
+    const doors: (AccessScopeArg | undefined)[] = [
+      undefined,
+      {},
+      mailDoor,
+      { ...mailDoor, includeConversationMessages: false },
+      { ...mailDoor, includeConversationScoped: false },
+      { ...mailDoor, conversationIds: ['conv_2'] },
+      { ...mailDoor, includeConversationScoped: undefined },
+      { teamIds: ['team_a'], includeHub: true, isAdmin: true },
+    ];
+    const states = [
+      { conversationLifecycleStatus: null, conversationStatus: 'open' },
+      { conversationLifecycleStatus: 'active', conversationStatus: 'closed' },
+      { conversationLifecycleStatus: 'trashed', conversationStatus: 'open' },
+      { conversationLifecycleStatus: 'expired', conversationStatus: null },
+      { conversationLifecycleStatus: null, conversationStatus: 'spam' },
+    ];
+    for (const access of doors) {
+      for (const state of states) {
+        expect(
+          decideRetrievable([], [mail('conv_1', state)], access),
+          JSON.stringify({ access, state }),
+        ).toBe(
+          decideMessageRetrievable(
+            { conversationId: 'conv_1', ...state },
+            access,
+          ),
+        );
+      }
+    }
+  });
+
+  it('still admits a document that exposes the same ref through its own scope', () => {
+    // A file filed into a document is that document's: its scope decides,
+    // for every door, and the attachment branch is not the only way in.
     expect(
       decideRetrievable(
-        [],
-        [mail('conv_1')],
-        { conversationIds: ['conv_1'] },
-        'Reports',
+        [activeDoc({ teamId: null })],
+        [mail('conv_1', { conversationStatus: 'spam' })],
+        { teamIds: [], includeHub: true },
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

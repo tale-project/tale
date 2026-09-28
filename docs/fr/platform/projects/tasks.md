@@ -87,4 +87,6 @@ Passe la tâche à **Terminé** lorsqu’elle répond au besoin. Si l’agent do
 
 Réduis le tableau avec les filtres ou passe à la liste pour parcourir les tâches ligne par ligne. Garde les propositions dans le [Backlog](/fr/platform/projects/backlog) jusqu’à leur démarrage. Utilise des étiquettes pour les distinctions qui ne demandent pas un nouveau statut.
 
+Dans les vues **Tableau** et **Liste**, appuie sur **Tab** jusqu’à placer le focus sur le titre de la tâche, puis sur **Entrée** pour l’ouvrir.
+
 Si une modification est refusée, vérifie l’état de la tâche avant de réessayer : une exécution active empêche de réassigner l’agent, des sous-tâches ouvertes empêchent la clôture, et l’accès au projet détermine tes droits de modification.

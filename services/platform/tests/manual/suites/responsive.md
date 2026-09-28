@@ -13,7 +13,7 @@ feature.
 
 The responsive split is the Tailwind **`md` breakpoint (768 px)**. Desktop
 chrome is `hidden md:flex` (the side rail, the section panels, the desktop Save
-slot); mobile chrome is `md:hidden` (the in-flow `BottomTabBar`, the
+slot); mobile chrome is `md:hidden` (the floating `BottomTabBar`, the
 content-width floating Save dock bottom-right above it). **`< md` (≤ 767 px) is
 the mobile layout; ≥ 768 px is the full desktop layout** — at exactly 768 px the
 desktop chrome is already active (there is no separate "tablet" layout). There
@@ -254,3 +254,12 @@ if you want to keep a write.
   one, so neither the masked composer nor the live composer that replaces it
   moves; on iPhone Safari in a browser tab the masked bar already carries the
   toolbar clearance the live bar adds.
+
+
+## Floating navigation capsule
+
+- [ ] `RESP-F20` · **Scroll Home and a settings page at 320 and 390 px in both themes** → One rounded capsule encloses icons and labels, content can pass behind it, and the final item scrolls clear; Save and message composers remain above the capsule.
+- [ ] `RESP-F21` · **On iPhone Safari and an installed PWA, open and dismiss the software keyboard in a chat and a settings field** → Navigation hides while typing and returns without a lingering gap; the field and any Save action remain reachable. Focusing with a hardware keyboard leaves navigation visible.
+- [ ] `RESP-A4` · **Enable reduced transparency, increased contrast, and reduced motion** → The capsule stays legible with an opaque background where requested, keyboard focus is visible, and selection changes without sliding under reduced motion.
+
+- [ ] `RESP-F22` · **Scroll down and then up in Home and a long settings page on iPhone Safari and an installed PWA** → The 60px labelled capsule becomes a narrower 52px icon-only capsule slightly lower on downward travel, restores on upward travel, and does not flicker at scroll boundaries. All destinations and badges remain available; selecting a destination or focusing navigation with a hardware keyboard restores labels.

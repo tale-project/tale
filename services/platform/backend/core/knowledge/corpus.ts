@@ -69,9 +69,9 @@ interface CorpusRow {
    * every web page. Selected so a caller can label a hit as belonging to a
    * retired project without a second read. */
   project_id: string | null;
-  /** The conversation an emailed attachment arrived on; NULL for a document and
-   * for every web page. Selected so the re-check knows which rows it must decide
-   * by assignment rather than by scope stamp. */
+  /** The conversation a piece of mail — an emailed attachment or an email
+   * body — arrived on; NULL for a document and for every web page. Selected
+   * so a caller can tell mail from the organization's own documents. */
   conversation_id: string | null;
   modified_at: Date | null;
   /** Char position of the chunk within the ref's fetchable text, cast to
@@ -83,11 +83,13 @@ interface CorpusRow {
 /**
  * The two row classes the documents corpus holds, searched apart:
  *
- *  - `files` — uploaded documents, thread uploads, emailed attachments;
- *  - `messages` — indexed email BODIES (`msg:` refs), for a door that asked
- *    for them (`KnowledgeAccessScope.includeConversationMessages`).
+ *  - `files` — uploaded documents and thread uploads: every row that carries
+ *    no conversation;
+ *  - `mail` — what arrived by email: indexed email BODIES (`msg:` refs) and
+ *    emailed attachments, each stamped with its conversation, for a door that
+ *    asked for mail (`KnowledgeAccessScope.includeConversationMessages`).
  */
-type DocumentRows = 'files' | 'messages';
+type DocumentRows = 'files' | 'mail';
 
 /**
  * Uploaded documents.
@@ -97,14 +99,14 @@ type DocumentRows = 'files' | 'messages';
  * allowed. `access` is the caller's team/project visibility, derived
  * server-side by the calling surface — see {@link KnowledgeAccessScope}.
  *
- * Email bodies are searched as a partition of their own, each leg with its
- * own candidate pool, and the two lists are merged by the leg's score. A
- * body is decided by its conversation's live assignment, which only the
- * admission re-check can read (see `scope`): a member of a shared inbox —
- * where an unassigned conversation is admin triage — would otherwise see
- * every candidate slot of a leg taken by bodies the re-check then refuses,
- * and a document they could read, ranked just behind them, never return.
- * Apart, a refused body can only displace another body.
+ * Mail is searched as a partition of its own, each leg with its own
+ * candidate pool, and the two lists are merged by the leg's score. Mail is
+ * decided by its conversation's live assignment, which only the admission
+ * re-check can read (see `scope`): a member of a shared inbox — where an
+ * unassigned conversation is admin triage — would otherwise see every
+ * candidate slot of a leg taken by mail the re-check then refuses, and a
+ * document they could read, ranked just behind it, never return. Apart,
+ * refused mail can only displace other mail.
  */
 export class DocumentCorpusReader implements CorpusReader {
   readonly corpus = 'documents' as const;
@@ -138,20 +140,20 @@ export class DocumentCorpusReader implements CorpusReader {
   }
 
   /**
-   * Which row classes this leg searches. Bodies only for a door that asked
-   * for them, never under a folder filter (a message is filed nowhere) nor
-   * for a caller refused every conversation-scoped row — the re-check
-   * would refuse each one anyway. Files unless the caller narrowed to bodies.
+   * Which row classes this leg searches. Mail only for a door that asked for
+   * it, never under a folder filter (mail is filed nowhere) nor for a caller
+   * refused every conversation-scoped row — the re-check would refuse each
+   * one anyway. Files unless the caller narrowed to one kind of mail.
    */
   private partitions(query: CorpusLegQuery): readonly DocumentRows[] {
     const rows: DocumentRows[] = [];
-    if (query.onlyEmailBodies !== true) rows.push('files');
+    if (query.mailOnly === undefined) rows.push('files');
     if (
       query.access?.includeConversationMessages === true &&
       query.access.includeConversationScoped !== false &&
       (query.folder === undefined || query.folder === '')
     ) {
-      rows.push('messages');
+      rows.push('mail');
     }
     return rows;
   }
@@ -264,17 +266,29 @@ export class DocumentCorpusReader implements CorpusReader {
       params.push([...query.refs]);
       conditions.push(`d.file_id = ANY($${offset + params.length})`);
     }
-    if (rows === 'messages') {
-      // Email bodies (`msg:` refs) alone. Each carries its conversation and
-      // no other scope, and is DECIDED by the admission re-check against
-      // that conversation's current assignment — the same admit-then-decide
-      // the conversation disjunct below explains. `partitions` runs this
-      // only for a door that asked for bodies and admits conversation rows.
-      params.push(MESSAGE_REF_LIKE_PATTERN);
-      conditions.push(
-        `d.file_id LIKE $${offset + params.length}`,
-        'd.conversation_id IS NOT NULL',
-      );
+    if (rows === 'mail') {
+      // Mail alone: email bodies (`msg:` refs) and emailed attachments. Each
+      // carries its conversation and no other scope, and is ADMITTED here
+      // and DECIDED by the admission re-check, which applies
+      // `conversationAssignmentAllows` against that conversation's current
+      // assignment. `partitions` runs this only for a door that asked for
+      // mail and admits conversation rows.
+      //
+      // Deliberately not `conversation_id = ANY($n)`: that would need the
+      // caller's readable conversations enumerated, and assignment privacy
+      // makes that an unbounded walk — the reason the chat conversations leg
+      // caps its own scan at 300. Admitting and then re-checking is bounded
+      // by the result limit instead, and the re-check fails closed, so a
+      // path that reaches SQL without it returns rows that are then dropped
+      // rather than served.
+      conditions.push('d.conversation_id IS NOT NULL');
+      if (query.mailOnly !== undefined) {
+        // One kind of mail: the bodies are the message refs.
+        params.push(MESSAGE_REF_LIKE_PATTERN);
+        conditions.push(
+          `d.file_id ${query.mailOnly === 'bodies' ? 'LIKE' : 'NOT LIKE'} $${offset + params.length}`,
+        );
+      }
       return { clause: `AND ${conditions.join(' AND ')}`, params };
     }
     if (query.folder !== undefined && query.folder !== '') {
@@ -292,7 +306,7 @@ export class DocumentCorpusReader implements CorpusReader {
       // row ingested before scoping existed reads as, so unstamped rows keep
       // today's org-wide visibility until the backfill stamps them. Absent
       // access means org-wide (admin-keyed surfaces) and adds no scope clause
-      // — only the message-row exclusion below.
+      // — only the mail exclusion below.
       const disjuncts: string[] = [];
       if (query.access.includeHub) {
         // `conversation_id IS NULL` is part of being a hub row. Without it an
@@ -303,19 +317,6 @@ export class DocumentCorpusReader implements CorpusReader {
           '(d.team_ids IS NULL AND d.team_id IS NULL AND d.project_id IS NULL' +
             ' AND d.conversation_id IS NULL)',
         );
-      }
-      // Conversation-scoped rows are admitted here and DECIDED by the
-      // Convex-truth re-check, which applies `conversationAssignmentAllows`
-      // against the conversation's current assignment.
-      //
-      // Deliberately not `conversation_id = ANY($n)`: that would need the
-      // caller's readable conversations enumerated, and assignment privacy makes
-      // that an unbounded walk — the reason the chat conversations leg caps its
-      // own scan at 300. Admitting and then re-checking is bounded by the result
-      // limit instead, and the re-check fails closed, so a path that reaches SQL
-      // without it returns rows that are then dropped rather than served.
-      if (query.access.includeConversationScoped) {
-        disjuncts.push('d.conversation_id IS NOT NULL');
       }
       params.push([...query.access.teamIds]);
       // A document shared to several teams is visible to a member of ANY of
@@ -329,8 +330,8 @@ export class DocumentCorpusReader implements CorpusReader {
         `(d.team_ids IS NULL AND d.team_id = ANY(${teamsParam}))`,
       );
       // An owner/admin sees every team library — the audience rule's admin
-      // leg. Conversation-scoped rows carry no team stamp, so they stay
-      // with the re-check above.
+      // leg. Conversation-scoped rows carry no team stamp: they are mail,
+      // which the `mail` partition alone serves.
       if (query.access.isAdmin === true) {
         disjuncts.push(
           '((d.team_ids IS NOT NULL OR d.team_id IS NOT NULL) AND d.project_id IS NULL)',
@@ -340,12 +341,17 @@ export class DocumentCorpusReader implements CorpusReader {
       disjuncts.push(`d.project_id = ANY($${offset + params.length})`);
       conditions.push(`(${disjuncts.join(' OR ')})`);
     }
-    // Email bodies are never file rows: the `messages` partition serves
-    // them, to a door that asked, from a candidate pool of its own. Every
-    // other door — the org-wide callers included — never sees one, and no
-    // body ever takes a document's candidate slot.
+    // Mail is never a file row: the `mail` partition serves it, to a door
+    // that asked, from a candidate pool of its own. Every other door — the
+    // org-wide callers included — never sees any, and no mail ever takes a
+    // document's candidate slot. A row with a conversation is mail (an
+    // emailed attachment carries no team and no project, so it would
+    // otherwise read as an org-wide hub row), and so is every message ref.
     params.push(MESSAGE_REF_LIKE_PATTERN);
-    conditions.push(`d.file_id NOT LIKE $${offset + params.length}`);
+    conditions.push(
+      'd.conversation_id IS NULL',
+      `d.file_id NOT LIKE $${offset + params.length}`,
+    );
     return {
       clause: `AND ${conditions.join(' AND ')}`,
       params,

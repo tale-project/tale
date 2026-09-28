@@ -779,7 +779,7 @@ function AutomationEditorScope({
           held to the window, the stack would squeeze the canvas row under the
           canvas's own floor and clip the zoom controls in its bottom corner.
           The one inset kept is a phone's floating-dock allowance. */}
-      <div className="flex min-w-0 flex-1 flex-col pb-[length:var(--mobile-floating-actions-pad,0px)] lg:min-h-0">
+      <div className="mobile-nav-clearance flex min-w-0 flex-1 flex-col pb-[calc(var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))] lg:min-h-0">
         {/* A refused RUN, kept inline: it is the engine's own account of why
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.

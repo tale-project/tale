@@ -49,6 +49,7 @@ import {
   useCallback,
   type CSSProperties,
   type ReactNode,
+  type Ref,
 } from 'react';
 import type { DateRange } from 'react-day-picker';
 
@@ -125,6 +126,8 @@ interface ColumnMeta {
  * with the empty copy. Prefer this over the raw `actionMenu` slot.
  */
 export interface DataTableAddAction {
+  /** Dialog restore target that follows the button between empty state and toolbar. */
+  triggerRef?: Ref<HTMLButtonElement>;
   /** Button label, e.g. "New customer". */
   label: string;
   /** Optional leading icon. */
@@ -595,6 +598,7 @@ export function DataTable<TData, TValue = unknown>({
   // same — and lines up with the h-9 search/filter controls in the same toolbar.
   const addActionControl = addAction ? (
     <DataTableActionMenu
+      triggerRef={addAction.triggerRef}
       label={addAction.label}
       icon={addAction.icon}
       onClick={addAction.onClick}

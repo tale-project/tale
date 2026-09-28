@@ -6,6 +6,7 @@ import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Trash2, Undo2 } from 'lucide-react';
@@ -97,6 +98,7 @@ export function TrashPage({ organizationId }: Props) {
     () => ({
       resourceTypes: selectedTypes.length > 0 ? selectedTypes : undefined,
       cursor,
+      limit: DEFAULT_LIST_PAGE_SIZE,
     }),
     [selectedTypes, cursor],
   );

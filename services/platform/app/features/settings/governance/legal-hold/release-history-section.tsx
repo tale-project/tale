@@ -6,6 +6,7 @@ import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row, Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { History } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -51,7 +52,7 @@ export function ReleaseHistorySection({
   const result = useLegalHoldReleaseRequestsPaginated({
     organizationId,
     status,
-    initialNumItems: 25,
+    initialNumItems: DEFAULT_LIST_PAGE_SIZE,
   });
 
   const statusOptions = useMemo(
@@ -201,7 +202,7 @@ export function ReleaseHistorySection({
         getRowId={(row) => row._id}
         infiniteScroll={{
           hasMore,
-          onLoadMore: () => result.loadMore(25),
+          onLoadMore: () => result.loadMore(DEFAULT_LIST_PAGE_SIZE),
           isLoadingMore,
           isInitialLoading,
           entityLabel: {

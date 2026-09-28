@@ -143,7 +143,7 @@ function releasePagePad(): void {
  * live under `StickyHeader` (`backdrop-blur`), which would otherwise trap
  * fixed descendants and pin the dock behind the header.
  *
- * Sits bottom-right above the in-flow `MobileBottomNav`. Hidden when children
+ * Sits bottom-right above the floating `MobileBottomNav`. Hidden when children
  * render nothing (slot components still pass a truthy element to the parent).
  * While visible, sets `--mobile-floating-actions-pad` so `PageLayout` adds
  * bottom scroll clearance and the dock does not cover page actions.
@@ -216,7 +216,7 @@ export function MobileFloatingActions({
     <div
       className={cn(
         'pointer-events-none fixed right-4 z-40 w-fit md:hidden',
-        'bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]',
+        'bottom-[calc(max(1rem,var(--mobile-nav-clearance,0px))+var(--mobile-keyboard-inset,0px))]',
         !hasContent && 'hidden',
         className,
       )}

@@ -29,7 +29,7 @@ describe('MobileFloatingActions', () => {
     expect(outer).not.toBeNull();
     expect(outer).toHaveClass('fixed', 'right-4', 'w-fit', 'md:hidden');
     expect(outer?.className).toContain(
-      'bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]',
+      'bottom-[calc(max(1rem,var(--mobile-nav-clearance,0px))+var(--mobile-keyboard-inset,0px))]',
     );
     expect(outer?.className).not.toContain('left-1/2');
     expect(document.body.contains(outer)).toBe(true);
