@@ -18,8 +18,11 @@
  * assignment cases their teeth. Anything outside that small grammar throws: a
  * predicate that is not `col = ?` or `col ILIKE ANY(?::text[])` (a literal
  * comparison, `IS NULL`, `<>`), a FROM or join it does not model, a cast or an
- * ORDER BY it does not implement, a parameter it cannot place. So a change to
- * the leg's SQL surfaces here instead of passing against a stale stand-in.
+ * ORDER BY it does not implement, a parameter it cannot place, a LIMIT that
+ * would cut rows no ORDER BY ranks. A read with no ORDER BY comes back in
+ * reverse seeding order, because Postgres promises no order either. So a
+ * change to the leg's SQL surfaces here instead of passing against a stale
+ * stand-in.
  *
  * The real-database counterpart is narrower, and not a CI job: the
  * `checkChatConversationSearchLeg` lane of the local `backend:integration`
@@ -354,7 +357,18 @@ function evaluate(
   }
 
   let rows = table.rows(world).filter(matches);
-  if (parts.orderBy !== undefined) {
+  if (parts.orderBy === undefined) {
+    // Without ORDER BY, Postgres promises no order, so this fake gives the
+    // least convenient one: the reverse of how the world was seeded. And a
+    // LIMIT that would cut such a result keeps rows the heap chose, which no
+    // case may rely on.
+    if (rows.length > limit) {
+      throw new Error(
+        `LIMIT ${limit} cuts ${rows.length} unordered rows: ${text}`,
+      );
+    }
+    rows = rows.toReversed();
+  } else {
     if (parts.orderBy !== table.orderBy?.text) {
       throw new Error(
         `the fake implements no ORDER BY ${parts.orderBy}: ${text}`,
@@ -429,22 +443,27 @@ function addMessage(conversationId: string, content: string, at: number) {
   });
 }
 
-function addContact(name: string, org = ORG): string {
+function addContact(
+  name: string,
+  extra: { org?: string; email?: string; externalId?: string } = {},
+): string {
   nextId += 1;
   const id = `contact_${nextId}`;
   world.contacts.push({
     id,
-    org_id: org,
+    org_id: extra.org ?? ORG,
     name,
-    email: null,
-    external_id: null,
+    email: extra.email ?? null,
+    external_id: extra.externalId ?? null,
     created_at_ms: nextId,
   });
   return id;
 }
 
 /** The 0.4 world: every subject shares the word "refund", so the text match is
- * never what distinguishes these rows — only the assignment scope is. */
+ * never what distinguishes these rows — only the assignment scope is. Seeded
+ * neither newest nor oldest first, so the order an answer comes back in is
+ * the scan's ORDER BY and nothing else. */
 function seedWorld(): void {
   nextId = 0;
   world = {
@@ -461,12 +480,12 @@ function seedWorld(): void {
     conversations: [],
     messages: [],
   };
-  addConversation({ subject: 'Refund pool unassigned', lastMessageAt: 400 });
   addConversation({
     subject: 'Refund queued to team X',
     assigneeTeamId: TEAM_X,
     lastMessageAt: 300,
   });
+  addConversation({ subject: 'Refund pool unassigned', lastMessageAt: 400 });
   addConversation({
     subject: 'Refund owned by a person',
     assigneeUserId: ASSIGNEE,
@@ -633,7 +652,9 @@ describe('searchConversationsForChat — cross-organization isolation', () => {
     // Theirs: newer, and more of it than either pre-pass may keep — 30
     // matching contacts against the contact match cap (25), 401 messages
     // against the message scan cap (400). A leg that lost its organization
-    // filter would spend its cap on these.
+    // filter would spend its cap on these. Each foreign contact matches by
+    // name, email AND external id, so the filter must hold over all three:
+    // an `OR` that escapes the parentheses lets one column past it.
     const theirs = addConversation({
       org: OTHER_ORG,
       subject: 'A foreign subject',
@@ -641,7 +662,11 @@ describe('searchConversationsForChat — cross-organization isolation', () => {
       lastMessageAt: 500,
     });
     for (let index = 0; index < 30; index += 1) {
-      const contactId = addContact(`Wilhelmina Foreign ${index}`, OTHER_ORG);
+      const contactId = addContact(`Wilhelmina Foreign ${index}`, {
+        org: OTHER_ORG,
+        email: `wilhelmina.foreign${index}@elsewhere.test`,
+        externalId: `wilhelmina-${index}`,
+      });
       addConversation({
         org: OTHER_ORG,
         subject: `Foreign contact ${index}`,
@@ -692,6 +717,33 @@ describe('searchConversationsForChat — cross-organization isolation', () => {
       lastMessageAt: 500,
     });
     expect(await subjectsFor(PLAIN_MEMBER)).toEqual([]);
+  });
+});
+
+describe('searchConversationsForChat — the subject match', () => {
+  it('answers a search newest first', async () => {
+    const found = await search(ADMIN, 'refund');
+    expect(found.conversations.map((row) => row.subject)).toEqual([
+      'Refund pool unassigned',
+      'Refund queued to team X',
+      'Refund owned by a person',
+    ]);
+  });
+
+  // The chat hands the leg the user's question, not keywords: function words
+  // drop out and any one remaining word that starts a subject word is a hit
+  // (the 0.4 leg's 'any' mode). Requiring every word would match nothing here.
+  it('matches a question by any one of its words', async () => {
+    expect(await subjectsFor(ADMIN, 'what happened with the pool')).toEqual([
+      'Refund pool unassigned',
+    ]);
+    expect(
+      await subjectsFor(ADMIN, 'what happened with the refund pool'),
+    ).toEqual([
+      'Refund owned by a person',
+      'Refund pool unassigned',
+      'Refund queued to team X',
+    ]);
   });
 });
 
@@ -1101,7 +1153,23 @@ describe('worldSql — reads the statement, not a shape it assumes', () => {
       ORDER BY coalesce(last_message_at_ms, 0) DESC, id DESC
       LIMIT 1
     `;
-    expect(rows).toEqual([{ _id: 'conv_0001', lastMessageAt: 400 }]);
+    expect(rows).toEqual([{ _id: 'conv_0002', lastMessageAt: 400 }]);
+  });
+
+  it('answers an unordered read reversed, and refuses a LIMIT that cuts it', async () => {
+    const { sql } = worldSql(world);
+    // Seeded 300, 400, 200: an unordered read comes back reversed.
+    const unordered = await sql<Row[]>`
+      SELECT subject FROM app.conversations WHERE org_id = ${ORG}
+    `;
+    expect(unordered).toEqual([
+      { subject: 'Refund owned by a person' },
+      { subject: 'Refund pool unassigned' },
+      { subject: 'Refund queued to team X' },
+    ]);
+    await expect(
+      sql`SELECT id FROM app.conversations WHERE org_id = ${ORG} LIMIT ${2}`,
+    ).rejects.toThrow(/cuts 3 unordered rows/);
   });
 
   it('refuses a predicate it cannot evaluate rather than ignoring it', async () => {

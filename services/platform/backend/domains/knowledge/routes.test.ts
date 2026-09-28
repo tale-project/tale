@@ -8,11 +8,13 @@
  *  - a host-policy refusal is a 400 carrying its code and the sentence that
  *    names the fix, never a generic 500;
  *  - `/fetch` honours `page` as a window over the text rather than accepting
- *    it and shipping the whole document regardless.
+ *    it and shipping the whole document regardless;
+ *  - `/embedding/recommendations` ships `{recommendations, providers}` as
+ *    the lister answers it, and only to a member who manages the settings.
  */
 
 import type { Context } from 'hono';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
@@ -23,6 +25,9 @@ const {
   fetchKnowledgeDocument,
   searchKnowledgeForOrg,
   requeueEmbeddingBlockedDocuments,
+  listEmbeddingRecommendationsForOrg,
+  listCredentials,
+  orgMember,
 } = vi.hoisted(() => ({
   writeKnowledgeConnection: vi.fn(),
   probeKnowledgeConnection: vi.fn(),
@@ -30,6 +35,10 @@ const {
   fetchKnowledgeDocument: vi.fn(),
   searchKnowledgeForOrg: vi.fn(),
   requeueEmbeddingBlockedDocuments: vi.fn(),
+  listEmbeddingRecommendationsForOrg: vi.fn(),
+  listCredentials: vi.fn(async (): Promise<unknown[]> => []),
+  // The role the mocked org gate grants — `admin` unless a case says not.
+  orgMember: { role: 'admin' },
 }));
 
 vi.mock('./admin.ts', () => {
@@ -52,7 +61,7 @@ vi.mock('./admin.ts', () => {
     deleteKnowledgeEmbedding: vi.fn(),
     readKnowledgeConnectionView: vi.fn(),
     readKnowledgeEmbeddingView,
-    listEmbeddingRecommendationsForOrg: vi.fn(),
+    listEmbeddingRecommendationsForOrg,
   };
 });
 
@@ -92,7 +101,7 @@ const { isCredentialSelectionResolvable, readKnowledgeEmbeddingView } =
   }));
 
 vi.mock('../provider_credentials/service.ts', () => ({
-  listCredentials: vi.fn(async () => []),
+  listCredentials,
   isCredentialSelectionResolvable,
 }));
 
@@ -117,7 +126,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
     requireOrgMember:
       () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
         c.set('orgId', 'o1');
-        c.set('orgMember', { role: 'admin' } as never);
+        c.set('orgMember', { role: orgMember.role } as never);
         await next();
       },
   };
@@ -342,4 +351,76 @@ describe('GET /knowledge/embedding — whether the credential still resolves', (
     expect(await response.json()).toEqual({ configured: false });
     expect(isCredentialSelectionResolvable).not.toHaveBeenCalled();
   });
+});
+
+// The form tells "cannot embed" from "no curated width" by the `providers`
+// half of this body; a route that reshaped or dropped it would leave every
+// provider unchecked (or, worse, unrefused) while the lister's own tests
+// stayed green.
+describe('GET /knowledge/embedding/recommendations — the wire body', () => {
+  const view = {
+    recommendations: [
+      {
+        providerSlug: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 1536,
+        recommended: true,
+      },
+    ],
+    providers: [
+      { providerSlug: 'anthropic', support: 'unsupported' },
+      { providerSlug: 'deepseek', support: 'unknown' },
+      { providerSlug: 'openai', support: 'supported' },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  // The role is the whole file's gate — never leak a refused one.
+  afterEach(() => {
+    orgMember.role = 'admin';
+  });
+
+  it('ships the curated picks and every declaration unchanged', async () => {
+    const credentials = [
+      { status: 'active', authMethod: 'api-key', providerSlug: 'openai' },
+    ];
+    listCredentials.mockResolvedValueOnce(credentials);
+    listEmbeddingRecommendationsForOrg.mockResolvedValueOnce(view);
+
+    const response = await makeApp().request(
+      '/embedding/recommendations?orgId=o1',
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(view);
+    // Unlocked by the credentials the caller may see, for the org it is in.
+    expect(listCredentials).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'o1',
+      userId: 'u1',
+      email: 'u@example.test',
+      role: 'admin',
+    });
+    expect(listEmbeddingRecommendationsForOrg).toHaveBeenCalledWith(
+      'acme',
+      credentials,
+    );
+  });
+
+  it.each(['developer', 'member'])(
+    'refuses a %s, who cannot manage the settings, before listing anything',
+    async (role) => {
+      orgMember.role = role;
+
+      const response = await makeApp().request(
+        '/embedding/recommendations?orgId=o1',
+      );
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ error: 'ORG_FORBIDDEN' });
+      expect(listCredentials).not.toHaveBeenCalled();
+      expect(listEmbeddingRecommendationsForOrg).not.toHaveBeenCalled();
+    },
+  );
 });

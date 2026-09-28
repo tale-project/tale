@@ -404,3 +404,14 @@ default means deleting the override and fixing what surfaces:
   2026-09 carry `user:` / `api-key:` forms and the previous image writes them mid-roll. Paying it
   down means a `CHECK (user_id NOT LIKE '%:%' OR user_id = '__automation__') NOT VALID` once every
   image books bare ids.
+- **Unreadable matches can empty a member's chat search** — the chat assistant's conversations
+  leg (`services/platform/backend/domains/conversations/search-chat.ts`) stops its body pre-pass
+  at 50 matching conversations and its contact pre-pass at 25 matching contacts BEFORE
+  `conversationAssignmentAllows` runs, and a walk a match cap stopped reports `truncated: false`.
+  When the newest matches are conversations a member may not read, the member's own older match
+  is dropped and the tool answers `searched (no matches)`; the contact scan cap (500) cuts the
+  same way. 0.4 behaved alike (2026-09, TALE-47 review). Paying it down means scoping each
+  pre-pass before it counts (read the matched conversation's assignment stamps with the match
+  and hand them to the same predicate), or at least reporting `truncated` when a cap stopped a
+  pre-pass and the answer came back short of its limit, with a case in
+  `search-chat.privacy.test.ts` where 50 unreadable body matches sit ahead of the member's own.
