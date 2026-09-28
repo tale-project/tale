@@ -1,13 +1,16 @@
-import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const serverModule = path.resolve('src/server/index.ts');
-const reportingModule = path.resolve('src/monitoring/server.ts');
-const children: ChildProcess[] = [];
+import {
+  bunServers,
+  monitoringModule,
+  serverModule,
+} from '@/tests/utils/site-server';
+
+const servers = bunServers();
 let directory: string;
 
 async function start(
@@ -15,7 +18,7 @@ async function start(
 ): Promise<{ app: string; ingest: string }> {
   const script = `
 import { startReactServer, defaultReactServerSecurityHeaders } from ${JSON.stringify(serverModule)};
-import { initServerMonitoring } from ${JSON.stringify(reportingModule)};
+import { initServerMonitoring } from ${JSON.stringify(monitoringModule)};
 let events = [];
 let monitoring;
 const ingest = Bun.serve({port:0,hostname:'127.0.0.1',async fetch(req){
@@ -29,35 +32,8 @@ const server=startReactServer({port:0,hostname:'127.0.0.1',distDir:${JSON.string
 });
 console.log('READY '+server.port+' '+ingest.port);
 `;
-  const child = spawn('bun', ['--eval', script], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  children.push(child);
-  return new Promise((resolve, reject) => {
-    let output = '';
-    const timeout = setTimeout(
-      () => reject(new Error(`Bun server did not start: ${output}`)),
-      20_000,
-    );
-    child.stdout?.on('data', (chunk: Buffer) => {
-      output += chunk.toString();
-      const match = /READY (\d+) (\d+)/.exec(output);
-      if (match) {
-        clearTimeout(timeout);
-        resolve({
-          app: `http://127.0.0.1:${match[1]}`,
-          ingest: `http://127.0.0.1:${match[2]}`,
-        });
-      }
-    });
-    child.stderr?.on('data', (chunk: Buffer) => {
-      output += chunk.toString();
-    });
-    child.once('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`Bun exited ${code}: ${output}`));
-    });
-  });
+  const [app, ingest] = await servers.start(script);
+  return { app, ingest };
 }
 
 beforeAll(() => {
@@ -69,7 +45,7 @@ beforeAll(() => {
   );
 });
 afterAll(() => {
-  for (const child of children) child.kill();
+  servers.stop();
   rmSync(directory, { recursive: true, force: true });
 });
 

@@ -3,15 +3,15 @@
 // was reported as a server failure and answered 500. Web, docs and ui-docs
 // all serve through this code, in both URL-tree shapes.
 
-import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const serverModule = path.resolve('src/server/index.ts');
-const children: ChildProcess[] = [];
+import { bunServers, serverModule } from '@/tests/utils/site-server';
+
+const servers = bunServers();
 let directory: string;
 
 /**
@@ -19,7 +19,7 @@ let directory: string;
  * into `/reported`; `/boom` throws, so a test can prove the counter is live.
  */
 async function start(localeRouting: 'path' | 'none'): Promise<string> {
-  const script = `
+  const [app] = await servers.start(`
 import { startReactServer } from ${JSON.stringify(serverModule)};
 let reported = 0;
 const server = startReactServer({
@@ -36,33 +36,8 @@ const server = startReactServer({
   },
 });
 console.log('READY ' + server.port);
-`;
-  const child = spawn('bun', ['--eval', script], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  children.push(child);
-  return new Promise((resolve, reject) => {
-    let output = '';
-    const timeout = setTimeout(
-      () => reject(new Error(`Bun server did not start: ${output}`)),
-      20_000,
-    );
-    child.stdout?.on('data', (chunk: Buffer) => {
-      output += chunk.toString();
-      const match = /READY (\d+)/.exec(output);
-      if (match) {
-        clearTimeout(timeout);
-        resolve(`http://127.0.0.1:${match[1]}`);
-      }
-    });
-    child.stderr?.on('data', (chunk: Buffer) => {
-      output += chunk.toString();
-    });
-    child.once('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`Bun exited ${code}: ${output}`));
-    });
-  });
+`);
+  return app;
 }
 
 function get(url: string) {
@@ -90,7 +65,7 @@ beforeAll(() => {
   );
 });
 afterAll(() => {
-  for (const child of children) child.kill();
+  servers.stop();
   rmSync(directory, { recursive: true, force: true });
 });
 
