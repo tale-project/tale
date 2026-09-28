@@ -203,6 +203,49 @@ describe('ProductEditDialog', () => {
   });
 });
 
+describe('ProductEditDialog — pasted image URL', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // A URL without a scheme passed the length-only check and came back from
+  // Save as a bare `invalid body` (TALE-84).
+  it('refuses an address that is not an absolute http(s) URL and saves a valid one', async () => {
+    mockMutate.mockImplementation((_args, opts) => {
+      opts.onSuccess();
+    });
+    const { user } = renderDialog();
+    await user.click(
+      screen.getByRole('button', { name: 'products.edit.pasteUrl' }),
+    );
+    const url = screen.getByLabelText('products.edit.labels.imageUrl', {
+      exact: false,
+    });
+    await user.type(url, 'cdn.example.com/cat.png');
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+
+    expect(
+      await screen.findByText('products.edit.validation.imageUrl'),
+    ).toBeInTheDocument();
+    expect(url).toHaveAttribute('aria-invalid', 'true');
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    await user.clear(url);
+    await user.type(url, 'https://cdn.example.com/cat.png');
+    await user.click(
+      screen.getByRole('button', { name: 'common.actions.save' }),
+    );
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledTimes(1);
+    });
+    expect(mockMutate.mock.calls[0]?.[0]).toMatchObject({
+      imageUrl: 'https://cdn.example.com/cat.png',
+    });
+  });
+});
+
 describe('ProductEditDialog — price and stock', () => {
   beforeEach(() => {
     vi.clearAllMocks();

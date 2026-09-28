@@ -1720,7 +1720,7 @@ function ChatSurfaceInner({
         <Stack
           ref={threadSwapRef}
           gap={0}
-          className="relative min-h-0 min-w-0 flex-1"
+          className="mobile-nav-clearance mobile-nav-inset relative min-h-0 min-w-0 flex-1"
         >
           {/* Mobile header (<md): the Home panel and the floating header
             below are desktop-only — without this row a phone could neither

@@ -123,7 +123,7 @@ export function TaskPageLayout({
         }
       />
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="mobile-nav-clearance mobile-nav-inset flex min-w-0 flex-1 flex-col">
           {/* column-reverse keeps the view anchored at the newest end: the
               page opens on the latest message, and a new one arriving at the
               foot stays in sight — the way a chat reads. */}

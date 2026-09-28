@@ -203,7 +203,13 @@ describe('POST /:id/messages — the send time is a stamp a Date can hold', () =
     async (sentAt) => {
       const res = await post({ content: 'A note', sentAt });
       expect(res.status).toBe(400);
-      await expect(res.json()).resolves.toEqual({ error: 'invalid body' });
+      // The refusal names the field, so the toast (and the error report)
+      // can say which one — never a bare `invalid body`.
+      await expect(res.json()).resolves.toMatchObject({
+        error: 'invalid body',
+        message: expect.stringMatching(/^sentAt: /),
+        data: { issues: [{ path: 'sentAt', message: expect.any(String) }] },
+      });
       expect(loadVisibleConversation).not.toHaveBeenCalled();
       expect(addMessageToConversation).not.toHaveBeenCalled();
     },
@@ -465,7 +471,22 @@ describe('conversations route — an email that carries only files', () => {
 
       expect(reply.status).toBe(400);
       expect(compose.status).toBe(400);
-      await expect(reply.json()).resolves.toEqual({ error: 'invalid body' });
+      // Named at `content` — the composer's field — not as an unnamed
+      // "Invalid input" on the whole body.
+      for (const res of [reply, compose]) {
+        await expect(res.json()).resolves.toEqual({
+          error: 'invalid body',
+          message: 'content: must not be empty unless files are attached',
+          data: {
+            issues: [
+              {
+                path: 'content',
+                message: 'must not be empty unless files are attached',
+              },
+            ],
+          },
+        });
+      }
       expect(loadVisibleConversation).not.toHaveBeenCalled();
       expect(firstForeignUpload).not.toHaveBeenCalled();
       expect(replyToConversation).not.toHaveBeenCalled();

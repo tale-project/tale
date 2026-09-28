@@ -271,7 +271,8 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     "Search or list the organization's own knowledge AND its work: uploaded " +
     'documents, knowledge entries, crawled website pages, products, ' +
     'contacts, websites, tasks and projects, and inbox conversations — the ' +
-    'text of the emails they received included. The ' +
+    'text of the emails they received and of the files attached to them ' +
+    'included. The ' +
     'scope is decided by where the chat lives: a project chat reaches its ' +
     "project's files and tasks plus the organization's shared knowledge " +
     '(other projects are out of scope); the organization chat reaches the ' +
@@ -296,7 +297,8 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'you do not know is such a need — search before answering that you do ' +
     'not have it; never ask where it would live before looking. "score" ' +
     'orders hits within one response only. ' +
-    'Document, web-page and task rows carry a "ref" for rag_fetch; contact, ' +
+    'Document, mail-attachment, web-page and task rows carry a "ref" for ' +
+    'rag_fetch; contact, ' +
     'product, knowledge-entry, website and project rows carry their content ' +
     'inline and cannot be fetched. A conversation row that an email matched ' +
     'carries the matching passage as its "snippet" and a "ref" that ' +
@@ -314,7 +316,8 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     "page's URL is known.",
   rag_fetch:
     'Load the full detail behind a "ref": a document file id (from a ' +
-    'rag_search hit or the attached-documents list), a crawled website page ' +
+    'rag_search hit — a mail-attachment row included — or the ' +
+    'attached-documents list), a crawled website page ' +
     'URL, an email ref (from a conversation row an email matched — it ' +
     "returns that email's whole text), a task ref, or a project ref. A task " +
     "ref returns that task's full " +

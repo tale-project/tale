@@ -46,6 +46,7 @@ export interface CollabContract {
           | 'document_review_requested'
           | 'document_review_resolved'
           | 'agent_escalation'
+          | 'automation_failed'
           | 'workforce_digest'
           | 'conversation_message'
           | 'conversation_assigned';
@@ -60,7 +61,8 @@ export interface CollabContract {
           | 'wf_execution'
           | 'runtime'
           | 'dashboard'
-          | 'document_review';
+          | 'document_review'
+          | 'automation_trigger';
         resourceId: string;
         actorType: 'user' | 'system' | 'agent';
         titleKey: string;
@@ -96,6 +98,7 @@ export interface CollabContract {
       taskDeadlines: undefined | boolean;
       taskReview: undefined | boolean;
       escalation: undefined | boolean;
+      automationAlerts: undefined | boolean;
       digest: undefined | boolean;
       conversationMessages: undefined | boolean;
       actionableEmail: undefined | boolean;
@@ -112,6 +115,7 @@ export interface CollabContract {
       taskDeadlines?: boolean;
       taskReview?: boolean;
       escalation?: boolean;
+      automationAlerts?: boolean;
       digest?: boolean;
       actionableEmail?: boolean;
       organizationId: string;

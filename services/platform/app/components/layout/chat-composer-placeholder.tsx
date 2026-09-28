@@ -31,7 +31,7 @@ import {
  */
 export function ChatComposerPlaceholder() {
   return (
-    <div className="mt-auto hidden shrink-0 px-4 pb-4 [.boot-chat_&]:block">
+    <div className="mobile-nav-clearance mt-auto hidden shrink-0 px-4 pb-[calc(1rem+var(--mobile-nav-content-pad,0px))] [.boot-chat_&]:block">
       <Skeletonize loading>
         <div className="mx-auto w-full max-w-3xl">
           <Stack gap={2} className={CHAT_COMPOSER_FRAME_CLASS}>

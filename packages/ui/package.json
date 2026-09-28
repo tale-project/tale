@@ -343,6 +343,8 @@
     "./use-format-date": "./src/hooks/use-format-date.ts",
     "./use-infinite-scroll": "./src/hooks/use-infinite-scroll.ts",
     "./use-is-mac": "./src/hooks/use-is-mac.ts",
+    "./use-scroll-compact": "./src/hooks/use-scroll-compact.ts",
+    "./use-mobile-keyboard": "./src/hooks/use-mobile-keyboard.ts",
     "./use-is-mobile": "./src/hooks/use-is-mobile.ts",
     "./use-is-short-viewport": "./src/hooks/use-is-short-viewport.ts",
     "./use-list-page": "./src/hooks/use-list-page.ts",

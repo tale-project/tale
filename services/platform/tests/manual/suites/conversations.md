@@ -1,6 +1,6 @@
 # Inbox (org-level conversations)
 
-> **Prefix** `CONV-` · **Reset** none · **Cost** 53 boxes
+> **Prefix** `CONV-` · **Reset** none · **Cost** 55 boxes
 
 Exercise the org-level **Inbox** — the customer conversations of
 `/dashboard/{org}/conversations` (user-visible name: **Inbox**,
@@ -483,6 +483,18 @@ subject.
   holds the email with that file and no text. **New email**
   (`home.inbox.compose`) with a recipient, a subject and only a file sends the
   same way and opens the new thread.
+- [ ] `CONV-F33` · **Undo gives the whole reply back** — With CONV-F7's
+  precondition met, type a line, attach a PDF with **Attach file**
+  (`conversations.editor.attachFile`) and send; while the bubble counts down
+  (`conversations.message.sendingIn`) press **Undo**
+  (`conversations.message.undoSend`) → The bubble goes, and the reply box
+  holds the line again with the PDF's chip beside it; send once more and,
+  after the undo window, the correspondent's mailbox holds exactly one email
+  with that line and that file. Repeat with only the PDF and no text → Undo
+  puts the chip back and **Send message** (`conversations.editor.send`) is
+  live. Undo a reply, then open another conversation → Its reply box holds
+  neither the line nor the file; back on the first conversation, both are
+  still there.
 
 ## Boundary & error tests
 
@@ -577,6 +589,13 @@ subject.
   assigned row also announces `conversations.header.reclickToUnassign`.
   Arrowing to an assigned row and pressing Enter clears that dimension, and
   focus returns to the trigger, whose label has changed.
+- [ ] `CONV-A8` · **A file's remove button names the file** → Attach a file
+  in the reply box and Tab to the ✕ on its chip → It is a `button` named
+  **Remove {file name}** (`common.aria.removeNamed`; German **{file name}
+  entfernen**, French **Retirer {file name}**) with the file's whole name even
+  where the chip cuts it short; it shows a visible focus ring, and Enter or
+  Space removes that file and no other. A file an undo handed back (CONV-F33)
+  is named the same way.
 
 ## Performance
 
