@@ -2,7 +2,7 @@
 
 import { Crepe } from '@milkdown/crepe';
 import { editorViewOptionsCtx } from '@milkdown/kit/core';
-import { getHTML } from '@milkdown/kit/utils';
+import { getHTML, getMarkdown } from '@milkdown/kit/utils';
 import {
   Milkdown,
   MilkdownProvider,
@@ -267,24 +267,20 @@ function MilkdownEditorInner({
   }, []);
 
   const handleSendMessage = useCallback(async () => {
-    // Serialize the live editor document through its own schema (getHTML) so
-    // the sent HTML is exactly what the editor displayed. Re-rendering the
-    // markdown state through a second renderer disagreed with the editor —
-    // e.g. Milkdown serializes empty paragraphs as raw `<br />` markdown,
-    // which shipped as literal "<br />" text. The markdown state still gates
-    // emptiness: an empty document serializes to `<p></p>`, which would
-    // otherwise read as a non-empty body.
-    const hasBody = message.trim().length > 0;
-    const editorHtml =
-      hasBody && crepeRef.current
-        ? crepeRef.current.editor.action(getHTML())
-        : '';
-    const html = editorHtml ? toOutboundHtml(editorHtml) : '';
+    // The persisted draft follows Milkdown's debounced listener. Read both
+    // formats in one synchronous action so HTML, emptiness and undo Markdown
+    // describe the same current document, even before that draft catches up.
+    const { markdown, html: editorHtml } = crepeRef.current?.editor.action(
+      (ctx) => ({ markdown: getMarkdown()(ctx), html: getHTML()(ctx) }),
+    ) ?? { markdown: '', html: '' };
+    // An empty editor still serializes to <p></p>; its Markdown is empty.
+    const hasBody = markdown.trim().length > 0;
+    const html = hasBody ? toOutboundHtml(editorHtml) : '';
 
     if ((html.trim() || attachedFiles.length > 0) && onSave) {
       startSendingTransition(async () => {
         try {
-          await onSave(html, attachedFiles, hasBody ? message : undefined);
+          await onSave(html, attachedFiles, hasBody ? markdown : undefined);
 
           setAttachedFiles([]);
           setIsImproveMode(false);
@@ -304,7 +300,6 @@ function MilkdownEditorInner({
       });
     }
   }, [
-    message,
     attachedFiles,
     onSave,
     clearMessage,
