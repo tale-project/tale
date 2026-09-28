@@ -535,6 +535,27 @@ describe('searchConversationsForChat — assignment privacy', () => {
     ]);
   });
 
+  // One row carrying both stamps: the leg must hand the predicate both, so the
+  // team reaches it without the person and the person without the team.
+  it('opens a row stamped with a person and a team to each of them', async () => {
+    addConversation({
+      subject: 'Refund owned and queued',
+      assigneeUserId: ASSIGNEE,
+      assigneeTeamId: TEAM_X,
+      lastMessageAt: 100,
+    });
+    expect(await subjectsFor(TEAM_MEMBER)).toEqual([
+      'Refund owned and queued',
+      'Refund queued to team X',
+    ]);
+    // ASSIGNEE is on no team here.
+    expect(await subjectsFor(ASSIGNEE)).toEqual([
+      'Refund owned and queued',
+      'Refund owned by a person',
+    ]);
+    expect(await subjectsFor(PLAIN_MEMBER)).toEqual([]);
+  });
+
   // 0.4 could not reach these two: its role resolver fell back to a Better
   // Auth component convex-test did not register. The membership read is in
   // the leg now, so the refusal is provable here.
@@ -609,8 +630,10 @@ describe('searchConversationsForChat — cross-organization isolation', () => {
     });
     addMessage(ourBody, 'The chassis serial is XJ-4417.', 100);
 
-    // Theirs: newer, and more of it than either pre-pass may read — a leg
-    // that lost its organization filter would spend its cap on these.
+    // Theirs: newer, and more of it than either pre-pass may keep — 30
+    // matching contacts against the contact match cap (25), 401 messages
+    // against the message scan cap (400). A leg that lost its organization
+    // filter would spend its cap on these.
     const theirs = addConversation({
       org: OTHER_ORG,
       subject: 'A foreign subject',
@@ -758,6 +781,18 @@ describe('searchConversationsForChat — the assignment is returned', () => {
     expect(owned).not.toHaveProperty('assigneeTeamId');
   });
 
+  it('names both when a conversation is owned and queued at once', async () => {
+    addConversation({
+      subject: 'Refund owned and queued',
+      assigneeUserId: ASSIGNEE,
+      assigneeTeamId: TEAM_X,
+      lastMessageAt: 100,
+    });
+    const both = await hit('Refund owned and queued');
+    expect(both?.assigneeUserId).toBe(ASSIGNEE);
+    expect(both?.assigneeTeamId).toBe(TEAM_X);
+  });
+
   it('returns neither field for an unassigned conversation', async () => {
     const pool = await hit('Refund pool unassigned');
     expect(pool).toBeDefined();
@@ -822,28 +857,71 @@ describe('searchConversationsForChat — explicit list mode', () => {
   });
 
   it('reports truncation when the walk itself reaches the scan cap', async () => {
-    // 300 is the cap; 301 unassigned rows the plain member may not read make
-    // the walk run out before it finds anything.
-    for (let index = 0; index < 301; index += 1) {
+    // 300 is the cap. With the three seeds, 297 unassigned rows the plain
+    // member may not read make exactly 300: the walk reads them all and is
+    // complete, even though it finds nothing.
+    for (let index = 0; index < 297; index += 1) {
       addConversation({
         subject: `Triage ${index}`,
         lastMessageAt: 1_000 + index,
       });
     }
-    const plain = await listFor(PLAIN_MEMBER);
-    expect(plain.conversations).toEqual([]);
-    expect(plain.truncated).toBe(true);
+    const atCap = await listFor(PLAIN_MEMBER);
+    expect(atCap.conversations).toEqual([]);
+    expect(atCap.truncated).toBe(false);
+    // One more row, and the walk runs out before the inbox does.
+    addConversation({ subject: 'Triage 297', lastMessageAt: 1_297 });
+    const pastCap = await listFor(PLAIN_MEMBER);
+    expect(pastCap.conversations).toEqual([]);
+    expect(pastCap.truncated).toBe(true);
     // The same inbox answered in full before the cap is not partial.
     const admin = await listFor(ADMIN, 5);
     expect(admin.conversations).toHaveLength(5);
     expect(admin.truncated).toBe(false);
   });
 
+  it('never answers a row past the scan cap, even the only readable one', async () => {
+    // 297 newer unassigned rows and the three seeds fill the cap; the one row
+    // the plain member owns is the 301st newest, so the walk never reaches it.
+    for (let index = 0; index < 297; index += 1) {
+      addConversation({
+        subject: `Triage ${index}`,
+        lastMessageAt: 1_000 + index,
+      });
+    }
+    addConversation({
+      subject: 'Owned but past the cap',
+      assigneeUserId: PLAIN_MEMBER,
+      lastMessageAt: 100,
+    });
+    const plain = await listFor(PLAIN_MEMBER);
+    expect(plain.conversations).toEqual([]);
+    expect(plain.truncated).toBe(true);
+  });
+
   // Search behavior is untouched: term '' without the flag still matches
-  // nothing, because an empty token list passes no row in 'any' mode.
+  // nothing. The subject and contact matchers pass no row on an empty token
+  // list; the body walk would pass EVERY message (`includes('')` is always
+  // true), so it must not run at all — hence the readable body seeded here.
   it('keeps the searchless empty result without the flag', async () => {
-    expect((await search(ADMIN, '')).conversations).toEqual([]);
-    expect((await search(ADMIN, '   ')).conversations).toEqual([]);
+    const id = addConversation({
+      subject: 'Nothing matching here',
+      assigneeUserId: ASSIGNEE,
+      lastMessageAt: 500,
+    });
+    addMessage(id, 'Any text at all', 500);
+    for (const term of ['', '   ']) {
+      const found = await search(ADMIN, term);
+      expect(found.conversations).toEqual([]);
+      expect(found.truncated).toBe(false);
+      expect(
+        found.statements.some(
+          (text) =>
+            text.includes('app.conversation_messages') ||
+            text.includes('app.contacts'),
+        ),
+      ).toBe(false);
+    }
   });
 });
 
@@ -916,19 +994,25 @@ describe('searchConversationsForChat — the message-body leg', () => {
   });
 
   it('reports truncation from the body walk, not just the conversation walk', async () => {
-    // 401 messages against a 400 cap. A caller told "no matches" must be able
-    // to tell that from "no matches in what I looked at".
+    // A caller told "no matches" must be able to tell that from "no matches
+    // in what I looked at". Exactly 400 messages against a 400 cap: all read,
+    // so the answer is complete.
     const id = addConversation({
       subject: 'Nothing matching here',
       assigneeUserId: ASSIGNEE,
       lastMessageAt: 1,
     });
-    for (let index = 0; index < 401; index += 1) {
+    for (let index = 0; index < 400; index += 1) {
       addMessage(id, `filler ${index}`, 1_000 + index);
     }
-    const found = await search(ASSIGNEE, 'nonexistent-term');
-    expect(found.conversations).toEqual([]);
-    expect(found.truncated).toBe(true);
+    const atCap = await search(ASSIGNEE, 'nonexistent-term');
+    expect(atCap.conversations).toEqual([]);
+    expect(atCap.truncated).toBe(false);
+    // The 401st message is one the walk never reads.
+    addMessage(id, 'filler 400', 1_400);
+    const pastCap = await search(ASSIGNEE, 'nonexistent-term');
+    expect(pastCap.conversations).toEqual([]);
+    expect(pastCap.truncated).toBe(true);
   });
 
   it('reads only the newest messages: a match past the cap is invisible', async () => {
