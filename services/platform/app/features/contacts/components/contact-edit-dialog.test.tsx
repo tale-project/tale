@@ -102,10 +102,12 @@ describe('ContactEditDialog', () => {
     await user.click(submitButton);
 
     // Phone was already optional before #2640 — same "clear must persist"
-    // requirement applies: `''`, not `undefined`.
+    // requirement applies, as `null`: `undefined` is dropped as "unchanged",
+    // and the door reads `''` as a phone that was not sent, so both kept the
+    // old number behind a success toast.
     await waitFor(() => {
       expect(mockMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ phone: '' }),
+        expect.objectContaining({ phone: null }),
       );
     });
   });

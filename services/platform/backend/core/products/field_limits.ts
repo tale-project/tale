@@ -16,6 +16,13 @@ export const PRODUCT_CATEGORY_MAX = 100;
 export const PRODUCT_CURRENCY_MAX = 3;
 /** Maximum length of a product image URL (characters). */
 export const PRODUCT_IMAGE_URL_MAX = 2048;
+/**
+ * How many rows one product file import sends. The app door refuses a
+ * longer list whole (`POST /api/app/products/bulk`), so the import dialog
+ * checks the parsed file against the same number and asks for a split
+ * before sending, instead of a 400 that names no row.
+ */
+export const PRODUCT_IMPORT_ROWS_MAX = 1_000;
 
 /** `undefined` = not asked yet; `null` = the runtime cannot say. */
 let iso4217Cache: ReadonlySet<string> | null | undefined;

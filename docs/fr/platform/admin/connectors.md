@@ -8,9 +8,11 @@ Ajoute des identifiants de connecteur pour que Tale utilise une messagerie, un e
 ## Connecter un compte
 
 1. Sélectionne **Ajouter des identifiants**, puis le connecteur. Les connecteurs déjà configurés apparaissent en premier et peuvent recevoir d’autres identifiants.
-2. Vérifie le champ **Nom**. Il est prérempli avec le nom du connecteur, suivi d’un numéro si d’autres identifiants de ce connecteur portent déjà ce nom : `GitHub`, puis `GitHub 2`. Un nom comme `Boîte support` ou `Boutique UE` est plus facile à reconnaître pour la personne qui prépare l’automatisation. Les connexions OAuth n’utilisent pas ce champ.
-3. Complète la méthode d’authentification proposée. Pour OAuth, sélectionne **Connecter** et autorise l’accès chez le fournisseur.
+2. Vérifie le champ **Nom**. Il est prérempli avec le nom du connecteur, suivi d’un numéro si d’autres identifiants de ce connecteur portent déjà ce nom : `GitHub`, puis `GitHub 2`. Un nom comme `Boîte support` ou `Boutique UE` est plus facile à reconnaître pour la personne qui prépare l’automatisation. Une connexion OAuth n’a pas de champ de nom : Tale la nomme de la même façon une fois l’accès autorisé (un deuxième espace Slack prend le nom de l’espace), et **Modifier les identifiants** permet de la renommer.
+3. Complète la méthode d’authentification proposée. Pour OAuth, sélectionne **Connecter** et autorise l’accès chez le fournisseur. Chaque **Connecter** ajoute de nouveaux identifiants pour le compte autorisé, sans jamais remplacer ceux qui existent. Connecte-toi donc chez le fournisseur avec le compte que tu veux ajouter.
 4. Termine le formulaire, puis vérifie la ligne créée : connecteur, compte ou instance, et statut.
+
+Slack associe un seul jeu d’identifiants à chaque espace Slack. Si tu autorises à nouveau un espace déjà connecté, Tale renouvelle ses identifiants au lieu d’en ajouter d’autres.
 
 Le connecteur détermine les champs. Utilise les identifiants du compte externe, pas une clé API Tale.
 
@@ -55,7 +57,9 @@ Pour OneDrive/SharePoint, **Utiliser l'app SSO Entra ID** peut copier une inscri
 
 ## Rétablir une connexion
 
-**Reconnexion requise** signifie que l’autorisation OAuth enregistrée ne peut plus être renouvelée. Sélectionne **Reconnecter** et autorise à nouveau le compte. Le nom et les références restent les mêmes. Des identifiants volontairement désactivés demandent plutôt **Activer**.
+**Reconnexion requise** signifie que l’autorisation OAuth enregistrée ne peut plus être renouvelée. Sélectionne **Reconnecter** dans le menu de cette ligne et autorise à nouveau le même compte. Tale renouvelle exactement ces identifiants : leur nom, le choix par défaut et les références restent les mêmes, et aucun autre identifiant ne change. **Reconnecter** ne réactive pas des identifiants volontairement désactivés ; **Activer** les remet en service.
+
+Si les identifiants sont supprimés avant la fin de l’autorisation, ou si ton rôle ne te permet plus de gérer les identifiants, Tale n’enregistre rien et en indique la raison. Pour Slack, autorise l’espace que ces identifiants connectent déjà. Tale refuse un autre espace ; connecte-le plutôt avec **Ajouter des identifiants**.
 
 Si la connexion ne démarre pas, vérifie l’application OAuth. Si le fournisseur refuse le retour vers Tale, compare son URI de redirection enregistrée à celle que Tale affiche. Si une action échoue après la connexion, vérifie les droits du compte et les permissions requises pour cette action.
 

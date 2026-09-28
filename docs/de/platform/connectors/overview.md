@@ -41,7 +41,7 @@ Wähle **Zugangsdaten hinzufügen**, suche den Dienst und öffne seine Karte. Be
 
 </Frame>
 
-Das Feld **Name** enthält zunächst den Namen des Connectors. Fügst du für denselben Dienst mehrere Konten hinzu, ersetze ihn durch einen zweckbezogenen Namen, etwa `Support-Postfach` oder `Release-Bot`. Verwende Zugangsdaten des externen Diensts, keinen Tale-API-Schlüssel. Schließe bei OAuth die Zustimmung beim Provider ab und prüfe das zurückgemeldete Konto. Kann der Vorgang nicht starten, muss gegebenenfalls ein Administrator zuerst die OAuth-App einrichten.
+Das Feld **Name** enthält zunächst den Namen des Connectors. Fügst du für denselben Dienst mehrere Konten hinzu, ersetze ihn durch einen zweckbezogenen Namen, etwa `Support-Postfach` oder `Release-Bot`. Verwende Zugangsdaten des externen Diensts, keinen Tale-API-Schlüssel. Melde dich bei OAuth mit dem Konto beim Provider an, das du hinzufügen willst, und schließe die Zustimmung ab. Jede Verbindung legt neue Zugangsdaten an, benannt nach dem Connector und durchnummeriert (`Gmail`, dann `Gmail 2`); Slack führt pro Workspace genau einen Satz. Benenne neue Zugangsdaten um, damit die Konten unterscheidbar bleiben. Kann der Vorgang nicht starten, muss gegebenenfalls ein Administrator zuerst die OAuth-App einrichten.
 
 Confluence und Shopify brauchen pro Eintrag eine **Instanz-URL**. Verwende den Ursprung der Atlassian-Site oder die `myshopify.com`-Adresse des Shops, keine beliebige Unterseite oder Kundendomain. [Connector-Zugangsdaten](/de/platform/admin/connectors) erklärt Felder, erneute Autorisierung und Schlüsselaustausch.
 

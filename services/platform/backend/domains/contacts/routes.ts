@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import {
   CONTACT_EXTERNAL_ID_MAX,
+  CONTACT_IMPORT_ROWS_MAX,
   CONTACT_LOCALE_PATTERN,
 } from '../../../lib/shared/schemas/common.ts';
 import type { Auth } from '../../auth/auth.ts';
@@ -150,7 +151,7 @@ export function createContactRoutes(deps: {
 
   app.post('/bulk', async (c) => {
     const body = z
-      .object({ contacts: z.array(z.unknown()).max(1000) })
+      .object({ contacts: z.array(z.unknown()).max(CONTACT_IMPORT_ROWS_MAX) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);
