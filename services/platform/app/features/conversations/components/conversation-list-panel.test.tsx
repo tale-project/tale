@@ -14,7 +14,7 @@ describe('ConversationListPanel', () => {
     );
     const scroller = container.querySelector('.overflow-y-auto');
     expect(scroller).toHaveClass(
-      'pb-[length:var(--mobile-floating-actions-pad,0px)]',
+      'pb-[calc(var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))]',
     );
   });
 });
