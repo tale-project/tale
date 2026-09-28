@@ -1181,13 +1181,14 @@ describe('staggered refreshes and the hand-out floor', () => {
     );
   });
 
-  it('keeps accounts refreshed together apart on every later cycle', async () => {
+  it('never refreshes two accounts refreshed together in one pass, over a month of passes', async () => {
     await alignedPool();
     const gateway = service();
     const refreshedAt: Record<string, string[]> = { early: [], late: [] };
-    // A background pass every five minutes for a day, each refresh handing
-    // out a fresh eight-hour token.
-    for (let at = Date.parse(ISSUED); at < Date.parse(ISSUED) + 24 * HOUR;) {
+    // A background pass every five minutes for thirty days, each refresh
+    // handing out a fresh eight-hour token. Cycles of different lengths
+    // meet now and then; the spacing keeps them in different passes.
+    for (let at = Date.parse(ISSUED); at < Date.parse(ISSUED) + 720 * HOUR;) {
       at += 5 * 60 * 1000;
       now = new Date(at);
       anthropic.refreshedExpiresAt = new Date(at + 8 * HOUR).toISOString();
@@ -1200,13 +1201,56 @@ describe('staggered refreshes and the hand-out floor', () => {
         }
       }
     }
-    expect(refreshedAt.early?.length).toBeGreaterThan(0);
-    expect(refreshedAt.late?.length).toBeGreaterThan(0);
+    expect(refreshedAt.early?.length).toBeGreaterThan(50);
+    expect(refreshedAt.late?.length).toBeGreaterThan(50);
     // No pass refreshed both: one refresh never cuts the runs of the pool.
     const both = refreshedAt.early?.filter((at) =>
       refreshedAt.late?.includes(at),
     );
     expect(both).toEqual([]);
+  });
+
+  it('refreshes two due accounts of one vendor ten minutes apart', async () => {
+    // `account-a` plans its refresh at about 15:02, `early` at about 15:10.
+    await store.putAccount(storedAccount('early'));
+    await store.putAccount(storedAccount('account-a'));
+    anthropic.refreshedExpiresAt = '2026-09-29T00:00:00.000Z';
+    const gateway = service();
+    const tokens = async () =>
+      Object.fromEntries(
+        (await gateway.handOutTokens('anthropic')).map((h) => [
+          h.id,
+          h.accessToken,
+        ]),
+      );
+
+    now = new Date('2026-09-28T15:10:00.000Z');
+    const first = await tokens();
+    expect(anthropic.refreshCount).toBe(1);
+    // One of the two waits for its turn, still on its own token.
+    expect(
+      [first.early, first['account-a']].filter((token) =>
+        token?.endsWith('-access'),
+      ),
+    ).toHaveLength(1);
+
+    now = new Date('2026-09-28T15:15:00.000Z');
+    await tokens();
+    expect(anthropic.refreshCount).toBe(1);
+
+    now = new Date('2026-09-28T15:20:01.000Z');
+    const later = await tokens();
+    expect(anthropic.refreshCount).toBe(2);
+    expect(Object.values(later).some((t) => t.endsWith('-access'))).toBe(false);
+  });
+
+  it('refreshes a token at its skew point even inside the spacing', async () => {
+    await alignedPool();
+    anthropic.refreshedExpiresAt = '2026-09-29T03:00:00.000Z';
+    // Past both skew points (18:55:58): neither token can wait any longer.
+    now = new Date('2026-09-28T18:56:30.000Z');
+    await service().handOutTokens('anthropic');
+    expect(anthropic.refreshCount).toBe(2);
   });
 
   it('serves an account inside the floor as unavailable until its planned refresh', async () => {
@@ -1255,8 +1299,9 @@ describe('staggered refreshes and the hand-out floor', () => {
     await alignedPool();
     anthropic.refusals.refresh = 'failed';
     now = new Date(Date.parse(plannedRefresh('early')) + 1_000);
+    const gateway = service();
 
-    const early = (await service().handOutTokens('anthropic')).find(
+    const early = (await gateway.handOutTokens('anthropic')).find(
       (handout) => handout.id === 'early',
     );
 
@@ -1270,6 +1315,15 @@ describe('staggered refreshes and the hand-out floor', () => {
       availableAt: null,
       refreshAt: plannedRefresh('early'),
     });
+
+    // A minute on, the retry fails too and no usage read is due: the
+    // account reads `error`, and is still held back.
+    now = new Date(Date.parse(plannedRefresh('early')) + 62_000);
+    const retried = (await gateway.handOutTokens('anthropic')).find(
+      (handout) => handout.id === 'early',
+    );
+    expect(anthropic.refreshCount).toBe(2);
+    expect(retried).toMatchObject({ status: 'error', available: false });
   });
 
   it('leaves an account the vendor refused to its status, not the floor', async () => {
@@ -1283,6 +1337,63 @@ describe('staggered refreshes and the hand-out floor', () => {
 
     // The consumer's status check says why; `available` stays the quota's.
     expect(early).toMatchObject({ status: 'expired', available: true });
+  });
+
+  it('never holds back a vendor’s only account', async () => {
+    // A pool of one: refusing all work for the hour before each refresh
+    // would fail every start in it. The turn may be cut by the refresh and
+    // resume on a fresh token instead.
+    await store.putAccount(storedAccount('early'));
+    now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+    const [early] = await service().handOutTokens('anthropic');
+    expect(early).toMatchObject({ available: true, availableAt: null });
+  });
+
+  it('hands out the account with the most life left when every one is inside the floor', async () => {
+    // `account-a` plans its refresh at about 15:02, `early` at about 15:10.
+    await store.putAccount(storedAccount('early'));
+    await store.putAccount(storedAccount('account-a'));
+    now = new Date('2026-09-28T14:30:00.000Z');
+    const byId = Object.fromEntries(
+      (await service().handOutTokens('anthropic')).map((h) => [h.id, h]),
+    );
+    expect(byId.early).toMatchObject({ available: true, availableAt: null });
+    expect(byId['account-a']).toMatchObject({
+      available: false,
+      availableAt: new Date(
+        SKEW_POINT - SPREAD * refreshStaggerShare('account-a'),
+      ).toISOString(),
+    });
+  });
+
+  it('counts only an account with quota left as one that can take the work', async () => {
+    await store.putAccount(storedAccount('early'));
+    // `late` is outside its floor, but a fresh reading shows its session
+    // window spent, so it cannot take the work either.
+    await store.putAccount(
+      storedAccount('late', {
+        usage: {
+          checkedAt: '2026-09-28T14:29:00.000Z',
+          windows: [
+            {
+              kind: 'session',
+              label: null,
+              utilization: 100,
+              resetsAt: '2026-09-28T16:00:00.000Z',
+              windowSeconds: 18_000,
+            },
+          ],
+          limited: null,
+        },
+        usageAttemptedAt: '2026-09-28T14:29:00.000Z',
+      }),
+    );
+    now = new Date(Date.parse(plannedRefresh('early')) - 40 * 60 * 1000);
+    const byId = Object.fromEntries(
+      (await service().handOutTokens('anthropic')).map((h) => [h.id, h]),
+    );
+    expect(byId.late).toMatchObject({ available: false });
+    expect(byId.early).toMatchObject({ available: true, availableAt: null });
   });
 
   it('hands out every token when the floor is off', async () => {
