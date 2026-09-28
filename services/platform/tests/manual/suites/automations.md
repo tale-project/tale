@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 73 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 74 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -615,6 +615,14 @@ output:
       directly answers **Run not found**; the member can neither cancel the
       run nor answer its question (a hidden run answers like a missing one).
       The same member added to the team sees the run.
+- [ ] `AUTO-B9` · **Save bindings you only partly see** — As an admin, bind
+      one automation to a project shared with one team only and to an open
+      project, and bind a second automation to the team project alone; sign
+      in as a Developer outside that team → The first automation's
+      **Projects** shows only the open project; clearing it and saving
+      leaves the team project bound (check as the admin). The second
+      automation is missing from the Developer's automations list and
+      breadcrumb switcher instead of appearing as an organization one.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
