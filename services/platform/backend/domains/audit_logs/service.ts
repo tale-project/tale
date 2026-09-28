@@ -69,7 +69,8 @@ export function auditChainQueueKey(organizationId: string): string {
  * transaction re-enters it.
  *
  * For a writer that must hold the chain AHEAD of another lock: an event
- * dispatch about to stamp a trigger row takes it here, because a landing
+ * dispatch about to stamp a trigger row, or a run removal whose delete
+ * clears the trigger that names the run, takes it here, because a landing
  * run writes that row only after its own audit row (the lock order in
  * `automations/trigger-failures.ts`). Waiting on it never raises a
  * serialization failure; a deadlock is marked with the queue key, like one
