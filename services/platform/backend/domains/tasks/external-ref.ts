@@ -176,9 +176,12 @@ export async function resolveSetupFolderId(
   `;
   const folderId = rows[0]?.id;
   if (folderId === undefined) {
+    // The sentence names the rule, never the name sent: a refusal's
+    // sentence travels to every door (and an agent's tool result) as the
+    // domain's own prose, and the caller knows the one name it sent.
     throw new TaskError(
       'SETUP_FOLDER_MISSING',
-      `Folder "${args.setupFolderName}" does not exist in this project yet`,
+      'No root folder of this project carries that setup folder name yet',
     );
   }
   return folderId;

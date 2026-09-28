@@ -238,6 +238,54 @@ describe('sweepOrgPhase2 — the conversation window releases indexed email bodi
     warn.mockRestore();
   });
 
+  it('releases each purged conversation’s emailed attachment with its own row excluded, then deletes the row', async () => {
+    // The attachments' corpus copies — and their bytes, when nothing else
+    // holds them — go before the conversation does: the release reads the
+    // attachment's own file row as gone (`excludeFileMetadataId`), so the
+    // corpus copy is dead whatever the conversation still says.
+    releaseRefsMock.mockResolvedValue({
+      released: ['s3:a'],
+      kept: [],
+      failures: [],
+    });
+    const events: string[] = [];
+    recordEnqueues(events);
+    const fake = fakeSweep({
+      doomed: ['conv-1'],
+      messages: [{ id: 'm-1', conversationId: 'conv-1' }],
+      attachments: [
+        { id: 'f-1', storageRef: 's3:a', conversationId: 'conv-1' },
+      ],
+      events,
+    });
+
+    const stats = await sweepOrgPhase2(fake.sql, org, holds);
+
+    expect(stats.externalConversations).toBe(2);
+    expect(releaseRefsMock).toHaveBeenCalledWith(fake.sql, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      refs: ['s3:a'],
+      excludeFileMetadataId: 'f-1',
+    });
+    const rowDelete = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.file_metadata'),
+    );
+    expect(rowDelete?.values).toEqual(['f-1']);
+    // Before the conversation goes, and never queued again: the bodies'
+    // refs are the job's whole payload.
+    expect(fake.statements.indexOf(rowDelete as Statement)).toBeLessThan(
+      fake.statements.findIndex((s) =>
+        s.text.startsWith('DELETE FROM app.conversations'),
+      ),
+    );
+    expect(addJobInTx).toHaveBeenCalledWith(
+      fake.sql,
+      'knowledge.release_refs',
+      { organizationId: 'org_1', refs: [ref('m-1')] },
+    );
+  });
+
   it('purges without a release when no inbound email was indexed', async () => {
     const fake = fakeSweep({ doomed: ['conv-1'], messages: [], events: [] });
 

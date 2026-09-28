@@ -18,9 +18,12 @@ import {
  *      document row's CURRENT `file_ref` is the ref (any lifecycle: a trashed
  *      document is restorable and the retrievability filter hides it
  *      meanwhile), or a live UNBOUND file row holds it (thread files,
- *      video-link transcripts). A ref that is only history (`history_files`,
- *      a superseded replacement row) is corpus-dead: old versions must not
- *      answer RAG queries.
+ *      video-link transcripts, emailed attachments). A ref that is only
+ *      history (`history_files`, a superseded replacement row) is
+ *      corpus-dead: old versions must not answer RAG queries. So is an
+ *      emailed attachment whose conversation is gone or marked spam — the
+ *      verdict an email body gets (below): the file row and its bytes stay,
+ *      the corpus copy goes.
  *   2. blob-liveness — may the BYTES be deleted? Only when no document
  *      (`file_ref` or `history_files` — retained controlled-record snapshots
  *      need their bytes) and no live file row references the ref. WebDAV
@@ -30,7 +33,8 @@ import {
  * An indexed email body is keyed by MESSAGE ref instead (`msg:<message id>`,
  * `lib/knowledge/message-ref.ts`): it has no bytes and no file row, so it
  * gets one verdict of its own, `assessMessageRefLiveness` — live while its
- * inbound email row exists and its conversation is not marked spam.
+ * inbound email row exists and its conversation is not marked spam, the
+ * same condition an emailed attachment's corpus copy lives under.
  *
  * `release.ts` acts on both verdicts. The indexer asks the first one
  * (`isCorpusRefLive`) before it pays for a download or an embedding, and
@@ -82,6 +86,13 @@ export async function assessRefLiveness(
             AND (fm.lifecycle_status IS NULL
                  OR fm.lifecycle_status = 'active')
             AND (${excludeFile}::text IS NULL OR fm.id <> ${excludeFile})
+            -- An emailed attachment keeps its corpus copy only while its
+            -- conversation does: not deleted, not marked spam.
+            AND (fm.conversation_id IS NULL OR EXISTS(
+              SELECT 1 FROM app.conversations c
+              WHERE c.id = fm.conversation_id AND c.org_id = fm.org_id
+                AND c.status IS DISTINCT FROM 'spam'
+            ))
         )
       ) AS "corpusLive",
       (

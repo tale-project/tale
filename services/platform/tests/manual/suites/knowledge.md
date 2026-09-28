@@ -137,6 +137,13 @@ records and delete them after.
   preview** (`documents.preview.closePreview`) closes the dialog and returns
   focus to the row. An unpreviewable type shows **Preview not available**
   (`documents.preview.notAvailable`).
+- [ ] `KNOW-F30` · **Source preview rhythm** — In light and then in dark,
+  preview a `.ts`, a `.json` and a `.txt` document, watching one code file
+  while it loads → Each reads like an editor: small monospace type on tight,
+  even rows. A code file numbers every row in the left gutter with no blank
+  row between two source lines and scrolls a long line sideways; a `.txt`
+  file keeps the same type without numbers and wraps; nothing changes size
+  between the loading skeleton, the plain text and the highlighted text.
 - [ ] `KNOW-F8` · **Upload ODT** — Documents → **Upload documents**
   (`documents.upload.importDocuments`) → **From your device**
   (`documents.upload.fromYourDevice`) → attach a small **`.odt`** file →
@@ -522,6 +529,20 @@ records and delete them after.
   (`websites.urlListHint`) says pages are fetched over HTTPS and an `http://`
   line is fetched as `https://`; paste `http://example.org/` → **Save** → the
   source appears and its page is stored as `https://example.org/`.
+- [ ] `KNOW-B13` · **A value the door would refuse is named in the form** —
+  Contacts → **Add** → **Manual entry**
+  (`contacts.importMenu.manualEntry`): paste a 301-character **Name** →
+  **Save** → under the field **Name must be 300 characters or fewer**
+  (`common.validation.maxLength`), nothing sent; the same for a
+  51-character **Phone**, a 21-character **Locale** (`en-` and 18 letters)
+  and an **Email** with 65 characters before the `@`
+  (`common.validation.email`); 300 characters of name with spaces around
+  them save trimmed. **Edit** a contact → the same rules on **Save**.
+  Products → **Add product** → **Or paste a URL**
+  (`products.edit.pasteUrl`) → `example.com/cat.png` → **Next** stays on
+  **Basics** with `products.edit.validation.imageUrl` under **Image URL**;
+  `https://` in front of it passes; **Edit** → the same on **Save**. No
+  toast in any of these, and never one reading `invalid body`.
 
 ## Accessibility (WCAG 2.1 AA)
 

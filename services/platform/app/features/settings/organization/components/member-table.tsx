@@ -12,7 +12,7 @@ import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { Stack, HStack } from '@tale/ui/layout';
 import { TableTimestampCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
-import { useListPage } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useMemo, useCallback, useState } from 'react';
@@ -162,10 +162,11 @@ export function MemberTable({
   );
 
   // Same list shape as the Teams table: search and pagination come from the
-  // shared list-page hook, so the two people pages read identically.
+  // shared list-page hook, at the shared window, so the two people pages read
+  // identically.
   const list = useListPage<Member>({
     dataSource: { type: 'query', data: members },
-    pageSize: 10,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
     search: {
       fields: ['displayName', 'email'],
       placeholder: tSettings('organization.searchMember'),

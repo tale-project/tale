@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   getProjectAuthContext,
   loadProjectOrThrow,
@@ -114,11 +115,12 @@ export function createCollabRoutes(deps: {
         taskDeadlines: z.boolean().optional(),
         taskReview: z.boolean().optional(),
         escalation: z.boolean().optional(),
+        automationAlerts: z.boolean().optional(),
         conversationMessages: z.boolean().optional(),
         actionableEmail: z.boolean().optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     await setNotificationPreferences(
       deps.sql,
       c.get('orgId'),
@@ -173,7 +175,7 @@ export function createCollabRoutes(deps: {
         muted: z.boolean().optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await assertSubscribableTask(c, c.req.param('taskId'));
     } catch (error) {

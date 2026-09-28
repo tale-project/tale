@@ -90,10 +90,21 @@ Vérifie d’abord **Actif**, la version en service et le dernier déclenchement
 | `not_deployed` | Mets une version testée en service. Un brouillon enregistré ne suffit pas. |
 | `start_refused` | Compare le schéma de la version active à l’enveloppe du déclencheur et corrige l’erreur de validation ou de démarrage indiquée. |
 | `unusable_cron` | Corrige l’expression ou le fuseau, puis enregistre. Les autres horaires continuent pendant que celui-ci est ignoré. |
+| `paused_after_failures` | La planification s’est désactivée d’elle-même après des échecs répétés. Voir [Quand une planification se met en pause](#quand-une-planification-se-met-en-pause). |
 | Identifiant du webhook refusé | Vérifie l’URL actuelle et l’activation. Les jetons inconnus et désactivés reçoivent volontairement le même refus. |
 | Exécution présente, mais inachevée | Ouvre les [journaux d’exécution](/fr/platform/automations/execution-logs). Le démarrage a réussi ; le problème se trouve dans le workflow. |
 
 La date du dernier déclenchement avance lorsqu’une exécution démarre réellement. Un déclencheur arrivé à échéance mais incapable de démarrer enregistre plutôt un départ ignoré. Tu peux ainsi le distinguer d’un workflow démarré puis tombé en échec.
+
+## Quand une planification se met en pause
+
+Une planification dont les exécutions échouent de la même façon à chaque occurrence continuerait sinon d’échouer indéfiniment. Tale compte donc les exécutions lancées par un déclencheur qui échouent sur une erreur qu’une nouvelle tentative ne corrigera pas : le code de l’automatisation elle-même (`node_error`), un connecteur (`connector_error`), une réponse du modèle qui ne respecte pas son schéma (`llm_output_invalid`) ou le fournisseur de modèles de l’organisation (`auth_error`, `missing_api_key`, `credit_exhausted`, `model_not_found`). Une exécution réussie remet le compteur à zéro. Les autres échecs, comme une limite de débit ou un fournisseur injoignable, ne comptent pas et ne remettent pas non plus le compteur à zéro.
+
+Après cinq échecs de ce type d’affilée, la planification désactive **Actif** et enregistre `paused_after_failures`. La section **Déclencheur** affiche alors la pause, le code et l’heure du dernier échec, ainsi que **Voir l’exécution**, qui ouvre cette exécution. Tant que des exécutions échouent alors que la planification est encore active, la section indique combien ont échoué d’affilée. Les Propriétaires et Admins reçoivent une notification par la cloche, et aussi par e-mail si l’organisation dispose d’une boîte mail connectée ; le journal d’audit enregistre la pause. Ils peuvent désactiver ces avis avec **Alertes d'automatisation** dans **Paramètres > Notifications**.
+
+Ouvre l’exécution en échec pour lire l’erreur, puis corrige l’automatisation ou sa connexion. Active ensuite **Actif** et enregistre. Chaque enregistrement du déclencheur repart d’un compteur à zéro, qu’il réactive la planification ou la laisse désactivée, et marque les avis comme lus.
+
+Les déclencheurs webhook et événement de la plateforme comptent les échecs de la même façon, mais ne sont jamais mis en pause. Leurs exécutions portent une livraison ou un événement, qu’un déclencheur en pause perdrait.
 
 ## Suspendre ou remplacer le déclencheur
 

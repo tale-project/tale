@@ -14,6 +14,7 @@ import {
   s3PresignGetUrl,
   s3PutObject,
 } from '../../core/lib/storage/object_store.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listBlockCounters } from '../login_attempts/service.ts';
@@ -176,7 +177,7 @@ export function createAuditLogRoutes(deps: {
         previousExpectedHash: z.string().optional(),
       })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     return c.json(await verifyAuditChain(deps.sql, c.get('orgId'), body.data));
   });
 
@@ -202,7 +203,7 @@ export function createAuditLogRoutes(deps: {
           .optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const orgSlug = await resolveOrgSlug(deps.sql, c.get('orgId'));
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     const cleanFilter = body.data.filter

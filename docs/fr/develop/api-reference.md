@@ -674,13 +674,17 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 - `lastFiredAt` et `lastRunId` correspondent à la dernière exécution lancée. Ils restent `null` tant qu’aucune exécution n’a démarré.
 - `lastSkippedAt` et `lastSkipReason` décrivent la dernière occurrence qui n’a rien lancé. Une livraison de webhook que le schéma `inputs` de la version déployée refuse est un autre cas : l’expéditeur reçoit **400** `AUTOMATION_INPUT_INVALID`, rien ne démarre et aucun de ces horodatages ne bouge — la liaison n’était pas due, un webhook dont chaque livraison est refusée se lit donc comme un webhook jamais appelé. Vérifie les livraisons côté expéditeur.
 
-Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, et `start_refused` si le schéma `inputs` déployé refuse l’entrée. Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
+Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, `start_refused` si le schéma `inputs` déployé refuse l’entrée, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
 
 Compare `lastFiredAt` à la cadence attendue. Si `lastSkippedAt` est plus récent, consulte la raison avant de relancer. Changer le type de déclencheur réinitialise ces horodatages.
 
 `enabled: false` suspend le déclencheur en conservant sa configuration. `DELETE .../triggers` le retire et, s’il s’agit d’un webhook, révoque son URL.
 
 Remplacer un webhook par un autre type révoque également son URL. Le `PUT` répond **200** avec `"revoked": "webhook"` à côté du nom. Configurer ensuite un nouveau webhook produit un nouveau jeton ; l’ancienne URL reste invalide.
+
+Une planification dont les exécutions échouent sans cesse se met en pause d’elle-même. `consecutiveFailures` compte les exécutions lancées par cette liaison qui ont échoué d’affilée avec un `failureCode` que la prochaine occurrence répéterait : `node_error`, `connector_error`, `llm_output_invalid`, `auth_error`, `missing_api_key`, `credit_exhausted` ou `model_not_found`. `lastFailedAt`, `lastFailureCode` et `lastFailedRunId` décrivent le dernier de ces échecs. Une réussite remet le compteur à `0` ; tout autre échec ne compte pas et ne le remet pas à zéro.
+
+Quand le compteur d’une planification atteint cinq, la plateforme passe `enabled: false` et `lastSkipReason: "paused_after_failures"`, écrit une ligne d’audit `automation.trigger.paused` et prévient les Propriétaires et Admins de l’organisation. Corrige l’automatisation, puis envoie un `PUT` du déclencheur avec `enabled: true`. Chaque `PUT` remet le compteur à zéro et efface ce motif ; un `PUT` sans `enabled` réactive le déclencheur, car `enabled` vaut `true` par défaut. Les liaisons webhook et événement continuent de compter, mais ne sont jamais mises en pause (contrat 3.1.0).
 
 La réponse `PUT` indique aussi `deployed`. Il est possible de configurer le déclencheur avant le déploiement, mais ses occurrences sont ignorées avec `not_deployed` jusqu’à ce qu’une version soit déployée. Le champ `trigger` de `GET /api/v1/automations` permet de constater cet état.
 
@@ -1380,7 +1384,7 @@ L’identifiant de la tâche reste stable et `runWorkflowSlug` ne relance pas de
 
 ### Lier un dossier de préparation et attribuer l’automatisation
 
-`description`, `labels`, `externalUrl` et `setupFolderName` sont facultatifs. `title` accepte au maximum 200 caractères. `externalUrl` doit être une URL absolue en `http` ou `https`. Un titre trop long ou un autre schéma d’URL provoque **400**, sans modification silencieuse de la valeur.
+`description`, `labels`, `externalUrl` et `setupFolderName` sont facultatifs. `title` accepte au maximum 200 unités de code UTF-16 ; la plupart des emojis en comptent 2. `externalUrl` doit être une URL absolue en `http` ou `https`. Un titre trop long ou un autre schéma d’URL provoque **400**, sans modification silencieuse de la valeur.
 
 `setupFolderName` désigne un dossier racine du projet par son nom, sans tenir compte de la casse. Tale enregistre l’identifiant de ce dossier dans le champ `externalUrl` de la tâche. Une automatisation conçue pour travailler à partir d’un dossier peut alors retrouver cette référence dans son entrée `{task: ...}`. Le dossier est résolu à nouveau à chaque appel de synchronisation.
 
@@ -1464,7 +1468,7 @@ curl -sS --compressed "https://your-host.example.com/api/v1/projects/<projectId>
 
 ### Lire les commentaires et télécharger les livrables
 
-Lors de l’écriture d’un commentaire, tu peux ajouter `bodyByLocale` au texte d’origine `body`. La lecture le renvoie lorsqu’il existe. Fournis des traductions équivalentes et non vides pour `en`, `de` et `fr` ; d’autres clés de langue ou de région, comme `nl`, `it` et `de-CH`, sont acceptées. Les espaces en début et en fin de chaque valeur sont retirés, et chaque valeur est limitée à 10 000 caractères, avec au plus 16 langues par commentaire. Affiche la variante exacte choisie par le lecteur, puis la langue de base, puis `en`, puis `body`. L’auteur reste le titulaire de la clé. Une modification du texte seul dans Tale efface les anciennes traductions pour qu’elles ne masquent pas la modification.
+Lors de l’écriture d’un commentaire, tu peux ajouter `bodyByLocale` au texte d’origine `body`. La lecture le renvoie lorsqu’il existe. Fournis des traductions équivalentes et non vides pour `en`, `de` et `fr` ; d’autres clés de langue ou de région, comme `nl`, `it` et `de-CH`, sont acceptées. Les espaces en début et en fin de chaque valeur sont retirés, et chaque valeur est limitée à 10 000 unités de code UTF-16 (la plupart des emojis en comptent 2), avec au plus 16 langues par commentaire. Affiche la variante exacte choisie par le lecteur, puis la langue de base, puis `en`, puis `body`. L’auteur reste le titulaire de la clé. Une modification du texte seul dans Tale efface les anciennes traductions pour qu’elles ne masquent pas la modification.
 
 Les agents de tâche et de workflow reçoivent la consigne de conserver la langue du titre et de la description de la tâche. Si aucune langue ne s’en dégage, ils utilisent celle définie par défaut pour les agents de l’organisation. Les mots fixes d’un modèle de titre, les identifiants de trimestre, la langue des documents sources et celle de l’interface de la personne qui démarre l’exécution ne déterminent pas la langue de la tâche. Cette règle couvre aussi les questions, les reprises et la création de tâches associées. Il s’agit de consignes au modèle ; les traductions enregistrées des commentaires de progression permettent aux clients de choisir la langue affichée indépendamment de celle de la tâche.
 
