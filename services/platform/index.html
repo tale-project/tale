@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta
+      id="viewport-meta"
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
@@ -50,6 +51,37 @@
           document.documentElement.style.colorScheme = resolved;
         } catch (error) {
           console.warn('Failed to apply the pre-hydration theme', error);
+        }
+      })();
+    </script>
+    <!-- Pre-hydration iOS zoom-on-focus guard: WebKit (every iOS browser --
+         Apple requires them all to embed it) auto-zooms the whole page when
+         a focused input's rendered text is under 16px, however it got that
+         small -- including text a design deliberately keeps compact (a dense
+         table, an inline-rename field). `maximum-scale=1` suppresses ONLY
+         that automatic zoom; iOS has ignored the cap for the user's OWN
+         pinch gesture since iOS 10 (an Apple accessibility fix), so manual
+         zoom is untouched and WCAG 1.4.4 still holds on iOS. Scoped to iOS by
+         UA/platform sniffing on purpose: Android Chrome DOES honor
+         `maximum-scale` for pinch-zoom too, so applying this unconditionally
+         would break manual zoom there. Mirrors detectIsIOS in
+         app/hooks/use-display-mode.ts (pinned by
+         boot-ios-zoom-script.test.ts). -->
+    <script>
+      (function () {
+        try {
+          var nav = window.navigator;
+          var ua = nav.userAgent;
+          var isIOS =
+            /iP(ad|hone|od)/.test(ua) ||
+            (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+          if (!isIOS) return;
+          var meta = document.getElementById('viewport-meta');
+          var content = meta && meta.getAttribute('content');
+          if (!meta || !content || /maximum-scale/.test(content)) return;
+          meta.setAttribute('content', content + ', maximum-scale=1');
+        } catch (error) {
+          console.warn('Failed to apply the iOS zoom-on-focus guard', error);
         }
       })();
     </script>

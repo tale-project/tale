@@ -28,15 +28,26 @@ export function detectIsStandalone(): boolean {
   return nav.standalone === true;
 }
 
-export function detectIsMobileSafari(): boolean {
+/**
+ * User-agent is iOS/iPadOS, on ANY browser — Chrome and Firefox on iOS are
+ * required by Apple to embed WebKit, so they share Mobile Safari's rendering
+ * quirks (the focus-zoom guard in `index.html` cares about this; the Safari
+ * shell check below narrows further, to the browser chrome itself).
+ */
+export function detectIsIOS(): boolean {
   if (typeof window === 'undefined') return false;
   const ua = window.navigator.userAgent;
-  const isIOS =
+  return (
     /iP(ad|hone|od)/.test(ua) ||
     // iPadOS 13+ reports as Mac with touch support
     (window.navigator.platform === 'MacIntel' &&
-      window.navigator.maxTouchPoints > 1);
-  if (!isIOS) return false;
+      window.navigator.maxTouchPoints > 1)
+  );
+}
+
+export function detectIsMobileSafari(): boolean {
+  if (!detectIsIOS()) return false;
+  const ua = window.navigator.userAgent;
   // Exclude in-app browsers (Chrome iOS, Firefox iOS, etc.) that share the
   // WebKit engine but aren't Safari-the-app.
   const isSafariShell = /Safari/.test(ua) && !/(CriOS|FxiOS|EdgiOS)/.test(ua);
