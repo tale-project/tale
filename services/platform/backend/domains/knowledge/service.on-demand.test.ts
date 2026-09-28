@@ -45,27 +45,32 @@ interface FileRow {
   ragStatus: string | null;
   ragError: string | null;
   ragErrorCode: string | null;
+  heldByDocument: boolean;
 }
 
 /** Scripted `sql`: the one file-row read the lane makes. The trashed filter
- * is part of the statement, so the script applies it too. */
+ * is part of the statement, so the script applies it too. `unsafe` hands the
+ * list probe back as its text, so a statement shows it among its values. */
 function fakeSql(
   rows: FileRow[],
   storageId: string,
-): { sql: Sql; statements: string[] } {
+): { sql: Sql; statements: string[]; values: unknown[][] } {
   const statements: string[] = [];
-  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const values: unknown[][] = [];
+  const fn = (strings: TemplateStringsArray, ...args: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push(text);
+    values.push(args);
     if (text.includes('FROM app.file_metadata')) {
-      expect(values.slice(0, 2)).toEqual(['org_1', storageId]);
+      expect(args.slice(-2)).toEqual(['org_1', storageId]);
       return Promise.resolve(
         rows.filter((entry) => entry.lifecycleStatus !== 'trashed'),
       );
     }
     throw new Error(`unexpected statement: ${text}`);
   };
-  return { sql: fn as unknown as Sql, statements };
+  const sql = Object.assign(fn, { unsafe: (raw: string) => raw });
+  return { sql: sql as unknown as Sql, statements, values };
 }
 
 const REF = 's3:tale/acme/lead-verify.txt';
@@ -79,18 +84,19 @@ function row(over: Partial<FileRow> = {}): FileRow {
     ragStatus: null,
     ragError: null,
     ragErrorCode: null,
+    heldByDocument: true,
     ...over,
   };
 }
 
 async function readOnDemand(rows: FileRow[], storageId = REF) {
   const { readFileTextOnDemand } = await import('./service.ts');
-  const { sql, statements } = fakeSql(rows, storageId);
+  const { sql, statements, values } = fakeSql(rows, storageId);
   const result = await readFileTextOnDemand(sql, {
     organizationId: 'org_1',
     storageId,
   });
-  return { result, statements };
+  return { result, statements, values };
 }
 
 beforeEach(() => {
@@ -138,10 +144,26 @@ describe('readFileTextOnDemand', () => {
       filename: 'scan.pdf',
       sizeBytes: 42,
       indexing: { status: 'failed', error: 'Embedding provider refused' },
+      heldByDocument: true,
       reason: 'binary',
     });
     expect(locateOrgObjectStoreMock).not.toHaveBeenCalled();
     expect(getBytesMock).not.toHaveBeenCalled();
+  });
+
+  // Only a document can be indexed by hand; the miss must know which one it
+  // is answering for, or it sends the model to a door an attachment lacks.
+  it('says whether a document holds the file, by the lists’ own join', async () => {
+    const { result, values } = await readOnDemand([
+      row({ fileName: 'minutes.doc', heldByDocument: false }),
+    ]);
+    expect(result).toMatchObject({
+      kind: 'unreadable',
+      heldByDocument: false,
+      reason: 'binary',
+    });
+    const { HELD_BY_DOCUMENT_SQL } = await import('./service.ts');
+    expect(values[0]).toContain(HELD_BY_DOCUMENT_SQL);
   });
 
   it('holds the cap on the recorded size before fetching', async () => {

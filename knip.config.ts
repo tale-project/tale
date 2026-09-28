@@ -65,6 +65,10 @@ export default {
         // it as a child process (a heap-capped fault boundary), so nothing
         // imports it.
         'lib/engine/runners/node-vm-child.ts',
+        // Data migrations: the boot migrator imports each numbered `.ts` file
+        // by the name it reads from the directory (`backend/db/migrate.ts`),
+        // so nothing imports them statically.
+        'backend/db/migrations/*.ts',
         // Playwright specs. The config now builds via the shared
         // `createPlaywrightConfig` factory (@tale/e2e), so knip's playwright
         // plugin can't statically read testDir/testMatch — declare them here.

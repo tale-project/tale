@@ -11,10 +11,12 @@ import { resolvePostgresConnection } from './ssl.ts';
  * Two phases, both inside ONE session-scoped Postgres advisory lock so N
  * concurrently booting containers (api + worker, or scaled replicas) apply
  * everything exactly once while the others wait:
- *   1. App SQL migrations — plain .sql files in ./migrations, applied in
- *      filename order, each in its own transaction, tracked in
- *      `app_migrations` (dbmate-style, mirroring services/db's knowledge-DB
- *      approach).
+ *   1. App migrations — numbered files in ./migrations, applied in filename
+ *      order, each in its own transaction, tracked in `app_migrations`
+ *      (dbmate-style, mirroring services/db's knowledge-DB approach). A
+ *      migration is a plain .sql file, or a .ts DATA migration (see
+ *      {@link DataMigration}) when a backfill has to decide with the app's
+ *      own code.
  *   2. Better Auth's own schema migrations (when an auth-configured caller
  *      passes `authOptions`) — Better Auth owns its tables the same way
  *      pg-boss owns `pgboss`.
@@ -100,9 +102,62 @@ async function verifyProvisionedAccounts(
   }
 }
 
+/**
+ * A numbered `.ts` migration: a DATA migration whose decision is a rule the
+ * application already owns — a backfill keyed on which files an extractor
+ * reads calls `isSupported()`, where a SQL copy of the extension set would
+ * be a second copy, frozen here while the real one moves on. The module
+ * exports `migrate`, which runs inside the migration's own transaction,
+ * after every file numbered before it and before every file after it, and
+ * is recorded in `app_migrations` by filename like a `.sql` file. It must be
+ * idempotent and leave the previous image working, like any migration.
+ */
+export interface DataMigration {
+  migrate(tx: postgres.TransactionSql): Promise<void>;
+}
+
+/** The files the migrator applies: `.sql`, and `.ts` data migrations — never
+ * a test or a declaration file beside them. */
+export function isMigrationFile(name: string): boolean {
+  if (name.endsWith('.sql')) return true;
+  return (
+    name.endsWith('.ts') &&
+    !name.endsWith('.test.ts') &&
+    !name.endsWith('.d.ts')
+  );
+}
+
 async function listMigrationFiles(): Promise<string[]> {
   const entries = await readdir(MIGRATIONS_DIR);
-  return entries.filter((name) => name.endsWith('.sql')).sort();
+  return entries.filter(isMigrationFile).sort();
+}
+
+function isDataMigration(value: unknown): value is DataMigration {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'migrate' in value &&
+    typeof value.migrate === 'function'
+  );
+}
+
+/** Apply one migration file inside the transaction that records it. */
+async function applyMigrationFile(
+  tx: postgres.TransactionSql,
+  file: string,
+): Promise<void> {
+  const url = new URL(file, MIGRATIONS_DIR);
+  if (file.endsWith('.sql')) {
+    await tx.unsafe(await readFile(url, 'utf8'));
+    return;
+  }
+  const module: unknown = await import(url.href);
+  if (!isDataMigration(module)) {
+    throw new Error(
+      `[backend] app migration ${file} does not export migrate(tx)`,
+    );
+  }
+  await module.migrate(tx);
 }
 
 export async function runBootMigrations(
@@ -136,10 +191,9 @@ export async function runBootMigrations(
       if (applied.has(file)) {
         continue;
       }
-      const ddl = await readFile(new URL(file, MIGRATIONS_DIR), 'utf8');
       log(`[backend] applying app migration ${file}`);
       await sql.begin(async (tx) => {
-        await tx.unsafe(ddl);
+        await applyMigrationFile(tx, file);
         await tx`INSERT INTO app_migrations (name) VALUES (${file})`;
       });
     }

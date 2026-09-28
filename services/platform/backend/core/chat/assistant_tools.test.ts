@@ -1011,6 +1011,8 @@ describe('rag_fetch', () => {
           filename: 'deck.pptx',
           sizeBytes: 900_000,
           indexing: { status: 'skipped' },
+          // A REST-bound project document: Index now reaches it.
+          heldByDocument: true,
           reason: 'binary',
         }),
       },

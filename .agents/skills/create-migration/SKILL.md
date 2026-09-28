@@ -1,16 +1,17 @@
 ---
 name: create-migration
-description: Use this skill whenever you change the shape of the 0.5 backend database — a new table, a new column, an index, a constraint, a backfill, or a data reshape. It owns the authoring contract (one numbered .sql file under services/platform/backend/db/migrations/, applied at boot in filename order inside one advisory lock), the forward-only doctrine (every migration must be safe to apply to a live deployment mid-roll, because the previous image is still serving while the new one migrates), the org-config file lane (config trees are NOT database rows — they move through the scaffolder), and the proof duty (the real-Postgres integration check). Load it before adding anything under backend/db/migrations/.
+description: Use this skill whenever you change the shape of the 0.5 backend database — a new table, a new column, an index, a constraint, a backfill, or a data reshape. It owns the authoring contract (one numbered .sql file under services/platform/backend/db/migrations/ — or a numbered .ts data migration when a backfill must decide with the app's own code — applied at boot in filename order inside one advisory lock), the forward-only doctrine (every migration must be safe to apply to a live deployment mid-roll, because the previous image is still serving while the new one migrates), the org-config file lane (config trees are NOT database rows — they move through the scaffolder), and the proof duty (the real-Postgres integration check). Load it before adding anything under backend/db/migrations/.
 ---
 
 # Backend database migrations (0.5)
 
 Every database-shape change ships as a numbered SQL file under
-`services/platform/backend/db/migrations/`. `runBootMigrations` (`backend/db/migrate.ts`) applies
-them **at every backend boot**, in filename order, each in its own transaction, tracked by
-filename in `app_migrations` — all inside one session-scoped advisory lock, so N concurrently
-booting containers (api + worker, or scaled replicas) apply everything exactly once while the
-others wait.
+`services/platform/backend/db/migrations/` (a backfill that must decide with the app's own code
+is a numbered `.ts` data migration there — see below). `runBootMigrations`
+(`backend/db/migrate.ts`) applies them **at every backend boot**, in filename order, each in its
+own transaction, tracked by filename in `app_migrations` — all inside one session-scoped advisory
+lock, so N concurrently booting containers (api + worker, or scaled replicas) apply everything
+exactly once while the others wait.
 
 There is no `tale migrate up/down`, no versioned framework, no rollback ledger: a deployed image
 is at its own schema by construction. `tale migrate` means something else entirely — re-provision
@@ -54,7 +55,7 @@ OLD code working**. That is the whole discipline:
 | Rename a column         | Two steps: add the new one + backfill, ship the code that writes both, then drop the old.    |
 | New constraint          | Only if existing rows already satisfy it — otherwise clean the data in the same file, first. |
 | New index               | Plain `CREATE INDEX` (each migration is one transaction, so `CONCURRENTLY` is unavailable).  |
-| Backfill                | Set-based `UPDATE … WHERE` in the same file; it must be idempotent and bounded.              |
+| Backfill                | Set-based `UPDATE … WHERE` in the same file; idempotent and bounded (`.ts`: see below).       |
 
 **Encode the rule in the schema when you can.** A partial unique index that says "at most one live
 grant per member" is a rule the database cannot forget; the same rule written as a scan-and-compare
@@ -62,6 +63,33 @@ in a service is a rule the next handler will miss.
 
 Use `IF NOT EXISTS` / `IF EXISTS` freely — a migration file runs once, but a re-run after a
 half-failed deploy must not be a landmine.
+
+## Data migrations in TypeScript
+
+A backfill whose decision is a rule the application already owns — which files an extractor reads
+(`isSupported()`), which MIME types are media — must not freeze a SQL copy of that rule: the copy
+is a second source of truth the moment the real one moves. Write it as a numbered `.ts` module in
+the same directory instead:
+
+```
+services/platform/backend/db/migrations/NNNN_snake_case_subject.ts
+```
+
+- It exports `migrate(tx: TransactionSql): Promise<void>`. The migrator imports it by filename and
+  runs it inside the migration's own transaction, in the same filename order and the same
+  `app_migrations` ledger as the `.sql` files (`isMigrationFile` in `backend/db/migrate.ts`; a
+  `.test.ts` or `.d.ts` beside it is never applied).
+- Same rules as SQL: WHY at the top, idempotent, bounded, rolling-deploy safe. Read only the rows
+  that can need the fill, lock them (`FOR UPDATE`), re-check the condition in the `UPDATE`, and
+  write set-based (`unnest` of the ids and values the app's rule decided). A status write that a
+  list renders emits its hint, once per organization, the way the lane writing it would.
+- Schema changes stay `.sql` — those files are the schema's documentation. Scaffold with
+  `bun run gen:migration`, kind `ts`; `0128_rag_unsupported_type_codes.ts` is the reference — it
+  fills the code the indexer's rule implies on rows written before every lane wrote it.
+- Prove it the way SQL backfills are proven: seed the rows in `backend/integration-check.ts`,
+  import the module and run `migrate` in a transaction twice (the second run changes nothing), and
+  pin its decision table with a unit test in `backend/db/data-migrations.test.ts`, which also
+  guards that every `.ts` migration exports `migrate`.
 
 ## What does NOT belong here
 
@@ -85,7 +113,7 @@ A migration is not done until something exercises the shape it created:
 
 ## Definition of done
 
-- [ ] One numbered `.sql` file, no gap, never renamed after shipping
+- [ ] One numbered `.sql` file (or `.ts` data migration), no gap, never renamed after shipping
 - [ ] Applies cleanly to a FRESH database and to one at the previous release
 - [ ] The old code still works against the new schema (rolling-deploy safe)
 - [ ] Rules that can be constraints/indexes are constraints/indexes

@@ -22,7 +22,7 @@ import {
 } from '../../lib/rate-limit.ts';
 import {
   markRagQueued,
-  markRagUnsupportedIfNoExtractor,
+  markUploadUnsupportedIfNoExtractor,
 } from '../knowledge/service.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 import {
@@ -260,24 +260,21 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           // lane refuses it before any byte is fetched — so the honest page
           // shape is stamped here instead (0.4 parity).
           await stampImageVisionMetadata(tx, registered.fileId);
-        } else if (
-          body.data.skipRagIndexing !== true &&
-          body.data.threadId === undefined &&
-          !media
-        ) {
+        } else if (body.data.skipRagIndexing !== true) {
           // A file this lane never queues and no extractor reads — a `.doc`,
           // a `.zip`, a hand-uploaded `.loop` — gets the terminal state a sync
           // import and the indexer give it, not an empty status that reads
           // as indexing never started; a `.log`, which the indexer reads,
-          // keeps its empty status. Audio and video are the transcription
-          // lane's, below. A chat-bound file is the chat's own: the turn reads
-          // its status and starts a row that is still empty
-          // (`queueRagIndexIfUnstarted`).
-          await markRagUnsupportedIfNoExtractor(
-            tx,
-            registered.fileId,
-            body.data.fileName,
-          );
+          // keeps its empty status, and audio and video are the transcription
+          // lane's, below. Chat-bound or not: a fresh chat registers its
+          // first attachments before the thread exists, so a thread id here
+          // must not change the answer, and the turn's own backstop
+          // (`queueRagIndexIfUnstarted`) gives the same one.
+          await markUploadUnsupportedIfNoExtractor(tx, {
+            id: registered.fileId,
+            fileName: body.data.fileName,
+            contentType: body.data.contentType,
+          });
         }
         return registered;
       });

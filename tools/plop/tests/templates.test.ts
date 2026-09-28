@@ -65,6 +65,45 @@ test('migration output is anchored to the repo, never the Plop config directory'
   expect(path.basename(add.path)).toMatch(/^\d{4}_integration_probe\.sql$/);
 });
 
+// A data migration that decides with the app's own code is a numbered `.ts`
+// module the boot migrator imports (`backend/db/migrate.ts`): same directory,
+// same numbering, and each kind renders its own existing template — none
+// left over.
+test('migration kinds: sql and ts each render their own template, none orphaned', () => {
+  const config = captureConfig(registerMigration);
+  if (typeof config.actions !== 'function')
+    throw new Error('expected migration actions');
+  const actions = config.actions;
+  const addOf = (kind: 'sql' | 'ts') => {
+    const add = actions({
+      slug: 'integration_probe',
+      subject: 'Exercise the migration kinds',
+      kind,
+    }).find((action) => typeof action === 'object' && action.type === 'add');
+    if (
+      !add ||
+      typeof add !== 'object' ||
+      !('path' in add) ||
+      typeof add.path !== 'string' ||
+      !('templateFile' in add) ||
+      typeof add.templateFile !== 'string'
+    )
+      throw new Error(`missing add action for ${kind}`);
+    return { path: add.path, templateFile: path.resolve(add.templateFile) };
+  };
+  const sql = addOf('sql');
+  const ts = addOf('ts');
+  expect(path.basename(sql.path)).toMatch(/^\d{4}_integration_probe\.sql$/);
+  expect(path.basename(ts.path)).toMatch(/^\d{4}_integration_probe\.ts$/);
+  expect(path.dirname(ts.path)).toBe(path.dirname(sql.path));
+  for (const file of [sql.templateFile, ts.templateFile]) {
+    expect(existsSync(file), `missing template: ${file}`).toBe(true);
+  }
+  expect(
+    listTemplateFiles(path.join(templatesRoot, 'migration')).sort(),
+  ).toEqual([sql.templateFile, ts.templateFile].sort());
+});
+
 // Absolute path of every template file the generator's `add` actions reference
 // for the given answers. Non-`add` actions (e.g. the skill "next steps" message
 // function) carry no template and are skipped.
