@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 21 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) any chat or agent can read. Covers the settings table with its facets,
@@ -157,6 +157,14 @@ builtin skill from `configs/platform/custom/skills/`.
   skill that is merely unshared from the project's scope instead shows in
   the dialog's skills menu as **"<slug>" (unavailable)**
   (`chat.skills.unavailableOption`), checked, so it can be unticked.
+- [ ] `SKILL-F15` · **Agent picks a skill by its description** — Create a
+  skill `invoice-check` whose description reads "Use when a task asks to
+  check an invoice: verify totals, VAT and due date", equip it together with
+  `docx` on a project agent, then create a task "Is the attached invoice
+  correct?" with an invoice attached and **no skill named** → The agent's
+  report follows `invoice-check` (it checks totals, VAT and the due date)
+  instead of ignoring the skill; a skill whose file sets
+  `disable-model-invocation: true` is not used unless the task names it.
 
 ## Boundary & error tests
 
