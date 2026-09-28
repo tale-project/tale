@@ -65,7 +65,9 @@ function triggerRow(id: string, now: number): Record<string, unknown> {
 
 /**
  * Scripted `sql`: the `organization` table check answers `organizationTable`
- * (present unless a test says otherwise); page queries pop from `pages`, and
+ * (present unless a test says otherwise), and the count of enabled schedules
+ * behind a missing table answers `waiting` (none unless a test says
+ * otherwise); page queries pop from `pages`, and
  * a page scripted as an Error fails its query; the disable of orphaned
  * schedules pops from `retired`; inside `begin` the claim UPDATE pops from
  * `claims` and every other statement answers no rows; `beginRunInTx` is
@@ -74,6 +76,7 @@ function triggerRow(id: string, now: number): Record<string, unknown> {
  */
 function fakeScan(script: {
   organizationTable?: boolean;
+  waiting?: number;
   pages: (Record<string, unknown>[] | Error)[];
   claims: { id: string }[][];
   retired?: { organizationId: string; name: string }[][];
@@ -85,6 +88,9 @@ function fakeScan(script: {
     statements.push({ text, values });
     if (text.includes('to_regclass')) {
       return Promise.resolve([{ present: script.organizationTable ?? true }]);
+    }
+    if (text.includes('count(*)')) {
+      return Promise.resolve([{ count: script.waiting ?? 0 }]);
     }
     if (text.startsWith('SELECT')) {
       const page = script.pages.shift() ?? [];
@@ -649,14 +655,39 @@ describe('scanScheduledTriggers', () => {
       unusable: 0,
       orphaned: 0,
     });
-    // Only the table check ran: no page read names the missing relation.
-    expect(fake.statements).toHaveLength(1);
-    expect(fake.statements[0]?.text).toBe(
+    // The table check, then the count that finds no schedule waiting: no
+    // page read names the missing relation, and a fresh install is quiet.
+    expect(fake.statements.map((statement) => statement.text)).toEqual([
       'SELECT to_regclass(\'"organization"\') IS NOT NULL AS present',
-    );
+      "SELECT count(*)::int AS count FROM app.automation_triggers WHERE kind = 'schedule' AND enabled = true",
+    ]);
     expect(pageQueriesOf(fake)).toHaveLength(0);
     expect(retirements(fake)).toHaveLength(0);
     expect(beginRunInTx).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('says so when enabled schedules wait but the connection sees no organization table', async () => {
+    // Not a fresh install: schedules exist, so Better Auth's tables do too,
+    // somewhere this worker's connection cannot see them. Nothing fires and
+    // nothing is disabled, but the scan no longer fails in silence either.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = fakeScan({
+      organizationTable: false,
+      waiting: 3,
+      pages: [[triggerRow('t1', Date.now())]],
+      claims: [[{ id: 't1' }]],
+    });
+
+    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+
+    expect(result).toMatchObject({ examined: 0, fired: 0, pages: 0 });
+    expect(pageQueriesOf(fake)).toHaveLength(0);
+    expect(retirements(fake)).toHaveLength(0);
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    const lines = warn.mock.calls.map((call) => String(call[0]));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('3 enabled schedule(s) wait');
+    expect(lines[0]).toContain('no "organization" table');
   });
 });

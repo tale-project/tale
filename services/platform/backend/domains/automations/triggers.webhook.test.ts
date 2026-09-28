@@ -3,7 +3,7 @@
 import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   hashWebhookToken,
@@ -221,6 +221,8 @@ async function webhook(
 }
 
 beforeEach(() => vi.clearAllMocks());
+// A `console.warn` spy must not outlive a test whose assertion failed.
+afterEach(() => vi.restoreAllMocks());
 
 describe('explicit project webhook scope', () => {
   it('uses only the URL project without requiring an API key or session', async () => {
@@ -487,7 +489,6 @@ describe('organization webhook scope and delivery contract', () => {
       );
       expect(lines).toHaveLength(1);
       expect(String(lines[0]?.[0])).toContain('org-1/billing/dunning');
-      warn.mockRestore();
     },
   );
 
@@ -823,7 +824,6 @@ describe('dispatchAutomationEvent stamps', () => {
     expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
       '[automations] event "conversation.message_received": disabled 2 trigger(s) whose organization no longer exists: org-gone/crm/welcome, org-gone/crm/follow-up',
     ]);
-    warn.mockRestore();
   });
 
   it('stays silent when another dispatch disabled the orphaned triggers first', async () => {
@@ -853,7 +853,6 @@ describe('dispatchAutomationEvent stamps', () => {
       queries.filter((q) => q.text.includes('SET enabled = false')),
     ).toHaveLength(1);
     expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
   });
 
   it('fires nothing and stamps nothing for an event an automation raised', async () => {

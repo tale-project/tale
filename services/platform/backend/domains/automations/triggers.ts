@@ -59,8 +59,9 @@ import {
  * On all three doors, a binding whose organization no longer exists (a
  * deletion before 0.5.9 left every automation row behind, and 0125 keeps
  * them whole under an active legal hold) starts nothing: the door that meets
- * it disables it and names it once — the scan without claiming it, the
- * webhook door behind the same 404 a disabled URL gets.
+ * it disables it and names it in one line — the scan without claiming it,
+ * the webhook door behind the same 404 a disabled URL gets, the event door
+ * in the producer's transaction.
  */
 
 /** Rows per page of the scan walk — a page size, not a cap: the walk goes on
@@ -230,8 +231,22 @@ export async function scanScheduledTriggers(
   };
   // No table means no organization yet, so no schedule can belong to one:
   // there is nothing to fire or retire, and every page query would die on
-  // the missing relation — once a minute until an api role boots.
-  if (!(await organizationTableExists(sql))) return result;
+  // the missing relation — once a minute until an api role boots. Enabled
+  // schedules without it are not a fresh install: this connection cannot
+  // see Better Auth's tables, and none of them fires until it can.
+  if (!(await organizationTableExists(sql))) {
+    const waiting = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.automation_triggers
+      WHERE kind = 'schedule' AND enabled = true
+    `;
+    const count = waiting[0]?.count ?? 0;
+    if (count > 0) {
+      console.warn(
+        `[automations] trigger scan: ${count} enabled schedule(s) wait, but this connection sees no "organization" table — none fires until Better Auth's tables are reachable (check the worker's database and search_path)`,
+      );
+    }
+    return result;
+  }
   const undeployedNames: string[] = [];
   const refusedNames: string[] = [];
   const orphanedNames: string[] = [];
@@ -455,7 +470,9 @@ export async function dispatchAutomationEvent(
     // The event names an organization that no longer exists: a producer
     // still writing rows its deletion left behind. Nothing may start in
     // its name, so the bindings listening for it are switched off instead —
-    // after the audit chain, like any other write to a trigger here.
+    // after the audit chain, like any other write to a trigger here. The
+    // switch commits with the producer: one that rolls back takes it along,
+    // and the next event switches them off, and names them, again.
     const retired = await retireOrphanedTriggers(
       tx,
       triggers.map((trigger) => trigger.id),

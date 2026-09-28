@@ -8,9 +8,9 @@
  * one line; the live schedule next to it is still claimed. A second scan
  * does not see the disabled one at all, so the line is never written again.
  * Before any of that, the same scan runs where `"organization"` does not
- * resolve — a pure worker's first minutes on a fresh install, before an api
- * role has created Better Auth's tables — and must find nothing to do
- * rather than fail.
+ * resolve — as on a pure worker's first minutes on a fresh install, before
+ * an api role has created Better Auth's tables — and must fire and disable
+ * nothing rather than fail, saying that the enabled schedules wait.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -83,12 +83,22 @@ export async function checkDeletedOrgSchedules(
       `
     )[0];
 
-  // A fresh install's worker: inside a rolled-back transaction whose search
-  // path hides Better Auth's tables, "organization" is the relation that
-  // does not exist yet. The due schedules planted above are there all the
-  // same; the scan must neither fail on the missing table nor read "no such
-  // organization" as a deletion and retire them.
-  const fresh: { scan?: ScheduleScanResult; error: string } = { error: '' };
+  // A worker whose connection cannot see Better Auth's tables — a fresh
+  // install's first minutes, or a search path that hides them: inside a
+  // rolled-back transaction whose search path is `app` alone,
+  // "organization" is a relation that does not exist. The scan must
+  // neither fail on it nor read "no such organization" as a deletion and
+  // retire what it cannot see; the due schedules planted above are enabled,
+  // so it says that they wait, in one line.
+  const fresh: { scan?: ScheduleScanResult; error: string; lines: string[] } = {
+    error: '',
+    lines: [],
+  };
+  const freshWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    fresh.lines.push(args.map(String).join(' '));
+    freshWarn(...args);
+  };
   try {
     await sql.begin(async (tx) => {
       await tx`SET LOCAL search_path TO app`;
@@ -98,15 +108,21 @@ export async function checkDeletedOrgSchedules(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message !== 'itest-rollback') fresh.error = message;
+  } finally {
+    console.warn = freshWarn;
   }
+  const waitingLines = fresh.lines.filter((line) =>
+    line.includes('enabled schedule(s) wait'),
+  );
   record(
-    'a worker scan before the organization table exists finds nothing to do and does not fail',
+    'a worker scan that sees no organization table fires and disables nothing, does not fail, and says schedules wait',
     fresh.error === '' &&
       fresh.scan?.pages === 0 &&
       fresh.scan.examined === 0 &&
       fresh.scan.fired === 0 &&
-      fresh.scan.orphaned === 0,
-    `error=${fresh.error || 'none'}, pages=${fresh.scan?.pages} examined=${fresh.scan?.examined} fired=${fresh.scan?.fired} orphaned=${fresh.scan?.orphaned} (want 0 each)`,
+      fresh.scan.orphaned === 0 &&
+      waitingLines.length === 1,
+    `error=${fresh.error || 'none'}, pages=${fresh.scan?.pages} examined=${fresh.scan?.examined} fired=${fresh.scan?.fired} orphaned=${fresh.scan?.orphaned} (want 0 each), waiting lines=${waitingLines.length} (want 1)`,
   );
 
   // Every line the two scans write, so "named once" is observed, not assumed.
