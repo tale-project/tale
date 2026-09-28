@@ -89,6 +89,8 @@ const fixtures = vi.hoisted(() => ({
   // How the recommendations read — picks and declarations — stands: answered,
   // still in flight, or failed.
   recommendationsRead: 'answered' as 'answered' | 'pending' | 'failed',
+  // Whether the org's catalog listing answered or failed outright.
+  catalogsRead: 'answered' as 'answered' | 'failed',
   backfill: null as unknown,
   credentials: [] as Array<{
     id: string;
@@ -220,11 +222,10 @@ vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
     data: fixtures.credentials,
     isPending: false,
   }),
-  useProviderCatalogs: () => ({
-    data: fixtures.catalogs,
-    isPending: false,
-    isError: false,
-  }),
+  useProviderCatalogs: () =>
+    fixtures.catalogsRead === 'answered'
+      ? { data: fixtures.catalogs, isPending: false, isError: false }
+      : { data: undefined, isPending: false, isError: true },
 }));
 
 // Instant actions (remove/backfill) report through toasts; the editor save
@@ -287,6 +288,7 @@ describe('DataResidencySettings', () => {
     fixtures.embeddingRecommendations = [];
     fixtures.embeddingSupport = [];
     fixtures.recommendationsRead = 'answered';
+    fixtures.catalogsRead = 'answered';
     fixtures.backfill = null;
     fixtures.credentials = [];
     fixtures.catalogs = [];
@@ -1186,6 +1188,42 @@ describe('DataResidencySettings', () => {
     expect(
       within(section).getByText(
         'Tale knows no vector width for azure. Enter the model tag (or your deployment name) and the vector width that model produces.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the neutral hint when the catalog listing itself failed', async () => {
+    // A failed listing leaves OpenAI without its catalog, so the row falls
+    // back to the free field — but the curated width is only unread, not
+    // unknown: the row must not claim Tale knows none.
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'openai', name: 'API key' },
+    ];
+    fixtures.embeddingSupport = [
+      { providerSlug: 'openai', support: 'supported' },
+    ];
+    fixtures.catalogsRead = 'failed';
+
+    const { user } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'openai' }));
+
+    expect(
+      within(section).getByRole('textbox', { name: 'Model' }),
+    ).toBeInTheDocument();
+    expect(
+      within(section).queryByText(/Tale knows no vector width/),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        'The model tag exactly as the provider spells it.',
       ),
     ).toBeInTheDocument();
   });

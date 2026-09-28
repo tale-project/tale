@@ -367,6 +367,13 @@ export function OrgEmbeddingSection({
     catalogsEnabled &&
     recommendationsQuery.data === undefined &&
     recommendationsQuery.isError;
+  // A failed listing leaves every provider without a catalog: the free field
+  // is the fallback, but its emptiness is no evidence that Tale knows no
+  // width — OpenAI's curated width may be just what the read failed to bring.
+  const catalogsReadFailed =
+    catalogsEnabled &&
+    catalogsQuery.data === undefined &&
+    catalogsQuery.isError;
 
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
 
@@ -630,12 +637,13 @@ export function OrgEmbeddingSection({
   // What the row's hint may claim follows the shape: only a declaration says
   // "cannot embed", and a free field says "no curated width" only once the
   // listing and the declarations have answered — an unanswered declarations
-  // read is `unchecked`, never free. Before a provider is chosen the row
-  // keeps the neutral spelling hint.
+  // read is `unchecked`, never free, and a failed listing proves no width
+  // missing. Before a provider is chosen, or after the listing failed, the
+  // row keeps the neutral spelling hint.
   const modelRowHint = isRefusal(shape)
     ? t(REFUSAL_COPY[shape.kind].hint, { provider: selectedProvider })
     : shape.kind === 'free'
-      ? baselineSettled && selectedProvider !== ''
+      ? baselineSettled && !catalogsReadFailed && selectedProvider !== ''
         ? t('dataResidency.orgEmbedding.modelUncuratedHint', {
             provider: selectedProvider,
           })
