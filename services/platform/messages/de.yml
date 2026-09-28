@@ -785,6 +785,8 @@ automations:
       description: Diese Automatisierung hat keine Version mit dieser Nummer — der Link ist vielleicht veraltet oder die Nummer vertippt.
       openLatest: Neueste öffnen
     controlFlowTitle: Ablaufsteuerung
+    nodeSheetDescription: Bearbeite die Felder dieser Node, dann speichere die
+      Änderung oder verwirf sie.
     agent:
       equipmentLabel: Ausrüstung
       harnessDefault: Standard (Claude Code)

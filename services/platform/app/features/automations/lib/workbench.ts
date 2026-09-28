@@ -6,8 +6,11 @@
  * `grid-rows-[minmax(0,1fr)]` + `overflow-hidden` keep the inspector's content
  * from growing the canvas when a node is selected — extra inspector fields
  * scroll inside the panel — and the `24rem` floor lets a short window scroll
- * the page rather than crush the graph. Below `lg` the columns stack at their
- * natural height and the page scrolls.
+ * the page rather than crush the graph. The canvas fills this row at every
+ * width, selected node or not: below `lg` there is no side panel to stack
+ * against, so a picked node opens a sheet over the canvas instead (see
+ * `AUTOMATION_WORKBENCH_COMPACT_QUERY`) rather than pushing the canvas up
+ * and scrolling the page.
  *
  * No gap: the Editor tab is edge to edge, so the canvas meets the inspector
  * panel at its border instead of at a gutter.
@@ -31,6 +34,21 @@ export const AUTOMATION_RUN_WORKBENCH_GRID =
  */
 export const AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS =
   'lg:grid-cols-[minmax(0,1fr)_22rem]';
+
+/**
+ * The same `lg` breakpoint as `AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS`, as a
+ * media query: whether there is NO side panel to put a picked node's fields
+ * in, so the Editor tab opens them in a sheet over the canvas instead (a
+ * `ResponsiveDialog`'s own `md` split then decides drawer vs. centered dialog
+ * within that). CSS alone can't gate the sheet's mount — Radix still portals
+ * its overlay at the wrong width otherwise — so this is read in JS.
+ *
+ * Phrased as the COMPACT condition (`useMediaQuery` reads `false` before the
+ * client can answer) so the un-hydrated default is "there is a side panel" —
+ * the same desktop-first default `useIsMobile` documents — rather than
+ * flashing a sheet shut behind the panel on first paint.
+ */
+export const AUTOMATION_WORKBENCH_COMPACT_QUERY = '(width < 64rem)';
 
 /** The canvas column fills the workbench cell and never grows with the inspector.
  * `relative` hosts canvas chrome (last-run controls) as overlays so they

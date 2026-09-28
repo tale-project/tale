@@ -14,7 +14,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link, useLocation } from '@tanstack/react-router';
 import { SearchX, Trash2 } from 'lucide-react';
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import {
   TabNavigation,
@@ -32,6 +32,8 @@ import {
 } from '../lib/dirty-keys';
 import { automationDeletedAt, isMissingAutomationRead } from '../lib/errors';
 import { AutomationBreadcrumbs } from './automation-breadcrumbs';
+import { AutomationVersionPicker } from './automation-version-picker';
+import { AutomationVersionPickerTarget } from './automation-version-picker-target';
 
 /** The editor's controller reports its draft under this key (see `AutomationEditor`). */
 const EDITOR_DIRTY_KEYS = [DOCUMENT_DIRTY_KEY] as const;
@@ -52,8 +54,7 @@ interface AutomationDetailShellProps {
  * The chrome every automation detail page shares, on the org route AND the
  * project-scoped one: the `PageLayout` scroll shell, the
  * `Automations / <name>` breadcrumb (the name doubling as the sibling
- * switcher), and the tab strip — **Editor**, **General**, **Versions**,
- * **Runs** — exactly the composition a project detail carries. The strip's
+ * switcher), and the tab strip — **Editor**, **General**, **Runs** — exactly the composition a project detail carries. The strip's
  * trailing slot is where the open tab puts its verbs and the Save/Discard
  * cluster, so the header row keeps only the name and the Live badge.
  *
@@ -67,7 +68,7 @@ interface AutomationDetailShellProps {
  * the trail — and the mobile back control — still lead to the list) with no
  * tabs to open. A DELETED automation is not unknown: its run history stays
  * until retention removes it, so the Runs pages still render — under a
- * banner naming the deletion date — while Editor and Versions, which have
+ * banner naming the deletion date — while Editor, which has
  * nothing left to show, stay visible but disabled.
  */
 export function AutomationDetailShell(props: AutomationDetailShellProps) {
@@ -88,6 +89,8 @@ function AutomationDetailFrame({
   const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
   const { pathname } = useLocation();
+  const [versionPickerTarget, setVersionPickerTarget] =
+    useState<HTMLDivElement | null>(null);
   const automationQuery = useAutomation(organizationId, automationSlug);
   // The strip's per-tab unsaved dot: the Editor tab lights up while the
   // editor holds a draft, and General while its settings do — the same
@@ -100,6 +103,7 @@ function AutomationDetailFrame({
     automationSlug,
     ...(projectId !== undefined && { projectId }),
   });
+  const onEditor = pathname === `${root}/editor`;
   const onRuns =
     pathname === `${root}/runs` || pathname.startsWith(`${root}/runs/`);
 
@@ -120,12 +124,6 @@ function AutomationDetailFrame({
         href: `${root}/general`,
         matchMode: 'exact',
         dirtyKeys: GENERAL_DIRTY_KEYS,
-      },
-      {
-        label: t('navigation.versions'),
-        href: `${root}/versions`,
-        matchMode: 'exact',
-        disabled: deleted,
       },
       {
         // A run's own page is a sub-view of Runs, so the tab stays lit there.
@@ -168,87 +166,105 @@ function AutomationDetailFrame({
   }
 
   return (
-    <PageLayout
-      organizationId={organizationId}
-      header={
-        <>
-          <AdaptiveHeaderRoot standalone={false} tabsFollow className="gap-2">
-            {breadcrumbs}
-          </AdaptiveHeaderRoot>
-          <TabNavigation
-            items={tabs}
-            standalone={false}
-            ariaLabel={tCommon('aria.automationsNavigation')}
-            {...(activeEditor?.dirtyKeys !== undefined && {
-              dirtyKeys: activeEditor.dirtyKeys,
-            })}
-          >
-            <AdaptiveHeaderTabActionsSlot />
-          </TabNavigation>
-        </>
-      }
-    >
-      {/* Fill the layout's content height so the Editor tab's workbench can
+    <AutomationVersionPickerTarget value={versionPickerTarget}>
+      <PageLayout
+        organizationId={organizationId}
+        header={
+          <>
+            <AdaptiveHeaderRoot standalone={false} tabsFollow className="gap-2">
+              {breadcrumbs}
+            </AdaptiveHeaderRoot>
+            <TabNavigation
+              items={tabs}
+              standalone={false}
+              ariaLabel={tCommon('aria.automationsNavigation')}
+              trailing={
+                deletedAt !== undefined ? undefined : onEditor ? (
+                  <div
+                    ref={setVersionPickerTarget}
+                    className="flex w-auto shrink-0 items-center"
+                  />
+                ) : (
+                  <AutomationVersionPicker
+                    organizationId={organizationId}
+                    automationSlug={automationSlug}
+                    projectId={projectId}
+                    currentVersion={automationQuery.data?.version}
+                    deployedVersion={automationQuery.data?.deployedVersion}
+                  />
+                )
+              }
+              {...(activeEditor?.dirtyKeys !== undefined && {
+                dirtyKeys: activeEditor.dirtyKeys,
+              })}
+            >
+              <AdaptiveHeaderTabActionsSlot />
+            </TabNavigation>
+          </>
+        }
+      >
+        {/* Fill the layout's content height so the Editor tab's workbench can
           take the room the strip leaves; auto-height tabs (the Versions and
           Runs lists) size to content and top-align as before. */}
-      <Skeletonize
-        loading={automationQuery.isPending}
-        label={t('title')}
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        {deletedAt === undefined ? (
-          children
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col gap-4">
-            <ContentArea className="pb-0">
-              <Alert
-                variant="info"
-                description={t('detail.deleted.banner', {
-                  date: formatDate(new Date(deletedAt), 'long'),
-                })}
-              />
-            </ContentArea>
-            {onRuns ? (
-              children
-            ) : (
-              <ContentArea variant="narrow">
-                <EmptyState
-                  icon={Trash2}
-                  title={t('detail.deleted.title')}
-                  description={t('detail.deleted.description')}
-                  headingLevel={2}
-                  action={
-                    <Button asChild variant="secondary">
-                      <Link
-                        {...(projectId === undefined
-                          ? {
-                              to: '/dashboard/$id/automations/$automationSlug/runs' as const,
-                              params: {
-                                id: organizationId,
-                                automationSlug:
-                                  automationSlugToParam(automationSlug),
-                              },
-                            }
-                          : {
-                              to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs' as const,
-                              params: {
-                                id: organizationId,
-                                projectId,
-                                automationSlug:
-                                  automationSlugToParam(automationSlug),
-                              },
-                            })}
-                      >
-                        {t('detail.deleted.openRuns')}
-                      </Link>
-                    </Button>
-                  }
+        <Skeletonize
+          loading={automationQuery.isPending}
+          label={t('title')}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          {deletedAt === undefined ? (
+            children
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <ContentArea className="pb-0">
+                <Alert
+                  variant="info"
+                  description={t('detail.deleted.banner', {
+                    date: formatDate(new Date(deletedAt), 'long'),
+                  })}
                 />
               </ContentArea>
-            )}
-          </div>
-        )}
-      </Skeletonize>
-    </PageLayout>
+              {onRuns ? (
+                children
+              ) : (
+                <ContentArea variant="narrow">
+                  <EmptyState
+                    icon={Trash2}
+                    title={t('detail.deleted.title')}
+                    description={t('detail.deleted.description')}
+                    headingLevel={2}
+                    action={
+                      <Button asChild variant="secondary">
+                        <Link
+                          {...(projectId === undefined
+                            ? {
+                                to: '/dashboard/$id/automations/$automationSlug/runs' as const,
+                                params: {
+                                  id: organizationId,
+                                  automationSlug:
+                                    automationSlugToParam(automationSlug),
+                                },
+                              }
+                            : {
+                                to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs' as const,
+                                params: {
+                                  id: organizationId,
+                                  projectId,
+                                  automationSlug:
+                                    automationSlugToParam(automationSlug),
+                                },
+                              })}
+                        >
+                          {t('detail.deleted.openRuns')}
+                        </Link>
+                      </Button>
+                    }
+                  />
+                </ContentArea>
+              )}
+            </div>
+          )}
+        </Skeletonize>
+      </PageLayout>
+    </AutomationVersionPickerTarget>
   );
 }

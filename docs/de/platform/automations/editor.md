@@ -11,10 +11,11 @@ Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die 
 | --- | --- |
 | **Editor** | Den Workflow ändern, eine gespeicherte Version testen und die Live-Version wählen. |
 | **Allgemein** | Festlegen, was die Automatisierung startet und welche Projekte sie nutzen können. |
-| **Versionen** | Versionsnachrichten und gespeicherte Testergebnisse lesen. Eine Zeile öffnet diese Version im Editor. |
 | **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
 
-Im **Editor** stehen Versionsauswahl und Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+Die Auswahl **Version** bleibt auf Desktop und Smartphone rechts neben den Tabs Editor, Allgemein und Läufe. Sie zeigt Versionsnachrichten, Datum, Testergebnisse und die Live-Markierung. Wähle eine Zeile, um diese Version zu öffnen. Am Desktop stehen die Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+
+Auf dem Smartphone startet eine geöffnete Automation mit kompakter Navigation. Die Arbeitsfläche des Editors nutzt die verfügbare Höhe. Lauf- und Bereitstellungsaktionen befinden sich innerhalb der Arbeitsfläche neben den Zoom-Steuerelementen. Wenn du einen Knoten auswählst, öffnen sich seine Felder — mit Speichern und Verwerfen — in einem Bereich am unteren Bildschirmrand.
 
 <Frame caption="Wähle einen Knoten, um seine Felder zu prüfen. Neben den Tabs stehen die Aktionen für Test, Speichern und Bereitstellung.">
 
@@ -78,6 +79,6 @@ Wechsle zu **Läufe** und öffne den vollständigen Datensatz. Die Tabs bleiben 
 
 ## Zu einer früheren Version zurückkehren oder löschen
 
-Öffne für eine Rückkehr **Versionen**, lies die Versionsnachrichten und wähle eine frühere Fassung. Die Zeile öffnet den **Editor** mit dieser Version. Klicke dort auf die Schaltfläche, die sie live schaltet, etwa **v2 live schalten**. Du kannst die frühere Fassung auch im Menü **Version** des Editors wählen. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
+Öffne für eine Rückkehr **Version** rechts neben den Tabs, lies die Versionsnachrichten und wähle eine frühere Fassung. Die Zeile öffnet den **Editor** mit dieser Version. Klicke dort auf die Schaltfläche, die sie live schaltet, etwa **v2 live schalten**. Künftige Starts verwenden sie; der Versionsverlauf bleibt erhalten. Eine Nachricht wie „Vorherige Empfängerzuordnung wiederherstellen“ macht die Entscheidung nachvollziehbar.
 
 Zum Löschen gehe zur Liste zurück, öffne das Zeilenmenü und wähle **Löschen**. Lies die Bestätigung mit dem Namen der Automatisierung. Versionen, Bereitstellung, Trigger und Projektzuordnungen werden entfernt. Ein offener Lauf blockiert das Löschen; beende ihn oder warte seinen Abschluss ab. Frühere Läufe unterliegen weiter der Aufbewahrung. Bereits ausgeführte Aktionen werden durch das Löschen nicht rückgängig gemacht.

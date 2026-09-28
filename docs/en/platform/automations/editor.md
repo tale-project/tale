@@ -11,10 +11,11 @@ Open **Automations**, then select an automation. It opens on **Editor**. To crea
 | --- | --- |
 | **Editor** | Change the workflow, test a saved version and choose what runs live. |
 | **General** | Choose what starts the automation and which projects can use it. |
-| **Versions** | Read saved version messages and test results, then select a row to open that version in the editor. |
 | **Runs** | Inspect recent executions and open a run’s full record. |
 
-On **Editor**, the version picker and run actions sit beside the tabs, together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
+The **Version** selector stays at the right of the Editor, General and Runs tabs on desktop and mobile. Open it to read version messages, dates, test results and the live marker, then select a row to open that version. On desktop, run actions sit beside the tabs together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
+
+On a phone, opening an automation starts with compact navigation. The editor canvas fills the available height, and its run and deploy controls sit inside the canvas beside the zoom controls. Selecting a node opens its fields — and Save and Discard — in a panel at the bottom of the screen.
 
 <Frame caption="Select a node to inspect its fields. The actions beside the tabs control testing, saving, and deployment.">
 
@@ -78,6 +79,6 @@ Switch to **Runs** and open a row for the full record. The tabs remain visible w
 
 ## Roll back or delete
 
-To roll back, open **Versions**, read the version messages and select an earlier version. Its row opens **Editor** at that version; click its deploy button there, such as **Deploy v2**. You can also choose an earlier version from the editor’s **Version** menu. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
+To roll back, open **Version** at the right of the tab strip, read the version messages and select an earlier version. Its row opens **Editor** at that version; click its deploy button there, such as **Deploy v2**. Future starts use it; version history remains intact. A version message such as “Restore the previous recipient mapping” makes that choice easier to review.
 
 To delete the automation, return to the list, open its row menu, and select **Delete**. Read the named confirmation. All versions, deployment, trigger, and project bindings are removed. An unfinished run blocks deletion; stop it or let it finish first. Past runs remain subject to retention. Deleting an automation does not undo the actions its runs already performed.

@@ -747,6 +747,7 @@ automations:
       description: This automation has no version with that number — the link may be stale, or the number mistyped.
       openLatest: Open latest
     controlFlowTitle: Control flow
+    nodeSheetDescription: Edit the node's fields, then save or discard the change.
     agent:
       equipmentLabel: Equipment
       harnessDefault: Default (Claude Code)

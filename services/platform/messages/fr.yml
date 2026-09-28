@@ -791,6 +791,8 @@ automations:
       description: Cette automatisation n’a aucune version portant ce numéro — le lien est peut-être périmé, ou le numéro mal saisi.
       openLatest: Ouvrir la plus récente
     controlFlowTitle: Contrôle du flux
+    nodeSheetDescription: Modifie les champs de ce nœud, puis enregistre la
+      modification ou abandonne-la.
     agent:
       equipmentLabel: Équipement
       harnessDefault: Par défaut (Claude Code)
