@@ -527,3 +527,5 @@ suite defines.
 | --- | --- | --- | --- |
 | [responsive](../suites/responsive.md) | `RESP-F20`: capsule geometry, content end clearance, floating actions, and the Home archive footer | ✅ Chromium | `packages/ui/src/components/navigation/bottom-tab-bar.browser.test.tsx`, `services/platform/tests/e2e/specs/responsive.spec.ts` |
 | [responsive](../suites/responsive.md) | `RESP-F21`: keyboard inference from editable focus and viewport contraction; hardware focus, pinch zoom, desktop transition, and missing VisualViewport support | 🔶 component; native phone verification remains manual | `packages/ui/src/hooks/use-mobile-keyboard.test.ts` |
+
+Scroll-responsive navigation is covered by `packages/ui/src/hooks/use-scroll-compact.test.ts` (direction thresholds, overscroll, dialog exclusion, route and keyboard resets) and `packages/ui/src/components/navigation/bottom-tab-bar.browser.test.tsx` (real nested scroll events, compact geometry, accessible names, 44px targets and stable clearance). Physical Safari/PWA scrolling remains `RESP-F22`.

@@ -47,6 +47,8 @@ export interface BottomTabBarProps extends Omit<
   React.HTMLAttributes<HTMLElement>,
   'children'
 > {
+  /** Icon-only, narrower presentation; touch targets remain at least 44px. */
+  compact?: boolean;
   items: BottomTabBarItem[];
   /** Accessible label for the navigation landmark. */
   ariaLabel: string;
@@ -55,11 +57,11 @@ export interface BottomTabBarProps extends Omit<
 // One capsule geometry for the live bar and the pre-hydration placeholder.
 const BAR_FRAME_CLASS = 'mobile-tab-bar md:hidden';
 const TAB_CLASS =
-  'relative z-10 flex min-h-11 min-w-11 flex-auto flex-col items-center justify-center gap-0.5 rounded-full px-1';
+  'relative z-10 flex min-h-11 min-w-11 flex-auto flex-col items-center justify-center gap-0.5 rounded-full px-0.5';
 const PILL_CLASS =
   'relative inline-flex h-7 min-w-8 items-center justify-center rounded-full';
 const LABEL_CLASS =
-  'max-w-full truncate text-center text-[10px] leading-tight tracking-tight';
+  'max-w-full truncate text-center text-[11px] leading-tight tracking-tight';
 
 /**
  * Floating mobile navigation. Place in a positioned viewport-height shell;
@@ -68,7 +70,7 @@ const LABEL_CLASS =
  * Hidden on md+; routing and permissions remain the caller's responsibility.
  */
 export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
-  ({ items, ariaLabel, className, ...props }, ref) => {
+  ({ items, ariaLabel, compact = false, className, ...props }, ref) => {
     const active = items.find((item) => item.active);
     const { containerRef, ...indicator } = useSlidingIndicator<HTMLDivElement>(
       active?.key ?? null,
@@ -76,7 +78,12 @@ export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
     );
     return (
       <Card asChild padding="none" className={cn(BAR_FRAME_CLASS, className)}>
-        <nav ref={ref} aria-label={ariaLabel} {...props}>
+        <nav
+          data-compact={compact || undefined}
+          ref={ref}
+          aria-label={ariaLabel}
+          {...props}
+        >
           <div ref={containerRef} className="relative flex h-full w-full">
             <span
               aria-hidden
@@ -92,7 +99,11 @@ export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
               }}
             />
             {items.map((item) => (
-              <BottomTabBarButton key={item.key} item={item} />
+              <BottomTabBarButton
+                key={item.key}
+                item={item}
+                compact={compact}
+              />
             ))}
           </div>
         </nav>
@@ -148,9 +159,10 @@ export function BottomTabBarPlaceholder({
 
 interface BottomTabBarButtonProps {
   item: BottomTabBarItem;
+  compact: boolean;
 }
 
-function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
+function BottomTabBarButton({ item, compact }: BottomTabBarButtonProps) {
   const Icon = item.icon;
   const showPill = item.featured && !item.active;
   const activeStyle =
@@ -214,7 +226,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
           </>
         )}
       </span>
-      <span className={LABEL_CLASS}>{item.label}</span>
+      <span className={compact ? 'sr-only' : LABEL_CLASS}>{item.label}</span>
     </button>
   );
 }

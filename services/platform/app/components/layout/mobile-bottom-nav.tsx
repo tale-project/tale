@@ -2,6 +2,7 @@
 
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useMobileKeyboard } from '@tale/ui/use-mobile-keyboard';
+import { useScrollCompact } from '@tale/ui/use-scroll-compact';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { House } from 'lucide-react';
 import { useLayoutEffect, useMemo } from 'react';
@@ -51,6 +52,7 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   const { primary, pinned } = useNavigationItems(organizationId);
   const { isStandalone, isMobileSafari } = useDisplayMode();
   const keyboard = useMobileKeyboard();
+  const { compact, expand } = useScrollCompact(pathname, keyboard.open);
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.toggle(
@@ -105,6 +107,14 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
   );
 
   return (
-    <BottomTabBar items={items} ariaLabel={tNav('aria.primaryNavigation')} />
+    <BottomTabBar
+      items={items}
+      ariaLabel={tNav('aria.primaryNavigation')}
+      compact={compact}
+      onFocusCapture={(event) => {
+        if (event.target.matches(':focus-visible')) expand();
+      }}
+      onClickCapture={expand}
+    />
   );
 }

@@ -840,7 +840,7 @@ input[type='text']:-webkit-autofill {
    nested content frames and dialogs must not reserve another copy of it. */
 @layer base {
   :root {
-    --mobile-nav-height: 4rem;
+    --mobile-nav-height: 3.75rem;
     --mobile-nav-bottom: calc(0.5rem + var(--safe-bottom));
     --mobile-nav-clearance: 0px;
     --mobile-keyboard-inset: 0px;
@@ -881,11 +881,27 @@ input[type='text']:-webkit-autofill {
     max-width: 30rem;
     height: var(--mobile-nav-height);
     margin-inline: auto;
-    padding: 0.25rem;
+    padding: 0.1875rem;
+    transition:
+      height 220ms ease-out,
+      max-width 220ms ease-out,
+      bottom 220ms ease-out;
     border-radius: 9999px;
     background: var(--color-background);
     box-shadow: 0 4px 20px
       color-mix(in srgb, var(--color-foreground) 12%, transparent);
+  }
+
+  .mobile-tab-bar.mobile-tab-bar[data-compact] {
+    height: 3.25rem;
+    max-width: 17.5rem;
+    bottom: calc(var(--mobile-nav-bottom) - 0.25rem);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-tab-bar.mobile-tab-bar {
+      transition: none;
+    }
   }
 
   @supports (backdrop-filter: blur(16px)) {

@@ -42,6 +42,7 @@ interface InteractiveShellProps {
   slice?: number;
   badges?: Record<string, ReactNode>;
   accentColor?: string;
+  compact?: boolean;
 }
 
 function InteractiveShell({
@@ -49,6 +50,7 @@ function InteractiveShell({
   slice,
   badges,
   accentColor,
+  compact,
 }: InteractiveShellProps) {
   const [activeKey, setActiveKey] = useState(initialKey);
   const available = slice ? TABS.slice(0, slice) : TABS;
@@ -68,7 +70,7 @@ function InteractiveShell({
         <span className="text-foreground font-semibold">{activeKey}</span>. Tap
         any tab below to switch.
       </div>
-      <BottomTabBar items={items} ariaLabel="Primary" />
+      <BottomTabBar compact={compact} items={items} ariaLabel="Primary" />
     </div>
   );
 }
@@ -137,4 +139,8 @@ export const Placeholder: Story = {
       <BottomTabBarPlaceholder tabs={3} />
     </div>
   ),
+};
+
+export const Compact: Story = {
+  render: () => <InteractiveShell initialKey="chat" slice={4} compact />,
 };

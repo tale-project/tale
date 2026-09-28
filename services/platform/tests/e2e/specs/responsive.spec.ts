@@ -53,11 +53,11 @@ test.describe('responsive / mobile layout', () => {
 
     const dock = await mobileNav.boundingBox();
     expect(dock).not.toBeNull();
-    expect(dock?.height).toBe(64);
+    expect(dock?.height).toBe(60);
     expect(dock?.x).toBeGreaterThan(0);
     const main = await page.locator('#main-content').boundingBox();
     expect((main?.y ?? 0) + (main?.height ?? 0)).toBeGreaterThan(
-      (dock?.y ?? 0) + 64,
+      (dock?.y ?? 0) + (dock?.height ?? 0),
     );
 
     // The desktop side rail lives in a `hidden md:flex` column — display:none.
@@ -160,6 +160,26 @@ test.describe('responsive / mobile layout', () => {
     await expect(reloadedField).toHaveValue(originalName, {
       timeout: TIMEOUT.PERSIST,
     });
+
+    const nav = page.getByRole('navigation', {
+      name: t('navigation.aria.primaryNavigation'),
+    });
+    await page.mouse.move(180, 350);
+    await page.mouse.wheel(0, 350);
+    await expect(nav).toHaveAttribute('data-compact', 'true');
+    await expect.poll(async () => (await nav.boundingBox())?.height).toBe(52);
+    await page.mouse.wheel(0, -100);
+    await expect(nav).not.toHaveAttribute('data-compact');
+    await expect.poll(async () => (await nav.boundingBox())?.height).toBe(60);
+    await page.mouse.wheel(0, 200);
+    await expect(nav).toHaveAttribute('data-compact', 'true');
+    await nav
+      .getByRole('button', { name: new RegExp(`^${t('navigation.home')}`) })
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`/dashboard/${organizationId}/home`),
+    );
+    await expect(nav).not.toHaveAttribute('data-compact');
   });
 
   test('chat: composer and provider-setup guidance render at mobile width', async ({
