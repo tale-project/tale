@@ -12,7 +12,8 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * A trigger's failure streak (migration 0124), kept by `finishRun` in the
  * transaction that lands a run the trigger started (`trigger:<id>`):
  *
- * - a success sets the streak back to 0;
+ * - a success sets the streak back to 0, except on a schedule its failures
+ *   paused, which keeps it (below);
  * - a failure whose code the next occurrence would repeat
  *   (`isPermanentFailureCode`) adds one and becomes the trigger's last
  *   failure;
@@ -34,6 +35,13 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * A paused schedule keeps the streak that paused it: a run still in flight
  * when the pause landed may succeed afterwards, and it must not leave a
  * paused schedule reading "0 runs in a row failed". Only a save clears it.
+ * Paused means off AND stamped `paused_after_failures` — the test the
+ * Trigger section's banner makes — never the stamp alone. The image before
+ * 0124 re-enables a paused schedule without clearing the stamp (its bind
+ * keeps the skip stamps of an unchanged kind), and nothing but a skip or a
+ * later save overwrites it; a live schedule still carrying it must reset on
+ * a success, or its permanent failures would add up across the successes
+ * between them and pause it again for failures that were not in a row.
  *
  * Lock order — the organization's audit chain BEFORE any trigger row, in
  * every transaction that takes both:
@@ -146,12 +154,14 @@ async function resetStreak(
 ): Promise<StreakChange> {
   // A schedule its failures paused keeps the streak that paused it until
   // someone saves it: a run that overlapped the pause and succeeded after
-  // it does not make the banner read "0 runs in a row failed".
+  // it does not make the banner read "0 runs in a row failed". Paused is
+  // off with the pause's stamp, as the banner reads it: a live schedule
+  // that still carries the stamp (the module note) resets like any other.
   const reset = await tx<{ name: string }[]>`
     UPDATE app.automation_triggers SET consecutive_failures = 0
     WHERE id = ${triggerId} AND org_id = ${outcome.organizationId}
       AND consecutive_failures > 0
-      AND last_skip_reason IS DISTINCT FROM 'paused_after_failures'
+      AND (enabled OR last_skip_reason IS DISTINCT FROM 'paused_after_failures')
       AND updated_at_ms <= ${outcome.startedAt}
     RETURNING name
   `;
