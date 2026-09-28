@@ -11,6 +11,7 @@ import {
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   getSessionBySessionId,
+  markRecreatedSessionActive,
   markSessionDestroyed,
   setSessionPinned,
   type SessionRow,
@@ -237,12 +238,14 @@ export type ReconcileOutcome =
   /** Gone spawner-side and unpinned (or a pinned render): the row settled
    * as destroyed. */
   | 'healed'
-  /** Alive and pinned: the pin re-asserted spawner-side. */
+  /** Alive and pinned: the pin re-asserted spawner-side. Also a gone pinned
+   * session whose recreate the spawner answered as a duplicate — back
+   * already, so this visit created nothing and only re-pinned it. */
   | 'repinned'
   /** Gone and pinned: its recreate queued (`recreate: 'schedule'`). */
   | 'recreating'
-  /** Gone and pinned: recreated in place and re-pinned
-   * (`recreate: 'inline'`). */
+  /** Gone and pinned: recreated in place by this visit and re-pinned
+   * (`recreate: 'inline'`); a `creating` row reads `active` after it. */
   | 'recreated'
   /** Not the reconcile's to touch: the row left the compute-holding
    * statuses since the batch named it (destroyed, hibernated or expired
@@ -273,13 +276,16 @@ export type ReconcileOutcome =
  *   spawner resolves the workspace by id, so the create re-attaches the
  *   preserved workspace (on the device it lives on, when it lives on one) —
  *   and re-pinned, never settled as destroyed: queued in `schedule` mode,
- *   done in `inline` mode. A create the spawner answers as a duplicate means
- *   the session is back already (a turn or a concurrent reconcile recreated
- *   it): it is re-pinned too, and deliberately not acquired, since no work
- *   follows. A gone pinned RENDER sandbox heals like an unpinned phantom: it
- *   serves one crawl batch and nothing ever reuses it, and its batch's own
- *   teardown does not take this lock, so a recreate could only leave an
- *   empty pinned container behind that teardown.
+ *   done in `inline` mode. A row still `creating` (its host died
+ *   mid-provision) reads `active` once the recreate answers. A create the
+ *   spawner answers as a duplicate means the session is back already (a turn
+ *   or a concurrent reconcile recreated it): it is only re-pinned
+ *   (`repinned`), and deliberately not acquired, since no work follows; its
+ *   row is left to whoever created it. A gone pinned RENDER sandbox heals
+ *   like an unpinned phantom: it serves one crawl batch and nothing ever
+ *   reuses it, and its batch's own teardown does not take this lock, so a
+ *   recreate could only leave an empty pinned container behind that
+ *   teardown.
  *
  * Every spawner failure — a refused pin, a create the spawner could not
  * serve, an offline device, a pinned row with no known profile — throws, so
@@ -351,16 +357,28 @@ async function reconcileLocked(
     await mode.schedule(sessionSql, args);
     return 'recreating';
   }
+  let created = true;
   try {
     await spawner.create(body);
   } catch (error) {
     if (!(error instanceof SessionDuplicateError)) throw error;
+    created = false;
     console.warn(
       `[sandbox] pinned session ${args.sessionId} is back spawner-side already; re-pinning it`,
     );
   }
-  await requirePin(spawner, args.sessionId, 'recreated');
-  return 'recreated';
+  // A create answers once runnerd is ready. A `creating` row's host died
+  // before it could flip the row (a live host adopts this session as a
+  // duplicate and flips it itself), so settle it here, BEFORE the pin: a
+  // refused pin must not leave a ready container under `creating` for good.
+  if (created && row.status === 'creating') {
+    await markRecreatedSessionActive(sessionSql, {
+      organizationId: args.organizationId,
+      rowId: row.id,
+    });
+  }
+  await requirePin(spawner, args.sessionId, created ? 'recreated' : 'repinned');
+  return created ? 'recreated' : 'repinned';
 }
 
 async function requirePin(

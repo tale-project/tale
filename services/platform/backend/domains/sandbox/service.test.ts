@@ -83,11 +83,15 @@ const LOCK_KEY = 'sandbox-lifecycle:["org-a","session-a"]';
  *    row read and write of a lifecycle transition (`data`).
  * Both answer from one stored row; the SELECT's bound organization and id
  * must both match it. `lockFree: false` makes a TRIED lock find it taken.
+ * `order` interleaves every statement (`<channel>:<verb>`) with the opening
+ * of the data client (`connect`); a test hands it to the spawner fakes too,
+ * to see what ran before the lock.
  */
 function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
   const root: Statement[] = [];
   const locks: Statement[] = [];
   const data: Statement[] = [];
+  const order: string[] = [];
   const stored = row === null ? null : { ...row };
   const answer = (text: string, values: unknown[]): unknown[] => {
     if (text.startsWith('SELECT pg_try_advisory_xact_lock')) {
@@ -100,6 +104,18 @@ function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
         values.at(-2) === stored.sessionId &&
         values.at(-1) === stored.organizationId;
       return matches ? [{ ...stored }] : [];
+    }
+    if (text.startsWith("UPDATE app.sandbox_sessions SET status = 'active'")) {
+      // The recreate's creating → active, by row id and org.
+      if (
+        stored === null ||
+        stored.status !== 'creating' ||
+        !values.includes(stored.id) ||
+        !values.includes(stored.organizationId)
+      )
+        return [];
+      stored.status = 'active';
+      return [{ id: stored.id }];
     }
     if (text.startsWith('UPDATE app.sandbox_sessions')) {
       if (
@@ -115,18 +131,24 @@ function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
     }
     return [];
   };
+  const verb = (text: string): string => {
+    if (text.startsWith('SELECT pg_try_advisory_xact_lock')) return 'try-lock';
+    if (text.startsWith('SELECT pg_advisory_xact_lock')) return 'lock';
+    return text.split(' ')[0] ?? text;
+  };
   const recorder =
-    (log: Statement[]) =>
+    (log: Statement[], channel: string) =>
     (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
       log.push({ text, values });
+      order.push(`${channel}:${verb(text)}`);
       return Promise.resolve(answer(text, values));
     };
   const unsafe = (fragment: string) => fragment;
   // A postgres.js transaction really has savepoint and NO begin. Keeping
   // that distinction catches accidental nested root-pool transactions.
-  const transaction = (log: Statement[]) => {
-    const query = recorder(log);
+  const transaction = (log: Statement[], channel: string) => {
+    const query = recorder(log, channel);
     const tx = Object.assign(query, {
       unsafe,
       savepoint: <T>(callback: (transaction: typeof query) => Promise<T>) =>
@@ -134,8 +156,12 @@ function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
     });
     return tx;
   };
-  const pool = (log: Statement[], tx: ReturnType<typeof transaction>) => {
-    const query = recorder(log);
+  const pool = (
+    log: Statement[],
+    channel: string,
+    tx: ReturnType<typeof transaction>,
+  ) => {
+    const query = recorder(log, channel);
     return Object.assign(
       (strings: TemplateStringsArray, ...values: unknown[]) =>
         query(strings, ...values),
@@ -148,15 +174,19 @@ function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
       },
     );
   };
-  const rootSql = pool(root, transaction(locks));
-  const dataSql = pool(data, transaction(data));
-  postgresFactory.mockReturnValue(dataSql);
+  const rootSql = pool(root, 'root', transaction(locks, 'lock'));
+  const dataSql = pool(data, 'data', transaction(data, 'data'));
+  postgresFactory.mockImplementation(() => {
+    order.push('connect');
+    return dataSql;
+  });
   return {
     sql: rootSql as unknown as Sql,
     dataSql: dataSql as unknown as Sql,
     root,
     locks,
     data,
+    order,
     stored,
     end: dataSql.end,
   };
@@ -412,12 +442,13 @@ describe('pinSession serializes with the other lifecycle transitions', () => {
 });
 
 /** The reconcile's spawner, scripted: its liveness answer is fixed, and every
- * verb it is asked for lands on one ordered log. */
+ * verb it is asked for lands on one ordered log — its own, or one it shares
+ * with the database fake (`order`). */
 function fakeSpawner(
   alive: boolean,
   overrides: Partial<ReconcileSpawner> = {},
+  calls: string[] = [],
 ): { spawner: ReconcileSpawner; calls: string[] } {
-  const calls: string[] = [];
   const spawner: ReconcileSpawner = {
     isAlive: vi.fn((sessionId: string) => {
       calls.push(`isAlive ${sessionId}`);
@@ -601,23 +632,68 @@ describe('reconcileSession keeps a pinned session pinned', () => {
     },
   );
 
-  it('re-pins a session the spawner reports as already back (a duplicate create)', async () => {
-    const { sql, data, stored } = fakeSql(PINNED_SESSION);
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const { spawner, calls } = fakeSpawner(false, {
-      create: vi.fn(() =>
-        Promise.reject(new SessionDuplicateError('session-a')),
-      ),
-    });
+  it.each(['active', 'creating'])(
+    'only re-pins a pinned row reading %s whose session the spawner reports as already back (a duplicate create)',
+    async (status) => {
+      const { sql, data, stored } = fakeSql({ ...PINNED_SESSION, status });
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      const { spawner, calls } = fakeSpawner(false, {
+        create: vi.fn(() =>
+          Promise.reject(new SessionDuplicateError('session-a')),
+        ),
+      });
 
-    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
-      'recreated',
+      // Not `recreated`: whoever brought it back (a turn, its host) owns
+      // the create and its row — a `creating` row stays for its host to flip.
+      await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
+        'repinned',
+      );
+
+      expect(calls).toEqual(['isAlive session-a', 'setPinned session-a true']);
+      expect(warn).toHaveBeenCalledOnce();
+      expectRowUntouched(data, stored, status);
+      warn.mockRestore();
+    },
+  );
+
+  it('flips a pinned row its host left `creating` to active once the recreate answers, before the pin', async () => {
+    const { sql, data, order, stored } = fakeSql({
+      ...PINNED_SESSION,
+      status: 'creating',
+    });
+    let statusAtPin: unknown;
+    const { spawner } = fakeSpawner(
+      false,
+      {
+        setPinned: vi.fn((sessionId: string, pinned: boolean) => {
+          order.push(`setPinned ${sessionId} ${pinned}`);
+          statusAtPin = stored?.status;
+          // A refused pin must not strand the ready container as `creating`.
+          return Promise.resolve(false);
+        }),
+      },
+      order,
     );
 
-    expect(calls).toEqual(['isAlive session-a', 'setPinned session-a true']);
-    expect(warn).toHaveBeenCalledOnce();
-    expectRowUntouched(data, stored);
-    warn.mockRestore();
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).rejects.toThrow(
+      /did not take the pin of session-a after recreating it/,
+    );
+
+    expect(statusAtPin).toBe('active');
+    expect(stored?.status).toBe('active');
+    expect(order.slice(-3)).toEqual([
+      'create session-a',
+      'data:UPDATE',
+      'setPinned session-a true',
+    ]);
+    const flip = data.find((statement) => statement.text.startsWith('UPDATE'));
+    expect(flip?.text).toMatch(
+      /WHERE id = \? AND org_id = \? AND status = 'creating'/,
+    );
+    expect(flip?.values.slice(-2)).toEqual(['row-a', 'org-a']);
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
   });
 
   it('leaves the row for the next visit when the spawner cannot recreate the session', async () => {
@@ -796,5 +872,98 @@ describe('reconcileSession heals unpinned phantoms as before', () => {
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('skipped');
 
     expectRowUntouched(data, stored, 'stopped');
+  });
+});
+
+describe('every lifecycle transition takes the session lock first', () => {
+  // `order` interleaves the three connections and the spawner: nothing but
+  // the reconcile's unlocked first look may run before the advisory lock,
+  // and the data client opens only once the lock is held.
+  it('reconcile: after the first look, the tried lock precedes the probe, the fresh read and the pin', async () => {
+    const { sql, order } = fakeSql(PINNED_SESSION);
+    const { spawner } = fakeSpawner(true, {}, order);
+
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+      'repinned',
+    );
+
+    expect(order).toEqual([
+      'root:SELECT',
+      'lock:try-lock',
+      'connect',
+      'isAlive session-a',
+      'data:SELECT',
+      'setPinned session-a true',
+    ]);
+  });
+
+  it('recreate job: the waited-for lock precedes the probe, the fresh read, the create and the pin', async () => {
+    const { sql, order } = fakeSql(PINNED_SESSION);
+    const { spawner } = fakeSpawner(false, {}, order);
+
+    await expect(recreatePinnedSession(sql, ARGS, spawner)).resolves.toBe(
+      'recreated',
+    );
+
+    expect(order).toEqual([
+      'root:SELECT',
+      'lock:lock',
+      'connect',
+      'isAlive session-a',
+      'data:SELECT',
+      'create session-a',
+      'setPinned session-a true',
+    ]);
+  });
+
+  it('pin: the lock precedes the row write and the spawner patch', async () => {
+    const { sql, order } = fakeSql(OWNED_SESSION);
+    vi.mocked(sessionSetPinned).mockImplementationOnce(
+      async (sessionId, pinned) => {
+        order.push(`setPinned ${sessionId} ${pinned}`);
+        return true;
+      },
+    );
+
+    await expect(pinSession(sql, { ...ARGS, pinned: true })).resolves.toBe(
+      true,
+    );
+
+    expect(order).toEqual([
+      'lock:lock',
+      'connect',
+      'data:UPDATE',
+      'setPinned session-a true',
+    ]);
+  });
+
+  it('destroy: the lock precedes the read, both unpins, the delete and the settlement', async () => {
+    const { sql, order } = fakeSql(PINNED_SESSION);
+    vi.mocked(sessionSetPinned).mockImplementationOnce(
+      async (sessionId, pinned) => {
+        order.push(`setPinned ${sessionId} ${pinned}`);
+        return true;
+      },
+    );
+    vi.mocked(sessionDestroy).mockImplementationOnce(async (sessionId) => {
+      order.push(`destroy ${sessionId}`);
+      return true;
+    });
+
+    await expect(teardownSession(sql, ARGS)).resolves.toBe(true);
+
+    expect(order.slice(0, 6)).toEqual([
+      'lock:lock',
+      'connect',
+      'data:SELECT',
+      'data:UPDATE',
+      'setPinned session-a false',
+      'destroy session-a',
+    ]);
+    // The settlement (row flip + token revocation) runs on the data client.
+    expect(order.slice(6).every((entry) => entry.startsWith('data:'))).toBe(
+      true,
+    );
+    expect(order.slice(6)).toContain('data:UPDATE');
   });
 });

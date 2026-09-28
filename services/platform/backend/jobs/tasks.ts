@@ -334,7 +334,9 @@ export interface TaskQueueOptions {
    * throttling label only — dedup by key needs `short` (at most ONE QUEUED
    * job per key). Set it where an upstream retries a delivery we have already
    * accepted, and give every job on that queue a key, or keyless jobs share
-   * the default key and shut each other out.
+   * the default key and shut each other out. `exclusive` goes further: at
+   * most one job per key queued OR active, so a send while one runs is
+   * dropped too — for work that must never run twice at once per key.
    */
   policy?: 'standard' | 'short' | 'singleton' | 'stately' | 'exclusive';
 }

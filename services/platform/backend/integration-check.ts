@@ -52389,11 +52389,12 @@ async function checkWatchdogs(
   // never settled: the pass queues its recreate (recorded here, so the
   // harness worker never runs one against a stub spawner), and the queued
   // job's body recreates it under its id with its stored profile
-  // (`'"agent"'` jsonb, as the reserve writes it) and re-pins it; a live
-  // pinned one has its pin re-asserted. The pass is walked until every row
-  // of the lane has been probed: the fair rotation may need more than one
-  // batch when earlier lanes left never-visited compute-holding rows in
-  // this org.
+  // (`'"agent"'` jsonb, as the reserve writes it) and re-pins it — the row
+  // is left `creating` (its host died mid-provision), so the recreate also
+  // flips it to `active`; a live pinned one has its pin re-asserted. The
+  // pass is walked until every row of the lane has been probed: the fair
+  // rotation may need more than one batch when earlier lanes left
+  // never-visited compute-holding rows in this org.
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, profile, status, owner_type, owner_id, created_by,
@@ -52405,7 +52406,7 @@ async function checkWatchdogs(
       (${orgId}, 'wd-org-phantom', NULL, 'active', 'project_agent',
        'itest-wd-agent-gone', 'itest:wd', false, ${now - 2 * 3_600_000},
        ${now + 24 * 3_600_000}),
-      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'active',
+      (${orgId}, 'wd-org-pinned-gone', '"agent"'::jsonb, 'creating',
        'project_agent', 'itest-wd-agent-pinned-gone', 'itest:wd', true,
        ${now - 2 * 3_600_000}, ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-org-pinned-up', '"agent"'::jsonb, 'active',
@@ -52485,7 +52486,7 @@ async function checkWatchdogs(
       orgScheduled.includes('wd-org-pinned-gone') &&
       orgScheduled.every((id) => id === 'wd-org-pinned-gone') &&
       // …and the job recreated it under its id, org and stored profile,
-      // re-pinned it, and left its row `active`.
+      // re-pinned it, and flipped its `creating` row to `active`.
       orgRecreate === 'recreated' &&
       orgStatusOf('wd-org-pinned-gone') === 'active' &&
       orgCreates.length === 1 &&
