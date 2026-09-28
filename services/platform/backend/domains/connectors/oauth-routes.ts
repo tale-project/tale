@@ -52,6 +52,7 @@ export function createConnectorOauthRoutes(deps: {
     kind: Parameters<typeof renderConnectorErrorPage>[0],
     organizationId?: string,
     base: string | null = null,
+    acceptLanguage = '',
   ): Response =>
     renderConnectorErrorPage(
       kind,
@@ -61,6 +62,7 @@ export function createConnectorOauthRoutes(deps: {
             organizationId,
             base ?? resolvePublicBaseUrl(),
           ),
+      acceptLanguage,
     );
 
   const plainText = (body: string, status: 401 | 403): Response =>
@@ -109,6 +111,7 @@ export function createConnectorOauthRoutes(deps: {
         'credential_missing',
         organizationId,
         resolvePublicBaseUrl(origin),
+        c.req.header('accept-language'),
       );
     }
     const outcome = await startOauth2(deps.sql, {
@@ -125,6 +128,7 @@ export function createConnectorOauthRoutes(deps: {
         outcome.error,
         organizationId,
         resolvePublicBaseUrl(origin),
+        c.req.header('accept-language'),
       );
     }
     return new Response(null, {
@@ -158,6 +162,7 @@ export function createConnectorOauthRoutes(deps: {
           session?.session.activeOrganizationId ??
           undefined,
         resolvePublicBaseUrl(publicOrigin(c.req.raw)),
+        c.req.header('accept-language'),
       );
     }
     return new Response(null, {

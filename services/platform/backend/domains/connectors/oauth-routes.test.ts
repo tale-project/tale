@@ -16,6 +16,7 @@ vi.mock('./oauth.ts', () => ({
   startOauth2,
 }));
 
+import { renderConnectorErrorPage } from '../../core/http_connectors/error_page.ts';
 import { createConnectorOauthRoutes } from './oauth-routes.ts';
 
 function app(session: SessionBundle | null) {
@@ -185,4 +186,97 @@ describe('the consent intent', () => {
       expect(html).toContain('nothing was saved');
     },
   );
+});
+
+describe('localized consent intent errors', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it.each([
+    ['credential_missing', 'en', 'This credential cannot be reconnected', 404],
+    [
+      'credential_missing',
+      'de',
+      'Diese Zugangsdaten können nicht neu verbunden werden',
+      404,
+    ],
+    [
+      'credential_missing',
+      'fr',
+      'Ces identifiants ne peuvent pas être reconnectés',
+      404,
+    ],
+    ['account_mismatch', 'en', 'That is a different workspace', 409],
+    ['account_mismatch', 'de', 'Das ist ein anderer Workspace', 409],
+    ['account_mismatch', 'fr', 'Il s’agit d’un autre espace de travail', 409],
+    ['forbidden', 'en', 'You can no longer connect connectors here', 403],
+    ['forbidden', 'de', 'Du kannst hier keine Connectors mehr verbinden', 403],
+    ['forbidden', 'fr', 'Tu ne peux plus connecter de connecteurs ici', 403],
+  ] as const)('renders %s in %s', async (kind, locale, title, status) => {
+    const response = renderConnectorErrorPage(
+      kind,
+      '/dashboard/org-1/settings/connectors',
+      locale,
+    );
+    const html = await response.text();
+    expect(response.status).toBe(status);
+    expect(html).toContain(`<html lang="${locale}">`);
+    expect(html).toContain(`<h1>${title}</h1>`);
+    expect(html).toContain(
+      {
+        en: 'Back to connector settings',
+        de: 'Zurück zu den Connector-Einstellungen',
+        fr: 'Retour aux paramètres des connecteurs',
+      }[locale],
+    );
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('content-security-policy')).toContain(
+      "default-src 'none'",
+    );
+  });
+  it.each([
+    ['de-CH,de;q=0.9,en;q=0.8', 'de'],
+    ['fr;q=0.2,de;q=0.8', 'de'],
+    ['ja-JP,de-DE;q=0.8,en;q=0.7', 'de'],
+    ['FR-fr,en;q=0.5', 'fr'],
+    ['ja-JP,es;q=0.5', 'en'],
+    ['', 'en'],
+  ])('resolves header %s to %s', async (header, locale) => {
+    const response = renderConnectorErrorPage('forbidden', null, header);
+    expect(await response.text()).toContain(`<html lang="${locale}">`);
+  });
+  it('escapes the back link and does not reflect a language header', async () => {
+    const response = renderConnectorErrorPage(
+      'account_mismatch',
+      '/settings?x="<script>&',
+      'de,<script>alert(1)</script>',
+    );
+    const html = await response.text();
+    expect(html).toContain('<html lang="de">');
+    expect(html).toContain('href="/settings?x=&quot;&lt;script&gt;&amp;"');
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('alert(1)');
+  });
+  it('keeps existing errors on their existing English path', async () => {
+    const html = await renderConnectorErrorPage(
+      'invalid_state',
+      '/settings',
+      'de',
+    ).text();
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain('This connection link has expired');
+    expect(html).toContain('Back to connector settings');
+  });
+  it('passes the request language through start and callback refusals', async () => {
+    vi.stubEnv('SITE_URL', 'https://tale.example');
+    connectorWriteAccess.mockResolvedValue('allowed');
+    completeOauth2.mockResolvedValue({ kind: 'error', error: 'forbidden' });
+    const start = await app(SIGNED_IN).request(
+      '/start?connector=gmail&organizationId=org-1&credentialId=',
+      { headers: { 'accept-language': 'fr-FR' } },
+    );
+    const callback = await app(SIGNED_IN).request('/callback?state=s&code=c', {
+      headers: { 'accept-language': 'de-CH' },
+    });
+    expect(await start.text()).toContain('<html lang="fr">');
+    expect(await callback.text()).toContain('<html lang="de">');
+  });
 });
