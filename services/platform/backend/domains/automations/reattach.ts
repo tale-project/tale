@@ -175,6 +175,7 @@ export async function recoverStalledWorkflowAgentTurns(
       createMissing: {
         organizationId: turn.organizationId,
         kind: 'workflow-agent',
+        harness: turn.harness,
         deadlineMs: turn.deadlineAt,
       },
     });

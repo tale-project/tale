@@ -123,6 +123,7 @@ export async function recoverStalledTaskAgentTurns(
       createMissing: {
         organizationId: turn.organizationId,
         kind: 'task-agent',
+        harness: turn.harness,
         deadlineMs: turn.deadlineAt,
       },
     });

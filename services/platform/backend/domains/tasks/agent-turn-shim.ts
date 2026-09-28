@@ -441,6 +441,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         userId?: string;
         modelRef?: string;
         visionModelRef?: string;
+        /** The harness the turn runs on — stamped by the open, read by the
+         * harness-turn metrics ahead of the session's create-time stamp. */
+        harness?: string;
         agentSlug?: string;
         deadlineMs?: number;
         heartbeatAt?: number;
@@ -465,9 +468,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             org_id, session_id, thread_id, exec_id, kind, status,
             progress_text, live_timeline, agent_session_id, exit_code,
             agent_result_status, user_id, model_ref, vision_model_ref,
-            agent_slug, deadline_ms, heartbeat_at_ms, last_event_at_ms,
-            last_seq, minted_key_id, spent_cents, budget_cents,
-            spend_settled_at_ms, started_at_ms, finished_at_ms
+            harness, agent_slug, deadline_ms, heartbeat_at_ms,
+            last_event_at_ms, last_seq, minted_key_id, spent_cents,
+            budget_cents, spend_settled_at_ms, started_at_ms, finished_at_ms
           ) VALUES (
             ${args.organizationId}, ${args.sessionId}, ${args.threadId ?? null},
             ${args.execId}, ${args.kind}, ${args.status},
@@ -476,6 +479,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             ${args.agentSessionId ?? null}, ${args.exitCode ?? null},
             ${args.agentResultStatus ?? null}, ${args.userId ?? null},
             ${args.modelRef ?? null}, ${args.visionModelRef ?? null},
+            ${args.harness ?? null},
             ${args.agentSlug ?? null}, ${args.deadlineMs ?? null},
             ${args.heartbeatAt ?? now}, ${args.lastEventAt ?? null},
             ${args.lastSeq ?? null}, ${args.mintedKeyId ?? null},
@@ -506,6 +510,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               app.sandbox_session_ops.model_ref),
             vision_model_ref = coalesce(EXCLUDED.vision_model_ref,
               app.sandbox_session_ops.vision_model_ref),
+            harness = coalesce(EXCLUDED.harness,
+              app.sandbox_session_ops.harness),
             deadline_ms = coalesce(EXCLUDED.deadline_ms,
               app.sandbox_session_ops.deadline_ms),
             heartbeat_at_ms = coalesce(EXCLUDED.heartbeat_at_ms,

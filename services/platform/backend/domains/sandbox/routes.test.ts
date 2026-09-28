@@ -335,4 +335,25 @@ describe('external-turn metrics', () => {
     expect(rows.reduce((sum, row) => sum + row.failed, 0)).toBe(body.failed);
     expect(rows.reduce((sum, row) => sum + row.timeout, 0)).toBe(body.timeout);
   });
+
+  // A project agent's session is standing: created once, resumed for every
+  // turn, across the agent's harness switches. Its `agent_kind` names the
+  // harness it was created with, so a read keyed on it counted a pi turn as
+  // claude-code and every turn of an unstamped session as `unknown`.
+  it.each(['/external-turn-metrics?periodDays=7', '/harness-health'])(
+    'names a turn by the harness its op records, ahead of the session stamp (%s)',
+    async (path) => {
+      query.mockResolvedValueOnce([] as never);
+
+      const response = await app().request(path);
+
+      expect(response.status).toBe(200);
+      const [strings] = query.mock.calls[0] as unknown as [
+        TemplateStringsArray,
+      ];
+      const text = strings.join('?').replace(/\s+/g, ' ');
+      expect(text).toContain('coalesce(o.harness, s.agent_kind) AS harness');
+      expect(text).not.toContain('s.agent_kind AS harness');
+    },
+  );
 });
