@@ -11,6 +11,11 @@ import { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
 
 const instructions = CHAT_ASSISTANT.instructions ?? '';
 
+/** The public docs index — fixed, never derived from this deployment's site
+ * origin (a self-hosted `TALE_SITE_URL` would point at a docs host that does
+ * not exist). */
+const TALE_DOCS_INDEX = 'https://docs.tale.dev/llms.txt';
+
 describe('CHAT_ASSISTANT', () => {
   it('keeps the fixed slug the executors audit-log under', () => {
     expect(CHAT_ASSISTANT.slug).toBe(CHAT_ASSISTANT_SLUG);
@@ -42,6 +47,17 @@ describe('CHAT_ASSISTANT', () => {
 
   it('stays a slim persona and names nothing eval-specific', () => {
     expect(instructions.length).toBeLessThan(1800);
-    expect(instructions).not.toMatch(/https?:\/\//);
+    // Tale's own documentation is the one address the persona may name — it
+    // grounds questions about the product itself, not an eval's sources.
+    expect(instructions.replaceAll(TALE_DOCS_INDEX, '')).not.toMatch(
+      /https?:\/\//,
+    );
+  });
+
+  it('answers questions about Tale from its documentation, never guessed URLs', () => {
+    expect(instructions).toContain('QUESTIONS ABOUT TALE');
+    expect(instructions).toContain(TALE_DOCS_INDEX);
+    expect(instructions).toMatch(/never guess a docs URL/i);
+    expect(instructions).toMatch(/latest release/i);
   });
 });
