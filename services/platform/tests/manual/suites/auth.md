@@ -371,9 +371,11 @@ compute codes from the enrollment secret.
   asks before leaving and warns that signing in may lose unsaved changes.
   Choose **Stay here** (`auth.sessionLapse.stayHere`) → both values remain and
   focus returns to the field you were editing, where the text can be copied;
-  repeated refused requests do not reopen the confirmation. Copy the work,
-  close the product dialog, then reach **Sign in** (`auth.sessionLapse.signIn`)
-  in the standing notice by keyboard → the confirmation reopens. Confirm →
+  repeated refused requests do not reopen the confirmation. Copy the work and
+  close the product dialog → the standing notice shows its title and
+  **Your page is still open. …** (`auth.sessionLapse.paused`) in full over the
+  page header. Reach **Sign in** (`auth.sessionLapse.signIn`) in it by
+  keyboard → the confirmation reopens. Confirm →
   `/log-in?redirectTo=<products page>&reason=session-ended` shows
   **Your session has ended. Sign in again.** (`common.errors.sessionEnded`);
   sign in → back on the products page, where copied input can be re-entered.

@@ -424,9 +424,9 @@ export function TriggerEditor({
             description={
               <span className="flex flex-col gap-1">
                 <span>{t('trigger.webhookHowto')}</span>
-                <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
+                <InlineCode className="break-all select-all">
                   curl -X POST {webhookUrl(mintedToken)}
-                </code>
+                </InlineCode>
                 <span>{t('trigger.tokenHint')}</span>
               </span>
             }
@@ -508,9 +508,9 @@ export function TriggerEditor({
                 <Text as="span" variant="muted" className="text-xs font-medium">
                   {t('trigger.webhookEndpointLabel')}
                 </Text>
-                <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
+                <InlineCode className="break-all select-all">
                   curl -X POST {webhookUrl(mintedToken ?? '<token>')}
-                </code>
+                </InlineCode>
                 <Text as="span" variant="muted" className="text-xs">
                   {t('trigger.webhookHowto')}{' '}
                   {stored?.hasToken === true
@@ -520,10 +520,10 @@ export function TriggerEditor({
                 <Text as="span" variant="muted" className="text-xs">
                   {t('trigger.webhookProjectHint')}
                 </Text>
-                <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
+                <InlineCode className="break-all select-all">
                   curl -X POST{' '}
                   {`${origin}/api/projects/<projectId>/automations/webhook/${mintedToken ?? '<token>'}`}
-                </code>
+                </InlineCode>
                 {canEdit && canRotate && (
                   <div className="pt-2">
                     <Button

@@ -6,6 +6,12 @@
  * be a second copy, frozen here while the real one moves on), and what it
  * leaves alone.
  *
+ * Every statement is written here, against the schema as it stands at this
+ * number: a database that jumps past several releases runs this file with
+ * the newest image's code. Import only pure rules — code that runs no SQL and
+ * no I/O — never a domain service, the realtime outbox or a job helper
+ * (`DataMigration` in backend/db/migrate.ts).
+ *
  * Idempotent: a second run changes nothing. Bounded: it reads only the rows
  * that can need the fill. Rolling-deploy safe: the previous image is still
  * serving while this applies.

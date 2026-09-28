@@ -13,8 +13,13 @@
  * A TypeScript data migration because the decision is the indexer's own
  * `isSupported()`: a list of extensions here would be a second copy of the
  * extractor set. A bare row whose file an extractor DOES read is left as it
- * is — its name cannot tell the cause (an image, an empty or damaged file),
- * and naming one would be a guess.
+ * is: an image's cause is `0129`'s to fill, and for any other name the name
+ * cannot tell the cause (an empty or a damaged file) — naming one would be a
+ * guess.
+ *
+ * Every statement is written here, against the schema as it stood at 0128:
+ * a database that jumps past several releases runs this with the newest
+ * image's code, so only pure rules are imported (`DataMigration`).
  *
  * Idempotent: a re-run finds no bare row it can fill. Bounded: only rows
  * already `unsupported` with no code are read. Rolling-deploy safe: the
@@ -26,12 +31,8 @@
 import type { TransactionSql } from 'postgres';
 
 import { RAG_ERROR_UNSUPPORTED_TYPE } from '../../core/knowledge/rag_error_codes.ts';
+import { unsupportedTypeError } from '../../core/knowledge/rag_unsupported.ts';
 import { isSupported } from '../../core/lib/knowledge/extraction/router.ts';
-import {
-  HELD_BY_DOCUMENT_SQL,
-  unsupportedTypeError,
-} from '../../domains/knowledge/service.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
 
 export async function migrate(tx: TransactionSql): Promise<void> {
   const bare = await tx<{ id: string; fileName: string }[]>`
@@ -42,6 +43,8 @@ export async function migrate(tx: TransactionSql): Promise<void> {
   `;
   const unread = bare.filter((row) => !isSupported(row.fileName));
   if (unread.length === 0) return;
+  // `listed`: a document holds the file, so a document list shows its status
+  // — an attachment's is on no list.
   const filled = await tx<{ orgId: string; listed: boolean }[]>`
     UPDATE app.file_metadata fm SET
       rag_error_code = ${RAG_ERROR_UNSUPPORTED_TYPE},
@@ -54,12 +57,19 @@ export async function migrate(tx: TransactionSql): Promise<void> {
     WHERE fm.id = v.id
       AND fm.rag_status = 'unsupported' AND fm.rag_error_code IS NULL
     RETURNING fm.org_id AS "orgId",
-              ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+              EXISTS (
+                SELECT 1 FROM app.documents d
+                WHERE d.org_id = fm.org_id AND d.file_ref = fm.storage_ref
+              ) AS "listed"
   `;
-  const orgIds = new Set(
-    filled.filter((row) => row.listed).map((row) => row.orgId),
-  );
-  for (const orgId of orgIds) {
-    await emitHintInTx(tx, { orgId, entity: 'document', entityId: null });
-  }
+  const orgIds = [
+    ...new Set(filled.filter((row) => row.listed).map((row) => row.orgId)),
+  ];
+  if (orgIds.length === 0) return;
+  // One org-wide `document` hint per organization, the realtime outbox's row.
+  await tx`
+    INSERT INTO app_realtime.outbox (org_id, user_id, entity, entity_id)
+    SELECT org_id, NULL, 'document', NULL
+    FROM unnest(${orgIds}::text[]) AS o(org_id)
+  `;
 }

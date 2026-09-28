@@ -474,8 +474,13 @@ projects-list row ⋯ menu.
   help `projects.settings.audienceHelp`) under **Sharing**
   (`projects.overview.sharingHeading`) has the shape of the **Name** row
   (`projects.settings.name`) — label and help on the left, the picker's left
-  and right edges on the Name field's, the rows divided by the same hairline
-  — and a screen reader names the picker **Audience**; as a member who
+  and right edges on the Name field's, the Name row's vertical padding — and
+  one hairline separates the Sharing section from the section above it; Tab
+  to the picker with a screen reader on: it is announced as **Audience**
+  followed by its help (an empty audience means everyone in the
+  organization), and **Name** and **Description**
+  (`projects.settings.description`) are announced with their hints the same
+  way; as a member who
   cannot administer it, **Effective audience**
   (`projects.sharing.effectiveAudience`) is a row of the same shape with the
   team names on the right; in an org with no teams the Audience row carries

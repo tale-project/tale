@@ -154,6 +154,48 @@ describe('POST /products — a refused body names its field', () => {
     expect(body.data.issues.map((issue) => issue.path)).toEqual(['price']);
   });
 
+  // Regression: the image was a `z.union` of the external-URL rule and the
+  // upload path, and a union that fails both ways says only "Invalid input"
+  // — the one image refusal the form leaves to this door (a host that is
+  // not public) reached the toast as `imageUrl: Invalid input`.
+  it.each([
+    ['http://localhost/cat.png', 'must name a public host — '],
+    ['http://169.254.169.254/latest', 'must name a public host — '],
+    ['example.com/cat.png', 'must be an absolute http(s) URL'],
+    ['/images/cat.png', 'must be an absolute http(s) URL'],
+  ])('names why the image %s is refused', async (imageUrl, reason) => {
+    vi.stubEnv('TALE_ALLOW_PRIVATE_CRAWL_HOSTS', '');
+    const res = await makeApp().request('/?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Kettle', imageUrl }),
+    });
+    vi.unstubAllEnvs();
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as {
+      message: string;
+      data: { issues: { path: string; message: string }[] };
+    };
+    expect(body.message.startsWith(`imageUrl: ${reason}`)).toBe(true);
+    expect(body.data.issues.map((issue) => issue.path)).toEqual(['imageUrl']);
+  });
+
+  it('keeps a public image URL, trimmed', async () => {
+    updateProduct.mockResolvedValueOnce([]);
+    const res = await makeApp().request('/p-1?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl: ' https://cdn.example.com/cat.png ' }),
+    });
+    expect(res.status).toBe(200);
+    expect(updateProduct).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p-1',
+      expect.objectContaining({ imageUrl: 'https://cdn.example.com/cat.png' }),
+    );
+  });
+
   it('imports the valid rows and names the row and column of each refused one', async () => {
     bulkCreateProducts.mockResolvedValue({ success: 1, failed: 0, errors: [] });
     const res = await makeApp().request('/bulk?orgId=o1', {

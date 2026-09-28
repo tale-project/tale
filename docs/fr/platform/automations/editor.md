@@ -11,14 +11,15 @@ Ouvre **Automatisations**, puis sélectionne une automatisation. Elle s’ouvre 
 | --- | --- |
 | **Éditeur** | Modifier le workflow, tester une version enregistrée et choisir celle à mettre en service. |
 | **Général** | Choisir ce qui démarre l’automatisation et les projets qui peuvent l’utiliser. |
-| **Versions** | Lire les messages de version et les résultats des tests enregistrés, puis ouvrir une version dans l’éditeur en sélectionnant sa ligne. |
 | **Exécutions** | Examiner les derniers lancements et ouvrir le détail d’une exécution. |
 
-Dans **Éditeur**, le sélecteur de version et les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner** ; dans **Général**, seuls **Enregistrer** et **Abandonner** y figurent. Un point sur un onglet signale ses modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
+Le sélecteur **Version** reste à droite des onglets Éditeur, Général et Exécutions, sur ordinateur comme sur téléphone. Il affiche les messages de version, les dates, les résultats des tests et la version en service. Sélectionne une ligne pour ouvrir cette version. Sur ordinateur, les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner** ; dans **Général**, seuls **Enregistrer** et **Abandonner** y figurent. Un point sur un onglet signale ses modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
 
-<Frame caption="Sélectionne un nœud pour examiner ses champs. Les commandes à côté des onglets permettent de tester, d’enregistrer et de mettre en service.">
+Sur téléphone, la navigation est compacte à l’ouverture d’une automatisation. Le canevas de l’éditeur occupe la hauteur disponible. Les commandes d’exécution et de mise en service se trouvent dans le canevas, à côté du zoom. Sélectionne un nœud pour ouvrir ses champs — avec Enregistrer et Abandonner — dans un panneau au bas de l’écran.
 
-![L’éditeur montre les nœuds connectés, les réglages du nœud sélectionné les onglets Éditeur, Versions et Exécutions, ainsi que les commandes de version et d’exécution.](/images/platform/automation-editor-canvas.webp)
+<Frame caption="Sur un écran large, sélectionne un nœud pour examiner ses champs à côté du canvas.">
+
+![L’éditeur montre les nœuds connectés et les champs du nœud sélectionné à côté du canvas.](/images/platform/automation-editor-canvas.webp)
 
 </Frame>
 
@@ -32,9 +33,9 @@ Les badges indiquent les conditions et boucles : `when`, `else of`, `for each`,
 
 ## Modifier un nœud
 
-Sélectionne un bloc pour ouvrir ses champs dans un panneau à côté du canvas. D’ici là, le canvas occupe toute la largeur. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais la validation avertit qu’une exécution en direct échouerait à ce nœud tant que son fournisseur n’est pas connecté. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
+Sélectionne un bloc pour ouvrir ses champs. Sur un écran large, le panneau apparaît à côté du canvas ; sans nœud sélectionné, le canvas occupe toute la largeur. Sur un écran plus étroit, les champs s’ouvrent dans un dialogue au-dessus du canvas. Un `transform` possède du **Code** ; un `llm`, des champs de prompt, modèle et schéma de sortie ; un `agent` ajoute le harness et l’équipement. Le sélecteur **Modèle** d’un nœud `llm` ou `agent` liste les modèles servis par les fournisseurs connectés de ton organisation ; un modèle absent de la liste peut être saisi, mais la validation avertit qu’une exécution en direct échouerait à ce nœud tant que son fournisseur n’est pas connecté. **Entrée** contient les valeurs JSON et références transmises au nœud. Un JSON incomplet est signalé et ne met pas le nœud à jour.
 
-Ouvre **Contrôle du flux** pour les conditions et répétitions. Si le nœud en a, la section est déjà ouverte. Clique sur le fond du canvas, sur **Fermer** ou appuie sur Échap hors d’un champ de texte pour refermer les champs du nœud. Les réglages du déclencheur et des projets se trouvent dans l’onglet **Général**. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
+Ouvre **Contrôle du flux** pour les conditions et répétitions. Si le nœud en a, la section est déjà ouverte. Utilise **Fermer** pour revenir au canvas. Sur un écran large, tu peux aussi fermer le panneau en cliquant sur le fond du canvas ou en appuyant sur Échap hors d’un champ de texte. Les réglages du déclencheur et des projets se trouvent dans l’onglet **Général**. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les types de nœuds et les expressions.
 
 ## Enregistrer et tester une version
 
@@ -78,6 +79,6 @@ Passe à **Exécutions** et ouvre une ligne pour le détail complet. Les onglets
 
 ## Revenir à une version ou supprimer
 
-Pour revenir à une ancienne version, ouvre **Versions**, lis les messages et sélectionne la version souhaitée. Sa ligne ouvre **Éditeur** sur cette version ; clique ensuite sur le bouton qui la met en service, par exemple **Mettre v2 en service**. Tu peux aussi choisir une ancienne version dans le menu **Version** de l’éditeur. Les prochains démarrages l’utiliseront ; l’historique reste intact. Un message comme « Rétablir l’association précédente des destinataires » rend le choix plus facile à relire.
+Pour revenir à une ancienne version, ouvre **Version** à droite des onglets, lis les messages et sélectionne la version souhaitée. Sa ligne ouvre **Éditeur** sur cette version ; clique ensuite sur le bouton qui la met en service, par exemple **Mettre v2 en service**. Les prochains démarrages l’utiliseront ; l’historique reste intact. Un message comme « Rétablir l’association précédente des destinataires » rend le choix plus facile à relire.
 
 Pour supprimer l’automatisation, retourne à la liste, ouvre le menu de sa ligne et choisis **Supprimer**. Lis la confirmation qui la nomme. Les versions, le déploiement, le déclencheur et les liens aux projets sont retirés. Une exécution inachevée bloque la suppression : arrête-la ou attends sa fin. Les anciennes exécutions restent soumises à la conservation. Supprimer l’automatisation n’annule pas les actions déjà réalisées.

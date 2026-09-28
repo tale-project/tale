@@ -336,7 +336,8 @@ function DashboardLayout() {
                             className="bg-background h-(--safe-top) shrink-0 md:hidden"
                           />
                         ) : (
-                          <header className="bg-background border-border border-b px-4 pt-(--safe-top) md:hidden">
+                          // Keep local header chrome above the mobile nav.
+                          <header className="bg-background border-border sticky top-0 z-40 border-b px-4 pt-(--safe-top) md:hidden">
                             <Row gap={2} className="min-h-12">
                               <div className="min-w-0 flex-1">
                                 <AdaptiveHeaderSlot />

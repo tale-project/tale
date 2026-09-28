@@ -9,7 +9,7 @@ can point elsewhere; inspect the deployment configuration before diagnosing data
 
 | Database or schema | Owner |
 | --- | --- |
-| `tale_app` | Platform backend; numbered SQL migrations under `services/platform/backend/db/migrations/` |
+| `tale_app` | Platform backend; numbered migrations under `services/platform/backend/db/migrations/` — `.sql` schema changes and `.ts` data migrations, one ledger (`app_migrations`) |
 | `tale_knowledge` | Knowledge migration sets under `migrations/knowledge-db/` |
 | Databases, extensions and grants | Idempotent infrastructure scripts under `init-scripts/` |
 | pg-boss and authentication tables | Their backend startup migrations |

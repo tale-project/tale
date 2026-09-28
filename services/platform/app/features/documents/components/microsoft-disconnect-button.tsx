@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 interface MicrosoftDisconnectButtonProps {
@@ -42,8 +43,7 @@ export function MicrosoftDisconnectButton({
       console.error('Failed to disconnect Microsoft 365:', error);
       toast({
         title: t('onedrive.disconnectFailed'),
-        description:
-          error instanceof Error ? error.message : tCommon('errors.generic'),
+        description: failureDetail(error) ?? tCommon('errors.generic'),
         variant: 'destructive',
       });
     } finally {

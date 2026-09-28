@@ -43,8 +43,12 @@ vi.mock(
     useListConversationsPaginated: () => listing.current,
   }),
 );
+// The connected providers the Channel facet offers; none unless a test says.
+const channels = vi.hoisted(() => ({
+  current: [] as { value: string; label: string }[],
+}));
 vi.mock('@/app/features/conversations/hooks/use-inbox-channel-options', () => ({
-  useInboxChannelOptions: () => [],
+  useInboxChannelOptions: () => channels.current,
 }));
 
 // The assignee facet's directories and the viewer's membership.
@@ -108,15 +112,17 @@ function pages(
   };
 }
 
+const inbox = () => (
+  <HomeInboxList
+    organizationId="org-1"
+    status="open"
+    onStatusChange={vi.fn()}
+    onInboxRoute={false}
+  />
+);
+
 function renderInbox() {
-  return render(
-    <HomeInboxList
-      organizationId="org-1"
-      status="open"
-      onStatusChange={vi.fn()}
-      onInboxRoute={false}
-    />,
-  );
+  return render(inbox());
 }
 
 const searchBox = () => screen.getByPlaceholderText('Search conversations');
@@ -128,6 +134,7 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  channels.current = [];
 });
 
 describe('HomeInboxList search and filters', () => {
@@ -152,6 +159,29 @@ describe('HomeInboxList search and filters', () => {
     expect(filterButton()).toBeDisabled();
   });
 
+  it('holds both while the first page loads, even under a remembered facet', () => {
+    // A facet alone would keep them usable over an empty status; the first
+    // page still loading is what holds them here.
+    window.localStorage.setItem(
+      'home-inbox-read-org-1',
+      JSON.stringify('unread'),
+    );
+    listing.current = pages([], 'LoadingFirstPage');
+    renderInbox();
+    expect(searchBox()).toBeDisabled();
+    expect(filterButton()).toBeDisabled();
+  });
+
+  it('keeps both usable when the status failed to load, since its conversations are unknown', () => {
+    listing.current = {
+      ...pages([]),
+      error: new Error('Request timed out'),
+    };
+    renderInbox();
+    expect(searchBox()).toBeEnabled();
+    expect(filterButton()).toBeEnabled();
+  });
+
   it('keeps both usable when a remembered facet narrowed the status to nothing, until it is cleared', async () => {
     // The read facet is remembered per device — this status came back empty
     // under "Unread" alone, so the facet has to stay reachable to undo.
@@ -173,14 +203,86 @@ describe('HomeInboxList search and filters', () => {
     expect(searchBox()).toBeDisabled();
   });
 
-  it('keeps both usable when the channel facet narrowed the status to nothing on the server', () => {
+  it('keeps the Filter panel open when unticking the last facet disables it, and does not reopen it once closed', async () => {
+    window.localStorage.setItem(
+      'home-inbox-read-org-1',
+      JSON.stringify('unread'),
+    );
+    listing.current = pages([]);
+    const { user, rerender } = renderInbox();
+
+    // Undo the facet from inside the panel instead of pressing Clear all.
+    await user.click(filterButton());
+    await user.click(
+      await screen.findByRole('button', {
+        name: (name) => name.startsWith('Read status'),
+      }),
+    );
+    await user.click(screen.getByRole('radio', { name: 'All' }));
+
+    // Nothing narrows the empty status now, but the panel is not pulled from
+    // under the reader: it stays open, focus with it, until they close it.
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'All' })).toHaveFocus();
+    expect(searchBox()).toBeDisabled();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(filterButton()).toBeDisabled();
+
+    // A conversation lands live: the controls come back, the panel stays shut.
+    listing.current = pages([
+      conversation('c1', 'Invoice shows the wrong VAT'),
+    ]);
+    rerender(inbox());
+    expect(filterButton()).toBeEnabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Filter panel open while a channel pick sends the list back to its first page', async () => {
+    channels.current = [{ value: 'gmail', label: 'Gmail' }];
+    const { user, rerender } = renderInbox();
+
+    await user.click(filterButton());
+    await user.click(await screen.findByRole('button', { name: 'Channel' }));
+    // The channel narrows on the server: the pick starts a fresh first page.
+    listing.current = pages([], 'LoadingFirstPage');
+    await user.click(screen.getByRole('radio', { name: 'Gmail' }));
+
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
+    expect(searchBox()).toBeDisabled();
+
+    listing.current = pages([conversation('c2', 'Gmail thread')]);
+    rerender(inbox());
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
+    expect(searchBox()).toBeEnabled();
+  });
+
+  it('keeps both usable when the channel facet narrowed the status to nothing on the server, until it is cleared', async () => {
+    channels.current = [{ value: 'gmail', label: 'Gmail' }];
     window.localStorage.setItem(
       'home-inbox-channel-org-1',
       JSON.stringify('gmail'),
     );
     listing.current = pages([]);
-    renderInbox();
+    const { user } = renderInbox();
     expect(searchBox()).toBeEnabled();
     expect(filterButton()).toBeEnabled();
+
+    // The panel offers the channel facet as picked, so it can be undone.
+    await user.click(filterButton());
+    await user.click(
+      await screen.findByRole('button', {
+        name: (name) => name.startsWith('Channel'),
+      }),
+    );
+    expect(screen.getByRole('radio', { name: 'Gmail' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Clear all' }));
+
+    expect(filterButton()).toBeDisabled();
+    expect(searchBox()).toBeDisabled();
   });
 });

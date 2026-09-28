@@ -35,6 +35,24 @@ describe('TeamMultiSelect', () => {
     expect(screen.getByRole('combobox', { name: 'Teams' })).toBeInTheDocument();
   });
 
+  it('takes its name and description from a layout that shows them', () => {
+    render(
+      <>
+        <span id="row-label">Audience</span>
+        <p id="row-help">Empty means everyone in the organization.</p>
+        <TeamMultiSelect
+          {...defaultProps}
+          aria-labelledby="row-label"
+          aria-describedby="row-help"
+        />
+      </>,
+    );
+
+    expect(
+      screen.getByRole('combobox', { name: 'Audience' }),
+    ).toHaveAccessibleDescription('Empty means everyone in the organization.');
+  });
+
   it('renders org-wide chip when no teams selected', () => {
     render(<TeamMultiSelect {...defaultProps} />);
 

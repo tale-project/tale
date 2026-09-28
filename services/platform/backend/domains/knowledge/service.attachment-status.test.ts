@@ -36,11 +36,11 @@ vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
 }));
 
 const {
-  HELD_BY_DOCUMENT_SQL,
   markRagUnsupportedIfNoExtractor,
   markUploadUnsupportedIfNoExtractor,
   queueRagIndexIfUnstarted,
 } = await import('./service.ts');
+const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
 
 interface Statement {
   text: string;
@@ -55,8 +55,9 @@ interface FileRow {
 
 /**
  * Scripted `sql`: the backstop's claim answers `claimable` (the row still
- * without a status, or none), and the status writer's UPDATE answers the
- * row's organization and whether a document holds it.
+ * without a status, or none), and the status writer — the statement that
+ * carries the list probe, however its SQL is worded — answers the row's
+ * organization and whether a document holds it.
  */
 function fakeSql(
   options: { listed?: boolean; claimable?: FileRow | null } = {},
@@ -65,7 +66,7 @@ function fakeSql(
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$').replace(/\s+/g, ' ');
     statements.push({ text, values });
-    if (text.includes('RETURNING fm.org_id')) {
+    if (values.includes(HELD_BY_DOCUMENT_SQL)) {
       return Promise.resolve([
         { orgId: 'org-1', listed: options.listed ?? false },
       ]);
@@ -86,8 +87,10 @@ function fakeSql(
   return { sql: sql as unknown as Sql, statements };
 }
 
+/** The status writer's statements: the ones that ask whether a document
+ * holds the file. */
 const statusWrites = (statements: Statement[]): Statement[] =>
-  statements.filter((s) => s.text.includes('UPDATE app.file_metadata fm'));
+  statements.filter((s) => s.values.includes(HELD_BY_DOCUMENT_SQL));
 
 const queueMarks = (statements: Statement[]): Statement[] =>
   statements.filter((s) => s.text.includes("rag_status = 'queued'"));
@@ -100,9 +103,12 @@ describe('the status writer tells only the lists that show the file', () => {
   it('asks, in the write itself, whether a document holds the file', async () => {
     const { sql, statements } = fakeSql();
     await markRagUnsupportedIfNoExtractor(sql, 'file-1', 'minutes.doc');
-    const [write] = statusWrites(statements);
-    expect(write?.text).toContain('AS "listed"');
-    expect(write?.values).toContain(HELD_BY_DOCUMENT_SQL);
+    // One statement, and it is the write: the status and the probe travel
+    // together, so no row can move between the two.
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.values).toEqual(
+      expect.arrayContaining(['unsupported', HELD_BY_DOCUMENT_SQL]),
+    );
   });
 
   it('hints the document lists for a file a document holds', async () => {

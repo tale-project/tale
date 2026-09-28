@@ -229,6 +229,7 @@ describe('readDocumentText — the honest miss', () => {
             sizeBytes: 12_345,
             indexing,
             heldByDocument: true,
+            extractable: true,
             reason: 'binary',
           }),
         },
@@ -251,18 +252,105 @@ describe('readDocumentText — the honest miss', () => {
     [
       'failed',
       { status: 'failed', error: 'Embedding provider refused' },
-      /Indexing "minutes\.doc" failed \(Embedding provider refused\)/,
+      /Indexing "minutes\.docx" failed \(Embedding provider refused\)/,
     ],
+    [
+      'unsupported',
+      {
+        status: 'unsupported',
+        error: 'The file does not parse as .docx.',
+      },
+      /no text extractor/,
+    ],
+  ])(
+    'names no index door for a %s attachment',
+    async (_state, indexing, pattern) => {
+      const { result } = await read(
+        {
+          [ROW_FN]: () => null,
+          [FILTER_FN]: () => ['s3:acme/minutes.docx'],
+          [ON_DEMAND_FN]: () => ({
+            kind: 'unreadable',
+            filename: 'minutes.docx',
+            sizeBytes: 12_345,
+            indexing,
+            heldByDocument: false,
+            extractable: true,
+            reason: 'binary',
+          }),
+        },
+        's3:acme/minutes.docx',
+      );
+      expect(result).toMatchObject({
+        status: 'not_found',
+        filename: 'minutes.docx',
+      });
+      const message = result.status === 'not_found' ? result.message : '';
+      expect(message).toMatch(pattern);
+      expect(message).toContain('Say so instead of guessing');
+      expect(message).not.toContain('Knowledge tab');
+      expect(message).not.toContain('Documents page');
+      expect(message).not.toContain('skipRagIndexing');
+    },
+  );
+
+  // An index run on a `.doc` or an image can only end `unsupported`, so the
+  // miss stops at that fact — for a document too, which a person could
+  // index, in every state whose miss would otherwise name an index door.
+  it.each([
+    ['a skipped document', 'minutes.doc', { status: 'skipped' }, true],
+    ['a pending document', 'photo.png', { status: 'pending' }, true],
+    [
+      'a failed document',
+      'scan.png',
+      { status: 'failed', error: 'Indexing skipped (empty)' },
+      true,
+    ],
+    ['a skipped attachment', 'bundle.zip', { status: 'skipped' }, false],
+  ])(
+    'names no index door for %s an index run could not read',
+    async (_label, filename, indexing, heldByDocument) => {
+      const { result } = await read(
+        {
+          [ROW_FN]: () => null,
+          [FILTER_FN]: () => [`s3:acme/${filename}`],
+          [ON_DEMAND_FN]: () => ({
+            kind: 'unreadable',
+            filename,
+            sizeBytes: 12_345,
+            indexing,
+            heldByDocument,
+            extractable: false,
+            reason: 'binary',
+          }),
+        },
+        `s3:acme/${filename}`,
+      );
+      expect(result).toMatchObject({ status: 'not_found', filename });
+      const message = result.status === 'not_found' ? result.message : '';
+      expect(message).toContain(
+        `"${filename}" is a file type indexing cannot read`,
+      );
+      expect(message).toContain('Say so instead of guessing');
+      expect(message).not.toContain('Knowledge tab');
+      expect(message).not.toContain('Documents page');
+      expect(message).not.toContain('skipRagIndexing');
+    },
+  );
+
+  // Queued, running or terminal, the state is still the answer.
+  it.each([
+    ['queued', { status: 'queued' }, /queued for indexing/],
     [
       'unsupported',
       {
         status: 'unsupported',
         error: 'No text extractor exists for "minutes.doc".',
       },
-      /no text extractor/,
+      /no text extractor \(No text extractor exists for "minutes\.doc"\.\)/,
     ],
   ])(
-    'names no index door for a %s attachment',
+    'still states the %s state of a file an index run could not read',
     async (_state, indexing, pattern) => {
       const { result } = await read(
         {
@@ -273,22 +361,16 @@ describe('readDocumentText — the honest miss', () => {
             filename: 'minutes.doc',
             sizeBytes: 12_345,
             indexing,
-            heldByDocument: false,
+            heldByDocument: true,
+            extractable: false,
             reason: 'binary',
           }),
         },
         's3:acme/minutes.doc',
       );
-      expect(result).toMatchObject({
-        status: 'not_found',
-        filename: 'minutes.doc',
-      });
-      const message = result.status === 'not_found' ? result.message : '';
-      expect(message).toMatch(pattern);
-      expect(message).toContain('Say so instead of guessing');
-      expect(message).not.toContain('Knowledge tab');
-      expect(message).not.toContain('Documents page');
-      expect(message).not.toContain('skipRagIndexing');
+      expect(result.status === 'not_found' ? result.message : '').toMatch(
+        pattern,
+      );
     },
   );
 
@@ -303,6 +385,7 @@ describe('readDocumentText — the honest miss', () => {
           sizeBytes: 9 * 1024 * 1024,
           indexing: { status: 'skipped' },
           heldByDocument: true,
+          extractable: true,
           reason: 'too_large',
         }),
       },
@@ -326,6 +409,7 @@ describe('readDocumentText — the honest miss', () => {
           sizeBytes: 9 * 1024 * 1024,
           indexing: { status: 'pending' },
           heldByDocument: false,
+          extractable: true,
           reason: 'too_large',
         }),
       },

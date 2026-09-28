@@ -292,6 +292,11 @@ describe('POST /threads/:threadId/share and /branch-selection bodies', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const bad = await post('/threads/t1/share', '{nope');
     expect(bad.status).toBe(400);
+    await expect(bad.json()).resolves.toEqual({
+      error: 'invalid body',
+      message: 'body: must be JSON',
+      data: { issues: [{ path: 'body', message: 'must be JSON' }] },
+    });
     expect(shareThread).not.toHaveBeenCalled();
     warn.mockRestore();
 

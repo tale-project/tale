@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { formatBytes } from '@/lib/utils/format/number';
+import {
+  SESSION_ENDED,
+  SHIPPED_LOCALES,
+  lapsedSessionRefusal,
+} from '@/tests/utils/lapsed-session';
 
 import { isUploadErrorRetryable, mapUploadError } from './map-upload-error';
 
@@ -21,6 +27,25 @@ function makeT() {
 }
 
 describe('mapUploadError', () => {
+  afterEach(async () => {
+    await i18n.changeLanguage('en');
+  });
+
+  // The row used to read "Upload failed. Check your connection and try
+  // again." with no Retry: a lapsed session is neither.
+  it.each(SHIPPED_LOCALES)(
+    "says a lapsed session's refusal ended the session (%s)",
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const refusal = await lapsedSessionRefusal().catch(
+        (error: unknown) => error,
+      );
+      const { t } = makeT();
+      expect(mapUploadError(refusal, t)).toBe(SESSION_ENDED[locale]);
+      expect(isUploadErrorRetryable(refusal)).toBe(false);
+    },
+  );
+
   it('maps a full volume quota to the actionable quota message with usage', () => {
     const { t, calls } = makeT();
     const err = new AppError({

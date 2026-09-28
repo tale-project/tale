@@ -111,7 +111,8 @@ export function isFilterActive(
 /**
  * The shared disabled rule for a filter affordance: nothing exists to narrow,
  * and no filter is currently doing the narrowing. Loading never disables — the
- * set isn't known yet — and a filtered-to-empty result stays enabled so the
+ * set isn't known yet — nor does a failed read, whose empty result says
+ * nothing about the set; a filtered-to-empty result stays enabled so the
  * reader can undo it.
  *
  * A widening filter keeps the affordance usable on an empty unfiltered set,
@@ -119,16 +120,19 @@ export function isFilterActive(
  */
 export function isFilterAffordanceDisabled({
   isLoading = false,
+  isError = false,
   itemCount,
   hasActiveFilters,
   filters,
 }: {
   isLoading?: boolean;
+  /** The read failed: its empty result is an unknown set, not an empty one. */
+  isError?: boolean;
   itemCount: number;
   hasActiveFilters: boolean;
   filters?: readonly FilterConfig[];
 }): boolean {
-  if (isLoading || itemCount > 0 || hasActiveFilters) return false;
+  if (isLoading || isError || itemCount > 0 || hasActiveFilters) return false;
   return !filters?.some((filter) => filter.widensResultSet);
 }
 
@@ -146,6 +150,10 @@ interface FilterPanelProps {
    * no active filters (see `isFilterAffordanceDisabled`). A disabled button on
    * the `Popover` trigger is NOT sufficient: the trigger's wrapper still toggles
    * the popover, so the panel has to be left out entirely.
+   *
+   * It keeps a closed panel shut; it never pulls an open one from under the
+   * reader. A panel disabled while open stays open until the reader closes it,
+   * and only then does the disabled button take over.
    */
   disabled?: boolean;
   /**
@@ -176,11 +184,21 @@ export function FilterPanel({
     Record<string, boolean>
   >({});
 
-  if (filters.length === 0) return null;
+  // No facet, no panel — and a panel that goes is closed, not left set to
+  // pop open, unasked, when facets come back.
+  if (filters.length === 0) {
+    if (isOpen) setIsOpen(false);
+    return null;
+  }
 
   const activeFilterCount = filters.filter(isFilterActive).length;
 
-  if (disabled) {
+  // `disabled` can arrive while the panel is open: unticking the last facet
+  // over an empty list does it, and so does a server-side facet sending the
+  // list back to its first page. Swapping the panel out then would drop focus
+  // to the page and leave `isOpen` set, so the panel popped open, unasked, on
+  // the next enable. It stays open instead, and the reader closes it.
+  if (disabled && !isOpen) {
     return (
       <FilterButton
         hasActiveFilters={false}

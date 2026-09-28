@@ -24,16 +24,18 @@ vi.mock('./file-request-dialog', () => ({
 }));
 
 // The requests on file, steered per test. A status filter narrows them on the
-// server, so a picked status answers `filtered` instead.
+// server, so a picked status answers `filtered` instead; `failed` settles the
+// read as a failed first page.
 const store = vi.hoisted(() => ({
   status: 'Exhausted' as 'LoadingFirstPage' | 'Exhausted',
   all: [] as unknown[],
   filtered: [] as unknown[],
+  failed: false,
 }));
 vi.mock('./hooks/queries', () => ({
   useListErasureRequests: (args: { statuses?: string[] }) => ({
     results:
-      store.status === 'LoadingFirstPage'
+      store.status === 'LoadingFirstPage' || store.failed
         ? []
         : (args.statuses ?? []).length > 0
           ? store.filtered
@@ -41,7 +43,7 @@ vi.mock('./hooks/queries', () => ({
     status: store.status,
     isLoading: store.status === 'LoadingFirstPage',
     loadMore: vi.fn(),
-    error: null,
+    error: store.failed ? new Error('Request timed out') : null,
     retry: vi.fn(),
   }),
 }));
@@ -62,6 +64,7 @@ beforeEach(() => {
   store.status = 'Exhausted';
   store.all = [REQUEST];
   store.filtered = [];
+  store.failed = false;
 });
 
 const filterButton = () => screen.getByRole('button', { name: 'Filter' });
@@ -80,6 +83,12 @@ describe('RequestsListSection filter', () => {
 
   it('stays usable while the first page loads', () => {
     store.status = 'LoadingFirstPage';
+    render(<RequestsListSection organizationId="org-1" />);
+    expect(filterButton()).toBeEnabled();
+  });
+
+  it('stays usable when the requests failed to load, since they are unknown', () => {
+    store.failed = true;
     render(<RequestsListSection organizationId="org-1" />);
     expect(filterButton()).toBeEnabled();
   });

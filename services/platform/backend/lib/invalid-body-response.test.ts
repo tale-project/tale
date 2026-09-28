@@ -48,6 +48,23 @@ describe('invalidBodyResponse', () => {
   it('calls the root "body" when the whole value is wrong', () => {
     expect(describeIssues(parseError(null))).toMatch(/^body: /);
   });
+
+  it('says a field that was not sent "is required", as the REST door does', () => {
+    // zod's own text is a type mismatch with `undefined` ("Invalid input:
+    // expected string, received undefined").
+    expect(describeIssues(parseError({ price: 1 }))).toBe('name: is required');
+    // A value of the wrong type keeps zod's reason.
+    expect(describeIssues(parseError({ name: 1, price: 1 }))).toMatch(
+      /^name: Invalid input: expected string, received number$/,
+    );
+  });
+
+  it("keeps a schema's own sentence for an absent field", () => {
+    const own = z.object({ model: z.string({ error: 'pick a model' }) });
+    const outcome = own.safeParse({});
+    if (outcome.success) throw new Error('expected a failed parse');
+    expect(describeIssues(outcome.error)).toBe('model: pick a model');
+  });
 });
 
 describe('invalidBodyIssuesResponse', () => {
@@ -69,6 +86,40 @@ describe('invalidBodyIssuesResponse', () => {
     expect(body.message.split('; ')).toHaveLength(20);
   });
 
+  // Regression: zod reports every unknown key of a strict object as ONE
+  // issue whose message lists them all, so the cap of twenty issues did not
+  // bound the echo — a body of thousands of unknown keys came back whole.
+  it('names each unknown key on its own, within the same bound', async () => {
+    const strict = z.object({ name: z.string() }).strict();
+    const hostile = Object.fromEntries(
+      Array.from({ length: 5000 }, (_, i) => [`k${i}`, 1]),
+    );
+    const outcome = strict.safeParse({ name: 'Kettle', ...hostile });
+    if (outcome.success) throw new Error('expected a failed parse');
+    const app = new Hono().post('/', (c) =>
+      invalidBodyResponse(c, outcome.error),
+    );
+    const body = (await (
+      await app.request('/', { method: 'POST' })
+    ).json()) as Refusal;
+    expect(body.data.issues).toHaveLength(20);
+    expect(body.data.issues[0]).toEqual({
+      path: 'k0',
+      message: 'is not a field this body takes',
+    });
+    expect(body.message).not.toContain('k20');
+    expect(body.message.length).toBeLessThan(1000);
+  });
+
+  it('names an unknown key of a nested object by its dotted path', () => {
+    const nested = z.object({ config: z.object({ a: z.string() }).strict() });
+    const outcome = nested.safeParse({ config: { a: 'x', b: 1 } });
+    if (outcome.success) throw new Error('expected a failed parse');
+    expect(describeIssues(outcome.error)).toBe(
+      'config.b: is not a field this body takes',
+    );
+  });
+
   it('answers a refusal no schema raised in the same shape', async () => {
     const app = new Hono().post('/', (c) =>
       invalidBodyIssuesResponse(c, [{ path: 'body', message: 'must be JSON' }]),
@@ -88,12 +139,15 @@ describe('invalidBodyIssuesResponse', () => {
  * `{ error: 'invalid body' }`: the dialog showed "invalid body", and the
  * error report carried the same opaque code, so nobody could tell which
  * field the form had let through. Every door now answers through this
- * module; a new bare literal is the regression this guard names.
+ * module, the one place the code is written: any other `'invalid body'`
+ * literal — a bare refusal, a constant a bare refusal could be written
+ * through, a second helper — is the regression this guard names. A
+ * comparison (`=== 'invalid body'`) only reads the code, and passes.
  */
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND = path.resolve(HERE, '..');
 const HELPER = path.join(HERE, 'invalid-body-response.ts');
-const BARE_REFUSAL = /\berror:\s*'invalid body'/;
+const BARE_REFUSAL = /(?<![=!]==\s*)'invalid body'/;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -126,7 +180,7 @@ describe('the app doors', () => {
     const bare = bareRefusals().filter((site) => !site.startsWith(helper));
     expect(
       bare,
-      `answer these with invalidBodyResponse / invalidBodyIssuesResponse (backend/lib/invalid-body-response.ts): ${bare.join(', ')}`,
+      `write the code only through invalidBodyResponse / invalidBodyIssuesResponse (backend/lib/invalid-body-response.ts): ${bare.join(', ')}`,
     ).toEqual([]);
   });
 
@@ -137,5 +191,14 @@ describe('the app doors', () => {
     expect(bareRefusals().some((site) => site.startsWith(`${helper}:`))).toBe(
       true,
     );
+  });
+
+  it.each([
+    ["return c.json({ error: 'invalid body' }, 400);", true],
+    ["const INVALID_BODY = 'invalid body';", true],
+    ["if (body.error === 'invalid body') return;", false],
+    ["if (body.error !== 'invalid body') return;", false],
+  ])('the scan judges %s', (line, flagged) => {
+    expect(BARE_REFUSAL.test(line)).toBe(flagged);
   });
 });

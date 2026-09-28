@@ -25,6 +25,12 @@ interface AuditLogTabProps {
  * query (mirroring {@link ErrorLogTable}) so the read lives *inside* the
  * tab's `LogsTableBoundary`: a timed-out page then degrades to that boundary's
  * skeleton/retry instead of escalating to the page-level error boundary.
+ *
+ * `AuditLogsPage` also subscribes to this listing, outside the boundary, to
+ * disable its category filter over an empty trail. That is safe only because
+ * the paginated lane never throws — a failure settles as the result's `error`
+ * — so throw-on-error or suspense on it would carry a failure past the
+ * boundary through the page's read.
  */
 export function AuditLogTab({
   organizationId,

@@ -2,12 +2,26 @@
 
 import { useEffect, useState } from 'react';
 
-/** Follow vertical scrolling inside the app shell, including nested panes. */
-export function useScrollCompact(resetKey: string, disabled = false) {
-  const [compact, setCompact] = useState(false);
+/**
+ * Follow vertical scrolling inside the app shell, including nested panes.
+ *
+ * `forceCompact` is a floor, not a starting point: a page that sets it (the
+ * automation canvas, so the capsule never crowds its floating Deploy/Test
+ * actions) stays compact for as long as it's on screen — scrolling, a
+ * breakpoint change, and `expand()` (the bar's own tap-to-expand affordance)
+ * can none of them un-compact it. Without this, any one of those could win a
+ * race against the page's own intent, exactly the kind of "depends what
+ * triggered it" bug that keeps coming back in a different shape.
+ */
+export function useScrollCompact(
+  resetKey: string,
+  disabled = false,
+  forceCompact = false,
+) {
+  const [compact, setCompact] = useState(forceCompact);
   useEffect(() => {
-    setCompact(false);
-    if (disabled) return undefined;
+    setCompact(forceCompact);
+    if (disabled || forceCompact) return undefined;
     const media = window.matchMedia('(max-width: 767px)');
     const positions = new WeakMap<Element, { top: number; travel: number }>();
     for (const element of document.querySelectorAll('.mobile-nav-shell *')) {
@@ -47,6 +61,11 @@ export function useScrollCompact(resetKey: string, disabled = false) {
       document.removeEventListener('scroll', scroll, true);
       media.removeEventListener('change', reset);
     };
-  }, [resetKey, disabled]);
-  return { compact, expand: () => setCompact(false) };
+  }, [resetKey, disabled, forceCompact]);
+  return {
+    compact,
+    expand: () => {
+      if (!forceCompact) setCompact(false);
+    },
+  };
 }

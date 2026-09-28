@@ -3,8 +3,9 @@
  * runtime): `DATABASE_URL=postgres://… node backend/integration-check.ts`.
  *
  * Proves the constitutional properties of the 0.5 backend:
- *   1. Boot migrations: app SQL migrations + Better Auth tables, advisory-lock
- *      guarded (two concurrent migrators, one outcome).
+ *   1. Boot migrations: app migrations (.sql and .ts data migrations) +
+ *      Better Auth tables, advisory-lock guarded (two concurrent migrators,
+ *      one outcome).
  *   2. SERIALIZABLE + retry: concurrent read-modify-write converges.
  *   3. Transactional enqueue: a rolled-back tx enqueues nothing; a committed
  *      one enqueues exactly once.
@@ -72,6 +73,7 @@ import { checkConversationApi } from './domains/conversations/api-sync.integrati
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
+import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
@@ -3741,14 +3743,20 @@ async function checkFiles(
   );
   const listedRead = await readUnreadable(loopUpload.ref);
   await sql`DELETE FROM app.documents WHERE id = ${holder[0]?.id ?? ''}`;
+  // And no index run reads a `.loop`, document or not: rag_fetch sends the
+  // model to no index door for it either way.
+  const noIndexRunReads = (read: unknown) =>
+    z.object({ extractable: z.literal(false) }).safeParse(read).success;
   record(
-    'a status write hints the document lists only for a file a document holds, and rag_fetch names an index door only for it',
+    'a status write hints the document lists only for a file a document holds, and rag_fetch names an index door only for a document an index run could read',
     attachmentHints === 0 &&
       listedHints === 1 &&
       attachmentRead?.heldByDocument === false &&
       attachmentRead.indexing.status === 'unsupported' &&
-      listedRead?.heldByDocument === true,
-    `attachment hints=${attachmentHints} (want 0), held hints=${listedHints} (want 1), attachment heldByDocument=${String(attachmentRead?.heldByDocument)} (want false) status=${attachmentRead?.indexing.status ?? 'none'}, held heldByDocument=${String(listedRead?.heldByDocument)} (want true)`,
+      noIndexRunReads(attachmentRead) &&
+      listedRead?.heldByDocument === true &&
+      noIndexRunReads(listedRead),
+    `attachment hints=${attachmentHints} (want 0), held hints=${listedHints} (want 1), attachment heldByDocument=${String(attachmentRead?.heldByDocument)} (want false) status=${attachmentRead?.indexing.status ?? 'none'} extractable=${String(attachmentRead?.extractable)} (want false), held heldByDocument=${String(listedRead?.heldByDocument)} (want true) extractable=${String(listedRead?.extractable)} (want false)`,
   );
 }
 
@@ -5747,12 +5755,18 @@ async function checkDocuments(
     `mark → ${ledgerMark.status}, finalize → ${ledgerFinalize.status}, file=${ledgerFile?.ragStatus ?? 'null'}/${ledgerFile?.ragErrorCode ?? 'null'} (want unsupported/unsupported_type) sentence=${ledgerFile?.ragError === ledgerSentence}, jobs=${ledgerJobs[0]?.count ?? '?'} (want 0), view=${ledgerAfter.success ? `${ledgerAfter.data.document.ragStatus}/${ledgerAfter.data.document.ragErrorCode}` : 'ERR'}, retry=${ledgerRetry.success ? `${ledgerRetry.data.success}: ${ledgerRetry.data.error}` : 'ERR'} (want refused with the sentence)`,
   );
 
-  // Migration 0128: the replacements written before that fix kept the bare
-  // `unsupported` — no code, no sentence. Put the `.ac2` row back in that
-  // state, beside a bare row whose file an extractor reads (its cause is not
-  // the name's to tell), and run the migration as the boot does, twice.
+  // Migrations 0128 and 0129: rows written before every lane carried the
+  // code kept a bare `unsupported`. The `.ac2` replacement kept no code and
+  // no sentence (0128's); an image the indexer refused before #3353 kept the
+  // vision sentence and no code (0129's). Put the `.ac2` row back in that
+  // state, beside a bare image a document holds, a bare image attachment and
+  // a bare row whose file an extractor reads and which is no image (its
+  // cause is not the name's to tell), and run both as the boot does — each
+  // in its own transaction, in filename order — twice.
   const { migrate: fillUnsupportedCodes } =
     await import('./db/migrations/0128_rag_unsupported_type_codes.ts');
+  const { migrate: fillImageCodes } =
+    await import('./db/migrations/0129_rag_unsupported_image_codes.ts');
   await sql`
     UPDATE app.file_metadata SET rag_error = NULL, rag_error_code = NULL
     WHERE id = ${ledgerFile?.id ?? ''}
@@ -5762,25 +5776,68 @@ async function checkDocuments(
       document: z.object({ ragErrorCode: z.string().optional() }),
     })
     .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
-  const readableBare = await sql<{ id: string }[]>`
-    INSERT INTO app.file_metadata (
-      org_id, storage_ref, file_name, content_type, size, rag_status,
-      created_at_ms
+  const bareRow = async (fileName: string, ref: string, error: string | null) =>
+    (
+      await sql<{ id: string }[]>`
+        INSERT INTO app.file_metadata (
+          org_id, storage_ref, file_name, content_type, size, rag_status,
+          rag_error, created_at_ms
+        ) VALUES (
+          ${orgId}, ${ref}, ${fileName}, 'application/octet-stream', 1,
+          'unsupported', ${error}, ${Date.now()}
+        )
+        RETURNING id
+      `
+    )[0]?.id ?? '';
+  const imageSentence = (name: string) =>
+    `Images cannot be indexed for search: no vision (OCR) model lane is available to read "${name}".`;
+  const readableBareId = await bareRow(
+    'scan.pdf',
+    `s3:itest/bare-readable-${randomUUID()}`,
+    null,
+  );
+  const imageRef = `s3:itest/bare-image-${randomUUID()}`;
+  const imageBareId = await bareRow(
+    'photo.png',
+    imageRef,
+    imageSentence('photo.png'),
+  );
+  const imageDoc = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, extension, source_provider, created_by,
+      created_at_ms, updated_at_ms
     ) VALUES (
-      ${orgId}, ${`s3:itest/bare-readable-${randomUUID()}`}, 'scan.pdf',
-      'application/pdf', 1, 'unsupported', ${Date.now()}
+      ${orgId}, 'photo.png', ${imageRef}, 'png', 'upload', 'itest:0129',
+      ${Date.now()}, ${Date.now()}
     )
     RETURNING id
   `;
-  const migrationHints = await sql.begin(async (tx) => {
-    await fillUnsupportedCodes(tx);
-    const own = await tx<{ count: string }[]>`
-      SELECT count(*)::text AS count FROM app_realtime.outbox
-      WHERE xmin = pg_current_xact_id()::xid AND entity = 'document'
-        AND org_id = ${orgId}
-    `;
-    return Number(own[0]?.count ?? '-1');
-  });
+  const imageDocId = imageDoc[0]?.id ?? '';
+  // No sentence on this one: the fill writes the indexer's, not a kept one.
+  const imageAttachmentId = await bareRow(
+    'SNAP.JPG',
+    `s3:itest/bare-image-attachment-${randomUUID()}`,
+    null,
+  );
+  const imageBareView = z
+    .object({
+      document: z.object({ ragErrorCode: z.string().optional() }),
+    })
+    .safeParse(await get(`/api/app/documents/${imageDocId}?orgId=${orgId}`));
+  // Hints are counted inside the migration's own transaction by the rows it
+  // inserted itself, so a hint another lane commits meanwhile cannot leak in.
+  const hintsOfRun = (run: (tx: TransactionSql) => Promise<void>) =>
+    sql.begin(async (tx) => {
+      await run(tx);
+      const own = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app_realtime.outbox
+        WHERE xmin = pg_current_xact_id()::xid AND entity = 'document'
+          AND org_id = ${orgId}
+      `;
+      return Number(own[0]?.count ?? '-1');
+    });
+  const migrationHints = await hintsOfRun(fillUnsupportedCodes);
+  const imageHints = await hintsOfRun(fillImageCodes);
   const fileStateOf = async (id: string) =>
     (
       await sql<{ ragErrorCode: string | null; ragError: string | null }[]>`
@@ -5789,9 +5846,14 @@ async function checkDocuments(
       `
     )[0];
   const filledLedger = await fileStateOf(ledgerFile?.id ?? '');
-  const leftReadable = await fileStateOf(readableBare[0]?.id ?? '');
-  await sql.begin((tx) => fillUnsupportedCodes(tx));
+  const leftReadable = await fileStateOf(readableBareId);
+  const filledImage = await fileStateOf(imageBareId);
+  const filledImageAttachment = await fileStateOf(imageAttachmentId);
+  const rerunHints =
+    (await hintsOfRun(fillUnsupportedCodes)) +
+    (await hintsOfRun(fillImageCodes));
   const filledLedgerAgain = await fileStateOf(ledgerFile?.id ?? '');
+  const filledImageAgain = await fileStateOf(imageBareId);
   const filledView = z
     .object({
       document: z.object({
@@ -5800,6 +5862,14 @@ async function checkDocuments(
       }),
     })
     .safeParse(await get(`/api/app/documents/${ledgerId}?orgId=${orgId}`));
+  const filledImageView = z
+    .object({
+      document: z.object({
+        ragStatus: z.string().optional(),
+        ragErrorCode: z.string().optional(),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${imageDocId}?orgId=${orgId}`));
   const filledRetry = z
     .object({ success: z.boolean(), error: z.string().optional() })
     .safeParse(
@@ -5811,7 +5881,11 @@ async function checkDocuments(
         )
       ).json(),
     );
-  await sql`DELETE FROM app.file_metadata WHERE id = ${readableBare[0]?.id ?? ''}`;
+  await sql`DELETE FROM app.documents WHERE id = ${imageDocId}`;
+  await sql`
+    DELETE FROM app.file_metadata
+    WHERE id IN (${readableBareId}, ${imageBareId}, ${imageAttachmentId})
+  `;
   record(
     'migration 0128 gives a bare unsupported file no extractor reads its code and sentence, once; a readable one stays bare',
     bareView.success &&
@@ -5829,6 +5903,23 @@ async function checkDocuments(
       !filledRetry.data.success &&
       filledRetry.data.error === ledgerSentence,
     `bare view code=${bareView.success ? String(bareView.data.document.ragErrorCode) : 'ERR'} (want undefined), filled=${filledLedger?.ragErrorCode ?? 'null'} (want unsupported_type) sentence=${filledLedger?.ragError === ledgerSentence}, readable=${leftReadable?.ragErrorCode ?? 'null'} (want null), idempotent=${JSON.stringify(filledLedgerAgain) === JSON.stringify(filledLedger)}, hints=${migrationHints} (want 1), view=${filledView.success ? `${filledView.data.document.ragStatus}/${filledView.data.document.ragErrorCode}` : 'ERR'}, retry=${filledRetry.success ? `${filledRetry.data.success}: ${filledRetry.data.error}` : 'ERR'} (want refused with the sentence)`,
+  );
+  record(
+    'migration 0129 gives a bare unsupported image its image_no_vision code and sentence, once, and hints only the lists that show it',
+    imageBareView.success &&
+      imageBareView.data.document.ragErrorCode === undefined &&
+      filledImage?.ragErrorCode === 'image_no_vision' &&
+      filledImage.ragError === imageSentence('photo.png') &&
+      filledImageAttachment?.ragErrorCode === 'image_no_vision' &&
+      filledImageAttachment.ragError === imageSentence('SNAP.JPG') &&
+      JSON.stringify(filledImageAgain) === JSON.stringify(filledImage) &&
+      // 0128 left both images alone; the attachment tells no list.
+      imageHints === 1 &&
+      rerunHints === 0 &&
+      filledImageView.success &&
+      filledImageView.data.document.ragStatus === 'unsupported' &&
+      filledImageView.data.document.ragErrorCode === 'image_no_vision',
+    `bare view code=${imageBareView.success ? String(imageBareView.data.document.ragErrorCode) : 'ERR'} (want undefined), image=${filledImage?.ragErrorCode ?? 'null'} (want image_no_vision) sentence=${filledImage?.ragError === imageSentence('photo.png')}, attachment=${filledImageAttachment?.ragErrorCode ?? 'null'} (want image_no_vision), idempotent=${JSON.stringify(filledImageAgain) === JSON.stringify(filledImage)}, hints=${imageHints} (want 1), rerun hints=${rerunHints} (want 0), view=${filledImageView.success ? `${filledImageView.data.document.ragStatus}/${filledImageView.data.document.ragErrorCode}` : 'ERR'} (want unsupported/image_no_vision)`,
   );
 
   // Hard delete removes the row and the hub listing entry.
@@ -55451,6 +55542,7 @@ async function main(): Promise<void> {
       ['checkConnectorOauth', () => checkConnectorOauth(sql, baseUrl, authCtx)],
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
+      ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
       [
         'checkPolicySweeps',
         () => checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`),
