@@ -129,6 +129,16 @@ const startSchema = z.object({
   projectId: z.string().min(1).max(128).optional(),
 });
 
+/**
+ * The team-audience refusals a carried skill can answer, which keep the
+ * skill door's statuses so both upload lanes agree (403 for a team the
+ * caller is not in). Every other coded refusal of this lane stays a 400.
+ */
+const AUDIENCE_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  'TEAM_NOT_IN_ORG',
+  'TEAM_ACCESS_DENIED',
+]);
+
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
@@ -162,7 +172,9 @@ function handleError<E extends OrgEnv>(
               ? record.message
               : 'The request was refused.',
         },
-        SKILL_ERROR_STATUS[code] ?? 400,
+        (AUDIENCE_REFUSAL_CODES.has(code)
+          ? SKILL_ERROR_STATUS[code]
+          : undefined) ?? 400,
       );
     }
   }
