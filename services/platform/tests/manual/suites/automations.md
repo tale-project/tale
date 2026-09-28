@@ -569,7 +569,8 @@ output:
       **Save** → the banner and the streak line are gone, and the next
       failure counts from one.
 - [ ] `AUTO-F53` · **What a reader's list shows** — As a Member or Editor, open
-      **Automations** → only deployed automations are listed (no **Not
+      **Automations** (use its direct URL when the navigation entry is hidden) →
+      only deployed automations are listed (no **Not
       deployed** rows, no **Create automation** button); with none deployed
       the empty state reads **No live automations**
       (`automations.list.emptyReader.title`) with

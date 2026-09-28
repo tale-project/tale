@@ -451,8 +451,9 @@ loaded, and reads **No teams** for an account in none.
   **Automations** (`navigation.automations`) in both. As an admin, deploy one
   automation that is bound to no project → after the list refreshes, the
   Member's rail and tab bar show **Automations**; an automation deployed only
-  in a project does not bring it back. Opening `…/automations` directly as the
-  Member still works (a presentation rule, not access control).
+  in a project does not bring it back, including a project the Member cannot
+  access. Opening `…/automations` directly as the Member still works (a
+  presentation rule, not access control).
 
 ## Boundary & error tests
 

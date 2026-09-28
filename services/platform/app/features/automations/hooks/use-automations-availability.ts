@@ -8,8 +8,9 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
  * so for everyone else a section of seeded, undeployed packages is clutter
  * they cannot act on.
  *
- * Reads the listing the Inbox availability already subscribes to, with the
- * same arguments, so the navigation adds no request.
+ * Ask the server for organization-wide automations: the all-projects listing
+ * hides unreadable project IDs, so an empty returned `projectIds` array alone
+ * cannot establish that an automation is unbound.
  */
 export function useAutomationsAvailability(organizationId: string): {
   isLoading: boolean;
@@ -17,7 +18,7 @@ export function useAutomationsAvailability(organizationId: string): {
 } {
   const { data, isLoading } = useBackendQuery(
     'automations/queries:listAutomations',
-    organizationId ? { organizationId, includeProjectBound: true } : 'skip',
+    organizationId ? { organizationId } : 'skip',
   );
   return {
     isLoading,

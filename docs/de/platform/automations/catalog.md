@@ -3,7 +3,7 @@ title: Automatisierungen erstellen oder importieren
 description: Wähle einen Ausgangspunkt, importiere ein geprüftes Paket und bereite Skills, Einstellungen und Ergebnisse für den Einsatz vor.
 ---
 
-Unter **Automatisierungen** findest du die Workflows deiner Organisation. Inhaber, Admins und Entwickler können sie verwalten. Mitglieder und Redakteure sehen nur Automatisierungen, die live sind, und den Bereich selbst erst, wenn es eine gibt. Prüfe zuerst, ob eine [mitgelieferte Automatisierung](/de/platform/automations/builtin) zur Aufgabe passt. Andernfalls erstellst du einen Entwurf und testest ihn, bevor du ihn live schaltest.
+Unter **Automatisierungen** findest du die Workflows deiner Organisation. Inhaber, Admins und Entwickler können sie verwalten. Mitglieder und Redakteure sehen nur live geschaltete Automatisierungen. Der Navigationseintrag erscheint für sie, sobald eine organisationsweite Automatisierung live geschaltet ist. Projektgebundene Automatisierungen bleiben im Tab ihres Projekts erreichbar. Prüfe zuerst, ob eine [mitgelieferte Automatisierung](/de/platform/automations/builtin) zur Aufgabe passt. Andernfalls erstellst du einen Entwurf und testest ihn, bevor du ihn live schaltest.
 
 Du kannst nach Name oder Slug suchen. Gib zum Beispiel `Triage` ein, um die mitgelieferten Triage-Workflows zu vergleichen.
 
