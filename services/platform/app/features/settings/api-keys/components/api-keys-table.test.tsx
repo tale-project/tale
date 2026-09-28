@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import type { ApiKey } from '../types';
 import { ApiKeysTable } from './api-keys-table';
@@ -29,8 +29,11 @@ vi.mock('../hooks/use-api-keys-table-config', () => ({
   }),
 }));
 
-vi.mock('./api-keys-action-menu', () => ({
-  ApiKeysActionMenu: () => <button type="button">Create key</button>,
+// The dialog's own form is covered by `api-key-create-dialog.test.tsx`; here
+// it only has to say whether the table opened it.
+vi.mock('./api-key-create-dialog', () => ({
+  ApiKeyCreateDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Create API key dialog" /> : null,
 }));
 
 function makeApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
@@ -62,6 +65,59 @@ describe('ApiKeysTable', () => {
 
     expect(container.querySelector('.overscroll-contain')).toBeNull();
     expect(container.querySelector('.overflow-x-auto')).not.toBeNull();
+  });
+
+  // The create button is DataTable's standard `addAction`. This table has no
+  // search box, so while there are no keys the button sits in the empty state
+  // — and only there: the empty state used to carry a second, hand-made
+  // Create button under the toolbar's own.
+  describe('create action', () => {
+    it.each([
+      ['with keys', [makeApiKey()]],
+      ['when empty', []],
+    ])(
+      'offers one create button %s, and it opens the dialog',
+      async (_, apiKeys) => {
+        const { user } = render(
+          <ApiKeysTable apiKeys={apiKeys} organizationId="org-1" />,
+        );
+
+        const create = screen.getAllByRole('button', {
+          name: 'Create API key',
+        });
+        expect(create).toHaveLength(1);
+        expect(
+          screen.queryByRole('dialog', { name: 'Create API key dialog' }),
+        ).toBeNull();
+
+        await user.click(create[0] as HTMLElement);
+
+        expect(
+          screen.getByRole('dialog', { name: 'Create API key dialog' }),
+        ).toBeInTheDocument();
+      },
+    );
+
+    it('puts the create button in the empty state while there are no keys', () => {
+      render(<ApiKeysTable apiKeys={[]} organizationId="org-1" />);
+
+      const emptyTitle = screen.getByRole('heading', {
+        name: 'No API keys yet',
+      });
+      const emptyState = emptyTitle.parentElement as HTMLElement;
+      expect(
+        within(emptyState).getByRole('button', { name: 'Create API key' }),
+      ).toBeInTheDocument();
+    });
+
+    it.each([
+      ['with keys', [makeApiKey()]],
+      ['when empty', []],
+    ])('links the API docs below the table %s', (_, apiKeys) => {
+      render(<ApiKeysTable apiKeys={apiKeys} organizationId="org-1" />);
+
+      expect(screen.getAllByRole('link', { name: 'API docs' })).toHaveLength(1);
+    });
   });
 
   describe('accessibility', () => {

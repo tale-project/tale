@@ -31,6 +31,7 @@ import {
   scimJson,
 } from '../../core/scim/responses.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { ssoShimHandlers } from '../sso/shim.ts';
 import {
   disableScim,
@@ -207,7 +208,7 @@ export function createScimAdminRoutes(deps: {
     const refused = requireAdmin(c);
     if (refused) return refused;
     const body = z.object({}).safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     await disableScim(deps.sql, {
       organizationId: c.get('orgId'),
       actorId: c.get('sessionBundle').user.id,

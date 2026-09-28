@@ -4909,6 +4909,7 @@ products:
     currencyPlaceholder: USD
     validation:
       currency: Gib einen dreistelligen ISO-4217-Währungscode ein (zum Beispiel EUR oder CHF)
+      imageUrl: Gib eine Bild-URL ein, die mit https:// oder http:// beginnt
       priceNumber: Gib eine Zahl als Preis ein
       priceNonNegative: Der Preis muss 0 oder mehr sein
       priceTooLarge: Der Preis ist zu hoch

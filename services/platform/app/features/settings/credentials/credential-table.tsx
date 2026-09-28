@@ -11,7 +11,7 @@ import {
 } from '@tale/ui/data-table/table-icon-cell';
 import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useListPage } from '@tale/ui/use-list-page';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -26,8 +26,6 @@ import {
 import { CredentialAddDialog } from './credential-add-dialog';
 import { CredentialRowActions } from './credential-row-actions';
 import { VendorIcon } from './vendor-icon';
-
-const PAGE_SIZE = 25;
 
 /** The per-surface copy the shared table cannot name for itself. */
 export interface CredentialTableLabels {
@@ -317,7 +315,7 @@ export function CredentialTable<
 
   const list = useListPage<CredentialTableRow<V, Cred>>({
     dataSource: { type: 'query', data: isLoading ? undefined : rows },
-    pageSize: PAGE_SIZE,
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
     search: {
       fields: ['name', 'vendorName'],
       placeholder: t('credentials.searchPlaceholder'),
