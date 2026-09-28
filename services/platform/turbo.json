@@ -10,6 +10,7 @@
         "$TURBO_ROOT$/compose.yml",
         "$TURBO_ROOT$/compose.dev.yml",
         "$TURBO_ROOT$/configs/platform/**",
+        "$TURBO_ROOT$/docs/*/platform/projects/tasks.md",
         "$TURBO_ROOT$/knip.config.ts",
         "$TURBO_ROOT$/packages/ui/src/globals.css",
         "$TURBO_ROOT$/scripts/ensure-sandbox-runtime-image.ts",

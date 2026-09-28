@@ -61,6 +61,11 @@ const OUTSIDE_READS = [
       'the shipped connector, model, provider, harness and PII catalog suites',
   },
   {
+    // The user docs' task page, which states the task caps in each locale.
+    path: 'docs/*/platform/projects/tasks.md',
+    readers: 'backend/core/tasks/limits_docs.test.ts',
+  },
+  {
     path: 'knip.config.ts',
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
