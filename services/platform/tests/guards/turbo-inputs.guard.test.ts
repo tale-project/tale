@@ -29,8 +29,11 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * A suite that starts reading another file outside the workspace adds it to
  * `turbo.json` and to `OUTSIDE_READS`. The sources of the workspace packages
  * the platform depends on (`@tale/ui`, `@tale/shared`, `@tale/e2e`) are not
- * outside reads in this sense: turbo would need a `^` dependency to hash them,
- * which `.agents/repo.md` records as a gap of its own.
+ * outside reads in this sense when a suite only imports them: turbo would
+ * need a `^` dependency to hash those, which `.agents/repo.md` records as a
+ * gap of its own. A suite that reads a package's files as text is an outside
+ * read like any other: the accent palette's test reads `@tale/ui`'s
+ * stylesheet, and the error-message guard all of `packages/ui/src`.
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -69,6 +72,11 @@ const OUTSIDE_READS = [
     // `THEME_BACKGROUND` to the stylesheet's `--background`.
     path: 'packages/ui/src/globals.css',
     readers: 'lib/utils/color.test.ts',
+  },
+  {
+    // Read as text too: every toast and Alert text the design system builds.
+    path: 'packages/ui/src',
+    readers: 'tests/guards/error-message-description.guard.test.ts',
   },
   {
     path: ENSURE_SANDBOX_RUNTIME_SCRIPT,
