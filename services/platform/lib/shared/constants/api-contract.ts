@@ -232,5 +232,14 @@
  * `data.organizations` — the slugs the key holder may send — the way 400
  * `ORG_SLUG_REQUIRED` already did, so a mistyped or foreign
  * `X-Organization-Slug` says what to send instead.
+ *
+ * 3.3.0 — 2026-09-28: `Task` carries its schedule and how it repeats, read
+ * only: `startDate` and `dueDate` (epoch ms, present when set), `repeat` —
+ * the new `TaskRepeat` rule (frequency, interval, anchors, `timezone`, and
+ * `createOn: "dueDate"` when the next task is also created on the due date)
+ * or null when the task does not repeat — and `repeatNextTaskId`, the task
+ * that continues its series once one exists. An approved review (`POST
+ * …/tasks/{taskId}/review`) that closes a repeating task continues its
+ * series as a close in the app does.
  */
-export const API_CONTRACT_VERSION = '3.2.0';
+export const API_CONTRACT_VERSION = '3.3.0';
