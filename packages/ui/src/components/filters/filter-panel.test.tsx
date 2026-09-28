@@ -116,6 +116,30 @@ describe('FilterPanel', () => {
     ).toBeInTheDocument();
   });
 
+  it('draws the selected radio mark in the accent, not a fixed blue', async () => {
+    const { user } = render(
+      <FilterPanel
+        filters={[
+          tagFilter({
+            key: 'owner',
+            title: 'Owner',
+            multiSelect: false,
+            selectedValues: ['code'],
+          }),
+        ]}
+        onClearAll={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Owner' }));
+
+    const mark = screen
+      .getByRole('radio', { checked: true })
+      .querySelector('[aria-hidden="true"]');
+    expect(mark).toHaveClass('border-primary', 'text-primary');
+    expect(mark?.className).not.toMatch(/-blue-/);
+  });
+
   it('uses one divider under the header and divide-y between facets', async () => {
     const { user } = render(
       <FilterPanel
