@@ -57,7 +57,7 @@ export const ActiveFilters: Story = {
     docs: {
       description: {
         story:
-          'When filters are active, a blue indicator dot appears and the border becomes primary-colored.',
+          'When filters are active, a dot in the accent (`--primary`) appears at the top-right corner.',
       },
     },
   },

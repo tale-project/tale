@@ -40,6 +40,7 @@ import {
 } from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { releaseIdleSession } from '../domains/sandbox/idle-release.ts';
+import { recreatePinnedSession } from '../domains/sandbox/service.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
@@ -48,7 +49,10 @@ import {
   agentTurnShimHandlers,
   taskAgentShimScheduler,
 } from '../domains/tasks/agent-turn-shim.ts';
-import { resolveTaskKickStartArgs } from '../domains/tasks/kick-plan.ts';
+import {
+  loadTaskRetryHistory,
+  resolveTaskKickStartArgs,
+} from '../domains/tasks/kick-plan.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
   runVideoCloneJob,
@@ -92,6 +96,11 @@ const idleSessionReleaseSchema = z.object({
   organizationId: z.string().min(1),
   sessionId: z.string().min(1),
   generation: z.string().min(1),
+});
+
+const recreatePinnedSchema = z.object({
+  organizationId: z.string().min(1),
+  sessionId: z.string().min(1),
 });
 
 const orgCleanupSchema = z.object({
@@ -166,6 +175,26 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         deps.sql,
         idleSessionReleaseSchema.parse(payload),
       );
+    },
+    'sandbox.recreate_pinned': async (payload) => {
+      const input = recreatePinnedSchema.parse(payload);
+      try {
+        const outcome = await recreatePinnedSession(deps.sql, input);
+        if (outcome === 'recreated') {
+          console.log(
+            `[sandbox] recreated pinned session ${input.sessionId} in place and re-pinned it`,
+          );
+        }
+      } catch (error) {
+        // No verdict — spawner unreachable, create refused, device offline:
+        // the row keeps its pin, and the sweep's next visit queues another
+        // attempt. The reconcile pass's own posture, so a workspace on an
+        // offline device is not an error report every five minutes.
+        console.warn(
+          `[sandbox] recreate of pinned session ${input.sessionId} failed; the next sweep retries:`,
+          error,
+        );
+      }
     },
     noop: (payload) => {
       console.debug(`[backend] noop task executed: ${JSON.stringify(payload)}`);
@@ -523,17 +552,20 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'watchdog.sandbox': async () => {
-      const result = await runSandboxWatchdog(deps.sql);
+    'watchdog.sandbox': async (_payload, context) => {
+      const result = await runSandboxWatchdog(
+        deps.sql,
+        context !== undefined ? { signal: context.signal } : {},
+      );
       if (
         result.expired > 0 ||
         result.healed > 0 ||
-        result.recreated > 0 ||
+        result.recreating > 0 ||
         result.reclaimed > 0 ||
         result.collected > 0
       ) {
         console.log(
-          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, recreated ${result.recreated} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, queued the recreate of ${result.recreating} pinned session(s), reclaimed ${result.reclaimed} ended-run session(s), collected ${result.collected} failed session(s)`,
         );
       }
       // Removed sandbox devices the hub has not dropped yet (the spawner was
@@ -983,44 +1015,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         ) {
           return 'reassigned';
         }
-        const runs = await tx<
-          {
-            id: string;
-            status: string;
-            agentId: string;
-            startedBy: string;
-            launchedAt: number | null;
-            settledAt: number | null;
-          }[]
-        >`
-          SELECT id, status, agent_id AS "agentId",
-                 started_by AS "startedBy",
-                 launched_at_ms::float8 AS "launchedAt",
-                 settled_at_ms::float8 AS "settledAt"
-          FROM app.project_agent_runs
-          WHERE task_id = ${input.taskId}
-          ORDER BY seq DESC
-          LIMIT 8
-        `;
+        const runs = await loadTaskRetryHistory(tx, input.taskId);
         const newest = runs[0];
         if (newest === undefined || newest.id !== input.expectedRunId) {
           return 'superseded';
         }
         if (newest.status !== 'failed') return 'not_failed';
-        const budget = resolveAutoRetryBudget(
-          runs.map((row) => ({
-            agentId: row.agentId,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
-            status: row.status as
-              | 'queued'
-              | 'running'
-              | 'settled'
-              | 'failed'
-              | 'cancelled',
-            launchedAt: row.launchedAt ?? undefined,
-            settledAt: row.settledAt ?? undefined,
-          })),
-        );
+        const budget = resolveAutoRetryBudget(runs);
         if (!budget.retry) return 'budget_exhausted';
         const agents = await tx<
           { harness: string; model: string; modelProvider: string | null }[]

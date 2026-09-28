@@ -8,7 +8,7 @@ import { useT } from '@tale/ui/i18n/client';
 import { Popover } from '@tale/ui/popover';
 import { Text } from '@tale/ui/text';
 import { Circle } from 'lucide-react';
-import { Fragment, useId, useState } from 'react';
+import { Fragment, useId, useRef, useState } from 'react';
 
 /**
  * THE filter affordance: one button that opens every facet group at once,
@@ -146,14 +146,15 @@ interface FilterPanelProps {
   /** Swap the icon for a spinner while the facet options are still resolving. */
   isLoading?: boolean;
   /**
-   * Render the button disabled and suppress the popover — for an empty set with
-   * no active filters (see `isFilterAffordanceDisabled`). A disabled button on
-   * the `Popover` trigger is NOT sufficient: the trigger's wrapper still toggles
-   * the popover, so the panel has to be left out entirely.
+   * Render the button disabled and refuse to open the panel — for an empty set
+   * with no active filters (see `isFilterAffordanceDisabled`).
    *
-   * It keeps a closed panel shut; it never pulls an open one from under the
-   * reader. A panel disabled while open stays open until the reader closes it,
-   * and only then does the disabled button take over.
+   * It keeps a closed panel shut; it never pulls an open one, or the reader's
+   * focus, from under them. A panel disabled while open stays open until the
+   * reader closes it. A button that holds focus when it turns disabled — or
+   * gets it back from the panel closing — stays focusable as `aria-disabled`
+   * until focus moves on, and only then leaves the tab order: a natively
+   * disabled button drops the focus to the page.
    */
   disabled?: boolean;
   /**
@@ -179,6 +180,13 @@ export function FilterPanel({
 }: FilterPanelProps) {
   const { t } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
+  // The button holds the reader's focus, or is about to get it back from the
+  // closing panel — while it does, disabling it must not drop the focus.
+  const [holdsFocus, setHoldsFocus] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The reader pressed or focused something outside the open panel: closing,
+  // it leaves the focus there instead of handing it back to the button.
+  const interactedOutside = useRef(false);
   const headingId = useId();
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
@@ -195,20 +203,22 @@ export function FilterPanel({
 
   // `disabled` can arrive while the panel is open: unticking the last facet
   // over an empty list does it, and so does a server-side facet sending the
-  // list back to its first page. Swapping the panel out then would drop focus
-  // to the page and leave `isOpen` set, so the panel popped open, unasked, on
-  // the next enable. It stays open instead, and the reader closes it.
-  if (disabled && !isOpen) {
-    return (
-      <FilterButton
-        hasActiveFilters={false}
-        isLoading={isLoading}
-        iconOnly={iconOnly}
-        compact={compact}
-        disabled
-      />
-    );
-  }
+  // list back to its first page. The panel stays open then, and the reader
+  // closes it. It can also arrive with the close itself — "Clear all" over an
+  // empty list — so the button is one element throughout, for the popover to
+  // hand focus back to, and it leaves the tab order only once it has let go of
+  // the focus.
+  const unavailable = disabled && !isOpen;
+
+  const close = () => {
+    setIsOpen(false);
+    setHoldsFocus(true);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) close();
+    else if (!disabled) setIsOpen(true);
+  };
 
   const handleFilterChange = (
     filter: FilterConfig,
@@ -225,7 +235,7 @@ export function FilterPanel({
   return (
     <Popover
       open={isOpen}
-      onOpenChange={setIsOpen}
+      onOpenChange={handleOpenChange}
       // The panel is a `role="dialog"` layer; name it after its visible heading
       // so assistive technology announces "Filters" on entry.
       aria-labelledby={headingId}
@@ -235,13 +245,43 @@ export function FilterPanel({
       modal={false}
       align={align}
       onOpenAutoFocus={(e) => e.preventDefault()}
+      onInteractOutside={(event) => {
+        // A press on the button closes the panel through the button, which
+        // keeps the focus.
+        const { target } = event;
+        if (target instanceof Node && triggerRef.current?.contains(target)) {
+          return;
+        }
+        interactedOutside.current = true;
+      }}
+      onCloseAutoFocus={() => {
+        // The reader took the focus elsewhere, so it is not coming back.
+        if (
+          interactedOutside.current &&
+          document.activeElement !== triggerRef.current
+        ) {
+          setHoldsFocus(false);
+        }
+        interactedOutside.current = false;
+      }}
       contentClassName="bg-card flex max-h-[min(32rem,var(--radix-popover-content-available-height))] flex-col overflow-hidden p-0"
       trigger={
         <FilterButton
-          hasActiveFilters={activeFilterCount > 0}
+          ref={triggerRef}
+          hasActiveFilters={!unavailable && activeFilterCount > 0}
           isLoading={isLoading}
           iconOnly={iconOnly}
           compact={compact}
+          disabled={unavailable && !holdsFocus}
+          aria-disabled={unavailable || undefined}
+          onFocus={() => setHoldsFocus(true)}
+          onBlur={(event) => {
+            // The window losing focus blurs the button but leaves it the
+            // page's focused element, to be focused again on return.
+            if (document.activeElement !== event.currentTarget) {
+              setHoldsFocus(false);
+            }
+          }}
         />
       }
     >
@@ -254,7 +294,7 @@ export function FilterPanel({
             type="button"
             onClick={() => {
               onClearAll();
-              setIsOpen(false);
+              close();
             }}
             className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring rounded-md px-2 py-0.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none"
           >

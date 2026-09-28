@@ -232,6 +232,23 @@ export async function setSessionStatus(
   return rows.length > 0;
 }
 
+/** creating → active for ONE incarnation whose compute the drift reconcile
+ * recreated (its host died before runnerd-ready). By row id and only from
+ * `creating`, so a status a host or a Destroy set meanwhile stands. */
+export async function markRecreatedSessionActive(
+  sql: Sql,
+  args: { organizationId: string; rowId: string },
+): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE app.sandbox_sessions SET
+      status = 'active', last_activity_at_ms = ${Date.now()}
+    WHERE id = ${args.rowId} AND org_id = ${args.organizationId}
+      AND status = 'creating'
+    RETURNING id
+  `;
+  return rows.length > 0;
+}
+
 /** "Always-on" pin: exempt from the idle reaper + the hard TTL. */
 export async function setSessionPinned(
   sql: Sql,

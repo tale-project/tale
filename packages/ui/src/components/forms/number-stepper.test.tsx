@@ -146,6 +146,19 @@ describe('NumberStepper', () => {
     expect(decrease).toBeDisabled();
   });
 
+  it('steps from the displayed draft when it is outside the range', async () => {
+    const { user } = render(<Harness max={99} />);
+    const field = screen.getByRole('spinbutton', { name: 'Day' });
+    await user.clear(field);
+    await user.type(field, '100');
+    await user.click(screen.getByRole('button', { name: 'Decrease' }));
+    expect(field).toHaveValue('99');
+    await user.clear(field);
+    await user.type(field, '0');
+    await user.click(screen.getByRole('button', { name: 'Increase' }));
+    expect(field).toHaveValue('1');
+  });
+
   it('names its buttons after the caller when asked', () => {
     render(
       <NumberStepper

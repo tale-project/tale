@@ -89,7 +89,10 @@ import {
 import { TASK_COMMENT_MAX } from './helpers';
 import type { MentionSource } from './mentions';
 import { classifyStartFailure } from './start_failure';
-import type { TaskRunFailureCode } from './task_auto_retry';
+import {
+  isCredentialRotation,
+  type TaskRunFailureCode,
+} from './task_auto_retry';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
@@ -1741,6 +1744,20 @@ async function settleTaskAgentTurn(
         },
       );
     }
+    // A 401 on a brokered turn is the broker refreshing the account under
+    // it: the token this exec was started with is revoked, the account holds
+    // a fresh one. Named as such, the retry vends again and resumes the
+    // conversation without spending the budget or excluding the account
+    // (`freeCredentialRotations`). The stamp is this exec's, cleared when it
+    // served on another lane, so it says how THIS turn was served.
+    const failureCode =
+      result.failureCode === 'harness_error' &&
+      isCredentialRotation({
+        apiErrorStatus: result.apiErrorStatus,
+        brokerServed: Boolean(current.brokerTokenHash),
+      })
+        ? ('credential_rotated' as const)
+        : result.failureCode;
     await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
       runId: args.runId,
       error: result.reason ?? 'the agent run failed',
@@ -1757,9 +1774,7 @@ async function settleTaskAgentTurn(
               : {}),
           }
         : {}),
-      ...(result.failureCode !== undefined
-        ? { failureCode: result.failureCode }
-        : {}),
+      ...(failureCode !== undefined ? { failureCode } : {}),
       ...(result.apiErrorStatus !== undefined
         ? { apiErrorStatus: result.apiErrorStatus }
         : {}),

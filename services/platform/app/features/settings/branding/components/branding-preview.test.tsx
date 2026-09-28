@@ -121,6 +121,16 @@ describe('BrandingPreview', () => {
     expect(tile.querySelector('svg')).toHaveStyle({ color: text });
   });
 
+  it('sets the rail on the page background, as the live rail is', () => {
+    // The live rail (`AppSidebar`) is `bg-background`, the one surface the
+    // accent's text shade is guaranteed on; the dark `bg-sidebar` is lighter.
+    render(<BrandingPreview data={{ accentColor: '#0066CC' }} />);
+
+    const rail = screen.getByTestId('preview-rail');
+    expect(rail).toHaveClass('bg-background');
+    expect(rail).not.toHaveClass('bg-sidebar');
+  });
+
   it('derives the dark theme from the stored accent, as the live app does', () => {
     // The BrandingProvider derives each theme's palette from the one stored
     // (light-theme) pick; the preview is handed that pick and does the same.

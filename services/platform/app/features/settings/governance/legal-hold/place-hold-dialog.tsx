@@ -280,9 +280,12 @@ export function PlaceHoldDialog({
             }
             options={matterOptions}
             footer={
+              // The picker is dark:bg-muted, above the page the accent text
+              // shade is derived against. Keep readable foreground ink and
+              // carry the accent in the hover tint instead.
               <button
                 type="button"
-                className="text-primary hover:bg-accent w-full px-3 py-2 text-left text-sm"
+                className="text-foreground hover:bg-primary/10 w-full px-3 py-2 text-left text-sm"
                 onClick={() => setCreateMatterOpen(true)}
               >
                 {t('legalHold.dialogs.placeHold.matterCreateNew')}

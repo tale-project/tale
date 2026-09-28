@@ -16,6 +16,10 @@ const { kickAgentRun } = vi.hoisted(() => ({
 
 vi.mock('../domains/tasks/agent-runs.ts', () => ({ kickAgentRun }));
 
+import {
+  AUTO_RETRY_HISTORY_LIMIT,
+  AUTO_RETRY_MAX_ATTEMPTS,
+} from '../core/tasks/task_auto_retry.ts';
 import { createTaskList } from './task-list.ts';
 
 const PAYLOAD = {
@@ -25,10 +29,13 @@ const PAYLOAD = {
   expectedRunId: 'run-failed',
 };
 
+/** What the job asked the run history for: the query text and its values. */
+const reads: Array<{ text: string; values: unknown[] }> = [];
+
 /** A transaction that answers the job's three reads: the task, its runs
  * newest first, and the agent. */
 function sqlWith(runs: Array<Record<string, unknown>>): Sql {
-  const tx = (strings: TemplateStringsArray) => {
+  const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
     if (text.includes('FROM app.tasks')) {
       return Promise.resolve([
@@ -42,6 +49,7 @@ function sqlWith(runs: Array<Record<string, unknown>>): Sql {
       ]);
     }
     if (text.includes('FROM app.project_agent_runs')) {
+      reads.push({ text, values });
       return Promise.resolve(runs);
     }
     if (text.includes('FROM app.project_agents')) {
@@ -57,8 +65,27 @@ function sqlWith(runs: Array<Record<string, unknown>>): Sql {
   } as unknown as Sql;
 }
 
+/** A short failed attempt of agent-1, newest first in the history. */
+function failedRun(
+  id: string,
+  failureCode: string | null,
+): Record<string, unknown> {
+  return {
+    id,
+    status: 'failed',
+    agentId: 'agent-1',
+    startedBy: 'user-starter',
+    launchedAt: 1_000,
+    settledAt: 2_000,
+    failureCode,
+  };
+}
+
 describe('task.agent_retry', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reads.length = 0;
+  });
 
   it.each([
     ['a member', 'user-starter'],
@@ -94,4 +121,45 @@ describe('task.agent_retry', () => {
       );
     },
   );
+
+  it('resumes a run the broker’s refresh cut, even with the crash-loop budget spent', async () => {
+    const handler = createTaskList({
+      sql: sqlWith([
+        failedRun('run-failed', 'credential_rotated'),
+        failedRun('run-3', 'harness_error'),
+        failedRun('run-2', 'harness_error'),
+        failedRun('run-1', 'harness_error'),
+      ]),
+    })['task.agent_retry'];
+
+    await handler?.(PAYLOAD);
+
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        trigger: 'auto_retry',
+        // Nothing more spent: the stamp shows the attempts already used.
+        autoRetryAttempt: AUTO_RETRY_MAX_ATTEMPTS,
+      }),
+    );
+    // The codes come from the rows, over a window wide enough to see past
+    // free rotations.
+    expect(reads[0]?.text).toContain('failure_code');
+    expect(reads[0]?.values).toContain(AUTO_RETRY_HISTORY_LIMIT);
+  });
+
+  it('stops a grant that answers 401 on every vend, once free retries and budget are spent', async () => {
+    const handler = createTaskList({
+      sql: sqlWith(
+        ['run-failed', 'run-5', 'run-4', 'run-3', 'run-2', 'run-1'].map((id) =>
+          failedRun(id, 'credential_rotated'),
+        ),
+      ),
+    })['task.agent_retry'];
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await handler?.(PAYLOAD);
+
+    expect(kickAgentRun).not.toHaveBeenCalled();
+  });
 });
