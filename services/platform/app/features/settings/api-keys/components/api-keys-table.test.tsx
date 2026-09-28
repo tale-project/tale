@@ -72,6 +72,75 @@ describe('ApiKeysTable', () => {
   // — and only there: the empty state used to carry a second, hand-made
   // Create button under the toolbar's own.
   describe('create action', () => {
+    it('withholds the opener until an initially unknown list is known empty', () => {
+      const { rerender } = render(
+        <ApiKeysTable apiKeys={undefined} organizationId="org-1" />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'No API keys yet' }),
+      ).not.toBeInTheDocument();
+
+      rerender(<ApiKeysTable apiKeys={[]} organizationId="org-1" />);
+      const emptyTitle = screen.getByRole('heading', {
+        name: 'No API keys yet',
+      });
+      expect(
+        within(emptyTitle.parentElement as HTMLElement).getByRole('button', {
+          name: 'Create API key',
+        }),
+      ).toBeEnabled();
+    });
+
+    it('offers retry after a failed cold read, then creates from the empty state', async () => {
+      const retry = vi.fn();
+      const { user, rerender } = render(
+        <ApiKeysTable
+          apiKeys={undefined}
+          organizationId="org-1"
+          error={new Error('Initial list unavailable')}
+          onRetry={retry}
+        />,
+      );
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(retry).toHaveBeenCalledTimes(1);
+
+      rerender(<ApiKeysTable apiKeys={undefined} organizationId="org-1" />);
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).not.toBeInTheDocument();
+      rerender(<ApiKeysTable apiKeys={[]} organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: 'Create API key' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('keeps the known-empty opener mounted when its refetch fails', () => {
+      const { rerender } = render(
+        <ApiKeysTable apiKeys={[]} organizationId="org-1" />,
+      );
+      const opener = screen.getByRole('button', { name: 'Create API key' });
+      opener.focus();
+
+      rerender(
+        <ApiKeysTable
+          apiKeys={[]}
+          organizationId="org-1"
+          error={new Error('Refresh after creation failed')}
+          onRetry={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('button', { name: 'Create API key' })).toBe(
+        opener,
+      );
+      expect(opener).toHaveFocus();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
     it.each([
       ['with keys', [makeApiKey()]],
       ['when empty', []],

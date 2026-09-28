@@ -723,8 +723,12 @@ any toggled setting after the run.
   on a full-width row of its own at 390 px. With no keys the API page shows
   exactly one **Create API key**, inside the empty state
   (`emptyStates.apiKeys.title`), and it moves to the toolbar once a key
-  exists; reloading the API page with no keys paints that empty state
-  straight away, the button never first showing above the table. **API docs**
+  exists. On a cold visit, delay the initial API-key list: the page paints a
+  skeleton with no Create button; an empty response then shows the button
+  only inside the empty state. Fail that initial read: the page shows an error
+  with **Try again** (`common.errors.tryAgain`); allow the request and retry
+  to reach the empty state. The button never first appears above the skeleton.
+  **API docs**
   (`settings.apiDocs.openDocs`) sits under the table in both states. No page
   scrolls sideways at 390 px, and every button label is readable in both
   themes.

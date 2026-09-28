@@ -14,24 +14,16 @@ import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/api/rest')({
   head: () => ({ meta: seo('apiKeys') }),
-  // Await the keys so the first paint already knows whether there are any.
-  // Painted before they arrived, the table's lone Create button sat in a
-  // toolbar row over the skeleton, then jumped into the empty state when the
-  // list came back empty — shifting the page and dropping keyboard focus.
-  // Best-effort: a failed read never fails the transition; the table's own
-  // read retries and reports it. Skipped when the cached ability already
-  // denies the page.
+  // Warm the hook's cache without gating navigation on an unbounded list.
+  // Offline reads pause rather than reject, so even a caught/awaited read
+  // can prevent page paint. The table owns loading, error recovery and the
+  // Create action's placement once the initial result is known.
   loader: ({ context, params }) => {
     const ability = cachedAbility(context, params.id);
     if (ability !== null && ability.cannot('read', 'developerSettings')) {
-      return undefined;
+      return;
     }
-    return context.queryClient
-      .ensureQueryData(apiKeysQuery(params.id))
-      .then(() => undefined)
-      .catch((error: unknown) => {
-        console.warn('Failed to preload API keys', error);
-      });
+    void context.queryClient.prefetchQuery(apiKeysQuery(params.id));
   },
   component: ApiRestPage,
 });
@@ -41,7 +33,7 @@ function ApiRestPage() {
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
 
-  const { data: apiKeys } = useApiKeys(organizationId);
+  const { data: apiKeys, error, refetch } = useApiKeys(organizationId);
 
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page.
@@ -67,7 +59,12 @@ function ApiRestPage() {
           </span>
         }
       >
-        <ApiKeysTable apiKeys={apiKeys} organizationId={organizationId} />
+        <ApiKeysTable
+          apiKeys={apiKeys}
+          organizationId={organizationId}
+          error={error}
+          onRetry={() => void refetch()}
+        />
       </SettingsSection>
     </SettingsPage>
   );
