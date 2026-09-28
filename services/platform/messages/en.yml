@@ -2501,6 +2501,7 @@ documents:
     compareSelected: Compare selected
     comparing: Comparing…
     compareFailed: Couldn't compare versions
+    compareOffline: Comparing versions is currently unavailable.
     backToList: Back to versions
     versionLabel: Version from {date}
     selectAsCompare: Select to compare

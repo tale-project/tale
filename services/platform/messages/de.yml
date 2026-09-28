@@ -2598,6 +2598,7 @@ documents:
     compareSelected: Auswahl vergleichen
     comparing: Vergleicht…
     compareFailed: Versionen konnten nicht verglichen werden
+    compareOffline: Der Versionsvergleich ist derzeit nicht verfügbar.
     backToList: Zurück zu den Versionen
     versionLabel: Version vom {date}
     selectAsCompare: Zum Vergleich wählen
