@@ -13,8 +13,8 @@
 export function sanitizeUntrustedField(value: string, maxLen = 200): string {
   // eslint-disable-next-line no-control-regex
   const stripped = value
-    .replace(/[\x00-\x1F\x7F]/g, ' ')
-    .replace(/[​-‏‪-‮⁠﻿]/g, '')
+    .replace(/[\x00-\x1F\x7F-\x9F]/g, ' ')
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
   return stripped.length > maxLen ? stripped.slice(0, maxLen) + '…' : stripped;

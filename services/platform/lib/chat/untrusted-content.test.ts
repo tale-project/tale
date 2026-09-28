@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { escapeForXmlTag, wrapUntrusted } from './untrusted-content';
+import {
+  escapeForXmlTag,
+  sanitizeUntrustedField,
+  wrapUntrusted,
+} from './untrusted-content';
+
+describe('sanitizeUntrustedField', () => {
+  it('flattens C1 line controls and removes bidi isolate marks', () => {
+    expect(
+      sanitizeUntrustedField('Check\u0085totals\u2066 hidden direction\u2069'),
+    ).toBe('Check totals hidden direction');
+  });
+});
 
 describe('escapeForXmlTag', () => {
   it('neutralizes the closing tag literal so wrappers cannot be broken', () => {

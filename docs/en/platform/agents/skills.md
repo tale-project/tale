@@ -26,7 +26,9 @@ Legacy private skills cannot be equipped on a project agent. The same access rul
 
 An automation's agent nodes declare the skills they need. A run bound to a project uses that project's scope. An organization-level run can use organization skills only. Your personal membership in additional teams does not expand either scope.
 
-During sandbox setup, Tale stages the equipped bundles as files and lists each skill for the agent with its description and the path to its `SKILL.md` instructions, so the agent can pick the skill that fits a plain-language task. A skill marked `disable-model-invocation` is listed for explicit requests only. Supporting files are available alongside those instructions. Keep the equipment focused and name the procedure when it matters; availability alone does not prove that the result followed it.
+During sandbox setup, Tale stages the equipped bundles as files and lists each skill with a description excerpt of up to 300 characters and the path to its `SKILL.md` instructions. The excerpt helps the agent choose a skill for a plain-language task; it is a selection hint, not an instruction to execute. Supporting files are available alongside the instructions.
+
+For a skill marked `disable-model-invocation`, the list tells the agent to wait until the task asks for that skill by name. This is guidance, not an access control. Keep the equipment focused and name the procedure when it matters; availability alone does not prove that the result followed it.
 
 ## Resolve missing or changed skills
 
