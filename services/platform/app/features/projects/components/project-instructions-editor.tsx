@@ -121,7 +121,7 @@ export function ProjectInstructionsEditor({
           title={t('instructions.label')}
           description={t('instructions.hint')}
         >
-          <Stack gap={2}>
+          <Stack gap={3}>
             <Textarea
               id="project-instructions"
               aria-label={t('instructions.label')}
