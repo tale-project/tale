@@ -799,8 +799,11 @@ function CreateTaskBody({
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
   // A pasted description over the cap is named under the field and holds
   // Create, as the task's own description editor does.
-  const { overCap: descriptionOverCap, hint: descriptionHint } =
-    useDescriptionCap(description);
+  const {
+    overCap: descriptionOverCap,
+    hint: descriptionHint,
+    counterMax: descriptionCounterMax,
+  } = useDescriptionCap(description);
   const { resolveActor } = useActorDirectory(organizationId, projectId);
   // Named beside the avatar, as on the task's own details panel — the bare
   // avatar button left "who takes this" to a hover.
@@ -930,6 +933,7 @@ function CreateTaskBody({
               value={description}
               onValueChange={setDescription}
               errorMessage={descriptionHint}
+              counterMax={descriptionCounterMax}
               disabled={submitting}
               placement="below"
             />

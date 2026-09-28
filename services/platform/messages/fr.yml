@@ -7208,7 +7208,6 @@ tasks:
   fields:
     title: Titre
     description: Description
-    descriptionTooLong: Cette description compte {length} caractères, pour {max} au maximum. Raccourcis-la pour l'enregistrer. La plupart des emojis comptent double.
     assignee: Assigné à
     reviewer: Relecteur
     priority: Priorité

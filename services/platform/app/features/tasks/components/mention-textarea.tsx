@@ -30,6 +30,9 @@ interface MentionTextareaProps extends Omit<
   /** Why the value cannot be saved as it stands, shown under the field and
    *  tied to it (`aria-describedby`, `aria-invalid`) by the `Textarea`. */
   errorMessage?: string;
+  /** The `Textarea`'s own `used / max` counter, outside its live error
+   *  region — for a running length an `errorMessage` must not carry. */
+  counterMax?: number;
   /** Popover side. Composers at the bottom of a panel want 'above' (default);
    *  fields near the top of a dialog want 'below'. */
   placement?: 'above' | 'below';

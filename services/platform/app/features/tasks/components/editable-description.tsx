@@ -67,7 +67,11 @@ export function EditableDescription({
   // click-away (incl. reaching for Discard) and silently persist half-edited
   // text. The buttons appear only while the draft differs from the saved value.
   const isDirty = draft.trim() !== value.trim();
-  const { overCap, hint: capHint } = useDescriptionCap(draft);
+  const {
+    overCap,
+    hint: capHint,
+    counterMax: capCounterMax,
+  } = useDescriptionCap(draft);
   const save = async () => {
     if (!isDirty) {
       setEditing(false);
@@ -166,6 +170,7 @@ export function EditableDescription({
         value={draft}
         placeholder={placeholder}
         errorMessage={capHint}
+        counterMax={capCounterMax}
         autoFocus
         onValueChange={setDraft}
         onKeyDown={(e) => {

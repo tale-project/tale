@@ -3,7 +3,10 @@ import '@testing-library/jest-dom/vitest';
 import { toast } from '@tale/ui/use-toast';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TASK_DESCRIPTION_MAX } from '@/backend/core/tasks/helpers';
+import {
+  TASK_DESCRIPTION_MAX,
+  TASK_TITLE_MAX,
+} from '@/backend/core/tasks/helpers';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -130,14 +133,41 @@ describe('the task modal names the caps a save breaks', () => {
     await user.click(screen.getByRole('textbox', { name: 'Description' }));
     await user.paste('d'.repeat(TASK_DESCRIPTION_MAX + 5));
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'This description has 20,005 characters; the limit is 20,000.',
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(
+      'This description is too long to save. It can have up to 20,000 ' +
+        'characters, and most emoji count as 2.',
     );
     expect(
       screen.getByRole('textbox', { name: 'Description' }),
     ).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByRole('button', { name: 'Create task' })).toBeDisabled();
     expect(mutations.createTask).not.toHaveBeenCalled();
+
+    // The running length is the field's counter, outside the live alert:
+    // a keystroke past the cap moves the count and leaves the alert's
+    // words — and so what a screen reader announces — as they were.
+    const before = alert.textContent;
+    expect(await screen.findByText('20005 / 20000')).not.toBe(alert);
+    await user.type(
+      screen.getByRole('textbox', { name: 'Description' }),
+      '{Backspace}',
+    );
+    expect(await screen.findByText('20004 / 20000')).toBeInTheDocument();
+    expect(screen.getByRole('alert').textContent).toBe(before);
+    expect(alert).not.toHaveTextContent('20004');
+  });
+
+  // The inline title holds the create form's cap: a longer one used to be
+  // typed, then refused by the server as `TASK_TITLE_INVALID`.
+  it("caps the task's inline title at the domain's title limit", async () => {
+    renderModal(task._id);
+
+    const titles = await screen.findAllByRole('textbox', { name: 'Title' });
+    expect(titles.length).toBeGreaterThan(0);
+    for (const title of titles) {
+      expect(title).toHaveAttribute('maxLength', String(TASK_TITLE_MAX));
+    }
   });
 
   it('toasts the title cap when the server refuses a title', async () => {
