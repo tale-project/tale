@@ -57,6 +57,7 @@ import {
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -71,6 +72,7 @@ import {
 } from '../hooks/mutations';
 import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import { useDescriptionCap } from '../hooks/use-description-cap';
 import {
   plannedTransitionKind,
   useTaskStatusChoreography,
@@ -88,6 +90,7 @@ import {
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { reviewerRefusalMessage } from '../lib/reviewer-refusal';
 import { subtaskProgress } from '../lib/subtasks';
+import { taskLimitRefusalMessage } from '../lib/task-limit-refusal';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
 import { EditableDescription } from './editable-description';
@@ -766,6 +769,7 @@ function CreateTaskBody({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
+  const { formatNumber } = useFormatNumber();
   const createTask = useCreateTask();
   // Subject templates: contracts with `create.enabled` offer one chip each;
   // a one-field create beside the blank form.
@@ -793,6 +797,10 @@ function CreateTaskBody({
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
+  // A pasted description over the cap is named under the field and holds
+  // Create, as the task's own description editor does.
+  const { overCap: descriptionOverCap, hint: descriptionHint } =
+    useDescriptionCap(description);
   const { resolveActor } = useActorDirectory(organizationId, projectId);
   // Named beside the avatar, as on the task's own details panel — the bare
   // avatar button left "who takes this" to a hover.
@@ -802,7 +810,7 @@ function CreateTaskBody({
 
   const submit = async () => {
     const trimmed = title.trim();
-    if (!trimmed || submitting) return;
+    if (!trimmed || submitting || descriptionOverCap) return;
     setSubmitting(true);
     try {
       await createTask.mutateAsync({
@@ -826,12 +834,15 @@ function CreateTaskBody({
     } catch (error) {
       console.error('Create task error:', error);
       const code = error instanceof AppError ? error.data?.code : undefined;
+      const limitRefusal = taskLimitRefusalMessage(error, t, formatNumber);
       if (code === 'TASK_SCHEDULE_INVALID') {
         toast({ title: t('startDate.afterDue'), variant: 'destructive' });
       } else if (code === 'PROJECT_ARCHIVED') {
         // The project was archived under the open dialog (or the board's
         // CTA was stale): say so instead of "something went wrong".
         toast({ title: t('errors.PROJECT_ARCHIVED'), variant: 'destructive' });
+      } else if (limitRefusal !== undefined) {
+        toast({ title: limitRefusal, variant: 'destructive' });
       } else {
         toast({ title: tCommon('errors.generic'), variant: 'destructive' });
       }
@@ -918,6 +929,7 @@ function CreateTaskBody({
               rows={8}
               value={description}
               onValueChange={setDescription}
+              errorMessage={descriptionHint}
               disabled={submitting}
               placement="below"
             />
@@ -1027,7 +1039,7 @@ function CreateTaskBody({
             </Button>
             <Button
               onClick={() => void submit()}
-              disabled={title.trim().length === 0}
+              disabled={title.trim().length === 0 || descriptionOverCap}
               isLoading={submitting}
             >
               {t('actions.create')}
@@ -1099,6 +1111,7 @@ export function EditTaskBody({
     task?.assigneeType !== 'agent' ||
     projectAgents.some((agent) => agent.id === task.assigneeId);
   const { formatDate } = useFormatDate();
+  const { formatNumber } = useFormatNumber();
 
   const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
@@ -1175,6 +1188,15 @@ export function EditTaskBody({
       reviewPolicyErrorMessage(error, t) ?? reviewerRefusalMessage(error, t);
     if (reviewRefusal !== undefined) {
       toast({ title: reviewRefusal, variant: 'destructive' });
+      return;
+    }
+    // A title or description the server refused for its length names the
+    // cap instead of the generic error below. The editors hold an over-long
+    // draft back, so this is the backstop; saving a description an older
+    // import stored past the cap used to answer that generic error.
+    const limitRefusal = taskLimitRefusalMessage(error, t, formatNumber);
+    if (limitRefusal !== undefined) {
+      toast({ title: limitRefusal, variant: 'destructive' });
       return;
     }
     if (
@@ -2196,6 +2218,8 @@ function EditableTitle({
     <input
       value={draft}
       aria-label={ariaLabel}
+      // The create form's cap: a longer title is refused by the server.
+      maxLength={TASK_TITLE_MAX}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {

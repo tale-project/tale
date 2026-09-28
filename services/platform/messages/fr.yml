@@ -7195,6 +7195,7 @@ tasks:
   fields:
     title: Titre
     description: Description
+    descriptionTooLong: Cette description compte {length} caractères, pour {max} au maximum. Raccourcis-la pour l'enregistrer. La plupart des emojis comptent double.
     assignee: Assigné à
     reviewer: Relecteur
     priority: Priorité
@@ -7372,6 +7373,8 @@ tasks:
     unwatch: Ne plus suivre
   errors:
     PROJECT_ARCHIVED: Ce projet est archivé. Restaure-le pour modifier ses tâches.
+    TASK_TITLE_INVALID: Un titre compte de 1 à {max} caractères. La plupart des emojis comptent double.
+    TASK_DESCRIPTION_INVALID: Cette description est trop longue pour être enregistrée. Elle peut compter jusqu'à {max} caractères, et la plupart des emojis comptent double.
   runFailure:
     title: L'agent n'a pas pu démarrer
     description: "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche

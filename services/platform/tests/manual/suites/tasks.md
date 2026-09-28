@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 56 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -459,6 +459,14 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   **Connector** row to the audit log. After **Cancel run**
   (`tasks.agentRun.cancel`), your own **Start agent** (`tasks.agentRun.start`)
   gives a run whose call succeeds and is logged under you.
+- [ ] `TASK-B11` · **A description past the cap, seen** — In German and in
+  English, at desktop width and at 390 px, open a task's description
+  (**Edit**, `common.actions.edit`) and paste 20,005 characters → The line
+  under the field (`tasks.fields.descriptionTooLong`) reads in the UI language
+  with its number grouping (`20.005`, `20,005`), wraps inside the dialog
+  without clipping or pushing **Save** (`common.actions.save`) out of view, and
+  a screen reader announces it once; delete five characters, **Save**, reload
+  → the line is gone and the description reads back at 20,000 characters.
 
 ## Accessibility (WCAG 2.1 AA)
 

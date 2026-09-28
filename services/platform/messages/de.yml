@@ -7091,6 +7091,7 @@ tasks:
   fields:
     title: Titel
     description: Beschreibung
+    descriptionTooLong: Diese Beschreibung hat {length} Zeichen, erlaubt sind {max}. Kürze sie, um sie zu speichern. Die meisten Emojis zählen doppelt.
     assignee: Zuständig
     reviewer: Reviewer
     priority: Priorität
@@ -7272,6 +7273,8 @@ tasks:
     unwatch: Nicht mehr verfolgen
   errors:
     PROJECT_ARCHIVED: Dieses Projekt ist archiviert. Stelle es wieder her, um seine Aufgaben zu ändern.
+    TASK_TITLE_INVALID: Ein Titel braucht 1 bis {max} Zeichen. Die meisten Emojis zählen doppelt.
+    TASK_DESCRIPTION_INVALID: Diese Beschreibung ist zu lang zum Speichern. Erlaubt sind bis zu {max} Zeichen, und die meisten Emojis zählen doppelt.
   runFailure:
     title: Agent konnte nicht starten
     description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe

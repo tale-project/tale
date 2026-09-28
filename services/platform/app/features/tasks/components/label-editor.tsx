@@ -8,6 +8,10 @@ import { toast } from '@tale/ui/use-toast';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 
+import {
+  TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
+} from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -18,9 +22,6 @@ import {
 import { useTaskLabels } from '../hooks/queries';
 import { LABEL_DOT_CLASS, labelColor } from '../lib/labels';
 import { TaskLabelBadge } from './task-label-badge';
-
-const MAX_LABELS = 50;
-const MAX_LABEL_LENGTH = 50;
 
 type LabelOption = { name: string };
 
@@ -56,14 +57,14 @@ export function LabelEditor({
   const toggleLabel = (name: string) => {
     if (labels.includes(name)) {
       onChange(labels.filter((l) => l !== name));
-    } else if (labels.length < MAX_LABELS) {
+    } else if (labels.length < TASK_LABELS_MAX) {
       onChange([...labels, name]);
     }
   };
 
   // The catalog keeps a label's spelling and is unique without regard to
   // case: matching folds case, the name sent keeps what was typed.
-  const query = search.trim().slice(0, MAX_LABEL_LENGTH);
+  const query = search.trim().slice(0, TASK_LABEL_CHARS_MAX);
   const folded = query.toLowerCase();
 
   const options = useMemo<LabelOption[]>(() => {
@@ -74,7 +75,10 @@ export function LabelEditor({
 
   const exactExists = catalog.some((l) => l.name.toLowerCase() === folded);
   const canCreate =
-    query.length > 0 && !exactExists && labels.length < MAX_LABELS && !disabled;
+    query.length > 0 &&
+    !exactExists &&
+    labels.length < TASK_LABELS_MAX &&
+    !disabled;
   const itemCount = options.length + (canCreate ? 1 : 0);
   const createIndex = canCreate ? options.length : -1;
 
@@ -102,7 +106,7 @@ export function LabelEditor({
     setCreating(true);
     try {
       await createLabel.mutateAsync({ projectId, name: query });
-      if (!labels.includes(query) && labels.length < MAX_LABELS) {
+      if (!labels.includes(query) && labels.length < TASK_LABELS_MAX) {
         onChange([...labels, query]);
       }
       setSearch('');
@@ -194,7 +198,7 @@ export function LabelEditor({
               type="text"
               autoFocus
               value={search}
-              maxLength={MAX_LABEL_LENGTH}
+              maxLength={TASK_LABEL_CHARS_MAX}
               placeholder={t('labels.add')}
               aria-label={t('labels.add')}
               disabled={creating}
