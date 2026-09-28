@@ -86,6 +86,7 @@ import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integrat
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
+import { checkSkillUploadAudience } from './domains/skills/upload-audience.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
@@ -55718,6 +55719,20 @@ async function main(): Promise<void> {
       [
         'checkDataResidency',
         () => checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkSkillUploadAudience',
+        () =>
+          checkSkillUploadAudience(
+            sql,
+            baseUrl,
+            authCtx,
+            `itest-${orgSuffix}`,
+            auth,
+            (label, role) =>
+              signUpOrgMember(sql, baseUrl, authCtx.orgId, label, role),
+            record,
+          ),
       ],
       [
         'checkAutomationsSurface',

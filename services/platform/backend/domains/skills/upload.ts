@@ -1,5 +1,5 @@
 import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '@tale/shared/schemas/skills';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing.ts';
@@ -53,7 +53,10 @@ export async function uploadSkillBundlePg(
     force?: boolean;
     /** The audience rule for a team skill's `teams`, answered in the skill
      * door's codes (`assertSkillTeamsAssignable`). */
-    assertTeamsAssignable: (teamIds: string[]) => Promise<void>;
+    assertTeamsAssignable: (
+      teamIds: string[],
+      tx: TransactionSql,
+    ) => Promise<void>;
   },
 ): Promise<UploadOutcome> {
   // Single-use: the intent is consumed here, and the blob dies with this
@@ -132,7 +135,7 @@ export async function uploadSkillBundlePg(
       sql,
       args.organizationId,
       parsed.slug,
-      async () => {
+      async (tx) => {
         let existing: OrgSkill | null = null;
         let existingUnreadable = false;
         try {
@@ -174,7 +177,8 @@ export async function uploadSkillBundlePg(
           parsed,
           uploader: args.viewer,
           existing,
-          assertTeamsAssignable: args.assertTeamsAssignable,
+          assertTeamsAssignable: (teamIds) =>
+            args.assertTeamsAssignable(teamIds, tx),
         });
         try {
           await writeSkillBundleFiles(args.orgSlug, parsed.slug, files);

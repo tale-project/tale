@@ -407,7 +407,7 @@ export async function saveSkillForViewer(
     if (
       teams !== undefined &&
       args.assertTeamsAssignable !== undefined &&
-      (args.teams !== undefined || existing === null)
+      (args.teams !== undefined || !sameTeams(teams, existing))
     ) {
       await args.assertTeamsAssignable(teams);
     }
@@ -530,8 +530,8 @@ const PRIVATE_SKILLS_RETIRED_MESSAGE =
  *
  * `existing` is the bundle the upload replaces, or `null` for a new slug — a
  * slug whose current document is unreadable counts as new, since there is
- * nothing left to preserve. Sharing (`team`/`org` + `teams`) is kept as
- * declared here — the parse step already refused the inconsistent shapes —
+ * nothing left to preserve. Sharing (`team`/`org` + `teams`) uses the editor's
+ * team normalization, so the audience checked is the one readers see —
  * and the audience rule for `teams` is {@link prepareBundleWrite}'s, which
  * every upload door writes through. `SKILL.md` stays byte-for-byte when the
  * zip already says what the readers will conclude.
@@ -554,14 +554,26 @@ export function normalizedBundleFiles(
     existing === null
       ? uploader.userId
       : (existing.meta.owner ?? uploader.userId);
+  const teams = resolveTeams(
+    parsed.meta.visibility,
+    parsed.meta.teams,
+    undefined,
+  );
 
   const files = parsed.files.map((file) => ({
     path: file.relPath,
     content: file.content,
   }));
-  if (parsed.meta.owner === owner) return files;
+  if (
+    parsed.meta.owner === owner &&
+    (teams === undefined ||
+      (teams.length === parsed.meta.teams?.length &&
+        teams.every((id, index) => id === parsed.meta.teams?.[index])))
+  )
+    return files;
 
   const meta: SkillFrontmatter = { ...parsed.meta, owner };
+  if (teams !== undefined) meta.teams = teams;
   const rewritten = serializeSkillMd(meta, parsed.body);
   return files.map((file) =>
     file.path === SKILL_DOCUMENT_NAME
@@ -593,16 +605,19 @@ export async function prepareBundleWrite(args: {
     args.existing,
   );
   const teams =
-    args.parsed.meta.visibility === 'team'
-      ? (args.parsed.meta.teams ?? [])
-      : [];
+    resolveTeams(
+      args.parsed.meta.visibility,
+      args.parsed.meta.teams,
+      undefined,
+    ) ?? [];
   if (teams.length > 0 && !sameTeams(teams, args.existing)) {
     await args.assertTeamsAssignable([...teams]);
   }
   return files;
 }
 
-/** Whether a team skill keeps exactly the teams the bundle it replaces has. */
+/** Compare with the actual stored IDs, without normalizing a legacy padded
+ * ID: making that ID visible to its real team is a new assignment. */
 function sameTeams(
   teams: readonly string[],
   existing: OrgSkill | null,

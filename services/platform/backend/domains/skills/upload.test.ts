@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OrgSkill } from '../../../lib/skills/listing.ts';
 import { readOrgSkill } from '../../../lib/skills/listing.ts';
 import { s3DeleteObject } from '../../core/lib/storage/object_store.ts';
+import { prepareBundleWrite } from '../../core/skills/file_actions.ts';
 import {
   listSkillBundleFileEntries,
   writeSkillBundleFiles,
@@ -112,6 +113,28 @@ beforeEach(() => {
 });
 
 describe('uploadSkillBundlePg', () => {
+  it('checks the audience on the connection that holds the writer lock', async () => {
+    const events: string[] = [];
+    vi.mocked(readOrgSkill).mockResolvedValue(null);
+    vi.mocked(listSkillBundleFileEntries).mockResolvedValue(null);
+    vi.mocked(prepareBundleWrite).mockImplementationOnce(async (args) => {
+      await args.assertTeamsAssignable(['mine']);
+      return [];
+    });
+    await uploadSkillBundlePg(fakeSql(events), {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      viewer: alice,
+      storageId: 's3:acme/skill_bundle/x',
+      assertTeamsAssignable: async (_ids, tx) => {
+        expect(events).toEqual(['begin', 'lock']);
+        await tx`SELECT 'audience check on the held connection'`;
+        events.push('audience');
+      },
+    });
+    expect(events).toEqual(['begin', 'lock', 'audience', 'commit']);
+  });
+
   it('reads the existing bundle and writes inside one writer-lock transaction', async () => {
     const events: string[] = [];
     vi.mocked(readOrgSkill).mockImplementation(async () => {

@@ -973,6 +973,49 @@ describe('saveSkill', () => {
   });
 });
 
+describe('an editor normalizing a legacy audience', () => {
+  it('rechecks a padded stored team even when the edit omits teams', async () => {
+    await seedSkill(
+      'acme',
+      'legacy-team',
+      skillMd({
+        name: 'legacy-team',
+        description: 'Legacy.',
+        visibility: 'team',
+        owner: alice.viewer.userId,
+        teams: '[" t-foreign "]',
+      }),
+    );
+    const saveSkill = await load('saveSkillForViewer');
+    const refusal = new AppError({
+      code: 'TEAM_ACCESS_DENIED',
+      message: 'Not your team.',
+    });
+    const assertTeamsAssignable = vi.fn(async () => {
+      throw refusal;
+    });
+    await expect(
+      saveSkill({
+        orgSlug: 'acme',
+        slug: 'legacy-team',
+        ...alice,
+        description: 'Edited.',
+        body: 'Body-only edit.',
+        assertTeamsAssignable,
+      }),
+    ).rejects.toBe(refusal);
+    expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith([
+      't-foreign',
+    ]);
+    expect(
+      await readFile(
+        path.join(configRoot, 'acme', 'skills', 'legacy-team', 'SKILL.md'),
+        'utf8',
+      ),
+    ).toContain('" t-foreign "');
+  });
+});
+
 describe('deleteSkill', () => {
   it('reports a no-op when there is nothing to delete', async () => {
     const deleteSkill = await load('deleteSkillForViewer');
@@ -1298,6 +1341,53 @@ describe('prepareBundleWrite', () => {
         },
       }),
     ).rejects.toBe(refusal);
+  });
+
+  it('checks and stores the editor’s normalized audience, including an already correct owner', async () => {
+    const parsed = bundleOf(
+      skillMd({
+        name: 'house-voice',
+        description: 'Ours.',
+        visibility: 'team',
+        owner: alice.viewer.userId,
+        teams: '[" t-fin ", t-fin, " "]',
+      }),
+    );
+    const assertTeamsAssignable = vi.fn(async () => undefined);
+    const files = await prepareBundleWrite({
+      parsed,
+      uploader: alice.viewer,
+      existing: null,
+      assertTeamsAssignable,
+    });
+    expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith(['t-fin']);
+    expect(
+      parseSkillMd(files[0]!.content.toString('utf8'), 'SKILL.md').meta.teams,
+    ).toEqual(['t-fin']);
+  });
+
+  it('refuses a blank-only audience instead of writing an invisible team skill', async () => {
+    const assertTeamsAssignable = vi.fn(async () => undefined);
+    await expect(
+      prepareBundleWrite({
+        parsed: bundleOf(teamSkill(['" "'])),
+        uploader: alice.viewer,
+        existing: null,
+        assertTeamsAssignable,
+      }),
+    ).rejects.toMatchObject({ data: { code: 'INVALID_SKILL' } });
+    expect(assertTeamsAssignable).not.toHaveBeenCalled();
+  });
+
+  it('rechecks an old padded audience before normalizing it to visible team IDs', async () => {
+    const assertTeamsAssignable = vi.fn(async () => undefined);
+    await prepareBundleWrite({
+      parsed: bundleOf(teamSkill(['" t-fin "'])),
+      uploader: alice.viewer,
+      existing: existingOf(teamSkill(['" t-fin "'])),
+      assertTeamsAssignable,
+    });
+    expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith(['t-fin']);
   });
 
   it('does not re-check an unchanged team list, and checks a changed one', async () => {

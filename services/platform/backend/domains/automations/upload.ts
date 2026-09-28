@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import {
@@ -17,6 +17,7 @@ import {
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { consumeUploadIntent } from '../files/upload-intents.ts';
 import { assertSkillTeamsAssignable } from '../skills/errors.ts';
+import { withSkillWriterLocks } from '../skills/writer-lock.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { bindProject, saveVersion } from './store.ts';
 
@@ -55,9 +56,11 @@ export async function uploadAutomationPg(
   // bare client ref (the impl calls cleanup in `finally`, refusal included).
   let verifiedKey: string | null = null;
   /** The uploader's teams in this organization. */
-  const uploaderTeamIds = async (): Promise<string[]> =>
+  const uploaderTeamIds = async (
+    reader: Sql | TransactionSql,
+  ): Promise<string[]> =>
     (
-      await sql<{ teamId: string }[]>`
+      await reader<{ teamId: string }[]>`
         SELECT tm."teamId" FROM "teamMember" tm
         JOIN "team" t ON t."id" = tm."teamId"
         WHERE tm."userId" = ${auth.userId}
@@ -143,17 +146,22 @@ export async function uploadAutomationPg(
         }
       },
       getViewerContext: async () => ({
-        teamIds: await uploaderTeamIds(),
+        teamIds: await uploaderTeamIds(sql),
         isOrgAdmin: defineAbilityFor(auth.role).can('write', 'orgSettings'),
       }),
-      // A carried team skill obeys the same audience rule as one saved in
-      // the editor or uploaded as a zip, answered in the skill door's codes.
-      assertTeamsAssignable: async (teamIds) =>
-        assertSkillTeamsAssignable(sql, {
-          organizationId: auth.organizationId,
-          role: auth.role,
-          teamIds: await uploaderTeamIds(),
-        })(teamIds),
+      withSkillWriterLocks: (slugs, work) =>
+        withSkillWriterLocks(sql, auth.organizationId, slugs, (tx) =>
+          work({
+            // The held connection also reads the audience: reserving another
+            // here deadlocks when competing writers fill the pool.
+            assertTeamsAssignable: async (teamIds) =>
+              assertSkillTeamsAssignable(tx, {
+                organizationId: auth.organizationId,
+                role: auth.role,
+                teamIds: await uploaderTeamIds(tx),
+              })(teamIds),
+          }),
+        ),
     },
     args,
   );

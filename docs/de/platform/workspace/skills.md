@@ -66,7 +66,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-Die Vorschau zeigt Metadaten, Freigabe, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe Inhalt und Zielgruppe. Fehlt `visibility`, wird der Skill organisationsweit geteilt. Ein Team-Skill darf nur Teams deiner Organisation nennen, und ohne Administratorrechte nur deine eigenen. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir, ein ersetzter behält seinen bisherigen Eigentümer. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
+Die Vorschau zeigt Metadaten, Freigabe, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe Inhalt und Zielgruppe. Fehlt `visibility`, wird der Skill organisationsweit geteilt. Wenn du einen Team-Skill anlegst oder seine Teams änderst, darfst du nur Teams deiner Organisation angeben, ohne Administratorrechte nur deine eigenen. Eine bestehende Teamliste darf unverändert bleiben, auch wenn ein Team inzwischen gelöscht wurde. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir. Ein ersetzter behält seinen bisherigen Eigentümer; hatte er keinen, gehört er danach dir. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
 
 <Warning>
 

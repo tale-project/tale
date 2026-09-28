@@ -21,6 +21,7 @@ import {
 } from '../../lib/invalid-body-response.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
+import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import { getOrgAutomationMetrics } from './metrics.ts';
 import {
@@ -152,15 +153,16 @@ function handleError<E extends OrgEnv>(
     if (data !== null && typeof data === 'object') {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate the reads
       const record = data as Record<string, unknown>;
+      const code = typeof record.code === 'string' ? record.code : 'REFUSED';
       return c.json(
         {
-          error: typeof record.code === 'string' ? record.code : 'REFUSED',
+          error: code,
           message:
             typeof record.message === 'string'
               ? record.message
               : 'The request was refused.',
         },
-        400,
+        SKILL_ERROR_STATUS[code] ?? 400,
       );
     }
   }

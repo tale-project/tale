@@ -79,7 +79,7 @@ L’archive ne doit dépasser 20 MiB ni compressée ni décompressée, avec au p
 
 ## Résoudre les conflits de skills
 
-La liste `skills` du manifeste doit correspondre aux dossiers fournis sous `skills/`. Un dossier non déclaré ou un bundle déclaré mais absent fait refuser l’import. Chaque bundle exige des métadonnées valides dans `SKILL.md`, avec un `name` identique au nom du dossier. Les skills fournis suivent les règles de la bibliothèque de skills : un nouveau skill appartient à la personne qui téléverse le paquet, un skill remplacé garde son propriétaire, et un skill d’équipe ne peut nommer que des équipes avec lesquelles cette personne peut partager.
+La liste `skills` du manifeste doit correspondre aux dossiers fournis sous `skills/`. Un dossier non déclaré ou un bundle déclaré mais absent fait refuser l’import. Chaque bundle exige des métadonnées valides dans `SKILL.md`, avec un `name` identique au nom du dossier. Les skills fournis suivent les règles de la bibliothèque de skills : un nouveau skill appartient à la personne qui téléverse le paquet. Un skill remplacé garde son propriétaire ou appartient à cette personne s’il n’en avait pas. Une liste d’équipes nouvelle ou modifiée ne peut contenir que des équipes avec lesquelles cette personne peut partager. Une liste existante peut rester inchangée. Tale vérifie le public de tous les skills fournis avant d’en installer un seul.
 
 ```yaml
 # automation.yml

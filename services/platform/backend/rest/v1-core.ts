@@ -1401,11 +1401,15 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         isOrgAdmin: defineAbilityFor(c.get('role')).can('write', 'orgSettings'),
       },
       // The audience rule for a team skill's `teams`, in the skill codes.
-      assertTeamsAssignable: assertSkillTeamsAssignable(deps.sql, {
-        organizationId: c.get('organizationId'),
-        role: c.get('role'),
-        teamIds,
-      }),
+      assertTeamsAssignable: (
+        ids: string[],
+        reader: Sql | TransactionSql = deps.sql,
+      ) =>
+        assertSkillTeamsAssignable(reader, {
+          organizationId: c.get('organizationId'),
+          role: c.get('role'),
+          teamIds,
+        })(ids),
     };
   };
 
@@ -1573,7 +1577,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         deps.sql,
         c.get('organizationId'),
         slug,
-        () => saveSkillForViewer({ ...who, slug, precondition, ...body }),
+        (tx) =>
+          saveSkillForViewer({
+            ...who,
+            slug,
+            precondition,
+            ...body,
+            assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
+          }),
       );
       // 201 for the bundle this save created, 200 for one it updated: the
       // status is the create-or-update signal (the Tasks convention), so a
@@ -1599,14 +1610,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         deps.sql,
         c.get('organizationId'),
         slug,
-        async () => {
+        async (tx) => {
           const removed = await deleteSkillForViewer({
             ...who,
             slug,
             precondition,
           });
           if (!removed) return false;
-          await unequipDeletedSkill(deps.sql, {
+          await unequipDeletedSkill(tx, {
             organizationId: c.get('organizationId'),
             slug,
             actor: { id: c.get('userId'), email: c.get('userEmail') },

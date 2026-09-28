@@ -19,7 +19,11 @@ import {
   readSkillBundleFiles,
   writeSkillBundleFiles,
 } from '../skills/file_utils';
-import { uploadAutomationImpl, type UploadHost } from './upload_impl';
+import {
+  uploadAutomationImpl,
+  type UploadHost,
+  type UploadSkillWriter,
+} from './upload_impl';
 
 vi.mock('../skills/file_utils', async (importActual) => {
   const actual = await importActual<typeof import('../skills/file_utils')>();
@@ -64,7 +68,7 @@ async function pack(skill: string): Promise<Uint8Array> {
 
 function hostFor(
   bytes: Uint8Array,
-  assertTeamsAssignable: UploadHost['assertTeamsAssignable'] = async () =>
+  assertTeamsAssignable: UploadSkillWriter['assertTeamsAssignable'] = async () =>
     undefined,
 ): UploadHost & { cleaned: string[] } {
   const cleaned: string[] = [];
@@ -81,7 +85,8 @@ function hostFor(
       cleaned.push(storageId);
     },
     getViewerContext: async () => ({ teamIds: ['t-mine'], isOrgAdmin: false }),
-    assertTeamsAssignable,
+    withSkillWriterLocks: async (_slugs, work) =>
+      work({ assertTeamsAssignable }),
   };
 }
 

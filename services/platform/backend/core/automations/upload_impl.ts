@@ -81,6 +81,11 @@ export interface UploadArgs {
   overwriteSkills?: string[];
 }
 
+/** The audience reader bound to the connection holding the writer lock. */
+export interface UploadSkillWriter {
+  assertTeamsAssignable(teamIds: string[]): Promise<void>;
+}
+
 /** The host half of the lane — auth already checked by the caller. */
 export interface UploadHost {
   orgSlug: string;
@@ -107,10 +112,12 @@ export interface UploadHost {
     teamIds: string[];
     isOrgAdmin: boolean;
   } | null>;
-  /** The audience rule for a carried team skill's `teams` — the
-   * organization's own teams, and for a non-admin only their own; throws the
-   * refusal the door answers. */
-  assertTeamsAssignable(teamIds: string[]): Promise<void>;
+  /** Serialize carried-skill reads, permission checks and writes with all
+   * other library writers, including writers served by another replica. */
+  withSkillWriterLocks<T>(
+    slugs: readonly string[],
+    work: (writer: UploadSkillWriter) => Promise<T>,
+  ): Promise<T>;
   /** The organization's store, for validation: subautomation references
    * resolve against it and `llm`/`agent` models are checked against what
    * the organization serves. Absent on a bare harness. */
@@ -510,11 +517,50 @@ export async function uploadAutomationImpl(
       teamIds: viewerContext?.teamIds ?? [],
       isOrgAdmin: viewerContext?.isOrgAdmin ?? host.isOrgAdmin,
     };
-    const outcome = await planSkillWrites(
-      host.orgSlug,
-      parsed.skills,
-      viewer,
-      args.overwriteSkills ?? [],
+    const outcome = await host.withSkillWriterLocks(
+      carriedSlugs,
+      async (writer) => {
+        const planned = await planSkillWrites(
+          host.orgSlug,
+          parsed.skills,
+          viewer,
+          args.overwriteSkills ?? [],
+        );
+        if (planned.kind === 'needs_confirm') return planned;
+
+        // The team-audience rule for every skill about to be written, before
+        // any is: a refused team leaves the organization's skills untouched.
+        for (const entry of planned.plan) {
+          if (entry.action === 'unchanged') continue;
+          entry.files = await prepareBundleWrite({
+            parsed: entry.parsed,
+            uploader: viewer,
+            existing: entry.existing,
+            assertTeamsAssignable: (teamIds) =>
+              writer.assertTeamsAssignable(teamIds),
+          });
+        }
+
+        // Skills first: they are org config with their own history trail, and a
+        // save refusal after them leaves nothing broken — re-uploading reports
+        // them `unchanged`.
+        for (const entry of planned.plan) {
+          if (entry.action === 'unchanged') continue;
+          try {
+            await writeSkillBundleFiles(
+              host.orgSlug,
+              entry.skill.slug,
+              entry.files,
+            );
+          } catch (error) {
+            refuse(
+              'SKILL_WRITE_FAILED',
+              `could not install the carried skill "${entry.skill.slug}": ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+        return planned;
+      },
     );
     if (outcome.kind === 'needs_confirm') {
       return {
@@ -522,37 +568,6 @@ export async function uploadAutomationImpl(
         status: 'needs_confirm',
         skillConflicts: outcome.slugs,
       };
-    }
-
-    // The team-audience rule for every skill about to be written, before
-    // any is: a refused team leaves the organization's skills untouched.
-    for (const entry of outcome.plan) {
-      if (entry.action === 'unchanged') continue;
-      await prepareBundleWrite({
-        parsed: entry.parsed,
-        uploader: viewer,
-        existing: entry.existing,
-        assertTeamsAssignable: (teamIds) => host.assertTeamsAssignable(teamIds),
-      });
-    }
-
-    // Skills first: they are org config with their own history trail, and a
-    // save refusal after them leaves nothing broken — re-uploading reports
-    // them `unchanged`.
-    for (const entry of outcome.plan) {
-      if (entry.action === 'unchanged') continue;
-      try {
-        await writeSkillBundleFiles(
-          host.orgSlug,
-          entry.skill.slug,
-          entry.files,
-        );
-      } catch (error) {
-        refuse(
-          'SKILL_WRITE_FAILED',
-          `could not install the carried skill "${entry.skill.slug}": ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
     }
 
     const taskContract = manifest?.subjects?.task;

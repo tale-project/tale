@@ -79,7 +79,7 @@ Die ZIP-Datei darf komprimiert und entpackt jeweils höchstens 20 MiB enthalten:
 
 ## Konflikte bei Skills klären
 
-Die `skills`-Liste im Manifest muss zu den Ordnern unter `skills/` passen. Nicht deklarierte Ordner und deklarierte, aber fehlende Bundles führen zur Ablehnung. Jedes Bundle braucht gültige Metadaten in `SKILL.md`; `name` muss dem Ordnernamen entsprechen. Mitgelieferte Skills folgen den Regeln der Skill-Bibliothek: Ein neuer Skill gehört der Person, die das Paket hochlädt, ein ersetzter behält seinen Eigentümer, und ein Team-Skill darf nur Teams nennen, mit denen diese Person teilen darf.
+Die `skills`-Liste im Manifest muss zu den Ordnern unter `skills/` passen. Nicht deklarierte Ordner und deklarierte, aber fehlende Bundles führen zur Ablehnung. Jedes Bundle braucht gültige Metadaten in `SKILL.md`; `name` muss dem Ordnernamen entsprechen. Mitgelieferte Skills folgen den Regeln der Skill-Bibliothek: Ein neuer Skill gehört der Person, die das Paket hochlädt. Ein ersetzter behält seinen Eigentümer; hatte er keinen, gehört er danach der hochladenden Person. Neue oder geänderte Teamlisten dürfen nur Teams enthalten, mit denen diese Person teilen darf. Bestehende Listen dürfen unverändert bleiben. Tale prüft die Zielgruppen aller mitgelieferten Skills, bevor es einen davon installiert.
 
 ```yaml
 # automation.yml
