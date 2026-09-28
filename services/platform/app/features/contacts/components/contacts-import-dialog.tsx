@@ -21,6 +21,7 @@ import {
 } from '@/app/hooks/use-file-import';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
+import { CONTACT_IMPORT_ROWS_MAX } from '@/lib/shared/schemas/common';
 import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useBulkCreateContacts } from '../hooks/mutations';
@@ -125,6 +126,20 @@ export function ImportContactsDialog({
             // Surface the specific parse failure (e.g. a missing required
             // column) instead of a generic message, so the user can fix it.
             description: parsed.errors[0],
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // The door refuses a longer list whole, naming no row; ask for a
+        // split before sending anything.
+        if (contacts.length > CONTACT_IMPORT_ROWS_MAX) {
+          toast({
+            title: tContacts('import.error'),
+            description: tCommon('import.tooManyRows', {
+              count: contacts.length,
+              max: CONTACT_IMPORT_ROWS_MAX,
+            }),
             variant: 'destructive',
           });
           return;

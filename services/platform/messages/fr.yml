@@ -1608,6 +1608,7 @@ common:
     rowErrorsTitle: '{count, plural, one {# ligne n''a pas été importée} other {# lignes n''ont pas été importées}}'
     rowError: 'Ligne {row} : {message}'
     moreRows: '… et {count} de plus'
+    tooManyRows: Ce fichier contient {count} lignes à importer, et Tale en importe au plus {max} à la fois. Divise-le en fichiers plus petits et importe-les un par un.
     fields:
       name: Nom
       price: Prix
@@ -1673,6 +1674,7 @@ common:
     required: '{field} est requis'
     maxLength: '{field} ne doit pas dépasser {max} caractères'
     email: Entre une adresse email valide
+    emailLocalPart: Utilise au plus {max} caractères avant le signe @
     phone: Entre un numéro de téléphone avec des chiffres et + ( ) - uniquement
     uploadFile: Téléverse un fichier
     unsupportedFileType: Type de fichier non pris en charge

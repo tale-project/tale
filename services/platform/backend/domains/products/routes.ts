@@ -7,7 +7,10 @@ import { PRODUCT_IMAGE_MAX_BYTES } from '../../../lib/shared/product-images.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { PRODUCT_CATEGORY_MAX } from '../../core/products/field_limits.ts';
+import {
+  PRODUCT_CATEGORY_MAX,
+  PRODUCT_IMPORT_ROWS_MAX,
+} from '../../core/products/field_limits.ts';
 import { mergeBulkResult, partitionBulkRows } from '../../lib/bulk-rows.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
@@ -213,7 +216,7 @@ export function createProductRoutes(deps: {
 
   app.post('/bulk', async (c) => {
     const body = z
-      .object({ products: z.array(z.unknown()).max(1000) })
+      .object({ products: z.array(z.unknown()).max(PRODUCT_IMPORT_ROWS_MAX) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
       return invalidBodyResponse(c, body.error);

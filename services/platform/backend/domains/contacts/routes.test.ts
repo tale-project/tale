@@ -1,15 +1,24 @@
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CONTACT_IMPORT_ROWS_MAX } from '../../../lib/shared/schemas/common.ts';
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { bulkCreateContacts } = vi.hoisted(() => ({
+const { bulkCreateContacts, updateContact } = vi.hoisted(() => ({
   bulkCreateContacts: vi.fn(),
+  updateContact: vi.fn(),
 }));
 
 vi.mock('./service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./service.ts')>()),
   bulkCreateContacts,
+  updateContact,
+}));
+vi.mock('@tale/shared/db/serializable', () => ({
+  transactSerializable: (
+    _sql: unknown,
+    run: (tx: unknown) => Promise<unknown>,
+  ) => run({}),
 }));
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
@@ -139,5 +148,58 @@ describe('contact file import validation', () => {
     });
     expect(response.status).toBe(400);
     expect(bulkCreateContacts).not.toHaveBeenCalled();
+  });
+
+  // The import dialog refuses a longer file before sending it, reading the
+  // same constant; this pins the door's half of that agreement.
+  it('takes a file of CONTACT_IMPORT_ROWS_MAX rows and refuses one more by name', async () => {
+    const rows = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        ...good,
+        email: `c${i}@example.test`,
+      }));
+    expect((await upload(rows(CONTACT_IMPORT_ROWS_MAX))).status).toBe(200);
+    const refused = await upload(rows(CONTACT_IMPORT_ROWS_MAX + 1));
+    expect(refused.status).toBe(400);
+    const body = (await refused.json()) as {
+      data: { issues: { path: string }[] };
+    };
+    expect(body.data.issues.map((issue) => issue.path)).toEqual(['contacts']);
+    expect(bulkCreateContacts).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('contact edit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    updateContact.mockResolvedValue(undefined);
+  });
+
+  async function edit(body: Record<string, unknown>) {
+    return app.request('/c-1?orgId=o1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // The edit dialog clears a phone with `null`: a blank reads as "not
+  // sent" here (CSV-shaped sources), which kept the old number behind the
+  // dialog's success toast.
+  it('hands a cleared phone to the domain as null, and a blank one as not sent', async () => {
+    expect((await edit({ phone: null })).status).toBe(200);
+    expect(updateContact).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'c-1',
+      { phone: null },
+    );
+    expect((await edit({ phone: '  ' })).status).toBe(200);
+    expect(updateContact).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'c-1',
+      {},
+    );
   });
 });

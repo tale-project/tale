@@ -8,9 +8,11 @@ Add connector credentials so Tale can use services such as a mailbox, file store
 ## Add an account
 
 1. Select **Add credential**, then the connector. Already configured connectors appear first and can hold additional credentials.
-2. Check the **Name**. It starts as the connector's name, with a number added when another credential for that connector already uses it: `GitHub`, then `GitHub 2`. A name such as `Support inbox` or `EU store` is easier for an automation author to recognize. OAuth connections do not use this field.
-3. Complete the authentication method offered by that connector. For OAuth, select **Connect** and complete the vendor's consent flow.
+2. Check the **Name**. It starts as the connector's name, with a number added when another credential for that connector already uses it: `GitHub`, then `GitHub 2`. A name such as `Support inbox` or `EU store` is easier for an automation author to recognize. An OAuth connection has no name field: Tale names it the same way when consent completes (a second Slack workspace takes the workspace's name), and **Edit credential** renames it.
+3. Complete the authentication method offered by that connector. For OAuth, select **Connect** and complete the vendor's consent flow. Each **Connect** adds a new credential for the account you authorize and never replaces an existing one, so sign in to the vendor as the account you want to add.
 4. Complete the form and check the resulting row, including its connector, account or instance, and status.
+
+Slack connects one credential per workspace. Authorizing a workspace that is already connected renews that workspace's credential instead of adding a second one.
 
 The connector determines which fields appear. Use the account's actual credentials, not a Tale API key.
 
@@ -55,7 +57,9 @@ For OneDrive/SharePoint, **Use Entra ID SSO app** can copy an existing SSO regis
 
 ## Reconnect or diagnose a failure
 
-**Reconnect needed** means stored OAuth authorization can no longer refresh. Choose **Reconnect** and authorize the account again. This keeps the credential's name and references. A deliberately disabled credential instead needs **Enable**.
+**Reconnect needed** means stored OAuth authorization can no longer refresh. Choose **Reconnect** in that row's menu and authorize the same account again. Tale renews exactly that credential: its name, default choice and references stay, and no other credential changes. Reconnect does not re-enable a deliberately disabled credential; **Enable** returns it to service.
+
+If the credential is removed before consent completes, or your role no longer allows you to manage credentials, Tale saves nothing and shows the reason. For Slack, authorize the workspace the credential already connects. Tale refuses a different workspace; connect that one with **Add credential**.
 
 If the connection cannot start, check whether the OAuth app is configured. If the vendor rejects the return to Tale, compare the registered redirect URI with the exact URI shown by Tale. If an action fails after connecting, check the account's permissions and the required scope for that action.
 
