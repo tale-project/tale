@@ -395,6 +395,8 @@ function DatePickerWithRangeBase({
         onChange={handleDateChange}
         dateFormat="dd / MM / yyyy"
         locale={locale}
+        chooseDayAriaLabelPrefix={t('datePicker.chooseDay')}
+        monthAriaLabelPrefix={t('datePicker.month')}
         disabled={isDisabled}
         placeholderText={t('upload.pickADate')}
         customInput={

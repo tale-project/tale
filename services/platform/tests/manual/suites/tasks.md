@@ -385,7 +385,8 @@ project (as in AUTO-F32).
   **Français** and open the task and its **Due date** calendar each time → The
   dates read like `29. Sep. 2026` and `29 sept. 2026`, never the English
   `Sep 29, 2026`; the calendar's month and weekday names are German or French
-  and its week starts on Monday (in English, on Sunday); the stored day does
+  and its week starts on Monday (in English, on Sunday); a screen reader
+  names the month group and day choices in that language too; the stored day does
   not move — switching back to English shows the same date.
 
 ### Repeating tasks

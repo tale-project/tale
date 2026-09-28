@@ -214,6 +214,8 @@ export function DatePicker({
         }
         dateFormat={DISPLAY_FORMAT}
         locale={locale}
+        chooseDayAriaLabelPrefix={t('datePicker.chooseDay')}
+        monthAriaLabelPrefix={t('datePicker.month')}
         disabled={disabled}
         placeholderText={placeholder ?? t('datePicker.placeholder')}
         customInput={

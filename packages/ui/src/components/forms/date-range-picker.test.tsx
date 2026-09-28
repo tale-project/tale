@@ -48,12 +48,13 @@ describe('DatePickerWithRange', () => {
     });
 
     it.each([
-      ['en-US', 'September 2026', 'Su'],
-      ['de', 'September 2026', 'Mo'],
-      ['fr', 'septembre 2026', 'lu'],
+      ['en-US', 'September 2026', 'Su', 'Choose', 'Month'],
+      ['de', 'September 2026', 'Mo', 'Wähle', 'Monat'],
+      ['de-CH', 'September 2026', 'Mo', 'Wähle', 'Monat'],
+      ['fr', 'septembre 2026', 'lu', 'Choisir', 'Mois'],
     ])(
       '%s: names the month and weekdays and starts the week like the language',
-      async (locale, month, firstWeekday) => {
+      async (locale, month, firstWeekday, chooseLabel, monthLabel) => {
         localStorage.setItem('user-locale', locale);
         const { user } = render(
           <DatePickerWithRange
@@ -72,6 +73,18 @@ describe('DatePickerWithRange', () => {
           '.react-datepicker__day-name',
         );
         expect(weekdays[0]).toHaveTextContent(firstWeekday);
+        expect(
+          screen
+            .getAllByRole('gridcell')
+            .every((cell) =>
+              cell.getAttribute('aria-label')?.startsWith(chooseLabel + ' '),
+            ),
+        ).toBe(true);
+        expect(
+          screen.getByRole('rowgroup', {
+            name: new RegExp('^' + monthLabel + ' '),
+          }),
+        ).toBeVisible();
       },
     );
   });

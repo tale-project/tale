@@ -136,13 +136,53 @@ function SwitchToFrench() {
 
 describe('DatePicker in the UI language', () => {
   it.each([
-    ['en-US', 'Sep 29, 2026', 'September 2026', 'Su', 'Clear date'],
-    ['de', '29. Sep. 2026', 'September 2026', 'Mo', 'Datum entfernen'],
-    ['de-CH', '29. Sep. 2026', 'September 2026', 'Mo', 'Datum entfernen'],
-    ['fr', '29 sept. 2026', 'septembre 2026', 'lu', 'Effacer la date'],
+    [
+      'en-US',
+      'Sep 29, 2026',
+      'September 2026',
+      'Su',
+      'Clear date',
+      'Choose',
+      'Month',
+    ],
+    [
+      'de',
+      '29. Sep. 2026',
+      'September 2026',
+      'Mo',
+      'Datum entfernen',
+      'Wähle',
+      'Monat',
+    ],
+    [
+      'de-CH',
+      '29. Sep. 2026',
+      'September 2026',
+      'Mo',
+      'Datum entfernen',
+      'Wähle',
+      'Monat',
+    ],
+    [
+      'fr',
+      '29 sept. 2026',
+      'septembre 2026',
+      'lu',
+      'Effacer la date',
+      'Choisir',
+      'Mois',
+    ],
   ])(
     '%s: shows the date, month, weekdays and week start of the language',
-    async (locale, shown, month, firstWeekday, clearLabel) => {
+    async (
+      locale,
+      shown,
+      month,
+      firstWeekday,
+      clearLabel,
+      chooseLabel,
+      monthLabel,
+    ) => {
       localStorage.setItem(LOCALE_KEY, locale);
       const { user } = render(
         <DatePicker value={SEP_29_2026} onChange={vi.fn()} />,
@@ -158,6 +198,18 @@ describe('DatePicker in the UI language', () => {
       const weekdays = document.querySelectorAll('.react-datepicker__day-name');
       expect(weekdays).toHaveLength(7);
       expect(weekdays[0]).toHaveTextContent(firstWeekday);
+      expect(
+        screen
+          .getAllByRole('gridcell')
+          .every((cell) =>
+            cell.getAttribute('aria-label')?.startsWith(chooseLabel + ' '),
+          ),
+      ).toBe(true);
+      expect(
+        screen.getByRole('rowgroup', {
+          name: new RegExp('^' + monthLabel + ' '),
+        }),
+      ).toBeVisible();
     },
   );
 
