@@ -18,10 +18,11 @@ import { describe, expect, it } from 'vitest';
  * and `packages/ui/src`. It fails on a `description` or `title` that reads
  * `.message` straight off an error, in the shapes the offenders took: the
  * `x instanceof Error ? x.message` ternary on one line or across several,
- * `description={err.message}`, `description: err.message`,
- * `(err as Error).message` and `String(err)`. A message that first passes
- * through a variable is beyond a text scan, which is what the two helpers
- * are for. The platform's `test` task hashes `packages/ui/src` for this read
+ * `description={err.message}`, `description: err.message` (or `e.message`,
+ * `ex.message`: the short catch names), `(err as Error).message` and
+ * `String(err)`. A message that first passes through a variable is beyond a
+ * text scan, which is what the two helpers are for. The platform's `test`
+ * task hashes `packages/ui/src` for this read
  * (`services/platform/turbo.json`).
  */
 
@@ -34,8 +35,9 @@ const ROOTS = ['services/platform/app', 'packages/ui/src'];
 
 /** The opening of a toast's or an Alert's text, as a property or a prop. */
 const TEXT_PROP = String.raw`\b(?:description|title)\s*[:=]\s*\{?\s*`;
-/** An identifier that names an error: `err`, `error`, `saveError`, `statsError`. */
-const ERROR_NAME = String.raw`\w*[eE]rr\w*`;
+/** An identifier that names an error: `err`, `error`, `saveError`,
+ * `statsError`, and the short catch names `e` and `ex`. */
+const ERROR_NAME = String.raw`(?:e|ex|\w*[eE]rr\w*)\b`;
 
 const FORBIDDEN = [
   {
@@ -69,11 +71,36 @@ const FORBIDDEN = [
   },
 ];
 
+interface Violation {
+  file: string;
+  line: number;
+  shape: string;
+  /** The matched source, its whitespace collapsed to single spaces. */
+  text: string;
+}
+
+interface Allowance {
+  file: string;
+  /** The matched text, whitespace collapsed, as {@link Violation} carries it. */
+  text: string;
+  reason: string;
+}
+
 /**
- * Surfaces whose error is provably a plain `Error`, keyed by repo path, each
- * with the reason. Every entry must still match a shape, or it is stale.
+ * Surfaces whose error is provably a plain `Error`, each keyed by its repo
+ * path AND the text the shape matched, with the reason. An entry exempts that
+ * one site, never the rest of its file, and must still match, or it is stale.
  */
-const ALLOWED = new Map<string, string>();
+const ALLOWED: readonly Allowance[] = [];
+
+function isAllowed(
+  violation: Violation,
+  allowances: readonly Allowance[] = ALLOWED,
+): boolean {
+  return allowances.some(
+    (entry) => entry.file === violation.file && entry.text === violation.text,
+  );
+}
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -92,35 +119,40 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
-/** `file:line: shape` for every forbidden shape in `src`. */
-function violations(file: string, src: string): string[] {
-  const found: string[] = [];
+/** Every forbidden shape in `src`. */
+function violations(file: string, src: string): Violation[] {
+  const found: Violation[] = [];
   for (const { name, pattern } of FORBIDDEN) {
     for (const match of src.matchAll(pattern)) {
-      const line = src.slice(0, match.index).split('\n').length;
-      found.push(`${file}:${line}: ${name}`);
+      found.push({
+        file,
+        line: src.slice(0, match.index).split('\n').length,
+        shape: name,
+        text: match[0].replaceAll(/\s+/g, ' ').trim(),
+      });
     }
   }
   return found;
 }
 
-function scan(): Map<string, string[]> {
-  const byFile = new Map<string, string[]>();
+function scan(): Violation[] {
+  const found: Violation[] = [];
   for (const root of ROOTS) {
     for (const full of sourceFiles(path.join(REPO_ROOT, root))) {
       const file = path.relative(REPO_ROOT, full).split(path.sep).join('/');
-      const found = violations(file, readFileSync(full, 'utf8'));
-      if (found.length > 0) byFile.set(file, found);
+      found.push(...violations(file, readFileSync(full, 'utf8')));
     }
   }
-  return byFile;
+  return found;
 }
 
 describe('error message guard', () => {
   it("builds no toast or Alert text from an error's message", () => {
-    const shown = [...scan()]
-      .filter(([file]) => !ALLOWED.has(file))
-      .flatMap(([, found]) => found);
+    const shown = scan()
+      .filter((violation) => !isAllowed(violation))
+      .map(
+        ({ file, line, shape, text }) => `${file}:${line}: ${shape} (${text})`,
+      );
     expect(
       shown,
       'read the failure through failureDetail (platform) or readableErrorMessage (@tale/ui)',
@@ -129,7 +161,30 @@ describe('error message guard', () => {
 
   it('keeps no stale allowlist entry', () => {
     const found = scan();
-    expect([...ALLOWED.keys()].filter((file) => !found.has(file))).toEqual([]);
+    expect(
+      ALLOWED.filter(
+        (entry) => !found.some((violation) => isAllowed(violation, [entry])),
+      ),
+    ).toEqual([]);
+  });
+
+  // An entry used to exempt its whole file, so a second offender written
+  // into an allowed file passed. It names one site now.
+  it('exempts only the allowed site, not the rest of its file', () => {
+    const src = [
+      "toast({ title: t('x'), description: err.message });",
+      "toast({ title: t('y'), description:\n  e.message });",
+    ].join('\n');
+    const allowance = {
+      file: 'sample.tsx',
+      text: 'description: err.message',
+      reason: 'a sample',
+    };
+    expect(
+      violations('sample.tsx', src)
+        .filter((violation) => !isAllowed(violation, [allowance]))
+        .map(({ line, text }) => ({ line, text })),
+    ).toEqual([{ line: 2, text: 'description: e.message' }]);
   });
 
   // The shapes are regular expressions over source text: hold each to a
@@ -143,6 +198,11 @@ describe('error message guard', () => {
     "title: (err as Error).message ?? t('x'),",
     'description: String(error),',
     'title:\n            err instanceof AppError ? err.message : t("x"),',
+    // The short catch names (`catch (e)`, `catch (ex)`).
+    "toast({ title: t('saveError'), description: e.message });",
+    '<Alert description={e.message} />',
+    'title: ex?.message,',
+    'description: String(e),',
   ])('catches %j', (sample) => {
     expect(violations('sample.tsx', sample)).not.toEqual([]);
   });
@@ -155,6 +215,8 @@ describe('error message guard', () => {
     "title={entry.message ?? t('versions.noMessage')}",
     'errorMessage={formState.errors.name?.message}',
     'const subtitle = err.message;',
+    // An identifier that only starts like a catch name is not one.
+    "description: entry.message ?? t('x'),",
   ])('allows %j', (sample) => {
     expect(violations('sample.tsx', sample)).toEqual([]);
   });
