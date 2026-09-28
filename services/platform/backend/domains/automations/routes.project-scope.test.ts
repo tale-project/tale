@@ -229,6 +229,12 @@ describe('app automation door — runs follow the project read rule', () => {
       projectId: HIDDEN,
     });
     expect(response.status).toBe(404);
+    // The same coded sentence the store's own refusal carries, so the
+    // app's toast reads a message rather than a bare code.
+    expect(await response.json()).toEqual({
+      error: 'PROJECT_NOT_FOUND',
+      message: 'Project not found.',
+    });
     expect(store.beginRun).not.toHaveBeenCalled();
   });
 

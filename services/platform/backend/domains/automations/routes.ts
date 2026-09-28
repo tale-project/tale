@@ -665,17 +665,23 @@ export function createAutomationRoutes(deps: {
       const denied = requireAuthor(c);
       if (denied) return denied;
     }
-    const visibleProjectIds = await readableProjectIds(
-      deps.sql,
-      await projectAuth(c),
-    );
-    if (
-      body.data.projectId !== undefined &&
-      !visibleProjectIds.includes(body.data.projectId)
-    ) {
-      return c.json({ error: 'PROJECT_NOT_FOUND' }, 404);
-    }
     try {
+      const visibleProjectIds = await readableProjectIds(
+        deps.sql,
+        await projectAuth(c),
+      );
+      // A hidden project answers exactly like a missing one, before
+      // anything about the automation's version or input is revealed.
+      if (
+        body.data.projectId !== undefined &&
+        !visibleProjectIds.includes(body.data.projectId)
+      ) {
+        throw new AutomationError(
+          'PROJECT_NOT_FOUND',
+          'Project not found.',
+          404,
+        );
+      }
       const started = await beginRun(deps.sql, {
         organizationId: c.get('orgId'),
         name: nameFrom(c, 'start'),
