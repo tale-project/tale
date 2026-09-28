@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { useState } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
@@ -89,6 +91,174 @@ describe('DatePicker', () => {
     document.body.style.pointerEvents = 'none';
     expect(getComputedStyle(popper as HTMLElement).pointerEvents).toBe('auto');
     document.body.style.pointerEvents = '';
+  });
+});
+
+// The app shell's locale provider reads the saved preference, and its bridge
+// switches the i18n language to it — the path a German or French user's
+// picker takes in the running app.
+const LOCALE_KEY = 'user-locale';
+
+afterEach(() => {
+  localStorage.removeItem(LOCALE_KEY);
+});
+
+function ControlledDatePicker({
+  initial,
+  onChange,
+}: {
+  initial?: number;
+  onChange: (value: number | null) => void;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <DatePicker
+      value={value}
+      onChange={(next) => {
+        onChange(next);
+        setValue(next ?? undefined);
+      }}
+    />
+  );
+}
+
+const SEP_29_2026 = new Date(2026, 8, 29).getTime();
+
+/** A stand-in for the language picker: it sets the saved preference. */
+function SwitchToFrench() {
+  const { setLocale } = useLocale();
+  return (
+    <button type="button" onClick={() => setLocale('fr')}>
+      Français
+    </button>
+  );
+}
+
+describe('DatePicker in the UI language', () => {
+  it.each([
+    ['en-US', 'Sep 29, 2026', 'September 2026', 'Su', 'Clear date'],
+    ['de', '29. Sep. 2026', 'September 2026', 'Mo', 'Datum entfernen'],
+    ['de-CH', '29. Sep. 2026', 'September 2026', 'Mo', 'Datum entfernen'],
+    ['fr', '29 sept. 2026', 'septembre 2026', 'lu', 'Effacer la date'],
+  ])(
+    '%s: shows the date, month, weekdays and week start of the language',
+    async (locale, shown, month, firstWeekday, clearLabel) => {
+      localStorage.setItem(LOCALE_KEY, locale);
+      const { user } = render(
+        <DatePicker value={SEP_29_2026} onChange={vi.fn()} />,
+      );
+
+      const trigger = await screen.findByRole('button', { name: shown });
+      expect(
+        screen.getByRole('button', { name: clearLabel }),
+      ).toBeInTheDocument();
+
+      await user.click(trigger);
+      expect(screen.getByText(month)).toBeVisible();
+      const weekdays = document.querySelectorAll('.react-datepicker__day-name');
+      expect(weekdays).toHaveLength(7);
+      expect(weekdays[0]).toHaveTextContent(firstWeekday);
+    },
+  );
+
+  it('follows a language switch while it is on screen', async () => {
+    const { user } = render(
+      <>
+        <SwitchToFrench />
+        <DatePicker value={SEP_29_2026} onChange={vi.fn()} />
+      </>,
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Sep 29, 2026' }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Français' }));
+
+    expect(
+      await screen.findByRole('button', { name: '29 sept. 2026' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Effacer la date' }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('DatePicker clear button', () => {
+  it('is offered only while a date is set and the picker is enabled', () => {
+    const { rerender } = render(<DatePicker onChange={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Clear date' })).toBeNull();
+
+    rerender(<DatePicker value={SEP_29_2026} onChange={vi.fn()} disabled />);
+    expect(screen.queryByRole('button', { name: 'Clear date' })).toBeNull();
+
+    rerender(<DatePicker value={SEP_29_2026} onChange={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Clear date' })).toBeVisible();
+  });
+
+  it('is a named button of its own, beside the trigger and not inside it', () => {
+    render(<DatePicker value={SEP_29_2026} onChange={vi.fn()} />);
+    const trigger = screen.getByRole('button', { name: 'Sep 29, 2026' });
+    const clear = screen.getByRole('button', { name: 'Clear date' });
+
+    expect(clear.tagName).toBe('BUTTON');
+    expect(clear).toHaveAttribute('type', 'button');
+    expect(clear).not.toHaveAttribute('aria-hidden');
+    expect(clear).not.toHaveAttribute('tabindex', '-1');
+    expect(clear.parentElement?.closest('button')).toBeNull();
+    expect(trigger.contains(clear)).toBe(false);
+    expect(trigger.parentElement).toBe(clear.parentElement);
+    // A 24px target (WCAG 2.5.8); real layout is measured in the browser.
+    expect(clear).toHaveClass('size-6');
+  });
+
+  it.each([
+    ['Enter', '{Enter}'],
+    ['Space', ' '],
+  ])(
+    'clears from the keyboard with %s and hands focus back to the trigger',
+    async (_key, keys) => {
+      const onChange = vi.fn();
+      const { user } = render(
+        <ControlledDatePicker initial={SEP_29_2026} onChange={onChange} />,
+      );
+
+      await user.tab();
+      expect(
+        screen.getByRole('button', { name: 'Sep 29, 2026' }),
+      ).toHaveFocus();
+      await user.tab();
+      expect(screen.getByRole('button', { name: 'Clear date' })).toHaveFocus();
+
+      await user.keyboard(keys);
+
+      expect(onChange).toHaveBeenCalledExactlyOnceWith(null);
+      expect(screen.queryByRole('button', { name: 'Clear date' })).toBeNull();
+      expect(
+        screen.getByRole('button', { name: /pick a date/i }),
+      ).toHaveFocus();
+      // Clearing is not opening: the calendar stays shut.
+      expect(document.querySelector('.react-datepicker')).toBeNull();
+    },
+  );
+
+  it('clears on click without opening the calendar', async () => {
+    const onChange = vi.fn();
+    const { user } = render(
+      <ControlledDatePicker initial={SEP_29_2026} onChange={onChange} />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Clear date' }));
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(null);
+    expect(screen.getByRole('button', { name: /pick a date/i })).toHaveFocus();
+    expect(document.querySelector('.react-datepicker')).toBeNull();
+  });
+
+  it('passes axe audit with a date set', async () => {
+    const { container } = render(
+      <DatePicker value={SEP_29_2026} onChange={vi.fn()} />,
+    );
+    await checkAccessibility(container);
   });
 });
 

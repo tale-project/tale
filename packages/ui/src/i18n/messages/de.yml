@@ -161,6 +161,7 @@ common:
     dateFilterUnavailable: Datumsfilter nicht verfügbar
   datePicker:
     calendar: Kalender
+    clear: Datum entfernen
     nextMonth: Nächster Monat
     placeholder: Datum wählen
     presets:

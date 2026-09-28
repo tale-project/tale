@@ -7,9 +7,11 @@ import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { useT } from '@tale/ui/i18n/client';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { useDateFnsLocale } from '@tale/ui/use-date-fns-locale';
 import {
   format,
   isSameDay,
+  type Locale,
   startOfDay,
   subDays,
   subMonths,
@@ -154,6 +156,7 @@ export interface DatePickerWithRangeProps extends Omit<
 
 interface DateInputHeaderProps {
   date: Date;
+  locale: Locale;
   decreaseMonth: () => void;
   increaseMonth: () => void;
   prevMonthButtonDisabled: boolean;
@@ -162,6 +165,7 @@ interface DateInputHeaderProps {
 
 const DateInputHeader = memo(function DateInputHeader({
   date,
+  locale,
   decreaseMonth,
   increaseMonth,
   prevMonthButtonDisabled,
@@ -181,7 +185,7 @@ const DateInputHeader = memo(function DateInputHeader({
       >
         <ChevronLeft className="text-foreground size-3.5" aria-hidden="true" />
       </Button>
-      <Text>{format(date, 'MMMM yyyy')}</Text>
+      <Text>{format(date, 'LLLL yyyy', { locale })}</Text>
       <Button
         type="button"
         size="sm"
@@ -303,6 +307,7 @@ function DatePickerWithRangeBase({
   id: providedId,
 }: DatePickerWithRangeProps) {
   const { t } = useT('common');
+  const locale = useDateFnsLocale();
   const skeletonLoading = useSkeleton();
   const isDisabled = disabled || isLoading || skeletonLoading;
   const generatedId = useId();
@@ -389,6 +394,7 @@ function DatePickerWithRangeBase({
         endDate={endDate}
         onChange={handleDateChange}
         dateFormat="dd / MM / yyyy"
+        locale={locale}
         disabled={isDisabled}
         placeholderText={t('upload.pickADate')}
         customInput={
@@ -409,6 +415,7 @@ function DatePickerWithRangeBase({
         }) => (
           <DateInputHeader
             date={date}
+            locale={locale}
             decreaseMonth={decreaseMonth}
             increaseMonth={increaseMonth}
             prevMonthButtonDisabled={prevMonthButtonDisabled}

@@ -161,6 +161,7 @@ common:
     dateFilterUnavailable: Date filter unavailable
   datePicker:
     calendar: Calendar
+    clear: Clear date
     nextMonth: Next month
     placeholder: Pick a date
     presets:

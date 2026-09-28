@@ -3,12 +3,14 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { useT } from '@tale/ui/i18n/client';
-import { format, startOfDay } from 'date-fns';
+import { IconButton } from '@tale/ui/icon-button';
+import { useDateFnsLocale } from '@tale/ui/use-date-fns-locale';
+import { format, type Locale, startOfDay } from 'date-fns';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 import 'react-datepicker/dist/react-datepicker.css';
 
-import { forwardRef, memo } from 'react';
+import { forwardRef, memo, useCallback, useRef } from 'react';
 import ReactDatePicker from 'react-datepicker';
 
 import {
@@ -22,7 +24,9 @@ import styles from './date-range-picker.module.css';
  * Single-date picker — a slim sibling of {@link ./date-range-picker} built on
  * the SAME `react-datepicker` engine + shared calendar styling, so dates look
  * and behave consistently across the app (executions filter, task due date, …).
- * Value is ms-epoch at local midnight; selecting clears via the trailing ✕.
+ * Value is ms-epoch at local midnight. The date, the month names, the weekday
+ * names and the first day of the week follow the UI language; a set date is
+ * cleared with the trailing ✕, its own button beside the trigger.
  */
 export interface DatePickerProps {
   /** Selected date as ms since epoch (local midnight), or undefined for none. */
@@ -42,14 +46,22 @@ export interface DatePickerProps {
   variant?: 'default' | 'ghost';
 }
 
+/**
+ * The chosen date in the locale's own medium form: "Sep 29, 2026",
+ * "29. Sep. 2026", "29 sept. 2026".
+ */
+const DISPLAY_FORMAT = 'PP';
+
 const MonthNavHeader = memo(function MonthNavHeader({
   date,
+  locale,
   decreaseMonth,
   increaseMonth,
   prevMonthButtonDisabled,
   nextMonthButtonDisabled,
 }: {
   date: Date;
+  locale: Locale;
   decreaseMonth: () => void;
   increaseMonth: () => void;
   prevMonthButtonDisabled: boolean;
@@ -69,7 +81,9 @@ const MonthNavHeader = memo(function MonthNavHeader({
       >
         <ChevronLeft className="text-foreground size-3.5" aria-hidden="true" />
       </Button>
-      <span className="text-sm font-medium">{format(date, 'MMMM yyyy')}</span>
+      <span className="text-sm font-medium">
+        {format(date, 'LLLL yyyy', { locale })}
+      </span>
       <Button
         type="button"
         variant="secondary"
@@ -92,10 +106,17 @@ interface TriggerProps {
   placeholder: string;
   hasValue: boolean;
   onClear: () => void;
+  clearLabel: string;
   className?: string;
   variant: 'default' | 'ghost';
 }
 
+/**
+ * The field: the trigger that opens the calendar and, while a date is set, a
+ * clear button beside it — two sibling buttons, never one inside the other.
+ * The field's ring follows the trigger's focus; the clear button draws its
+ * own, so the ring always says which of the two has focus.
+ */
 const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
   (
     {
@@ -105,50 +126,69 @@ const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
       placeholder,
       hasValue,
       onClear,
+      clearLabel,
       className,
       variant,
     },
     ref,
-  ) => (
-    <span
-      className={cn(
-        'focus-within:ring-ring inline-flex items-center gap-1 rounded-md focus-within:ring-2',
-        variant === 'default' && 'ring-border ring-1',
-        className,
-      )}
-    >
-      <Button
-        ref={ref}
-        type="button"
-        variant="ghost"
-        disabled={disabled}
-        onClick={onClick}
+  ) => {
+    // react-datepicker hands the trigger its own ref; the clear button needs
+    // the same node to put focus back where the keyboard user left off.
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
+    const setTriggerRef = useCallback(
+      (node: HTMLButtonElement | null) => {
+        triggerRef.current = node;
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref],
+    );
+    return (
+      <span
         className={cn(
-          'gap-1.5 text-sm font-normal ring-0',
-          variant === 'ghost' ? 'h-7 px-1.5' : 'h-9 px-2',
-          className != null && 'min-w-0 flex-1 justify-start',
-          !value && 'text-muted-foreground',
+          'inline-flex items-center gap-1 rounded-md',
+          'has-[[data-date-picker-trigger]:focus]:ring-ring has-[[data-date-picker-trigger]:focus]:ring-2',
+          variant === 'default' && 'ring-border ring-1',
+          className,
         )}
       >
-        <CalendarDays className="text-muted-foreground size-4 shrink-0" />
-        {value || placeholder}
-      </Button>
-      {hasValue && !disabled && (
-        <button
+        <Button
+          ref={setTriggerRef}
           type="button"
-          tabIndex={-1}
-          aria-hidden="true"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClear();
-          }}
-          className="text-muted-foreground hover:text-foreground mr-1 cursor-pointer rounded p-0.5"
+          variant="ghost"
+          disabled={disabled}
+          onClick={onClick}
+          data-date-picker-trigger=""
+          className={cn(
+            'gap-1.5 text-sm font-normal ring-0',
+            variant === 'ghost' ? 'h-7 px-1.5' : 'h-9 px-2',
+            className != null && 'min-w-0 flex-1 justify-start',
+            !value && 'text-muted-foreground',
+          )}
         >
-          <X className="size-3.5" />
-        </button>
-      )}
-    </span>
-  ),
+          <CalendarDays className="text-muted-foreground size-4 shrink-0" />
+          {value || placeholder}
+        </Button>
+        {hasValue && !disabled && (
+          <IconButton
+            type="button"
+            icon={X}
+            size="sm"
+            aria-label={clearLabel}
+            iconClassName="size-3.5"
+            onClick={(event) => {
+              event.stopPropagation();
+              onClear();
+              // The clear button leaves with the value; without this, focus
+              // would fall to the page body.
+              triggerRef.current?.focus();
+            }}
+            className="mr-1 size-6 shrink-0 rounded-md"
+          />
+        )}
+      </span>
+    );
+  },
 );
 DateTrigger.displayName = 'DateTrigger';
 
@@ -162,6 +202,7 @@ export function DatePicker({
   variant = 'default',
 }: DatePickerProps) {
   const { t } = useT('common');
+  const locale = useDateFnsLocale();
   const selected = value !== undefined ? new Date(value) : null;
   return (
     <div className={cn(styles.wrapper, 'w-full')}>
@@ -171,7 +212,8 @@ export function DatePicker({
         onChange={(date: Date | null) =>
           onChange(date ? startOfDay(date).getTime() : null)
         }
-        dateFormat="MMM d, yyyy"
+        dateFormat={DISPLAY_FORMAT}
+        locale={locale}
         disabled={disabled}
         placeholderText={placeholder ?? t('datePicker.placeholder')}
         customInput={
@@ -180,6 +222,7 @@ export function DatePicker({
             placeholder={placeholder ?? t('datePicker.placeholder')}
             hasValue={selected != null}
             onClear={() => onChange(null)}
+            clearLabel={t('datePicker.clear')}
             className={cn('w-full', className)}
             variant={variant}
           />
@@ -193,6 +236,7 @@ export function DatePicker({
         }) => (
           <MonthNavHeader
             date={date}
+            locale={locale}
             decreaseMonth={decreaseMonth}
             increaseMonth={increaseMonth}
             prevMonthButtonDisabled={prevMonthButtonDisabled}

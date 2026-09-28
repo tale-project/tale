@@ -1,5 +1,5 @@
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
@@ -40,6 +40,40 @@ describe('DatePickerWithRange', () => {
       );
       await checkAccessibility(container, a11yOptions);
     });
+  });
+
+  describe('in the UI language', () => {
+    afterEach(() => {
+      localStorage.removeItem('user-locale');
+    });
+
+    it.each([
+      ['en-US', 'September 2026', 'Su'],
+      ['de', 'September 2026', 'Mo'],
+      ['fr', 'septembre 2026', 'lu'],
+    ])(
+      '%s: names the month and weekdays and starts the week like the language',
+      async (locale, month, firstWeekday) => {
+        localStorage.setItem('user-locale', locale);
+        const { user } = render(
+          <DatePickerWithRange
+            onChange={vi.fn()}
+            defaultDate={{
+              from: new Date(2026, 8, 1),
+              to: new Date(2026, 8, 29),
+            }}
+          />,
+        );
+
+        await user.click(screen.getByRole('button', { name: /2026/ }));
+
+        expect(await screen.findByText(month)).toBeVisible();
+        const weekdays = document.querySelectorAll(
+          '.react-datepicker__day-name',
+        );
+        expect(weekdays[0]).toHaveTextContent(firstWeekday);
+      },
+    );
   });
 
   describe('skeleton mode', () => {
