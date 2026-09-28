@@ -87,6 +87,29 @@ export const POLICY_TYPES = [
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
 /**
+ * The policies any member of an organization may read through the app's
+ * governance read (`GET /api/app/governance/policies/:type`) — the 0.4
+ * member-readable set. Every other type needs an admin there. One list for
+ * both sides: the door gates on it, and the app's route loaders warm only
+ * these before they know the caller's role (#3098).
+ */
+const POLICY_TYPES_READABLE_BY_MEMBER: ReadonlySet<PolicyType> =
+  new Set<PolicyType>([
+    'data_classification_notice',
+    'feature_flags',
+    'pii_config',
+    'chat_filter',
+    'custom_instructions',
+    'upload_policy',
+    'default_models',
+    'session_idle_timeout',
+  ]);
+
+export function isPolicyReadableByMember(policyType: PolicyType): boolean {
+  return POLICY_TYPES_READABLE_BY_MEMBER.has(policyType);
+}
+
+/**
  * Master switch for the task-ops automation pack. Gates the run-agent action
  * (code half) AND the pack's trigger rows (flipped by
  * `setTaskAutomationEnabled`). Missing row ⇒ enabled.
