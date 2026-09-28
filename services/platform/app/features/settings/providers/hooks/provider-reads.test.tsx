@@ -66,6 +66,8 @@ const CREATE_ARGS = {
 let gets: string[] = [];
 /** The models the org's credentials serve — none until one is created. */
 let servedModels: unknown[] = [];
+/** What the embedding recommendations door answers. */
+let embeddingRecommendations: unknown = { recommendations: [], providers: [] };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -108,7 +110,7 @@ function backend(input: RequestInfo | URL, init?: RequestInit): Response {
     case '/api/app/providers/transcription-model':
       return json({ models: [], pick: null });
     case '/api/app/knowledge/embedding/recommendations':
-      return json({ recommendations: [], providers: [] });
+      return json(embeddingRecommendations);
     case '/api/app/tasks/serving-preview':
       return json({ available: false });
     case CATALOGS:
@@ -200,6 +202,7 @@ beforeEach(() => {
   queryClient = new QueryClient();
   gets = [];
   servedModels = [];
+  embeddingRecommendations = { recommendations: [], providers: [] };
   window.__ENV__ = { BASE_PATH: '' };
   vi.spyOn(window, 'fetch').mockImplementation((input, init) =>
     Promise.resolve(backend(input, init)),
@@ -328,5 +331,35 @@ describe('provider-derived reads', () => {
     });
 
     expectEachProviderReadFetched(1);
+  });
+});
+
+describe('the embedding recommendations read', () => {
+  it("hands over the door's picks and declarations together, unwrapped", async () => {
+    // The embedding form refuses "cannot embed" from `providers`, beside the
+    // picks: a transport that unwrapped `recommendations` again would hand
+    // it a bare array, and the section would read no declaration at all.
+    embeddingRecommendations = {
+      recommendations: [
+        {
+          providerSlug: 'openai',
+          model: 'text-embedding-3-small',
+          dimensions: 1536,
+          recommended: true,
+        },
+      ],
+      providers: [
+        { providerSlug: 'anthropic', support: 'unsupported' },
+        { providerSlug: 'openai', support: 'supported' },
+      ],
+    };
+
+    const { result } = renderHook(() => useEmbeddingRecommendations(ORG), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current.data).toEqual(embeddingRecommendations),
+    );
   });
 });

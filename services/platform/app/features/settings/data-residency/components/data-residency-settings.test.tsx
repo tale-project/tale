@@ -38,6 +38,7 @@ const testKnowledge = vi.hoisted(() => vi.fn());
 const saveEmbedding = vi.hoisted(() => vi.fn());
 const deleteEmbedding = vi.hoisted(() => vi.fn());
 const pageToast = vi.hoisted(() => vi.fn());
+const refetchRecommendations = vi.hoisted(() => vi.fn());
 
 interface StorageFixture {
   configured: boolean;
@@ -85,6 +86,9 @@ const fixtures = vi.hoisted(() => ({
     providerSlug: string;
     support: 'supported' | 'unsupported' | 'unknown';
   }>,
+  // How the recommendations read — picks and declarations — stands: answered,
+  // still in flight, or failed.
+  recommendationsRead: 'answered' as 'answered' | 'pending' | 'failed',
   backfill: null as unknown,
   credentials: [] as Array<{
     id: string;
@@ -138,15 +142,30 @@ vi.mock('../hooks/queries', () => ({
     isError: false,
     error: null,
   }),
-  useEmbeddingRecommendations: () => ({
-    data: {
-      recommendations: fixtures.embeddingRecommendations,
-      providers: fixtures.embeddingSupport,
-    },
-    isPending: false,
-    isError: false,
-    error: null,
-  }),
+  useEmbeddingRecommendations: () =>
+    fixtures.recommendationsRead === 'answered'
+      ? {
+          data: {
+            recommendations: fixtures.embeddingRecommendations,
+            providers: fixtures.embeddingSupport,
+          },
+          isPending: false,
+          isError: false,
+          isFetching: false,
+          error: null,
+          refetch: refetchRecommendations,
+        }
+      : {
+          data: undefined,
+          isPending: fixtures.recommendationsRead === 'pending',
+          isError: fixtures.recommendationsRead === 'failed',
+          isFetching: fixtures.recommendationsRead === 'pending',
+          error:
+            fixtures.recommendationsRead === 'failed'
+              ? new Error('recommendations unavailable')
+              : null,
+          refetch: refetchRecommendations,
+        },
   useObjectStorageBackfillStatus: () => ({
     data: fixtures.backfill,
     isPending: false,
@@ -267,6 +286,7 @@ describe('DataResidencySettings', () => {
     setEmbeddingFixture({ configured: false });
     fixtures.embeddingRecommendations = [];
     fixtures.embeddingSupport = [];
+    fixtures.recommendationsRead = 'answered';
     fixtures.backfill = null;
     fixtures.credentials = [];
     fixtures.catalogs = [];
@@ -834,6 +854,154 @@ describe('DataResidencySettings', () => {
     ).not.toHaveAttribute('aria-invalid', 'true');
   });
 
+  // The declarations come from a second read. Until it answers, the form
+  // cannot tell "cannot embed" from "no curated width" — and reading its
+  // silence as "nothing is refused" let Anthropic through to a save that
+  // failed at index time.
+  const anthropicWithoutEmbeddingEntry = () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'anthropic', name: 'API key' },
+    ];
+    fixtures.embeddingSupport = [
+      { providerSlug: 'anthropic', support: 'unsupported' },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'anthropic',
+        origin: 'shipped',
+        catalogSource: 'static',
+        models: [{ id: 'claude-sonnet-5', tags: ['chat'] }],
+      },
+    ];
+  };
+
+  it('keeps the form closed while the declarations read is in flight', async () => {
+    anthropicWithoutEmbeddingEntry();
+    fixtures.recommendationsRead = 'pending';
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+
+    // Nothing can be chosen before the form knows which providers cannot
+    // embed: the fields stay disabled, and no row claims "no curated width".
+    const provider = within(section).getByRole('combobox', {
+      name: 'Provider',
+    });
+    expect(provider).toBeDisabled();
+    await user.click(provider);
+    expect(
+      screen.queryByRole('option', { name: 'anthropic' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).queryByText(/Tale knows no vector width/),
+    ).not.toBeInTheDocument();
+    expect(capture.current?.isDirty).toBe(false);
+    expect(saveEmbedding).not.toHaveBeenCalled();
+  });
+
+  it('refuses every provider while the declarations read has failed, and offers a retry', async () => {
+    anthropicWithoutEmbeddingEntry();
+    fixtures.recommendationsRead = 'failed';
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    expect(
+      within(section).getByText(
+        'Tale could not check which providers can embed. No model can be chosen until the check answers.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'anthropic' }));
+
+    // The row neither claims "no curated width" nor offers a field: the
+    // check could not say whether the provider embeds, so it refuses.
+    expect(
+      within(section).queryByRole('textbox', { name: 'Model' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).queryByText(/Tale knows no vector width/),
+    ).not.toBeInTheDocument();
+    expect(within(section).getByRole('status')).toHaveTextContent(
+      'Could not check',
+    );
+    expect(
+      within(section).getByText(
+        'Tale could not check whether anthropic can embed, so no model can be chosen yet. Use Try again above.',
+      ),
+    ).toBeInTheDocument();
+    expect(capture.current?.isDirty).toBe(true);
+    expect(capture.current?.isValid).toBe(false);
+    await act(async () => {
+      await expect(capture.current?.save()).rejects.toThrow(
+        'VALIDATION_FAILED',
+      );
+    });
+    expect(saveEmbedding).not.toHaveBeenCalled();
+
+    await user.click(
+      within(section).getByRole('button', { name: 'Try again' }),
+    );
+    expect(refetchRecommendations).toHaveBeenCalledTimes(1);
+  });
+
+  it('pins the door refusal of a provider that cannot embed under the model', async () => {
+    // The declaration changed after the page read it (or a save raced the
+    // read): the write door refuses, and the row names the fix.
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'deepseek', name: 'API key' },
+    ];
+    fixtures.embeddingSupport = [
+      { providerSlug: 'deepseek', support: 'unknown' },
+    ];
+    saveEmbedding.mockRejectedValue({
+      data: {
+        code: 'EMBEDDING_PROVIDER_UNSUPPORTED',
+        message: 'Provider "deepseek" offers no embedding model',
+      },
+    });
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'deepseek' }));
+    await user.type(
+      within(section).getByRole('textbox', { name: 'Model' }),
+      'example-embedding',
+    );
+    await user.type(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+      '1024',
+    );
+
+    await act(async () => {
+      await capture.current?.save();
+    });
+
+    expect(saveEmbedding).toHaveBeenCalledTimes(1);
+    expect(
+      within(section).getByText(
+        'This provider offers no embedding model — choose a provider that serves one.',
+      ),
+    ).toBeInTheDocument();
+    expect(pageToast).not.toHaveBeenCalled();
+  });
+
   it('asks for the model and its width by hand where no curated width ships', async () => {
     // A shipped catalog that lists no embedding model says nothing about the
     // vendor — only that no width is known here. Refusing it would block a
@@ -868,7 +1036,7 @@ describe('DataResidencySettings', () => {
     expect(within(section).queryByText('Cannot embed')).not.toBeInTheDocument();
     expect(
       within(section).getByText(
-        "Tale knows no vector width for deepseek's embedding models. Enter the model tag and its vector width exactly as the provider documents them.",
+        'Tale knows no vector width for deepseek. Enter the model tag (or your deployment name) and the vector width that model produces.',
       ),
     ).toBeInTheDocument();
     await user.type(
@@ -966,7 +1134,7 @@ describe('DataResidencySettings', () => {
     ).not.toBeInTheDocument();
     expect(
       within(section).getByText(
-        "Tale knows no vector width for local-embedding's embedding models. Enter the model tag and its vector width exactly as the provider documents them.",
+        'Tale knows no vector width for local-embedding. Enter the model tag (or your deployment name) and the vector width that model produces.',
       ),
     ).toBeInTheDocument();
     await user.type(
@@ -1017,7 +1185,7 @@ describe('DataResidencySettings', () => {
     expect(within(section).queryByText('Cannot embed')).not.toBeInTheDocument();
     expect(
       within(section).getByText(
-        "Tale knows no vector width for azure's embedding models. Enter the model tag and its vector width exactly as the provider documents them.",
+        'Tale knows no vector width for azure. Enter the model tag (or your deployment name) and the vector width that model produces.',
       ),
     ).toBeInTheDocument();
   });

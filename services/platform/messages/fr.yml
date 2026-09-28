@@ -6820,9 +6820,9 @@ settings:
         Modèles d’embedding de la liste de ce fournisseur ; choisis « Autre modèle »
         pour saisir un tag qui n’y figure pas.
       modelUncuratedHint:
-        Tale ne connaît aucune largeur de vecteurs pour les modèles d’embedding
-        de {provider}. Saisis le tag du modèle et la largeur des vecteurs
-        exactement comme le fournisseur les documente.
+        Tale ne connaît aucune largeur de vecteurs pour {provider}. Saisis le
+        tag du modèle (ou le nom de ton déploiement) et la largeur des vecteurs
+        que ce modèle produit.
       modelUnsupportedHint:
         '{provider} ne propose aucun modèle d’embedding. Choisis un fournisseur
         qui en sert un.'
@@ -6831,6 +6831,15 @@ settings:
         Le catalogue de {provider} n’a pas pu être chargé. Actualise les
         catalogues sous Paramètres → Fournisseurs IA, puis réessaie.
       modelUnavailable: Catalogue indisponible
+      modelUncheckedHint:
+        Tale n’a pas pu vérifier si {provider} propose des embeddings ; aucun
+        modèle ne peut donc encore être choisi. Utilise « Réessayer » ci-dessus.
+      modelUnchecked: Vérification impossible
+      supportReadFailed:
+        Tale n’a pas pu vérifier quels fournisseurs proposent des embeddings.
+        Aucun modèle ne peut être choisi tant que la vérification n’a pas
+        répondu.
+      supportReadRetry: Réessayer
       modelPlaceholder: Choisis un modèle
       modelCustom: Autre modèle…
       modelTag: Tag du modèle
@@ -6865,6 +6874,7 @@ settings:
         credentialNotFound: Les identifiants choisis n'existent plus — choisis-en d'autres.
         credentialMismatch: Les identifiants choisis appartiennent à un autre fournisseur.
         credentialDisabled: Les identifiants choisis sont désactivés — réactive-les ou choisis-en d'autres.
+        providerUnsupported: Ce fournisseur ne propose aucun modèle d’embedding — choisis un fournisseur qui en sert un.
     orgStorage:
       title: Stockage d'objets
       description:
