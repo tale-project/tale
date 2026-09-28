@@ -21,10 +21,14 @@
  *    (`/platform/automations.md`) follows it to the target's export;
  *  - an `/en` prefix (English lives at the root) and a locale-prefixed
  *    `llms.txt` / `llms-full.txt` (one index covers every locale) resolve
- *    to the unprefixed address.
+ *    to the unprefixed address; an `/en` page alias also pins the English
+ *    locale cookie so the reader stays on the English page.
  */
 
-import { stripLocalePrefix } from '@tale/ui/i18n/negotiate';
+import {
+  isLocaleNeutralPath,
+  stripLocalePrefix,
+} from '@tale/ui/i18n/negotiate';
 import {
   pathnameToRouteUrl,
   routeToMdUrl,
@@ -197,4 +201,15 @@ export function resolveRedirect(
     return `/${file}`;
   }
   return null;
+}
+
+/**
+ * Whether a request names English through the `/en` alias of a page. Its
+ * redirect should then pin the English locale cookie: the unprefixed target
+ * is otherwise re-negotiated, and a `de`/`fr` cookie or Accept-Language
+ * would send the reader on to the German or French page.
+ */
+export function isEnglishPageAlias(pathname: string): boolean {
+  const unprefixed = stripLocalePrefix(normalizeRequestPath(pathname), ['en']);
+  return unprefixed !== null && !isLocaleNeutralPath(unprefixed);
 }

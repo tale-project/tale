@@ -1,6 +1,6 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 23 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 24 boxes
 
 Exercise every way a reader moves through the docs — the navigation rail
 (`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
@@ -27,7 +27,7 @@ guide ([search.md](search.md)).
 ## Preconditions
 
 Bring the site up per [SETUP.md](../setup.md) — either mode for
-NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16) and the PWA
+NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16/NAV-F17) and the PWA
 rows (NAV-F11/NAV-F12) need the **built** server (mode A, or `build` + `start`
 per SETUP.md) — the vite dev server serves no 301s, no prerendered stubs, and
 registers no service worker. The rail tree is build-time static;
@@ -144,6 +144,12 @@ this guide focuses on **behaviour**, not link rot.
   `…/platform/workspace/skills`, `…/llms.txt`; no second hop (section folders
   derive from `docs/nav.json`'s first page under them; `docs/redirects.json`
   wins).
+- [ ] `NAV-F17` · **`/en` keeps English** — Built server only — in a browser
+  whose preferred language is German, first open `{base}/de/platform/automations/concepts`
+  so the language cookie reads German, then open
+  `{base}/en/platform/workspace/skills` → The **English** Skills page renders at
+  `{base}/platform/workspace/skills` and the language switcher shows English;
+  opening `{base}/platform/automations/concepts` afterwards stays English too.
 
 ## Boundary & error tests
 

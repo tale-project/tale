@@ -8,6 +8,7 @@ import { slugRoute } from '@/lib/content/paths';
 import {
   buildRedirectPathMap,
   deriveSectionRedirects,
+  isEnglishPageAlias,
   normalizeRequestPath,
   parseRedirects,
   resolveRedirect,
@@ -329,5 +330,19 @@ describe('derived redirects', () => {
   it('answers a real section folder .md guess with its first page export', () => {
     const target = resolveRedirect('/de/platform/automations.md', paths);
     expect(target).toBe(`${paths.get('/de/platform/automations')}.md`);
+  });
+
+  it.each([
+    ['/en', true],
+    ['/en/', true],
+    ['/en/platform/workspace/skills', true],
+    ['/en/platform/automations', true],
+    ['/en/llms.txt', false],
+    ['/en/platform/automations.md', false],
+    ['/de/platform/automations', false],
+    ['/platform/automations', false],
+    ['/english/page', false],
+  ])('%s pins the English locale cookie: %s', (pathname, expected) => {
+    expect(isEnglishPageAlias(pathname)).toBe(expected);
   });
 });
