@@ -61,6 +61,7 @@ import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
+import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
@@ -54066,6 +54067,9 @@ async function checkOrganizationLifecycle(
       afterSameSlug[0].slug === slugA,
     `status=${sameSlug.status} name=${afterSameSlug[0]?.name ?? ''} slug=${afterSameSlug[0]?.slug ?? 'MISSING'}`,
   );
+  // The deletion door compares the typed confirmation with the name the
+  // organization carries NOW, so every deletion below types the name the
+  // update above left — the one it had before is refused as a mismatch.
 
   // Better Auth's own delete would bypass every guard above — it is closed.
   const pluginDelete = await post(
@@ -55128,6 +55132,10 @@ async function main(): Promise<void> {
       [
         'checkDeletedOrgSchedules',
         () => checkDeletedOrgSchedules(sql, authCtx, record),
+      ],
+      [
+        'checkDeletedOrgDoors',
+        () => checkDeletedOrgDoors(sql, baseUrl, record),
       ],
       [
         'checkTriggerStreakLockOrder',

@@ -42,9 +42,7 @@ import {
  *    bounded catch-up). The scan WALKS every enabled schedule (keyset pages,
  *    never a cap an arbitrary subset could hide behind) and CLAIMS each due
  *    occurrence with a conditional stamp, so a throwing run never re-fires
- *    the same minute and two overlapping scans fire it once. A schedule
- *    whose organization no longer exists is never claimed: the scan
- *    disables it and names it once;
+ *    the same minute and two overlapping scans fire it once;
  *  - the webhook doors for organization and explicitly named projects — the token in
  *    the path IS the credential (sha256 verifier + constant-time compare;
  *    unknown/disabled reads as a plain 404). Deliveries are IDEMPOTENT: a
@@ -57,6 +55,12 @@ import {
  *  - `dispatchAutomationEvent` — platform events fan out to enabled `event`
  *    triggers (never events raised BY an automation — loop safety), wired
  *    into the events emit seam.
+ *
+ * On all three doors, a binding whose organization no longer exists (a
+ * deletion before 0.5.9 left every automation row behind, and 0125 keeps
+ * them whole under an active legal hold) starts nothing: the door that meets
+ * it disables it and names it once — the scan without claiming it, the
+ * webhook door behind the same 404 a disabled URL gets.
  */
 
 /** Rows per page of the scan walk — a page size, not a cap: the walk goes on
@@ -64,8 +68,8 @@ import {
 const SCAN_PAGE_SIZE = 200;
 const DEFAULT_TIMEZONE = 'UTC';
 const MINUTE_MS = 60_000;
-/** How many schedules one scan names in each of its summary lines. */
-const UNDEPLOYED_NAMES_IN_LOG = 5;
+/** How many bindings one log line names; the rest are counted. */
+const NAMES_IN_LOG = 5;
 
 interface TriggerRow {
   id: string;
@@ -144,21 +148,22 @@ async function stampSkipped(
   `;
 }
 
-/** A row of the schedule scan's page: the binding, and whether the
- * organization it belongs to is still there. */
-interface ScheduleScanRow extends TriggerRow {
+/** A binding as a door that could start its run reads it: the row, and
+ * whether the organization it belongs to is still there. */
+interface OrgCheckedTriggerRow extends TriggerRow {
   /** No `organization` row carries the binding's org id: the organization
    * was deleted and the binding outlived it (the teardown before 0.5.9 left
    * every automation row behind). */
   orgMissing: boolean;
 }
 
-/** Disable schedules whose organization no longer exists. Both halves are
- * re-checked at the write — still enabled, organization still missing — so
- * an overlapping scan that got there first leaves this one nothing to
- * report, and each binding is named once. */
-async function retireOrphanedSchedules(
-  sql: Sql,
+/** Disable bindings whose organization no longer exists — the one write
+ * every door uses. Both halves are re-checked at the write — still enabled,
+ * organization still missing — so of two scans or deliveries that meet the
+ * same binding, only the one whose write switched it off gets it back, and
+ * each binding is named once. */
+async function retireOrphanedTriggers(
+  sql: Sql | TransactionSql,
   triggerIds: string[],
 ): Promise<{ organizationId: string; name: string }[]> {
   return sql<{ organizationId: string; name: string }[]>`
@@ -169,6 +174,22 @@ async function retireOrphanedSchedules(
       )
     RETURNING t.org_id AS "organizationId", t.name
   `;
+}
+
+/** The names a log line carries: the first few, then how many more. */
+function namedList(count: number, names: readonly string[]): string {
+  const more = count - names.length;
+  return `${names.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`;
+}
+
+/** Better Auth creates `organization` when an api role boots. A pure worker
+ * (`ROLE=worker`) runs only the app migrations, so on a fresh install its
+ * scan can come before the table does. */
+async function organizationTableExists(sql: Sql): Promise<boolean> {
+  const rows = await sql<{ present: boolean }[]>`
+    SELECT to_regclass('"organization"') IS NOT NULL AS present
+  `;
+  return rows[0]?.present ?? false;
 }
 
 export interface ScheduleScanResult {
@@ -207,184 +228,193 @@ export async function scanScheduledTriggers(
     unusable: 0,
     orphaned: 0,
   };
+  // No table means no organization yet, so no schedule can belong to one:
+  // there is nothing to fire or retire, and every page query would die on
+  // the missing relation — once a minute until an api role boots.
+  if (!(await organizationTableExists(sql))) return result;
   const undeployedNames: string[] = [];
   const refusedNames: string[] = [];
   const orphanedNames: string[] = [];
   let cursor: string | null = null;
-  for (;;) {
-    // A keyset walk in id order: deterministic, complete, and bounded per
-    // page — the LIMIT is how much sits in memory at once, not how many
-    // triggers the platform serves. The 0.4-era `LIMIT 200` with no ORDER BY
-    // handed the 201st enabled schedule to heap order, i.e. to never.
-    // The cursor is the LATER of the claim and the fire stamp: a previous
-    // image still claims on `last_fired_at_ms` alone during a roll (0096).
-    // A schedule stamped unusable stays out of the page until it is edited
-    // — re-parsing a broken expression every minute told nobody anything.
-    // Each row says whether its organization still exists: a binding the
-    // organization's deletion left behind must not start a run in its name.
-    const page: ScheduleScanRow[] = await sql<ScheduleScanRow[]>`
-      SELECT ${sql.unsafe(TRIGGER_COLUMNS)},
-        NOT EXISTS (
-          SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
-        ) AS "orgMissing"
-      FROM app.automation_triggers t
-      WHERE kind = 'schedule' AND enabled = true
-        AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
-             OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${floor})
-        AND (last_skip_reason IS DISTINCT FROM 'unusable_cron'
-             OR last_skipped_at_ms IS NULL
-             OR updated_at_ms > last_skipped_at_ms)
-        AND (${cursor}::text IS NULL OR id > ${cursor})
-      ORDER BY id
-      LIMIT ${pageSize}
-    `;
-    result.pages++;
-    result.examined += page.length;
-    const orphans: string[] = [];
-    for (const trigger of page) {
-      if (trigger.orgMissing) {
-        // Whatever its expression says, nothing may start in the name of
-        // an organization that is gone; disabled with the page's other
-        // orphans below, so it never comes back into a page.
-        orphans.push(trigger.id);
-        continue;
+  try {
+    for (;;) {
+      // A keyset walk in id order: deterministic, complete, and bounded per
+      // page — the LIMIT is how much sits in memory at once, not how many
+      // triggers the platform serves. The 0.4-era `LIMIT 200` with no ORDER BY
+      // handed the 201st enabled schedule to heap order, i.e. to never.
+      // The cursor is the LATER of the claim and the fire stamp: a previous
+      // image still claims on `last_fired_at_ms` alone during a roll (0096).
+      // A schedule stamped unusable stays out of the page until it is edited
+      // — re-parsing a broken expression every minute told nobody anything.
+      // Each row says whether its organization still exists: a binding the
+      // organization's deletion left behind must not start a run in its name.
+      const page: OrgCheckedTriggerRow[] = await sql<OrgCheckedTriggerRow[]>`
+        SELECT ${sql.unsafe(TRIGGER_COLUMNS)},
+          NOT EXISTS (
+            SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
+          ) AS "orgMissing"
+        FROM app.automation_triggers t
+        WHERE kind = 'schedule' AND enabled = true
+          AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
+               OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${floor})
+          AND (last_skip_reason IS DISTINCT FROM 'unusable_cron'
+               OR last_skipped_at_ms IS NULL
+               OR updated_at_ms > last_skipped_at_ms)
+          AND (${cursor}::text IS NULL OR id > ${cursor})
+        ORDER BY id
+        LIMIT ${pageSize}
+      `;
+      result.pages++;
+      result.examined += page.length;
+      // Whatever its expression says, nothing may start in the name of an
+      // organization that is gone. The page's orphans are disabled first,
+      // in one write before any claim, so a claim that throws further down
+      // cannot keep them enabled for the next scan.
+      const orphans = page
+        .filter((trigger) => trigger.orgMissing)
+        .map((trigger) => trigger.id);
+      if (orphans.length > 0) {
+        for (const retired of await retireOrphanedTriggers(sql, orphans)) {
+          result.orphaned++;
+          if (orphanedNames.length < NAMES_IN_LOG) {
+            orphanedNames.push(`${retired.organizationId}/${retired.name}`);
+          }
+        }
       }
-      if (trigger.cron === null || trigger.cron === '') continue;
-      const stamps = [trigger.lastDueAt, trigger.lastFiredAt].filter(
-        (stamp): stamp is number => stamp !== null,
-      );
-      const since = stamps.length > 0 ? Math.max(...stamps) : trigger.updatedAt;
-      let due: number | null;
-      try {
-        due = dueOccurrence(
-          trigger.cron,
-          trigger.timezone ?? DEFAULT_TIMEZONE,
-          since,
-          now,
+      for (const trigger of page) {
+        if (trigger.orgMissing) continue;
+        if (trigger.cron === null || trigger.cron === '') continue;
+        const stamps = [trigger.lastDueAt, trigger.lastFiredAt].filter(
+          (stamp): stamp is number => stamp !== null,
         );
-      } catch (error) {
-        // A schedule the author wrote wrong must not stop the whole scan.
-        // The skip stamp is what the trigger read shows for it and what
-        // keeps it out of the next page; the line is written when the
-        // reason is news (or once an hour, should the stamp not hold).
-        result.unusable++;
-        if (
-          trigger.lastSkipReason !== 'unusable_cron' ||
-          trigger.lastSkippedAt === null ||
-          now - trigger.lastSkippedAt > UNUSABLE_WARN_INTERVAL_MS
-        ) {
-          console.warn(
-            `[automations] trigger ${trigger.organizationId}/${trigger.name}: unusable schedule`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-        await stampSkipped(sql, trigger.id, now, 'unusable_cron');
-        continue;
-      }
-      if (due === null) continue;
-      // CLAIM the occurrence first, conditionally: two overlapping scans (an
-      // expired job's retry, two workers) must fire it once — the loser's
-      // UPDATE waits on the row and then matches nothing. The claim, the
-      // run and the fire stamp commit TOGETHER, so the stamp can never
-      // precede the run it names and a start that fails to commit takes
-      // its claim with it. What the deployed version refuses keeps its
-      // claim — rolling it back would retry the same refusal every minute.
-      // Re-check the binding as well as the cursor: a run may have paused
-      // it, or a person may have saved it, since this page was read. That
-      // stale occurrence has no authority to start another run.
-      const outcome = await sql.begin(async (tx) => {
-        const claimed = await tx<{ id: string }[]>`
-          UPDATE app.automation_triggers SET last_due_at_ms = ${due}
-          WHERE id = ${trigger.id}
-            AND kind = 'schedule' AND enabled = true
-            AND updated_at_ms = ${trigger.updatedAt}
-            AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
-                 OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${due})
-          RETURNING id
-        `;
-        if (claimed.length === 0) return { kind: 'lost' as const };
-        let started: { runId: string; version: number } | null;
+        const since =
+          stamps.length > 0 ? Math.max(...stamps) : trigger.updatedAt;
+        let due: number | null;
         try {
-          started = await beginRunInTx(tx, {
-            organizationId: trigger.organizationId,
-            name: trigger.name,
-            input: { trigger: 'schedule', firedAt: due },
-            mode: 'live',
-            startedBy: `trigger:${trigger.id}`,
-          });
+          due = dueOccurrence(
+            trigger.cron,
+            trigger.timezone ?? DEFAULT_TIMEZONE,
+            since,
+            now,
+          );
         } catch (error) {
-          if (!(error instanceof AutomationError)) throw error;
-          await stampSkipped(tx, trigger.id, now, 'start_refused');
-          return { kind: 'refused' as const, reason: error.message };
-        }
-        if (started === null) {
-          await stampSkipped(tx, trigger.id, now, 'not_deployed');
-          return { kind: 'not_deployed' as const };
-        }
-        await stampFired(tx, trigger.id, due, started.runId);
-        return { kind: 'fired' as const };
-      });
-      const label = `${trigger.organizationId}/${trigger.name}`;
-      switch (outcome.kind) {
-        case 'fired':
-          result.fired++;
-          break;
-        case 'not_deployed':
-          result.undeployed++;
-          if (undeployedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
-            undeployedNames.push(label);
+          // A schedule the author wrote wrong must not stop the whole scan.
+          // The skip stamp is what the trigger read shows for it and what
+          // keeps it out of the next page; the line is written when the
+          // reason is news (or once an hour, should the stamp not hold).
+          result.unusable++;
+          if (
+            trigger.lastSkipReason !== 'unusable_cron' ||
+            trigger.lastSkippedAt === null ||
+            now - trigger.lastSkippedAt > UNUSABLE_WARN_INTERVAL_MS
+          ) {
+            console.warn(
+              `[automations] trigger ${trigger.organizationId}/${trigger.name}: unusable schedule`,
+              error instanceof Error ? error.message : error,
+            );
           }
-          break;
-        case 'refused':
-          result.refused++;
-          if (refusedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
-            refusedNames.push(`${label} (${outcome.reason})`);
+          await stampSkipped(sql, trigger.id, now, 'unusable_cron');
+          continue;
+        }
+        if (due === null) continue;
+        // CLAIM the occurrence first, conditionally: two overlapping scans (an
+        // expired job's retry, two workers) must fire it once — the loser's
+        // UPDATE waits on the row and then matches nothing. The claim, the
+        // run and the fire stamp commit TOGETHER, so the stamp can never
+        // precede the run it names and a start that fails to commit takes
+        // its claim with it. What the deployed version refuses keeps its
+        // claim — rolling it back would retry the same refusal every minute.
+        // Re-check the binding as well as the cursor: a run may have paused
+        // it, or a person may have saved it, since this page was read. That
+        // stale occurrence has no authority to start another run.
+        const outcome = await sql.begin(async (tx) => {
+          const claimed = await tx<{ id: string }[]>`
+            UPDATE app.automation_triggers SET last_due_at_ms = ${due}
+            WHERE id = ${trigger.id}
+              AND kind = 'schedule' AND enabled = true
+              AND updated_at_ms = ${trigger.updatedAt}
+              AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
+                   OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${due})
+            RETURNING id
+          `;
+          if (claimed.length === 0) return { kind: 'lost' as const };
+          let started: { runId: string; version: number } | null;
+          try {
+            started = await beginRunInTx(tx, {
+              organizationId: trigger.organizationId,
+              name: trigger.name,
+              input: { trigger: 'schedule', firedAt: due },
+              mode: 'live',
+              startedBy: `trigger:${trigger.id}`,
+            });
+          } catch (error) {
+            if (!(error instanceof AutomationError)) throw error;
+            await stampSkipped(tx, trigger.id, now, 'start_refused');
+            return { kind: 'refused' as const, reason: error.message };
           }
-          break;
-        case 'lost':
-          break;
-      }
-    }
-    if (orphans.length > 0) {
-      for (const retired of await retireOrphanedSchedules(sql, orphans)) {
-        result.orphaned++;
-        if (orphanedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
-          orphanedNames.push(`${retired.organizationId}/${retired.name}`);
+          if (started === null) {
+            await stampSkipped(tx, trigger.id, now, 'not_deployed');
+            return { kind: 'not_deployed' as const };
+          }
+          await stampFired(tx, trigger.id, due, started.runId);
+          return { kind: 'fired' as const };
+        });
+        const label = `${trigger.organizationId}/${trigger.name}`;
+        switch (outcome.kind) {
+          case 'fired':
+            result.fired++;
+            break;
+          case 'not_deployed':
+            result.undeployed++;
+            if (undeployedNames.length < NAMES_IN_LOG) {
+              undeployedNames.push(label);
+            }
+            break;
+          case 'refused':
+            result.refused++;
+            if (refusedNames.length < NAMES_IN_LOG) {
+              refusedNames.push(`${label} (${outcome.reason})`);
+            }
+            break;
+          case 'lost':
+            break;
         }
       }
+      if (page.length < pageSize) break;
+      const last = page.at(-1);
+      if (last === undefined) break;
+      cursor = last.id;
     }
-    if (page.length < pageSize) break;
-    const last = page.at(-1);
-    if (last === undefined) break;
-    cursor = last.id;
-  }
-  if (result.undeployed > 0) {
-    // One line per scan, not one per trigger: a fleet's worth of undeployed
-    // schedules must not turn the scan log into a flood.
-    const more = result.undeployed - undeployedNames.length;
-    console.warn(
-      `[automations] trigger scan: ${result.undeployed} due schedule(s) have no deployed version to run: ${undeployedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
-    );
-  }
-  if (result.refused > 0) {
-    const more = result.refused - refusedNames.length;
-    console.warn(
-      `[automations] trigger scan: ${result.refused} due schedule(s) were refused by their deployed version: ${refusedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
-    );
-  }
-  if (result.orphaned > 0) {
-    // Written once per binding: a disabled schedule never enters a page
-    // again, and only the scan whose write disabled it names it.
-    const more = result.orphaned - orphanedNames.length;
-    console.warn(
-      `[automations] trigger scan: disabled ${result.orphaned} schedule(s) whose organization no longer exists: ${orphanedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
-    );
+  } finally {
+    // Written whether the walk finished or a page threw: the schedules the
+    // pages before it disabled never enter a page again, so this is the
+    // only line that ever names them. One line per outcome and scan, not
+    // one per trigger: a fleet's worth of undeployed schedules must not
+    // turn the scan log into a flood. Each disabled binding is named once —
+    // only the scan whose write disabled it has it back.
+    if (result.undeployed > 0) {
+      console.warn(
+        `[automations] trigger scan: ${result.undeployed} due schedule(s) have no deployed version to run: ${namedList(result.undeployed, undeployedNames)}`,
+      );
+    }
+    if (result.refused > 0) {
+      console.warn(
+        `[automations] trigger scan: ${result.refused} due schedule(s) were refused by their deployed version: ${namedList(result.refused, refusedNames)}`,
+      );
+    }
+    if (result.orphaned > 0) {
+      console.warn(
+        `[automations] trigger scan: disabled ${result.orphaned} schedule(s) whose organization no longer exists: ${namedList(result.orphaned, orphanedNames)}`,
+      );
+    }
   }
   return result;
 }
 
 /** Platform events → enabled `event` triggers of the org. Events raised BY
- * an automation run never fire triggers (loop safety).
+ * an automation run never fire triggers (loop safety), and neither does an
+ * event of an organization that no longer exists: its listening triggers
+ * are disabled instead (`refused` answers both).
  *
  * Before it stamps a trigger, the dispatch takes the organization's audit
  * chain (`lockAuditChain`): a run of that trigger landing meanwhile holds
@@ -410,13 +440,36 @@ export async function dispatchAutomationEvent(
     );
     return { started: [], refused: true };
   }
-  const triggers = await tx<TriggerRow[]>`
-    SELECT ${tx.unsafe(TRIGGER_COLUMNS)} FROM app.automation_triggers
+  const triggers = await tx<OrgCheckedTriggerRow[]>`
+    SELECT ${tx.unsafe(TRIGGER_COLUMNS)},
+      NOT EXISTS (
+        SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
+      ) AS "orgMissing"
+    FROM app.automation_triggers t
     WHERE org_id = ${args.organizationId} AND kind = 'event'
       AND enabled = true AND event = ${args.event}
   `;
   if (triggers.length === 0) return { started: [], refused: false };
   await lockAuditChain(tx, args.organizationId);
+  if (triggers.some((trigger) => trigger.orgMissing)) {
+    // The event names an organization that no longer exists: a producer
+    // still writing rows its deletion left behind. Nothing may start in
+    // its name, so the bindings listening for it are switched off instead —
+    // after the audit chain, like any other write to a trigger here.
+    const retired = await retireOrphanedTriggers(
+      tx,
+      triggers.map((trigger) => trigger.id),
+    );
+    if (retired.length > 0) {
+      const names = retired
+        .slice(0, NAMES_IN_LOG)
+        .map((row) => `${row.organizationId}/${row.name}`);
+      console.warn(
+        `[automations] event "${args.event}": disabled ${retired.length} trigger(s) whose organization no longer exists: ${namedList(retired.length, names)}`,
+      );
+    }
+    return { started: [], refused: true };
+  }
   const started: string[] = [];
   for (const trigger of triggers) {
     // The producer's transaction carries the run AND the stamp that names
@@ -709,8 +762,12 @@ export function createWebhookRoutes(deps: {
       }
     }
     const presented = await hashWebhookToken(token);
-    const rows = await deps.sql<TriggerRow[]>`
-      SELECT ${deps.sql.unsafe(TRIGGER_COLUMNS)} FROM app.automation_triggers
+    const rows = await deps.sql<OrgCheckedTriggerRow[]>`
+      SELECT ${deps.sql.unsafe(TRIGGER_COLUMNS)},
+        NOT EXISTS (
+          SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
+        ) AS "orgMissing"
+      FROM app.automation_triggers t
       WHERE token_hash = ${presented} AND kind = 'webhook'
       LIMIT 1
     `;
@@ -723,6 +780,19 @@ export function createWebhookRoutes(deps: {
       !tokenHashEquals(presented, trigger.tokenHash) ||
       !trigger.enabled
     ) {
+      return notFound(c);
+    }
+    if (trigger.orgMissing) {
+      // A genuine token whose organization is gone: whoever still holds the
+      // URL must not start a run in its name. The binding is switched off
+      // (named once, by the delivery whose write did it) and the answer is
+      // the 404 a disabled URL gets — nothing about the organization leaks.
+      const retired = await retireOrphanedTriggers(deps.sql, [trigger.id]);
+      if (retired.length > 0) {
+        console.warn(
+          `[automations] webhook: disabled trigger ${trigger.organizationId}/${trigger.name} whose organization no longer exists`,
+        );
+      }
       return notFound(c);
     }
     // A verified token's trigger has a budget of its own — a delivery costs

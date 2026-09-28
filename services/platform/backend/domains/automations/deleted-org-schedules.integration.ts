@@ -7,6 +7,10 @@
  * organization, disables its schedule without claiming it, and names it in
  * one line; the live schedule next to it is still claimed. A second scan
  * does not see the disabled one at all, so the line is never written again.
+ * Before any of that, the same scan runs where `"organization"` does not
+ * resolve — a pure worker's first minutes on a fresh install, before an api
+ * role has created Better Auth's tables — and must find nothing to do
+ * rather than fail.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -78,6 +82,32 @@ export async function checkDeletedOrgSchedules(
         FROM app.automation_triggers WHERE id = ${id}
       `
     )[0];
+
+  // A fresh install's worker: inside a rolled-back transaction whose search
+  // path hides Better Auth's tables, "organization" is the relation that
+  // does not exist yet. The due schedules planted above are there all the
+  // same; the scan must neither fail on the missing table nor read "no such
+  // organization" as a deletion and retire them.
+  const fresh: { scan?: ScheduleScanResult; error: string } = { error: '' };
+  try {
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL search_path TO app`;
+      fresh.scan = await scanScheduledTriggers(tx);
+      throw new Error('itest-rollback');
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message !== 'itest-rollback') fresh.error = message;
+  }
+  record(
+    'a worker scan before the organization table exists finds nothing to do and does not fail',
+    fresh.error === '' &&
+      fresh.scan?.pages === 0 &&
+      fresh.scan.examined === 0 &&
+      fresh.scan.fired === 0 &&
+      fresh.scan.orphaned === 0,
+    `error=${fresh.error || 'none'}, pages=${fresh.scan?.pages} examined=${fresh.scan?.examined} fired=${fresh.scan?.fired} orphaned=${fresh.scan?.orphaned} (want 0 each)`,
+  );
 
   // Every line the two scans write, so "named once" is observed, not assumed.
   const lines: string[] = [];
