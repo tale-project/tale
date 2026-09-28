@@ -2976,8 +2976,9 @@ governance:
       title: Chat-Filter-Ereignisse
       description:
         Telemetrie für Content-Filter-Auslöser (PII, Profanität, eigene
-        Regeln). Nützlich zum Tuning des Filters; enthält zitierte
-        Nachrichtenausschnitte.
+        Regeln). Jedes Ereignis enthält Filter, Kategorien, Richtung und
+        Anzahl, nie den gefundenen Text. Die Guardrails-Seite und der
+        Chat-Zustand zeigen nur die noch aufbewahrten Ereignisse.
       placeholder: z. B. 90
       helper: Filter-Ereignis-Telemetrie älter als dies wird gelöscht.
     notifications:
