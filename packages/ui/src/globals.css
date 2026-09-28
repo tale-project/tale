@@ -223,7 +223,10 @@
   --table-header-foreground: 240 5.2% 33.9%;
   --accent: 240 4.8% 95.9%;
   --accent-foreground: 240 5.9% 10%;
-  --destructive: 0 84.2% 60.2%;
+  /* Error copy must remain readable on the page, cards and muted forms:
+     red-700 clears 4.5:1 on all three (red-500 was 3.67:1 on the page).
+     The dark theme keeps its lighter red for the same reason. */
+  --destructive: 0 73.7% 41.8%;
   --destructive-foreground: 0 0% 98%;
   --success: 155 92% 24%;
   --success-foreground: 0 0% 98%;
