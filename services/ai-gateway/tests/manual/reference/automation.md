@@ -24,6 +24,7 @@ a spec failure and belongs in the gate, not in a round.
 | Encryption at rest, tamper detection | `backend/crypto.test.ts` | the wrong-key restart's user-visible behaviour (`ACCT-14`) |
 | The account document on disk | `backend/store.test.ts` | survival across a real restart (`ACCT-13`) |
 | Configuration and the fail-fast boot | `backend/config.test.ts` | nothing |
+| A path no file can carry — a NUL or another C0 control (`/%00`, `/a%00b`), or one past the OS path limit (5000 characters) — answers the panel like any unknown path, never a reported 500 | `packages/ui/src/server/static-paths.integration.test.ts` (`startReactServer`, which `server.ts` runs; `reportError` is not called) | nothing — the panel ships no 404 page, so it answers the shell with a 200, as it does for `/nope` |
 | The image: it builds from the workspace, boots on the two secrets, answers `/api/health`, serves the panel, and refuses every token endpoint to a caller with nothing | `services/platform/tests/integration/container-ai-gateway-test.ts` (`bun run docker:test:ai-gateway`; runs on a pull request that touches the service and on every release tag) | nothing |
 | **The OAuth round trip itself** | — | **manual-only** — consent happens on a vendor's screen, for an account only its owner has; nothing headless can approve it |
 | **Handing a token to the vendor's CLI** | — | **manual-only** — proving `claude` and `codex` actually start on the token needs both CLIs and a live subscription |
