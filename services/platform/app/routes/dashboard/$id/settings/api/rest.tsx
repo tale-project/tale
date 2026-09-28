@@ -2,14 +2,37 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
-import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
+import {
+  apiKeysQuery,
+  useApiKeys,
+} from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { cachedAbility } from '@/app/lib/loader-preload';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/api/rest')({
   head: () => ({ meta: seo('apiKeys') }),
+  // Await the keys so the first paint already knows whether there are any.
+  // Painted before they arrived, the table's lone Create button sat in a
+  // toolbar row over the skeleton, then jumped into the empty state when the
+  // list came back empty — shifting the page and dropping keyboard focus.
+  // Best-effort: a failed read never fails the transition; the table's own
+  // read retries and reports it. Skipped when the cached ability already
+  // denies the page.
+  loader: ({ context, params }) => {
+    const ability = cachedAbility(context, params.id);
+    if (ability !== null && ability.cannot('read', 'developerSettings')) {
+      return undefined;
+    }
+    return context.queryClient
+      .ensureQueryData(apiKeysQuery(params.id))
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        console.warn('Failed to preload API keys', error);
+      });
+  },
   component: ApiRestPage,
 });
 

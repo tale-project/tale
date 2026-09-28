@@ -1,3 +1,5 @@
+import { queryOptions } from '@tanstack/react-query';
+
 import { useReactMutation } from '@/app/hooks/use-react-mutation';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
@@ -13,8 +15,12 @@ interface CreateApiKeyResult {
   id: string;
 }
 
-export function useApiKeys(organizationId: string) {
-  return useReactQuery({
+/**
+ * The API keys read, shared by the page's hook and its route loader so the
+ * loader warms the very entry the table reads.
+ */
+export function apiKeysQuery(organizationId: string) {
+  return queryOptions({
     queryKey: ['api-keys', organizationId],
     queryFn: async () => {
       const result = await authClient.apiKey.list();
@@ -25,6 +31,10 @@ export function useApiKeys(organizationId: string) {
       return result.data?.apiKeys ?? [];
     },
   });
+}
+
+export function useApiKeys(organizationId: string) {
+  return useReactQuery(apiKeysQuery(organizationId));
 }
 
 export function useCreateApiKey(organizationId: string) {
