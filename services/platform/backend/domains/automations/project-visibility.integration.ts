@@ -6,7 +6,10 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { getProjectAuthContext } from '../projects/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
+import { readableProjectIds } from './project-visibility.ts';
+import { AutomationError, beginRun, setAutomationProjects } from './store.ts';
 
 const responseSchema = z.looseObject({
   error: z.string().optional(),
@@ -242,8 +245,10 @@ export async function checkAutomationProjectVisibility(
       ?.projectIds.join() === shared &&
       bindings.data.projectIds?.join() === shared &&
       hiddenListing.data.automations?.length === 0 &&
-      !listing.text.includes(hidden),
-    `mixed=${bindings.data.projectIds?.join()}, hidden listing=${hiddenListing.data.automations?.length}`,
+      !listing.text.includes(hidden) &&
+      // Bound only to a hidden project: left out, not listed as org scope.
+      !listing.data.automations?.some((item) => item.name === names.hidden),
+    `mixed=${bindings.data.projectIds?.join()}, hidden listing=${hiddenListing.data.automations?.length}, hidden-only listed=${listing.data.automations?.some((item) => item.name === names.hidden)}`,
   );
 
   const engine = pgAutomationStore(sql, {
@@ -260,7 +265,8 @@ export async function checkAutomationProjectVisibility(
       engineHidden === null &&
       engineList
         .find((item) => item.name === names.mixed)
-        ?.projectIds?.join() === shared,
+        ?.projectIds?.join() === shared &&
+      !engineList.some((item) => item.name === names.hidden),
     `runs=${engineRuns?.length}, hidden=${JSON.stringify(engineHidden)}, bindings=${engineList.find((item) => item.name === names.mixed)?.projectIds?.join()}`,
   );
 
@@ -411,5 +417,66 @@ export async function checkAutomationProjectVisibility(
     revoked.status === 404 &&
       !revokedList.data.runs?.some((run) => run.id === hiddenRun),
     `read=${revoked.status}, hidden listed=${revokedList.data.runs?.some((run) => run.id === hiddenRun)}`,
+  );
+
+  // A trigger start is not held to the app's inferred-scope checks: an event
+  // dispatch starts every listening automation in one savepoint, so a sole
+  // binding to an archived project must not refuse (and roll back) them.
+  const triggered = await beginRun(sql, {
+    organizationId: orgId,
+    name: names.archived,
+    input: {},
+    mode: 'mock',
+    startedBy: `trigger:${randomUUID()}`,
+  });
+  const [triggeredRow] = await sql<{ projectId: string | null }[]>`
+    SELECT project_id AS "projectId" FROM app.automation_runs
+    WHERE org_id = ${orgId} AND id = ${triggered?.runId ?? ''}
+  `;
+  record(
+    'a trigger start keeps its inferred sole binding without the app refusal',
+    triggeredRow?.projectId === archived,
+    `scope=${triggeredRow?.projectId}`,
+  );
+
+  // Saving bindings for someone who cannot read every bound project keeps
+  // the bindings outside their view; one they cannot read and that is not
+  // bound answers like a missing project.
+  const memberView = await readableProjectIds(
+    sql,
+    await getProjectAuthContext(sql, {
+      organizationId: orgId,
+      userId: member.userId,
+      role: 'member',
+    }),
+  );
+  await setAutomationProjects(sql, {
+    organizationId: orgId,
+    name: names.mixed,
+    projectIds: [],
+    actor: member.userId,
+    visibleProjectIds: memberView,
+  });
+  const kept = await sql<{ projectId: string }[]>`
+    SELECT project_id AS "projectId" FROM app.automation_project_bindings
+    WHERE org_id = ${orgId} AND automation_name = ${names.mixed}
+  `;
+  const refusal = await setAutomationProjects(sql, {
+    organizationId: orgId,
+    name: names.unbound,
+    projectIds: [hidden],
+    actor: member.userId,
+    visibleProjectIds: memberView,
+  }).then(
+    () => 'saved',
+    (error: unknown) =>
+      error instanceof AutomationError ? error.code : String(error),
+  );
+  record(
+    'a binding save within a partial view keeps hidden bindings',
+    !memberView.includes(hidden) &&
+      kept.map((row) => row.projectId).join() === hidden &&
+      refusal === 'AUTOMATION_PROJECT_UNKNOWN',
+    `kept=${kept.map((row) => row.projectId).join()}, refusal=${refusal}`,
   );
 }

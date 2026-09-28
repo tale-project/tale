@@ -20,6 +20,7 @@ const SHARED = 'p-shared';
 const store = vi.hoisted(() => ({
   answerAsk: vi.fn(),
   bindingProjectIds: vi.fn(),
+  setAutomationProjects: vi.fn(),
   beginRun: vi.fn(),
   cancelRun: vi.fn(),
   getAskRunId: vi.fn(),
@@ -34,6 +35,9 @@ const store = vi.hoisted(() => ({
     input: row.input,
   })),
 }));
+
+/** The signed-in member's organization role; a test may raise it. */
+const member = vi.hoisted(() => ({ role: 'member' }));
 
 const visibility = vi.hoisted(() => ({
   readableProject: vi.fn(),
@@ -94,7 +98,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
     requireOrgMember:
       () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
         c.set('orgId', 'o1');
-        c.set('orgMember', { role: 'member' } as never);
+        c.set('orgMember', { role: member.role } as never);
         await next();
       },
   };
@@ -134,6 +138,7 @@ function run(id: string, projectId: string | null) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  member.role = 'member';
   visibility.readableProject.mockImplementation(
     async (_sql: unknown, _auth: unknown, projectId: string) =>
       projectId === HIDDEN ? null : { id: projectId },
@@ -257,6 +262,32 @@ describe('app automation door — bindings name readable projects only', () => {
 
     const scoped = await request(`/listing?projectId=${HIDDEN}`);
     expect(await scoped.json()).toEqual({ automations: [] });
+  });
+
+  it('leaves out an automation bound only to hidden projects', async () => {
+    store.listAutomationsForApp.mockResolvedValue([
+      { name: 'ops/hidden-only', projectIds: [HIDDEN] },
+      { name: 'ops/org', projectIds: [] },
+    ]);
+    const listing = await request('/listing?includeProjectBound=true');
+    // Listed with no bindings it would read as an organization automation,
+    // which the member could not start.
+    expect(await listing.json()).toEqual({
+      automations: [{ name: 'ops/org', projectIds: [] }],
+    });
+  });
+
+  it('saves bindings within the author view so hidden bindings survive', async () => {
+    member.role = 'developer';
+    const response = await post('/ops/sync/projects', { projectIds: [] });
+    expect(response.status).toBe(200);
+    expect(store.setAutomationProjects).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        projectIds: [],
+        visibleProjectIds: [SHARED],
+      }),
+    );
   });
 
   it('drops hidden projects from an automation binding list', async () => {

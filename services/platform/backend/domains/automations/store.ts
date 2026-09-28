@@ -767,15 +767,39 @@ export async function setAutomationProjects(
     name: string;
     projectIds: string[];
     actor: string;
+    /** The projects the saving person can read. The editor only ever sees
+     * those bindings, so the save replaces that part of the set and keeps
+     * every binding to a project outside it; a project they cannot read
+     * answers like a missing one unless it is already bound. Omitted, the
+     * save replaces the whole set. */
+    visibleProjectIds?: string[];
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
+    let projectIds = args.projectIds;
+    if (args.visibleProjectIds !== undefined) {
+      const visible = new Set(args.visibleProjectIds);
+      const hidden = projectIds.filter((id) => !visible.has(id));
+      if (hidden.length > 0) {
+        const bound = new Set(
+          await bindingProjectIds(tx, args.organizationId, args.name),
+        );
+        if (hidden.some((id) => !bound.has(id))) {
+          throw new AutomationError(
+            'AUTOMATION_PROJECT_UNKNOWN',
+            'One of the projects does not exist in this organization.',
+            404,
+          );
+        }
+        projectIds = projectIds.filter((id) => visible.has(id));
+      }
+    }
     const owned = await tx<{ id: string; archivedAt: number | null }[]>`
       SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
       WHERE org_id = ${args.organizationId}
-        AND id = ANY(${args.projectIds})
+        AND id = ANY(${projectIds})
     `;
-    if (owned.length !== new Set(args.projectIds).size) {
+    if (owned.length !== new Set(projectIds).size) {
       throw new AutomationError(
         'AUTOMATION_PROJECT_UNKNOWN',
         'One of the projects does not exist in this organization.',
@@ -795,9 +819,14 @@ export async function setAutomationProjects(
       DELETE FROM app.automation_project_bindings
       WHERE org_id = ${args.organizationId}
         AND automation_name = ${args.name}
-        AND NOT (project_id = ANY(${args.projectIds}))
+        AND NOT (project_id = ANY(${projectIds}))
+        ${
+          args.visibleProjectIds === undefined
+            ? tx``
+            : tx`AND project_id = ANY(${args.visibleProjectIds})`
+        }
     `;
-    for (const projectId of args.projectIds) {
+    for (const projectId of projectIds) {
       await tx`
         INSERT INTO app.automation_project_bindings (
           org_id, automation_name, project_id, bound_at_ms, bound_by

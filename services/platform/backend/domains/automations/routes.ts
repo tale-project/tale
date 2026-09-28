@@ -264,12 +264,19 @@ export function createAutomationRoutes(deps: {
       ...(projectId !== undefined ? { projectId } : {}),
       includeProjectBound: c.req.query('includeProjectBound') === 'true',
     });
-    for (const automation of automations) {
-      automation.projectIds = automation.projectIds.filter((id) =>
-        visible.has(id),
-      );
-    }
-    return c.json({ automations });
+    // A row bound only to projects outside the viewer's view is dropped,
+    // not listed with no bindings: an empty list reads as organization
+    // scope, where the automation cannot run.
+    return c.json({
+      automations: automations.flatMap((automation) => {
+        const projectIds = automation.projectIds.filter((id) =>
+          visible.has(id),
+        );
+        return automation.projectIds.length > 0 && projectIds.length === 0
+          ? []
+          : [{ ...automation, projectIds }];
+      }),
+    });
   });
 
   // What an UNPINNED agent-node model pick would run on RIGHT NOW — the
@@ -635,6 +642,12 @@ export function createAutomationRoutes(deps: {
         name: nameFrom(c, 'projects'),
         projectIds: body.data.projectIds,
         actor: c.get('sessionBundle').user.id,
+        // The editor saves the bindings it was shown; bindings to projects
+        // outside the author's view survive the save.
+        visibleProjectIds: await readableProjectIds(
+          deps.sql,
+          await projectAuth(c),
+        ),
       });
       return c.json({ ok: true });
     } catch (error) {

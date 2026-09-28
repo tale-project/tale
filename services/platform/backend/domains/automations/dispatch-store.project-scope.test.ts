@@ -123,13 +123,33 @@ it('lists only readable project bindings through the engine door', async () => {
       deployedVersion: 1,
       projectIds: ['p-1', 'private-project'],
     },
+    {
+      name: 'billing/private-only',
+      latestVersion: 1,
+      deployedVersion: 1,
+      projectIds: ['private-project'],
+    },
+    {
+      name: 'billing/org',
+      latestVersion: 2,
+      deployedVersion: null,
+      projectIds: [],
+    },
   ] as never);
+  // An automation bound only to hidden projects is left out rather than
+  // listed with no bindings, which a client reads as organization scope.
   expect(await store({ role: 'member' }).list()).toEqual([
     {
       name: 'billing/dunning',
       latest: 1,
       deployedVersion: 1,
       projectIds: ['p-1'],
+    },
+    {
+      name: 'billing/org',
+      latest: 2,
+      deployedVersion: null,
+      projectIds: [],
     },
   ]);
 });

@@ -276,12 +276,22 @@ export function pgAutomationStore(
         'membership',
       );
       const visible = new Set(await readableProjectIds(sql, auth));
-      return (await listAutomations(sql, organizationId)).map((row) => ({
-        name: row.name,
-        latest: row.latestVersion,
-        deployedVersion: row.deployedVersion,
-        projectIds: row.projectIds.filter((id) => visible.has(id)),
-      }));
+      // An automation bound only to projects the member cannot read is left
+      // out: listed with no bindings, it would read as organization scope,
+      // where it cannot run.
+      return (await listAutomations(sql, organizationId)).flatMap((row) => {
+        const projectIds = row.projectIds.filter((id) => visible.has(id));
+        return row.projectIds.length > 0 && projectIds.length === 0
+          ? []
+          : [
+              {
+                name: row.name,
+                latest: row.latestVersion,
+                deployedVersion: row.deployedVersion,
+                projectIds,
+              },
+            ];
+      });
     },
     get: async (name, version) => {
       const row = await versionRow(sql, organizationId, name, version);
