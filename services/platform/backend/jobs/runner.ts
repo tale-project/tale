@@ -6,11 +6,13 @@ import {
 } from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
 import type { BackendTaskList } from './task-list.ts';
+import { TASK_WORKER_BATCH_LIMITS } from './tasks.ts';
 
 export interface WorkerOptions {
   boss: PgBoss;
   taskList: BackendTaskList;
-  /** Max jobs fetched (and processed concurrently) per queue per fetch. */
+  /** Max jobs fetched (and processed concurrently) per queue per fetch;
+   * `TASK_WORKER_BATCH_LIMITS` lowers it for the queues it names. */
   concurrency?: number;
   /**
    * When true, this worker must not start NEW work (its colour is
@@ -34,7 +36,10 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
     await options.boss.work(
       name,
       {
-        batchSize: concurrency,
+        batchSize: Math.min(
+          concurrency,
+          TASK_WORKER_BATCH_LIMITS.get(name) ?? concurrency,
+        ),
         perJobResults: true,
         burstWhenBatchFull: true,
         pollingIntervalSeconds: 2,
