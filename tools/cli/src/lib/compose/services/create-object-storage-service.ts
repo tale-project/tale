@@ -1,6 +1,6 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING, imageRef } from '../types';
+import { DEFAULT_LOGGING, imagePlatform, imageRef } from '../types';
 
 /**
  * The deployment's BLOB store.
@@ -20,8 +20,10 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
 export function createObjectStorageService(
   config: ServiceConfig,
 ): ComposeService {
+  const image = imageRef(config, 'object-store');
   return {
-    image: imageRef(config, 'object-store'),
+    image,
+    platform: imagePlatform(image),
     container_name: `${getProjectId()}-object-store`,
     // Let in-flight multipart writes finish before SIGKILL.
     stop_grace_period: '30s',

@@ -15,6 +15,8 @@ You need:
 - For local container operations: Docker with Compose and a running Docker daemon.
 - For a remote workspace: access to its Docker daemon, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
+The bundled object store currently ships only a `linux/amd64` image. On an ARM64 host, local development and workspace deployment need working amd64 emulation: Docker Desktop includes it; a standalone Linux Docker host needs [QEMU registered on the host](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale selects the amd64 image but does not install emulation. Managed bundles still require native images for their declared architecture, so an ARM64 managed deployment must wait for a native object-store image.
+
 The installer downloads a release binary from GitHub. It needs access to `raw.githubusercontent.com`, `api.github.com`, `github.com` and the release download destinations that GitHub redirects to.
 
 ## Run install-cli.sh or install-cli.ps1
