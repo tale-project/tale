@@ -183,13 +183,16 @@ describe('decryptSecretsFile', () => {
     process.env.FAKE_SOPS_DELAY_MS = '60000';
     const file = writeSecretsFile(ENCRYPTED_SHAPE);
     const startedAt = Date.now();
+    const decrypt = decryptSecretsFile(file, { timeoutMs: 300 });
 
-    await expect(decryptSecretsFile(file, { timeoutMs: 300 })).rejects.toThrow(
-      /timed out after 300ms/,
-    );
+    await expect(decrypt).rejects.toThrow(/timed out after 300ms/);
 
     expect(Date.now() - startedAt).toBeLessThan(5_000);
-    expect(invocations()).toHaveLength(1);
+    // The deadline includes process startup: a busy host may kill the child
+    // before its first log write. Prove the actual OS termination instead.
+    await expect(decrypt).rejects.toMatchObject({
+      cause: { cause: { killed: true, signal: 'SIGKILL' } },
+    });
   });
 
   it('shares one sops process across concurrent cold reads of the same file', async () => {
