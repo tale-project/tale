@@ -102,13 +102,24 @@ describe('beginRun with a projectId', () => {
     expect(fake.writes).toContain('INSERT INTO app.automation_runs');
   });
 
-  it('also refuses an archived project inferred from its sole binding', async () => {
+  it('refuses an app start whose sole binding is an archived project', async () => {
     const fake = fakeStore({ archivedAt: 1, bound: true });
     const { projectId: _projectId, ...unscoped } = args;
-    await expect(beginRun(fake.sql, unscoped)).rejects.toMatchObject({
-      code: 'PROJECT_ARCHIVED',
-      status: 403,
-    });
+    await expect(
+      beginRun(fake.sql, { ...unscoped, visibleProjectIds: ['p-1'] }),
+    ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
     expect(fake.writes).toEqual([]);
+  });
+
+  // An event dispatch starts every listening automation inside one
+  // savepoint without a per-trigger catch: a refusal here would roll back
+  // the runs of every other automation listening for the same event.
+  it('keeps a trigger start in its inferred sole binding without refusing it', async () => {
+    const fake = fakeStore({ archivedAt: 1, bound: true });
+    const { projectId: _projectId, ...unscoped } = args;
+    await expect(
+      beginRun(fake.sql, { ...unscoped, startedBy: 'trigger:t-1' }),
+    ).resolves.toEqual({ runId: 'run-1', version: 1 });
+    expect(fake.writes).toContain('INSERT INTO app.automation_runs');
   });
 });

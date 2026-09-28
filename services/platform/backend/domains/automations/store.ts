@@ -1687,8 +1687,14 @@ export async function resolveRunProject(
       409,
     );
   }
+  const inferred = bindings.length === 1 ? bindings[0] : undefined;
+  // A person's app start holds an inferred sole binding to the same checks
+  // as a named project. Trusted trigger callers keep their inferred scope
+  // unchecked: an event dispatch starts every listening automation in one
+  // savepoint, so one refusal there would roll back the others' runs.
   const projectId =
-    args.projectId ?? (bindings.length === 1 ? bindings[0] : undefined);
+    args.projectId ??
+    (args.visibleProjectIds !== undefined ? inferred : undefined);
   if (projectId !== undefined) {
     const owned = await sql<{ id: string; archivedAt: number | null }[]>`
       SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
@@ -1727,7 +1733,7 @@ export async function resolveRunProject(
       );
     }
   }
-  return projectId ?? null;
+  return projectId ?? inferred ?? null;
 }
 
 export async function beginRun(
