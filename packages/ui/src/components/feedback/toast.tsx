@@ -14,13 +14,7 @@ export interface ToastProps {
 
 export type ToastActionElement = ReactElement;
 
-// A toast row assumes its action is ONE short control that always fits
-// beside the copy — true for a single button, false the moment an action
-// holds two (e.g. "Later" + a primary). That squeeze isn't a viewport thing:
-// the toast's width is fixed (`max-w-sm`), not responsive, so any
-// sufficiently long title/description crowds a multi-button action at any
-// screen size. Mark such a group with this class to drop it onto its own
-// right-aligned line below the copy instead (pairs with toaster.tsx's
-// `flex-wrap`).
+// Multiple actions share a full-width row below the copy. Wrap the controls
+// and their labels when a narrow viewport or larger text needs more room.
 export const toastActionGroupClassName =
-  'border-border flex w-full items-center justify-end gap-2 border-t pt-2';
+  'border-border flex w-full min-w-0 flex-wrap items-center justify-end gap-2 border-t pt-2 [&>button]:h-auto [&>button]:min-h-8 [&>button]:max-w-full [&>button]:py-1 [&>button]:whitespace-normal';

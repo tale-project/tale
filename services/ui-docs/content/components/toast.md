@@ -60,6 +60,30 @@ A `duration` can be supplied per toast. A longer duration alone does not make ti
 
 `useToast()` returns `toast`, `dismiss`, and the current `toasts`. Creating a toast returns its `id`, a scoped `dismiss`, and `update`. Use these handles for an operation-specific change rather than relying on a notification's position in the store. An `action` can hold a React action element, but an essential action should also have a stable home in the application.
 
+## Group multiple actions
+
+Use `toastActionGroupClassName` for two or more actions. It places them below the copy and lets buttons and their labels wrap when space is limited or text is enlarged. A single short action can remain beside the copy. A notice taller than the viewport scrolls so its actions stay reachable.
+
+This excerpt supplies the `action` of a toast. Import `Button` from `@tale/ui/button` and provide the host's `onUpdate` callback:
+
+```tsx
+import * as ToastPrimitives from '@radix-ui/react-toast';
+import { toastActionGroupClassName } from '@tale/ui/toast';
+
+action: (
+  <div className={toastActionGroupClassName}>
+    <ToastPrimitives.Close asChild>
+      <Button type="button" variant="ghost" size="sm">Later</Button>
+    </ToastPrimitives.Close>
+    <ToastPrimitives.Action altText="Update now" asChild onClick={onUpdate}>
+      <Button type="button" size="sm">Update now</Button>
+    </ToastPrimitives.Action>
+  </div>
+)
+```
+
+`Close` dismisses the notice. `Action` performs the callback and dismisses it; give `altText` the action's accessible description.
+
 ## Review the complete feedback path
 
 Trigger two notices in quick succession and confirm only the latest remains. Check that a notice does not cover the action needed next, that keyboard focus stays where the task expects, and that the same information has a persistent location when required.
