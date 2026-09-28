@@ -18,6 +18,16 @@ export const previewPaneReadableClasses = previewPaneCanvasClasses;
 /** DOCX/ODT — grey canvas with room for a centered white page. */
 export const previewPaneDocumentClasses = 'bg-muted p-4';
 
+/**
+ * The one type rhythm of a source preview: an editor's mono `text-xs` on a
+ * 20px row. The highlighted and the plain path of the document text preview
+ * and of the skill asset viewer, and the text skeleton, all use it, so a file
+ * never changes size when its highlight lands. Set it on the block (the `pre`
+ * or the highlight's wrapper), never on the inline `code`: a row is never
+ * shorter than its block's own line height.
+ */
+export const previewCodeTextClasses = 'font-mono text-xs leading-5';
+
 export function PreviewPane({ children, className }: PreviewPaneProps) {
   return (
     <div
@@ -118,8 +128,8 @@ export function PreviewContentSkeleton({
       ) : (
         <div
           className={cn(
-            'w-full text-sm',
-            kind === 'text' && 'font-mono leading-relaxed',
+            'w-full',
+            kind === 'text' ? previewCodeTextClasses : 'text-sm',
           )}
         >
           <SkeletonText lines={8} />

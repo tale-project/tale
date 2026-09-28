@@ -670,7 +670,7 @@ describe('resolveSetupFolderId — the Setup folder a desk binds by name', () =>
     expect(bound).toEqual(['org-1', 'p-1', 'client setup']);
   });
 
-  it('fails closed on a name no root folder carries — SETUP_FOLDER_MISSING, naming the folder', async () => {
+  it('fails closed on a name no root folder carries — SETUP_FOLDER_MISSING, naming the rule, not the name', async () => {
     const { tx } = fakeDb(() => []);
     const attempt = resolveSetupFolderId(tx, {
       organizationId: 'org-1',
@@ -681,7 +681,8 @@ describe('resolveSetupFolderId — the Setup folder a desk binds by name', () =>
     await expect(attempt).rejects.toMatchObject({
       code: 'SETUP_FOLDER_MISSING',
       status: 400,
-      message: 'Folder "Setup" does not exist in this project yet',
+      message:
+        'No root folder of this project carries that setup folder name yet',
     });
   });
 });

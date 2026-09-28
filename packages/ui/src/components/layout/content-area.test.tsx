@@ -6,7 +6,7 @@ import { render } from '@/tests/utils/render';
 import { ContentArea } from './content-area';
 
 const DOCK_END_PAD =
-  'pb-[calc(var(--content-area-pb)+var(--mobile-floating-actions-pad,0px))]';
+  'pb-[calc(var(--content-area-pb)+var(--mobile-floating-actions-pad,0px)+var(--mobile-nav-content-pad,0px))]';
 
 describe('ContentArea', () => {
   describe('accessibility', () => {

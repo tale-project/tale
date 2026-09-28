@@ -9,6 +9,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveOauthAppCredentials } from '../../core/http_connectors/deployment_config.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { isConfigurableOauthAppSlug } from '../connectors/oauth-app-routes.ts';
 import { listOauthApps } from '../connectors/oauth-apps.ts';
 import {
@@ -154,7 +155,7 @@ export function createConnectorCredentialRoutes(deps: {
         isDefault: z.boolean().optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       const created = await createCredential(deps.sql, {
         ...body.data,
@@ -182,7 +183,7 @@ export function createConnectorCredentialRoutes(deps: {
         isDefault: z.boolean().optional(),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await updateCredential(deps.sql, {
         ...body.data,

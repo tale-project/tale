@@ -39,9 +39,13 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { dismissAgentQuestionNotifications } from '../collab/service.ts';
+import {
+  dismissAgentQuestionNotifications,
+  dismissTriggerPausedNotifications,
+} from '../collab/service.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
+import { recordTriggerRunOutcome } from './trigger-failures.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
@@ -1009,11 +1013,17 @@ export function assertTriggerValid(trigger: TriggerInput): void {
  * plaintext is handed out only when the hash minted here is the one that
  * landed. A re-bind that CHANGES the kind is a new trigger in the same row:
  * its fire ledger (`lastFiredAt`, `lastRunId`, the claim cursor, the skip
- * stamp) is cleared, so a fresh event trigger never claims the firing
- * history of the webhook it replaced (the schedule scanner also reads a
- * cleared cursor as "nothing due before this bind") — and when the row it
- * replaces held a LIVE webhook token, the answer says so (`revoked`): the
- * URL a partner posts to died with this bind, silently until now.
+ * stamp, the last failure) is cleared, so a fresh event trigger never claims
+ * the firing history of the webhook it replaced (the schedule scanner also
+ * reads a cleared cursor as "nothing due before this bind") — and when the
+ * row it replaces held a LIVE webhook token, the answer says so (`revoked`):
+ * the URL a partner posts to died with this bind, silently until now.
+ *
+ * Every save starts a fresh failure streak (`trigger-failures.ts`): a person
+ * looked at the binding, so runs started before it no longer count. A save
+ * over a schedule paused by its failures also clears the pause's skip stamp
+ * — whether it turns the schedule back on or keeps it off, someone has
+ * decided — and marks the owners' and admins' unread notices of it read.
  */
 export async function setTrigger(
   sql: Sql,
@@ -1038,8 +1048,17 @@ export async function setTrigger(
     // racing on one name settle their order on this lock before the
     // upsert (a first bind finds nothing, and the upsert's ON CONFLICT
     // settles that race by itself).
-    const existing = await tx<{ kind: string; tokenHash: string | null }[]>`
-      SELECT kind, token_hash AS "tokenHash" FROM app.automation_triggers
+    const existing = await tx<
+      {
+        id: string;
+        kind: string;
+        tokenHash: string | null;
+        lastSkipReason: string | null;
+      }[]
+    >`
+      SELECT id, kind, token_hash AS "tokenHash",
+             last_skip_reason AS "lastSkipReason"
+      FROM app.automation_triggers
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
       FOR UPDATE
     `;
@@ -1076,19 +1095,40 @@ export async function setTrigger(
           ELSE NULL
         END,
         last_skipped_at_ms = CASE
+          WHEN t.last_skip_reason = 'paused_after_failures' THEN NULL
           WHEN t.kind = EXCLUDED.kind THEN t.last_skipped_at_ms
           ELSE NULL
         END,
         last_skip_reason = CASE
+          WHEN t.last_skip_reason = 'paused_after_failures' THEN NULL
           WHEN t.kind = EXCLUDED.kind THEN t.last_skip_reason
+          ELSE NULL
+        END,
+        consecutive_failures = 0,
+        last_failed_at_ms = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_failed_at_ms
+          ELSE NULL
+        END,
+        last_failure_code = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_failure_code
+          ELSE NULL
+        END,
+        last_failed_run_id = CASE
+          WHEN t.kind = EXCLUDED.kind THEN t.last_failed_run_id
           ELSE NULL
         END,
         enabled = EXCLUDED.enabled,
         updated_at_ms = EXCLUDED.updated_at_ms
       RETURNING token_hash AS "tokenHash"
     `;
-    await emitDefinitionHint(tx, args.organizationId, args.name);
     const before = existing[0];
+    if (before?.lastSkipReason === 'paused_after_failures') {
+      await dismissTriggerPausedNotifications(tx, {
+        organizationId: args.organizationId,
+        triggerId: before.id,
+      });
+    }
+    await emitDefinitionHint(tx, args.organizationId, args.name);
     return {
       rows: upserted,
       revoked:
@@ -1113,21 +1153,42 @@ export async function deleteTrigger(
   name: string,
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string }[]>`
+    const rows = await tx<{ id: string; lastSkipReason: string | null }[]>`
       DELETE FROM app.automation_triggers
       WHERE org_id = ${organizationId} AND name = ${name}
-      RETURNING id
+      RETURNING id, last_skip_reason AS "lastSkipReason"
     `;
-    const deleted = rows.length > 0;
-    if (deleted) await emitDefinitionHint(tx, organizationId, name);
-    return deleted;
+    const removed = rows[0];
+    if (removed === undefined) return false;
+    // A paused schedule removed is a pause someone dealt with.
+    if (removed.lastSkipReason === 'paused_after_failures') {
+      await dismissTriggerPausedNotifications(tx, {
+        organizationId,
+        triggerId: removed.id,
+      });
+    }
+    await emitDefinitionHint(tx, organizationId, name);
+    return true;
   });
 }
+
+/** Why a binding started nothing — the skip ledger's closed set (the
+ * column's CHECK, migrations 0096 and 0124). `paused_after_failures` is the
+ * one that is a state, not an occurrence: the schedule turned itself off. */
+export type TriggerSkipReason =
+  | 'not_deployed'
+  | 'unusable_cron'
+  | 'start_refused'
+  | 'paused_after_failures';
 
 /** A trigger binding as a reader sees it — never the secret that verifies
  * it. The fire ledger (0096) is the binding's health: `lastFiredAt` and
  * `lastRunId` name the last run it started, `lastSkippedAt` and
- * `lastSkipReason` the last time it came due and started nothing. */
+ * `lastSkipReason` the last time it came due and started nothing (or when a
+ * schedule paused itself). The failure streak (0124) counts the permanent
+ * failures in a row among the runs it started since its last save;
+ * `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of
+ * them. */
 export interface TriggerListing {
   id: string;
   name: string;
@@ -1140,7 +1201,11 @@ export interface TriggerListing {
   lastFiredAt: number | null;
   lastRunId: string | null;
   lastSkippedAt: number | null;
-  lastSkipReason: 'not_deployed' | 'unusable_cron' | 'start_refused' | null;
+  lastSkipReason: TriggerSkipReason | null;
+  consecutiveFailures: number;
+  lastFailedAt: number | null;
+  lastFailureCode: string | null;
+  lastFailedRunId: string | null;
 }
 
 export async function listTriggers(
@@ -1155,7 +1220,11 @@ export async function listTriggers(
            last_fired_at_ms::float8 AS "lastFiredAt",
            last_run_id AS "lastRunId",
            last_skipped_at_ms::float8 AS "lastSkippedAt",
-           last_skip_reason AS "lastSkipReason"
+           last_skip_reason AS "lastSkipReason",
+           consecutive_failures AS "consecutiveFailures",
+           last_failed_at_ms::float8 AS "lastFailedAt",
+           last_failure_code AS "lastFailureCode",
+           last_failed_run_id AS "lastFailedRunId"
     FROM app.automation_triggers
     WHERE org_id = ${organizationId}
       AND (${name ?? null}::text IS NULL OR name = ${name ?? null})
@@ -2361,6 +2430,24 @@ export async function finishRun(
           executions: args.executions,
         },
       });
+      // A trigger's run keeps the trigger's failure streak — and the
+      // schedule it pauses, when its runs keep failing the same way. After
+      // the audit row, never before it: the organization's audit chain is
+      // locked ahead of any trigger row, here as in an event dispatch (the
+      // lock order in `trigger-failures.ts`).
+      const trigger = await recordTriggerRunOutcome(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        startedBy: row.startedBy,
+        startedAt: row.startedAt,
+        status: args.status,
+        failureCode:
+          args.status === 'failed' ? (args.failureCode ?? null) : null,
+        now,
+      });
+      if (trigger !== null) {
+        await emitDefinitionHint(tx, args.organizationId, trigger.name);
+      }
     }
     // The run's sandbox sessions are per-execution — free their slots now,
     // and withdraw the approval cards no node will ever consume and close
@@ -2466,10 +2553,18 @@ export async function deleteAutomationCascade(
       DELETE FROM app.automation_deployments
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
     `;
-    await tx`
+    const triggers = await tx<{ id: string; lastSkipReason: string | null }[]>`
       DELETE FROM app.automation_triggers
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      RETURNING id, last_skip_reason AS "lastSkipReason"
     `;
+    for (const trigger of triggers) {
+      if (trigger.lastSkipReason !== 'paused_after_failures') continue;
+      await dismissTriggerPausedNotifications(tx, {
+        organizationId: args.organizationId,
+        triggerId: trigger.id,
+      });
+    }
     await tx`
       DELETE FROM app.automation_project_bindings
       WHERE org_id = ${args.organizationId} AND automation_name = ${args.name}

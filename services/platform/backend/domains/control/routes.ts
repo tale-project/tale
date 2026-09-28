@@ -4,6 +4,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   beginDrain,
   ControlError,
@@ -59,7 +60,7 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
     const body = z
       .object({ colour: z.string().min(1).max(32).optional() })
       .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     return c.json(await beginDrain(deps.sql, body.data.colour ?? null));
   });
 
@@ -87,7 +88,7 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
         newPassword: z.string().max(1024).optional(),
       })
       .safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       return c.json(await resetOwnerCredentials(deps.sql, body.data));
     } catch (error) {

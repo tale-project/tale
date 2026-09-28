@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 71 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 72 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -556,6 +556,20 @@ output:
       both sections and the dot clears; **Discard** puts both back. A member
       without the capability sees the same settings read-only, with no
       cluster and no **Remove trigger**.
+- [ ] `AUTO-F52` · **A failing schedule pauses itself** — Deploy an
+      automation whose only `transform` node throws, bind it to a `* * * * *`
+      schedule with **Enabled** on, and watch its General tab across five
+      minutes → after the first failure the Trigger section reads
+      `automations.trigger.failures.streak` and
+      `automations.trigger.failures.streakSchedule`, with the last failure's
+      code (`node_error`) and **View run**
+      (`automations.trigger.failures.viewRun`), which opens that run. After
+      the fifth, **Enabled** is off and a warning banner reads
+      `automations.trigger.failures.pausedTitle` with
+      `automations.trigger.failures.pausedBody`, the same after a hard
+      reload, and no run starts at the next minute. Turn **Enabled** on and
+      **Save** → the banner and the streak line are gone, and the next
+      failure counts from one.
 
 ## Boundary & error tests
 

@@ -62,7 +62,7 @@ function corpusStatements(sent: readonly Recorded[]): Recorded[] {
 }
 
 /** A chat caller whose role reads the inbox: the one door that asks for
- * email bodies. */
+ * mail — email bodies and emailed attachments. */
 const BODIES_ACCESS = {
   teamIds: [],
   projectIds: [],
@@ -94,7 +94,8 @@ function corpusRow(
 
 /**
  * A corpus that answers each partition from its own rows, best first and
- * cut to the statement's LIMIT — the shape the two statements return.
+ * cut to the statement's LIMIT — the shape the two statements return. The
+ * mail partition is the one that admits conversation rows.
  */
 function partitionedCorpus(rows: {
   files: Record<string, unknown>[];
@@ -109,7 +110,9 @@ function partitionedCorpus(rows: {
       return Promise.resolve([]);
     }
     const limit = Number(params.at(-1));
-    const pool = text.includes('NOT LIKE') ? rows.files : rows.bodies;
+    const pool = text.includes('d.conversation_id IS NOT NULL')
+      ? rows.bodies
+      : rows.files;
     return Promise.resolve(
       [...pool]
         .sort((a, b) => Number(b.score) - Number(a.score))
@@ -334,11 +337,11 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(statement.text).toContain('d.team_ids && ');
   });
 
-  it('admits conversation rows on both legs when the scope allows them', async () => {
-    // The SQL side only ADMITS an emailed attachment — it cannot know who may
-    // read the mail, because that answer lives in the conversation's current
-    // assignment. So the clause is deliberately the widest possible one, and
-    // `filterRetrievableRagFileIds` is what decides each row.
+  it('admits no conversation row to a door that did not ask for mail, whatever its scope', async () => {
+    // The MCP door and a user-keyed sandbox session resolve the member's own
+    // scope, conversation rows included — and wrap nothing as untrusted. An
+    // emailed attachment carries no team and no project, so without the
+    // exclusion it would read as an org-wide hub row there.
     const { sql, sent } = recorder();
     const reader = new DocumentCorpusReader(sql, 'acme');
     const access = {
@@ -353,7 +356,8 @@ describe('the documents corpus is scoped to one organization', () => {
     const statements = corpusStatements(sent);
     expect(statements.length).toBe(2);
     for (const statement of statements) {
-      expect(statement.text).toContain('d.conversation_id IS NOT NULL');
+      expect(statement.text).not.toContain('d.conversation_id IS NOT NULL');
+      expect(statement.text).toMatch(/AND d\.conversation_id IS NULL AND/);
     }
   });
 
@@ -381,12 +385,12 @@ describe('the documents corpus is scoped to one organization', () => {
     }
   });
 
-  it('keeps email bodies out of every statement for a door that did not ask', async () => {
-    // A body is text an outsider wrote; only a door that wraps it may take
-    // one, so for every other — the org-wide callers included — no message
-    // row may even win a candidate slot. The dense leg's scope count reads
-    // the same predicates, or it would size the plan on rows it never
-    // returns.
+  it('keeps mail out of every statement for a door that did not ask', async () => {
+    // Mail is text an outsider wrote; only a door that wraps it may take any,
+    // so for every other — the org-wide callers included — no message row
+    // and no emailed attachment may even win a candidate slot. The dense
+    // leg's scope count reads the same predicates, or it would size the plan
+    // on rows it never returns.
     const scopes = [
       undefined,
       {
@@ -414,37 +418,71 @@ describe('the documents corpus is scoped to one organization', () => {
         const clause = /d\.file_id NOT LIKE \$(\d+)/.exec(statement.text);
         expect(clause).not.toBeNull();
         expect(statement.params[Number(clause?.[1]) - 1]).toBe('msg:%');
+        expect(statement.text).toMatch(/AND d\.conversation_id IS NULL AND/);
+        expect(statement.text).not.toContain('d.conversation_id IS NOT NULL');
       }
     }
   });
 
-  it('searches email bodies as a partition of their own for a door that asked', async () => {
-    // A body is decided by its conversation's live assignment, which only
-    // the admission re-check reads: searched with the files, the bodies a
-    // member may not read would take a leg's every candidate slot.
+  it('searches mail as a partition of its own for a door that asked', async () => {
+    // Mail is decided by its conversation's live assignment, which only the
+    // admission re-check reads: searched with the files, the bodies and
+    // attachments a member may not read would take a leg's every candidate
+    // slot.
     const { sql, sent } = recorder();
     const reader = new DocumentCorpusReader(sql, 'acme');
     await reader.keyword({ ...LEG, access: BODIES_ACCESS });
     await reader.dense({ ...LEG, access: BODIES_ACCESS, embedding: EMBEDDING });
     const statements = corpusStatements(sent);
-    // Keyword and dense, each once for files and once for bodies.
+    // Keyword and dense, each once for files and once for mail.
     expect(statements.length).toBe(4);
-    const files = statements.filter((st) => st.text.includes('NOT LIKE'));
-    const bodies = statements.filter((st) => !st.text.includes('NOT LIKE'));
+    const isMail = (st: Recorded) =>
+      st.text.includes('d.conversation_id IS NOT NULL');
+    const files = statements.filter((st) => !isMail(st));
+    const mail = statements.filter(isMail);
     expect(files.length).toBe(2);
-    expect(bodies.length).toBe(2);
-    for (const statement of bodies) {
-      const clause = /d\.file_id LIKE \$(\d+)/.exec(statement.text);
-      expect(clause).not.toBeNull();
-      expect(statement.params[Number(clause?.[1]) - 1]).toBe('msg:%');
-      // Admitted for the re-check, which decides each by its conversation.
-      expect(statement.text).toContain('d.conversation_id IS NOT NULL');
+    expect(mail.length).toBe(2);
+    for (const statement of mail) {
+      // Bodies and attachments alike: no narrowing on the ref.
+      expect(statement.text).not.toMatch(/d\.file_id (NOT )?LIKE/);
+      // Admitted for the re-check, which decides each by its conversation;
+      // never a document's scope disjunct.
+      expect(statement.text).not.toContain('d.team_id');
       // Each partition fetches a full candidate pool of its own.
       expect(statement.params.at(-1)).toBe(LEG.limit);
       expect(statement.params).toContain('acme');
     }
     for (const statement of files) {
+      expect(statement.text).toMatch(/AND d\.conversation_id IS NULL AND/);
       expect(statement.params.at(-1)).toBe(LEG.limit);
+    }
+  });
+
+  it('searches one kind of mail alone for a mail narrow', async () => {
+    for (const [mailOnly, operator] of [
+      ['attachments', 'NOT LIKE'],
+      ['bodies', 'LIKE'],
+    ] as const) {
+      const { sql, sent } = recorder();
+      const reader = new DocumentCorpusReader(sql, 'acme');
+      await reader.keyword({ ...LEG, access: BODIES_ACCESS, mailOnly });
+      await reader.dense({
+        ...LEG,
+        access: BODIES_ACCESS,
+        mailOnly,
+        embedding: EMBEDDING,
+      });
+      const narrowed = corpusStatements(sent);
+      // No files partition: a document could only take a slot, then drop.
+      expect(narrowed.length).toBe(2);
+      for (const statement of narrowed) {
+        expect(statement.text).toContain('d.conversation_id IS NOT NULL');
+        const clause = new RegExp(`d\\.file_id ${operator} \\$(\\d+)`).exec(
+          statement.text,
+        );
+        expect(clause).not.toBeNull();
+        expect(statement.params[Number(clause?.[1]) - 1]).toBe('msg:%');
+      }
     }
   });
 
@@ -454,12 +492,12 @@ describe('the documents corpus is scoped to one organization', () => {
     await reader.keyword({
       ...LEG,
       access: BODIES_ACCESS,
-      onlyEmailBodies: true,
+      mailOnly: 'bodies',
     });
     await reader.dense({
       ...LEG,
       access: BODIES_ACCESS,
-      onlyEmailBodies: true,
+      mailOnly: 'bodies',
       embedding: EMBEDDING,
     });
     const narrowed = corpusStatements(only.sent);
@@ -482,18 +520,22 @@ describe('the documents corpus is scoped to one organization', () => {
       await new DocumentCorpusReader(sql, 'acme').keyword(query);
       const statements = corpusStatements(sent);
       expect(statements.length).toBe(1);
-      expect(statements[0]?.text).toContain('NOT LIKE');
+      expect(statements[0]?.text).not.toContain(
+        'd.conversation_id IS NOT NULL',
+      );
     }
 
-    // Narrowed to bodies without asking for them: nothing to search.
-    const none = recorder();
-    expect(
-      await new DocumentCorpusReader(none.sql, 'acme').keyword({
-        ...LEG,
-        onlyEmailBodies: true,
-      }),
-    ).toEqual([]);
-    expect(corpusStatements(none.sent)).toEqual([]);
+    // Narrowed to mail without asking for it: nothing to search.
+    for (const mailOnly of ['bodies', 'attachments'] as const) {
+      const none = recorder();
+      expect(
+        await new DocumentCorpusReader(none.sql, 'acme').keyword({
+          ...LEG,
+          mailOnly,
+        }),
+      ).toEqual([]);
+      expect(corpusStatements(none.sent)).toEqual([]);
+    }
   });
 
   it('merges the partitions by the leg’s own score, cutting neither', async () => {
@@ -738,15 +780,23 @@ describe('rows become hits', () => {
   });
 });
 
-describe('email bodies a member may not read never displace a document', () => {
-  it('still returns the member’s hub document when unreadable bodies fill a whole pool', async () => {
+describe('mail a member may not read never displaces a document', () => {
+  it('still returns the member’s hub document when unreadable mail fills a whole pool', async () => {
     // A shared inbox: every conversation unassigned (admin triage only), and
-    // each email outranks the one document the member asked about on both
-    // legs. The page is 8, so each leg's pool is 24 — and there are 40
-    // bodies. Searched with the files, the pool held bodies alone, the
-    // re-check refused them all, and the member got "no matches".
+    // each email — and each file attached to one — outranks the one document
+    // the member asked about on both legs. The page is 8, so each leg's pool
+    // is 24 — and there are 40 pieces of mail. Searched with the files, the
+    // pool held mail alone, the re-check refused it all, and the member got
+    // "no matches".
     const bodies = Array.from({ length: 40 }, (_v, i) =>
-      corpusRow(`body-${i}`, `msg:m${i}`, 0.99 - i * 0.001, `conv-${i}`),
+      i % 2 === 0
+        ? corpusRow(`body-${i}`, `msg:m${i}`, 0.99 - i * 0.001, `conv-${i}`)
+        : corpusRow(
+            `attachment-${i}`,
+            `s3:mail/cv-${i}.pdf`,
+            0.99 - i * 0.001,
+            `conv-${i}`,
+          ),
     );
     const sql = partitionedCorpus({
       files: [corpusRow('doc-1', 'refund-policy.pdf', 0.5)],
@@ -759,7 +809,7 @@ describe('email bodies a member may not read never displace a document', () => {
         // The re-check for a plain member: no conversation is theirs.
         admit: (hits) =>
           Promise.resolve(
-            hits.filter((hit) => !hit.source.ref.startsWith('msg:')),
+            hits.filter((hit) => hit.source.conversationId === null),
           ),
       },
       {
