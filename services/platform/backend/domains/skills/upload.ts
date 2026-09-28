@@ -17,7 +17,7 @@ import {
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { parseSkillBundleZip } from '../../core/skills/bundle_zip.ts';
-import { normalizedBundleFiles } from '../../core/skills/file_actions.ts';
+import { prepareBundleWrite } from '../../core/skills/file_actions.ts';
 import {
   createOrgSkillReader,
   listSkillBundleFileEntries,
@@ -51,6 +51,9 @@ export async function uploadSkillBundlePg(
     viewer: UserSkillViewer;
     storageId: string;
     force?: boolean;
+    /** The audience rule for a team skill's `teams`, answered in the skill
+     * door's codes (`assertSkillTeamsAssignable`). */
+    assertTeamsAssignable: (teamIds: string[]) => Promise<void>;
   },
 ): Promise<UploadOutcome> {
   // Single-use: the intent is consumed here, and the blob dies with this
@@ -164,10 +167,15 @@ export async function uploadSkillBundlePg(
           }
         }
 
-        // The owner and sharing rules the editor applies. An unreadable
-        // existing document counts as no bundle: there is nothing left to
-        // preserve.
-        const files = normalizedBundleFiles(parsed, args.viewer, existing);
+        // The owner, private and team-audience rules the editor applies. An
+        // unreadable existing document counts as no bundle: there is
+        // nothing left to preserve.
+        const files = await prepareBundleWrite({
+          parsed,
+          uploader: args.viewer,
+          existing,
+          assertTeamsAssignable: args.assertTeamsAssignable,
+        });
         try {
           await writeSkillBundleFiles(args.orgSlug, parsed.slug, files);
         } catch (err) {

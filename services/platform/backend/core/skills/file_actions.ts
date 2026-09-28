@@ -530,10 +530,11 @@ const PRIVATE_SKILLS_RETIRED_MESSAGE =
  *
  * `existing` is the bundle the upload replaces, or `null` for a new slug — a
  * slug whose current document is unreadable counts as new, since there is
- * nothing left to preserve. Sharing (`team`/`org` + `teams`) is honored as
- * declared: any member may share, and the parse step already refused the
- * inconsistent shapes. `SKILL.md` stays byte-for-byte when the zip already
- * says what the readers will conclude.
+ * nothing left to preserve. Sharing (`team`/`org` + `teams`) is kept as
+ * declared here — the parse step already refused the inconsistent shapes —
+ * and the audience rule for `teams` is {@link prepareBundleWrite}'s, which
+ * every upload door writes through. `SKILL.md` stays byte-for-byte when the
+ * zip already says what the readers will conclude.
  */
 export function normalizedBundleFiles(
   parsed: ParsedBundle,
@@ -567,6 +568,49 @@ export function normalizedBundleFiles(
       ? { path: file.path, content: Buffer.from(rewritten, 'utf-8') }
       : file,
   );
+}
+
+/**
+ * The files an uploaded bundle is written as, after the rules every write
+ * door applies: the audience rule for a team skill's `teams` — the
+ * organization's own teams, and for a non-admin only their own — checked when
+ * the list is new or differs from the bundle it replaces (like the editor's
+ * save, so an unchanged re-upload never fails on a team deleted since), then
+ * the owner and private-retired rules of {@link normalizedBundleFiles}. Both
+ * upload lanes write through it: the skill zip and an automation package's
+ * carried skills. `assertTeamsAssignable` is supplied by the door, which owns
+ * the database handle, and throws the refusal it answers.
+ */
+export async function prepareBundleWrite(args: {
+  parsed: ParsedBundle;
+  uploader: UserSkillViewer;
+  existing: OrgSkill | null;
+  assertTeamsAssignable: (teamIds: string[]) => Promise<void>;
+}): Promise<Array<{ path: string; content: Buffer }>> {
+  const files = normalizedBundleFiles(
+    args.parsed,
+    args.uploader,
+    args.existing,
+  );
+  const teams =
+    args.parsed.meta.visibility === 'team'
+      ? (args.parsed.meta.teams ?? [])
+      : [];
+  if (teams.length > 0 && !sameTeams(teams, args.existing)) {
+    await args.assertTeamsAssignable([...teams]);
+  }
+  return files;
+}
+
+/** Whether a team skill keeps exactly the teams the bundle it replaces has. */
+function sameTeams(
+  teams: readonly string[],
+  existing: OrgSkill | null,
+): boolean {
+  if (existing?.meta.visibility !== 'team') return false;
+  const before = new Set(existing.meta.teams ?? []);
+  const after = new Set(teams);
+  return before.size === after.size && [...after].every((id) => before.has(id));
 }
 
 /**

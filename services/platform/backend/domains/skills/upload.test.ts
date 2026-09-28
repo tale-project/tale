@@ -38,7 +38,7 @@ vi.mock('../../core/skills/bundle_zip.ts', () => ({
   parseSkillBundleZip: vi.fn(() => Promise.resolve({ slug: 'house-voice' })),
 }));
 vi.mock('../../core/skills/file_actions.ts', () => ({
-  normalizedBundleFiles: vi.fn(() => []),
+  prepareBundleWrite: vi.fn(() => Promise.resolve([])),
 }));
 vi.mock('../../core/skills/file_utils.ts', () => ({
   createOrgSkillReader: vi.fn(() => ({})),
@@ -100,6 +100,7 @@ function upload(sql: Sql, force?: boolean) {
     viewer: alice,
     storageId: 's3:acme/skill_bundle/x',
     ...(force === undefined ? {} : { force }),
+    assertTeamsAssignable: () => Promise.resolve(),
   });
 }
 
