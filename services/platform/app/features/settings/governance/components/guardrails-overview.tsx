@@ -282,10 +282,11 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
     [organizationId, filterName, kind],
   );
 
-  const { data: events, isLoading } = useBackendQuery(
-    'chat_filter_events/queries:listRecent',
-    queryArgs,
-  );
+  const {
+    data: events,
+    isLoading,
+    isError,
+  } = useBackendQuery('chat_filter_events/queries:listRecent', queryArgs);
 
   return (
     <Stack as="section" data-settings-section="">
@@ -369,6 +370,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
           // usable so it can be undone.
           disabled={isFilterAffordanceDisabled({
             isLoading,
+            isError,
             itemCount: events?.length ?? 0,
             hasActiveFilters: filterName !== 'all' || kind !== 'all',
           })}
