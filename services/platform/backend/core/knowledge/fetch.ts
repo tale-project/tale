@@ -67,10 +67,12 @@ export interface FetchedDocument {
   readonly modifiedAt: number | null;
   readonly text: string;
   /**
-   * The conversation an emailed attachment or an email body arrived on; null
-   * for everything else. Already read here to decide the scope branch —
-   * surfaced so a caller can tell that this text is attacker-controlled and
-   * must be wrapped as untrusted before a model reads it.
+   * The conversation an emailed attachment or an email body arrived on, as
+   * the corpus row is stamped; null for everything else — and for an
+   * attachment indexed before the stamp, until the backfill reaches it.
+   * Already read here to decide the scope branch — surfaced so a caller can
+   * tell that this text is attacker-controlled and must be wrapped as
+   * untrusted before a model reads it.
    */
   readonly conversationId: string | null;
 }
@@ -171,7 +173,7 @@ export async function fetchDocumentByFileId(
   ctx: ActionCtx,
   args: FetchDocumentByFileIdArgs,
 ): Promise<FetchedDocument | null> {
-  // An email body reaches only a door that asked for one (see
+  // An email body reaches only a door that asked for mail (see
   // `KnowledgeAccessScope.includeConversationMessages`); for any other its
   // ref is the same honest miss as a ref nothing holds. The re-check below
   // would refuse it too — this spares the corpus read.
@@ -215,13 +217,18 @@ export async function fetchDocumentByFileId(
     );
     const document = documents[0];
     if (!document) return null;
-    // A conversation row is decided by the conversation's live assignment, which
-    // this SQL cannot see, so scope-by-set does not apply to it — the mandatory
-    // Convex-truth re-check below is its gate. All that is decided here is
-    // whether such rows are in play for this caller at all: a caller who cannot
-    // read conversations gets an honest miss without touching Convex.
+    // Mail — an emailed attachment or an email body, stamped with the
+    // conversation it arrived on — is decided by the conversation's live
+    // assignment, which this SQL cannot see, so scope-by-set does not apply
+    // to it: the mandatory Convex-truth re-check below is its gate. All that
+    // is decided here is whether mail is in play for this caller at all:
+    // only a door that asked for it goes on, and every other gets an honest
+    // miss without touching Convex.
     if (document.conversation_id != null) {
-      if (args.access !== undefined && !args.access.includeConversationScoped) {
+      if (
+        args.access?.includeConversationMessages !== true ||
+        args.access.includeConversationScoped === false
+      ) {
         return null;
       }
     } else if (

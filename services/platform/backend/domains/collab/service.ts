@@ -62,12 +62,10 @@ export type CollabNotificationInput =
       params?: Record<string, unknown>;
     });
 
-/** The per-type preference column (the 0.4 PREF_FIELD map). The 0.4
- * `automation_alerts` group (automation_failed / budget_alert /
- * runtime_offline) has no emitter in 0.5 — its column stays in
- * `app.notification_preferences` unread and unwritten (deprecated, never
- * dropped) so a later producer can revive the group with a migration-free
- * re-wire; until then the setting is not offered. */
+/** The per-type preference column (the 0.4 PREF_FIELD map). Of the 0.4
+ * `automation_alerts` group only `automation_failed` came back (a schedule
+ * paused after repeated failures); `budget_alert` / `runtime_offline` have
+ * no emitter in 0.5. */
 const PREF_FIELD: Record<string, string> = {
   task_assigned: 'task_assigned',
   task_unassigned: 'task_assigned',
@@ -80,6 +78,7 @@ const PREF_FIELD: Record<string, string> = {
   document_review_requested: 'task_review',
   document_review_resolved: 'task_review',
   agent_escalation: 'escalation',
+  automation_failed: 'automation_alerts',
   conversation_message: 'conversation_messages',
   conversation_assigned: 'conversation_messages',
 };
@@ -97,7 +96,8 @@ async function isNotificationAllowed(
   if (field === 'task_review') return true;
   const rows = await db<Record<string, boolean | null>[]>`
     SELECT task_assigned, task_status_changed, task_commented, mention,
-           task_deadlines, escalation, conversation_messages
+           task_deadlines, escalation, automation_alerts,
+           conversation_messages
     FROM app.notification_preferences
     WHERE user_id = ${userId} AND org_id = ${organizationId}
     LIMIT 1
@@ -511,7 +511,8 @@ export async function getNotificationPreferences(
            task_status_changed AS "taskStatusChanged",
            task_commented AS "taskCommented", mention,
            task_deadlines AS "taskDeadlines", task_review AS "taskReview",
-           escalation, conversation_messages AS "conversationMessages",
+           escalation, automation_alerts AS "automationAlerts",
+           conversation_messages AS "conversationMessages",
            actionable_email AS "actionableEmail"
     FROM app.notification_preferences
     WHERE user_id = ${userId} AND org_id = ${organizationId}
@@ -533,13 +534,13 @@ export async function setNotificationPreferences(
   await sql`
     INSERT INTO app.notification_preferences (
       user_id, org_id, task_assigned, task_status_changed, task_commented,
-      mention, task_deadlines, task_review, escalation,
+      mention, task_deadlines, task_review, escalation, automation_alerts,
       conversation_messages, actionable_email, updated_at_ms
     ) VALUES (
       ${userId}, ${organizationId}, ${value('taskAssigned')},
       ${value('taskStatusChanged')}, ${value('taskCommented')},
       ${value('mention')}, ${value('taskDeadlines')}, ${value('taskReview')},
-      ${value('escalation')},
+      ${value('escalation')}, ${value('automationAlerts')},
       ${value('conversationMessages')}, ${value('actionableEmail')},
       ${Date.now()}
     )
@@ -551,6 +552,7 @@ export async function setNotificationPreferences(
       task_deadlines = COALESCE(EXCLUDED.task_deadlines, app.notification_preferences.task_deadlines),
       task_review = COALESCE(EXCLUDED.task_review, app.notification_preferences.task_review),
       escalation = COALESCE(EXCLUDED.escalation, app.notification_preferences.escalation),
+      automation_alerts = COALESCE(EXCLUDED.automation_alerts, app.notification_preferences.automation_alerts),
       conversation_messages = COALESCE(EXCLUDED.conversation_messages, app.notification_preferences.conversation_messages),
       actionable_email = COALESCE(EXCLUDED.actionable_email, app.notification_preferences.actionable_email),
       updated_at_ms = EXCLUDED.updated_at_ms
@@ -723,6 +725,74 @@ export async function dismissCloudSyncFailureNotifications(
       userId: args.userId,
     });
   }
+  return rows.length;
+}
+
+/**
+ * Tell the organization's owners and admins that a schedule paused itself
+ * after repeated permanent failures (`automations/trigger-failures.ts`):
+ * one actionable row each, written in the pausing transaction and gated by
+ * their `automation_alerts` preference. Only they can fix an automation and
+ * turn its trigger back on; the row opens the automation's General tab,
+ * where the Trigger section shows the pause and the last failure.
+ */
+export async function notifyTriggerPaused(
+  db: Db,
+  args: {
+    organizationId: string;
+    triggerId: string;
+    name: string;
+    failures: number;
+    code: string;
+  },
+): Promise<number> {
+  const recipients = await db<{ userId: string }[]>`
+    SELECT "userId" FROM "member"
+    WHERE "organizationId" = ${args.organizationId}
+      AND lower("role") IN ('owner', 'admin')
+  `;
+  for (const recipient of recipients) {
+    await notifyUser(db, {
+      userId: recipient.userId,
+      organizationId: args.organizationId,
+      type: 'automation_failed',
+      titleKey: 'automationTriggerPaused',
+      bodyKey: 'automationTriggerPausedBody',
+      params: {
+        name: args.name,
+        failures: args.failures,
+        code: args.code,
+        trigger: true,
+      },
+      resourceType: 'automation_trigger',
+      resourceId: args.triggerId,
+      actorType: 'system',
+    });
+  }
+  return recipients.length;
+}
+
+/**
+ * Mark every unread paused-schedule row of one trigger read — someone saved
+ * or removed the trigger, which is what the row asked of all its recipients,
+ * so the other admins' bells stop ringing too. Matches only THIS trigger.
+ */
+export async function dismissTriggerPausedNotifications(
+  db: Db,
+  args: { organizationId: string; triggerId: string },
+): Promise<number> {
+  const rows = await db<{ userId: string }[]>`
+    UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId}
+      AND type = 'automation_failed' AND read = false
+      AND resource_id = ${args.triggerId}
+    RETURNING user_id AS "userId"
+  `;
+  await emitBellHints(
+    db,
+    args.organizationId,
+    rows.map((row) => row.userId),
+  );
   return rows.length;
 }
 

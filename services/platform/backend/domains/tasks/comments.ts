@@ -10,7 +10,10 @@ import {
   TASK_AUDIT_ACTIONS,
   TASK_COMMENT_RESOURCE_TYPE,
 } from '../../core/tasks/audit_actions.ts';
-import { TASK_COMMENT_MAX } from '../../core/tasks/helpers.ts';
+import {
+  TASK_COMMENT_MAX,
+  taskCommentRefusal,
+} from '../../core/tasks/helpers.ts';
 import {
   addedMentions,
   type ResolvedMention,
@@ -189,8 +192,9 @@ async function appendTaskComment(
     throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
   }
   const body = args.body.trim();
-  if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
-    throw new TaskError('TASK_COMMENT_INVALID', 'Invalid comment body');
+  const refusal = taskCommentRefusal(body);
+  if (refusal !== null) {
+    throw new TaskError('TASK_COMMENT_INVALID', refusal);
   }
   const author: CommentAuthor = args.author ?? {
     actorType: 'user',
@@ -508,8 +512,9 @@ export async function editTaskComment(
   assertTaskWritable(project, auth);
   assertCommentOwnerOrAdmin(auth, meta);
   const body = args.body.trim();
-  if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
-    throw new TaskError('TASK_COMMENT_INVALID', 'Invalid comment body');
+  const refusal = taskCommentRefusal(body);
+  if (refusal !== null) {
+    throw new TaskError('TASK_COMMENT_INVALID', refusal);
   }
   const resolved = await resolveSurfaceMentions(tx, {
     organizationId: auth.organizationId,

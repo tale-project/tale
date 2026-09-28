@@ -6,6 +6,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import {
   cancelErasure,
   ErasureError,
@@ -92,7 +93,7 @@ export function createErasureRoutes(deps: {
         reasonCode: z.string().min(1).max(64),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       return c.json(
         await requestErasure(deps.sql, {
@@ -114,7 +115,7 @@ export function createErasureRoutes(deps: {
     const body = z
       .object({ reason: z.string().min(1).max(2_000) })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     try {
       await cancelErasure(deps.sql, {
         organizationId: c.get('orgId'),
@@ -163,7 +164,7 @@ export function createErasureRoutes(deps: {
         extensionReason: z.string().min(1).max(4000),
       })
       .safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    if (!body.success) return invalidBodyResponse(c, body.error);
     const session = c.get('sessionBundle');
     try {
       return c.json(

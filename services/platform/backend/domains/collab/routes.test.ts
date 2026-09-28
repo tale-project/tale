@@ -110,17 +110,31 @@ describe('GET /collab/notifications — query validation', () => {
 });
 
 describe('POST /collab/preferences — the offered toggles only', () => {
-  it('drops the retired automation-alerts key instead of persisting a setting nothing reads', async () => {
-    // The 0.4 `automation_alerts` group has no emitter in 0.5: the toggle
-    // is gone from the settings page and the door no longer takes the key.
-    const res = await createCollabRoutes({
+  async function post(body: Record<string, unknown>): Promise<Response> {
+    return await createCollabRoutes({
       sql: {} as never,
       auth: {} as never,
     }).request('/preferences', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ escalation: false, automationAlerts: false }),
+      body: JSON.stringify(body),
     });
+  }
+
+  it('persists the automation-alerts switch the paused-schedule notice reads', async () => {
+    // `automation_failed` is emitted again (a schedule paused after repeated
+    // failures), so its switch is offered and stored.
+    const res = await post({ automationAlerts: false });
+    expect(res.status).toBe(200);
+    expect(service.setNotificationPreferences).toHaveBeenCalledTimes(1);
+    expect(service.setNotificationPreferences.mock.calls[0]?.[3]).toEqual({
+      automationAlerts: false,
+    });
+  });
+
+  it('drops a key no toggle offers instead of persisting a setting nothing reads', async () => {
+    // The digest retired with its emitter: the door takes no key for it.
+    const res = await post({ escalation: false, digest: false });
     expect(res.status).toBe(200);
     expect(service.setNotificationPreferences).toHaveBeenCalledTimes(1);
     expect(service.setNotificationPreferences.mock.calls[0]?.[3]).toEqual({

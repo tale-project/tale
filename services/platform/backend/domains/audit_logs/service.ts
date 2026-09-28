@@ -62,6 +62,34 @@ export function auditChainQueueKey(organizationId: string): string {
 }
 
 /**
+ * Take the org's audit chain without appending to it: the
+ * transaction-level advisory lock on the chain's queue key, which every
+ * append takes first (`lockChainHead`) and holds until commit — so whoever
+ * holds it has the chain to themselves, and an append later in the same
+ * transaction re-enters it.
+ *
+ * For a writer that must hold the chain AHEAD of another lock: an event
+ * dispatch about to stamp a trigger row takes it here, because a landing
+ * run writes that row only after its own audit row (the lock order in
+ * `automations/trigger-failures.ts`). Waiting on it never raises a
+ * serialization failure; a deadlock is marked with the queue key, like one
+ * raised at the head.
+ */
+export async function lockAuditChain(
+  tx: TransactionSql,
+  organizationId: string,
+): Promise<void> {
+  const queueKey = auditChainQueueKey(organizationId);
+  try {
+    await tx`
+      SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${queueKey}))
+    `;
+  } catch (error) {
+    throw markRetryQueueKey(error, queueKey);
+  }
+}
+
+/**
  * Lock the org's chain head and read it.
  *
  * The head row is the hottest row in the database: every audited write of
@@ -73,11 +101,11 @@ export function auditChainQueueKey(organizationId: string): string {
  * exhausts the retry budget and the route answers 500).
  *
  * Two pieces make a retry deterministic instead:
- * - the transaction-level advisory lock on the org's queue key, taken here
- *   BEFORE the row lock, queues this transaction behind a retry that holds
- *   the same key as a session lock from before its BEGIN (see
- *   `transactSerializable`), so nobody bumps the head between that retry's
- *   snapshot and its lock;
+ * - the transaction-level advisory lock on the org's queue key
+ *   ({@link lockAuditChain}), taken here BEFORE the row lock, queues this
+ *   transaction behind a retry that holds the same key as a session lock
+ *   from before its BEGIN (see `transactSerializable`), so nobody bumps the
+ *   head between that retry's snapshot and its lock;
  * - a 40001/40P01 raised by the head statements is marked with the queue
  *   key, which is what makes the caller's next attempt take that session
  *   lock first.
@@ -89,9 +117,7 @@ async function lockChainHead(
 ): Promise<ChainHead> {
   const queueKey = auditChainQueueKey(organizationId);
   try {
-    await tx`
-      SELECT pg_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${queueKey}))
-    `;
+    await lockAuditChain(tx, organizationId);
     // Ensure-then-lock: the INSERT is a no-op after the org's first audit
     // write; the SELECT takes the row lock that serializes this org's chain.
     await tx`

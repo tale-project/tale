@@ -84,9 +84,9 @@ test('notification preferences: toggles a channel, persists, and restores', asyn
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
   // "Agent escalations" defaults on (an undefined preference reads as
-  // enabled; the digest row died with the workforce digest, the automation
-  // alerts row with its 0.4 emitters). The switch's accessible name is its
-  // row label (aria-labelledby).
+  // enabled; the digest row died with the workforce digest, and "Automation
+  // alerts" is offered to owners and admins only). The switch's accessible
+  // name is its row label (aria-labelledby).
   const digestName = t('notificationPreferences.fields.escalation.label');
   const digest = page.getByRole('switch', { name: digestName });
   await expect(digest).toBeVisible({ timeout: TIMEOUT.VISIBLE });

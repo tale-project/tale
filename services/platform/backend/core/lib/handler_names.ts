@@ -192,6 +192,7 @@ interface HandlerNames {
       findCachedTranscript: FunctionRef;
       getByStorageId: FunctionRef;
       listMailAttachmentsForChat: FunctionRef;
+      lookupMailAttachmentConversations: FunctionRef;
       lookupVideoLinkSources: FunctionRef;
       readTextOnDemandForAgent: FunctionRef;
     };

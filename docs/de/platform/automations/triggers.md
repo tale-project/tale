@@ -90,10 +90,21 @@ Prüfe zuerst **Aktiv**, die Live-Version und den letzten Auslösezeitpunkt. Lie
 | `not_deployed` | Schalte eine getestete Version live. Ein gespeicherter Entwurf reicht nicht. |
 | `start_refused` | Vergleiche das Eingabeschema der Live-Version mit der Trigger-Struktur und behebe den gemeldeten Start- oder Validierungsfehler. |
 | `unusable_cron` | Korrigiere Ausdruck oder Zeitzone und speichere erneut. Andere Zeitpläne laufen währenddessen weiter. |
+| `paused_after_failures` | Der Zeitplan hat sich nach wiederholten Fehlern selbst ausgeschaltet. Siehe [Wenn sich ein Zeitplan selbst pausiert](#wenn-sich-ein-zeitplan-selbst-pausiert). |
 | Webhook-Zugang abgelehnt | Prüfe aktuelle URL und Aktivierung. Unbekannte und deaktivierte Tokens liefern absichtlich dieselbe Ablehnung. |
 | Lauf vorhanden, aber nicht beendet | Öffne die [Ausführungsprotokolle](/de/platform/automations/execution-logs). Der Start gelang; das Problem liegt im Lauf. |
 
 Der letzte Auslösezeitpunkt ändert sich erst bei einem tatsächlichen Start. Ein fälliger Trigger, der nicht starten kann, protokolliert stattdessen den ausgelassenen Start. So erkennst du den Unterschied zu einem gestarteten Workflow, der später scheitert.
+
+## Wenn sich ein Zeitplan selbst pausiert
+
+Scheitern die Läufe eines Zeitplans bei jedem Termin auf dieselbe Weise, würde er sonst endlos weiter fehlschlagen. Tale zählt deshalb die Läufe eines Triggers, die an einem Fehler scheitern, den ein erneuter Versuch nicht behebt: am eigenen Code der Automatisierung (`node_error`), an einem Connector (`connector_error`), an einer Modellantwort, die nicht zu ihrem Schema passt (`llm_output_invalid`), oder am Modellanbieter der Organisation (`auth_error`, `missing_api_key`, `credit_exhausted`, `model_not_found`). Ein erfolgreicher Lauf setzt die Zählung zurück. Andere Fehler, etwa ein Ratenlimit oder ein nicht erreichbarer Anbieter, zählen nicht mit und setzen die Zählung auch nicht zurück.
+
+Nach fünf solchen Fehlern in Folge schaltet der Zeitplan **Aktiv** aus und protokolliert `paused_after_failures`. Der Abschnitt **Trigger** zeigt dann die Pause, Code und Zeitpunkt des letzten Fehlers sowie **Lauf ansehen**, das diesen Lauf öffnet. Scheitern Läufe, während der Zeitplan noch aktiv ist, zeigt der Abschnitt, wie viele nacheinander fehlgeschlagen sind. Inhaber und Admins erhalten eine Benachrichtigung über die Glocke, per E-Mail zusätzlich, wenn die Organisation ein verbundenes Postfach hat; das Audit-Log hält die Pause fest. Unter **Einstellungen > Benachrichtigungen** können sie diese Hinweise mit **Automatisierungs-Warnungen** abschalten.
+
+Öffne den fehlgeschlagenen Lauf, lies den Fehler und behebe ihn in der Automatisierung oder in ihrer Verbindung. Schalte danach **Aktiv** ein und speichere. Jedes Speichern des Triggers beginnt die Zählung neu, ob es den Zeitplan wieder einschaltet oder ausgeschaltet lässt, und markiert die Hinweise als gelesen.
+
+Webhook- und Plattform-Ereignis-Trigger zählen Fehler genauso, werden aber nie pausiert. Ihre Läufe bringen eine Zustellung oder ein Ereignis mit, das ein pausierter Trigger verwerfen würde.
 
 ## Den Trigger pausieren oder ersetzen
 
