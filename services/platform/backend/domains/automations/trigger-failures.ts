@@ -71,8 +71,9 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * event's run silently never started), the streak (swallowed by its
  * savepoint below: the run went uncounted) or the landing run's audit row
  * (the terminal write rolled back, left to the sweep). The real-Postgres
- * lane `trigger-lock-order.integration.ts` holds both orders of producer and
- * both removals.
+ * lane `trigger-lock-order.integration.ts` holds both orders of producer
+ * and both removals, the run door in the REST door's serializable
+ * transaction.
  *
  * The bookkeeping rides a savepoint, like an event dispatch (`emitEvent`):
  * the run's own terminal write is the contract, and a fault here must never
