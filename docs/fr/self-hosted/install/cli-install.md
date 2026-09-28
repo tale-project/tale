@@ -15,6 +15,8 @@ Il te faut :
 - Pour les conteneurs en local : Docker avec Compose et un daemon Docker en cours d’exécution.
 - Pour un workspace distant : l’accès à son daemon Docker, généralement par un contexte Docker SSH. Le compte utilisé sur l’hôte distant doit pouvoir exécuter Docker.
 
+Le stockage objet fourni n’existe actuellement qu’en image `linux/amd64`. Sur un hôte ARM64, le développement local et les déploiements de workspace nécessitent donc une émulation amd64 fonctionnelle : Docker Desktop l’inclut ; sur un hôte Linux avec Docker autonome, [QEMU doit être enregistré sur l’hôte](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale sélectionne l’image amd64, mais n’installe pas l’émulation. Les bundles de déploiement géré exigent toujours des images natives pour l’architecture déclarée. Un déploiement géré ARM64 doit donc attendre une image native du stockage objet.
+
 L’installeur télécharge l’exécutable depuis GitHub. Il doit pouvoir joindre `raw.githubusercontent.com`, `api.github.com`, `github.com` et les destinations de téléchargement vers lesquelles GitHub le redirige.
 
 ## Lancer install-cli.sh ou install-cli.ps1
