@@ -341,9 +341,10 @@ compute codes from the enrollment secret.
 - [ ] `AUTH-B13` · **A lapsed session's toasts, in each language** — As an
   admin with **Manage account → Language** (`auth.userButton.language`) on
   Deutsch, visit `/dashboard/{org}/contacts`, `/dashboard/{org}/products`,
-  `/dashboard/{org}/websites` and `/dashboard/{org}/settings/branding` in
-  tab 1, hold it as in AUTH-B12 (block `*/api/auth/get-session*`) and **Log
-  out** in a second tab. In tab 1, within five minutes of those visits, do
+  `/dashboard/{org}/websites`, `/dashboard/{org}/settings/branding` and a
+  project's **Environment** tab (`projectSecrets.title`) in tab 1, hold it as
+  in AUTH-B12 (block `*/api/auth/get-session*`) and **Log out** in a second
+  tab. In tab 1, within five minutes of those visits, do
   (a) contacts **Add contact** (`contacts.addButton`) → **From your device**
   (`contacts.importMenu.fromDevice`) → a one-row CSV → **Import**
   (`contacts.import.import`); (b) products **Add product**
@@ -354,15 +355,18 @@ compute codes from the enrollment secret.
   (`common.actions.create`); (d) a product's **Edit** (`common.actions.edit`)
   → a new name → **Save** (`common.actions.save`); (e) websites **Add
   website** (`websites.addButton`) → a domain → **Save**; (f) branding
-  **Reset** (`common.actions.reset`) → **Reset**; then switch the language
-  to Français and to English and repeat (a) → every error toast keeps its
-  localized title (`contacts.import.error`, `products.import.error`,
+  **Reset** (`common.actions.reset`) → **Reset**; (g) back on the still-open
+  **Environment** tab, **Add variable** (`envEditor.add`) → a name and a
+  value → **Save** (`envEditor.save`); then switch the language to Français
+  and to English and repeat (a) → every error toast keeps its localized
+  title (`contacts.import.error`, `products.import.error`,
   `products.create.toast.error`, `products.edit.toast.error`,
-  `websites.toast.addError`, `toast.error.brandingUpdateFailed.title`) with
-  **Deine Sitzung ist beendet. Melde dich erneut an.**, **Ta session a pris
-  fin. Reconnecte-toi.** or **Your session has ended. Sign in again.**
-  (`common.errors.sessionEnded`) beneath, never "send an API key" and never
-  English under a German or French title.
+  `websites.toast.addError`, `toast.error.brandingUpdateFailed.title`,
+  `envEditor.saveError`) with **Deine Sitzung ist beendet. Melde dich erneut
+  an.**, **Ta session a pris fin. Reconnecte-toi.** or **Your session has
+  ended. Sign in again.** (`common.errors.sessionEnded`) beneath, never "send
+  an API key", never a `{"code":…}` payload and never English under a German
+  or French title; (g) raises that one toast and no second one.
 - [ ] `AUTH-B14` · **A lapsed session preserves drafts until you choose sign-in** — As an
   admin, open `/dashboard/{org}/products` in tab 1, choose **Add product** →
   **Manual entry**, and type a name and description without saving. In tab 2,
