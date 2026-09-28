@@ -22,6 +22,8 @@
  *    to the unprefixed address.
  */
 
+import { stripLocalePrefix } from '@tale/ui/i18n/negotiate';
+
 import navJson from '../../../docs/nav.json';
 import redirectsJson from '../../../docs/redirects.json';
 import { BASE_LOCALES, type SupportedLocale } from './i18n/locales';
@@ -189,8 +191,8 @@ export function resolveRedirect(
   const moved = paths.get(path);
   if (moved) return moved;
 
-  if (path === '/en' || path.startsWith('/en/')) {
-    const unprefixed = path === '/en' ? '/' : path.slice('/en'.length);
+  const unprefixed = stripLocalePrefix(path, ['en']);
+  if (unprefixed) {
     return paths.get(unprefixed) ?? unprefixed;
   }
 

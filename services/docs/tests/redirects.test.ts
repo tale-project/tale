@@ -264,6 +264,31 @@ describe('derived redirects', () => {
     });
   });
 
+  it.each([
+    '/en//outside.invalid/page',
+    '/en///outside.invalid/page',
+    '/en/\\outside.invalid/page',
+  ])('does not turn %s into an off-site redirect', (pathname) => {
+    expect(resolveRedirect(pathname, paths)).toBeNull();
+    // Browsers normalize a backslash in an HTTP URL before making a request.
+    const browserPath = new URL(pathname, 'https://docs.example').pathname;
+    expect(resolveRedirect(browserPath, paths)).toBeNull();
+  });
+
+  it.each([
+    '/en/%2F%2Foutside.invalid/page',
+    '/en/%5Coutside.invalid/page',
+    '/en/%2f%5coutside.invalid/page',
+    '/en/no-such-page',
+  ])('keeps the unknown address %s on the docs origin', (pathname) => {
+    const target = resolveRedirect(pathname, paths);
+    expect(target).toBe(pathname.slice('/en'.length));
+    expect(new URL(target!, 'https://docs.example').origin).toBe(
+      'https://docs.example',
+    );
+    expect(resolveRedirect(target!, paths)).toBeNull();
+  });
+
   it('resolves /en prefixes and locale-prefixed llms files in one hop', () => {
     const map = buildRedirectPathMap({
       'old/page': 'new/page',
