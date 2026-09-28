@@ -54,44 +54,19 @@
         }
       })();
     </script>
-    <!-- Pre-hydration iOS zoom-on-focus guard: WebKit (every iOS browser --
-         Apple requires them all to embed it) auto-zooms the whole page when
-         a focused input's rendered text is under 16px, however it got that
-         small -- including text a design deliberately keeps compact (a dense
-         table, an inline-rename field). `maximum-scale=1` suppresses ONLY
-         that automatic zoom; iOS has ignored the cap for the user's OWN
-         pinch gesture since iOS 10 (an Apple accessibility fix), so manual
-         zoom is untouched and WCAG 1.4.4 still holds on iOS. Scoped to iOS by
-         UA/platform sniffing on purpose: Android Chrome DOES honor
-         `maximum-scale` for pinch-zoom too, so applying this unconditionally
-         would break manual zoom there. Mirrors detectIsIOS in
-         app/hooks/use-display-mode.ts (pinned by
-         boot-ios-zoom-script.test.ts). -->
-    <script>
-      (function () {
-        try {
-          var nav = window.navigator;
-          var ua = nav.userAgent;
-          var isIOS =
-            /iP(ad|hone|od)/.test(ua) ||
-            (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
-          if (!isIOS) return;
-          var meta = document.getElementById('viewport-meta');
-          var content = meta && meta.getAttribute('content');
-          if (!meta || !content || /maximum-scale/.test(content)) return;
-          meta.setAttribute('content', content + ', maximum-scale=1');
-        } catch (error) {
-          console.warn('Failed to apply the iOS zoom-on-focus guard', error);
-        }
-      })();
-    </script>
     <!-- Pre-hydration Safari toolbar marker: on Mobile Safari outside an
-         installed app the mobile tab bar adds bottom clearance (`pb-12`) for
+         installed app the mobile tab bar adds bottom clearance for
          the browser toolbar. `boot-safari-toolbar` on <html> lets the boot
          shell's tab-bar placeholder reserve the same clearance before first
          paint. Mirrors detectIsMobileSafari / detectIsStandalone in
          app/hooks/use-display-mode.ts (pinned by
-         boot-safari-toolbar-script.test.ts). -->
+         boot-safari-toolbar-script.test.ts). Safari 10+ also ignores viewport
+         scale limits for manual pinch zoom, so only this browser shell gets
+         a maximum-scale cap to suppress compact-input focus zoom. Embedded
+         WKWebViews and other iOS browsers may honor that cap; installed apps
+         and unknown shells keep their original zoom settings. See
+         https://webkit.org/blog/7367/new-interaction-behaviors-in-ios-10/
+         and boot-ios-zoom-script.test.ts. -->
     <script>
       (function () {
         try {
@@ -108,9 +83,20 @@
             nav.standalone === true;
           if (isIOS && isSafariShell && !standalone) {
             document.documentElement.classList.add('boot-safari-toolbar');
+            var safariVersion =
+              /Version\/(\d+)(?:\.\d+)* (?:Mobile\/[A-Za-z0-9]+ )?Safari\/[\d.]+$/.exec(
+                ua,
+              );
+            if (safariVersion && Number(safariVersion[1]) >= 10) {
+              var meta = document.getElementById('viewport-meta');
+              var content = meta && meta.getAttribute('content');
+              if (content && !/maximum-scale/.test(content)) {
+                meta.setAttribute('content', content + ', maximum-scale=1');
+              }
+            }
           }
         } catch (error) {
-          console.warn('Failed to apply the boot Safari toolbar marker', error);
+          console.warn('Failed to apply the boot Safari adjustments', error);
         }
       })();
     </script>

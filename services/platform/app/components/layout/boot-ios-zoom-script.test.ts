@@ -3,20 +3,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { JSDOM } from 'jsdom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { detectIsIOS } from '@/app/hooks/use-display-mode';
-
-/**
- * The pre-hydration script in `index.html` caps `maximum-scale` on iOS so
- * WebKit stops auto-zooming the page when a focused input's text is under
- * 16px — deliberately compact text (a dense table, an inline-rename field)
- * included, with no per-component font-size floor needed. It must fire for
- * EVERY iOS browser (they all embed WebKit) and NEVER on Android, where
- * `maximum-scale` also caps the user's own pinch-zoom — capping it there
- * would break WCAG 1.4.4. These tests run the inline script, as parsed,
- * against the same user agents `detectIsIOS` sees.
- */
+/** The viewport cap is safe for manual pinch zoom only in Safari's browser
+ * shell from iOS 10 onward. Embedded WKWebViews and other iOS browsers may
+ * honor the cap; these cases must retain the original viewport content. */
 
 // A path string, not `new URL(…)`: under jsdom the global URL is jsdom's,
 // which node:fs does not accept.
@@ -49,71 +40,132 @@ const USER_AGENTS = {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
 } as const;
 
-function contentAfterScript(userAgent: string): string | null {
+interface BrowserFixture {
+  userAgent: string;
+  platform?: string;
+  maxTouchPoints?: number;
+  standalone?: boolean;
+  displayModeStandalone?: boolean;
+}
+
+function contentAfterScript(fixture: BrowserFixture): string | null {
   const dom = new JSDOM(
     `<!doctype html><html><head><meta id="viewport-meta" name="viewport" content="${ORIGINAL_CONTENT}" /><script>${zoomScript}</script></head><body></body></html>`,
     {
       url: 'http://localhost/dashboard/org-1/chat',
       runScripts: 'dangerously',
-      // Before parsing, so the inline script reads this user agent.
       beforeParse(window) {
-        Object.defineProperty(window.navigator, 'userAgent', {
-          value: userAgent,
+        Object.defineProperties(window.navigator, {
+          userAgent: { value: fixture.userAgent, configurable: true },
+          platform: { value: fixture.platform ?? 'iPhone', configurable: true },
+          maxTouchPoints: {
+            value: fixture.maxTouchPoints ?? 1,
+            configurable: true,
+          },
+          standalone: {
+            value: fixture.standalone ?? false,
+            configurable: true,
+          },
+        });
+        Object.defineProperty(window, 'matchMedia', {
+          value: () => ({ matches: fixture.displayModeStandalone ?? false }),
           configurable: true,
         });
       },
     },
   );
-  return (
-    dom.window.document
-      .getElementById('viewport-meta')
-      ?.getAttribute('content') ?? null
-  );
+  try {
+    return (
+      dom.window.document
+        .getElementById('viewport-meta')
+        ?.getAttribute('content') ?? null
+    );
+  } finally {
+    dom.window.close();
+  }
 }
 
-const originalUserAgent = window.navigator.userAgent;
-
-afterEach(() => {
-  Object.defineProperty(window.navigator, 'userAgent', {
-    value: originalUserAgent,
-    configurable: true,
-  });
-});
-
-describe('index.html iOS zoom-guard script', () => {
-  it('caps maximum-scale for Mobile Safari', () => {
-    expect(contentAfterScript(USER_AGENTS.iphoneSafari)).toBe(
+describe('index.html Safari focus-zoom guard', () => {
+  it.each<[string, BrowserFixture]>([
+    ['iPhone Safari', { userAgent: USER_AGENTS.iphoneSafari }],
+    [
+      'iOS 10 Safari',
+      {
+        userAgent: USER_AGENTS.iphoneSafari.replace(
+          'Version/18.0',
+          'Version/10.0',
+        ),
+      },
+    ],
+    [
+      'iPadOS desktop user agent',
+      {
+        userAgent: USER_AGENTS.desktopSafari,
+        platform: 'MacIntel',
+        maxTouchPoints: 5,
+      },
+    ],
+  ])('caps automatic focus zoom for %s', (_name, fixture) => {
+    expect(contentAfterScript(fixture)).toBe(
       `${ORIGINAL_CONTENT}, maximum-scale=1`,
     );
   });
 
-  it('caps maximum-scale for Chrome on iOS too — same WebKit engine', () => {
-    expect(contentAfterScript(USER_AGENTS.iphoneChrome)).toBe(
-      `${ORIGINAL_CONTENT}, maximum-scale=1`,
-    );
+  it.each<[string, BrowserFixture]>([
+    [
+      'a host-app user agent',
+      { userAgent: `${USER_AGENTS.iphoneSafari} SyntheticHost/1.0` },
+    ],
+    ['Chrome on iOS', { userAgent: USER_AGENTS.iphoneChrome }],
+    [
+      'Firefox on iOS',
+      { userAgent: USER_AGENTS.iphoneChrome.replace('CriOS', 'FxiOS') },
+    ],
+    [
+      'Edge on iOS',
+      { userAgent: USER_AGENTS.iphoneChrome.replace('CriOS', 'EdgiOS') },
+    ],
+    [
+      'embedded WKWebView',
+      {
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+      },
+    ],
+    [
+      'an unknown Safari-like shell',
+      { userAgent: USER_AGENTS.iphoneSafari.replace('Version/18.0 ', '') },
+    ],
+    [
+      'Safari before iOS 10',
+      {
+        userAgent: USER_AGENTS.iphoneSafari.replace(
+          'Version/18.0',
+          'Version/9.0',
+        ),
+      },
+    ],
+    [
+      'Android Chrome',
+      { userAgent: USER_AGENTS.androidChrome, platform: 'Linux armv8l' },
+    ],
+    [
+      'desktop Safari',
+      {
+        userAgent: USER_AGENTS.desktopSafari,
+        platform: 'MacIntel',
+        maxTouchPoints: 0,
+      },
+    ],
+    [
+      'installed app (navigator)',
+      { userAgent: USER_AGENTS.iphoneSafari, standalone: true },
+    ],
+    [
+      'installed app (display mode)',
+      { userAgent: USER_AGENTS.iphoneSafari, displayModeStandalone: true },
+    ],
+  ])('preserves manual zoom settings for %s', (_name, fixture) => {
+    expect(contentAfterScript(fixture)).toBe(ORIGINAL_CONTENT);
   });
-
-  it('leaves Android Chrome untouched — capping there would block pinch-zoom', () => {
-    expect(contentAfterScript(USER_AGENTS.androidChrome)).toBe(
-      ORIGINAL_CONTENT,
-    );
-  });
-
-  it('leaves desktop Safari untouched', () => {
-    expect(contentAfterScript(USER_AGENTS.desktopSafari)).toBe(
-      ORIGINAL_CONTENT,
-    );
-  });
-
-  it.each(Object.entries(USER_AGENTS))(
-    'agrees with detectIsIOS for %s',
-    (_name, userAgent) => {
-      const capped = contentAfterScript(userAgent) !== ORIGINAL_CONTENT;
-      Object.defineProperty(window.navigator, 'userAgent', {
-        value: userAgent,
-        configurable: true,
-      });
-      expect(capped).toBe(detectIsIOS());
-    },
-  );
 });

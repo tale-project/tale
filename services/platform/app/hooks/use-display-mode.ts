@@ -28,12 +28,8 @@ export function detectIsStandalone(): boolean {
   return nav.standalone === true;
 }
 
-/**
- * User-agent is iOS/iPadOS, on ANY browser — Chrome and Firefox on iOS are
- * required by Apple to embed WebKit, so they share Mobile Safari's rendering
- * quirks (the focus-zoom guard in `index.html` cares about this; the Safari
- * shell check below narrows further, to the browser chrome itself).
- */
+/** Detect iOS/iPadOS, including iPadOS's desktop-style user agent.
+ * This identifies the platform, not a browser engine or its zoom policy. */
 export function detectIsIOS(): boolean {
   if (typeof window === 'undefined') return false;
   const ua = window.navigator.userAgent;

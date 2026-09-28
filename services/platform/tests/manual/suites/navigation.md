@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 63 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 64 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -590,6 +590,8 @@ loaded, and reads **No teams** for an account in none.
   arrows never carry focus out of the list they started in (Projects stays in
   Projects); Enter opens the focused row; Tab still reaches a row's menu
   (NAV-A5).
+
+- [ ] `NAV-A8` · **Keep pinch zoom available after focusing a compact field on iOS** → In Safari 10 or later, open a compact field such as an inline rename, focus it and dismiss the keyboard: focus does not enlarge the page automatically, and a manual pinch still enlarges and restores it. Repeat the manual pinch in an installed home-screen app and in another iOS browser or an embedded web view; those contexts retain their original viewport settings and may still zoom on focus. Repeat on Android: manual pinch remains available.
 
 ## Performance
 
