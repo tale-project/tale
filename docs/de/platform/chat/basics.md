@@ -49,7 +49,7 @@ Ein Projektchat erhält außerdem die festen Projektanweisungen. Tale erzwingt d
 
 Nutze [Anhänge](/de/platform/chat/attachments) für dieses Gespräch, [Projektdateien](/de/platform/projects/manage-files) für wiederkehrende Projektarbeit und [Wissen](/de/platform/knowledge/overview) für gemeinsame Referenzquellen. Der Assistent ruft Inhalte nach Bedarf ab. Ein hochgeladenes Dokument wurde deshalb nicht automatisch für jede Antwort gelesen.
 
-Für Fragen zu Tale selbst musst du nichts hochladen: Der Assistent liest die öffentliche Dokumentation auf docs.tale.dev, bevor er erklärt, wie eine Ansicht oder Einstellung funktioniert. Die Dokumentation beschreibt die neueste Version; der Assistent weist darauf hin, wenn eure Instanz davon abweichen kann.
+Für Fragen zu Tale selbst musst du nichts hochladen: Der Assistent schlägt in der öffentlichen Dokumentation auf docs.tale.dev nach, bevor er erklärt, wie eine Ansicht oder Einstellung funktioniert. Kann der Server docs.tale.dev nicht erreichen, etwa bei einer selbst gehosteten Installation ohne Internetzugang, zeigt der Ablauf einen fehlgeschlagenen Leseschritt, und die Antwort stützt sich nicht auf die Dokumentation. Die Dokumentation beschreibt die neueste Version; der Assistent weist darauf hin, wenn dein Arbeitsbereich davon abweichen kann.
 
 ## Die verwendeten Quellen prüfen
 

@@ -49,7 +49,7 @@ Le chat du projet reçoit aussi ses instructions permanentes. Tale applique les 
 
 Utilise les [pièces jointes](/fr/platform/chat/attachments) pour cette conversation, les [fichiers du projet](/fr/platform/projects/manage-files) pour un travail récurrent et les [connaissances](/fr/platform/knowledge/overview) pour les références partagées. L’assistant récupère les contenus selon le besoin ; importer un document ne signifie pas que chaque réponse l’a utilisé.
 
-Les questions sur Tale lui-même ne demandent aucun envoi : l’assistant lit la documentation publique sur docs.tale.dev avant d’expliquer un écran ou un réglage. La documentation décrit la dernière version ; l’assistant signale quand ton espace de travail peut en différer.
+Les questions sur Tale lui-même ne demandent aucun envoi : l’assistant consulte la documentation publique sur docs.tale.dev avant d’expliquer un écran ou un réglage. Si le serveur ne peut pas joindre docs.tale.dev, par exemple sur une installation auto-hébergée sans accès à Internet, le déroulé affiche une lecture en échec et la réponse ne s’appuie pas sur la documentation. La documentation décrit la dernière version ; l’assistant signale quand ton espace de travail peut en différer.
 
 ## Vérifier ce que l’assistant a consulté
 
