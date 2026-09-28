@@ -16,6 +16,7 @@
 
 import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 
+import { messageBodyText } from '../../knowledge/message-body';
 import { getConversationMessageSortTime } from './message-order';
 
 const LAST_MESSAGE_PREVIEW_MAX_CHARS = 200;
@@ -212,6 +213,19 @@ export function projectConversationItem(args: {
           created_at: isoTimestamp(args.contact.createdAt),
         };
   const lastMessage = messages[messages.length - 1];
+  // The row's list-preview text. Read off the RAW message (its `content` is
+  // `email.html || email.text`, per `messageBodyText`), so an HTML message's
+  // `<style>` block is stripped before the 200-char cut — cutting the raw
+  // markup first can sever a long style block's closing tag, and the
+  // stripper that runs on the client can no longer find it to remove.
+  const lastRawMessage = args.messages[args.messages.length - 1];
+  const lastMessagePreview =
+    lastRawMessage !== undefined
+      ? messageBodyText(lastRawMessage.content, lastRawMessage.metadata)
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, LAST_MESSAGE_PREVIEW_MAX_CHARS)
+      : undefined;
   return {
     _id: conversation.id,
     _creationTime: conversation.createdAt,
@@ -277,13 +291,6 @@ export function projectConversationItem(args: {
     messages,
     ...(args.pendingApproval ? { pendingApproval: args.pendingApproval } : {}),
     ...(contact.name !== undefined ? { senderName: contact.name } : {}),
-    ...(lastMessage !== undefined
-      ? {
-          lastMessagePreview: lastMessage.content.slice(
-            0,
-            LAST_MESSAGE_PREVIEW_MAX_CHARS,
-          ),
-        }
-      : {}),
+    ...(lastMessagePreview !== undefined ? { lastMessagePreview } : {}),
   };
 }

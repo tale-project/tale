@@ -33,6 +33,43 @@ describe('API contact presentation', () => {
 });
 
 /**
+ * A Google-style HTML email's `<style>` reset block routinely runs past 200
+ * characters. Cutting the raw markup at that length first, the way the row
+ * preview used to, severs the block's closing tag — the client's tag
+ * stripper can then never find it, and the row shows a dangling CSS rule
+ * (`.awl a {color: #FFFFFF; te`) instead of the message's real text.
+ */
+describe('HTML message previews', () => {
+  it('strips a long style block before truncating to 200 chars', () => {
+    const style = `<style type="text/css">${'.awl a {color: #FFFFFF; text-decoration: none;} '.repeat(10)}</style>`;
+    const html = `${style}<body><p>Your account was accessed from a new device.</p></body>`;
+    const item = projectConversationItem({
+      conversation: {
+        id: 'thread',
+        organizationId: 'org',
+        channel: 'email',
+        createdAt: 0,
+      },
+      contact: null,
+      messages: [
+        {
+          id: 'm0',
+          direction: 'inbound',
+          content: html,
+          createdAt: 0,
+          metadata: { html },
+        },
+      ],
+    });
+    expect(item.lastMessagePreview).toBe(
+      'Your account was accessed from a new device.',
+    );
+    expect(item.lastMessagePreview).not.toContain('{color');
+    expect(item.lastMessagePreview).not.toContain('<style');
+  });
+});
+
+/**
  * A reply queued for an API app has no send time until the app acknowledges
  * delivery, and the thread drops any message without a timestamp. An empty
  * timestamp therefore hid the reply, its undo countdown and, after a terminal
