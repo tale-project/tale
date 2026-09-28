@@ -20,6 +20,7 @@ import { MetricsPeriodSelect } from '@tale/ui/metrics/metrics-period-select';
 import { Select } from '@tale/ui/select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -57,8 +58,6 @@ interface FeedbackMetricsPageProps {
   onSelectModel: (model: string | null, provider: string | null) => void;
   onClearFilters: () => void;
 }
-
-const PAGE_SIZE = 25;
 
 interface FeedbackMetricsPageViewProps {
   /** Resolved stats; `null` while loading (the enclosing `<Skeletonize>` masks
@@ -372,7 +371,7 @@ export function FeedbackMetricsPage({
       model,
       provider,
     },
-    { initialNumItems: PAGE_SIZE },
+    { initialNumItems: DEFAULT_LIST_PAGE_SIZE },
   );
 
   const handleChangePeriod = useCallback(
@@ -454,7 +453,7 @@ export function FeedbackMetricsPage({
         recentLoading={recent.status === 'LoadingFirstPage'}
         recentHasMore={recent.status === 'CanLoadMore'}
         recentLoadingMore={recent.status === 'LoadingMore'}
-        onLoadMoreRecent={() => recent.loadMore(PAGE_SIZE)}
+        onLoadMoreRecent={() => recent.loadMore(DEFAULT_LIST_PAGE_SIZE)}
         isPeriodEmpty={isPeriodEmpty}
         isFilteredZero={isFilteredZero}
         onChangePeriod={handleChangePeriod}

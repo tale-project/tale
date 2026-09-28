@@ -1,3 +1,4 @@
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
@@ -32,13 +33,17 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => statsResult,
 }));
 
-vi.mock('@/app/hooks/use-cached-paginated-query', () => ({
-  useCachedPaginatedQuery: () => ({
+const { useCachedPaginatedQuery } = vi.hoisted(() => ({
+  useCachedPaginatedQuery: vi.fn(() => ({
     results: [],
     status: 'Exhausted' as const,
     loadMore: vi.fn(),
     isLoading: false,
-  }),
+  })),
+}));
+
+vi.mock('@/app/hooks/use-cached-paginated-query', () => ({
+  useCachedPaginatedQuery,
 }));
 
 // The DataTable inside the top-N tables reads the org id from the router; we
@@ -131,5 +136,20 @@ describe('FeedbackMetricsPage', () => {
     expect(
       screen.getByRole('heading', { name: 'Feedback metrics' }),
     ).toBeInTheDocument();
+  });
+
+  // The Recent feedback list sits on the settings rail and pages like every
+  // other settings list — it used to fetch 25 at a time.
+  it('pages the recent feedback by the shared list page size', () => {
+    statsResult = { data: loadedStats, isLoading: false, error: null };
+    useCachedPaginatedQuery.mockClear();
+
+    render(<FeedbackMetricsPage {...baseProps} />);
+
+    expect(useCachedPaginatedQuery).toHaveBeenCalledWith(
+      'feedback/queries:listRecentFeedback',
+      expect.objectContaining({ organizationId: 'org-1' }),
+      { initialNumItems: DEFAULT_LIST_PAGE_SIZE },
+    );
   });
 });

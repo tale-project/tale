@@ -1,12 +1,11 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 
-/**
- * Rows per page of the Audit and Error listings. Held here rather than passed
- * in: the logs page's filter bar watches the same listing its active tab reads,
- * and one cache entry has to be fetched with one page size.
- */
-const LOGS_PAGE_SIZE = 30;
+import { LOGS_PAGE_SIZE } from '../logs-page-size';
+
+// The page size is held by the listings rather than passed in: the logs page's
+// filter bar watches the same listing its active tab reads, and one cache entry
+// has to be fetched with one page size.
 
 interface ListAuditLogsPaginatedArgs {
   /** `undefined` skips the read. */

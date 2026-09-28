@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -10,21 +10,24 @@ import { describe, expect, it } from 'vitest';
  * - Its page size is `DEFAULT_LIST_PAGE_SIZE` from `@tale/ui/use-list-page`,
  *   never a number of its own — Members once showed ten rows while Teams
  *   showed twenty. A deliberate exception names its reason in the code and is
- *   listed in `PAGE_SIZE_EXCEPTIONS` below.
+ *   listed in `PAGE_SIZE_EXCEPTIONS` below. Leaving the size to a server
+ *   default is a number of its own too, only one this walk cannot see: pass
+ *   the shared size to the request (the Trash's `limit` is held by its test).
  * - Its create button is `DataTable`'s `addAction`, never the `actionMenu`
  *   escape hatch — so it has the standard size and placement and, on a list
  *   without a search box, moves into the empty state instead of doubling up
  *   with a second create button there.
  *
+ * A settings list is anything a settings route renders: all of
+ * `features/settings/` and the route folder, plus the pages that live with
+ * their own feature (Skills, the Metrics pages) — found by following the
+ * routes' imports, so the next such page is covered without a list to extend.
+ *
  * A pure source walk (no DOM), like `governance/components/skeleton-conventions.test.ts`.
  */
 const SETTINGS_DIR = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = join(SETTINGS_DIR, '..', '..');
-
-/** The skills catalog is a settings page that lives with its feature. */
-const EXTRA_SOURCES = [
-  join(APP_DIR, 'features/skills/components/skills-settings.tsx'),
-];
+const SETTINGS_ROUTES_DIR = join(APP_DIR, 'routes/dashboard/$id/settings');
 
 /**
  * Path prefix (relative to the app) → why its page size is not the shared one.
@@ -33,7 +36,7 @@ const EXTRA_SOURCES = [
  */
 const PAGE_SIZE_EXCEPTIONS: Record<string, string> = {
   'features/settings/audit-logs/':
-    'the audit and error logs page a server trail on a full page of their own — see `LOG_PAGE_SIZE`',
+    'the audit and error logs are read by scrolling back through an unbounded trail — see `LOGS_PAGE_SIZE` in `audit-logs/logs-page-size.ts`',
 };
 
 const isException = (name: string) =>
@@ -46,7 +49,7 @@ const PAGE_SIZE_LITERALS = [
   /\b(?:pageSize|initialNumItems)\s*\?\?\s*\d/,
   // `loadMore(25)`
   /\bloadMore\(\s*\d/,
-  // `const PAGE_SIZE = 25`, `const LOG_PAGE_SIZE = 30`
+  // `const PAGE_SIZE = 25`, `export const LOGS_PAGE_SIZE = 30`
   /\b[A-Z_]*PAGE_SIZE\s*=\s*\d/,
 ];
 
@@ -64,10 +67,61 @@ function listSources(dir: string): string[] {
   });
 }
 
+/** The app file an `@/app/…` or relative specifier names, if it is one. */
+function resolveImport(from: string, specifier: string): string | undefined {
+  const base = specifier.startsWith('@/app/')
+    ? join(APP_DIR, specifier.slice('@/app/'.length))
+    : specifier.startsWith('.')
+      ? resolve(dirname(from), specifier)
+      : undefined;
+  if (base === undefined) return undefined;
+  return [
+    `${base}.ts`,
+    `${base}.tsx`,
+    join(base, 'index.ts'),
+    join(base, 'index.tsx'),
+  ].find((path) => existsSync(path));
+}
+
+const importsOf = (path: string) =>
+  [
+    ...readFileSync(path, 'utf8').matchAll(
+      /(?:\bfrom\s+|\bimport\(\s*)'([^']+)'/g,
+    ),
+  ].flatMap(([, specifier]) => resolveImport(path, specifier ?? '') ?? []);
+
+/** `features/analytics` for any file under `app/features/analytics/`. */
+const featureOf = (path: string) =>
+  relative(APP_DIR, path).split('/').slice(0, 2).join('/');
+
+/**
+ * The settings pages that live with their own feature: every module a
+ * settings route imports from outside `features/settings/`, and what those
+ * import from the same feature. Staying inside the feature keeps shared
+ * building blocks (a markdown table, a chat component) out of the walk.
+ */
+function featurePageSources(routeSources: string[]): string[] {
+  const seen = new Set<string>();
+  const queue = routeSources.flatMap(importsOf).filter((path) => {
+    const name = relative(APP_DIR, path);
+    return (
+      name.startsWith('features/') && !name.startsWith('features/settings/')
+    );
+  });
+  for (let path = queue.pop(); path !== undefined; path = queue.pop()) {
+    if (seen.has(path)) continue;
+    seen.add(path);
+    const feature = featureOf(path);
+    queue.push(...importsOf(path).filter((dep) => featureOf(dep) === feature));
+  }
+  return [...seen];
+}
+
+const routeSources = listSources(SETTINGS_ROUTES_DIR);
 const sources = [
   ...listSources(SETTINGS_DIR),
-  ...listSources(join(APP_DIR, 'routes/dashboard/$id/settings')),
-  ...EXTRA_SOURCES,
+  ...routeSources,
+  ...featurePageSources(routeSources),
 ].map((path) => ({
   name: relative(APP_DIR, path),
   src: readFileSync(path, 'utf8'),
@@ -76,9 +130,19 @@ const sources = [
 describe('settings list conventions', () => {
   it('finds the settings sources', () => {
     expect(sources.length).toBeGreaterThan(100);
-    expect(sources.map((s) => s.name)).toContain(
-      'features/settings/organization/components/member-table.tsx',
+    expect(sources.map((s) => s.name)).toEqual(
+      expect.arrayContaining([
+        'features/settings/organization/components/member-table.tsx',
+        // Settings pages that live with their feature, through the routes.
+        'features/skills/components/skills-settings.tsx',
+        'features/analytics/feedback/feedback-metrics-page.tsx',
+        'features/analytics/feedback/recent-feedback-table.tsx',
+      ]),
     );
+    // Shared building blocks a settings page merely uses are not settings lists.
+    expect(
+      sources.filter(({ name }) => name.startsWith('features/shared/')),
+    ).toEqual([]);
   });
 
   it('pages every list by the shared list page size', () => {

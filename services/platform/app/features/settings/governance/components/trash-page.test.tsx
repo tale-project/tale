@@ -1,3 +1,4 @@
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -185,6 +186,25 @@ describe('TrashPage', () => {
       expect(screen.getByRole('checkbox', { name })).toBeInTheDocument();
     }
     expect(screen.getAllByRole('checkbox')).toHaveLength(categories.length);
+  });
+
+  // The trash pages like every other settings list. It used to leave the
+  // size to the server's default of 50, which the settings-list guard cannot
+  // see; the request has to name the shared size itself.
+  it('asks the server for pages of the shared list page size', () => {
+    mockListTrashedRows.mockClear();
+    mockListTrashedRows.mockReturnValue({
+      data: { rows: [], nextCursor: null },
+      isLoading: false,
+    });
+
+    render(<TrashPage organizationId="org-1" />);
+
+    expect(mockListTrashedRows).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ limit: DEFAULT_LIST_PAGE_SIZE }),
+      true,
+    );
   });
 
   it('renders the fixed frame the Logs table uses', () => {
