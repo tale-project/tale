@@ -98,6 +98,26 @@ test.describe('responsive / mobile layout', () => {
     expect((archiveBox?.y ?? 0) + (archiveBox?.height ?? 0)).toBeLessThan(
       pillBox?.y ?? 0,
     );
+
+    // Client navigation mounts Settings' scroller after the shell's effect.
+    // A direct Account Settings load does not exercise this lifecycle.
+    await mobileNav
+      .getByRole('button', {
+        name: new RegExp(`^${t('navigation.userSettings')}`),
+      })
+      .click();
+    await expect(page).toHaveURL(
+      new RegExp(`/dashboard/${organizationId}/settings$`),
+    );
+    await page.mouse.move(180, 350);
+    await page.mouse.wheel(0, 350);
+    await expect
+      .poll(async () => (await mobileNav.boundingBox())?.height)
+      .toBe(52);
+    await page.mouse.wheel(0, -100);
+    await expect
+      .poll(async () => (await mobileNav.boundingBox())?.height)
+      .toBe(60);
   });
 
   test('settings: the floating Save dock is the visible Save cluster', async ({

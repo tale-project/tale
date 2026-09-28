@@ -75,3 +75,15 @@ it('ignores dialog scrolling and restores for navigation and keyboard changes', 
   scroll(240);
   expect(result.current.compact).toBe(false);
 });
+
+it('tracks panes mounted after the navigation effect', () => {
+  pane.remove();
+  const { result } = renderHook(() => useScrollCompact('/settings'));
+  shell.append(pane);
+  scroll(80);
+  expect(result.current.compact).toBe(true);
+  scroll(120);
+  expect(result.current.compact).toBe(true);
+  scroll(90);
+  expect(result.current.compact).toBe(false);
+});

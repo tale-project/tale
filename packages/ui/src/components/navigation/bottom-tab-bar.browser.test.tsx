@@ -267,13 +267,21 @@ it('compacts without shrinking touch targets, losing names, or changing content 
   }
 });
 
-function ScrollFixture({ route = '/home' }: { route?: string }) {
+function ScrollFixture({
+  route = '/home',
+  showPane = true,
+}: {
+  route?: string;
+  showPane?: boolean;
+}) {
   const { compact, expand } = useScrollCompact(route);
   return (
     <div className="mobile-nav-shell" style={{ height: 600 }}>
-      <div data-testid="pane" style={{ height: 600, overflowY: 'auto' }}>
-        <div style={{ height: 1500 }}>Page content</div>
-      </div>
+      {showPane && (
+        <div data-testid="pane" style={{ height: 600, overflowY: 'auto' }}>
+          <div style={{ height: 1500 }}>Page content</div>
+        </div>
+      )}
       <BottomTabBar
         items={ITEMS}
         ariaLabel="Primary"
@@ -301,4 +309,15 @@ it('follows actual nested scroll events and resets on route and keyboard focus',
   await expect.poll(() => nav.dataset.compact).toBeUndefined();
   pane.scrollTop = 500;
   expect(nav.dataset.compact).toBeUndefined();
+});
+
+it('resizes when a settings scroll pane mounts after the shell', async () => {
+  const { rerender } = render(<ScrollFixture showPane={false} />);
+  rerender(<ScrollFixture />);
+  const pane = screen.getByTestId('pane');
+  const nav = screen.getByRole('navigation');
+  pane.scrollTop = 200;
+  await expect.poll(() => nav.getBoundingClientRect().height).toBe(52);
+  pane.scrollTop = 150;
+  await expect.poll(() => nav.getBoundingClientRect().height).toBe(60);
 });

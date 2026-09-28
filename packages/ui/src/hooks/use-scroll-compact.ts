@@ -27,7 +27,10 @@ export function useScrollCompact(resetKey: string, disabled = false) {
       const maximum = target.scrollHeight - target.clientHeight;
       if (maximum <= 0) return;
       const top = Math.max(0, Math.min(target.scrollTop, maximum));
-      const previous = positions.get(target) ?? { top, travel: 0 };
+      // Route outlets can mount after this effect. Their first scroll must
+      // start tracking from the default origin, not from the new position
+      // (which would produce zero delta forever for an unregistered pane).
+      const previous = positions.get(target) ?? { top: 0, travel: 0 };
       const delta = top - previous.top;
       if (delta === 0) return;
       const travel =
