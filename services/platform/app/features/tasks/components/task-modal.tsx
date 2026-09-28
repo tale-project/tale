@@ -803,6 +803,7 @@ function CreateTaskBody({
     overCap: descriptionOverCap,
     hint: descriptionHint,
     counterMax: descriptionCounterMax,
+    counterValue: descriptionCounterValue,
   } = useDescriptionCap(description);
   const { resolveActor } = useActorDirectory(organizationId, projectId);
   // Named beside the avatar, as on the task's own details panel — the bare
@@ -934,6 +935,7 @@ function CreateTaskBody({
               onValueChange={setDescription}
               errorMessage={descriptionHint}
               counterMax={descriptionCounterMax}
+              counterValue={descriptionCounterValue}
               disabled={submitting}
               placement="below"
             />

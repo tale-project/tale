@@ -17,6 +17,7 @@ vi.mock('./mention-textarea', () => ({
     onKeyDown,
     errorMessage,
     counterMax,
+    counterValue,
     autoFocus,
   }: {
     label?: string;
@@ -26,6 +27,7 @@ vi.mock('./mention-textarea', () => ({
     onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
     errorMessage?: string;
     counterMax?: number;
+    counterValue?: number;
     autoFocus?: boolean;
   }) => (
     <>
@@ -40,11 +42,12 @@ vi.mock('./mention-textarea', () => ({
         />
       </label>
       {/* The real field renders its error, and its counter outside that
-          live region, the way `Textarea` does. */}
+          live region, the way `Textarea` does — showing the length the
+          caller measured, else the raw one. */}
       {errorMessage !== undefined && <p role="alert">{errorMessage}</p>}
       {counterMax !== undefined && (
         <p data-testid="counter">
-          {value.length} / {counterMax}
+          {counterValue ?? value.length} / {counterMax}
         </p>
       )}
     </>
@@ -294,5 +297,19 @@ describe('EditableDescription', () => {
 
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  // The counter counts what the cap does: the raw length read a pasted
+  // draft's surrounding whitespace as more to delete (TALE-75 review).
+  it('counts the draft past the cap as the save sends it, trimmed', async () => {
+    const { user } = renderField('Short.');
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const field = screen.getByRole('textbox', { name: 'Description' });
+    await user.clear(field);
+    await user.click(field);
+    await user.paste(`  ${'d'.repeat(TASK_DESCRIPTION_MAX + 1)}\n\n`);
+
+    expect(screen.getByTestId('counter')).toHaveTextContent('20001 / 20000');
   });
 });

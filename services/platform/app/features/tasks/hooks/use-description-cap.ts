@@ -10,7 +10,9 @@ import { useT } from '@/lib/i18n/client';
  * is over, `hint` is the field's error — the cap in the reader's number
  * format, the same sentence a server refusal toasts
  * (`errors.TASK_DESCRIPTION_INVALID`) — and `counterMax` turns on the
- * field's own `used / max` counter; the caller holds its save until it fits:
+ * field's own `used / max` counter, fed the same trimmed length
+ * (`counterValue`) so surrounding whitespace never reads as over; the
+ * caller holds its save until it fits:
  * the server refuses such a description, and the board used to show that
  * refusal as the generic error toast. An older import stored descriptions
  * whole past the cap, so an unchanged one can be over it too.
@@ -25,10 +27,12 @@ export function useDescriptionCap(draft: string): {
   overCap: boolean;
   hint: string | undefined;
   counterMax: number | undefined;
+  counterValue: number;
 } {
   const { t } = useT('tasks');
   const { formatNumber } = useFormatNumber();
-  const overCap = draft.trim().length > TASK_DESCRIPTION_MAX;
+  const length = draft.trim().length;
+  const overCap = length > TASK_DESCRIPTION_MAX;
   return {
     overCap,
     hint: overCap
@@ -37,5 +41,6 @@ export function useDescriptionCap(draft: string): {
         })
       : undefined,
     counterMax: overCap ? TASK_DESCRIPTION_MAX : undefined,
+    counterValue: length,
   };
 }

@@ -33,6 +33,9 @@ interface MentionTextareaProps extends Omit<
   /** The `Textarea`'s own `used / max` counter, outside its live error
    *  region — for a running length an `errorMessage` must not carry. */
   counterMax?: number;
+  /** The length that counter shows, when it is measured differently from
+   *  the raw value (trimmed, as a save sends it). */
+  counterValue?: number;
   /** Popover side. Composers at the bottom of a panel want 'above' (default);
    *  fields near the top of a dialog want 'below'. */
   placement?: 'above' | 'below';

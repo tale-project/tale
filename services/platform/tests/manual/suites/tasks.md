@@ -465,12 +465,15 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   (**Edit**, `common.actions.edit`) and paste 20,005 characters → The line
   under the field (`tasks.errors.TASK_DESCRIPTION_INVALID`) reads in the UI
   language with the cap's number grouping (`20.000`, `20,000`), a red
-  `20005 / 20000` counter sits between the field and that line, both wrap
-  inside the dialog without clipping or pushing **Save**
-  (`common.actions.save`) out of view, and a screen reader announces the line
-  once — deleting characters moves only the counter and announces nothing
-  more; delete five, **Save**, reload → the line and the counter are gone and
-  the description reads back at 20,000 characters.
+  counter with the same grouping (`20.005 / 20.000`, `20,005 / 20,000`) sits
+  between the field and that line, both wrap inside the dialog without
+  clipping or pushing **Save** (`common.actions.save`) out of view, and a
+  screen reader announces the line once and reads the counter when the field
+  takes focus — deleting characters moves only the counter and announces
+  nothing more; add two blank lines after the text and the counter stays put,
+  since it counts what a save keeps; delete five, **Save**, reload → the line
+  and the counter are gone and the description reads back at 20,000
+  characters.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -71,6 +71,7 @@ export function EditableDescription({
     overCap,
     hint: capHint,
     counterMax: capCounterMax,
+    counterValue: capCounterValue,
   } = useDescriptionCap(draft);
   const save = async () => {
     if (!isDirty) {
@@ -171,6 +172,7 @@ export function EditableDescription({
         placeholder={placeholder}
         errorMessage={capHint}
         counterMax={capCounterMax}
+        counterValue={capCounterValue}
         autoFocus
         onValueChange={setDraft}
         onKeyDown={(e) => {
