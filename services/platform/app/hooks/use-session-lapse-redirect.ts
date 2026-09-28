@@ -55,7 +55,7 @@ export function useSessionLapseRedirect(enabled: boolean) {
     }
     if (verdict === 'live') {
       setState('none');
-      setLiveSessionVersion((version) => version + 1);
+      setLiveSessionVersion((currentVersion) => currentVersion + 1);
     } else if (verdict === 'unknown') {
       if (confirmed) setCheckFailed(true);
     } else if (confirmed) {
