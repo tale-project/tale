@@ -2,12 +2,12 @@
  * The account lifecycle, one level above the providers.
  *
  * Everything here is provider-agnostic: it starts an authorization, completes
- * one, keeps an access token ahead of its expiry, caches a usage reading, and
- * hands the pool out. Which vendor a row belongs to only decides which module
- * in the registry answers the call.
+ * one, keeps each access token ahead of its expiry on a schedule of its own,
+ * caches a usage reading, and hands the pool out. Which vendor a row belongs
+ * to only decides which module in the registry answers the call.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { CipherError, type TokenCipher } from './crypto';
 import type { ProviderRegistry } from './providers/index';
@@ -47,6 +47,31 @@ const REFRESH_RETRY_PAUSE_MS = 60 * 1000;
 
 /** A failed metrics endpoint must not strand an account on an old quota. */
 const USAGE_AVAILABILITY_MAX_AGE_MS = 15 * 60 * 1000;
+
+/**
+ * How far ahead of the skew an account's refresh may be planned, as a share
+ * of the window between the token's issue and the skew point.
+ *
+ * A refresh ends the token it replaces — Anthropic revokes the old access
+ * token — so every turn still running on it fails. With one threshold for
+ * the whole pool, accounts refreshed together (the first pass after an
+ * outage) are revoked together, and stay together: each refresh restarts the
+ * same lifetime. Each account instead plans its refresh earlier by its own
+ * share of this spread, so accounts refreshed together fall due at different
+ * moments and — each on a cycle of its own length — do not fall back into
+ * step.
+ */
+const REFRESH_SPREAD_SHARE = 0.5;
+
+/**
+ * Where in the refresh spread an account falls: a fraction in [0, 1) read
+ * off a hash of its id, so it stays the same across passes and restarts.
+ */
+export function refreshStaggerShare(accountId: string): number {
+  return (
+    createHash('sha256').update(accountId).digest().readUInt32BE(0) / 2 ** 32
+  );
+}
 
 /**
  * Why an authorization could not go on. The codes are the panel's to
@@ -120,19 +145,53 @@ export interface TokenHandout {
   accountId: string | null;
   status: StoredAccount['status'];
   accessToken: string;
+  /** The vendor's own expiry of the access token. */
   expiresAt: string | null;
+  /**
+   * When the gateway plans to refresh the access token, which ends it for
+   * whoever holds it: the end of its usable life. Null when the vendor
+   * stated no expiry.
+   */
+  refreshAt: string | null;
   scopes: string | null;
   usage: StoredAccount['usage'];
-  /** Quota eligibility only; status and token expiry are separate checks. */
+  /**
+   * Whether the account may be handed to new work: false while a fresh
+   * reading shows its quota spent, or while an active account's token is
+   * closer to its planned refresh than the hand-out floor. Status is a
+   * separate check.
+   */
   available: boolean;
-  /** Latest exhausted general window's reset, when every reset is known. */
+  /**
+   * When every block lifts — the latest of an exhausted window's reset and
+   * the planned refresh — or null when one of them has no known time.
+   */
   availableAt: string | null;
+}
+
+type Availability = Pick<TokenHandout, 'available' | 'availableAt'>;
+
+const AVAILABLE: Availability = { available: true, availableAt: null };
+
+/** Several blocks at once: the account is free when the last one lifts. */
+function combineAvailability(...parts: Availability[]): Availability {
+  const blocking = parts.filter((part) => !part.available);
+  if (blocking.length === 0) return AVAILABLE;
+  const lifts = blocking.map((part) =>
+    part.availableAt ? Date.parse(part.availableAt) : Number.NaN,
+  );
+  return {
+    available: false,
+    availableAt: lifts.every(Number.isFinite)
+      ? new Date(Math.max(...lifts)).toISOString()
+      : null,
+  };
 }
 
 function quotaAvailability(
   usage: StoredAccount['usage'],
   nowMs: number,
-): Pick<TokenHandout, 'available' | 'availableAt'> {
+): Availability {
   const checkedAt = usage ? Date.parse(usage.checkedAt) : Number.NaN;
   if (
     !usage ||
@@ -140,7 +199,7 @@ function quotaAvailability(
     checkedAt > nowMs ||
     nowMs - checkedAt >= USAGE_AVAILABILITY_MAX_AGE_MS
   ) {
-    return { available: true, availableAt: null };
+    return AVAILABLE;
   }
   const full = usage.windows.filter(
     (window) =>
@@ -177,12 +236,20 @@ export interface AccountServiceOptions {
   store: AccountStore;
   providers: ProviderRegistry;
   cipher: TokenCipher;
-  /** Refresh an access token this many seconds before it actually expires. */
+  /** Refresh an access token at least this many seconds before it expires. */
   tokenRefreshSkewSeconds: number;
+  /**
+   * Hand a token out as available only while its planned refresh is at
+   * least this many seconds away, so work started on it is not cut by the
+   * gateway's own refresh. 0 hands out every token.
+   */
+  tokenMinHandoutSeconds: number;
   /** Floor between two usage reads for one account. */
   usageMinIntervalSeconds: number;
   /** Injectable clock, so the expiry and throttle rules are testable. */
   now?: () => Date;
+  /** Injectable refresh stagger; `refreshStaggerShare` by default. */
+  refreshStagger?: (accountId: string) => number;
 }
 
 /**
@@ -245,12 +312,16 @@ export interface AccountService {
   authorizationStatus(state: string): Promise<AuthorizationStatus>;
   remove(id: string): Promise<boolean>;
   cliCommand(id: string): Promise<string | null>;
-  /** One background pass: refresh every account's token and usage reading. */
+  /**
+   * One background pass: refresh every token whose planned refresh is due,
+   * and every usage reading past its floor.
+   */
   refreshAll(): Promise<void>;
   /**
-   * Access tokens, each refreshed first if it is close to expiry. Naming a
-   * provider narrows the pool to that vendor's accounts — and refreshes only
-   * those, so `/api/tokens/anthropic` never spends OpenAI's rate budget.
+   * Access tokens, each refreshed first if its planned refresh is due — and
+   * no other. Naming a provider narrows the pool to that vendor's accounts —
+   * and refreshes only those, so `/api/tokens/anthropic` never spends
+   * OpenAI's rate budget.
    */
   handOutTokens(provider?: ProviderId): Promise<TokenHandout[]>;
 }
@@ -260,6 +331,7 @@ export function createAccountService(
 ): AccountService {
   const { store, providers, cipher } = options;
   const now = options.now ?? (() => new Date());
+  const refreshStagger = options.refreshStagger ?? refreshStaggerShare;
 
   function providerFor(account: StoredAccount) {
     return providers[account.provider];
@@ -290,7 +362,34 @@ export function createAccountService(
   /** When each account's last refresh failed for a reason that passes. */
   const refreshFailedAt = new Map<string, number>();
 
-  /** Whether an access token is inside the skew window before expiry, or past it. */
+  /** When the account's current access token was issued, if known. */
+  function issuedAtMs(account: StoredAccount): number {
+    return account.lastRefreshedAt
+      ? Date.parse(account.lastRefreshedAt)
+      : Number.NaN;
+  }
+
+  /**
+   * When this account's access token is due for refresh — the skew before
+   * the vendor's expiry, brought forward by the account's own share of the
+   * spread (`REFRESH_SPREAD_SHARE`). The end of the token's usable life for
+   * whoever holds it. Null when the vendor stated no expiry.
+   */
+  function plannedRefreshMs(account: StoredAccount): number | null {
+    const expiresAt = account.expiresAt
+      ? Date.parse(account.expiresAt)
+      : Number.NaN;
+    if (!Number.isFinite(expiresAt)) return null;
+    const skewPoint = expiresAt - options.tokenRefreshSkewSeconds * 1000;
+    // Only the part of the lifetime before the skew point is spread over,
+    // so a planned refresh never lands before the token was issued.
+    const window = skewPoint - issuedAtMs(account);
+    const spread =
+      Number.isFinite(window) && window > 0 ? window * REFRESH_SPREAD_SHARE : 0;
+    return skewPoint - spread * refreshStagger(account.id);
+  }
+
+  /** Whether an access token's planned refresh has come, or it has none. */
   function needsRefresh(account: StoredAccount): boolean {
     if (account.status === 'expired') return false;
     const failedAt = refreshFailedAt.get(account.id);
@@ -300,16 +399,41 @@ export function createAccountService(
     ) {
       return false;
     }
-    if (!account.expiresAt) return true;
-    const expiresAt = new Date(account.expiresAt).getTime();
-    const skewMs = options.tokenRefreshSkewSeconds * 1000;
-    return !(
-      Number.isFinite(expiresAt) && expiresAt - skewMs > now().getTime()
-    );
+    const refreshAt = plannedRefreshMs(account);
+    return refreshAt === null || refreshAt <= now().getTime();
   }
 
   /**
-   * Refresh the access token when it is inside the skew window, or gone.
+   * The hand-out floor: an active account whose planned refresh is closer
+   * than `tokenMinHandoutSeconds` waits for that refresh instead of handing
+   * out a token the refresh would end mid-work. A token whose whole planned
+   * life is shorter than the floor is handed out anyway — the next one would
+   * be no longer, and holding them all back would retire the account.
+   */
+  function lifetimeAvailability(
+    account: StoredAccount,
+    nowMs: number,
+  ): Availability {
+    const floorMs = options.tokenMinHandoutSeconds * 1000;
+    const refreshAt = plannedRefreshMs(account);
+    if (
+      floorMs <= 0 ||
+      account.status !== 'active' ||
+      refreshAt === null ||
+      refreshAt - nowMs >= floorMs ||
+      refreshAt - issuedAtMs(account) <= floorMs
+    ) {
+      return AVAILABLE;
+    }
+    return {
+      available: false,
+      availableAt: refreshAt > nowMs ? new Date(refreshAt).toISOString() : null,
+    };
+  }
+
+  /**
+   * Refresh the access token when its planned refresh has come, or it is
+   * gone.
    *
    * Both vendors ROTATE the refresh token: every refresh answers a new one
    * and retires the old. So a refresh never runs twice for one account at
@@ -981,10 +1105,12 @@ export function createAccountService(
             );
             return null;
           }
-          const { available, availableAt } = quotaAvailability(
-            fresh.usage,
-            now().getTime(),
+          const nowMs = now().getTime();
+          const { available, availableAt } = combineAvailability(
+            quotaAvailability(fresh.usage, nowMs),
+            lifetimeAvailability(fresh, nowMs),
           );
+          const refreshAt = plannedRefreshMs(fresh);
           return {
             id: fresh.id,
             provider: fresh.provider,
@@ -994,6 +1120,8 @@ export function createAccountService(
             status: fresh.status,
             accessToken,
             expiresAt: fresh.expiresAt,
+            refreshAt:
+              refreshAt === null ? null : new Date(refreshAt).toISOString(),
             scopes: fresh.scopes,
             usage: fresh.usage,
             available,
