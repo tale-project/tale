@@ -2870,8 +2870,11 @@ governance:
         to message bodies.
     chatFilterEvents:
       title: Chat filter events
-      description: Telemetry for content-filter triggers (PII, profanity, custom
-        rules). Useful for tuning the filter; carries quoted message excerpts.
+      description:
+        Telemetry for content-filter triggers (PII, profanity, custom
+        rules). Each event holds the filter, categories, direction and
+        counts, never the matched text. The Guardrails page and Chat health
+        show only the events still kept.
       placeholder: e.g. 90
       helper: Filter-event telemetry rows older than this will be deleted.
     notifications:

@@ -3018,8 +3018,10 @@ governance:
       title: Événements chat-filter
       description:
         Télémétrie des déclencheurs de filtre de contenu (PII, profanité,
-        règles personnalisées). Utile pour ajuster le filtre ; contient des
-        extraits de messages cités.
+        règles personnalisées). Chaque événement contient le filtre, les
+        catégories, la direction et les comptages, jamais le texte détecté.
+        La page Garde-fous et la Santé de l'assistant n'affichent que les
+        événements encore conservés.
       placeholder: ex. 90
       helper: Les lignes de télémétrie de filtre plus anciennes seront supprimées.
     notifications:
