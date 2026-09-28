@@ -52909,14 +52909,20 @@ async function checkTeamScopeRetirement(
     `add-team-member → ${pluginAddMember.status}, remove-team-member → ${pluginRemoveMember.status} (want 404/404)`,
   );
 
-  // ---- the last-member rule (team D: the member, then the owner)
+  // ---- the last-member rule (team D: the member, then the owner). A
+  // membership is removed by its ROW id, the one removal door the app keeps
+  // (the settings table's rows carry it); the add answers with that id.
   const addMember = await sendAs(cookie, 'POST', teams(`/${teamD}/members`), {
     userId: member.userId,
   });
+  const addedMember = z
+    .object({ id: z.string() })
+    .safeParse(await addMember.json().catch(() => null));
+  const memberRowId = addedMember.success ? addedMember.data.id : '';
   const removeLast = await sendAs(
     cookie,
     'DELETE',
-    teams(`/${teamD}/members/${member.userId}`),
+    teams(`/members/by-id/${memberRowId}`),
   );
   const removeLastCode = await errorCodeOf(removeLast);
   const countD = async (): Promise<string> =>
@@ -52933,7 +52939,7 @@ async function checkTeamScopeRetirement(
   const removeOne = await sendAs(
     cookie,
     'DELETE',
-    teams(`/${teamD}/members/${member.userId}`),
+    teams(`/members/by-id/${memberRowId}`),
   );
   const removeOneBody = z
     .object({ removed: z.boolean() })
@@ -53784,9 +53790,12 @@ async function checkOrganizationLifecycle(
       (await exists(dirA)),
     `status=${renamed.status} message=${renamedBody.message ?? ''} slug=${afterRename[0]?.slug ?? 'MISSING'}`,
   );
+  // The rename below lands, so every delete after it confirms with THIS
+  // name: the door compares what was typed with the name as it stands.
+  const renamedNameA = 'Life A renamed';
   const sameSlug = await post(owner.cookie, '/api/auth/organization/update', {
     organizationId: orgA,
-    data: { name: 'Life A renamed', slug: slugA },
+    data: { name: renamedNameA, slug: slugA },
   });
   const afterSameSlug = await sql<{ slug: string | null; name: string }[]>`
     SELECT "slug", "name" FROM "organization" WHERE "id" = ${orgA}
@@ -53794,7 +53803,7 @@ async function checkOrganizationLifecycle(
   record(
     'org update with the unchanged slug still lands',
     sameSlug.ok &&
-      afterSameSlug[0]?.name === 'Life A renamed' &&
+      afterSameSlug[0]?.name === renamedNameA &&
       afterSameSlug[0].slug === slugA,
     `status=${sameSlug.status} name=${afterSameSlug[0]?.name ?? ''} slug=${afterSameSlug[0]?.slug ?? 'MISSING'}`,
   );
@@ -53817,7 +53826,7 @@ async function checkOrganizationLifecycle(
   const memberDelete = await post(
     plain.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    { confirmName: 'Life A' },
+    { confirmName: renamedNameA },
   );
   const afterMember = await snapshot();
   record(
@@ -53853,7 +53862,7 @@ async function checkOrganizationLifecycle(
         tx,
         { userId: owner.userId },
         orgA,
-        'Life A',
+        renamedNameA,
       );
       throw new Error('itest-abort');
     });
@@ -53895,7 +53904,7 @@ async function checkOrganizationLifecycle(
   const deleted = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    { confirmName: 'Life A' },
+    { confirmName: renamedNameA },
   );
   const deletedBody = z
     .object({ orgSlug: z.string() })
