@@ -4,6 +4,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { taskRepeatSchema } from '../../../lib/shared/task-repeat.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -57,6 +58,7 @@ import {
   upsertTaskByExternalRef,
 } from './external-ref.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
+import { stopTaskRepeat, type TaskRepeatCopy } from './repeat.ts';
 import { TaskReviewError } from './reviews.ts';
 import {
   addTaskDependency,
@@ -219,6 +221,7 @@ const createTaskSchema = z.object({
   parentTaskId: z.string().optional(),
   startDate: taskDateSchema.optional(),
   dueDate: taskDateSchema.optional(),
+  repeat: taskRepeatSchema.optional(),
 });
 
 const updateTaskSchema = z.object({
@@ -230,6 +233,8 @@ const updateTaskSchema = z.object({
   startDate: taskDateSchema.nullable().optional(),
   dueDate: taskDateSchema.nullable().optional(),
   reviewerUserId: z.string().nullable().optional(),
+  /** null is "does not repeat". */
+  repeat: taskRepeatSchema.nullable().optional(),
 });
 
 const moveSchema = z.object({
@@ -247,6 +252,15 @@ const dependencySchema = z.object({
   blockerTaskId: z.string().min(1),
   blockedTaskId: z.string().min(1),
 });
+
+/** A status door's answer: the next copy rides along when the move closed a
+ * repeating task, so the board can say where the series went. */
+function statusMoved(nextTask: TaskRepeatCopy | null): {
+  ok: true;
+  nextTask?: TaskRepeatCopy;
+} {
+  return nextTask === null ? { ok: true } : { ok: true, nextTask };
+}
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
@@ -1237,10 +1251,10 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const nextTask = await transactSerializable(deps.sql, (tx) =>
         updateTaskStatus(tx, auth, c.req.param('taskId'), body.data.status),
       );
-      return c.json({ ok: true });
+      return c.json(statusMoved(nextTask));
     } catch (error) {
       return handleError(c, error);
     }
@@ -1253,10 +1267,24 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const nextTask = await transactSerializable(deps.sql, (tx) =>
         moveTask(tx, auth, { taskId: c.req.param('taskId'), ...body.data }),
       );
-      return c.json({ ok: true });
+      return c.json(statusMoved(nextTask));
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // "Stop repeating" — the next-task toast's action: the series ends here,
+  // and a next task nobody has touched yet is taken back.
+  app.post('/:taskId/repeat/stop', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const { removedNextTask } = await transactSerializable(deps.sql, (tx) =>
+        stopTaskRepeat(tx, auth, c.req.param('taskId')),
+      );
+      return c.json({ ok: true, removedNextTask });
     } catch (error) {
       return handleError(c, error);
     }

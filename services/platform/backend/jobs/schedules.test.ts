@@ -68,6 +68,20 @@ describe('expired auth sessions have a reaper', () => {
   });
 });
 
+describe('repeating tasks that continue on their due date have a scan', () => {
+  test('the due-date scan runs every five minutes, off the shared minute', () => {
+    // The spec promises the next task within five minutes of the due day's
+    // start; the offset keeps it off the minute the other five-minute
+    // sweeps share.
+    const entry = SCHEDULES.find((row) => row.name === 'tasks.repeat_on_due');
+    expect(entry?.cron).toMatch(/^[1-4]-59\/5 \* \* \* \*$/);
+    const taken = SCHEDULES.filter(
+      (row) => row.name !== 'tasks.repeat_on_due',
+    ).map((row) => row.cron.split(' ')[0]);
+    expect(taken).not.toContain(entry?.cron.split(' ')[0]);
+  });
+});
+
 describe('the schedule roster is well formed', () => {
   test('every name is unique', () => {
     const names = SCHEDULES.map((row) => row.name);

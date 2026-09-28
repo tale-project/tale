@@ -259,18 +259,27 @@ interface Statement {
 /** The corpus side, recording each statement. The read of the stamps
  * answers `stamped` a keyset page at a time by ref; the lookup of dead refs,
  * the ones of `held` it was asked about; a stamp UPDATE, the next of
- * `corrected`; a clear, the number of rows it was handed. */
+ * `corrected`; a clear, every row it was handed, as its `RETURNING` does —
+ * after `onClear`, which stands for an app-side write that commits as the
+ * clear lands. */
 function corpusPool(
   corpus: {
     corrected?: number[];
     held?: string[];
     stamped?: StampedRow[];
+    onClear?: () => void;
   } = {},
 ): Statement[] {
   const corrected = [...(corpus.corrected ?? [])];
   const statements: Statement[] = [];
   const pool = {
     json: (value: unknown) => ({ json: value }),
+    begin: async <T>(callback: (tx: unknown) => Promise<T>): Promise<T> => {
+      statements.push({ text: 'BEGIN', params: [] });
+      const result = await callback(pool);
+      statements.push({ text: 'COMMIT', params: [] });
+      return result;
+    },
     unsafe: (text: string, params: unknown[]) => {
       statements.push({ text, params });
       if (text.includes('conversation_id IS NOT NULL')) {
@@ -292,8 +301,14 @@ function corpusPool(
         );
       }
       if (text.includes('SET conversation_id = NULL')) {
-        const handed = params[1] as { json: unknown[] };
-        return Promise.resolve({ count: handed.json.length });
+        corpus.onClear?.();
+        const handed = params[1] as { json: { file_id: string }[] };
+        return Promise.resolve(
+          Object.assign(
+            handed.json.map((row) => ({ fileId: row.file_id })),
+            { count: handed.json.length },
+          ),
+        );
       }
       return Promise.resolve({ count: corrected.shift() ?? 0 });
     },
@@ -305,14 +320,15 @@ function corpusPool(
   return statements;
 }
 
-/** `releaseCorpusRefs` as the reconcile hands it in, recording each call:
- * it keeps what `keep` names (something still holds it in the corpus), fails
- * what `failing` names, and releases the rest. */
+/** The two releases the reconcile hands in — `releaseCorpus`
+ * (`releaseCorpusRefs`, the first walk's) and `releaseUnbacked`
+ * (`releaseRefs`, the second walk's) — each recording its own calls. Both
+ * keep what `keep` names (something still holds it in the corpus), fail
+ * what `failing` names, and release the rest. */
 function releaser(options: { failing?: string[]; keep?: string[] } = {}) {
   const failing = options.failing ?? [];
   const keep = options.keep ?? [];
-  const calls: string[][] = [];
-  const releaseCorpus = (refs: string[]) => {
+  const recorded = (calls: string[][]) => (refs: string[]) => {
     calls.push(refs);
     return Promise.resolve({
       released: refs.filter(
@@ -324,8 +340,29 @@ function releaser(options: { failing?: string[]; keep?: string[] } = {}) {
         .map((ref) => ({ ref, stage: 'corpus' as const, message: 'down' })),
     });
   };
-  return { calls, releaseCorpus };
+  const corpusCalls: string[][] = [];
+  const unbackedCalls: string[][] = [];
+  return {
+    corpusCalls,
+    unbackedCalls,
+    releases: {
+      releaseCorpus: recorded(corpusCalls),
+      releaseUnbacked: recorded(unbackedCalls),
+    },
+  };
 }
+
+/** What the pass reports when it changed nothing. */
+const QUIET = {
+  scanned: 0,
+  corrected: 0,
+  released: 0,
+  failures: 0,
+  stampsScanned: 0,
+  cleared: 0,
+  unbackedReleased: 0,
+  unbackedFailures: 0,
+};
 
 const isStamp = (statement: Statement) =>
   statement.text.includes('SET conversation_id = v.conversation_id');
@@ -342,18 +379,12 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
   it('stamps every attachment row past the first page, and counts what changed', async () => {
     const log: Query[] = [];
     const statements = corpusPool({ corrected: [2, 0] });
-    const { calls, releaseCorpus } = releaser();
+    const { corpusCalls, unbackedCalls, releases } = releaser();
     const result = await reconcileMailAttachmentStamps(
       attachmentsSql(rows, log),
-      { organizationId: 'org-1', orgSlug: 'acme', limit: 2, releaseCorpus },
+      { organizationId: 'org-1', orgSlug: 'acme', limit: 2, ...releases },
     );
-    expect(result).toEqual({
-      scanned: 3,
-      corrected: 2,
-      cleared: 0,
-      released: 0,
-      failures: 0,
-    });
+    expect(result).toEqual({ ...QUIET, scanned: 3, corrected: 2 });
     const stamps = statements.filter(isStamp);
     expect(stamps).toHaveLength(2);
     expect(stamps.map((statement) => statement.params[1])).toEqual([
@@ -376,7 +407,8 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
       expect(statement.text).not.toContain('updated_at');
     }
     // Every conversation is live: nothing to release.
-    expect(calls).toEqual([]);
+    expect(corpusCalls).toEqual([]);
+    expect(unbackedCalls).toEqual([]);
   });
 
   it('walks only live attachments — unbound file rows bound to a conversation', async () => {
@@ -385,7 +417,7 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
     await reconcileMailAttachmentStamps(attachmentsSql([], log), {
       organizationId: 'org-1',
       orgSlug: 'acme',
-      releaseCorpus: releaser().releaseCorpus,
+      ...releaser().releases,
     });
     const read = log[0];
     expect(read?.values[0]).toBe('org-1');
@@ -401,7 +433,7 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
     await reconcileMailAttachmentStamps(attachmentsSql([], log), {
       organizationId: 'org-1',
       orgSlug: 'acme',
-      releaseCorpus: releaser().releaseCorpus,
+      ...releaser().releases,
     });
     const read = log[0]?.text ?? '';
     expect(read).toContain('LEFT JOIN app.conversations c');
@@ -420,7 +452,7 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
     await reconcileMailAttachmentStamps(attachmentsSql([], log), {
       organizationId: 'org-1',
       orgSlug: 'acme',
-      releaseCorpus: releaser().releaseCorpus,
+      ...releaser().releases,
     });
     const read = log[0]?.text ?? '';
     expect(read).toContain('NOT EXISTS');
@@ -435,7 +467,7 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
       corrected: [1],
       held: ['s3:org-1/b.pdf'],
     });
-    const { calls, releaseCorpus } = releaser();
+    const { corpusCalls, unbackedCalls, releases } = releaser();
     const result = await reconcileMailAttachmentStamps(
       attachmentsSql(
         [
@@ -445,7 +477,7 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
         ],
         [],
       ),
-      { organizationId: 'org-1', orgSlug: 'acme', releaseCorpus },
+      { organizationId: 'org-1', orgSlug: 'acme', ...releases },
     );
     // Only the live attachment is stamped.
     expect(statements.find(isStamp)?.params[1]).toEqual({
@@ -460,49 +492,45 @@ describe('reconcileMailAttachmentStamps — the backfill', () => {
       'acme',
       ['s3:org-1/b.pdf', 's3:org-1/c.pdf'],
     ]);
-    expect(calls).toEqual([['s3:org-1/b.pdf']]);
+    // Corpus-only: the file row keeps the bytes.
+    expect(corpusCalls).toEqual([['s3:org-1/b.pdf']]);
+    expect(unbackedCalls).toEqual([]);
     expect(result).toEqual({
+      ...QUIET,
       scanned: 3,
       corrected: 1,
-      cleared: 0,
       released: 1,
-      failures: 0,
     });
   });
 
   it('counts a failed release, for the next night to retry', async () => {
     corpusPool({ held: ['s3:org-1/a.pdf'] });
-    const { releaseCorpus } = releaser({ failing: ['s3:org-1/a.pdf'] });
+    const { releases } = releaser({ failing: ['s3:org-1/a.pdf'] });
     const result = await reconcileMailAttachmentStamps(
       attachmentsSql(
         [{ ...(rows[0] as AttachmentRow), conversationLive: false }],
         [],
       ),
-      { organizationId: 'org-1', orgSlug: 'acme', releaseCorpus },
+      { organizationId: 'org-1', orgSlug: 'acme', ...releases },
     );
-    expect(result).toMatchObject({ released: 0, failures: 1 });
+    expect(result).toEqual({ ...QUIET, scanned: 1, failures: 1 });
   });
 
   it('writes nothing to the corpus for an organization with no emailed attachment and no stamp', async () => {
     const statements = corpusPool();
-    const { calls, releaseCorpus } = releaser();
+    const { corpusCalls, unbackedCalls, releases } = releaser();
     const result = await reconcileMailAttachmentStamps(attachmentsSql([], []), {
       organizationId: 'org-1',
       orgSlug: 'acme',
-      releaseCorpus,
+      ...releases,
     });
-    expect(result).toEqual({
-      scanned: 0,
-      corrected: 0,
-      cleared: 0,
-      released: 0,
-      failures: 0,
-    });
+    expect(result).toEqual(QUIET);
     // One read of the stamps, and not a single write.
     expect(
       statements.map((statement) => statement.text.trimStart().split(/\s/)[0]),
     ).toEqual(['SELECT']);
-    expect(calls).toEqual([]);
+    expect(corpusCalls).toEqual([]);
+    expect(unbackedCalls).toEqual([]);
   });
 });
 
@@ -511,22 +539,26 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
     // filed.pdf was filed into a document after its stamp was written: the
     // document keeps the ref in the corpus, and the stamp hid it from every
     // document door. a.pdf is still an attachment and keeps its stamp.
+    const log: Query[] = [];
     const statements = corpusPool({
       stamped: [
         { fileId: 's3:org-1/a.pdf', conversationId: 'conv-1' },
         { fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' },
       ],
     });
-    const { calls, releaseCorpus } = releaser({
+    const { corpusCalls, unbackedCalls, releases } = releaser({
       keep: ['s3:org-1/filed.pdf'],
     });
     const result = await reconcileMailAttachmentStamps(
-      attachmentsSql([rows[0] as AttachmentRow], []),
-      { organizationId: 'org-1', orgSlug: 'acme', releaseCorpus },
+      attachmentsSql([rows[0] as AttachmentRow], log),
+      { organizationId: 'org-1', orgSlug: 'acme', ...releases },
     );
-    // Only the ref no attachment backs is judged; the release keeps it, so
-    // its stamp comes off — and only the stamp this walk read.
-    expect(calls).toEqual([['s3:org-1/filed.pdf']]);
+    // Only the ref no attachment backs is judged, by the release that takes
+    // bytes too; it keeps the ref, so its stamp comes off — and only the
+    // stamp this walk read.
+    expect(unbackedCalls).toEqual([['s3:org-1/filed.pdf']]);
+    expect(corpusCalls).toEqual([]);
+    const clearAt = statements.findIndex(isClear);
     const [clear, ...more] = statements.filter(isClear);
     expect(more).toEqual([]);
     expect(clear?.params).toEqual([
@@ -535,46 +567,164 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
     ]);
     expect(clear?.text).toContain('d.org_slug = $1');
     expect(clear?.text).toContain('d.conversation_id = v.conversation_id');
+    // It answers the rows it cleared, for the backing to be read again.
+    expect(clear?.text).toContain('RETURNING d.file_id');
+    expect(log.at(-1)?.values).toContainEqual(['s3:org-1/filed.pdf']);
+    // Still no attachment: the stamp stays off.
+    expect(statements.slice(clearAt).filter(isStamp)).toEqual([]);
     // Taking a stamp off is no more an edit than putting one on.
     expect(clear?.text).not.toContain('updated_at');
     expect(result).toEqual({
+      ...QUIET,
       scanned: 1,
-      corrected: 0,
+      stampsScanned: 2,
       cleared: 1,
-      released: 0,
-      failures: 0,
     });
   });
 
+  it('puts a stamp back at once when its ref turned back into an attachment as the clear landed', async () => {
+    // The document holding filed.pdf is deleted while the pass runs, and
+    // the unbound file row it leaves is an emailed attachment again: the
+    // stamp the clear takes off is right once more. The corpus has a
+    // database of its own, so nothing can guard the clear with the app's
+    // rows; the pass reads the backing again and stamps it back rather than
+    // leaving a hub row until the next night.
+    const attachments: AttachmentRow[] = [];
+    const statements = corpusPool({
+      stamped: [{ fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' }],
+      onClear: () => {
+        attachments.push({
+          id: 'f9',
+          storageRef: 's3:org-1/filed.pdf',
+          conversationId: 'conv-1',
+        });
+      },
+    });
+    const { releases } = releaser({ keep: ['s3:org-1/filed.pdf'] });
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql(attachments, []),
+      { organizationId: 'org-1', orgSlug: 'acme', ...releases },
+    );
+    const clearAt = statements.findIndex(isClear);
+    expect(clearAt).toBeGreaterThanOrEqual(0);
+    const [restamp, ...more] = statements.slice(clearAt).filter(isStamp);
+    expect(more).toEqual([]);
+    expect(restamp?.params).toEqual([
+      'acme',
+      { json: [{ file_id: 's3:org-1/filed.pdf', conversation_id: 'conv-1' }] },
+    ]);
+    // The first walk's statement: it writes only a row that lacks the stamp.
+    expect(restamp?.text).toContain(
+      'd.conversation_id IS DISTINCT FROM v.conversation_id',
+    );
+    // The stamp did not stay off: nothing counts as cleared.
+    expect(result).toEqual({ ...QUIET, stampsScanned: 1 });
+  });
+
+  it.each([false, true])(
+    'restores a dead attachment stamp before releasing it, including a failed release (%s)',
+    async (fails) => {
+      // A NULL stamp would offer the mail's contextual headers to ordinary
+      // content-hash clones. Keep it isolated until its release succeeds.
+      const attachments: AttachmentRow[] = [];
+      const statements = corpusPool({
+        stamped: [{ fileId: 's3:org-1/filed.pdf', conversationId: 'conv-1' }],
+        onClear: () => {
+          attachments.push({
+            id: 'f9',
+            storageRef: 's3:org-1/filed.pdf',
+            conversationId: 'conv-1',
+            conversationLive: false,
+          });
+        },
+      });
+      let calls = 0;
+      const releaseUnbacked = vi.fn(async (refs: string[]) => {
+        calls += 1;
+        if (calls === 1) return { kept: refs, released: [], failures: [] };
+        expect(statements.filter(isStamp)).toHaveLength(1);
+        expect(statements.at(-1)?.text).toBe('COMMIT');
+        return fails
+          ? {
+              kept: [],
+              released: [],
+              failures: refs.map((ref) => ({
+                ref,
+                stage: 'corpus' as const,
+                message: 'down',
+              })),
+            }
+          : { kept: [], released: refs, failures: [] };
+      });
+      const result = await reconcileMailAttachmentStamps(
+        attachmentsSql(attachments, []),
+        {
+          organizationId: 'org-1',
+          orgSlug: 'acme',
+          ...releaser().releases,
+          releaseUnbacked,
+        },
+      );
+      expect(releaseUnbacked).toHaveBeenCalledTimes(2);
+      expect(releaseUnbacked).toHaveBeenLastCalledWith(['s3:org-1/filed.pdf']);
+      expect(statements.find(isStamp)?.params).toEqual([
+        'acme',
+        {
+          json: [{ file_id: 's3:org-1/filed.pdf', conversation_id: 'conv-1' }],
+        },
+      ]);
+      expect(
+        statements.findIndex((statement) => statement.text === 'BEGIN'),
+      ).toBeLessThan(statements.findIndex(isClear));
+      expect(result).toEqual({
+        ...QUIET,
+        stampsScanned: 1,
+        unbackedReleased: fails ? 0 : 1,
+        unbackedFailures: fails ? 1 : 0,
+      });
+    },
+  );
+
   it('releases a stamped row nothing keeps, and never un-stamps it', async () => {
     // Unstamped, a dead attachment would read as a hub row and be offered to
-    // content-hash clones; it goes instead.
+    // content-hash clones; it goes instead — with its bytes, when nothing
+    // references them (`releaseUnbacked`).
     const statements = corpusPool({
       stamped: [{ fileId: 's3:org-1/gone.pdf', conversationId: 'conv-9' }],
     });
-    const { calls, releaseCorpus } = releaser();
+    const { corpusCalls, unbackedCalls, releases } = releaser();
     const result = await reconcileMailAttachmentStamps(attachmentsSql([], []), {
       organizationId: 'org-1',
       orgSlug: 'acme',
-      releaseCorpus,
+      ...releases,
     });
-    expect(calls).toEqual([['s3:org-1/gone.pdf']]);
+    expect(unbackedCalls).toEqual([['s3:org-1/gone.pdf']]);
+    expect(corpusCalls).toEqual([]);
     expect(statements.filter(isClear)).toEqual([]);
-    expect(result).toMatchObject({ cleared: 0, released: 1, failures: 0 });
+    // The second walk's release, apart from the first walk's counts.
+    expect(result).toEqual({
+      ...QUIET,
+      stampsScanned: 1,
+      unbackedReleased: 1,
+    });
   });
 
   it('leaves the stamp on when the release failed, for the next night', async () => {
     const statements = corpusPool({
       stamped: [{ fileId: 's3:org-1/x.pdf', conversationId: 'conv-1' }],
     });
-    const { releaseCorpus } = releaser({ failing: ['s3:org-1/x.pdf'] });
+    const { releases } = releaser({ failing: ['s3:org-1/x.pdf'] });
     const result = await reconcileMailAttachmentStamps(attachmentsSql([], []), {
       organizationId: 'org-1',
       orgSlug: 'acme',
-      releaseCorpus,
+      ...releases,
     });
     expect(statements.filter(isClear)).toEqual([]);
-    expect(result).toMatchObject({ cleared: 0, released: 0, failures: 1 });
+    expect(result).toEqual({
+      ...QUIET,
+      stampsScanned: 1,
+      unbackedFailures: 1,
+    });
   });
 
   it('leaves an attachment of a dead conversation to the first walk: one release, not two', async () => {
@@ -582,17 +732,24 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
       held: ['s3:org-1/b.pdf'],
       stamped: [{ fileId: 's3:org-1/b.pdf', conversationId: 'conv-1' }],
     });
-    const { calls, releaseCorpus } = releaser();
+    const { corpusCalls, unbackedCalls, releases } = releaser();
     const result = await reconcileMailAttachmentStamps(
       attachmentsSql(
         [{ ...(rows[1] as AttachmentRow), conversationLive: false }],
         [],
       ),
-      { organizationId: 'org-1', orgSlug: 'acme', releaseCorpus },
+      { organizationId: 'org-1', orgSlug: 'acme', ...releases },
     );
-    expect(calls).toEqual([['s3:org-1/b.pdf']]);
+    // Corpus-only: the file row still holds the bytes.
+    expect(corpusCalls).toEqual([['s3:org-1/b.pdf']]);
+    expect(unbackedCalls).toEqual([]);
     expect(statements.filter(isClear)).toEqual([]);
-    expect(result).toMatchObject({ cleared: 0, released: 1 });
+    expect(result).toEqual({
+      ...QUIET,
+      scanned: 1,
+      released: 1,
+      stampsScanned: 1,
+    });
   });
 
   it('reads the stamps a keyset page at a time by ref, email bodies aside', async () => {
@@ -603,12 +760,15 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
         { fileId: 's3:org-1/c.pdf', conversationId: 'conv-2' },
       ],
     });
-    await reconcileMailAttachmentStamps(attachmentsSql(rows, []), {
-      organizationId: 'org-1',
-      orgSlug: 'acme',
-      limit: 2,
-      releaseCorpus: releaser().releaseCorpus,
-    });
+    const result = await reconcileMailAttachmentStamps(
+      attachmentsSql(rows, []),
+      {
+        organizationId: 'org-1',
+        orgSlug: 'acme',
+        limit: 2,
+        ...releaser().releases,
+      },
+    );
     const reads = statements.filter((statement) =>
       statement.text.includes('conversation_id IS NOT NULL'),
     );
@@ -625,6 +785,7 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
       expect(read.text).toContain('file_id > $3');
       expect(read.text).toContain('ORDER BY file_id');
     }
+    expect(result.stampsScanned).toBe(3);
   });
 
   it('judges what an attachment backs with the statement the stamping walk reads', async () => {
@@ -640,17 +801,20 @@ describe('reconcileMailAttachmentStamps — a stamp no attachment backs', () => 
       {
         organizationId: 'org-1',
         orgSlug: 'acme',
-        releaseCorpus: releaser({ keep: ['s3:org-1/filed.pdf'] }).releaseCorpus,
+        ...releaser({ keep: ['s3:org-1/filed.pdf'] }).releases,
       },
     );
-    const [page, byRef, ...rest] = log;
+    const [page, byRef, again, ...rest] = log;
     expect(rest).toEqual([]);
     // One rule for both walks, so a row the first stamps is never one the
-    // second clears.
+    // second clears — and the same rule reads the backing again after the
+    // clear.
     expect(byRef?.text).toBe(page?.text);
     expect(byRef?.values).toContainEqual([
       's3:org-1/a.pdf',
       's3:org-1/filed.pdf',
     ]);
+    expect(again?.text).toBe(page?.text);
+    expect(again?.values).toContainEqual(['s3:org-1/filed.pdf']);
   });
 });

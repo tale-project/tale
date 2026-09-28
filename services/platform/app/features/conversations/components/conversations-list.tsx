@@ -22,11 +22,11 @@ import { memo, useCallback, useEffect, useRef } from 'react';
 
 import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+import { cleanMessagePreview } from '@/lib/shared/conversations/message-preview';
 import { isKeyOf } from '@/lib/utils/type-utils';
 
 import { useMailboxes } from '../hooks/queries';
 import { channelSourceOf } from '../lib/channel-source';
-import { cleanMessagePreview } from '../lib/message-preview';
 import type { Conversation } from '../types';
 
 // Get the last message content and truncate if necessary

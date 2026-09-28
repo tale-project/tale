@@ -1,9 +1,11 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { isEpochMs } from '@tale/shared/schemas/epoch-ms';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { taskCommentBodiesSchema } from '../../lib/shared/schemas/task-comment.ts';
+import { parseTaskRepeat } from '../../lib/shared/task-repeat.ts';
 import { externalKeySchema } from '../../lib/shared/utils/external-key.ts';
 import { isHttpUrl } from '../../lib/utils/url.ts';
 import {
@@ -283,6 +285,17 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // The lifecycle toggle below (and the board) sets and clears it; a
       // mirror reads the state here instead of learning it from a 403.
       archivedAt: task.archivedAt ?? undefined,
+      // The schedule the board shows, read-only: each date present when
+      // set (a stored value no `Date` can hold reads as none, as on the
+      // board).
+      startDate: isEpochMs(task.startDate) ? task.startDate : undefined,
+      dueDate: isEpochMs(task.dueDate) ? task.dueDate : undefined,
+      // The repeat rule as stored — its zone, and `createOn` when the next
+      // task is created on the due date — or null when the task does not
+      // repeat (a stored rule that no longer validates reads as none, as on
+      // the board); the task that continues its series once one exists.
+      repeat: parseTaskRepeat(task.repeat),
+      repeatNextTaskId: task.repeatNextTaskId ?? undefined,
     };
   };
 

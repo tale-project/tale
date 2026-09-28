@@ -104,9 +104,13 @@ test('turbo re-runs this suite when an install page changes', () => {
       tasks.find((task) => task.taskId === '@tale/cli#test')?.inputs ?? {},
     ),
   );
-  // `$TURBO_DEFAULT$` stays in the list, or the suite's own sources drop out.
-  expect(inputs.has('package.json')).toBe(true);
   // Turbo keys inputs by `/`-separated paths relative to the workspace.
+  // `$TURBO_DEFAULT$` stays in the list, or the suite's own sources drop out.
+  // Probe this file: turbo hashes `package.json` and `turbo.json` either way.
+  const self = relative(CLI_ROOT, fileURLToPath(import.meta.url))
+    .split(sep)
+    .join('/');
+  expect(inputs.has(self), `@tale/cli#test does not hash ${self}`).toBe(true);
   const unhashed = LOCALES.map((locale) =>
     relative(CLI_ROOT, installPage(locale)).split(sep).join('/'),
   ).filter((page) => !inputs.has(page));

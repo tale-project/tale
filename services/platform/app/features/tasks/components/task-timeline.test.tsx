@@ -66,6 +66,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'priority.p2': 'Medium',
         'priority.p3': 'Low',
         'priority.none': 'No priority',
+        'activity.repeatChanged': 'Repeat changed',
+        'activity.repeatNext': 'Next task created',
+        never: 'Never',
         'agentRuns.refused.agent_disabled':
           'agent is not installed or is disabled',
       };
@@ -209,5 +212,116 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
     expect(
       screen.getByText(/priority changed: Urgent → No priority/i),
     ).toBeInTheDocument();
+  });
+
+  // A repeat change stores each rule as JSON and "no rule" as an absent end;
+  // both ends read as words, so setting and stopping a series each say so.
+  it('names both ends of a repeat.changed row, an absent one as "Never"', () => {
+    const monthly = JSON.stringify({
+      frequency: 'monthly',
+      interval: 1,
+      monthDay: 15,
+      timezone: 'Europe/Zurich',
+    });
+    timelineMocks.activity = [
+      {
+        _id: 'activity_repeat_set' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'repeat.changed',
+        toValue: monthly,
+        createdAt: Date.now(),
+      },
+      {
+        _id: 'activity_repeat_stopped' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'repeat.changed',
+        // A zone this runtime no longer knows still names the rule.
+        fromValue: JSON.stringify({
+          frequency: 'daily',
+          interval: 2,
+          timezone: 'Mars/Olympus_Mons',
+        }),
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'repeat changed: Never → sentence.monthly({"count":1,"day":15})',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('repeat changed: sentence.daily({"count":2}) → Never'),
+    ).toBeInTheDocument();
+  });
+
+  // The rule stays, only when its next task is created changes: the row
+  // still reads as a change, the new end naming the due-date mode.
+  it('names a change of the creation mode alone', () => {
+    const monthly = {
+      frequency: 'monthly',
+      interval: 1,
+      monthDay: 30,
+      timezone: 'Europe/Zurich',
+    };
+    timelineMocks.activity = [
+      {
+        _id: 'activity_repeat_mode' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'repeat.changed',
+        fromValue: JSON.stringify(monthly),
+        toValue: JSON.stringify({ ...monthly, createOn: 'dueDate' }),
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    // The stub `t` echoes a key with its values.
+    const sentence = 'sentence.monthly({"count":1,"day":30})';
+    const onDue = `repeat.ruleOnDue(${JSON.stringify({ rule: sentence })})`;
+    expect(
+      screen.getByText(`repeat changed: ${sentence} → ${onDue}`),
+    ).toBeInTheDocument();
+  });
+
+  it('names the copy a repeat.next row points to', () => {
+    timelineMocks.activity = [
+      {
+        _id: 'activity_repeat_next' as string,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'repeat.next',
+        toValue: 'OPS-12',
+        createdAt: Date.now(),
+      },
+    ];
+
+    render(
+      <TaskTimeline
+        taskId={'task_1' as string}
+        organizationId="org_1"
+        projectId={'project_1' as string}
+      />,
+    );
+
+    expect(screen.getByText('next task created: OPS-12')).toBeInTheDocument();
   });
 });

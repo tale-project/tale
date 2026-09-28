@@ -212,6 +212,9 @@ common:
     autoTranslate: Traduire automatiquement
     hasError: contient une erreur
   moreTabs: Plus
+  numberStepper:
+    decrease: Diminuer
+    increase: Augmenter
   optional: facultatif
   pagination:
     loadMore: Charger plus
@@ -290,3 +293,52 @@ toast:
 tables:
   headers:
     description: Description
+recurrence:
+  label: Répéter
+  namePrefix: '{label} :'
+  never: Jamais
+  presets: Choix rapides
+  custom: Personnalisé
+  back: Retour aux choix rapides
+  workweekRange: lun.–ven.
+  nextDates: Prochaines dates
+  sentence:
+    daily: '{count, plural, one {Tous les jours} other {Tous les # jours}}'
+    weekdays: Tous les jours ouvrés
+    weekly: '{count, plural, one {Chaque semaine le {days}} other {Toutes les # semaines le {days}}}'
+    monthly: '{count, plural, one {Chaque mois le {day, plural, =1 {1er} other {#}}} other {Tous les # mois le {day, plural, =1 {1er} other {#}}}}'
+    yearly: '{count, plural, one {Chaque année le {date}} other {Tous les # ans le {date}}}'
+  compact:
+    weekdays: Jours ouvrés
+    weekly: '{count, plural, one {Chaque semaine} other {Toutes les # semaines}}'
+    monthly: '{count, plural, one {Tous les mois} other {Tous les # mois}}'
+    yearly: '{count, plural, one {Tous les ans} other {Tous les # ans}}'
+    monthDay: '{day, plural, =1 {le 1er} other {le #}}'
+    dayCount: '{count, plural, one {# jour} other {# jours}}'
+  editor:
+    unit: Unité
+    units:
+      daily: Jour
+      weekly: Semaine
+      monthly: Mois
+      yearly: Année
+    every: '{count, plural, one {Chaque} other {{unit, select, weekly {Toutes les} other {Tous les}}}}'
+    unitNoun:
+      daily: '{count, plural, one {jour} other {jours}}'
+      weekly: '{count, plural, one {semaine} other {semaines}}'
+      monthly: '{count, plural, one {mois} other {mois}}'
+      yearly: '{count, plural, one {année} other {ans}}'
+    onWeekdays: Jours
+    onDay: Le jour
+    onDate: Le
+    month: Mois
+    lastDayHint: Les mois plus courts prennent leur dernier jour.
+    leapDayHint: 'Les autres années, ce sera le {date}.'
+  weekdayChip:
+    monday: Lu
+    tuesday: Ma
+    wednesday: Me
+    thursday: Je
+    friday: Ve
+    saturday: Sa
+    sunday: Di

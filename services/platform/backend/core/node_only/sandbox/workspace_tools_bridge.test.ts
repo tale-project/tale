@@ -1718,6 +1718,66 @@ describe('dispatchWorkspaceToolImpl — write tools (task family + document_crea
     });
   });
 
+  it('task_get shows the schedule in ISO dates and the repeat rule as stored', async () => {
+    // A repeating task's next copy comes from its close, so an agent that
+    // closes one should see that it repeats — and when it is due.
+    const rule = {
+      frequency: 'monthly',
+      interval: 1,
+      monthDay: 30,
+      timezone: 'Europe/Zurich',
+      createOn: 'dueDate',
+    };
+    const context = (task: Record<string, unknown>) => ({
+      task: {
+        _id: 'task_1',
+        number: 7,
+        title: 'Close the books',
+        status: 'todo',
+        projectId: 'proj_1',
+        ...task,
+      },
+      project: { name: 'Billing', key: 'BILL' },
+      subtasks: [],
+      blockedBy: [],
+      comments: [],
+    });
+    const { dispatch } = await getActions();
+    const read = async (task: Record<string, unknown>) => {
+      const { ctx } = createCtx({
+        readQuery: vi.fn((ref: unknown) => {
+          if (fnName(ref).includes('getTaskByIdInternal'))
+            return Promise.resolve({ _id: 'task_1', projectId: 'proj_1' });
+          if (fnName(ref).includes('getTaskContextForAgent'))
+            return Promise.resolve(context(task));
+          return Promise.resolve(null);
+        }),
+      });
+      const result = await dispatch(ctx, {
+        ...BASE,
+        tool: 'task_get',
+        callArgs: { taskId: 'task_1' },
+      });
+      expect(result.status).toBe('ok');
+      return (result.output as { task: Record<string, unknown> }).task;
+    };
+    expect(
+      await read({
+        startDate: 1_790_546_400_000,
+        dueDate: 1_790_632_800_000,
+        repeat: rule,
+      }),
+    ).toMatchObject({
+      startDate: '2026-09-27T22:00:00.000Z',
+      dueDate: '2026-09-28T22:00:00.000Z',
+      repeat: rule,
+    });
+    const plain = await read({});
+    for (const key of ['startDate', 'dueDate', 'repeat']) {
+      expect(plain).not.toHaveProperty(key);
+    }
+  });
+
   it('task_get on a multi-bound org run refuses a task outside the bound set', async () => {
     const contextRead = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve({ task: {}, project: {}, comments: [] }),

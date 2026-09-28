@@ -213,12 +213,12 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'INVALID_SCAN_INTERVAL',
   'PRODUCT_STATUS_INVALID',
   // Task fields no REST body carries: attachments, dependencies,
-  // subtasks, reviewers, schedules, assignees (the intake takes an
-  // `automationSlug`, never `assigneeType`/`assigneeId`; a reassignment
-  // and its live-run guard are the board's), comment edits and deletes
-  // (REST posts and lists), and the label catalog's own verbs (REST
-  // creates a missing label on the way in — `createIfMissing` — so the
-  // human path's unknown-label refusal never fires).
+  // subtasks, reviewers, schedules, repeat rules, assignees (the intake
+  // takes an `automationSlug`, never `assigneeType`/`assigneeId`; a
+  // reassignment and its live-run guard are the board's), comment edits
+  // and deletes (REST posts and lists), and the label catalog's own verbs
+  // (REST creates a missing label on the way in — `createIfMissing` — so
+  // the human path's unknown-label refusal never fires).
   'AGENT_NOT_ALLOWED_IN_PROJECT',
   'ASSIGNEE_NO_PROJECT_ACCESS',
   'TASK_ASSIGNEE_INVALID',
@@ -236,6 +236,7 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_LABEL_UNKNOWN',
   'TASK_PARENT_ARCHIVED',
   'TASK_PARENT_PROJECT_MISMATCH',
+  'TASK_REPEAT_INVALID',
   'TASK_REVIEWER_INVALID',
   'TASK_REVIEWER_NO_EDIT_ACCESS',
   'TASK_SCHEDULE_INVALID',

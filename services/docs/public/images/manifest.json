@@ -361,6 +361,18 @@
       "height": 1532
     },
     {
+      "file": "images/platform/project-task-repeat.webp",
+      "shot": "project-task-repeat",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
       "file": "images/platform/projects-task-board.webp",
       "shot": "projects-task-board",
       "route": "/dashboard/:orgId/projects",

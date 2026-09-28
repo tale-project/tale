@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { parseTaskRepeat } from '../../../lib/shared/task-repeat.ts';
 import { findOrganizationMember } from '../../auth/membership.ts';
 import { isAudienceAdmin } from '../../core/lib/audience.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
@@ -903,11 +904,17 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         commentLimit?: number;
       };
       const tasks = await sql<
-        (TaskLegRow & { discussionThreadId: string | null })[]
+        (TaskLegRow & {
+          discussionThreadId: string | null;
+          startDate: number | null;
+          repeat: unknown;
+        })[]
       >`
         SELECT id AS "_id", title, description, number, status, priority,
                project_id AS "projectId",
-               discussion_thread_id AS "discussionThreadId"
+               discussion_thread_id AS "discussionThreadId",
+               start_date_ms::float8 AS "startDate",
+               due_date_ms::float8 AS "dueDate", repeat_rule AS "repeat"
         FROM app.tasks
         WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
         LIMIT 1
@@ -958,6 +965,9 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           LIMIT ${commentLimit}
         ) recent ORDER BY "createdAt"
       `;
+      // Read leniently, as the board reads it: a rule that no longer
+      // validates is no rule.
+      const repeat = parseTaskRepeat(task.repeat);
       return {
         task: {
           _id: task._id,
@@ -968,6 +978,9 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
             ? { description: task.description }
             : {}),
           ...(task.projectId != null ? { projectId: task.projectId } : {}),
+          ...(task.startDate != null ? { startDate: task.startDate } : {}),
+          ...(task.dueDate != null ? { dueDate: task.dueDate } : {}),
+          ...(repeat !== null ? { repeat } : {}),
         },
         project: project
           ? {

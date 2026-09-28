@@ -1,5 +1,6 @@
 import type { TransactionSql } from 'postgres';
 
+import { endRepeatForAutomationOwner } from './repeat.ts';
 import { recordActivity } from './service.ts';
 
 /**
@@ -10,7 +11,9 @@ import { recordActivity } from './service.ts';
  * Each task keeps its history: the row's runs, comments and activity stay,
  * and one more `assignee.changed` line (from the agent, to nobody) says why
  * the card is unassigned. `recordActivity` also hints the task, so open
- * boards drop the stale name at once.
+ * boards drop the stale name at once. A task an automation filed goes back
+ * to that automation once nobody holds it, so a series it carried ends here
+ * too, as the assign door ends it.
  *
  * Answers the ids it cleared, so the caller can audit or count them.
  */
@@ -24,7 +27,9 @@ export async function clearAgentAssignmentsInTx(
     actorId: string;
   },
 ): Promise<string[]> {
-  const cleared = await tx<{ id: string }[]>`
+  const cleared = await tx<
+    { id: string; repeat: unknown; createdByType: string }[]
+  >`
     UPDATE app.tasks SET
       assignee_type = NULL,
       assignee_id = NULL,
@@ -33,19 +38,26 @@ export async function clearAgentAssignmentsInTx(
       AND project_id = ${args.projectId}
       AND assignee_type = 'agent'
       AND assignee_id = ${args.agentId}
-    RETURNING id
+    RETURNING id, repeat_rule AS "repeat", created_by_type AS "createdByType"
   `;
   for (const row of cleared) {
+    const task = {
+      id: row.id,
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+    };
     await recordActivity(tx, {
-      task: {
-        id: row.id,
-        organizationId: args.organizationId,
-        projectId: args.projectId,
-      },
+      task,
       actorType: 'user',
       actorId: args.actorId,
       action: 'assignee.changed',
       fromValue: args.agentId,
+    });
+    await endRepeatForAutomationOwner(tx, {
+      task: { ...task, repeat: row.repeat, createdByType: row.createdByType },
+      next: { assigneeType: null, assigneeId: null },
+      actorType: 'user',
+      actorId: args.actorId,
     });
   }
   return cleared.map((row) => row.id);
