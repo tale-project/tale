@@ -7,10 +7,12 @@
  * counts — and the one that brings an ENABLED SCHEDULE to the threshold
  * pauses it, audits the pause and notifies the owners and admins, all in
  * the caller's transaction. Webhook and event bindings count but never
- * pause, and a paused schedule keeps the streak that paused it. The
- * real-Postgres probes drive an always-failing schedule through the stepper
- * until it pauses (`trigger-pause.integration.ts`) and land a run beside an
- * event producer stamping the same trigger in either order
+ * pause, and a paused schedule — off with the pause's stamp, never the
+ * stamp alone — keeps the streak that paused it. The real-Postgres probes
+ * drive an always-failing schedule through the stepper until it pauses and
+ * land a success on a live schedule still carrying the stamp
+ * (`trigger-pause.integration.ts`), and land a run beside an event producer
+ * stamping the same trigger in either order
  * (`trigger-lock-order.integration.ts`).
  */
 
@@ -150,6 +152,24 @@ describe('recordTriggerRunOutcome', () => {
     );
     expect(fake.statements[0]?.text).toContain(
       "last_skip_reason IS DISTINCT FROM 'paused_after_failures'",
+    );
+  });
+
+  it('resets a live schedule that still carries the pause stamp', async () => {
+    // The image before 0124 re-enables a paused schedule and keeps its skip
+    // stamp. The stamp alone must not hold the streak, or that schedule's
+    // failures add up across its successes and pause it again for failures
+    // that were not in a row: an enabled row resets whatever its stamp.
+    // `trigger-pause.integration.ts` lands a success on such a row.
+    const fake = fakeTx({ resetRows: [{ name: 'ops/nightly' }] });
+    await expect(
+      recordTriggerRunOutcome(
+        fake.tx,
+        outcome({ status: 'success', failureCode: null }),
+      ),
+    ).resolves.toEqual({ name: 'ops/nightly', paused: false });
+    expect(fake.statements[0]?.text).toContain(
+      "AND (enabled OR last_skip_reason IS DISTINCT FROM 'paused_after_failures')",
     );
   });
 

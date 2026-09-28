@@ -134,7 +134,7 @@ function showNewVersionToast(reload: () => void): void {
     action: (
       <div className={toastActionGroupClassName}>
         <ToastPrimitives.Close asChild>
-          <Button type="button" variant="ghost" size="sm">
+          <Button type="button" variant="secondary" size="sm">
             {i18n.t('newVersion.later', { ns: 'connectivity' })}
           </Button>
         </ToastPrimitives.Close>

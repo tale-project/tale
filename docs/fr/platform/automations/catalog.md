@@ -15,7 +15,7 @@ La recherche porte sur le nom et le slug. Saisis par exemple `Triage` pour compa
 
 ## Choisir un point de départ
 
-Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Général** regroupe son déclencheur et ses projets : **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation. **Versions** présente les versions enregistrées, et **Exécutions**, les derniers lancements.
+Chaque ligne indique le nom, les projets associés, le nombre de versions et la version en service, ou **Pas en service**. Ouvre-la dans l’onglet **Éditeur** pour examiner le workflow. **Général** regroupe son déclencheur et ses projets : **Projets** détermine les boards qui peuvent l’utiliser ; sans association à un projet, elle sert l’organisation. Le sélecteur **Version**, à droite des onglets, présente les versions enregistrées, et **Exécutions**, les derniers lancements.
 
 Le menu **Créer une automatisation** propose deux parcours :
 

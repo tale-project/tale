@@ -39,6 +39,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
+  useAutomationVersions: () => ({ data: [], isPending: false }),
   useAutomation: () => ({
     data: fixtures.automation,
     isPending: fixtures.isPending,
@@ -99,6 +100,7 @@ vi.mock('@/app/components/navigation/tab-navigation', () => ({
     items,
     ariaLabel,
     children,
+    trailing,
     dirtyKeys,
   }: {
     items: Array<{
@@ -110,6 +112,7 @@ vi.mock('@/app/components/navigation/tab-navigation', () => ({
     }>;
     ariaLabel?: string;
     children?: ReactNode;
+    trailing?: ReactNode;
     dirtyKeys?: ReadonlySet<string>;
   }) => (
     <nav aria-label={ariaLabel}>
@@ -129,6 +132,7 @@ vi.mock('@/app/components/navigation/tab-navigation', () => ({
         </a>
       ))}
       {children}
+      {trailing}
     </nav>
   ),
 }));
@@ -154,7 +158,7 @@ beforeEach(() => {
 });
 
 describe('AutomationDetailShell', () => {
-  it('carries the Editor, General, Versions and Runs tabs on the org route', () => {
+  it('carries the Editor, General and Runs tabs on the org route', () => {
     renderShell();
     const strip = screen.getByRole('navigation', {
       name: 'Automations navigation',
@@ -165,7 +169,7 @@ describe('AutomationDetailShell', () => {
       within(strip)
         .getAllByRole('link')
         .map((tab) => tab.textContent),
-    ).toEqual(['Editor', 'General', 'Versions', 'Runs']);
+    ).toEqual(['Editor', 'General', 'Runs']);
     expect(screen.getByRole('link', { name: 'Editor' })).toHaveAttribute(
       'href',
       '/dashboard/org-1/automations/billing__dunning/editor',
@@ -174,10 +178,7 @@ describe('AutomationDetailShell', () => {
       'href',
       '/dashboard/org-1/automations/billing__dunning/general',
     );
-    expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
-      'href',
-      '/dashboard/org-1/automations/billing__dunning/versions',
-    );
+    expect(screen.queryByRole('link', { name: 'Versions' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Runs' })).toHaveAttribute(
       'href',
       '/dashboard/org-1/automations/billing__dunning/runs',
@@ -200,7 +201,6 @@ describe('AutomationDetailShell', () => {
     for (const [label, tab] of [
       ['Editor', 'editor'],
       ['General', 'general'],
-      ['Versions', 'versions'],
       ['Runs', 'runs'],
     ] as const) {
       expect(screen.getByRole('link', { name: label })).toHaveAttribute(
@@ -229,10 +229,7 @@ describe('AutomationDetailShell', () => {
       'data-dirty',
       'false',
     );
-    expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
-      'data-dirty',
-      'false',
-    );
+    expect(screen.queryByRole('link', { name: 'Versions' })).toBeNull();
   });
 
   it("lights the General tab's dot for an unsaved trigger or project set", () => {
@@ -302,7 +299,7 @@ describe('AutomationDetailShell — a deleted automation', () => {
     };
   });
 
-  it('renders the run page under a deletion banner with Editor and Versions disabled', () => {
+  it('renders the run page under a deletion banner with Editor disabled', () => {
     fixtures.pathname =
       '/dashboard/org-1/automations/billing__dunning/runs/run-1';
     renderShell();
@@ -314,10 +311,7 @@ describe('AutomationDetailShell — a deleted automation', () => {
       'data-disabled',
       'true',
     );
-    expect(screen.getByRole('link', { name: 'Versions' })).toHaveAttribute(
-      'data-disabled',
-      'true',
-    );
+    expect(screen.queryByRole('link', { name: 'Versions' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Runs' })).toHaveAttribute(
       'data-disabled',
       'false',

@@ -9,20 +9,28 @@
  *   created) or emit then audit (a comment edit, a conversation opened
  *   before its first message);
  * - a removal of the run the trigger names as its last failure, through the
- *   run door (`deleteRunInTx`) or by the retention sweep: the delete clears
- *   that name (the foreign key's `ON DELETE SET NULL`), a write of the
- *   trigger row, before the removal's audit row.
+ *   run door (`deleteRunInTx`, in the REST door's serializable transaction
+ *   after its run read) or by the retention sweep: the delete clears that
+ *   name (the foreign key's `ON DELETE SET NULL`), a write of the trigger
+ *   row, before the removal's audit row.
  *
  * Each case holds the other transaction between its two steps until the
- * landing run waits on it, then lets it go on: both must commit, the other
- * transaction's own write must land (a deadlock raised inside `emitEvent`'s
- * savepoint is swallowed and would take the dispatch's stamp) and the streak
- * must count the run (a deadlock raised inside the streak's savepoint would
- * skip it). The automation is saved and never deployed, so a dispatch stamps
- * `not_deployed` — a write of the trigger row like a fire stamp — and no run
- * of its own lands afterwards to move the streak under the check. */
+ * landing run waits on it, then lets it go on: both must commit — the run
+ * door on its first attempt, since a retry would hide a deadlock it lost —
+ * the other transaction's own write must land (a deadlock raised inside
+ * `emitEvent`'s savepoint is swallowed and would take the dispatch's stamp)
+ * and the streak must count the run (a deadlock raised inside the streak's
+ * savepoint would skip it). The automation is saved and never deployed, so
+ * a dispatch stamps `not_deployed` — a write of the trigger row like a fire
+ * stamp — and no run of its own lands afterwards to move the streak under
+ * the check.
+ *
+ * The chain is held no wider than that order needs: a sweep whose batch no
+ * trigger names, held after its delete, lets an audit writer of the same
+ * organization commit meanwhile. */
 import { randomUUID } from 'node:crypto';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { toJson } from '../../db/sql.ts';
@@ -33,6 +41,7 @@ import {
   deleteRunInTx,
   deleteTrigger,
   finishRun,
+  getRun,
   saveVersion,
   setTrigger,
 } from './store.ts';
@@ -213,14 +222,44 @@ export async function checkTriggerStreakLockOrder(
       return waiting.length > 0;
     }, BLOCK_WAIT_MS);
 
-  // A second organization for the retention case: the sweep removes every
-  // finished run of its organization older than the window, so it runs
-  // where nothing but this case's runs live.
-  const sweptOrgId = randomUUID();
+  /** `sql` whose every transaction is handed to `hold` first: the sweep
+   * opens its own transactions, and the one that deletes the runs is held
+   * like the run door's. */
+  const holding = (
+    hold: (tx: TransactionSql) => Promise<TransactionSql>,
+  ): Sql =>
+    new Proxy(sql, {
+      get(target, property, receiver) {
+        if (property !== 'begin') {
+          return Reflect.get(target, property, receiver);
+        }
+        return (body: (tx: TransactionSql) => Promise<unknown>) =>
+          target.begin(async (tx) => body(await hold(tx)));
+      },
+    });
+  const sweep = (
+    organizationId: string,
+    hold: (tx: TransactionSql) => Promise<TransactionSql>,
+  ): Promise<number> =>
+    sweepOrgPhase2(
+      holding(hold),
+      {
+        organizationId,
+        config: { workflowLogEnabled: true, workflowLogRetentionDays: 30 },
+      },
+      { orgHeld: false, userMembershipIds: new Set() },
+    ).then((stats) => stats.automationRuns);
+
+  // A second organization for the removal cases: the sweep removes every
+  // finished run of its organization older than the window, and the run
+  // door's serializable transaction must commit on its first attempt, which
+  // another lane's audit writer in the same organization could cost it — so
+  // they run where nothing but this lane's runs and audit rows live.
+  const removalOrgId = randomUUID();
   await sql`
     INSERT INTO "organization" ("id", "name", "slug", "createdAt")
-    VALUES (${sweptOrgId}, 'Streak lock order (retention)',
-            ${`itest-streak-lock-${sweptOrgId.slice(0, 8)}`}, now())
+    VALUES (${removalOrgId}, 'Streak lock order (removals)',
+            ${`itest-streak-lock-${removalOrgId.slice(0, 8)}`}, now())
   `;
 
   try {
@@ -288,9 +327,9 @@ export async function checkTriggerStreakLockOrder(
       );
     }
 
-    await bind(sweptOrgId);
+    await bind(removalOrgId);
+    const organizationId = removalOrgId;
     for (const remover of ['run door', 'retention sweep'] as const) {
-      const organizationId = remover === 'run door' ? orgId : sweptOrgId;
       const bound = await trigger(organizationId);
       // The run the removal takes: a failure the trigger names as its last.
       const removedRunId = await runningRun(bound.id, organizationId);
@@ -311,6 +350,7 @@ export async function checkTriggerStreakLockOrder(
       const runId = await runningRun(bound.id, organizationId);
 
       let removerPid = 0;
+      let attempts = 0;
       const halfway = gate();
       const held = async (tx: TransactionSql) => {
         const pid = await tx<{ pid: number }[]>`
@@ -321,35 +361,24 @@ export async function checkTriggerStreakLockOrder(
       };
       const removal: Promise<number> =
         remover === 'run door'
-          ? sql.begin(async (tx) => {
-              const removed = await deleteRunInTx(await held(tx), {
+          ? // The REST door's transaction (`DELETE …/runs/{runId}`):
+            // serializable, the run read, then the removal. A retry would
+            // mean the door lost a deadlock or its snapshot, which
+            // `transactSerializable` hides from the caller — so the case
+            // counts the attempts.
+            transactSerializable(sql, async (tx) => {
+              attempts++;
+              const door = await held(tx);
+              const run = await getRun(door, organizationId, removedRunId);
+              if (run === null || run.projectId !== null) return 0;
+              const removed = await deleteRunInTx(door, {
                 organizationId,
                 runId: removedRunId,
                 actor: userId,
               });
               return removed.deleted ? 1 : 0;
             })
-          : sweepOrgPhase2(
-              // The sweep opens its own transaction: the one that deletes
-              // the runs is held like the run door's.
-              new Proxy(sql, {
-                get(target, property, receiver) {
-                  if (property !== 'begin') {
-                    return Reflect.get(target, property, receiver);
-                  }
-                  return (body: (tx: TransactionSql) => Promise<unknown>) =>
-                    target.begin(async (tx) => body(await held(tx)));
-                },
-              }),
-              {
-                organizationId,
-                config: {
-                  workflowLogEnabled: true,
-                  workflowLogRetentionDays: 30,
-                },
-              },
-              { orgHeld: false, userMembershipIds: new Set() },
-            ).then((stats) => stats.automationRuns);
+          : sweep(organizationId, held);
       await Promise.race([halfway.reached, removal]);
       const landing = land(
         runId,
@@ -371,20 +400,86 @@ export async function checkTriggerStreakLockOrder(
         queued &&
           removed.status === 'fulfilled' &&
           removed.value === 1 &&
+          (remover !== 'run door' || attempts === 1) &&
           landed.status === 'fulfilled' &&
           status === 'failed' &&
           gone === 'missing' &&
           after.consecutiveFailures === before.consecutiveFailures + 1 &&
           after.lastFailedRunId === runId,
-        `landing queued behind the removal=${queued}, removal ${failure(removed)}${removed.status === 'fulfilled' ? ` (${removed.value} run removed, want 1)` : ''}, landing ${failure(landed)} (run ${status}), removed run ${gone} (want missing), streak ${before.consecutiveFailures}→${after.consecutiveFailures} (want +1), last failed run=${after.lastFailedRunId === runId ? 'this run' : after.lastFailedRunId}`,
+        `landing queued behind the removal=${queued}, removal ${failure(removed)}${removed.status === 'fulfilled' ? ` (${removed.value} run removed, want 1)` : ''}${remover === 'run door' ? `, door attempts=${attempts} (want 1)` : ''}, landing ${failure(landed)} (run ${status}), removed run ${gone} (want missing), streak ${before.consecutiveFailures}→${after.consecutiveFailures} (want +1), last failed run=${after.lastFailedRunId === runId ? 'this run' : after.lastFailedRunId}`,
+      );
+    }
+
+    // A sweep whose batch no trigger names writes no trigger row, so it
+    // takes the chain only for its own audit row: an audit writer of the
+    // organization commits while the sweep sits after its delete, instead
+    // of queueing behind a delete of up to a thousand runs.
+    {
+      const longAgo = Date.now() - 400 * DAY_MS;
+      // A person's run: no trigger names it.
+      const rows = await sql<{ id: string }[]>`
+        INSERT INTO app.automation_runs (
+          org_id, name, version, project_id, status, mode, started_by,
+          input, checkpoints, claim_epoch, started_at_ms, finished_at_ms
+        ) VALUES (
+          ${removalOrgId}, ${name}, 1, NULL, 'success', 'live',
+          ${`user:${userId}`}, ${sql.json(toJson(JSON.stringify({})))},
+          ${sql.json(toJson({ nodes: {}, executions: 1 }))}, 1,
+          ${longAgo}, ${longAgo}
+        )
+        RETURNING id
+      `;
+      const unnamedRunId = rows[0]?.id;
+      if (unnamedRunId === undefined) {
+        throw new Error('itest run insert failed');
+      }
+      const halfway = gate();
+      const swept = sweep(removalOrgId, async (tx) =>
+        heldAfterRunDelete(tx, halfway),
+      );
+      await Promise.race([halfway.reached, swept]);
+      const writer = sql.begin((tx) =>
+        createAuditLog(tx, {
+          organizationId: removalOrgId,
+          actorId: userId,
+          actorType: 'user',
+          action: 'itest.trigger_lock_order',
+          category: 'data',
+          resourceType: 'itest',
+          resourceId: unnamedRunId,
+          status: 'success',
+        }),
+      );
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const wroteWhileHeld = await Promise.race([
+        writer.then(
+          () => true,
+          () => false,
+        ),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), BLOCK_WAIT_MS);
+        }),
+      ]);
+      clearTimeout(timer);
+      halfway.release();
+      const [sweptOut, written] = await Promise.allSettled([swept, writer]);
+      const gone = await runStatus(unnamedRunId, removalOrgId);
+      record(
+        'a retention sweep whose batch no trigger names holds no audit chain across its delete: an audit writer of the organization commits meanwhile',
+        wroteWhileHeld &&
+          sweptOut.status === 'fulfilled' &&
+          sweptOut.value === 1 &&
+          written.status === 'fulfilled' &&
+          gone === 'missing',
+        `audit writer committed while the sweep sat after its delete=${wroteWhileHeld} (want true), sweep ${failure(sweptOut)}${sweptOut.status === 'fulfilled' ? ` (${sweptOut.value} run removed, want 1)` : ''}, writer ${failure(written)}, removed run ${gone} (want missing)`,
       );
     }
   } finally {
     await deleteTrigger(sql, orgId, name);
-    await deleteTrigger(sql, sweptOrgId, name);
+    await deleteTrigger(sql, removalOrgId, name);
     await sql`
-      DELETE FROM app.automation_runs WHERE org_id = ${sweptOrgId}
+      DELETE FROM app.automation_runs WHERE org_id = ${removalOrgId}
     `;
-    await sql`DELETE FROM "organization" WHERE "id" = ${sweptOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${removalOrgId}`;
   }
 }

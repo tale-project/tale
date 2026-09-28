@@ -1,11 +1,13 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { EmptyState } from '@tale/ui/empty-state';
+import { RadioGroup, RadioGroupItem } from '@tale/ui/radio-group';
 import { Text } from '@tale/ui/text';
+import { Tooltip } from '@tale/ui/tooltip';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { Link } from '@tanstack/react-router';
-import { CheckCircle2, GitCommitVertical, XCircle } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { CheckCircle2, GitCommitVertical, Radio, XCircle } from 'lucide-react';
+import { useId } from 'react';
 
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
@@ -20,7 +22,7 @@ export interface AutomationVersionSummary {
 }
 
 /**
- * The automation's version history — the Versions tab's list.
+ * The automation's version history, shared by its version picker.
  *
  * Versions are immutable, so this list is a real history rather than a log of
  * edits: every entry is a document that can still be read and run. Exactly one
@@ -34,6 +36,8 @@ export function VersionList({
   versions,
   deployedVersion,
   headingId,
+  currentVersion,
+  onSelectVersion,
 }: {
   organizationId: string;
   automationSlug: string;
@@ -43,9 +47,13 @@ export function VersionList({
   deployedVersion: number | undefined;
   /** The id of the heading that names this list. */
   headingId: string;
+  currentVersion?: number;
+  onSelectVersion?: (version: number) => void;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
+  const navigate = useNavigate();
+  const groupId = useId();
 
   const ordered = [...versions].sort((a, b) => b.version - a.version);
   if (ordered.length === 0) {
@@ -59,61 +67,114 @@ export function VersionList({
   }
 
   const slugParam = automationSlugToParam(automationSlug);
+  const selectVersion = (version: number) => {
+    if (onSelectVersion) {
+      onSelectVersion(version);
+      return;
+    }
+    void navigate({
+      ...(projectId
+        ? {
+            to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor' as const,
+            params: {
+              id: organizationId,
+              projectId,
+              automationSlug: slugParam,
+            },
+          }
+        : {
+            to: '/dashboard/$id/automations/$automationSlug/editor' as const,
+            params: { id: organizationId, automationSlug: slugParam },
+          }),
+      search: { version },
+    });
+  };
   return (
-    <ul
+    <RadioGroup
       aria-labelledby={headingId}
-      className="border-border bg-card divide-border divide-y overflow-hidden rounded-lg border"
+      value={currentVersion?.toString() ?? ''}
+      orientation="vertical"
+      className="gap-1"
+      onValueChange={(value) => selectVersion(Number(value))}
     >
       {ordered.map((entry) => {
         const isDeployed = entry.version === deployedVersion;
         return (
-          <li key={entry.version}>
-            <Link
-              {...(projectId
-                ? {
-                    to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/editor' as const,
-                    params: {
-                      id: organizationId,
-                      projectId,
-                      automationSlug: slugParam,
-                    },
-                  }
-                : {
-                    to: '/dashboard/$id/automations/$automationSlug/editor' as const,
-                    params: { id: organizationId, automationSlug: slugParam },
-                  })}
-              search={{ version: entry.version }}
-              className="hover:bg-muted/50 focus-visible:bg-muted/50 flex flex-wrap items-center gap-2 px-3 py-2.5 focus-visible:outline-none"
-            >
-              <span className="text-sm font-medium">
-                {t('versions.versionLabel', { version: entry.version })}
+          <label
+            key={entry.version}
+            htmlFor={`${groupId}-${entry.version}`}
+            data-current={entry.version === currentVersion}
+            className="hover:bg-muted/50 data-[current=true]:bg-muted flex min-w-0 cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-left transition-colors"
+          >
+            <RadioGroupItem
+              id={`${groupId}-${entry.version}`}
+              value={String(entry.version)}
+              onClick={() => {
+                if (entry.version === currentVersion)
+                  selectVersion(entry.version);
+              }}
+            />
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="flex w-full min-w-0 items-baseline gap-2">
+                <span className="text-muted-foreground shrink-0 text-xs font-medium tabular-nums">
+                  {t('versions.versionLabel', { version: entry.version })}
+                </span>
+                <span
+                  className="min-w-0 truncate text-sm font-medium"
+                  title={entry.message ?? t('versions.noMessage')}
+                >
+                  {entry.message ?? t('versions.noMessage')}
+                </span>
               </span>
-              {isDeployed && (
-                <Badge variant="green" icon={CheckCircle2}>
-                  {t('versions.deployed')}
-                </Badge>
-              )}
-              {entry.testsPassed === false && (
-                <Badge variant="destructive" icon={XCircle}>
-                  {t('versions.testsFailed')}
-                </Badge>
-              )}
-              {entry.testsPassed === true && (
-                <Badge variant="green">{t('versions.testsPassed')}</Badge>
-              )}
-              {/* A 10rem basis, not zero: when the message would get less,
-                  the date wraps to its own line (right-aligned) instead of
-                  squeezing the message to a few letters on a phone. */}
-              <span className="min-w-0 flex-1 basis-40 truncate text-sm">
-                {entry.message ?? t('versions.noMessage')}
+              <span className="flex w-full min-w-0 items-center gap-2">
+                <Text as="span" variant="caption" className="min-w-0 truncate">
+                  {formatDate(new Date(entry.createdAt), 'long')}
+                </Text>
+                {isDeployed && (
+                  <Tooltip content={t('versions.deployed')}>
+                    <span
+                      role="img"
+                      aria-label={t('versions.deployed')}
+                      className="shrink-0 text-green-800 dark:text-green-300"
+                    >
+                      <Radio aria-hidden className="size-3.5" />
+                    </span>
+                  </Tooltip>
+                )}
+                {entry.testsPassed !== undefined && (
+                  <Tooltip
+                    content={t(
+                      entry.testsPassed
+                        ? 'versions.testsPassed'
+                        : 'versions.testsFailed',
+                    )}
+                  >
+                    <span
+                      role="img"
+                      aria-label={t(
+                        entry.testsPassed
+                          ? 'versions.testsPassed'
+                          : 'versions.testsFailed',
+                      )}
+                      className={
+                        entry.testsPassed
+                          ? 'shrink-0 text-green-800 dark:text-green-300'
+                          : 'shrink-0 text-red-800 dark:text-red-300'
+                      }
+                    >
+                      {entry.testsPassed ? (
+                        <CheckCircle2 aria-hidden className="size-3.5" />
+                      ) : (
+                        <XCircle aria-hidden className="size-3.5" />
+                      )}
+                    </span>
+                  </Tooltip>
+                )}
               </span>
-              <Text as="span" variant="muted" className="ml-auto text-xs">
-                {formatDate(new Date(entry.createdAt), 'long')}
-              </Text>
-            </Link>
-          </li>
+            </span>
+          </label>
         );
       })}
-    </ul>
+    </RadioGroup>
   );
 }

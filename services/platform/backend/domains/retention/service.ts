@@ -1415,9 +1415,16 @@ async function sweepAutomationRuns(
   await destroyInTx(sql, trail, async (tx) => {
     // The delete clears a purged run from the trigger that names it
     // (`last_run_id`, `last_failed_run_id`: `ON DELETE SET NULL`), a write
-    // of that trigger row, so the organization's audit chain is taken before
-    // it — and after the runs' own rows — in the order a landing run takes
-    // them (`automations/trigger-failures.ts`).
+    // of that trigger row, so when a trigger names a run of the batch the
+    // organization's audit chain is taken before the delete — and after the
+    // runs' own rows — in the order a landing run takes them
+    // (`automations/trigger-failures.ts`). When none does, the delete writes
+    // no trigger row and the chain waits for the category's audit row:
+    // taken here, it would queue every audit writer of the organization
+    // behind a delete of up to a thousand runs. The batch is terminal and
+    // locked, and a trigger only ever names a run it is starting or one
+    // that is landing, so none can come to name one of these before the
+    // delete.
     const batch = await tx<{ id: string }[]>`
       SELECT id FROM app.automation_runs
       WHERE org_id = ${org.organizationId}
@@ -1427,10 +1434,18 @@ async function sweepAutomationRuns(
       FOR UPDATE
     `;
     if (batch.length === 0) return { deleted: 0 };
-    await lockAuditChain(tx, org.organizationId);
+    const ids = batch.map((run) => run.id);
+    const named = await tx<{ named: number }[]>`
+      SELECT 1 AS named FROM app.automation_triggers
+      WHERE org_id = ${org.organizationId}
+        AND (last_run_id = ANY(${ids}::text[])
+          OR last_failed_run_id = ANY(${ids}::text[]))
+      LIMIT 1
+    `;
+    if (named.length > 0) await lockAuditChain(tx, org.organizationId);
     const rows = await tx<{ id: string }[]>`
       DELETE FROM app.automation_runs
-      WHERE id = ANY(${batch.map((run) => run.id)}::text[])
+      WHERE id = ANY(${ids}::text[])
       RETURNING id
     `;
     return { deleted: rows.length };

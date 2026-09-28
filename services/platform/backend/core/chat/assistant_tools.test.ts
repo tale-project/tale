@@ -1013,6 +1013,7 @@ describe('rag_fetch', () => {
           indexing: { status: 'skipped' },
           // A REST-bound project document: Index now reaches it.
           heldByDocument: true,
+          extractable: true,
           reason: 'binary',
         }),
       },
