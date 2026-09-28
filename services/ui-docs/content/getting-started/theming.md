@@ -57,17 +57,27 @@ When extending the token set, define the light and dark values together. Check t
 
 ## Apply a host accent
 
-`AccentColorProvider` supplies a runtime accent to components that opt into it, including route-tab indicators and selected sub-panel rows:
+`AccentColorProvider` supplies a runtime accent to components that opt into it, including route-tab indicators and selected sub-panel rows. They set it as the open item's text and icon color over a tint of itself (about 15%), so pass a shade that reads as text there: 4.5:1 on the page and on that tint, in each theme. A raw brand pick often falls short. `#056CFF`, for example, reads 4.45:1 on the light page and 3.6:1 on its tint, while the same hue at `#0057d1` on light and `#3388ff` on dark reads on both:
 
 ```tsx
 import { AccentColorProvider } from '@tale/ui/accent-color';
+import { useTheme } from '@tale/ui/theme';
+import type { ReactNode } from 'react';
 
-<AccentColorProvider accentColor="#056CFF">
-  {children}
-</AccentColorProvider>;
+// The brand pick #056CFF, as a shade that reads as text in each theme.
+const ACCENT_TEXT = { light: '#0057d1', dark: '#3388ff' } as const;
+
+export function BrandAccent({ children }: { children: ReactNode }) {
+  const { resolvedTheme } = useTheme();
+  return (
+    <AccentColorProvider accentColor={ACCENT_TEXT[resolvedTheme]}>
+      {children}
+    </AccentColorProvider>
+  );
+}
 ```
 
-This is a composition excerpt: the host supplies `children` and a validated color. Without the provider, participating components use their default treatment. The context does not recolor every component or replace all theme tokens; for example, `Tabs` uses its stylesheet classes directly.
+The host supplies `children` and a validated shade for each theme; Tale's platform derives both from an organization's pick. Without the provider, participating components use their default treatment. The context does not recolor every component or replace all theme tokens; for example, `Tabs` uses its stylesheet classes directly.
 
 Keep organization lookup and branding policy in the service. Review an accent on both themes before using it for a meaningful indicator.
 
