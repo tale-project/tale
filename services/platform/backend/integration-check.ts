@@ -48,6 +48,7 @@ import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { checkExpiredSessionReaper } from './auth/expired-sessions.integration.ts';
 import { checkNativeIdentity } from './auth/oidc-integration.ts';
+import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
@@ -55606,6 +55607,10 @@ async function main(): Promise<void> {
       [
         'checkExpiredSessionReaper',
         () => checkExpiredSessionReaper(sql, authCtx, record),
+      ],
+      [
+        'checkLapsedTeamWrites',
+        () => checkLapsedTeamWrites(sql, baseUrl, record),
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
       [
