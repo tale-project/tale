@@ -31,7 +31,9 @@ export interface EditorController {
    *     issues render under the inputs, with no toast at all;
    *   • any other failure throws an `Error` whose `message` is a user-facing,
    *     already-translated line. `EditorActions` shows exactly ONE destructive
-   *     toast carrying that message;
+   *     toast carrying that message. A structured error rethrown as-is (one
+   *     carrying `data`, whose `message` is its serialized payload) gets the
+   *     generic "Something went wrong" line instead;
    *   • success needs nothing: the cluster flashes "Saved" on its own, so a
    *     page that also toasts success double-reports it.
    *

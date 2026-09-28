@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
+import { readableErrorMessage } from '@tale/ui/error-message';
 import { useT } from '@tale/ui/i18n/client';
 import { toast } from '@tale/ui/use-toast';
 import {
@@ -112,9 +113,12 @@ export function EditorActions({
           variant: 'destructive',
         });
       } else if (!suppressServerErrorToast) {
+        // The controller's translated sentence, never a structured error's
+        // serialized payload (see `EditorController.save`).
         toast({
           title: t('actions.save'),
-          description: err instanceof Error ? err.message : String(err),
+          description:
+            readableErrorMessage(err) ?? t('errors.somethingWentWrong'),
           variant: 'destructive',
         });
       }

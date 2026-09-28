@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import {
   fireEvent,
@@ -10,6 +10,11 @@ import {
 } from '@/tests/utils/render';
 
 import { EnvVarListEditor, type LoadedEnvVar } from './env-var-list-editor';
+
+// The inline Save reports through the standalone `toast`; one shared spy
+// makes the failure toast assertable.
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
 const plainRows: LoadedEnvVar[] = [
   { key: 'FOO', isSecret: false, value: 'bar' },
@@ -156,4 +161,74 @@ describe('EnvVarListEditor — Save dirty state', () => {
       }),
     );
   });
+});
+
+/** A backend refusal as a host rethrows it: the platform's `AppError` keeps
+ * the payload on `data` and serializes it into `message`, for logs. */
+function structuredRefusal(): Error {
+  const data = {
+    code: 'UNAUTHORIZED',
+    message: 'Your session has ended. Sign in again.',
+  };
+  return Object.assign(new Error(JSON.stringify(data)), { data });
+}
+
+describe('EnvVarListEditor — inline save failure', () => {
+  beforeEach(() => {
+    toastMock.mockClear();
+  });
+
+  it("puts the host's sentence under the failure title", async () => {
+    const { onSet } = setup();
+    onSet.mockRejectedValueOnce(
+      new Error('Your session has ended. Sign in again.'),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('value'), {
+      target: { value: 'baz' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: "Couldn't save environment",
+        description: 'Your session has ended. Sign in again.',
+        variant: 'destructive',
+      }),
+    );
+  });
+
+  // A host that rethrew a refusal as-is used to put `{"code":…}` under the
+  // title: `AppError.message` is the serialized payload.
+  it.each(['onSet', 'onDelete'] as const)(
+    "never prints a structured error's payload when %s rejects",
+    async (callback) => {
+      const { onSet, onDelete } = setup();
+      if (callback === 'onSet') {
+        onSet.mockRejectedValueOnce(structuredRefusal());
+        fireEvent.change(screen.getByPlaceholderText('value'), {
+          target: { value: 'baz' },
+        });
+      } else {
+        onDelete.mockRejectedValueOnce(structuredRefusal());
+        fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+        const dialog = await screen.findByRole('dialog');
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() =>
+        expect(toastMock).toHaveBeenCalledWith({
+          title: "Couldn't save environment",
+          description: 'Something went wrong. Try again.',
+          variant: 'destructive',
+        }),
+      );
+      expect(toastMock.mock.calls.flat()).not.toContainEqual(
+        expect.objectContaining({
+          description: expect.stringContaining('"code"'),
+        }),
+      );
+    },
+  );
 });

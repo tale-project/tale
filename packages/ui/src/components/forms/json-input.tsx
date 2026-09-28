@@ -3,6 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Description } from '@tale/ui/description';
+import { readableErrorMessage } from '@tale/ui/error-message';
 import { useT } from '@tale/ui/i18n/client';
 import { Label } from '@tale/ui/label';
 import { lazyComponent } from '@tale/ui/lazy-component';
@@ -395,8 +396,7 @@ function JsonInputBase({
         setEditing({ isEditing: false, isDirty: false });
       } catch (err) {
         toast({
-          title:
-            err instanceof Error ? err.message : t('validation.invalidJson'),
+          title: readableErrorMessage(err) ?? t('validation.invalidJson'),
           variant: 'destructive',
         });
       }
