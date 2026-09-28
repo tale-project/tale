@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import { deriveAccentPalette } from '@/lib/utils/color';
 import enMessages from '@/messages/en.yml';
@@ -23,10 +23,17 @@ function lookup(ns: string, key: string): string {
   return typeof cursor === 'string' ? cursor : `${ns}.${key}`;
 }
 
-// Theme drives the per-theme color adjustment; pin it to light for determinism.
-vi.mock('@tale/ui/theme', () => ({
-  useTheme: () => ({ resolvedTheme: 'light' }),
+// Theme drives the per-theme color adjustment; light unless a test says so.
+const mockTheme = vi.hoisted(() => ({
+  resolvedTheme: 'light' as 'light' | 'dark',
 }));
+vi.mock('@tale/ui/theme', () => ({
+  useTheme: () => ({ resolvedTheme: mockTheme.resolvedTheme }),
+}));
+
+afterEach(() => {
+  mockTheme.resolvedTheme = 'light';
+});
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -112,6 +119,23 @@ describe('BrandingPreview', () => {
     const tile = screen.getByTestId('preview-rail-active');
     expect(tile).toHaveStyle({ backgroundColor: `${text}26` });
     expect(tile.querySelector('svg')).toHaveStyle({ color: text });
+  });
+
+  it('derives the dark theme from the stored accent, as the live app does', () => {
+    // The BrandingProvider derives each theme's palette from the one stored
+    // (light-theme) pick; the preview is handed that pick and does the same.
+    mockTheme.resolvedTheme = 'dark';
+    render(<BrandingPreview data={{ accentColor: '#443366' }} />);
+
+    const { text, base, fg } = deriveAccentPalette('#443366', 'dark');
+    expect(text).toBe('#9682c0');
+    const tile = screen.getByTestId('preview-rail-active');
+    expect(tile).toHaveStyle({ backgroundColor: `${text}26` });
+    expect(tile.querySelector('svg')).toHaveStyle({ color: text });
+    expect(screen.getByTestId('preview-send')).toHaveStyle({
+      backgroundColor: base,
+      color: fg,
+    });
   });
 
   it('draws the send button as the primary button the composer shows', () => {

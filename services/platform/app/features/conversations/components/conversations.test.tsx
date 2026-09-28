@@ -322,3 +322,25 @@ describe('Conversations', () => {
     });
   });
 });
+
+describe('Conversations bulk actions', () => {
+  it("tints the bulk send action in the organization's accent, not a fixed blue", async () => {
+    const conversations = [makeConversation('c1', 'Refund please')];
+    const { user } = render(
+      <Conversations
+        status="open"
+        organizationId="test-org-id"
+        paginatedResult={makePaginatedResult(conversations)}
+        conversationCount={conversations.length}
+        totalConversationCount={conversations.length}
+      />,
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }));
+
+    // `--primary` is the accent's text shade, set by the branding provider.
+    const send = await screen.findByRole('button', { name: 'Send messages' });
+    expect(send).toHaveClass('bg-primary/10', 'text-primary');
+    expect(send.className).not.toMatch(/-blue-/);
+  });
+});

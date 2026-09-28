@@ -168,6 +168,31 @@ dashboard URL (`/dashboard/AbCd…/chat`).
   administrator door, which works on every deployment), mint one via
   `POST /api/auth/sign-up/email` on these opened dev stacks, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
+- **More than 20 members** — settings F63 pages the Members list past its
+  first 20 rows. Rather than repeating settings F15 twenty times, sign in as
+  the owner, open any `/dashboard/{org}/…` page and run this in the DevTools
+  console; it adds 21 members through the same door as **Add member**, and
+  logs any it could not add:
+
+  ```js
+  const org = location.pathname.split('/')[2];
+  for (let i = 1; i <= 21; i++) {
+    const res = await fetch(`/api/app/users/members?orgId=${org}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        organizationId: org,
+        email: `qa-member-${i}@example.test`,
+        password: 'QaMember!Passw0rd',
+        displayName: `QA member ${i}`,
+      }),
+    });
+    if (!res.ok) console.warn(i, res.status, await res.text());
+  }
+  ```
+
+  Re-running it reports the addresses that already exist; settings F15 stays
+  the by-hand fallback.
 - **Sample upload artifacts** — an automation pack (the inline `workflow.yml`
   probe in automations.md Prerequisites, or zip a copy of a builtin pack under
   `configs/platform/custom/automations/`) for automations F8–F11, and a skill

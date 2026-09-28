@@ -15,6 +15,7 @@ import {
 } from '@tale/shared/schemas/task-external-issue';
 import { z } from 'zod';
 
+import { importedTaskTitleRefusal } from '../../../backend/core/tasks/helpers';
 import {
   taskCommentBodiesSchema,
   type TaskCommentBodies,
@@ -71,6 +72,16 @@ export interface WorkflowIssueInput {
   externalIssue?: TaskExternalIssue;
 }
 
+/** One imported issue as the task domain settled it. `title` is the title
+ * the task carries after the write — the imported one as cut to the board's
+ * cap, or the stored one a source-snapshot reconcile leaves alone — never
+ * merely the title that was sent. */
+export interface WorkflowIssueResult {
+  taskId: string | null;
+  created: boolean;
+  title: string;
+}
+
 /** What the rim needs from the platform's task domain. */
 export interface WorkflowTaskStore {
   upsertIssues(args: {
@@ -78,9 +89,7 @@ export interface WorkflowTaskStore {
     caller: ConnectorCaller;
     projectId: string;
     issues: WorkflowIssueInput[];
-  }): Promise<
-    Array<{ taskId: string | null; created: boolean; title: string }>
-  >;
+  }): Promise<WorkflowIssueResult[]>;
   listExternalIssues(args: {
     organizationId: string;
     caller: ConnectorCaller;
@@ -109,7 +118,7 @@ export interface WorkflowTaskStore {
     description?: string;
     externalUrl?: string;
     externalIssue?: TaskExternalIssue;
-  }): Promise<{ taskId: string | null; created: boolean }>;
+  }): Promise<WorkflowIssueResult>;
   get(args: {
     organizationId: string;
     taskId: string;
@@ -140,7 +149,9 @@ const upsertInput = z
     projectId: z.string().trim().min(1),
     externalSystem: z.string().trim().min(1).max(100),
     externalId: z.string().trim().min(1).max(2000),
-    title: z.string().trim().min(1).max(10000),
+    // A blank title is refused after the parse, with the empty-title
+    // sentence every task door answers (`refuseBlankTitle`).
+    title: z.string().trim().max(10000),
     description: z.string().max(100000).optional(),
     externalIssue: taskExternalIssueSchema.optional(),
     externalUrl: z
@@ -228,6 +239,23 @@ function refuse(action: string, issues: z.ZodError): never {
   );
 }
 
+/**
+ * A blank title names nothing, and is refused with the empty-title sentence
+ * the agent's upsert and the app's intake answer (`importedTaskTitleRefusal`)
+ * — never the validator's "Too small: expected string to have >=1
+ * characters". A batch names the item, by its index. Its length is never
+ * refused: the task domain cuts an over-long one.
+ */
+function refuseBlankTitle(title: string, item?: number): void {
+  const refusal = importedTaskTitleRefusal(title);
+  if (refusal === null) return;
+  throw new ConnectorError(
+    'INPUT_INVALID',
+    item === undefined ? refusal : `issues.${item}: ${refusal}`,
+    {},
+  );
+}
+
 function notFound(taskId: string): never {
   throw new ConnectorError(
     'INPUT_INVALID',
@@ -242,6 +270,7 @@ export function platformTaskNatives(
   const upsert: NativeConnectorImpl = async (input, ctx) => {
     const parsed = upsertInput.safeParse(input);
     if (!parsed.success) refuse('upsert', parsed.error);
+    refuseBlankTitle(parsed.data.title);
     if (
       parsed.data.externalIssue &&
       parsed.data.externalIssue.syncedAt > Date.now()
@@ -259,16 +288,21 @@ export function platformTaskNatives(
         {},
       );
     }
-    const result = await store.upsert({
+    // The store answers the title the task now carries: the one sent was
+    // trimmed here, but it is cut to the board's cap, or left unwritten by a
+    // source-snapshot reconcile.
+    return store.upsert({
       ...parsed.data,
       organizationId: ctx.organizationId,
       caller: ctx.caller,
     });
-    return { ...result, title: parsed.data.title };
   };
   const upsertIssues: NativeConnectorImpl = async (input, ctx) => {
     const parsed = upsertIssuesInput.safeParse(input);
     if (!parsed.success) refuse('upsert_issues', parsed.error);
+    for (const [index, issue] of parsed.data.issues.entries()) {
+      refuseBlankTitle(issue.title, index);
+    }
     if (!ctx.caller)
       throw new ConnectorError(
         'INPUT_INVALID',

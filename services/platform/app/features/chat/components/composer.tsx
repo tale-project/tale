@@ -597,7 +597,9 @@ export const Composer = memo(
                           ? t('stoppingGeneration')
                           : t('stopGenerating')
                       }
-                      className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
+                      // Round like the send button it replaces; the primary
+                      // variant owns the focus ring (inset, in the fill's ink).
+                      className="rounded-full"
                     >
                       {stopPending ? (
                         <Loader2

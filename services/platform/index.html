@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta
+      id="viewport-meta"
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
@@ -54,12 +55,18 @@
       })();
     </script>
     <!-- Pre-hydration Safari toolbar marker: on Mobile Safari outside an
-         installed app the mobile tab bar adds bottom clearance (`pb-12`) for
+         installed app the mobile tab bar adds bottom clearance for
          the browser toolbar. `boot-safari-toolbar` on <html> lets the boot
          shell's tab-bar placeholder reserve the same clearance before first
          paint. Mirrors detectIsMobileSafari / detectIsStandalone in
          app/hooks/use-display-mode.ts (pinned by
-         boot-safari-toolbar-script.test.ts). -->
+         boot-safari-toolbar-script.test.ts). Safari 10+ also ignores viewport
+         scale limits for manual pinch zoom, so only this browser shell gets
+         a maximum-scale cap to suppress compact-input focus zoom. Embedded
+         WKWebViews and other iOS browsers may honor that cap; installed apps
+         and unknown shells keep their original zoom settings. See
+         https://webkit.org/blog/7367/new-interaction-behaviors-in-ios-10/
+         and boot-ios-zoom-script.test.ts. -->
     <script>
       (function () {
         try {
@@ -76,9 +83,20 @@
             nav.standalone === true;
           if (isIOS && isSafariShell && !standalone) {
             document.documentElement.classList.add('boot-safari-toolbar');
+            var safariVersion =
+              /Version\/(\d+)(?:\.\d+)* (?:Mobile\/[A-Za-z0-9]+ )?Safari\/[\d.]+$/.exec(
+                ua,
+              );
+            if (safariVersion && Number(safariVersion[1]) >= 10) {
+              var meta = document.getElementById('viewport-meta');
+              var content = meta && meta.getAttribute('content');
+              if (content && !/maximum-scale/.test(content)) {
+                meta.setAttribute('content', content + ', maximum-scale=1');
+              }
+            }
           }
         } catch (error) {
-          console.warn('Failed to apply the boot Safari toolbar marker', error);
+          console.warn('Failed to apply the boot Safari adjustments', error);
         }
       })();
     </script>

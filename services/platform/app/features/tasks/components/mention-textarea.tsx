@@ -27,6 +27,9 @@ interface MentionTextareaProps extends Omit<
   value: string;
   onValueChange: (value: string) => void;
   label?: string;
+  /** Why the value cannot be saved as it stands, shown under the field and
+   *  tied to it (`aria-describedby`, `aria-invalid`) by the `Textarea`. */
+  errorMessage?: string;
   /** Popover side. Composers at the bottom of a panel want 'above' (default);
    *  fields near the top of a dialog want 'below'. */
   placement?: 'above' | 'below';

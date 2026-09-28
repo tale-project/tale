@@ -103,8 +103,12 @@ export interface KnowledgeContract {
         recommended: boolean;
       }>;
       /** Every provider the org can choose, with its declared embedding
-       *  support: `unsupported` cannot embed; `unknown` has no curated
-       *  width here, so the model and dimensions are entered by hand. */
+       *  support: `unsupported` cannot embed; `supported` carries a pick in
+       *  `recommendations`; `unknown` offers no one-click pick for this org,
+       *  so the model and dimensions are entered by hand — a provider that
+       *  declares nothing either way, and also one declared `supported`
+       *  that the org reaches through no direct key (its catalog may still
+       *  list curated widths for the model select). */
       providers: Array<{
         providerSlug: string;
         support: ProviderEmbeddingSupport;

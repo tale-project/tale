@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
+import { useDescriptionCap } from '../hooks/use-description-cap';
 import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
@@ -31,6 +32,10 @@ import { MentionTriggerChips } from './mention-trigger-chips';
  * uploading files and pressing Start, and the description is an optional note.
  * The label doubles as the textarea's programmatic label once open, so the
  * control is NAMED rather than merely preceded by a heading.
+ *
+ * A draft over the domain's cap says so under the field and holds the save
+ * until it fits ({@link useDescriptionCap}): an older import stored
+ * descriptions whole past it, and saving one answered the generic error.
  */
 export function EditableDescription({
   taskId,
@@ -62,12 +67,13 @@ export function EditableDescription({
   // click-away (incl. reaching for Discard) and silently persist half-edited
   // text. The buttons appear only while the draft differs from the saved value.
   const isDirty = draft.trim() !== value.trim();
+  const { overCap, hint: capHint } = useDescriptionCap(draft);
   const save = async () => {
     if (!isDirty) {
       setEditing(false);
       return;
     }
-    if (isSaving) return;
+    if (isSaving || overCap) return;
     setIsSaving(true);
     try {
       await onSave(draft.trim());
@@ -159,6 +165,7 @@ export function EditableDescription({
         rows={6}
         value={draft}
         placeholder={placeholder}
+        errorMessage={capHint}
         autoFocus
         onValueChange={setDraft}
         onKeyDown={(e) => {
@@ -183,7 +190,7 @@ export function EditableDescription({
       />
       <Row gap={2} align="stretch">
         <Button
-          disabled={!isDirty || isSaving}
+          disabled={!isDirty || isSaving || overCap}
           isLoading={isSaving}
           onClick={() => void save()}
         >

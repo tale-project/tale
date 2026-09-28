@@ -364,7 +364,12 @@ describe('upsertTaskByExternalRef — an archived task is read-only to the intak
       dedupeScope: 'project',
     });
 
-    expect(result).toEqual({ taskId: 't-arch', created: false });
+    // The card keeps its own title — the one the answer names.
+    expect(result).toEqual({
+      taskId: 't-arch',
+      created: false,
+      title: 'Hidden',
+    });
     expect(statements.filter((text) => /^(UPDATE|INSERT)/.test(text))).toEqual(
       [],
     );
@@ -636,7 +641,11 @@ describe('the external ref is canonical at the lookup and the write', () => {
       title: 'Prepare',
       dedupeScope: 'project',
     });
-    expect(result).toEqual({ taskId: 't-new', created: true });
+    expect(result).toEqual({
+      taskId: 't-new',
+      created: true,
+      title: 'Prepare',
+    });
     // (…, rank, number, external_system, external_id, …): the canonical pair.
     expect(values.insert).toEqual(expect.arrayContaining(['crm', 'café-001']));
     expect(values.insert).not.toEqual(expect.arrayContaining([' crm ']));
@@ -726,7 +735,11 @@ describe('upsertTaskByExternalRef — an over-long description is cut, like the 
         title: 't'.repeat(TASK_TITLE_MAX + 1),
         description,
       }),
-    ).resolves.toEqual({ taskId: 't-new', created: true });
+    ).resolves.toEqual({
+      taskId: 't-new',
+      created: true,
+      title: `${'t'.repeat(TASK_TITLE_MAX - 1)}…`,
+    });
     return inserted;
   }
 
@@ -739,7 +752,7 @@ describe('upsertTaskByExternalRef — an over-long description is cut, like the 
     });
     await expect(
       upsertTaskByExternalRef(tx, { ...intake, title: 'Case 7', description }),
-    ).resolves.toEqual({ taskId: 't-7', created: false });
+    ).resolves.toEqual({ taskId: 't-7', created: false, title: 'Case 7' });
     const columns = [...(update?.text ?? '').matchAll(/(\w+) = \?/g)].map(
       (match) => match[1],
     );
@@ -760,6 +773,155 @@ describe('upsertTaskByExternalRef — an over-long description is cut, like the 
     const atCap = 'd'.repeat(TASK_DESCRIPTION_MAX);
     expect((await created(`  ${atCap}\n`))[3]).toBe(atCap);
     await expect(reconciled(`${atCap} `)).resolves.toBe(atCap);
+  });
+});
+
+/**
+ * The upsert answers the title the task carries after the write, which the
+ * workflow natives hand back to a run: the imported title as cut on a create
+ * and a plain reconcile, the stored one where the write leaves the title
+ * alone. It used to answer only `{taskId, created}`, and the natives echoed
+ * the title they were sent — uncut, and on a source-snapshot reconcile (every
+ * GitHub or GlitchTip sync) not the task's title at all.
+ */
+describe('upsertTaskByExternalRef — answers the title the task carries', () => {
+  const long = `${'T'.repeat(TASK_TITLE_MAX)} and the rest of the title`;
+  const cut = `${'T'.repeat(TASK_TITLE_MAX - 1)}…`;
+  const intake = {
+    organizationId: 'org-1',
+    actorId: 'workflow',
+    projectId: 'p-1',
+    externalSystem: 'github',
+    externalId: 'acme/widgets#42',
+    dedupeScope: 'project' as const,
+  };
+  const stored: TaskRow = {
+    id: 't-42',
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    title: 'Triaged in Tale',
+    description: null,
+    attachments: null,
+    outputs: null,
+    number: 42,
+    status: 'todo',
+    priority: null,
+    labelIds: [],
+    assigneeType: null,
+    assigneeId: null,
+    reviewerUserId: null,
+    parentTaskId: null,
+    commentCount: 0,
+    rank: 'a0',
+    externalSystem: 'github',
+    externalId: 'acme/widgets#42',
+    externalUrl: null,
+    threadId: null,
+    discussionThreadId: null,
+    sourceDiscussionThreadId: null,
+    startDate: null,
+    startNotifiedAt: null,
+    dueDate: null,
+    slaLevel: null,
+    slaLevelAt: null,
+    statusChangedAt: 1,
+    totalCostCents: null,
+    agentRunCount: 0,
+    lastAgentRunAt: null,
+    claimedAt: null,
+    completedAt: null,
+    externalClosedAt: null,
+    createdBy: 'u-1',
+    createdByType: 'user',
+    createdAt: 1,
+    updatedAt: 1,
+    archivedAt: null,
+  };
+  const snapshot = {
+    id: '9042',
+    title: long,
+    description: 'Upstream body',
+    url: 'https://github.com/acme/widgets/issues/42',
+    state: 'open' as const,
+    syncedAt: 1_700_000_000_000,
+    repositoryId: 7,
+    number: 42,
+  };
+  /** The upsert over one existing row, with the task UPDATEs it wrote. */
+  const reconciling = (
+    row: TaskRow,
+  ): { tx: TransactionSql; updates: string[] } => {
+    const updates: string[] = [];
+    const { tx } = fakeDb((text) => {
+      if (text.startsWith('UPDATE app.tasks SET')) {
+        updates.push(text);
+        return [{ id: row.id }];
+      }
+      return text.includes('FROM app.tasks WHERE org_id = ?') ? [row] : [];
+    });
+    return { tx, updates };
+  };
+
+  it('answers the cut title a plain reconcile writes', async () => {
+    const { tx, updates } = reconciling(stored);
+    await expect(
+      upsertTaskByExternalRef(tx, { ...intake, title: long }),
+    ).resolves.toEqual({ taskId: 't-42', created: false, title: cut });
+    expect(updates[0]).toMatch(/title = \?/);
+  });
+
+  it('answers the stored title a source-snapshot reconcile keeps', async () => {
+    const { tx, updates } = reconciling(stored);
+    await expect(
+      upsertTaskByExternalRef(tx, {
+        ...intake,
+        title: long,
+        externalIssue: snapshot,
+      }),
+    ).resolves.toEqual({
+      taskId: 't-42',
+      created: false,
+      title: 'Triaged in Tale',
+    });
+    // The snapshot was recorded; no Tale field, the title included, was.
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toContain('external_issue = ?');
+    expect(updates[0]).not.toMatch(/[ ,]title = \?/);
+  });
+
+  it('answers the cut title when nothing was materialized', async () => {
+    const { tx } = fakeDb(() => []);
+    await expect(
+      upsertTaskByExternalRef(tx, {
+        ...intake,
+        title: long,
+        createIfMissing: false,
+      }),
+    ).resolves.toEqual({ taskId: null, created: false, title: cut });
+  });
+
+  it('answers the winner’s title when a concurrent intake wins the insert', async () => {
+    let lookups = 0;
+    const { tx } = fakeDb((text) => {
+      if (text.includes('FROM app.tasks WHERE org_id = ?')) {
+        lookups += 1;
+        // Missing at the first look, the winner's row at the second.
+        return lookups === 1 ? [] : [{ ...stored, archivedAt: 5 }];
+      }
+      if (text.startsWith('SELECT id FROM app.projects'))
+        return [{ id: 'p-1' }];
+      if (text.startsWith('UPDATE app.projects SET task_counter'))
+        return [{ taskCounter: 43 }];
+      // `INSERT … ON CONFLICT DO NOTHING` answered no row: the race is lost.
+      return [];
+    });
+    await expect(
+      upsertTaskByExternalRef(tx, { ...intake, title: long }),
+    ).resolves.toEqual({
+      taskId: 't-42',
+      created: false,
+      title: 'Triaged in Tale',
+    });
   });
 });
 

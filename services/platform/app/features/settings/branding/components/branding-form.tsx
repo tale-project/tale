@@ -95,6 +95,19 @@ export function BrandingForm({
     [branding, displayAccent],
   );
 
+  // What a picked accent is stored as — and so the one color the live app
+  // derives each theme's palette from: an untouched field keeps the stored
+  // value, a changed dark-mode pick becomes its light-mode equivalent.
+  const toStoredAccent = useCallback(
+    (picked: string) =>
+      picked === displayAccent
+        ? storedAccent || picked
+        : resolvedTheme === 'dark'
+          ? adjustColorForTheme(picked, 'light')
+          : picked,
+    [displayAccent, resolvedTheme, storedAccent],
+  );
+
   // Save feedback belongs to the settings header's Save/Discard cluster: it
   // flashes "Saved" on success and raises the single destructive toast on
   // failure. The favicon/logo uploads below are instant actions and keep their
@@ -103,16 +116,8 @@ export function BrandingForm({
     async (values: BrandingFormData) => {
       try {
         const pickedAccent = values.accentColor || undefined;
-        const accentToStore =
-          pickedAccent === undefined
-            ? undefined
-            : pickedAccent === displayAccent
-              ? storedAccent || pickedAccent
-              : resolvedTheme === 'dark'
-                ? adjustColorForTheme(pickedAccent, 'light')
-                : pickedAccent;
         const config = {
-          accentColor: accentToStore,
+          accentColor: pickedAccent && toStoredAccent(pickedAccent),
           logoFilename: values.logoFilename || undefined,
           faviconLightFilename: values.faviconLightFilename || undefined,
           faviconDarkFilename: values.faviconDarkFilename || undefined,
@@ -133,14 +138,12 @@ export function BrandingForm({
       }
     },
     [
-      displayAccent,
       organizationId,
       onSaved,
       refetchBranding,
-      resolvedTheme,
       saveBranding,
       snapshotHistory,
-      storedAccent,
+      toStoredAccent,
       tToast,
     ],
   );
@@ -189,12 +192,17 @@ export function BrandingForm({
   // The accent the preview tints with: the field's value once it is a
   // complete hex, the last complete one while a shorter value is being typed
   // (the preview derives a palette from it, and a partial hex parses to NaN),
-  // and nothing once the field is cleared.
+  // and nothing once the field is cleared. It is handed over as it would be
+  // stored, so the preview derives its shades from the same color the live
+  // app does: in dark mode the field shows a dark-rendered value, and
+  // deriving from that re-rounds the shades (#443366 would preview a text
+  // shade of #9582c0 but paint #9682c0).
   const previewAccentRef = useRef<string | undefined>(undefined);
   const typedAccent = watchedValues.accentColor;
   if (!typedAccent) previewAccentRef.current = undefined;
   else if (isHexColor(typedAccent)) previewAccentRef.current = typedAccent;
-  const previewAccent = previewAccentRef.current;
+  const previewAccent =
+    previewAccentRef.current && toStoredAccent(previewAccentRef.current);
 
   // The app name shown in the preview is the org's name (passed via `branding`)
   // — it is no longer an editable field, so it stays constant as the user edits.

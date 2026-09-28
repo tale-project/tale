@@ -119,20 +119,35 @@ const EMPTY_CATALOG_MODELS: EmbeddingCatalogModel[] = [];
  *    listing does not know. The tag is typed, and the width with it.
  *  - `unavailable` — a shipped catalog that could not be loaded; refused,
  *    with the remedy named, since it may list the models to pick from.
+ *  - `unchecked` — the declarations could not be read. Refused until a
+ *    retry answers: without them "cannot embed" and "no curated width" look
+ *    alike, and letting the choice through is how a provider that cannot
+ *    embed got saved, only to fail at index time.
  */
 type ModelRowShape =
   | { kind: 'pick'; allowCustom: boolean }
   | { kind: 'free' }
   | { kind: 'unsupported' }
+  | { kind: 'unchecked' }
   | { kind: 'unavailable' };
+
+type RefusalShape = Extract<
+  ModelRowShape,
+  { kind: 'unsupported' | 'unchecked' | 'unavailable' }
+>;
+
+/** The declarations read has not answered: pending, or failed. */
+const SUPPORT_UNREAD = 'unread';
 
 function modelRowShape(
   catalog: ProviderEmbeddingCatalog | undefined,
-  /** What the connector declares, as the recommendations read reports it.
-   *  Absent (not listed, or the read has not answered) reads as `unknown`:
-   *  a provider is never refused for want of evidence. */
-  support: ProviderEmbeddingSupport | undefined,
+  /** What the connector declares, as the recommendations read reports it,
+   *  or `unread` while that read has not answered. A provider the answered
+   *  read does not list reads as `unknown`: it is never refused for want of
+   *  evidence — but an unanswered read is no evidence of anything. */
+  support: ProviderEmbeddingSupport | typeof SUPPORT_UNREAD | undefined,
 ): ModelRowShape {
+  if (support === SUPPORT_UNREAD) return { kind: 'unchecked' };
   if (support === 'unsupported') return { kind: 'unsupported' };
   if (catalog === undefined) return { kind: 'free' };
   if (catalog.models.length > 0) {
@@ -149,11 +164,32 @@ function modelRowShape(
 }
 
 /** The shapes that refuse the provider — the shared Save stays off. */
-function isRefusal(
-  shape: ModelRowShape,
-): shape is { kind: 'unsupported' } | { kind: 'unavailable' } {
-  return shape.kind === 'unsupported' || shape.kind === 'unavailable';
+function isRefusal(shape: ModelRowShape): shape is RefusalShape {
+  return (
+    shape.kind === 'unsupported' ||
+    shape.kind === 'unchecked' ||
+    shape.kind === 'unavailable'
+  );
 }
+
+/** What a refused Model row says: its status label and the hint naming why. */
+const REFUSAL_COPY = {
+  unsupported: {
+    label: 'dataResidency.orgEmbedding.modelUnsupported',
+    hint: 'dataResidency.orgEmbedding.modelUnsupportedHint',
+  },
+  unchecked: {
+    label: 'dataResidency.orgEmbedding.modelUnchecked',
+    hint: 'dataResidency.orgEmbedding.modelUncheckedHint',
+  },
+  unavailable: {
+    label: 'dataResidency.orgEmbedding.modelUnavailable',
+    hint: 'dataResidency.orgEmbedding.modelCatalogUnavailableHint',
+  },
+} as const satisfies Record<
+  RefusalShape['kind'],
+  { label: string; hint: string }
+>;
 
 /**
  * Sentinel for "the org's default credential for this provider" — a Radix
@@ -279,39 +315,64 @@ export function OrgEmbeddingSection({
   // Each provider's declared embedding support, from the recommendations
   // read: "cannot embed" (refused) and "no curated width here" (typed by
   // hand) are different answers, and only the declaration can tell them
-  // apart. Editable states only, like the catalogs.
+  // apart. Editable states only, like the catalogs. Undefined until the
+  // read answers — never an empty map, which would read as "nothing is
+  // refused" and let a provider that cannot embed through.
   const recommendationsQuery = useEmbeddingRecommendations(organizationId, {
     enabled: catalogsEnabled,
   });
   const embeddingSupport = useMemo(
     () =>
-      new Map<string, ProviderEmbeddingSupport>(
-        (recommendationsQuery.data?.providers ?? []).map((entry) => [
-          entry.providerSlug,
-          entry.support,
-        ]),
-      ),
+      recommendationsQuery.data === undefined
+        ? undefined
+        : new Map<string, ProviderEmbeddingSupport>(
+            recommendationsQuery.data.providers.map((entry) => [
+              entry.providerSlug,
+              entry.support,
+            ]),
+          ),
     [recommendationsQuery.data],
   );
-  const supportSettled =
-    !catalogsEnabled ||
-    recommendationsQuery.data !== undefined ||
-    recommendationsQuery.isError;
   // The Model row's shape for a provider — read by the schema so the shared
   // Save stays off while a refused one is chosen, and by the row to say why.
   const shapeOf = useCallback(
-    (slug: string) =>
-      modelRowShape(embeddingCatalogs.get(slug), embeddingSupport.get(slug)),
+    (slug: string): ModelRowShape =>
+      slug === ''
+        ? { kind: 'free' }
+        : modelRowShape(
+            embeddingCatalogs.get(slug),
+            embeddingSupport === undefined
+              ? SUPPORT_UNREAD
+              : embeddingSupport.get(slug),
+          ),
     [embeddingCatalogs, embeddingSupport],
   );
-  // The baseline waits for the catalogs: whether a stored tag is a catalog
-  // pick or a hand-typed one is decided once, when the form adopts its data
-  // — never re-decided under a form the admin is already editing, which
-  // would read as a remote update. A failed or disabled listing settles too;
-  // the form then falls back to the free tag field.
+  // The baseline waits for the catalogs AND the declarations: whether a
+  // stored tag is a catalog pick or a hand-typed one is decided once, when
+  // the form adopts its data — never re-decided under a form the admin is
+  // already editing, which would read as a remote update — and no provider
+  // can be chosen before the form knows which ones cannot embed. A failed
+  // or disabled read settles too: a failed listing falls back to the free
+  // tag field, a failed declarations read refuses every provider
+  // (`unchecked`) until a retry answers.
   const catalogsSettled =
     !catalogsEnabled ||
     catalogsQuery.data !== undefined ||
+    catalogsQuery.isError;
+  // `isFetched` remains true while a failed read retries. Returning the
+  // adopted baseline to undefined would suppress the editor's dirty source
+  // and let navigation discard a draft without warning during that retry.
+  const supportSettled = !catalogsEnabled || recommendationsQuery.isFetched;
+  const supportReadFailed =
+    catalogsEnabled &&
+    recommendationsQuery.data === undefined &&
+    recommendationsQuery.isError;
+  // A failed listing leaves every provider without a catalog: the free field
+  // is the fallback, but its emptiness is no evidence that Tale knows no
+  // width — OpenAI's curated width may be just what the read failed to bring.
+  const catalogsReadFailed =
+    catalogsEnabled &&
+    catalogsQuery.data === undefined &&
     catalogsQuery.isError;
 
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
@@ -360,25 +421,20 @@ export function OrgEmbeddingSection({
               message: t('dataResidency.orgEmbedding.errors.providerRequired'),
             });
           }
-          // A provider that cannot embed (or whose shipped catalog could not
-          // be read) is refused at the point of choosing — the alternative is
-          // a tag that fails later, at index time. The issue sits on the
-          // model, whose row already says so: it keeps the shared Save off
-          // without a second line under the provider pick.
-          const refusal =
-            values.providerSlug === ''
-              ? undefined
-              : shapeOf(values.providerSlug);
-          if (refusal !== undefined && isRefusal(refusal)) {
+          // A provider that cannot embed (or whose shipped catalog, or the
+          // declarations, could not be read) is refused at the point of
+          // choosing — the alternative is a tag that fails later, at index
+          // time. The issue sits on the model, whose row already says so: it
+          // keeps the shared Save off without a second line under the
+          // provider pick.
+          const refusal = shapeOf(values.providerSlug);
+          if (isRefusal(refusal)) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: ['model'],
-              message: t(
-                refusal.kind === 'unsupported'
-                  ? 'dataResidency.orgEmbedding.modelUnsupportedHint'
-                  : 'dataResidency.orgEmbedding.modelCatalogUnavailableHint',
-                { provider: values.providerSlug },
-              ),
+              message: t(REFUSAL_COPY[refusal.kind].hint, {
+                provider: values.providerSlug,
+              }),
             });
           }
           if (values.model === '') {
@@ -406,9 +462,10 @@ export function OrgEmbeddingSection({
     [t, configured, shapeOf],
   );
 
+  const baselineSettled = catalogsSettled && supportSettled;
   const data = useMemo(
-    () => (catalogsSettled ? formFromView(view, embeddingCatalogs) : undefined),
-    [view, embeddingCatalogs, catalogsSettled],
+    () => (baselineSettled ? formFromView(view, embeddingCatalogs) : undefined),
+    [view, embeddingCatalogs, baselineSettled],
   );
 
   const saveForm = useCallback(
@@ -426,14 +483,16 @@ export function OrgEmbeddingSection({
           baseUrl: values.baseUrl.trim() || undefined,
         });
       } catch (err) {
-        // A credential rejection belongs under the credential select —
-        // rethrow it untouched so `mapServerError` can pin it there; anything
-        // else becomes the translated line the header cluster toasts once.
+        // A credential rejection belongs under the credential select, and
+        // the door's "cannot embed" refusal under the model — rethrow them
+        // untouched so `mapServerError` can pin them there; anything else
+        // becomes the translated line the header cluster toasts once.
         const code = orgResidencyErrorCode(err);
         if (
           code === 'CREDENTIAL_NOT_FOUND' ||
           code === 'CREDENTIAL_PROVIDER_MISMATCH' ||
-          code === 'CREDENTIAL_DISABLED'
+          code === 'CREDENTIAL_DISABLED' ||
+          code === 'EMBEDDING_PROVIDER_UNSUPPORTED'
         ) {
           throw err;
         }
@@ -443,11 +502,22 @@ export function OrgEmbeddingSection({
     [organizationId, save, t],
   );
 
-  // The credential codes rethrown by `saveForm` land here as field issues —
-  // the fix (pick another credential) happens right at the select.
+  // The codes rethrown by `saveForm` land here as field issues — the fix
+  // (pick another credential, or another provider) happens right at the row.
   const mapServerError = useCallback(
     (err: unknown) => {
       const code = orgResidencyErrorCode(err);
+      // The door refuses a provider declared unable to embed — reached when
+      // the save raced the declarations read, or the declaration changed
+      // after the page loaded.
+      if (code === 'EMBEDDING_PROVIDER_UNSUPPORTED') {
+        return [
+          {
+            path: 'model',
+            message: t('dataResidency.orgEmbedding.errors.providerUnsupported'),
+          },
+        ];
+      }
       if (code === 'CREDENTIAL_NOT_FOUND') {
         return [
           {
@@ -500,7 +570,7 @@ export function OrgEmbeddingSection({
 
   const selectedProvider = watch('providerSlug');
 
-  // See `modelRowShape` for the four shapes the Model row takes.
+  // See `modelRowShape` for the shapes the Model row takes.
   const modelValue = watch('model');
   const providerCatalog = embeddingCatalogs.get(selectedProvider);
   const shape = shapeOf(selectedProvider);
@@ -565,29 +635,24 @@ export function OrgEmbeddingSection({
   );
 
   // What the row's hint may claim follows the shape: only a declaration says
-  // "cannot embed", and only once the listing and the declarations have
-  // answered does a free field say "no curated width" — before that, and
-  // before a provider is chosen, it keeps the neutral spelling hint.
-  const modelRowHint =
-    shape.kind === 'unsupported'
-      ? t('dataResidency.orgEmbedding.modelUnsupportedHint', {
-          provider: selectedProvider,
-        })
-      : shape.kind === 'unavailable'
-        ? t('dataResidency.orgEmbedding.modelCatalogUnavailableHint', {
+  // "cannot embed", and a free field says "no curated width" only once the
+  // listing and the declarations have answered — an unanswered declarations
+  // read is `unchecked`, never free, and a failed listing proves no width
+  // missing. Before a provider is chosen, or after the listing failed, the
+  // row keeps the neutral spelling hint.
+  const modelRowHint = isRefusal(shape)
+    ? t(REFUSAL_COPY[shape.kind].hint, { provider: selectedProvider })
+    : shape.kind === 'free'
+      ? baselineSettled && !catalogsReadFailed && selectedProvider !== ''
+        ? t('dataResidency.orgEmbedding.modelUncuratedHint', {
             provider: selectedProvider,
           })
-        : shape.kind === 'free'
-          ? catalogsSettled && supportSettled && selectedProvider !== ''
-            ? t('dataResidency.orgEmbedding.modelUncuratedHint', {
-                provider: selectedProvider,
-              })
-            : t('dataResidency.orgEmbedding.modelHint')
-          : !shape.allowCustom
-            ? t('dataResidency.orgEmbedding.modelCatalogHint')
-            : customModel
-              ? t('dataResidency.orgEmbedding.modelHint')
-              : t('dataResidency.orgEmbedding.modelCatalogCustomHint');
+        : t('dataResidency.orgEmbedding.modelHint')
+      : !shape.allowCustom
+        ? t('dataResidency.orgEmbedding.modelCatalogHint')
+        : customModel
+          ? t('dataResidency.orgEmbedding.modelHint')
+          : t('dataResidency.orgEmbedding.modelCatalogCustomHint');
 
   // Provider options: every provider the org holds a credential for, plus the
   // stored value itself (so a config whose credential set changed still shows
@@ -812,6 +877,26 @@ export function OrgEmbeddingSection({
               )}
             />
           ) : null}
+          {supportReadFailed ? (
+            <Alert
+              variant="warning"
+              description={
+                <HStack gap={3} align="center" className="flex-wrap">
+                  <span>
+                    {t('dataResidency.orgEmbedding.supportReadFailed')}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={recommendationsQuery.isFetching}
+                    onClick={() => void recommendationsQuery.refetch()}
+                  >
+                    {t('dataResidency.orgEmbedding.supportReadRetry')}
+                  </Button>
+                </HStack>
+              }
+            />
+          ) : null}
           {recommendationAlert}
           {credentialsQuery.data !== undefined && credentials.length === 0 ? (
             <Alert
@@ -820,6 +905,10 @@ export function OrgEmbeddingSection({
             />
           ) : null}
           <form id={FORM_ID} onSubmit={editor.submit}>
+            {/* The selects repeat the fieldset's `disabled`: a disabled
+                fieldset keeps a click off its buttons but not the pointer
+                events a popup select opens on, so an admin could pick a
+                provider before the form knows which ones cannot embed. */}
             <fieldset disabled={editor.isLoading} className="contents">
               <SettingsFieldList>
                 <SettingsFieldRow
@@ -832,6 +921,7 @@ export function OrgEmbeddingSection({
                     render={({ field }) => (
                       <Select
                         aria-label={t('dataResidency.orgEmbedding.provider')}
+                        disabled={editor.isLoading}
                         value={field.value}
                         onValueChange={(v) => {
                           field.onChange(v);
@@ -872,6 +962,7 @@ export function OrgEmbeddingSection({
                     render={({ field }) => (
                       <Select
                         aria-label={t('dataResidency.orgEmbedding.credential')}
+                        disabled={editor.isLoading}
                         value={field.value}
                         onValueChange={field.onChange}
                         options={credentialOptions}
@@ -889,6 +980,7 @@ export function OrgEmbeddingSection({
                     <Stack gap={2}>
                       <Select
                         aria-label={t('dataResidency.orgEmbedding.model')}
+                        disabled={editor.isLoading}
                         value={customModel ? CUSTOM_MODEL : modelValue}
                         onValueChange={onPickModel}
                         options={modelOptions}
@@ -931,11 +1023,7 @@ export function OrgEmbeddingSection({
                         />
                       ) : null}
                       <Text role="status" variant="muted" className="text-sm">
-                        {t(
-                          shape.kind === 'unsupported'
-                            ? 'dataResidency.orgEmbedding.modelUnsupported'
-                            : 'dataResidency.orgEmbedding.modelUnavailable',
-                        )}
+                        {t(REFUSAL_COPY[shape.kind].label)}
                       </Text>
                     </Stack>
                   )}

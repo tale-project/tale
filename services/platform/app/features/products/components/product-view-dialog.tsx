@@ -130,7 +130,7 @@ export function ProductViewDialog({
                   href={sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 underline hover:text-blue-700"
+                  className="text-primary text-sm underline"
                 >
                   {sourceUrl}
                 </a>
