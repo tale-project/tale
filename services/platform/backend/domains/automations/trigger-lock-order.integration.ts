@@ -23,7 +23,11 @@
  * savepoint would skip it). The automation is saved and never deployed, so
  * a dispatch stamps `not_deployed` — a write of the trigger row like a fire
  * stamp — and no run of its own lands afterwards to move the streak under
- * the check. */
+ * the check.
+ *
+ * The chain is held no wider than that order needs: a sweep whose batch no
+ * trigger names, held after its delete, lets an audit writer of the same
+ * organization commit meanwhile. */
 import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
@@ -403,6 +407,71 @@ export async function checkTriggerStreakLockOrder(
           after.consecutiveFailures === before.consecutiveFailures + 1 &&
           after.lastFailedRunId === runId,
         `landing queued behind the removal=${queued}, removal ${failure(removed)}${removed.status === 'fulfilled' ? ` (${removed.value} run removed, want 1)` : ''}${remover === 'run door' ? `, door attempts=${attempts} (want 1)` : ''}, landing ${failure(landed)} (run ${status}), removed run ${gone} (want missing), streak ${before.consecutiveFailures}→${after.consecutiveFailures} (want +1), last failed run=${after.lastFailedRunId === runId ? 'this run' : after.lastFailedRunId}`,
+      );
+    }
+
+    // A sweep whose batch no trigger names writes no trigger row, so it
+    // takes the chain only for its own audit row: an audit writer of the
+    // organization commits while the sweep sits after its delete, instead
+    // of queueing behind a delete of up to a thousand runs.
+    {
+      const longAgo = Date.now() - 400 * DAY_MS;
+      // A person's run: no trigger names it.
+      const rows = await sql<{ id: string }[]>`
+        INSERT INTO app.automation_runs (
+          org_id, name, version, project_id, status, mode, started_by,
+          input, checkpoints, claim_epoch, started_at_ms, finished_at_ms
+        ) VALUES (
+          ${removalOrgId}, ${name}, 1, NULL, 'success', 'live',
+          ${`user:${userId}`}, ${sql.json(toJson(JSON.stringify({})))},
+          ${sql.json(toJson({ nodes: {}, executions: 1 }))}, 1,
+          ${longAgo}, ${longAgo}
+        )
+        RETURNING id
+      `;
+      const unnamedRunId = rows[0]?.id;
+      if (unnamedRunId === undefined) {
+        throw new Error('itest run insert failed');
+      }
+      const halfway = gate();
+      const swept = sweep(removalOrgId, async (tx) =>
+        heldAfterRunDelete(tx, halfway),
+      );
+      await Promise.race([halfway.reached, swept]);
+      const writer = sql.begin((tx) =>
+        createAuditLog(tx, {
+          organizationId: removalOrgId,
+          actorId: userId,
+          actorType: 'user',
+          action: 'itest.trigger_lock_order',
+          category: 'data',
+          resourceType: 'itest',
+          resourceId: unnamedRunId,
+          status: 'success',
+        }),
+      );
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const wroteWhileHeld = await Promise.race([
+        writer.then(
+          () => true,
+          () => false,
+        ),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), BLOCK_WAIT_MS);
+        }),
+      ]);
+      clearTimeout(timer);
+      halfway.release();
+      const [sweptOut, written] = await Promise.allSettled([swept, writer]);
+      const gone = await runStatus(unnamedRunId, removalOrgId);
+      record(
+        'a retention sweep whose batch no trigger names holds no audit chain across its delete: an audit writer of the organization commits meanwhile',
+        wroteWhileHeld &&
+          sweptOut.status === 'fulfilled' &&
+          sweptOut.value === 1 &&
+          written.status === 'fulfilled' &&
+          gone === 'missing',
+        `audit writer committed while the sweep sat after its delete=${wroteWhileHeld} (want true), sweep ${failure(sweptOut)}${sweptOut.status === 'fulfilled' ? ` (${sweptOut.value} run removed, want 1)` : ''}, writer ${failure(written)}, removed run ${gone} (want missing)`,
       );
     }
   } finally {

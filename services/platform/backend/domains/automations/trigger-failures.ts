@@ -59,8 +59,11 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  *   trigger that names the run. The run door (`deleteRunInTx`) and the
  *   retention sweep lock the runs' own rows, then the chain, then delete —
  *   the order a landing run takes its row, the chain and the trigger in.
- *   Erasure removes only runs a person or a key started, which no trigger
- *   names;
+ *   The sweep takes the chain there only when a trigger names a run of its
+ *   batch: otherwise its delete writes no trigger row, and holding the chain
+ *   across a delete of up to a thousand runs would queue every audit writer
+ *   of the organization behind it. Erasure removes only runs a person or a
+ *   key started, which no trigger names;
  * - the schedule scan, the webhook door and saving or removing a trigger
  *   write the row and take no chain in that transaction.
  *
@@ -71,9 +74,9 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  * event's run silently never started), the streak (swallowed by its
  * savepoint below: the run went uncounted) or the landing run's audit row
  * (the terminal write rolled back, left to the sweep). The real-Postgres
- * lane `trigger-lock-order.integration.ts` holds both orders of producer
- * and both removals, the run door in the REST door's serializable
- * transaction.
+ * lane `trigger-lock-order.integration.ts` holds both orders of producer,
+ * both removals (the run door in the REST door's serializable transaction)
+ * and a sweep whose batch no trigger names.
  *
  * The bookkeeping rides a savepoint, like an event dispatch (`emitEvent`):
  * the run's own terminal write is the contract, and a fault here must never
