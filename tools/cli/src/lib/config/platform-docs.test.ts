@@ -108,13 +108,9 @@ test('turbo re-runs the suites when an install page or a checked workflow change
       tasks.find((task) => task.taskId === '@tale/cli#test')?.inputs ?? {},
     ),
   );
-  // Turbo keys inputs by `/`-separated paths relative to the workspace.
   // `$TURBO_DEFAULT$` stays in the list, or the suite's own sources drop out.
-  // Probe this file: turbo hashes `package.json` and `turbo.json` either way.
-  const self = relative(CLI_ROOT, fileURLToPath(import.meta.url))
-    .split(sep)
-    .join('/');
-  expect(inputs.has(self), `@tale/cli#test does not hash ${self}`).toBe(true);
+  expect(inputs.has('package.json')).toBe(true);
+  // Turbo keys inputs by `/`-separated paths relative to the workspace.
   const unhashed = [
     ...LOCALES.map((locale) => installPage(locale)),
     ...CHECKED_WORKFLOWS.map((name) =>

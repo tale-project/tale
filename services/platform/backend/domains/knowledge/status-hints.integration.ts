@@ -112,14 +112,9 @@ export async function checkRagStatusHintScope(
 
   // A corpus row that finished while its status write was lost is adopted;
   // without one, the stale row is failed as interrupted. Either write is
-  // one the lists render, so a seed INSERT that fails on a corpus the
-  // watchdog can still read leaves its row on the second path, which proves
-  // the same. A corpus the harness cannot reach proves nothing: the
-  // watchdog's own corpus lookup throws, it defers the whole organization
-  // to its next tick, and the watchdog record below fails with no row
-  // settled — the skipped seeds it counts say why.
+  // one the lists render. A corpus the harness cannot reach leaves every
+  // row on the second path, which proves the same.
   const pool = await getKnowledgePoolForOrg(orgSlug);
-  let seedsSkipped = 0;
   const indexedInCorpus = async (ref: string) => {
     try {
       await pool.unsafe(
@@ -130,7 +125,6 @@ export async function checkRagStatusHintScope(
         [orgSlug, ref],
       );
     } catch (error) {
-      seedsSkipped += 1;
       console.warn('[itest] hint-scope corpus seed skipped:', error);
     }
   };
@@ -178,7 +172,7 @@ export async function checkRagStatusHintScope(
         settled.every(
           (row) => row.ragStatus === 'completed' || row.ragStatus === 'failed',
         ),
-      `attachments=${attachmentSweepHints} (want 0), with listed rows=${listedSweepHints} (want 1), settled=${settled.map((row) => row.ragStatus).join('/')} (want completed/failed ×6), corpus seeds skipped=${seedsSkipped}`,
+      `attachments=${attachmentSweepHints} (want 0), with listed rows=${listedSweepHints} (want 1), settled=${settled.map((row) => row.ragStatus).join('/')} (want completed/failed ×6)`,
     );
 
     // ---- index health: the re-stamp, then the requeue --------------------

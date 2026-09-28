@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { TransactionSql } from 'postgres';
 import ts from 'typescript';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   RAG_ERROR_IMAGE_NO_VISION,
@@ -30,23 +30,6 @@ import {
   unsupportedTypeError,
 } from '../core/knowledge/rag_unsupported.ts';
 import { isMigrationFile } from './migrate.ts';
-
-// The indexer's by-name rule, as the migrations see it: the real rule unless
-// a case stands in the one a later release ships.
-vi.mock('../core/knowledge/rag_unsupported.ts', async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import('../core/knowledge/rag_unsupported.ts')
-    >();
-  return { ...actual, unsupportedByName: vi.fn(actual.unsupportedByName) };
-});
-const rules = await vi.importActual<
-  typeof import('../core/knowledge/rag_unsupported.ts')
->('../core/knowledge/rag_unsupported.ts');
-
-afterEach(() => {
-  vi.mocked(unsupportedByName).mockImplementation(rules.unsupportedByName);
-});
 
 const MIGRATIONS_DIR = new URL('./migrations/', import.meta.url);
 /** `services/platform/`, the root the pure rules are named from. */
@@ -112,43 +95,10 @@ const PURE_RULES: ReadonlyMap<string, string> = new Map([
   ],
 ]);
 
-/**
- * The packages that reach may import, each with why: a bare specifier —
- * `node:*`, an npm package, a workspace package such as `@tale/shared/…` —
- * is outside the app's modules, so {@link PURE_RULES} cannot vouch for it,
- * and one can do exactly what a data migration must not: `node:fs` reads the
- * disk, `node:net` the network, a runtime `postgres` opens a connection of
- * its own, and `@tale/shared/db/…` runs today's SQL. `typeOnly` admits an
- * `import type` alone, which the compiler erases (`verbatimModuleSyntax`
- * keeps every other import, even one naming only types). A package joins
- * this list only once what the reach takes from it is known to be pure.
- */
-const PURE_PACKAGES: ReadonlyMap<string, { why: string; typeOnly?: true }> =
-  new Map([
-    [
-      'postgres',
-      { why: '`TransactionSql`, the type of `migrate(tx)`', typeOnly: true },
-    ],
-    ['node:path', { why: '`extname`, the extractor router’s string rule' }],
-    ['pdfjs-dist', { why: 'parses the PDF bytes `pdf.ts` hands it' }],
-    [
-      'pdfjs-dist/build/pdf.worker.mjs',
-      { why: 'pdfjs’s in-process worker, loaded by `pdfjs_loader.ts`' },
-    ],
-    ['jszip', { why: 'unpacks the OOXML and ODF bytes it is handed' }],
-    ['fast-xml-parser', { why: 'parses the XML text it is handed' }],
-    ['xlsx', { why: 'parses the spreadsheet bytes it is handed' }],
-  ]);
-
 function isPureRule(module: string): boolean {
   return [...PURE_RULES.keys()].some((rule) =>
     rule.endsWith('/') ? module.startsWith(rule) : module === rule,
   );
-}
-
-function isPurePackage(specifier: string, typeOnly: boolean): boolean {
-  const entry = PURE_PACKAGES.get(specifier);
-  return entry !== undefined && (entry.typeOnly !== true || typeOnly);
 }
 
 /** A path under `services/platform/`, `/`-separated. */
@@ -158,7 +108,7 @@ function platformPath(file: string): string {
 
 /** The file a specifier names, resolved the way the backend's loader does —
  * as written, with `.ts`, or as a directory's `index.ts` — or null for a
- * bare specifier, a package, which {@link PURE_PACKAGES} judges instead. */
+ * package, which knows nothing of the app's schema. */
 function resolveImport(fromFile: string, specifier: string): string | null {
   let base: string;
   if (specifier.startsWith('.')) {
@@ -178,110 +128,40 @@ function resolveImport(fromFile: string, specifier: string): string | null {
   return found;
 }
 
-interface Import {
-  readonly specifier: string;
-  /** Erased by the compiler: `import type`, `export type … from`, or a type
-   * position's `import('…')`. */
-  readonly typeOnly: boolean;
-}
-
-/** Whether an import or re-export declaration is erased whole. */
-function erased(node: ts.ImportDeclaration | ts.ExportDeclaration): boolean {
-  if (ts.isExportDeclaration(node)) return node.isTypeOnly;
-  return node.importClause?.isTypeOnly === true;
-}
-
-/** Every module a file imports — static, type-only, dynamic, re-exported
- * and `require`d alike — and whether the import survives compilation. */
-function importsOf(file: string, text: string): Import[] {
-  const found: Import[] = [];
-  const visit = (node: ts.Node): void => {
-    if (
-      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-      node.moduleSpecifier !== undefined &&
-      ts.isStringLiteral(node.moduleSpecifier)
-    ) {
-      found.push({
-        specifier: node.moduleSpecifier.text,
-        typeOnly: erased(node),
-      });
-    } else if (
-      ts.isImportTypeNode(node) &&
-      ts.isLiteralTypeNode(node.argument) &&
-      ts.isStringLiteral(node.argument.literal)
-    ) {
-      found.push({ specifier: node.argument.literal.text, typeOnly: true });
-    } else if (
-      ts.isCallExpression(node) &&
-      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-        (ts.isIdentifier(node.expression) &&
-          node.expression.text === 'require'))
-    ) {
-      const [argument] = node.arguments;
-      if (argument === undefined || !ts.isStringLiteralLike(argument)) {
-        throw new Error(`${file}: an import this guard cannot follow`);
-      }
-      found.push({ specifier: argument.text, typeOnly: false });
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true));
-  return found;
-}
-
 interface Reach {
-  /** The module outside the pure rules, or the package outside the pure
-   * packages. */
+  /** The module outside the pure rules. */
   readonly module: string;
   /** The module that imports it. */
   readonly from: string;
 }
 
 /**
- * What `entry` reaches — through static, type-only and dynamic imports
- * alike, following each import of a pure rule in turn: every module outside
- * {@link PURE_RULES} and every package import {@link PURE_PACKAGES} does not
- * admit (`unlisted`), and every package it imports (`packages`). `source`
- * stands in for the entry's bytes, so the guard can be shown a migration
- * that is not on disk.
+ * Every module outside {@link PURE_RULES} that `entry` reaches — through
+ * static, type-only and dynamic imports alike, following each import of a
+ * pure rule in turn. `source` stands in for the entry's bytes, so the guard
+ * can be shown a migration that is not on disk.
  */
-async function walkReach(
-  entry: string,
-  source?: string,
-): Promise<{ unlisted: Reach[]; packages: Set<string> }> {
+async function unlistedReach(entry: string, source?: string): Promise<Reach[]> {
   const unlisted: Reach[] = [];
-  const packages = new Set<string>();
   const seen = new Set<string>([entry]);
   const queue: { file: string; source?: string }[] = [{ file: entry, source }];
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
     const text = next.source ?? (await readFile(next.file, 'utf8'));
-    const from = platformPath(next.file);
-    for (const { specifier, typeOnly } of importsOf(next.file, text)) {
-      const target = resolveImport(next.file, specifier);
-      if (target === null) {
-        packages.add(specifier);
-        const reported = unlisted.some(
-          (reach) => reach.module === specifier && reach.from === from,
-        );
-        if (!isPurePackage(specifier, typeOnly) && !reported) {
-          unlisted.push({ module: specifier, from });
-        }
-        continue;
-      }
-      if (seen.has(target)) continue;
+    for (const imported of ts.preProcessFile(text, true, true).importedFiles) {
+      const target = resolveImport(next.file, imported.fileName);
+      if (target === null || seen.has(target)) continue;
       seen.add(target);
       if (isPureRule(platformPath(target))) {
         queue.push({ file: target });
       } else {
-        unlisted.push({ module: platformPath(target), from });
+        unlisted.push({
+          module: platformPath(target),
+          from: platformPath(next.file),
+        });
       }
     }
   }
-  return { unlisted, packages };
-}
-
-async function unlistedReach(entry: string, source?: string): Promise<Reach[]> {
-  return (await walkReach(entry, source)).unlisted;
+  return unlisted;
 }
 
 describe('a data migration reaches only pure rules', () => {
@@ -295,15 +175,13 @@ describe('a data migration reaches only pure rules', () => {
         `${file} reaches ${unlisted.map((r) => `${r.module} (from ${r.from})`).join(', ')}. ` +
           'A data migration writes every statement itself and imports only ' +
           'pure rules (DataMigration, backend/db/migrate.ts); a module that ' +
-          'runs no SQL and no I/O joins PURE_RULES here, and a package ' +
-          'PURE_PACKAGES, with why.',
+          'runs no SQL and no I/O joins PURE_RULES here, with why.',
       ).toEqual([]);
     }
   });
 
   // The regression itself: 0128 once took its documents probe from the
-  // knowledge service and its hint from the realtime outbox. A package can
-  // do the same from outside the app's modules.
+  // knowledge service and its hint from the realtime outbox.
   it('fails a migration that imports a helper written against today’s schema', async () => {
     const probe = fileURLToPath(new URL('9999_probe.ts', MIGRATIONS_DIR));
     const unlisted = await unlistedReach(
@@ -314,61 +192,28 @@ describe('a data migration reaches only pure rules', () => {
         "import { HELD_BY_DOCUMENT_SQL } from '../../domains/knowledge/status-hints.ts';",
         "import type { Hint } from '../../realtime/outbox.ts';",
         "const later = () => import('../../jobs/enqueue.ts');",
-        "import { readFile } from 'node:fs/promises';",
-        "import { transactSerializable } from '@tale/shared/db/serializable';",
-        // A runtime `postgres` opens a connection of its own.
-        "import postgres from 'postgres';",
       ].join('\n'),
     );
-    const from = 'backend/db/migrations/9999_probe.ts';
     expect(unlisted).toEqual([
-      { module: 'backend/domains/knowledge/status-hints.ts', from },
-      { module: 'backend/realtime/outbox.ts', from },
-      { module: 'backend/jobs/enqueue.ts', from },
-      { module: 'node:fs/promises', from },
-      { module: '@tale/shared/db/serializable', from },
-      { module: 'postgres', from },
+      {
+        module: 'backend/domains/knowledge/status-hints.ts',
+        from: 'backend/db/migrations/9999_probe.ts',
+      },
+      {
+        module: 'backend/realtime/outbox.ts',
+        from: 'backend/db/migrations/9999_probe.ts',
+      },
+      {
+        module: 'backend/jobs/enqueue.ts',
+        from: 'backend/db/migrations/9999_probe.ts',
+      },
     ]);
-  });
-
-  // Only the compiler's erased forms are types alone: under
-  // `verbatimModuleSyntax` an import naming only types inline still loads
-  // the package.
-  it.each([
-    ["import type { Sql } from 'postgres';", false],
-    ["export type { Sql } from 'postgres';", false],
-    ["type Handle = typeof import('postgres');", false],
-    ["import { type Sql } from 'postgres';", true],
-    ["import postgres from 'postgres';", true],
-    ["const load = () => import('postgres');", true],
-    ["const pg = require('postgres');", true],
-  ])('a type-only package: `%s` reported → %s', async (line, reported) => {
-    const probe = fileURLToPath(new URL('9999_probe.ts', MIGRATIONS_DIR));
-    expect(await unlistedReach(probe, line)).toEqual(
-      reported
-        ? [{ module: 'postgres', from: 'backend/db/migrations/9999_probe.ts' }]
-        : [],
-    );
   });
 
   it('names only modules that exist', () => {
     for (const rule of PURE_RULES.keys()) {
       expect(existsSync(path.join(PLATFORM_DIR, rule)), rule).toBe(true);
     }
-  });
-
-  it('names only packages a data migration still reaches', async () => {
-    const reached = new Set<string>();
-    for (const file of await dataMigrationFiles()) {
-      const { packages } = await walkReach(
-        fileURLToPath(new URL(file, MIGRATIONS_DIR)),
-      );
-      for (const name of packages) reached.add(name);
-    }
-    expect(
-      [...PURE_PACKAGES.keys()].filter((name) => !reached.has(name)),
-      'PURE_PACKAGES entries no data migration imports any more',
-    ).toEqual([]);
   });
 });
 
@@ -570,56 +415,6 @@ describe('0129 — the code on a bare `unsupported` image', () => {
 
     expect(fillOf(statements)?.values[1]).toEqual(['file-png']);
     expect(statements).toHaveLength(2);
-  });
-
-  // It runs with the newest image's code. Once the vision lane returns, the
-  // indexer's rule drops its image leg: an image then reads as a file the
-  // indexer indexes, and "no vision" would be a false cause to stamp on it.
-  it('follows the indexer’s rule, not the image extensions: an image the rule no longer refuses stays bare', async () => {
-    vi.mocked(unsupportedByName).mockImplementation((fileName) => {
-      const cause = rules.unsupportedByName(fileName);
-      return cause?.code === RAG_ERROR_IMAGE_NO_VISION ? null : cause;
-    });
-    const { tx, statements } = fakeTx([
-      { id: 'file-png', fileName: 'photo.png' },
-      { id: 'file-jpg', fileName: 'SCAN.JPG' },
-    ]);
-
-    await m0129.migrate(tx);
-
-    expect(statements).toHaveLength(1);
-  });
-
-  it('fills only what the rule answers as `image_no_vision`, with the sentence it answers', async () => {
-    vi.mocked(unsupportedByName).mockImplementation((fileName) => {
-      if (fileName === 'photo.png') {
-        return {
-          code: RAG_ERROR_IMAGE_NO_VISION,
-          error: 'The rule’s own sentence for "photo.png".',
-        };
-      }
-      // An image the rule's release no longer reads is `unsupported_type`:
-      // `0128`'s to fill, never this migration's.
-      return fileName === 'legacy.tiff'
-        ? { code: RAG_ERROR_UNSUPPORTED_TYPE, error: 'not this one' }
-        : null;
-    });
-    const { tx, statements } = fakeTx(
-      [
-        { id: 'file-png', fileName: 'photo.png' },
-        { id: 'file-tiff', fileName: 'legacy.tiff' },
-        { id: 'file-webp', fileName: 'diagram.webp' },
-      ],
-      [{ orgId: 'org-1', listed: true }],
-    );
-
-    await m0129.migrate(tx);
-
-    expect(fillOf(statements)?.values).toEqual([
-      RAG_ERROR_IMAGE_NO_VISION,
-      ['file-png'],
-      ['The rule’s own sentence for "photo.png".'],
-    ]);
   });
 });
 

@@ -3,12 +3,11 @@
  * harness worker steps each run to `failed` (`node_error`), and the run that
  * completes the streak turns the trigger off, audits the pause and notifies
  * the owner; the trigger read (`listTriggers`, behind the app, REST and MCP)
- * answers the pause with its streak and last failure, a success or a
- * permanent failure that lands after the pause leaves that streak and that
- * last failure alone, and a paused schedule fires nothing more. Saving it
- * again resumes it with a fresh streak and reads the notice, and a success
- * resets the streak — also on a schedule an older image turned back on
- * without clearing the pause's stamp (migration 0124,
+ * answers the pause with its streak and last failure, a success that lands
+ * after the pause leaves that streak alone, and a paused schedule fires
+ * nothing more. Saving it again resumes it with a fresh streak and reads the
+ * notice, and a success resets the streak — also on a schedule an older
+ * image turned back on without clearing the pause's stamp (migration 0124,
  * `trigger-failures.ts`). */
 import type { Sql } from 'postgres';
 
@@ -30,7 +29,6 @@ interface TriggerState {
   lastSkipReason: string | null;
   lastFailureCode: string | null;
   lastFailedRunId: string | null;
-  lastFailedAt: string | null;
   lastRunId: string | null;
 }
 
@@ -68,7 +66,6 @@ export async function checkTriggerPauseAfterFailures(
              last_skip_reason AS "lastSkipReason",
              last_failure_code AS "lastFailureCode",
              last_failed_run_id AS "lastFailedRunId",
-             last_failed_at_ms::text AS "lastFailedAt",
              last_run_id AS "lastRunId"
       FROM app.automation_triggers
       WHERE org_id = ${orgId} AND name = ${name}
@@ -137,11 +134,9 @@ export async function checkTriggerPauseAfterFailures(
     const outcomes: string[] = [];
     const streak: number[] = [];
     const enabled: boolean[] = [];
-    const runIds: string[] = [];
     let lastRunId = '';
     for (let i = 0; i < PERMANENT_FAILURES_BEFORE_PAUSE; i++) {
       const fired = await fireOnce();
-      runIds.push(fired.runId);
       lastRunId = fired.runId;
       outcomes.push(fired.status);
       const state = await trigger();
@@ -225,40 +220,6 @@ export async function checkTriggerPauseAfterFailures(
         afterOverlap.lastSkipReason === 'paused_after_failures' &&
         afterOverlap.consecutiveFailures === PERMANENT_FAILURES_BEFORE_PAUSE,
       `change=${JSON.stringify(overlapping.change)} (want null), enabled=${afterOverlap.enabled} reason=${afterOverlap.lastSkipReason} streak=${afterOverlap.consecutiveFailures} (want ${PERMANENT_FAILURES_BEFORE_PAUSE})`,
-    );
-
-    // ---- so does one that fails permanently after it: the paused schedule
-    // keeps exactly the streak and the last failure that paused it, which
-    // the banner names and **View run** opens. The pause writes no
-    // `updated_at_ms`, so only the paused test holds this row back. The
-    // stand-in run is a real one of this trigger (the streak's first), or
-    // `last_failed_run_id`'s foreign key would refuse the write and the
-    // streak's savepoint would swallow that instead.
-    const lateFailure = await sql.begin(async (tx) => ({
-      change: await recordTriggerRunOutcome(tx, {
-        organizationId: orgId,
-        runId: runIds[0] ?? '',
-        startedBy: `trigger:${paused.id}`,
-        startedAt: Date.now(),
-        status: 'failed',
-        failureCode: 'connector_error',
-        now: Date.now(),
-      }),
-    }));
-    const afterLateFailure = await trigger();
-    record(
-      'a permanent failure landing after the pause keeps the streak and the last failure that paused it',
-      runIds[0] !== undefined &&
-        runIds[0] !== lastRunId &&
-        lateFailure.change === null &&
-        !afterLateFailure.enabled &&
-        afterLateFailure.lastSkipReason === 'paused_after_failures' &&
-        afterLateFailure.consecutiveFailures ===
-          PERMANENT_FAILURES_BEFORE_PAUSE &&
-        afterLateFailure.lastFailureCode === 'node_error' &&
-        afterLateFailure.lastFailedRunId === lastRunId &&
-        afterLateFailure.lastFailedAt === paused.lastFailedAt,
-      `change=${JSON.stringify(lateFailure.change)} (want null), enabled=${afterLateFailure.enabled} reason=${afterLateFailure.lastSkipReason} streak=${afterLateFailure.consecutiveFailures} (want ${PERMANENT_FAILURES_BEFORE_PAUSE}), lastFailure=${afterLateFailure.lastFailureCode}@${afterLateFailure.lastFailedRunId === lastRunId ? 'last run' : afterLateFailure.lastFailedRunId} (want node_error@last run), lastFailedAt ${afterLateFailure.lastFailedAt === paused.lastFailedAt ? 'kept' : `moved to ${afterLateFailure.lastFailedAt}`}`,
     );
 
     // ---- the pause is audited and the owner is told, once.

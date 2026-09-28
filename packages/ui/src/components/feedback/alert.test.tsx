@@ -78,24 +78,6 @@ describe('Alert', () => {
       render(<Alert variant="warning">Warning</Alert>);
       expect(screen.getByRole('alert').className).toContain('border-amber');
     });
-
-    // The hook a consumer's test finds a banner and its severity by, so a
-    // restyle of a variant's tint never breaks a test outside this package.
-    it.each(['default', 'destructive', 'warning', 'info', 'success'] as const)(
-      'names the %s variant on the root',
-      (variant) => {
-        render(<Alert variant={variant}>Content</Alert>);
-        const root = screen.getByRole('alert');
-        expect(root).toHaveAttribute('data-slot', 'alert');
-        expect(root).toHaveAttribute('data-variant', variant);
-      },
-    );
-
-    it('names the default variant when none is passed', () => {
-      render(<Alert live="off">Content</Alert>);
-      const root = screen.getByText('Content').closest('[data-slot="alert"]');
-      expect(root).toHaveAttribute('data-variant', 'default');
-    });
   });
 
   describe('accessibility', () => {

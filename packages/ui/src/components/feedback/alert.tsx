@@ -79,10 +79,6 @@ export function Alert({
       role={isLive ? 'alert' : undefined}
       aria-live={live}
       aria-atomic="true"
-      // A stable hook naming the banner and its severity, so a consumer's
-      // test need not read the variant's tint classes.
-      data-slot="alert"
-      data-variant={variant ?? 'default'}
       className={cn(alertVariants({ variant }), className)}
     >
       <Icon className="size-4" aria-hidden="true" />
