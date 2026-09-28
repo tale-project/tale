@@ -45,7 +45,7 @@ Décide du comportement si le fournisseur est indisponible : fail-open laisse pa
 
 ## Définir les instructions de l’organisation
 
-Les instructions personnalisées de l’organisation sont ajoutées avant celles de l’assistant de chat et avant les instructions propres de chaque agent : agents de projet qui traitent des tâches et étapes d’agent des automatisations. Les membres ne peuvent pas modifier cette règle d’organisation. Utilise-les pour le comportement et le vocabulaire communs. Pour les restrictions à imposer indépendamment du respect d’un texte par le modèle, utilise les règles d’accès et les filtres.
+Les instructions personnalisées de l’organisation sont ajoutées avant celles de l’assistant de chat et avant les instructions propres de chaque agent : les agents de projet qui traitent des tâches et les nœuds agent des automatisations. Les membres ne peuvent pas modifier cette règle d’organisation. Utilise-les pour le comportement et le vocabulaire communs. Pour les restrictions à imposer indépendamment du respect d’un texte par le modèle, utilise les règles d’accès et les filtres.
 
 ## Examiner et ajuster
 
