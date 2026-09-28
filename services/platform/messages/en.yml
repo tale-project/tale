@@ -1366,6 +1366,7 @@ chat:
     includeNewer: Include newer messages
     creatingLink: Creating link…
     retry: Try again
+    statusFailed: Couldn't load the sharing status. This chat may still be shared with your organization.
     copyLink: Copy link
     copied: Link copied
     preview: Preview

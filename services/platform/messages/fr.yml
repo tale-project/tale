@@ -1422,6 +1422,7 @@ chat:
     includeNewer: Inclure les messages plus récents
     creatingLink: Création du lien…
     retry: Réessayer
+    statusFailed: Impossible de charger l'état du partage. Ce chat est peut-être encore partagé avec ton organisation.
     copyLink: Copier le lien
     copied: Lien copié
     preview: Aperçu

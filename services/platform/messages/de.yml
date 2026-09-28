@@ -1412,6 +1412,7 @@ chat:
     includeNewer: Neuere Nachrichten einbeziehen
     creatingLink: Link wird erstellt…
     retry: Erneut versuchen
+    statusFailed: Der Freigabestatus konnte nicht geladen werden. Dieser Chat ist möglicherweise noch mit deiner Organisation geteilt.
     copyLink: Link kopieren
     copied: Link kopiert
     preview: Vorschau
