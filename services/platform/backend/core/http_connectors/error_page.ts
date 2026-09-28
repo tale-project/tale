@@ -29,7 +29,14 @@ export type ConnectorErrorKind =
   /** The Slack workspace is already connected to a different organization. */
   | 'workspace_claimed'
   /** Tokens were obtained but could not be stored. */
-  | 'storage_failed';
+  | 'storage_failed'
+  /** The credential a Reconnect named is gone, or no OAuth grant of this
+   * connector in this organization. */
+  | 'credential_missing'
+  /** A Reconnect was consented in another workspace than its credential's. */
+  | 'account_mismatch'
+  /** The member may no longer write this organization's credentials. */
+  | 'forbidden';
 
 interface ErrorCopy {
   readonly title: string;
@@ -79,6 +86,24 @@ const ERROR_COPY: Record<ConnectorErrorKind, ErrorCopy> = {
     detail:
       'Access was granted but storing it failed, so the connector is not connected. Try again; if it keeps failing, contact an administrator.',
     status: 500,
+  },
+  credential_missing: {
+    title: 'This credential cannot be reconnected',
+    detail:
+      'It was removed, or it is not an OAuth connection of this connector, so nothing was saved and no other credential changed. Check your connector settings, and add the account again if you still need it.',
+    status: 404,
+  },
+  account_mismatch: {
+    title: 'That is a different workspace',
+    detail:
+      'You authorized another workspace than the one this credential connects, so nothing was saved. Reconnect again and choose the same workspace, or use Add credential to connect the other one.',
+    status: 409,
+  },
+  forbidden: {
+    title: 'You can no longer connect connectors here',
+    detail:
+      'Your access to this organization changed while the connection was in progress, so nothing was saved. Owners, Admins and Developers can connect connectors; ask an organization admin.',
+    status: 403,
   },
 };
 
