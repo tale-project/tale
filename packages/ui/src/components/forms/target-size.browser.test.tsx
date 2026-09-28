@@ -1,11 +1,15 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { page } from 'vitest/browser';
 
 import { render, screen } from '@/tests/utils/render';
 
 import { Checkbox } from './checkbox';
+import { NumberStepper } from './number-stepper';
+import { RecurrencePicker } from './recurrence-picker';
 import { Switch } from './switch';
+import { ToggleChipGroup } from './toggle-chip-group';
 
 import '../../globals.css';
 
@@ -58,5 +62,94 @@ describe('small controls keep a 24px target (real layout)', () => {
     expect(height).toBeLessThan(24);
     // Half of what the track lacks to 24px, on each side.
     expect(tapsAround(toggle, (24 - height) / 2 - 0.5)).toEqual(everywhere);
+  });
+});
+
+/** Width and height of an element's box. */
+function size(el: HTMLElement) {
+  const r = el.getBoundingClientRect();
+  return { width: r.width, height: r.height };
+}
+
+describe('recurrence controls keep their targets (real layout)', () => {
+  it('gives weekday chips 32px and stepper buttons a 32px column', () => {
+    render(
+      <div className="flex flex-col gap-4 p-8">
+        <ToggleChipGroup
+          aria-label="Days"
+          value={['1']}
+          onValueChange={() => {}}
+          options={[
+            { value: '1', label: 'Mo', 'aria-label': 'Monday' },
+            { value: '2', label: 'Tu', 'aria-label': 'Tuesday' },
+          ]}
+        />
+        <NumberStepper
+          aria-label="Interval"
+          value={2}
+          min={1}
+          max={9}
+          onValueChange={() => {}}
+        />
+      </div>,
+    );
+    for (const name of ['Monday', 'Tuesday']) {
+      const { width, height } = size(screen.getByRole('button', { name }));
+      expect(width).toBeGreaterThanOrEqual(32);
+      expect(height).toBe(32);
+    }
+    for (const name of ['Decrease', 'Increase']) {
+      const { width, height } = size(screen.getByRole('button', { name }));
+      expect(width).toBe(32);
+      expect(height).toBeGreaterThanOrEqual(32);
+    }
+  });
+
+  it('keeps the trigger at 28px and the popover rows at 36px, Back at 32px', async () => {
+    await page.viewport(1280, 900);
+    render(
+      <div className="w-60 p-8">
+        <RecurrencePicker
+          value={{ frequency: 'daily', interval: 1 }}
+          reference={{ year: 2026, month: 9, day: 29, weekday: 2 }}
+          onChange={() => {}}
+        />
+      </div>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Repeat: Daily' });
+    expect(size(trigger).height).toBe(28);
+    trigger.click();
+    const dialog = await screen.findByRole('dialog', { name: 'Repeat' });
+    await Promise.all(
+      dialog
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished),
+    );
+    for (const row of within(dialog).getAllByRole('radio')) {
+      expect(size(row).height).toBeCloseTo(36, 0);
+    }
+    expect(
+      size(within(dialog).getByRole('button', { name: 'Custom' })).height,
+    ).toBeCloseTo(36, 0);
+    within(dialog).getByRole('button', { name: 'Custom' }).click();
+    const back = await within(dialog).findByRole('button', {
+      name: 'Back to presets',
+    });
+    await Promise.all(
+      dialog
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished),
+    );
+    expect(size(back).width).toBeCloseTo(32, 0);
+    expect(size(back).height).toBeCloseTo(32, 0);
+    await waitFor(() =>
+      expect(within(dialog).getByRole('radio', { name: 'Week' })).toBeVisible(),
+    );
+    for (const segment of within(
+      within(dialog).getByRole('radiogroup', { name: 'Unit' }),
+    ).getAllByRole('radio')) {
+      expect(size(segment).height).toBeGreaterThanOrEqual(24);
+      expect(size(segment).width).toBeGreaterThanOrEqual(24);
+    }
   });
 });
