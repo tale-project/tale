@@ -59,6 +59,8 @@ Une tâche ne peut avoir qu’une seule exécution en file d’attente, en cours
 
 Un échec récupérable donne lieu à jusqu’à trois nouvelles tentatives après la tentative initiale. Une exécution qui progresse pendant au moins quinze minutes reçoit une nouvelle réserve de tentatives. Cela aide le travail long à reprendre après une interruption, sans prouver que le résultat est correct.
 
+Un agent servi par un courtier d’abonnement peut perdre son jeton en cours de travail, lorsque le courtier actualise le compte. La nouvelle tentative poursuit alors la conversation avec un nouveau jeton, sans faire avancer le compteur de tentatives. Après deux interruptions de ce type d’affilée, une nouvelle interruption compte comme n’importe quel autre échec.
+
 ## Annuler ou suspendre le travail
 
 Utilise **Annuler l'exécution** pour arrêter l’agent actif. Déplacer une tâche d’agent hors de **En cours** peut aussi annuler son exécution : lis la confirmation avant de continuer. Une tâche ne peut pas avoir deux exécutions d’agent actives en même temps.

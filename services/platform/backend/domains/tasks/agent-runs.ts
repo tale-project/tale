@@ -307,7 +307,8 @@ export async function failAgentRunFromTurn(
     agentSessionId?: string;
     sessionCreatedAt?: number;
     /** Producer-side classification (`TaskRunFailureCode`); absent = retryable
-     * (the default posture). */
+     * (the default posture). Stamped on the row: the retry budget and the kick
+     * plan read it back (`freeCredentialRotations`). */
     failureCode?: string;
     apiErrorStatus?: number;
   },
@@ -320,6 +321,7 @@ export async function failAgentRunFromTurn(
     >`
       UPDATE app.project_agent_runs SET
         status = 'failed', error = ${error},
+        failure_code = ${args.failureCode ?? null},
         api_error_status = ${args.apiErrorStatus ?? null},
         agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
         session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),

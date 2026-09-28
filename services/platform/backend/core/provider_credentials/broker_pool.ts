@@ -322,9 +322,11 @@ export function describeEmptyPool(
       `${diagnostics.expiredCount} item(s) expire within the configured expiry skew`,
     );
   }
+  // The broker says why an account waits, not the flag: an exhausted quota,
+  // or — Tale AI gateway — a token about to be refreshed.
   if (diagnostics.unavailableCount > 0)
     parts.push(
-      `${diagnostics.unavailableCount} account(s) are temporarily unavailable because their quota is exhausted`,
+      `${diagnostics.unavailableCount} account(s) are temporarily unavailable — the broker reports their quota exhausted or their token about to be refreshed`,
     );
   if (diagnostics.invalidMetadataCount > 0)
     parts.push(

@@ -1,5 +1,10 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  AUTO_RETRY_HISTORY_LIMIT,
+  freeCredentialRotations,
+  type AutoRetryRunFacts,
+} from '../../core/tasks/task_auto_retry.ts';
 import { resolveTaskKickResume } from '../../core/tasks/task_kick_resume.ts';
 
 /**
@@ -69,6 +74,9 @@ export async function resolveTaskKickStartArgs(
       startedAt: number;
       brokerTokenHash: string | null;
       apiErrorStatus: number | null;
+      failureCode: string | null;
+      launchedAt: number | null;
+      settledAt: number | null;
     }[]
   >`
     SELECT status, agent_id AS "agentId", harness,
@@ -77,7 +85,10 @@ export async function resolveTaskKickStartArgs(
            session_created_at_ms::float8 AS "sessionCreatedAt",
            started_at_ms::float8 AS "startedAt",
            broker_token_hash AS "brokerTokenHash",
-           api_error_status AS "apiErrorStatus"
+           api_error_status AS "apiErrorStatus",
+           failure_code AS "failureCode",
+           launched_at_ms::float8 AS "launchedAt",
+           settled_at_ms::float8 AS "settledAt"
     FROM app.project_agent_runs
     WHERE task_id = ${args.taskId}
     ORDER BY seq DESC
@@ -92,6 +103,19 @@ export async function resolveTaskKickStartArgs(
   let previousExecId: string | undefined;
   let collectingHashes = true;
   const excludeBrokerTokenHashes = new Set<string>();
+  // A free credential rotation left a healthy account behind — its token was
+  // refreshed under the turn — so the next vend may pick it again. The retry
+  // budget skips the same rows (`resolveAutoRetryBudget`).
+  const freeRotations = freeCredentialRotations(
+    runs.map((run) => ({
+      agentId: run.agentId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
+      status: run.status as AutoRetryRunFacts['status'],
+      launchedAt: run.launchedAt ?? undefined,
+      settledAt: run.settledAt ?? undefined,
+      failureCode: run.failureCode ?? undefined,
+    })),
+  );
   for (const [index, run] of runs.entries()) {
     if (index >= KICK_RESUME_PREDECESSOR_SCAN_LIMIT) {
       exhausted = true;
@@ -106,7 +130,7 @@ export async function resolveTaskKickStartArgs(
     // terminal row that is not this agent's failure.
     if (collectingHashes && terminal) {
       if (run.status === 'failed' && run.agentId === args.agentId) {
-        if (run.brokerTokenHash !== null) {
+        if (run.brokerTokenHash !== null && !freeRotations[index]) {
           excludeBrokerTokenHashes.add(run.brokerTokenHash);
         }
       } else {
@@ -182,4 +206,53 @@ export async function resolveTaskKickStartArgs(
     sweep: plan.sweep,
     inspectNote: plan.inspectNote,
   };
+}
+
+/** One row of a task's run history, as the auto-retry decides on it. */
+export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
+  readonly id: string;
+  readonly startedBy: string;
+}
+
+/**
+ * The run history `resolveAutoRetryBudget` walks, newest first: as far back
+ * as a spent budget hidden behind free credential rotations can reach
+ * (`AUTO_RETRY_HISTORY_LIMIT`), each run with the failure code its failed
+ * mark stamped — the rotations the budget skips are told apart by it.
+ */
+export async function loadTaskRetryHistory(
+  sql: Sql | TransactionSql,
+  taskId: string,
+): Promise<TaskRetryHistoryRow[]> {
+  const rows = await sql<
+    {
+      id: string;
+      status: string;
+      agentId: string;
+      startedBy: string;
+      launchedAt: number | null;
+      settledAt: number | null;
+      failureCode: string | null;
+    }[]
+  >`
+    SELECT id, status, agent_id AS "agentId",
+           started_by AS "startedBy",
+           launched_at_ms::float8 AS "launchedAt",
+           settled_at_ms::float8 AS "settledAt",
+           failure_code AS "failureCode"
+    FROM app.project_agent_runs
+    WHERE task_id = ${taskId}
+    ORDER BY seq DESC
+    LIMIT ${AUTO_RETRY_HISTORY_LIMIT}
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    agentId: row.agentId,
+    startedBy: row.startedBy,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
+    status: row.status as AutoRetryRunFacts['status'],
+    launchedAt: row.launchedAt ?? undefined,
+    settledAt: row.settledAt ?? undefined,
+    failureCode: row.failureCode ?? undefined,
+  }));
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import {
   AccountError,
@@ -35,6 +36,7 @@ const claude: TokenHandout = {
   status: 'active',
   accessToken: 'sk-ant-oat01-access-1',
   expiresAt: '2026-10-21T09:40:00.000Z',
+  refreshAt: '2026-10-21T07:12:30.000Z',
   scopes: 'user:inference',
   available: false,
   availableAt: '2026-09-23T10:00:00.000Z',
@@ -61,6 +63,7 @@ const chatgpt: TokenHandout = {
   status: 'active',
   accessToken: 'codex-access-2',
   expiresAt: null,
+  refreshAt: null,
   scopes: null,
   available: true,
   availableAt: null,
@@ -334,6 +337,7 @@ describe('the token endpoints', () => {
           status: 'active',
           access_token: 'sk-ant-oat01-access-1',
           expires_at: '2026-10-21T09:40:00.000Z',
+          refresh_at: '2026-10-21T07:12:30.000Z',
           scopes: 'user:inference',
           available: false,
           available_at: '2026-09-23T10:00:00.000Z',
@@ -353,6 +357,26 @@ describe('the token endpoints', () => {
         },
       ],
     });
+  });
+
+  it('reports the planned refresh beside the vendor expiry, as the end of the token’s life', async () => {
+    const { call } = build();
+    const response = await call('/api/tokens/anthropic', { headers: withKey });
+    const body = z
+      .object({
+        tokens: z.array(
+          z.object({ expires_at: z.string(), refresh_at: z.string() }),
+        ),
+      })
+      .parse(await response.json());
+    // `expires_at` keeps cc-gateway's meaning, the vendor's own expiry;
+    // `refresh_at` is when this gateway's refresh ends the token, earlier.
+    expect(body.tokens).toEqual([
+      {
+        expires_at: '2026-10-21T09:40:00.000Z',
+        refresh_at: '2026-10-21T07:12:30.000Z',
+      },
+    ]);
   });
 
   it('hands out only Claude tokens on the Anthropic endpoint', async () => {
@@ -380,6 +404,7 @@ describe('the token endpoints', () => {
           status: 'active',
           access_token: 'codex-access-2',
           expires_at: null,
+          refresh_at: null,
           scopes: null,
           available: true,
           available_at: null,
@@ -434,6 +459,7 @@ describe('the token endpoints', () => {
           status: 'active',
           access_token: 'sk-ant-oat01-access-1',
           expires_at: '2026-10-21T09:40:00.000Z',
+          refresh_at: '2026-10-21T07:12:30.000Z',
           scopes: 'user:inference',
           available: false,
           available_at: '2026-09-23T10:00:00.000Z',
@@ -460,6 +486,7 @@ describe('the token endpoints', () => {
           status: 'active',
           access_token: 'codex-access-2',
           expires_at: null,
+          refresh_at: null,
           scopes: null,
           available: true,
           available_at: null,
