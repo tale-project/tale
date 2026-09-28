@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 
 import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
-import { onSessionLapsed } from '@/app/lib/auth/session-lapse';
+import {
+  onSessionLapsed,
+  reportSessionLapsed,
+  sessionLapseCheckVersion,
+} from '@/app/lib/auth/session-lapse';
 import { authClient } from '@/lib/auth-client';
 
 /**
@@ -28,11 +32,19 @@ export function useSessionLapseRedirect(enabled: boolean): void {
     let active = true;
     let checking = false;
     const unsubscribe = onSessionLapsed(() => {
-      if (checking) return;
+      const version = sessionLapseCheckVersion();
+      if (checking || version === null) return;
       checking = true;
       void sessionIsGone().then((gone) => {
         checking = false;
-        if (gone && active) redirectToLogIn('session-ended');
+        if (!active) return;
+        if (sessionLapseCheckVersion() !== version) {
+          // A sign-out now owns navigation, or a rotation replaced the cookie
+          // this answer judged. Recheck only after that transition releases.
+          reportSessionLapsed();
+          return;
+        }
+        if (gone) redirectToLogIn('session-ended');
       });
     });
     return () => {

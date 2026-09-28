@@ -13,6 +13,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { holdSessionLapseRedirects } from '@/app/lib/auth/session-lapse';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -101,6 +102,9 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
     if (state.step !== 'verify') return;
     setSubmitting(true);
     setError(null);
+    // Verification retires the old token before the response installs its
+    // replacement cookie. Keep background 401s from interrupting enrollment.
+    const resumeLapseRedirects = holdSessionLapseRedirects();
     try {
       const result = await authClient.twoFactor.verifyTotp({ code });
       if (result.error) {
@@ -118,6 +122,7 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
       setError(t('errors.invalidCode'));
     } finally {
       setSubmitting(false);
+      resumeLapseRedirects();
     }
   }
 
@@ -182,6 +187,7 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
   async function disable(password: string) {
     setSubmitting(true);
     setError(null);
+    const resumeLapseRedirects = holdSessionLapseRedirects();
     try {
       const result = await authClient.twoFactor.disable({ password });
       if (result.error) {
@@ -197,6 +203,7 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
       setError(t('errors.disableFailed'));
     } finally {
       setSubmitting(false);
+      resumeLapseRedirects();
     }
   }
 

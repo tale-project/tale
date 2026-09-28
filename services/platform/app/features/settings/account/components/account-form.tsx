@@ -25,6 +25,7 @@ import {
   usePasswordValidation,
 } from '@/app/hooks/use-password-validation';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { holdSessionLapseRedirects } from '@/app/lib/auth/session-lapse';
 import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -326,12 +327,16 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
   const passwordValidationItems = usePasswordValidation(newPassword, policy);
 
   const onSubmit = async (data: ChangePasswordFormData) => {
+    // The write revokes sessions before its response arrives. This flow owns
+    // the sign-out and navigation that follow, including any late 401s.
+    const resumeLapseRedirects = holdSessionLapseRedirects();
     try {
       await updatePassword({
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
     } catch (error) {
+      resumeLapseRedirects();
       // A wrong current password is an expected, recoverable failure — surface
       // it as an inline field error on the current-password input (mirroring
       // the 2FA / add-member flows) rather than a generic destructive toast

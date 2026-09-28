@@ -14,6 +14,36 @@
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
+let transitionCount = 0;
+let transitionVersion = 0;
+let deferredLapse = false;
+
+/**
+ * A local auth change owns the session until its response has installed the
+ * replacement cookie, or its sign-out cleanup has navigated away. A sign-out
+ * keeps this hold on success; a failed sign-out or completed rotation releases
+ * it. Starting a change also invalidates a recheck that was already in flight.
+ */
+export function holdSessionLapseRedirects(): () => void {
+  transitionCount++;
+  transitionVersion++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    transitionCount--;
+    transitionVersion++;
+    if (transitionCount === 0 && deferredLapse) {
+      deferredLapse = false;
+      reportSessionLapsed();
+    }
+  };
+}
+
+/** A recheck may act only while the session has not changed beneath it. */
+export function sessionLapseCheckVersion(): number | null {
+  return transitionCount === 0 ? transitionVersion : null;
+}
 
 /** True for the session door's answer: the session this tab had is gone. */
 export function isLapsedSessionAnswer(
@@ -25,6 +55,10 @@ export function isLapsedSessionAnswer(
 
 /** A backend answer said the session has ended. */
 export function reportSessionLapsed(): void {
+  if (transitionCount > 0) {
+    deferredLapse = true;
+    return;
+  }
   for (const listener of listeners) listener();
 }
 

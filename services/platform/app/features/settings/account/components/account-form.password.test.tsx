@@ -4,8 +4,11 @@ import {
   type PasswordPolicyConfig,
 } from '@tale/shared/schemas/governance';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
+import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 // A member's password dialogs used to read the organization's policy through
@@ -14,9 +17,16 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 // stricter organization's rules. The dialogs now read the caller's effective
 // policy; these cases drive the real adapter row over a stubbed `fetch`.
 
-const { mockHasCredential, mockToast } = vi.hoisted(() => ({
-  mockHasCredential: { value: true },
-  mockToast: vi.fn(),
+const { mockHasCredential, mockToast, mockGetSession, mockSignOut } =
+  vi.hoisted(() => ({
+    mockHasCredential: { value: true },
+    mockToast: vi.fn(),
+    mockGetSession: vi.fn(),
+    mockSignOut: vi.fn().mockResolvedValue(undefined),
+  }));
+
+vi.mock('@/lib/auth-client', () => ({
+  authClient: { getSession: mockGetSession },
 }));
 
 vi.mock('@/app/features/auth/hooks/queries', () => ({
@@ -30,7 +40,7 @@ vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({
     user: { userId: 'member-1', email: 'member@example.test', name: 'Mia' },
     isLoading: false,
-    signOut: vi.fn().mockResolvedValue(undefined),
+    signOut: mockSignOut,
   }),
   useSessionUser: () => ({ isLoading: false, isAuthenticated: true }),
 }));
@@ -83,7 +93,10 @@ function pathOf(input: RequestInfo | URL): string {
  * the effective-policy read answers per `policy`, and the password write
  * answers per `write`. Every request path is recorded.
  */
-function stubBackend(answers: { policy: PolicyAnswer[]; write?: Response }): {
+function stubBackend(answers: {
+  policy: PolicyAnswer[];
+  write?: Response | Promise<Response>;
+}): {
   paths: string[];
   releasePolicy: () => void;
 } {
@@ -105,7 +118,10 @@ function stubBackend(answers: { policy: PolicyAnswer[]; write?: Response }): {
       return json({ policy: STRICT_POLICY });
     }
     if (path.startsWith('/api/app/users/update-password')) {
-      return answers.write?.clone() ?? json({ ok: true, passwordExpiry: null });
+      return (
+        (await answers.write)?.clone() ??
+        json({ ok: true, passwordExpiry: null })
+      );
     }
     return json({ error: 'Not Found' }, 404);
   });
@@ -119,13 +135,18 @@ function stubBackend(answers: { policy: PolicyAnswer[]; write?: Response }): {
   };
 }
 
-function renderAccountForm() {
+function AccountWithLapseRecovery() {
+  useSessionLapseRedirect(true);
+  return <AccountForm />;
+}
+
+function renderAccountForm(withLapseRecovery = false) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   const rendered = render(
     <QueryClientProvider client={client}>
-      <AccountForm />
+      {withLapseRecovery ? <AccountWithLapseRecovery /> : <AccountForm />}
     </QueryClientProvider>,
   );
   return { ...rendered, client };
@@ -143,6 +164,127 @@ beforeEach(() => {
   window.__ENV__ = { BASE_PATH: '' };
   mockHasCredential.value = true;
   mockToast.mockClear();
+});
+
+describe('Change password session revocation', () => {
+  const originalLocation = window.location;
+  let navigations: string[];
+
+  beforeEach(() => {
+    navigations = [];
+    mockGetSession.mockReset().mockResolvedValue({ data: null, error: null });
+    mockSignOut.mockClear();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        pathname: '/dashboard/org-1/settings/account',
+        search: '',
+        hash: '',
+        set href(value: string) {
+          navigations.push(value);
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    });
+  });
+
+  async function submitPassword() {
+    const { user } = renderAccountForm(true);
+    const dialog = await openDialog(user, 'Change password');
+    await user.type(
+      within(dialog).getByLabelText('Current password'),
+      'current-password',
+    );
+    await user.type(
+      within(dialog).getByLabelText('New password'),
+      STRICT_GRADE_PASSWORD,
+    );
+    await user.type(
+      within(dialog).getByLabelText('Confirm new password'),
+      STRICT_GRADE_PASSWORD,
+    );
+    const submit = within(dialog).getByRole('button', {
+      name: 'Change password',
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    await user.click(submit);
+    return dialog;
+  }
+
+  it('releases the hold when the password write is refused', async () => {
+    let refuse = () => {};
+    const write = new Promise<Response>((resolve) => {
+      refuse = () =>
+        resolve(
+          json(
+            {
+              error: 'Current password is incorrect',
+              code: 'INVALID_CURRENT_PASSWORD',
+            },
+            400,
+          ),
+        );
+    });
+    const { paths } = stubBackend({ policy: ['strict'], write });
+    const dialog = await submitPassword();
+    await waitFor(() =>
+      expect(
+        paths.filter((path) =>
+          path.startsWith('/api/app/users/update-password'),
+        ),
+      ).toHaveLength(1),
+    );
+    await act(async () => {
+      reportSessionLapsed();
+    });
+    expect(navigations).toEqual([]);
+    mockGetSession.mockResolvedValue({
+      data: { user: { id: 'member-1' } },
+      error: null,
+    });
+    await act(async () => {
+      refuse();
+    });
+    expect(
+      await within(dialog).findByText('Current password is incorrect'),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(mockGetSession).toHaveBeenCalledOnce());
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(navigations).toEqual([]);
+  });
+
+  it('finishes password-change cleanup and its own navigation after session revocation', async () => {
+    let changed = () => {};
+    const write = new Promise<Response>((resolve) => {
+      changed = () => resolve(json({ ok: true, passwordExpiry: null }));
+    });
+    const { paths } = stubBackend({ policy: ['strict'], write });
+    await submitPassword();
+    await waitFor(() =>
+      expect(
+        paths.filter((path) =>
+          path.startsWith('/api/app/users/update-password'),
+        ),
+      ).toHaveLength(1),
+    );
+    await act(async () => {
+      reportSessionLapsed();
+    });
+    expect(navigations).toEqual([]);
+    await act(async () => {
+      changed();
+    });
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce());
+    reportSessionLapsed();
+    await act(async () => {});
+    expect(navigations).toEqual(['/']);
+  });
 });
 
 afterEach(() => {
