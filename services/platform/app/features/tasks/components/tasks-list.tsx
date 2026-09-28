@@ -61,7 +61,7 @@ export function TasksList({
     [tasks],
   );
   const { confirmCancel, dialog: cancelConfirmDialog } = useRunCancelConfirm();
-  const dnd = useTaskBoardDnd(topLevel, { confirmCancel });
+  const dnd = useTaskBoardDnd(topLevel, { confirmCancel, projectKey });
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // Collapsed status sections, persisted per project so a fold survives reloads.
   const [collapsedStatuses, setCollapsedStatuses] = usePersistedState<
@@ -101,6 +101,7 @@ export function TasksList({
       onDragEnd={dnd.onDragEnd}
       onDragCancel={dnd.onDragCancel}
       autoScroll={dnd.autoScroll}
+      accessibility={dnd.accessibility}
     >
       <div className="h-full min-h-0 overflow-auto overscroll-contain">
         {BOARD_TASK_STATUSES.map((status) => {

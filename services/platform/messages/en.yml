@@ -7265,6 +7265,21 @@ tasks:
     noTasks: No tasks
   list:
     showArchived: Show archived
+  # A keyboard drag on the Board or List: the title's instructions (they
+  # name the keys the title handles), then the live announcements. {task} is
+  # `KEY-12, Title` on pickup and `KEY-12` after it (the title when the
+  # project has no key); {status} is a `status.*` label. A drop names where
+  # the task was released, not a status change: a workflow can still refuse it.
+  drag:
+    instructions: Enter opens the task. Space picks it up; then the arrow keys move it, Space drops it and Escape cancels.
+    pickedUp: 'Picked up {task}. Status {status}, position {position} of {total}. Move it with the arrow keys, drop it with Space or cancel with Escape.'
+    over: 'Status {status}, position {position} of {total}.'
+    noTarget: Not over a status. Dropping here changes nothing.
+    dropped: 'Dropped {task} in status {status}, position {position} of {total}.'
+    droppedInPlace: 'Dropped {task} where it started, in status {status}, position {position} of {total}.'
+    droppedOutside: 'Dropped {task} outside the statuses. It stays in status {status}, position {position} of {total}.'
+    cancelled: 'Cancelled moving {task}. It stays in status {status}, position {position} of {total}.'
+    gone: The task is no longer here, so it was not moved.
   archived:
     badge: Archived
   archive:

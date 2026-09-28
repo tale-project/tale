@@ -3,15 +3,19 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type Announcements,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type ScreenReaderInstructions,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createBoardCollisionDetection } from '@/app/hooks/use-board-dnd';
+import { useT } from '@/lib/i18n/client';
 
 import type { TaskRow } from '../components/task-card';
 import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
@@ -22,6 +26,24 @@ import {
 } from './use-task-status-choreography';
 
 export type TaskColumns = Record<TaskStatus, string[]>;
+
+export interface TaskBoardDndOptions extends TaskStatusChoreographyOptions {
+  /** The board's project key: drag announcements name a task `KEY-12` when
+   * its row carries no key of its own. */
+  projectKey?: string | null;
+}
+
+/** A task's place in a status: its 1-based position among `total` tasks. */
+interface TaskSlot {
+  status: TaskStatus;
+  position: number;
+  total: number;
+}
+
+/** What the last drop did, kept for its announcement. */
+type DropOutcome =
+  | { kind: 'placed'; slot: TaskSlot; moved: boolean }
+  | { kind: 'refused'; slot: TaskSlot | null };
 
 function emptyColumns(): TaskColumns {
   return {
@@ -50,6 +72,35 @@ function findContainer(cols: TaskColumns, id: string): TaskStatus | undefined {
   return TASK_STATUS_ORDER.find((status) => cols[status].includes(id));
 }
 
+/**
+ * Where dropping `activeId` over `overId` lands it, read from the working
+ * copy: the lane's order after the drop, the task's index in it and its slot.
+ * `null` when the target is in no lane or the task is not in it. The drop and
+ * the move announcements both read it, so a screen reader hears the slot the
+ * drop will actually take.
+ */
+function resolveDrop(cols: TaskColumns, activeId: string, overId: string) {
+  const status = findContainer(cols, overId) ?? findContainer(cols, activeId);
+  if (!status) return null;
+  const lane = cols[status];
+  const from = lane.indexOf(activeId);
+  if (from === -1) return null;
+  const overIndex = lane.indexOf(overId);
+  // The lane surface itself (or an id it no longer holds) is its end.
+  const index =
+    overId === status || overIndex === -1 ? lane.length - 1 : overIndex;
+  const order = from === index ? lane : arrayMove(lane, from, index);
+  const slot: TaskSlot = { status, position: index + 1, total: order.length };
+  return { order, index, slot };
+}
+
+function slotOf(cols: TaskColumns, id: string): TaskSlot | null {
+  const status = findContainer(cols, id);
+  if (!status) return null;
+  const lane = cols[status];
+  return { status, position: lane.indexOf(id) + 1, total: lane.length };
+}
+
 export interface TaskBoardDnd {
   /** Working copy of column → task-id ordering (reflects in-progress drags). */
   columns: TaskColumns;
@@ -63,6 +114,13 @@ export interface TaskBoardDnd {
   onDragEnd: (event: DragEndEvent) => void;
   onDragCancel: () => void;
   autoScroll: { acceleration: number; threshold: { x: number; y: number } };
+  /** The `<DndContext>` `accessibility` of every task layout: instructions
+   * for the title and announcements that name the task, its status and its
+   * position, never an internal id. */
+  accessibility: {
+    announcements: Announcements;
+    screenReaderInstructions: ScreenReaderInstructions;
+  };
 }
 
 /**
@@ -72,12 +130,15 @@ export interface TaskBoardDnd {
  * (arrayMove on drop), previews the landing slot live across columns and into
  * empty lanes (`onDragOver`), and never bounces back (the copy already reflects
  * the drop; a failed write reverts via the prop resync). Consumers render their
- * own `<DndContext>` with these props plus per-status `<SortableContext>`s.
+ * own `<DndContext>` with these props (its `accessibility` included, so every
+ * layout speaks the same lines) plus per-status `<SortableContext>`s.
  */
 export function useTaskBoardDnd(
   tasks: TaskRow[],
-  options?: TaskStatusChoreographyOptions,
+  options?: TaskBoardDndOptions,
 ): TaskBoardDnd {
+  const { t } = useT('tasks');
+  const projectKey = options?.projectKey;
   const moveTask = useMoveTask();
   // Cross-column drags on automation-owned tasks route through the owning
   // workflow's choreography (drag to In progress = start, drag out = cancel)
@@ -123,6 +184,11 @@ export function useTaskBoardDnd(
   const [columns, setColumnsState] = useState(columnsFromProps);
   const columnsRef = useRef(columnsFromProps);
   const draggingRef = useRef(false);
+  const dropRef = useRef<DropOutcome | null>(null);
+  // The slot the announcer spoke last. dnd-kit reports a picked-up task over
+  // itself right away, which would drown the pickup line; a move to the slot
+  // just spoken stays silent.
+  const spokenSlotRef = useRef<string | null>(null);
 
   const setColumns = useCallback((next: TaskColumns) => {
     columnsRef.current = next;
@@ -182,56 +248,37 @@ export function useTaskBoardDnd(
       draggingRef.current = false;
       setActiveId(null);
       const { active, over } = event;
-      if (!over) {
-        setColumns(columnsFromProps);
-        return;
-      }
-
       const activeIdStr = String(active.id);
-      const overIdStr = String(over.id);
       const cols = columnsRef.current;
-      const container =
-        findContainer(cols, overIdStr) ?? findContainer(cols, activeIdStr);
-      if (!container) {
+      const drop = over
+        ? resolveDrop(cols, activeIdStr, String(over.id))
+        : null;
+      if (!drop) {
         setColumns(columnsFromProps);
+        dropRef.current = {
+          kind: 'refused',
+          slot: slotOf(columnsFromProps, activeIdStr),
+        };
         return;
       }
 
-      const current = cols[container];
-      const oldIndex = current.indexOf(activeIdStr);
-      if (oldIndex === -1) {
-        setColumns(columnsFromProps);
-        return;
-      }
-      const newIndex =
-        overIdStr === container
-          ? current.length - 1
-          : (() => {
-              const i = current.indexOf(overIdStr);
-              return i === -1 ? current.length - 1 : i;
-            })();
-
-      const finalArr =
-        oldIndex === newIndex
-          ? current
-          : arrayMove(current, oldIndex, newIndex);
+      const container = drop.slot.status;
+      const finalArr = drop.order;
       setColumns({ ...cols, [container]: finalArr });
 
-      const pos = finalArr.indexOf(activeIdStr);
-      const beforeIdStr = finalArr[pos - 1];
-      const afterIdStr = finalArr[pos + 1];
+      const beforeIdStr = finalArr[drop.index - 1];
+      const afterIdStr = finalArr[drop.index + 1];
 
       // Skip the write when nothing changed (dropped back in place).
       const origContainer = findContainer(columnsFromProps, activeIdStr);
       const origArr = origContainer ? columnsFromProps[origContainer] : [];
       const origPos = origArr.indexOf(activeIdStr);
-      if (
+      const unchanged =
         origContainer === container &&
         origArr[origPos - 1] === beforeIdStr &&
-        origArr[origPos + 1] === afterIdStr
-      ) {
-        return;
-      }
+        origArr[origPos + 1] === afterIdStr;
+      dropRef.current = { kind: 'placed', slot: drop.slot, moved: !unchanged };
+      if (unchanged) return;
 
       // Resolve back to typed task ids via the row map (no unsafe casts).
       const row = byId.get(activeIdStr);
@@ -275,6 +322,77 @@ export function useTaskBoardDnd(
     [],
   );
 
+  // dnd-kit calls the `DndContext` handlers above before its announcer, so
+  // each line reads the working copy (and the drop's outcome) they left.
+  const accessibility = useMemo(() => {
+    // `GS-1, Title` when picked up; the key alone once it has been heard.
+    const nameOf = (task: TaskRow, withTitle: boolean) => {
+      const key = formatTaskIdentifier(
+        task.projectKey ?? projectKey,
+        task.number,
+      );
+      if (!key) return task.title;
+      return withTitle ? `${key}, ${task.title}` : key;
+    };
+    const place = (slot: TaskSlot) => ({
+      status: t(`status.${slot.status}`),
+      position: slot.position,
+      total: slot.total,
+    });
+    const keyOf = (slot: TaskSlot) =>
+      `${slot.status}:${slot.position}:${slot.total}`;
+
+    const announcements: Announcements = {
+      onDragStart({ active }) {
+        const id = String(active.id);
+        const task = byId.get(id);
+        const slot = slotOf(columnsRef.current, id);
+        spokenSlotRef.current = slot ? keyOf(slot) : null;
+        if (!task || !slot) return t('drag.gone');
+        return t('drag.pickedUp', { task: nameOf(task, true), ...place(slot) });
+      },
+      onDragOver({ active, over }) {
+        const slot = over
+          ? resolveDrop(columnsRef.current, String(active.id), String(over.id))
+              ?.slot
+          : null;
+        const key = slot ? keyOf(slot) : 'none';
+        if (key === spokenSlotRef.current) return undefined;
+        spokenSlotRef.current = key;
+        return slot ? t('drag.over', place(slot)) : t('drag.noTarget');
+      },
+      onDragEnd({ active }) {
+        const outcome = dropRef.current;
+        dropRef.current = null;
+        spokenSlotRef.current = null;
+        const task = byId.get(String(active.id));
+        // A task gone mid-drag is not written (`onDragEnd` finds no row).
+        if (!task || !outcome?.slot) return t('drag.gone');
+        const values = { task: nameOf(task, false), ...place(outcome.slot) };
+        // Name the drop, not a new status: a workflow can still refuse it.
+        if (outcome.kind === 'refused') return t('drag.droppedOutside', values);
+        return outcome.moved
+          ? t('drag.dropped', values)
+          : t('drag.droppedInPlace', values);
+      },
+      onDragCancel({ active }) {
+        spokenSlotRef.current = null;
+        const id = String(active.id);
+        const task = byId.get(id);
+        const slot = slotOf(columnsRef.current, id);
+        if (!task || !slot) return t('drag.gone');
+        return t('drag.cancelled', {
+          task: nameOf(task, false),
+          ...place(slot),
+        });
+      },
+    };
+    const screenReaderInstructions: ScreenReaderInstructions = {
+      draggable: t('drag.instructions'),
+    };
+    return { announcements, screenReaderInstructions };
+  }, [byId, projectKey, t]);
+
   return {
     columns,
     byId,
@@ -287,5 +405,6 @@ export function useTaskBoardDnd(
     onDragEnd,
     onDragCancel,
     autoScroll: { acceleration: 5, threshold: { x: 0.15, y: 0.2 } },
+    accessibility,
   };
 }

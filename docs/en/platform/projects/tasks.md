@@ -89,4 +89,6 @@ Use **Filter** to narrow the board, or switch to **List** to scan rows. Keep pro
 
 In **Board** and **List**, press **Tab** until the task title is focused, then press **Enter** to open the task.
 
+If you can edit the task, press **Space** on its title to pick it up, move it with the arrow keys, and press **Space** again to drop it. **Escape** cancels the move and leaves the task where it was. A screen reader announces the task, its status, and its position at each step.
+
 If a change is refused, check the task’s current state before trying again: a live agent run blocks reassignment, open subtasks block closure, and project access determines whether you can edit at all.

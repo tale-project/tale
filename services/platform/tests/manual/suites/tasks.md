@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 56 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -254,8 +254,9 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   with an empty lane (e.g. **Cancelled**) beside a lane holding cards, drag a
   card and release it just inside the empty lane's body, level with a card
   of the neighbouring lane (~150 px below the lane header) → The card takes
-  the lane under the pointer (the dnd live region names that lane's status
-  as the drop area, never a card id), the lane highlights while hovered,
+  the lane under the pointer (the drag live region names the card's key and
+  that lane's status, `tasks.drag.dropped`, never an id), the lane
+  highlights while hovered,
   and the status reads back after reload; releasing between two cards of a
   populated lane still slots the card between them, and a drop below a
   lane's last card appends it.
@@ -497,6 +498,19 @@ Mentions/assignment notifications need a second member (SETUP.md extras).
   beside it and still open their pickers on click), and no
   `aria-prohibited-attr` on the assignee chips (each is a named
   `role="img"`); clicking any blank part of the card still opens the task.
+- [ ] `TASK-A7` · **A keyboard drag is spoken by name** — With a screen
+  reader on (VoiceOver `Cmd+F5` or NVDA), Tab to an editable task's title on
+  **Board**, then on **List**; press **Space**, move with the arrow keys into
+  another status and into an empty one, press **Space**; pick it up again and
+  press **Escape**; repeat in German and French → On focus the reader speaks
+  the title and then the instructions (`tasks.drag.instructions`: Enter
+  opens, Space picks up and drops, the arrow keys move, Escape cancels); the
+  pickup names the task's key and title with its status and position
+  (`tasks.drag.pickedUp`) and is not cut off by a move line; each move speaks
+  the status and position (`tasks.drag.over`); the drop
+  (`tasks.drag.dropped`) and the cancel (`tasks.drag.cancelled`) name the key;
+  no id is ever spoken and focus stays on the title. Note the reader and its
+  version: the Chromium specs read the live region's text, not the speech.
 
 ## Performance
 
