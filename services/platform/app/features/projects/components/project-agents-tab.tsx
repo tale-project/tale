@@ -90,7 +90,7 @@ export function ProjectAgentsTab({
 
   if (!project) return projectLoading ? <ProjectAgentsSkeleton /> : null;
 
-  const skills = catalogQuery.data?.skills ?? [];
+  const skills = catalogQuery.data?.skills;
   const connectors = catalogQuery.data?.connectors ?? [];
   const canEdit = project.canEdit;
 

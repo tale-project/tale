@@ -32,6 +32,7 @@ import {
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
+import { DOCUMENT_SKILL_SLUGS } from '../lib/document-skills';
 import { findSelectedModel, type ModelOption } from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 
@@ -49,7 +50,8 @@ interface ProjectAgentDialogProps {
   organizationId: string;
   harnesses: readonly HarnessOption[];
   models: readonly ModelOption[];
-  skills: readonly SkillOption[];
+  /** Undefined until the project's capability catalog has loaded. */
+  skills: readonly SkillOption[] | undefined;
   connectors: readonly SkillOption[];
   /** The row being edited; absent = create. */
   agent?: ProjectAgentRow;
@@ -63,17 +65,6 @@ const EMPTY_BINDING: SkillsSelection = {
   connectors: [],
   tools: [],
 };
-
-/**
- * The document skills a NEW agent starts with ticked — the Word, PowerPoint,
- * Excel and PDF bundles every organization is seeded with
- * (`configs/platform/custom/skills/`). Producing a document is the most
- * common reason to create an agent, and an agent without them cannot write
- * one; the person creating it can untick any. Only slugs the project can see
- * are ticked, so a deleted or unshared one is skipped, and editing an
- * existing agent never changes its equipment.
- */
-export const DOCUMENT_SKILL_SLUGS = ['docx', 'pptx', 'xlsx', 'pdf'] as const;
 
 export function ProjectAgentDialog({
   open,
@@ -129,13 +120,15 @@ export function ProjectAgentDialog({
   }, [open, agent]);
 
   // A new agent starts with the document skills the project can see ticked.
-  // The catalog may land after the dialog opens, so this waits for it.
+  // Wait for the first catalog, including a successful empty result. Later
+  // refreshes must not add equipment to a form the person is already editing.
   useEffect(() => {
-    if (!open || agent || documentSkillsSeeded.current) return;
+    if (!open || agent || skills === undefined || documentSkillsSeeded.current)
+      return;
+    documentSkillsSeeded.current = true;
     const visible = new Set(skills.map((option) => option.slug));
     const defaults = DOCUMENT_SKILL_SLUGS.filter((slug) => visible.has(slug));
     if (defaults.length === 0) return;
-    documentSkillsSeeded.current = true;
     setBinding((current) => ({
       ...current,
       skills: [...new Set([...current.skills, ...defaults])],
@@ -383,7 +376,7 @@ export function ProjectAgentDialog({
         modal
       />
       <SkillsMenu
-        skills={skills}
+        skills={skills ?? []}
         connectors={connectors}
         tools={toolOptions}
         value={binding}
