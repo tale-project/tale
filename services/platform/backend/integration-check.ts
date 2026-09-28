@@ -18812,6 +18812,10 @@ async function checkTurnReattach(
       opStatus?: string;
       /** How long ago the RUN row was last touched (default: 10 min). */
       updatedAgoMs?: number;
+      /** The harness the run was kicked on (default: the one the session
+       * below is stamped with). An agent switched to another harness keeps
+       * its standing session, so the two differ. */
+      harness?: string;
     },
   ): Promise<{ runId: string; sessionId: string; execId: string }> => {
     const sessionId = `reattach-session-${suffix}`;
@@ -18854,8 +18858,8 @@ async function checkTurnReattach(
         updated_at_ms
       ) VALUES (
         ${orgId}, ${taskId}, ${projectId}, ${agentId}, ${sessionId},
-        ${execId}, 'claude-code', 'itest-model', 'manual', ${userId},
-        'running', ${now - 600_000}, ${now + 3_600_000},
+        ${execId}, ${opts.harness ?? 'claude-code'}, 'itest-model', 'manual',
+        ${userId}, 'running', ${now - 600_000}, ${now + 3_600_000},
         ${now - (opts.updatedAgoMs ?? 600_000)}
       ) RETURNING id
     `;
@@ -18865,13 +18869,15 @@ async function checkTurnReattach(
   // Four shapes: an abandoned turn (stale lease), a LIVE one (fresh
   // heartbeat), a start that died before writing its op row, and a run a
   // restart-steer JUST rotated (fresh run row, no op row for the new exec
-  // yet) — alive, not abandoned.
+  // yet) — alive, not abandoned. The abandoned and the op-less run were
+  // kicked after their agent left the harness its session is stamped with.
   const abandoned = await mkRun('stale', {
     withOp: true,
     heartbeatAgoMs: 10 * 60_000,
+    harness: 'pi',
   });
   const live = await mkRun('live', { withOp: true, heartbeatAgoMs: 5_000 });
-  const noOp = await mkRun('noop', { withOp: false });
+  const noOp = await mkRun('noop', { withOp: false, harness: 'pi' });
   const justRotated = await mkRun('rotated', {
     withOp: false,
     updatedAgoMs: 5_000,
@@ -18908,9 +18914,14 @@ async function checkTurnReattach(
     }),
   );
   const createdOp = await sql<
-    { resumedBy: string | null; status: string; kind: string }[]
+    {
+      resumedBy: string | null;
+      status: string;
+      kind: string;
+      harness: string | null;
+    }[]
   >`
-    SELECT resumed_by AS "resumedBy", status, kind
+    SELECT resumed_by AS "resumedBy", status, kind, harness
     FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
@@ -18940,9 +18951,92 @@ async function checkTurnReattach(
       createdOp[0]?.resumedBy === 'watchdog' &&
       createdOp[0]?.status === 'running' &&
       createdOp[0]?.kind === 'task-agent' &&
+      // …under the harness the RUN was kicked on, not the one its standing
+      // session was created with.
+      createdOp[0]?.harness === 'pi' &&
       recoveredCard?.op?.execId === noOp.execId &&
       bumpedOp[0]?.resumedBy === 'watchdog',
-    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind} runCard=${recoveredCard?.op?.execId ?? 'null'}`,
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)} rotatedUntouched=${!drivenRunIds.has(justRotated.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}/${createdOp[0]?.kind}/${createdOp[0]?.harness} (want harness pi) runCard=${recoveredCard?.op?.execId ?? 'null'}`,
+  );
+
+  // Migration 0127 names the ops written before the column existed. A
+  // task-agent op takes the harness of ITS RUN — here `codex`, under a
+  // session stamped `claude-code`; an op that already records one keeps it.
+  // Workflow nodes can choose different harnesses while sharing a session,
+  // so the create-time stamp cannot name an old node's turn: leave it NULL.
+  await sql`
+    UPDATE app.sandbox_session_ops SET harness = 'pi'
+    WHERE session_id = ${live.sessionId} AND exec_id = ${live.execId}
+  `;
+  // Like the existing op-attribution resolver, take the newest exact
+  // session/exec run record. A matching foreign-tenant record is irrelevant.
+  for (const [runOrg, harness] of [
+    [orgId, 'codex'],
+    [`${orgId}-other`, 'foreign-harness'],
+  ] as const) {
+    await sql`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id,
+        status, harness, model, started_by, started_at_ms,
+        deadline_at_ms, updated_at_ms
+      )
+      SELECT ${runOrg}, project_id, task_id, agent_id, exec_id, session_id,
+             'failed', ${harness}, model, started_by, started_at_ms,
+             deadline_at_ms, updated_at_ms
+      FROM app.project_agent_runs WHERE id = ${abandoned.runId}
+    `;
+  }
+  for (const [suffix, agentKind] of [
+    ['wf-stamped', 'codex'],
+    ['wf-bare', null],
+  ] as const) {
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        agent_kind, created_at_ms, expires_at_ms
+      ) VALUES (${orgId}, ${`reattach-session-${suffix}`}, 'active',
+                'workflow_run', ${`reattach-run-${suffix}:@workflow`},
+                ${userId}, ${agentKind}, ${now}, ${now + 3_600_000})
+    `;
+    await sql`
+      INSERT INTO app.sandbox_session_ops (
+        org_id, session_id, exec_id, kind, status, started_at_ms
+      ) VALUES (${orgId}, ${`reattach-session-${suffix}`},
+                ${`reattach-exec-${suffix}`}, 'workflow-agent', 'running',
+                ${now})
+    `;
+  }
+  const harnessBackfill = await readFile(
+    new URL(
+      './db/migrations/0127_sandbox_session_ops_harness.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const opHarnesses = async () => {
+    const rows = await sql<{ execId: string; harness: string | null }[]>`
+      SELECT exec_id AS "execId", harness FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+      ORDER BY exec_id
+    `;
+    return JSON.stringify(rows.map((row) => [row.execId, row.harness]));
+  };
+  await sql.unsafe(harnessBackfill);
+  const backfilledHarnesses = await opHarnesses();
+  await sql.unsafe(harnessBackfill);
+  const backfilledHarnessesAgain = await opHarnesses();
+  const wantHarnesses = JSON.stringify([
+    [live.execId, 'pi'],
+    [noOp.execId, 'pi'],
+    [abandoned.execId, 'codex'],
+    ['reattach-exec-wf-bare', null],
+    ['reattach-exec-wf-stamped', null],
+  ]);
+  record(
+    'harness turns: migration 0127 names an op by its run, keeps a recorded harness, and is idempotent',
+    backfilledHarnesses === wantHarnesses &&
+      backfilledHarnessesAgain === backfilledHarnesses,
+    `backfilled=${backfilledHarnesses} (want ${wantHarnesses}), idempotent=${backfilledHarnessesAgain === backfilledHarnesses}`,
   );
 
   // Leave nothing behind: live sessions hold sandbox slots, and settled
@@ -19428,7 +19522,9 @@ async function checkWorkflowTurnReattach(
               deadlineAt,
               providerSlug: 'itestauto',
               gatewayModel: 'itestauto/agent-model',
-              harness: 'claude-code',
+              // Not the harness the run's session below is stamped with: a
+              // run's agent nodes may each run their own.
+              harness: 'codex',
               input: { model: 'agent-model', prompt: 'probe' },
             },
           },
@@ -19531,9 +19627,14 @@ async function checkWorkflowTurnReattach(
   );
   const driveKeys = objectAt(driveJobs[0]?.data ?? null, '');
   const createdOp = await sql<
-    { resumedBy: string | null; status: string; kind: string }[]
+    {
+      resumedBy: string | null;
+      status: string;
+      kind: string;
+      harness: string | null;
+    }[]
   >`
-    SELECT resumed_by AS "resumedBy", status, kind
+    SELECT resumed_by AS "resumedBy", status, kind, harness
     FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
@@ -19553,8 +19654,11 @@ async function checkWorkflowTurnReattach(
       createdOp[0]?.status === 'running' &&
       // The lane's own kind — the run dialog's `getAgentNodeSandboxOp` and
       // the metric folds are keyed on it.
-      createdOp[0]?.kind === 'workflow-agent',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}`,
+      createdOp[0]?.kind === 'workflow-agent' &&
+      // The harness of the NODE's turn (the run cursor), not the one the
+      // run's session was opened with.
+      createdOp[0]?.harness === 'codex',
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want harness codex)`,
   );
 
   // Leave nothing for later sweeps or metrics folds to trip over.
@@ -37072,6 +37176,12 @@ async function checkAutomationRunToolLane(
     taskId,
     body: 'c'.repeat(TASK_COMMENT_MAX + 1),
   });
+  // An empty comment is told so in the sentence the app door answers too,
+  // before any read; `limitComments` below proves nothing landed.
+  const blankComment = await dispatch(pinnedToken, 'task_comment', {
+    taskId,
+    body: ' \n ',
+  });
   const limitRows = await sql<{ id: string }[]>`
     SELECT id FROM app.tasks
     WHERE org_id = ${orgId}
@@ -37188,6 +37298,41 @@ async function checkAutomationRunToolLane(
     WHERE org_id = ${orgId} AND external_system = 'itest-tracker'
       AND external_id = 'ISSUE-7'
   `;
+  // The sync cuts an over-long description to the cap as it cuts a title,
+  // on the create and on the reconcile, and refuses a blank title with the
+  // sentence task_create answers.
+  const storedBody = async (externalId: string) =>
+    (
+      await sql<{ description: string | null }[]>`
+        SELECT description FROM app.tasks
+        WHERE org_id = ${orgId} AND external_system = 'itest-limits'
+          AND external_id = ${externalId}
+      `
+    ).map((row) => row.description);
+  const cutCreate = await dispatch(pinnedToken, 'task_upsert_by_external_ref', {
+    externalSystem: 'itest-limits',
+    externalId: 'LONG-1',
+    title: 'A long issue body',
+    description: `${'d'.repeat(TASK_DESCRIPTION_MAX)} and the rest`,
+  });
+  const cutCreateBody = await storedBody('LONG-1');
+  const cutReconcile = await dispatch(
+    pinnedToken,
+    'task_upsert_by_external_ref',
+    {
+      externalSystem: 'itest-limits',
+      externalId: 'LONG-1',
+      title: 'A long issue body',
+      description: `${'e'.repeat(TASK_DESCRIPTION_MAX)} and the rest`,
+    },
+  );
+  const cutReconcileBody = await storedBody('LONG-1');
+  const blankSyncTitle = await dispatch(
+    pinnedToken,
+    'task_upsert_by_external_ref',
+    { externalSystem: 'itest-limits', externalId: 'BLANK-1', title: '  ' },
+  );
+  const blankSyncRows = await storedBody('BLANK-1');
 
   // --- the org-wide run: bounded by its automation's bindings.
   const needsProject = await dispatch(orgToken, 'task_create', {
@@ -37424,6 +37569,38 @@ async function checkAutomationRunToolLane(
       limitLabels.length === 0 &&
       limitComments.length === 0,
     `description=${overLongDescription.status}/${namesDescriptionLimit}, label=${overLongLabel.status}/${namesLabelLimit}, comment=${overLongComment.status}/${namesCommentLimit} (want invalid_args/true each), rows=${limitRows.length} labels=${limitLabels.length} comments=${limitComments.length} (want 0 each), raw=${[overLongDescription, overLongLabel, overLongComment].map((answer) => answer.raw.slice(0, 160)).join(' | ')}`,
+  );
+  const namesEmptyComment = blankComment.raw.includes(
+    `The comment is empty — it takes 1 to ${taskLimitText(TASK_COMMENT_MAX)}.`,
+  );
+  const namesEmptyTitle = blankSyncTitle.raw.includes(
+    `The task title is empty — it takes 1 to ${taskLimitText(TASK_TITLE_MAX)}.`,
+  );
+  record(
+    'task tools answer an empty comment and a blank sync title with the shared empty sentence',
+    blankComment.status === 'invalid_args' &&
+      namesEmptyComment &&
+      limitComments.length === 0 &&
+      blankSyncTitle.status === 'invalid_args' &&
+      namesEmptyTitle &&
+      blankSyncRows.length === 0,
+    `comment=${blankComment.status}/${namesEmptyComment}, title=${blankSyncTitle.status}/${namesEmptyTitle} (want invalid_args/true each), comments=${limitComments.length} rows=${blankSyncRows.length} (want 0 each), raw=${[blankComment, blankSyncTitle].map((answer) => answer.raw.slice(0, 160)).join(' | ')}`,
+  );
+  const describeBody = (bodies: (string | null)[]): string =>
+    bodies
+      .map((body) =>
+        body === null ? 'null' : `${body.length}:${body.slice(-2)}`,
+      )
+      .join(',') || 'no-row';
+  record(
+    'task_upsert_by_external_ref cuts an over-long description to the cap, on the create and the reconcile',
+    cutCreate.status === 'ok' &&
+      cutReconcile.status === 'ok' &&
+      cutCreateBody.length === 1 &&
+      cutCreateBody[0] === `${'d'.repeat(TASK_DESCRIPTION_MAX - 1)}…` &&
+      cutReconcileBody.length === 1 &&
+      cutReconcileBody[0] === `${'e'.repeat(TASK_DESCRIPTION_MAX - 1)}…`,
+    `create=${cutCreate.status} → ${describeBody(cutCreateBody)}, reconcile=${cutReconcile.status} → ${describeBody(cutReconcileBody)} (want ok → ${TASK_DESCRIPTION_MAX}:"…" each)`,
   );
   const placement = (project: string | null | undefined): string =>
     project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
@@ -47848,6 +48025,42 @@ async function checkMetricsSurface(
       (${orgId}, 'mx-sess', 'mx-e7', 'task-agent', 'completed',
        'awaiting_human', 0, 1, ${now - 15_000}, ${now - 14_000})
   `;
+  // The agent was switched to another harness and ran one more turn in the
+  // same standing session: the op records `pi`, the session still says
+  // `claude-code`.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      continuation_count, harness, started_at_ms, finished_at_ms
+    ) VALUES
+      (${orgId}, 'mx-sess', 'mx-e8', 'task-agent', 'completed', 'completed',
+       0, 'pi', ${now - 13_000}, ${now - 12_000})
+  `;
+
+  // A session id is reusable: neither a previous incarnation nor another
+  // tenant's row may multiply this org's turns or supply a foreign harness.
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      agent_kind, created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'mx-sess', 'destroyed', 'user', ${userId}, ${userId},
+       'old-incarnation', ${now - 3_600_000}, ${now}),
+      (${`${orgId}-other`}, 'mx-sess', 'active', 'user', 'other', 'other',
+       'other-tenant', ${now + 1000}, ${now + 3_600_000})
+  `;
+  // Workflow scheduling writes an op before provisioning a session. A
+  // failed provision must remain visible under the harness that was tried.
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, harness,
+      started_at_ms, finished_at_ms
+    ) VALUES
+      (${orgId}, 'mx-no-session', 'mx-e9', 'workflow-agent', 'failed',
+       'codex', ${now - 2000}, ${now - 1000}),
+      (${`${orgId}-other`}, 'mx-sess', 'mx-other-op', 'task-agent',
+       'completed', 'other-tenant', ${now - 2000}, ${now - 1000})
+  `;
 
   // ---- probes ------------------------------------------------------------
   const usage = z
@@ -48043,7 +48256,13 @@ async function checkMetricsSurface(
       durationP95Ms: z.union([z.number(), z.null()]),
       spentCents: z.number(),
       byHarness: z.array(
-        z.object({ harness: z.string(), total: z.number() }).loose(),
+        z
+          .object({
+            harness: z.string(),
+            total: z.number(),
+            completed: z.number(),
+          })
+          .loose(),
       ),
     })
     .loose()
@@ -48054,25 +48273,55 @@ async function checkMetricsSurface(
         )
       ).json(),
     );
+  const piTurns = turns.success
+    ? turns.data.byHarness.find((row) => row.harness === 'pi')
+    : undefined;
   const turnsOk =
     turns.success &&
-    turns.data.total === 6 &&
-    turns.data.completed === 1 &&
-    turns.data.failed === 3 &&
+    turns.data.total === 8 &&
+    turns.data.completed === 2 &&
+    turns.data.failed === 4 &&
     turns.data.cancelled === 1 &&
     turns.data.timeout === 1 &&
     turns.data.recovered === 1 &&
     turns.data.successRate !== null &&
-    Math.abs(turns.data.successRate - 1 / 5) < 1e-9 &&
+    Math.abs(turns.data.successRate - 2 / 7) < 1e-9 &&
     turns.data.durationP95Ms === 15_000 &&
     turns.data.spentCents === 10 &&
+    // The six ops that record no harness fall back to the session's stamp;
+    // the one that records `pi` is a pi turn, whatever its session says.
+    turns.data.byHarness.length === 3 &&
     turns.data.byHarness[0]?.harness === 'claude-code' &&
-    turns.data.byHarness[0].total === 6;
+    turns.data.byHarness[0].total === 6 &&
+    piTurns?.total === 1 &&
+    piTurns.completed === 1;
+  const harnessHealthAfter = z
+    .object({
+      health: z.array(
+        z.object({ harness: z.string(), recentTotal: z.number() }).loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/sandbox/harness-health?orgId=${orgId}`)
+      ).json(),
+    );
+  const piHealth = harnessHealthAfter.success
+    ? harnessHealthAfter.data.health.find((row) => row.harness === 'pi')
+    : undefined;
   record(
-    'metrics: external-turn outcomes + percentiles',
-    turnsOk,
+    'metrics: external-turn outcomes + percentiles, named by the harness the op records',
+    turnsOk &&
+      piHealth?.recentTotal === 1 &&
+      harnessHealthAfter.success &&
+      harnessHealthAfter.data.health.length === 3 &&
+      harnessHealthAfter.data.health.find((row) => row.harness === 'codex')
+        ?.recentTotal === 1 &&
+      harnessHealthAfter.data.health.find(
+        (row) => row.harness === 'claude-code',
+      )?.recentTotal === 6,
     turns.success
-      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents}`
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents} byHarness=${JSON.stringify(turns.data.byHarness.map((row) => [row.harness, row.total]))} (want claude-code 6 + pi 1 + codex 1, no foreign/old rows) health.pi=${piHealth?.recentTotal ?? 'none'} (want 1)`
       : 'shape-fail',
   );
 
@@ -52993,14 +53242,20 @@ async function checkTeamScopeRetirement(
     `add-team-member → ${pluginAddMember.status}, remove-team-member → ${pluginRemoveMember.status} (want 404/404)`,
   );
 
-  // ---- the last-member rule (team D: the member, then the owner)
+  // ---- the last-member rule (team D: the member, then the owner). A
+  // membership is removed by its ROW id, the one removal door the app keeps
+  // (the settings table's rows carry it); the add answers with that id.
   const addMember = await sendAs(cookie, 'POST', teams(`/${teamD}/members`), {
     userId: member.userId,
   });
+  const addedMember = z
+    .object({ id: z.string() })
+    .safeParse(await addMember.json().catch(() => null));
+  const memberRowId = addedMember.success ? addedMember.data.id : '';
   const removeLast = await sendAs(
     cookie,
     'DELETE',
-    teams(`/${teamD}/members/${member.userId}`),
+    teams(`/members/by-id/${memberRowId}`),
   );
   const removeLastCode = await errorCodeOf(removeLast);
   const countD = async (): Promise<string> =>
@@ -53017,7 +53272,7 @@ async function checkTeamScopeRetirement(
   const removeOne = await sendAs(
     cookie,
     'DELETE',
-    teams(`/${teamD}/members/${member.userId}`),
+    teams(`/members/by-id/${memberRowId}`),
   );
   const removeOneBody = z
     .object({ removed: z.boolean() })
@@ -53868,9 +54123,12 @@ async function checkOrganizationLifecycle(
       (await exists(dirA)),
     `status=${renamed.status} message=${renamedBody.message ?? ''} slug=${afterRename[0]?.slug ?? 'MISSING'}`,
   );
+  // The rename below lands, so every delete after it confirms with THIS
+  // name: the door compares what was typed with the name as it stands.
+  const renamedNameA = 'Life A renamed';
   const sameSlug = await post(owner.cookie, '/api/auth/organization/update', {
     organizationId: orgA,
-    data: { name: 'Life A renamed', slug: slugA },
+    data: { name: renamedNameA, slug: slugA },
   });
   const afterSameSlug = await sql<{ slug: string | null; name: string }[]>`
     SELECT "slug", "name" FROM "organization" WHERE "id" = ${orgA}
@@ -53878,14 +54136,13 @@ async function checkOrganizationLifecycle(
   record(
     'org update with the unchanged slug still lands',
     sameSlug.ok &&
-      afterSameSlug[0]?.name === 'Life A renamed' &&
+      afterSameSlug[0]?.name === renamedNameA &&
       afterSameSlug[0].slug === slugA,
     `status=${sameSlug.status} name=${afterSameSlug[0]?.name ?? ''} slug=${afterSameSlug[0]?.slug ?? 'MISSING'}`,
   );
   // The deletion door compares the typed confirmation with the name the
   // organization carries NOW, so every deletion below types the name the
   // update above left — the one it had before is refused as a mismatch.
-  const nameA = afterSameSlug[0]?.name ?? 'Life A';
 
   // Better Auth's own delete would bypass every guard above — it is closed.
   const pluginDelete = await post(
@@ -53905,7 +54162,7 @@ async function checkOrganizationLifecycle(
   const memberDelete = await post(
     plain.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    { confirmName: nameA },
+    { confirmName: renamedNameA },
   );
   const afterMember = await snapshot();
   record(
@@ -53941,7 +54198,7 @@ async function checkOrganizationLifecycle(
         tx,
         { userId: owner.userId },
         orgA,
-        nameA,
+        renamedNameA,
       );
       throw new Error('itest-abort');
     });
@@ -53983,7 +54240,7 @@ async function checkOrganizationLifecycle(
   const deleted = await post(
     owner.cookie,
     `/api/app/organizations/${orgA}/delete`,
-    { confirmName: nameA },
+    { confirmName: renamedNameA },
   );
   const deletedBody = z
     .object({ orgSlug: z.string() })

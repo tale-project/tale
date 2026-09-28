@@ -192,7 +192,9 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'existing task instead of duplicating it. Args: {externalSystem: string, ' +
     'externalId: string, title: string (a longer one is cut to ' +
     `${taskLimitText(TASK_TITLE_MAX)}, ending in "…"), description?: ` +
-    `string, externalUrl?: string, ${LABELS_ARG}, ` +
+    'string (a longer one is cut to ' +
+    `${taskLimitText(TASK_DESCRIPTION_MAX)}, ending in "…"), ` +
+    `externalUrl?: string, ${LABELS_ARG}, ` +
     'priority?: "p0"|"p1"|"p2"|"p3", ' +
     'externalState?: "open"|"closed" (closed applies the sync close policy), ' +
     'projectId?: string (as in task_create), createIfMissing?: boolean ' +

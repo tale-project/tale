@@ -11,6 +11,7 @@ import {
 } from '../../core/tasks/audit_actions.ts';
 import {
   taskWorkflowSubjectInput,
+  truncateImportedDescription,
   truncateImportedTitle,
 } from '../../core/tasks/helpers.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
@@ -200,6 +201,8 @@ export interface UpsertTaskByExternalRefArgs {
   /** Source-only synchronization: stable vendor identity and observed source
    * content never overwrite the existing Tale task's human-owned fields. */
   externalIssue?: TaskExternalIssue;
+  /** Cut to `TASK_DESCRIPTION_MAX`, ending in "…", as the title is cut to
+   * its cap — an import never refuses the text it carries. */
   description?: string;
   /** `'set'` (default) overwrites an existing task's description; `'preserve'`
    * keeps a non-empty one (background re-syncs must not clobber). */
@@ -262,9 +265,13 @@ export async function upsertTaskByExternalRef(
     externalSystem === 'github' || externalSystem === 'glitchtip'
       ? undefined
       : args.externalState;
+  // Imported text is cut to the board's caps, never refused: one long issue
+  // body must not fail its item's create and every reconcile after it. A
+  // door where the caller writes the text refuses it by name before here.
   const title =
     truncateImportedTitle(args.title) || `${externalSystem} ${externalId}`;
-  const description = args.description?.trim() || undefined;
+  const description =
+    truncateImportedDescription(args.description ?? '') || undefined;
   const now = Date.now();
   const parsedSource =
     args.externalIssue === undefined

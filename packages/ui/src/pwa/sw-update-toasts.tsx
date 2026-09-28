@@ -4,6 +4,7 @@ import * as ToastPrimitives from '@radix-ui/react-toast';
 import { Button } from '@tale/ui/button';
 import { useT } from '@tale/ui/i18n/client';
 import { SwUpdateListener as SharedSwUpdateListener } from '@tale/ui/pwa/sw-update-listener';
+import { toastActionGroupClassName } from '@tale/ui/toast';
 import { toast } from '@tale/ui/use-toast';
 
 export function SwUpdateToasts() {
@@ -28,7 +29,7 @@ export function SwUpdateToasts() {
           title: labels.updateAvailableTitle,
           description: labels.updateAvailableDescription,
           action: (
-            <div className="flex shrink-0 items-center gap-2">
+            <div className={toastActionGroupClassName}>
               <ToastPrimitives.Close asChild>
                 <Button type="button" variant="ghost" size="sm">
                   {labels.updateLater}

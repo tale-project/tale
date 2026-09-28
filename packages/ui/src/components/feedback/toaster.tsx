@@ -9,10 +9,10 @@ import { CheckCircle2, XCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 const toastVariants = cva(
-  // shadcn-style: one horizontal row, items-center, equal padding. Action sits
-  // beside the copy (not under it). No close control — toasts auto-dismiss
-  // (and pause on hover/focus); swipe still dismisses.
-  'group data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full bg-background text-foreground pointer-events-auto relative flex w-fit max-w-sm items-center gap-3 overflow-hidden rounded-xl border p-4 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none',
+  // A short action sits beside the copy. A full-width action group wraps
+  // beneath it, within the viewport's available width. No close control —
+  // toasts auto-dismiss (and pause on hover/focus); swipe still dismisses.
+  'group data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full bg-background text-foreground pointer-events-auto relative flex w-fit max-w-full min-w-0 flex-wrap items-center gap-3 overflow-x-hidden overflow-y-auto rounded-xl border p-4 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none',
   {
     variants: {
       variant: {
@@ -129,7 +129,7 @@ export function Toaster() {
                 // INSIDE the `top-0`/`max-h-screen` box, so the stack still fits
                 // the viewport, and the empty gap stays `pointer-events-none`
                 // (controls beneath it remain clickable).
-                'pointer-events-none fixed z-100 flex max-h-screen w-auto max-w-sm flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
+                'pointer-events-none fixed z-100 flex max-h-screen w-auto max-w-[min(24rem,100vw)] flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
                 viewportPositionClasses[position],
               )}
             />,

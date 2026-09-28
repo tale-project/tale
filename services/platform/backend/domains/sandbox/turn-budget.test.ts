@@ -60,6 +60,7 @@ const ARGS = {
   kind: 'task-agent' as const,
   defaultBudgetCents: 500,
   modelRef: 'openai/openai/gpt-5',
+  harness: 'pi',
 };
 
 beforeEach(() => {
@@ -128,6 +129,13 @@ describe('reserveTurnBudget', () => {
         'agent-alice',
         300,
       ]),
+    );
+    // The op records the harness the turn runs on: the session's stamp is
+    // the harness it was CREATED with, which a standing session keeps
+    // across the agent's switches. A later write without one keeps it.
+    expect(upsert?.values).toContain('pi');
+    expect(upsert?.text).toContain(
+      'harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness)',
     );
   });
 

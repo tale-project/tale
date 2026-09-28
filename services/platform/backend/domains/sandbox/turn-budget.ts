@@ -39,6 +39,9 @@ export async function reserveTurnBudget(
     kind: 'task-agent' | 'workflow-agent';
     defaultBudgetCents: number;
     modelRef?: string;
+    /** The harness this turn runs on — the op row's own record, which the
+     * harness-turn metrics read ahead of the session's create-time stamp. */
+    harness?: string;
   },
 ): Promise<ReserveTurnBudgetResult> {
   const defaultCents = Math.max(1, Math.floor(args.defaultBudgetCents));
@@ -84,13 +87,14 @@ export async function reserveTurnBudget(
     await tx`
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
-        api_key_id, model_ref, budget_cents, heartbeat_at_ms, started_at_ms
+        api_key_id, model_ref, harness, budget_cents, heartbeat_at_ms,
+        started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
-        ${args.modelRef ?? null},
+        ${args.modelRef ?? null}, ${args.harness ?? null},
         ${allowance.budgetCents}, ${now}, ${now}
       )
       ON CONFLICT (session_id, exec_id) DO UPDATE SET
@@ -101,7 +105,8 @@ export async function reserveTurnBudget(
         api_key_id = coalesce(app.sandbox_session_ops.api_key_id,
           EXCLUDED.api_key_id),
         model_ref = coalesce(EXCLUDED.model_ref,
-          app.sandbox_session_ops.model_ref)
+          app.sandbox_session_ops.model_ref),
+        harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness)
     `;
     return allowance;
   });
