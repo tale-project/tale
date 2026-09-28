@@ -38,8 +38,9 @@ builtin skill from `configs/platform/custom/skills/`.
 > `/settings/skills`, and reopening the row — never by the toast. For uploads
 > through the Playwright MCP, copy the zip into `.playwright-mcp/` first
 > (SETUP.md conventions). A fresh mode-A org seeds no skills — the empty state
-> (`emptyStates.skills.title`) is correct, not a defect; its click opens the
-> create pane directly.
+> (`emptyStates.skills.title`) is correct, not a defect; **Add skill > Blank
+> skill** (`skills.addMenu.label` / `skills.createMenu.blank`) opens the create
+> pane.
 
 ## Functional tests
 
@@ -48,9 +49,11 @@ builtin skill from `configs/platform/custom/skills/`.
   renders columns **Name / Description / Visibility / Usage / Labels**
   (`skills.columns.*`); search (`skills.searchPlaceholder`) narrows by slug,
   description, **and** label text; a fresh org shows the empty state
-  (`emptyStates.skills.title`) whose click opens the create pane, and whose
-  description (`emptyStates.skills.description`) points at project agents and
-  automation agent steps — never at chat, which does not use skills.
+  (`emptyStates.skills.title`) whose description
+  (`emptyStates.skills.description`) points at project agents and automation
+  agent steps — never at chat, which does not use skills. **Add skill > Blank
+  skill** (`skills.addMenu.label` / `skills.createMenu.blank`) opens the create
+  pane by pointer or keyboard.
 - [ ] `SKILL-F2` · **Facets** — Open the table filter → **Visibility**
   (`skills.library.scopeFilterLabel`) and **Filter by label**
   (`skills.library.labelFilterLabel`) → The scope facet offers **Organization
