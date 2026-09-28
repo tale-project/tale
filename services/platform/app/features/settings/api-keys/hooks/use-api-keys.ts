@@ -63,11 +63,16 @@ export function useCreateApiKey(organizationId: string) {
         id: result.data.id,
       };
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ['api-keys', organizationId],
-      });
-    },
+    // Returned, so the mutation settles only once the list holds the new key.
+    // The first key moves the table's Create button from the empty state to
+    // the toolbar (a remount); were the success dialog shown first, a quick
+    // Done would hand focus to the empty-state button just before the refetch
+    // unmounted it, dropping focus to the page. A failed refetch still
+    // resolves (`invalidateQueries` never throws), so the key is always shown.
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: apiKeysQuery(organizationId).queryKey,
+      }),
   });
 }
 
