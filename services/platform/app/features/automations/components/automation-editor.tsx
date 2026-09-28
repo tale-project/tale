@@ -20,6 +20,7 @@ import { Input } from '@tale/ui/input';
 import { PageActionHeader } from '@tale/ui/page-action-header';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { useToast } from '@tale/ui/use-toast';
 import {
   CheckCircle2,
@@ -192,6 +193,7 @@ function AutomationEditorScope({
   onSelectVersion,
 }: AutomationEditorProps) {
   const { t } = useT('automations');
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const { t: tCommon } = useT('common');
   const inspectorId = useId();
@@ -615,6 +617,144 @@ function AutomationEditorScope({
     onSelectVersion(undefined);
   };
 
+  const editorActions = (
+    <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
+      {lookingVersion !== undefined && versionMenuItems.length > 0 && (
+        <DropdownMenu
+          align="end"
+          items={versionMenuItems}
+          trigger={
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              aria-label={t('detail.versionSelect')}
+              aria-haspopup="menu"
+              className="gap-1.5"
+            >
+              {t('versions.versionLabel', {
+                version: lookingVersion,
+              })}
+              <ChevronDown aria-hidden className="size-3.5 shrink-0" />
+            </Button>
+          }
+        />
+      )}
+      {canAuthor && lookingVersion !== undefined && !lookingIsLive && (
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={Rocket}
+          isLoading={deploy.isPending}
+          onClick={() => {
+            setDeployRefusal(null);
+            deploy.mutate(
+              {
+                organizationId,
+                name: automationSlug,
+                version: lookingVersion,
+              },
+              {
+                onError: (error) => {
+                  setDeployRefusal(automationErrorMessage(error));
+                },
+              },
+            );
+          }}
+        >
+          {t('detail.deployVersion', { version: lookingVersion })}
+        </Button>
+      )}
+      {canChooseRunProject && (
+        <Select
+          aria-label={t('detail.runScope.label')}
+          className="w-48"
+          options={[
+            {
+              value: RUN_SCOPE_ORG_WIDE,
+              label: t('detail.runScope.orgWide'),
+            },
+            ...boundProjects.map((project) => ({
+              value: project._id,
+              label: project.name,
+            })),
+          ]}
+          value={
+            effectiveRunProjectId === undefined
+              ? RUN_SCOPE_ORG_WIDE
+              : effectiveRunProjectId
+          }
+          onValueChange={(value) => {
+            // Radix fires a spurious '' on unmount — never act on it.
+            if (value === '') return;
+            setRunProjectId(
+              value === RUN_SCOPE_ORG_WIDE
+                ? undefined
+                : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of the bound project ids above
+                  value,
+            );
+          }}
+        />
+      )}
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={Play}
+        isLoading={startRun.isPending}
+        onClick={() => {
+          if (meta == null || stored === null) return;
+          const request: AutomationRunRequest = {
+            automationSlug,
+            mode: 'mock',
+            version: meta.version,
+            ...(stored.inputs !== undefined && { schema: stored.inputs }),
+            ...(effectiveRunProjectId !== undefined && {
+              projectId: effectiveRunProjectId,
+            }),
+            scopeText: liveRunScopeText,
+          };
+          if (request.schema === undefined) scheduleRun(request);
+          else setRunRequest(request);
+        }}
+      >
+        {t('detail.runMock')}
+      </Button>
+      {canAuthor && (
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={Zap}
+          isLoading={startRun.isPending}
+          disabled={
+            meta?.deployedVersion === undefined ||
+            deployedQuery.isPending ||
+            deployed === null
+          }
+          disabledReason={t('detail.runLiveNeedsDeploy')}
+          onClick={() => {
+            if (meta?.deployedVersion === undefined || deployed === null)
+              return;
+            setRunRequest({
+              automationSlug,
+              mode: 'live',
+              version: meta.deployedVersion,
+              ...(deployed.inputs !== undefined && {
+                schema: deployed.inputs,
+              }),
+              ...(effectiveRunProjectId !== undefined && {
+                projectId: effectiveRunProjectId,
+              }),
+              scopeText: liveRunScopeText,
+            });
+          }}
+        >
+          {t('detail.runLive')}
+        </Button>
+      )}
+      {canAuthor && <AutomationEditorActions />}
+    </div>
+  );
+
   return (
     <>
       <PageActionHeader
@@ -631,143 +771,7 @@ function AutomationEditorScope({
             </Badge>
           ),
         })}
-        actions={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {lookingVersion !== undefined && versionMenuItems.length > 0 && (
-              <DropdownMenu
-                align="end"
-                items={versionMenuItems}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    aria-label={t('detail.versionSelect')}
-                    aria-haspopup="menu"
-                    className="gap-1.5"
-                  >
-                    {t('versions.versionLabel', {
-                      version: lookingVersion,
-                    })}
-                    <ChevronDown aria-hidden className="size-3.5 shrink-0" />
-                  </Button>
-                }
-              />
-            )}
-            {canAuthor && lookingVersion !== undefined && !lookingIsLive && (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={Rocket}
-                isLoading={deploy.isPending}
-                onClick={() => {
-                  setDeployRefusal(null);
-                  deploy.mutate(
-                    {
-                      organizationId,
-                      name: automationSlug,
-                      version: lookingVersion,
-                    },
-                    {
-                      onError: (error) => {
-                        setDeployRefusal(automationErrorMessage(error));
-                      },
-                    },
-                  );
-                }}
-              >
-                {t('detail.deployVersion', { version: lookingVersion })}
-              </Button>
-            )}
-            {canChooseRunProject && (
-              <Select
-                aria-label={t('detail.runScope.label')}
-                className="w-48"
-                options={[
-                  {
-                    value: RUN_SCOPE_ORG_WIDE,
-                    label: t('detail.runScope.orgWide'),
-                  },
-                  ...boundProjects.map((project) => ({
-                    value: project._id,
-                    label: project.name,
-                  })),
-                ]}
-                value={
-                  effectiveRunProjectId === undefined
-                    ? RUN_SCOPE_ORG_WIDE
-                    : effectiveRunProjectId
-                }
-                onValueChange={(value) => {
-                  // Radix fires a spurious '' on unmount — never act on it.
-                  if (value === '') return;
-                  setRunProjectId(
-                    value === RUN_SCOPE_ORG_WIDE
-                      ? undefined
-                      : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of the bound project ids above
-                        value,
-                  );
-                }}
-              />
-            )}
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={Play}
-              isLoading={startRun.isPending}
-              onClick={() => {
-                if (meta == null || stored === null) return;
-                const request: AutomationRunRequest = {
-                  automationSlug,
-                  mode: 'mock',
-                  version: meta.version,
-                  ...(stored.inputs !== undefined && { schema: stored.inputs }),
-                  ...(effectiveRunProjectId !== undefined && {
-                    projectId: effectiveRunProjectId,
-                  }),
-                  scopeText: liveRunScopeText,
-                };
-                if (request.schema === undefined) scheduleRun(request);
-                else setRunRequest(request);
-              }}
-            >
-              {t('detail.runMock')}
-            </Button>
-            {canAuthor && (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={Zap}
-                isLoading={startRun.isPending}
-                disabled={
-                  meta?.deployedVersion === undefined ||
-                  deployedQuery.isPending ||
-                  deployed === null
-                }
-                disabledReason={t('detail.runLiveNeedsDeploy')}
-                onClick={() => {
-                  if (meta?.deployedVersion === undefined || deployed === null)
-                    return;
-                  setRunRequest({
-                    automationSlug,
-                    mode: 'live',
-                    version: meta.deployedVersion,
-                    ...(deployed.inputs !== undefined && {
-                      schema: deployed.inputs,
-                    }),
-                    ...(effectiveRunProjectId !== undefined && {
-                      projectId: effectiveRunProjectId,
-                    }),
-                    scopeText: liveRunScopeText,
-                  });
-                }}
-              >
-                {t('detail.runLive')}
-              </Button>
-            )}
-            {canAuthor && <AutomationEditorActions />}
-          </div>
-        }
+        actions={isMobile ? undefined : editorActions}
       />
       {/* Edge to edge: this tab is a workbench, not a page of content — the
           canvas runs to the tab strip, the section panel and the window's
@@ -803,6 +807,7 @@ function AutomationEditorScope({
           className={cn(
             AUTOMATION_EDITOR_WORKBENCH_GRID,
             selectedNode !== null && AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
+            selectedNode !== null && 'max-lg:flex-none',
           )}
         >
           <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
@@ -838,6 +843,7 @@ function AutomationEditorScope({
               onSelectNode={setSelectedNodeId}
               inspectorId={inspectorId}
               framed={false}
+              centerActions={isMobile ? editorActions : undefined}
               {...(runStatusByNode !== undefined && { runStatusByNode })}
             />
           </div>

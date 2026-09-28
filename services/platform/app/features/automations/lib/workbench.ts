@@ -7,13 +7,14 @@
  * from growing the canvas when a node is selected — extra inspector fields
  * scroll inside the panel — and the `24rem` floor lets a short window scroll
  * the page rather than crush the graph. Below `lg` the columns stack at their
- * natural height and the page scrolls.
+ * natural height when the inspector opens and the page scrolls; without an
+ * inspector, the canvas fills the remaining height on mobile too.
  *
  * No gap: the Editor tab is edge to edge, so the canvas meets the inspector
  * panel at its border instead of at a gutter.
  */
 export const AUTOMATION_EDITOR_WORKBENCH_GRID =
-  'grid min-h-[24rem] lg:flex-1 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
+  'grid min-h-[24rem] flex-1 lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden';
 
 /**
  * A run's canvas + inspector row sits above the run's effects, agent log and

@@ -29,9 +29,17 @@ vi.mock('@/lib/i18n/client', () => ({
 }));
 
 const navigate = vi.fn();
+let automationSlug: string | undefined;
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: '/dashboard/org-1/chat' }),
   useNavigate: () => navigate,
+  useMatches: ({
+    select,
+  }: {
+    select: (
+      matches: { params: { automationSlug: string | undefined } }[],
+    ) => boolean;
+  }) => select([{ params: { automationSlug } }]),
 }));
 
 vi.mock('@tale/ui/use-is-mac', () => ({ useIsMac: () => false }));
@@ -49,6 +57,7 @@ vi.mock('@/app/hooks/use-display-mode', () => ({
 }));
 
 beforeEach(() => {
+  automationSlug = undefined;
   inbox.hasInbox = true;
   unread.data = undefined;
   unreadCalls.length = 0;
@@ -64,6 +73,15 @@ describe('the mobile tab bar', () => {
     render(<MobileBottomNav organizationId="org-1" />);
     const tabs = screen.getAllByRole('button').map((tab) => tab.textContent);
     expect(tabs).toEqual(['home', 'knowledge', 'automations', 'userSettings']);
+  });
+
+  it('opens automation detail with compact navigation and lets a click expand it', async () => {
+    automationSlug = 'example';
+    const { user } = render(<MobileBottomNav organizationId="org-1" />);
+    const nav = screen.getByRole('navigation');
+    expect(nav).toHaveAttribute('data-compact');
+    await user.click(screen.getByRole('button', { name: /^home/ }));
+    expect(nav).not.toHaveAttribute('data-compact');
   });
 
   it('opens the Home list from the Home tab', async () => {

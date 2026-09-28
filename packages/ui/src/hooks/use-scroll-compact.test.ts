@@ -87,3 +87,18 @@ it('tracks panes mounted after the navigation effect', () => {
   scroll(90);
   expect(result.current.compact).toBe(false);
 });
+
+it('uses the route default on entry and restores expanded navigation on leaving', () => {
+  const { result, rerender } = renderHook(
+    ({ route, defaultCompact }) =>
+      useScrollCompact(route, false, defaultCompact),
+    { initialProps: { route: '/automation/editor', defaultCompact: true } },
+  );
+  expect(result.current.compact).toBe(true);
+  act(() => result.current.expand());
+  expect(result.current.compact).toBe(false);
+  rerender({ route: '/automation/versions', defaultCompact: true });
+  expect(result.current.compact).toBe(true);
+  rerender({ route: '/automations', defaultCompact: false });
+  expect(result.current.compact).toBe(false);
+});

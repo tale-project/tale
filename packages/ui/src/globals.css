@@ -887,7 +887,7 @@ input[type='text']:-webkit-autofill {
       max-width 220ms ease-out,
       bottom 220ms ease-out;
     border-radius: 9999px;
-    background: var(--color-background);
+    background: color-mix(in srgb, var(--color-background) 64%, transparent);
     box-shadow: 0 4px 20px
       color-mix(in srgb, var(--color-foreground) 12%, transparent);
   }
@@ -904,9 +904,10 @@ input[type='text']:-webkit-autofill {
     }
   }
 
-  @supports (backdrop-filter: blur(16px)) {
+  @supports (backdrop-filter: blur(16px)) or
+    (-webkit-backdrop-filter: blur(16px)) {
     .mobile-tab-bar.mobile-tab-bar {
-      background: color-mix(in srgb, var(--color-background) 76%, transparent);
+      -webkit-backdrop-filter: blur(16px) saturate(1.2);
       backdrop-filter: blur(16px) saturate(1.2);
     }
   }
@@ -916,6 +917,7 @@ input[type='text']:-webkit-autofill {
     (forced-colors: active) {
     .mobile-tab-bar.mobile-tab-bar {
       background: var(--color-background);
+      -webkit-backdrop-filter: none;
       backdrop-filter: none;
     }
   }

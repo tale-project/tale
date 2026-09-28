@@ -185,7 +185,7 @@ function BottomTabBarButton({ item, compact }: BottomTabBarButtonProps) {
           ? item.accentColor
             ? ''
             : 'text-foreground'
-          : 'text-muted-foreground hover:text-foreground',
+          : 'text-foreground/90 hover:text-foreground',
       )}
       style={activeStyle}
     >

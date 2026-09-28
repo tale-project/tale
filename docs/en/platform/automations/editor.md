@@ -14,7 +14,9 @@ Open **Automations**, then select an automation. It opens on **Editor**. To crea
 | **Versions** | Read saved version messages and test results, then select a row to open that version in the editor. |
 | **Runs** | Inspect recent executions and open a run’s full record. |
 
-On **Editor**, the version picker and run actions sit beside the tabs, together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
+On desktop, on **Editor**, the version picker and run actions sit beside the tabs, together with **Save** and **Discard**; on **General**, only **Save** and **Discard** sit there. A dot on a tab marks its unsaved changes. Leaving the tab or switching versions asks you to resolve those changes first.
+
+On a phone, opening an automation starts with compact navigation. The editor canvas fills the available height, and its version, run, save and discard controls sit inside the canvas beside the zoom controls. Selecting a node opens its fields below the canvas; scroll to reach them.
 
 <Frame caption="Select a node to inspect its fields. The actions beside the tabs control testing, saving, and deployment.">
 

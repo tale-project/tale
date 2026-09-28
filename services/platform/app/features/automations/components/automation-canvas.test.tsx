@@ -36,6 +36,20 @@ const positions = {
 };
 
 describe('AutomationCanvas', () => {
+  it('keeps the editor actions available when the workflow has no nodes', () => {
+    render(
+      <AutomationCanvas
+        graph={buildGraph({ name: 'empty', nodes: [] })}
+        positions={{}}
+        selectedNodeId={null}
+        onSelectNode={vi.fn()}
+        inspectorId="inspector"
+        centerActions={<button type="button">Save version</button>}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Save version' })).toBeVisible();
+  });
+
   it('hands pointer events back to every node box', () => {
     const { container } = render(
       <AutomationCanvas

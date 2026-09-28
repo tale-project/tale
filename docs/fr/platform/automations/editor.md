@@ -14,7 +14,9 @@ Ouvre **Automatisations**, puis sélectionne une automatisation. Elle s’ouvre 
 | **Versions** | Lire les messages de version et les résultats des tests enregistrés, puis ouvrir une version dans l’éditeur en sélectionnant sa ligne. |
 | **Exécutions** | Examiner les derniers lancements et ouvrir le détail d’une exécution. |
 
-Dans **Éditeur**, le sélecteur de version et les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner** ; dans **Général**, seuls **Enregistrer** et **Abandonner** y figurent. Un point sur un onglet signale ses modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
+Sur ordinateur, dans **Éditeur**, le sélecteur de version et les commandes d’exécution se trouvent à côté des onglets, avec **Enregistrer** et **Abandonner** ; dans **Général**, seuls **Enregistrer** et **Abandonner** y figurent. Un point sur un onglet signale ses modifications non enregistrées. Avant de quitter cet onglet ou de changer de version, Tale te demande quoi en faire.
+
+Sur téléphone, la navigation est compacte à l’ouverture d’une automatisation. Le canevas de l’éditeur occupe la hauteur disponible. Le sélecteur de version et les commandes d’exécution, d’enregistrement et d’abandon se trouvent dans le canevas, à côté du zoom. Sélectionne un nœud pour ouvrir ses champs sous le canevas, puis fais défiler la page pour y accéder.
 
 <Frame caption="Sélectionne un nœud pour examiner ses champs. Les commandes à côté des onglets permettent de tester, d’enregistrer et de mettre en service.">
 

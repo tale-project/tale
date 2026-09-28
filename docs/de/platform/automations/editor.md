@@ -14,7 +14,9 @@ Im Workflow-Editor änderst du den Ablauf einer Automatisierung und wählst die 
 | **Versionen** | Versionsnachrichten und gespeicherte Testergebnisse lesen. Eine Zeile öffnet diese Version im Editor. |
 | **Läufe** | Die letzten Ausführungen prüfen und den vollständigen Datensatz eines Laufs öffnen. |
 
-Im **Editor** stehen Versionsauswahl und Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+Am Desktop stehen im **Editor** Versionsauswahl und Laufaktionen neben den Tabs, zusammen mit **Speichern** und **Verwerfen**; unter **Allgemein** stehen dort nur **Speichern** und **Verwerfen**. Ein Punkt an einem Tab kennzeichnet dessen ungespeicherte Änderungen. Beim Verlassen des Tabs oder einem Versionswechsel fragt Tale, wie du damit fortfahren möchtest.
+
+Auf dem Smartphone startet eine geöffnete Automation mit kompakter Navigation. Die Arbeitsfläche des Editors nutzt die verfügbare Höhe. Versionsauswahl, Laufaktionen, Speichern und Verwerfen befinden sich innerhalb der Arbeitsfläche neben den Zoom-Steuerelementen. Wenn du einen Knoten auswählst, öffnen sich seine Felder unterhalb der Arbeitsfläche. Scrolle nach unten, um sie zu bearbeiten.
 
 <Frame caption="Wähle einen Knoten, um seine Felder zu prüfen. Neben den Tabs stehen die Aktionen für Test, Speichern und Bereitstellung.">
 

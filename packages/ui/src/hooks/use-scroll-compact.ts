@@ -3,10 +3,14 @@
 import { useEffect, useState } from 'react';
 
 /** Follow vertical scrolling inside the app shell, including nested panes. */
-export function useScrollCompact(resetKey: string, disabled = false) {
-  const [compact, setCompact] = useState(false);
+export function useScrollCompact(
+  resetKey: string,
+  disabled = false,
+  defaultCompact = false,
+) {
+  const [compact, setCompact] = useState(defaultCompact);
   useEffect(() => {
-    setCompact(false);
+    setCompact(defaultCompact);
     if (disabled) return undefined;
     const media = window.matchMedia('(max-width: 767px)');
     const positions = new WeakMap<Element, { top: number; travel: number }>();
@@ -47,6 +51,6 @@ export function useScrollCompact(resetKey: string, disabled = false) {
       document.removeEventListener('scroll', scroll, true);
       media.removeEventListener('change', reset);
     };
-  }, [resetKey, disabled]);
+  }, [resetKey, disabled, defaultCompact]);
   return { compact, expand: () => setCompact(false) };
 }

@@ -54,6 +54,24 @@ const ITEMS = items();
  * arrives. Measured in real Chromium, at a phone width and a narrow one.
  */
 describe('BottomTabBarPlaceholder geometry in Chromium', () => {
+  it('paints a translucent surface for the real card in both themes', () => {
+    render(<BottomTabBar items={ITEMS} ariaLabel="Primary" />);
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('no canvas context');
+    for (const dark of [false, true]) {
+      document.documentElement.classList.toggle('dark', dark);
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = getComputedStyle(nav).backgroundColor;
+      context.fillRect(0, 0, 1, 1);
+      const alpha = context.getImageData(0, 0, 1, 1).data[3];
+      expect(alpha).toBeGreaterThan(128);
+      expect(alpha).toBeLessThan(200);
+      expect(getComputedStyle(nav).backdropFilter).toContain('blur(');
+    }
+  });
+
   it.each([320, 390])('is exactly as tall as the live bar at %ipx', (width) => {
     const { rerender } = render(
       <div

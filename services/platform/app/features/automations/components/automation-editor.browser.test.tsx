@@ -15,6 +15,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
+import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { cleanup, render, screen } from '@/tests/utils/render';
 
 import { AutomationDetailShell } from './automation-detail-shell';
@@ -110,6 +111,29 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useDeployAutomation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+vi.mock('@/app/hooks/use-navigation-items', () => ({
+  useNavigationItems: () => ({
+    primary: [
+      {
+        label: 'Home',
+        href: '/dashboard/org-test/home',
+        to: '/dashboard/$id/home',
+        params: { id: 'org-test' },
+      },
+    ],
+    pinned: [],
+  }),
+}));
+vi.mock(
+  '@/app/components/branding/branding-provider',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/components/branding/branding-provider')
+    >()),
+    useBrandingContext: () => ({ accentColor: null }),
+  }),
+);
+
 afterEach(cleanup);
 
 const ZOOM_CONTROLS = ['Zoom in', 'Zoom out', 'Reset view'];
@@ -121,13 +145,14 @@ function DashboardFrame() {
   return (
     <DirtyBlockerProvider>
       <AdaptiveHeaderProvider>
-        <div className="flex h-dvh w-full flex-col overflow-hidden">
+        <div className="mobile-nav-shell flex h-dvh w-full flex-col overflow-hidden">
           <header className="border-border border-b px-4 md:hidden">
             <AdaptiveHeaderSlot />
           </header>
           <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <Outlet />
           </main>
+          <MobileBottomNav organizationId="org-test" />
         </div>
       </AdaptiveHeaderProvider>
     </DirtyBlockerProvider>
@@ -226,6 +251,41 @@ async function expectWholeCanvas() {
 }
 
 describe('automation editor workbench in Chromium', () => {
+  it('fills the phone with the canvas and keeps editor actions inside it', async () => {
+    await page.viewport(390, 844);
+    renderEditorTab();
+    const canvas = await expectWholeCanvas();
+    const action = screen.getByRole('button', { name: 'Test run' });
+    expect(canvas.contains(action)).toBe(true);
+    expect(canvas.getBoundingClientRect().height).toBeGreaterThan(500);
+    expect(
+      document.querySelector('[data-floating-actions-pad-count]'),
+    ).toBeNull();
+    const actionBox = action.getBoundingClientRect();
+    const canvasBox = canvas.getBoundingClientRect();
+    expect(actionBox.left).toBeGreaterThanOrEqual(canvasBox.left);
+    expect(actionBox.right).toBeLessThanOrEqual(canvasBox.right);
+    expect(actionBox.bottom).toBeLessThan(canvasBox.bottom);
+    const zoom = screen
+      .getByRole('button', { name: 'Zoom in' })
+      .getBoundingClientRect();
+    const toolbar = action.closest('.react-flow__panel');
+    expect(toolbar?.getBoundingClientRect().left).toBeGreaterThan(zoom.right);
+    expect(
+      screen.getByRole('navigation', { name: 'Primary navigation' }),
+    ).toHaveAttribute('data-compact');
+    const nav = screen
+      .getByRole('navigation', { name: 'Primary navigation' })
+      .getBoundingClientRect();
+    expect(canvasBox.bottom).toBeLessThanOrEqual(nav.top);
+    expect(toolbar?.getBoundingClientRect().height).toBeLessThan(150);
+    expect(
+      document
+        .elementFromPoint(actionBox.left + 10, actionBox.top + 10)
+        ?.closest('button'),
+    ).toBe(action);
+  });
+
   it('stacks the whole canvas above the inspector on a phone and scrolls the page', async () => {
     // An iPhone SE's window: shorter than the canvas and a node's inspector
     // stacked together, which is exactly when the page has to scroll.

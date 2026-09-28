@@ -193,7 +193,10 @@ function FlowCenterToolbar({
   const { t } = useT('common');
   if (!centerActions && !onOpenAi) return null;
   return (
-    <Panel position="bottom-center" className="mb-4">
+    <Panel
+      position="bottom-center"
+      className="mr-0! mb-4 ml-6! w-max max-w-[calc(100%-6rem)] md:ml-0! md:max-w-[calc(100%-2rem)]"
+    >
       <HStack
         gap={2}
         className="ring-border bg-background rounded-lg p-1 shadow-sm ring-1"
