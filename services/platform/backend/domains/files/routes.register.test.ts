@@ -143,6 +143,10 @@ describe('POST /files/register', () => {
     });
 
     expect(res.status).toBe(400);
+    // Named, not zod's bare "Invalid input" for a refine with no sentence.
+    expect(((await res.json()) as { message: string }).message).toBe(
+      'source: is reserved for the product image upload',
+    );
     expect(registerUpload).not.toHaveBeenCalled();
     expect(stampImageVisionMetadata).not.toHaveBeenCalled();
   });

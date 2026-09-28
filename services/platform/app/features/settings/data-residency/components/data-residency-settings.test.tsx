@@ -1,3 +1,4 @@
+import { KNOWLEDGE_CONNECTION_PASSWORD_MAX } from '@tale/shared/schemas/knowledge';
 import {
   ActiveEditorProvider,
   useActiveEditor,
@@ -6,6 +7,7 @@ import {
 import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { OBJECT_STORAGE_CONNECTION_MAX } from '@/lib/shared/schemas/object_storage';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -1763,7 +1765,122 @@ describe('DataResidencySettings', () => {
     expect(testStorage).not.toHaveBeenCalled();
   });
 
-  it("holds the bucket to the door's length cap before Save", async () => {
+  // Every capped storage field, by what the admin sees: a key added to the
+  // door's caps without a row here (and a check in the form) fails below.
+  const storageFieldCaps: Record<
+    keyof typeof OBJECT_STORAGE_CONNECTION_MAX,
+    { input: () => HTMLElement; label: string; value: (max: number) => string }
+  > = {
+    region: {
+      input: () => screen.getByRole('textbox', { name: 'Region' }),
+      label: 'Region',
+      value: (max) => 'r'.repeat(max + 1),
+    },
+    endpoint: {
+      input: () => screen.getByRole('textbox', { name: /^Endpoint/ }),
+      label: 'Endpoint',
+      value: (max) => `https://minio.example.com/${'e'.repeat(max)}`,
+    },
+    bucket: {
+      input: () => screen.getByRole('textbox', { name: 'Bucket' }),
+      label: 'Bucket',
+      value: (max) => 'b'.repeat(max + 1),
+    },
+    prefix: {
+      input: () => screen.getByRole('textbox', { name: 'Key prefix' }),
+      label: 'Key prefix',
+      value: (max) => 'p'.repeat(max + 1),
+    },
+    accessKeyId: {
+      input: () => screen.getByRole('textbox', { name: 'Access key ID' }),
+      label: 'Access key ID',
+      value: (max) => 'k'.repeat(max + 1),
+    },
+    secretAccessKey: {
+      input: () =>
+        screen.getByLabelText('Secret access key', { selector: 'input' }),
+      label: 'Secret access key',
+      value: (max) => 's'.repeat(max + 1),
+    },
+  };
+
+  it.each(
+    Object.entries(OBJECT_STORAGE_CONNECTION_MAX) as [
+      keyof typeof OBJECT_STORAGE_CONNECTION_MAX,
+      number,
+    ][],
+  )(
+    "holds the storage %s to the door's cap of %i before Save",
+    async (field, max) => {
+      setStorageFixture({
+        configured: true,
+        region: 'eu-central-1',
+        forcePathStyle: false,
+        bucket: 'org-blobs',
+        hasCredentials: true,
+      });
+      const { user, capture } = renderWithController();
+      const { input, label, value } = storageFieldCaps[field];
+
+      const element = input();
+      await user.clear(element);
+      await user.click(element);
+      await user.paste(value(max));
+      await act(async () => {
+        await expect(capture.current?.save()).rejects.toThrow(
+          'VALIDATION_FAILED',
+        );
+      });
+
+      expect(
+        await screen.findByText(`${label} must be ${max} characters or fewer`),
+      ).toBeInTheDocument();
+      expect(element).toHaveAttribute('aria-invalid', 'true');
+      expect(saveStorage).not.toHaveBeenCalled();
+    },
+  );
+
+  it("holds the knowledge password to the door's cap before Save and Test", async () => {
+    setKnowledgeFixture({
+      configured: true,
+      host: 'pg.acme.example',
+      port: 5599,
+      database: 'acme_rag',
+      user: 'acme',
+      sslmode: 'disable',
+      hasPassword: true,
+    });
+    const { user, capture } = renderWithController();
+    const section = sectionByHeading('Knowledge database');
+
+    const password = within(section).getByLabelText('Password', {
+      selector: 'input',
+    });
+    await user.click(password);
+    await user.paste('p'.repeat(KNOWLEDGE_CONNECTION_PASSWORD_MAX + 1));
+    await act(async () => {
+      await expect(capture.current?.save()).rejects.toThrow(
+        'VALIDATION_FAILED',
+      );
+    });
+    expect(
+      await within(section).findByText(
+        `Password must be ${KNOWLEDGE_CONNECTION_PASSWORD_MAX} characters or fewer`,
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(section).getByRole('button', { name: 'Test connection' }),
+    );
+    expect(saveKnowledge).not.toHaveBeenCalled();
+    expect(testKnowledge).not.toHaveBeenCalled();
+  });
+
+  it('keeps Save open for a storage edit after a Test on the untouched knowledge form', async () => {
+    // The Test named the empty form's fields through `setError`, which marks
+    // the (clean) knowledge form invalid; the group AND-ed every section's
+    // validity, so the header Save locked on a storage edit the admin had
+    // made — until Host was blurred.
     setStorageFixture({
       configured: true,
       region: 'eu-central-1',
@@ -1771,22 +1888,34 @@ describe('DataResidencySettings', () => {
       bucket: 'org-blobs',
       hasCredentials: true,
     });
+    saveStorage.mockResolvedValue(null);
     const { user, capture } = renderWithController();
 
     const bucket = screen.getByRole('textbox', { name: 'Bucket' });
     await user.clear(bucket);
-    await user.click(bucket);
-    await user.paste('b'.repeat(256));
-    await act(async () => {
-      await expect(capture.current?.save()).rejects.toThrow(
-        'VALIDATION_FAILED',
-      );
-    });
+    await user.type(bucket, 'org-blobs-eu');
 
+    const knowledge = sectionByHeading('Knowledge database');
+    await user.click(
+      within(knowledge).getByRole('switch', { name: 'External Postgres' }),
+    );
+    await user.click(
+      within(knowledge).getByRole('button', { name: 'Test connection' }),
+    );
     expect(
-      await screen.findByText('Bucket must be 255 characters or fewer'),
+      await within(knowledge).findByText('Enter the database host.'),
     ).toBeInTheDocument();
-    expect(saveStorage).not.toHaveBeenCalled();
+    expect(testKnowledge).not.toHaveBeenCalled();
+
+    expect(capture.current?.isDirty).toBe(true);
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
+    await act(async () => {
+      await capture.current?.save();
+    });
+    expect(saveStorage).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: 'org-blobs-eu' }),
+    );
+    expect(saveKnowledge).not.toHaveBeenCalled();
   });
 
   it('explains the bucket CORS requirement next to the org storage form', () => {

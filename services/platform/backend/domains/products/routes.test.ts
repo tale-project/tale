@@ -10,6 +10,7 @@ import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
+import { PRODUCT_IMPORT_ROWS_MAX } from '../../core/products/field_limits.ts';
 
 const {
   listProducts,
@@ -250,6 +251,31 @@ describe('POST /products — a refused body names its field', () => {
     });
     const body = (await res.json()) as { errors: { index: number }[] };
     expect(body.errors.map((entry) => entry.index)).toEqual([0, 1]);
+  });
+
+  // The import dialog refuses a longer file before sending it, reading the
+  // same constant; this pins the door's half of that agreement.
+  it('takes a file of PRODUCT_IMPORT_ROWS_MAX rows and refuses one more by name', async () => {
+    bulkCreateProducts.mockClear();
+    bulkCreateProducts.mockResolvedValue({ success: 0, failed: 0, errors: [] });
+    const send = (count: number) =>
+      makeApp().request('/bulk?orgId=o1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          products: Array.from({ length: count }, (_, i) => ({
+            name: `P${i}`,
+          })),
+        }),
+      });
+    expect((await send(PRODUCT_IMPORT_ROWS_MAX)).status).toBe(200);
+    const refused = await send(PRODUCT_IMPORT_ROWS_MAX + 1);
+    expect(refused.status).toBe(400);
+    const body = (await refused.json()) as {
+      data: { issues: { path: string }[] };
+    };
+    expect(body.data.issues.map((issue) => issue.path)).toEqual(['products']);
+    expect(bulkCreateProducts).toHaveBeenCalledTimes(1);
   });
 });
 

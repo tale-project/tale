@@ -213,7 +213,9 @@ export interface ContactsContract {
         | 'zapier'
         | 'custom';
       email?: string;
-      phone?: string;
+      /** `null` clears the stored number; a blank string would read as
+       * "not sent" at the door and keep it. */
+      phone?: string | null;
       externalId?: string;
       address?: {
         street?: string;

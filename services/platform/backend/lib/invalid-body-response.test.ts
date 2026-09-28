@@ -147,7 +147,7 @@ describe('invalidBodyIssuesResponse', () => {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND = path.resolve(HERE, '..');
 const HELPER = path.join(HERE, 'invalid-body-response.ts');
-const BARE_REFUSAL = /(?<![=!]==\s*)'invalid body'/;
+const BARE_REFUSAL = /(?<![=!]==\s*)(['"`])invalid body\1/;
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -162,12 +162,19 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
+/** A comment may name the code (the history of a fix); only code writes it. */
+const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
+
+function isBareRefusal(line: string): boolean {
+  return !COMMENT_LINE.test(line) && BARE_REFUSAL.test(line);
+}
+
 function bareRefusals(): string[] {
   return sourceFiles(BACKEND).flatMap((file) =>
     readFileSync(file, 'utf8')
       .split('\n')
       .flatMap((line, index) =>
-        BARE_REFUSAL.test(line)
+        isBareRefusal(line)
           ? [`${path.relative(BACKEND, file)}:${index + 1}`]
           : [],
       ),
@@ -198,7 +205,13 @@ describe('the app doors', () => {
     ["const INVALID_BODY = 'invalid body';", true],
     ["if (body.error === 'invalid body') return;", false],
     ["if (body.error !== 'invalid body') return;", false],
+    // The formatter keeps a double-quoted or template literal as written.
+    ['return c.json({ error: "invalid body" }, 400);', true],
+    ['const code = `invalid body`;', true],
+    // A comment recounting a fix writes no refusal.
+    ["  // it used to answer a bare 'invalid body'", false],
+    ['   * answered a bare `invalid body` that named no field', false],
   ])('the scan judges %s', (line, flagged) => {
-    expect(BARE_REFUSAL.test(line)).toBe(flagged);
+    expect(isBareRefusal(line)).toBe(flagged);
   });
 });

@@ -175,6 +175,25 @@ describe('POST /app-passwords', () => {
     );
   });
 
+  // The refusal used to be a bare `INVALID_LABEL` code, naming no rule.
+  it.each([
+    [JSON.stringify({ label: '' }), 'label: Too small'],
+    [JSON.stringify({ label: 'x'.repeat(65) }), 'label: Too big'],
+    ['not json', 'body: '],
+  ])('names what is wrong with the body %s', async (body, reason) => {
+    const { sql, statements } = fakeSql(answers);
+    const res = await mount(sql).request('/app-passwords', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+    expect(res.status).toBe(400);
+    const refusal = (await res.json()) as { error: string; message: string };
+    expect(refusal.error).toBe('invalid body');
+    expect(refusal.message.startsWith(reason)).toBe(true);
+    expect(writes(statements)).toEqual([]);
+  });
+
   it('is a developer door', async () => {
     caller.role = 'member';
     const { sql, statements } = fakeSql(answers);

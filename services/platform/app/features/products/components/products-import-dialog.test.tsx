@@ -168,6 +168,40 @@ describe('ProductsImportDialog', () => {
     expect(bulkCreate).not.toHaveBeenCalled();
     expect(await rowErrorsAlert()).toHaveTextContent('name: must not be blank');
   });
+
+  // The door refuses a list over 1,000 rows whole, with a 400 that names no
+  // row; the dialog asks for a split instead of sending it.
+  function parsedRows(count: number) {
+    return {
+      data: Array.from({ length: count }, (_, i) => ({ name: `P${i}` })),
+      rows: Array.from({ length: count }, (_, i) => i + 2),
+      errors: [],
+      rowErrors: [],
+    };
+  }
+
+  it("refuses a file over the door's row cap before sending it", async () => {
+    parseFile.mockResolvedValue(parsedRows(1001));
+    const { onClose } = await importFile();
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith({
+        title: 'products.import.error',
+        description: 'common.import.tooManyRows count=1001 max=1000',
+        variant: 'destructive',
+      }),
+    );
+    expect(bulkCreate).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('sends a file of exactly the row cap', async () => {
+    parseFile.mockResolvedValue(parsedRows(1000));
+    bulkCreate.mockResolvedValue({ success: 1000, failed: 0, errors: [] });
+    const { onClose } = await importFile();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(bulkCreate).toHaveBeenCalledTimes(1);
+    expect(bulkCreate.mock.calls[0]?.[0].products).toHaveLength(1000);
+  });
 });
 
 // The session door's 401 names the REST API in English; the person whose
