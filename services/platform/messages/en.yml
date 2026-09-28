@@ -1547,6 +1547,7 @@ common:
     rowErrorsTitle: '{count, plural, one {# row was not imported} other {# rows were not imported}}'
     rowError: 'Row {row}: {message}'
     moreRows: '…and {count} more'
+    tooManyRows: This file has {count} rows to import, and Tale imports at most {max} at a time. Split it into smaller files and import each one.
     fields:
       name: Name
       price: Price

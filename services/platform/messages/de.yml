@@ -1599,6 +1599,7 @@ common:
     rowErrorsTitle: '{count, plural, one {# Zeile wurde nicht importiert} other {# Zeilen wurden nicht importiert}}'
     rowError: 'Zeile {row}: {message}'
     moreRows: '… und {count} weitere'
+    tooManyRows: Diese Datei enthält {count} Zeilen zum Importieren, Tale importiert aber höchstens {max} auf einmal. Teile sie in kleinere Dateien auf und importiere jede einzeln.
     fields:
       name: Name
       price: Preis
