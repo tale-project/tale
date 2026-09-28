@@ -2,7 +2,10 @@ import {
   configurationHashSchema,
   expectedConfigurationHashSchema,
 } from '@tale/shared/schemas/configuration';
-import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
+import {
+  providerDefinitionSchema,
+  type ProviderDefinition,
+} from '@tale/shared/schemas/providers';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
@@ -26,7 +29,7 @@ import {
   readSystemEntryIcon,
 } from '../../core/lib/providers/load_system_config.ts';
 import {
-  loadOrgCustomProviders,
+  loadOrgCustomProviderSnapshots,
   resolveProvidersForOrg,
 } from '../../core/lib/providers/org_providers.ts';
 import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_transcription_model.ts';
@@ -210,15 +213,24 @@ export function createProviderSettingRoutes(deps: {
     // The same union `resolveProvidersForOrg` serves, kept apart here so each
     // entry can say where it came from: the settings page lists and edits the
     // organization's own definitions, which the shipped set never includes.
-    const sources = [
-      { origin: 'shipped' as const, providers: loadProviderDefinitions() },
+    // Those carry the hash of the file their facts were read from: the edit
+    // dialog shows these facts and saves against that version, so a
+    // definition someone saved since is refused, never written over.
+    const sources: {
+      origin: 'shipped' | 'organization';
+      providers: { provider: ProviderDefinition; hash?: string }[];
+    }[] = [
       {
-        origin: 'organization' as const,
-        providers: loadOrgCustomProviders(orgSlug),
+        origin: 'shipped',
+        providers: loadProviderDefinitions().map((provider) => ({ provider })),
+      },
+      {
+        origin: 'organization',
+        providers: loadOrgCustomProviderSnapshots(orgSlug),
       },
     ];
     for (const { origin, providers } of sources)
-      for (const provider of providers) {
+      for (const { provider, hash } of providers) {
         let models: unknown[] = [];
         let catalogError: string | undefined;
         try {
@@ -257,6 +269,7 @@ export function createProviderSettingRoutes(deps: {
           authMethods: provider.auth.map((entry) => entry.method),
           models,
           ...(catalogError !== undefined ? { catalogError } : {}),
+          ...(hash !== undefined ? { definitionHash: hash } : {}),
         });
       }
     return c.json({ catalogs: results });

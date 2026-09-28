@@ -186,7 +186,10 @@ describe('useCreateProviderCredential', () => {
 });
 
 describe('useUpdateProviderCredential', () => {
-  it('saves the provider facts against the loaded hash, named after the credential, before the credential itself', async () => {
+  /** The version of the definition the dialog's facts were read at. */
+  const reviewed = { definitionHash: 'h1' };
+
+  it('saves the provider facts against the version the dialog read, named after the credential, before the credential itself', async () => {
     actions.read.mockResolvedValue({
       config: {
         name: 'qwen-cn',
@@ -214,6 +217,7 @@ describe('useUpdateProviderCredential', () => {
         baseUrl: 'https://maas.example.test/v2',
         catalogSource: 'none',
       },
+      reviewed,
     });
     expect(actions.read).toHaveBeenCalledWith({
       organizationId: 'org-1',
@@ -243,6 +247,61 @@ describe('useUpdateProviderCredential', () => {
     );
   });
 
+  it('refuses a dialog older than the definition instead of saving over it (#3663)', async () => {
+    // Someone saved v2 since the dialog read v1 (h1): the current hash is h2.
+    actions.read.mockResolvedValue({
+      config: {
+        name: 'qwen-cn',
+        displayName: 'Qwen CN',
+        apiFormat: 'openai',
+        baseUrl: 'https://maas.example.test/v9',
+        catalog: { source: 'models-endpoint' },
+        auth: [{ method: 'api-key' }],
+      },
+      hash: 'h2',
+    });
+    const { result } = renderHook(() => useUpdateProviderCredential(), {
+      wrapper,
+    });
+    await expect(
+      result.current.mutateAsync({
+        organizationId: 'org-1',
+        credentialId: 'c1',
+        // A name-only edit: the facts are the ones the dialog was seeded with.
+        name: 'Qwen China',
+        customProvider: {
+          providerSlug: 'qwen-cn',
+          apiFormat: 'openai',
+          baseUrl: 'https://maas.example.test/v1',
+          catalogSource: 'models-endpoint',
+        },
+        reviewed,
+      }),
+    ).rejects.toMatchObject({ data: { code: 'CONFIG_VERSION_CONFLICT' } });
+    expect(actions.save).not.toHaveBeenCalled();
+    expect(actions.update).not.toHaveBeenCalled();
+    // The listing refetches, so a reopened dialog reads the newer facts.
+    expect(
+      client.getQueryState(providerCatalogsQueryKey('org-1'))?.isInvalidated,
+    ).toBe(true);
+  });
+
+  it('refuses an edit whose version the dialog never had', async () => {
+    const { result } = renderHook(() => useUpdateProviderCredential(), {
+      wrapper,
+    });
+    await expect(
+      result.current.mutateAsync({
+        organizationId: 'org-1',
+        credentialId: 'c1',
+        customProvider: { ...facts, providerSlug: 'qwen-cn' },
+      }),
+    ).rejects.toMatchObject({ data: { code: 'CONFIG_VERSION_CONFLICT' } });
+    expect(actions.read).not.toHaveBeenCalled();
+    expect(actions.save).not.toHaveBeenCalled();
+    expect(actions.update).not.toHaveBeenCalled();
+  });
+
   it('passes a plain credential edit straight through and refuses to edit a vanished provider', async () => {
     actions.update.mockResolvedValue(null);
     const { result } = renderHook(() => useUpdateProviderCredential(), {
@@ -266,6 +325,7 @@ describe('useUpdateProviderCredential', () => {
         organizationId: 'org-1',
         credentialId: 'c1',
         customProvider: { ...facts, providerSlug: 'gone' },
+        reviewed,
       }),
     ).rejects.toMatchObject({ data: { code: 'PROVIDER_NOT_FOUND' } });
     expect(actions.save).not.toHaveBeenCalled();

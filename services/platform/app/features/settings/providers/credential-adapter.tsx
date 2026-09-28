@@ -37,6 +37,7 @@ import {
 import {
   useCreateProviderCredential,
   useUpdateProviderCredential,
+  type ReviewedVersions,
 } from './hooks/custom-provider-mutations';
 import {
   useCheckProviderDefinitionCatalog,
@@ -118,6 +119,14 @@ const isOrgDefined = (vendor: ProviderVendor | null | undefined): boolean =>
   vendor !== null &&
   vendor !== undefined &&
   vendor.catalog.origin === 'organization';
+
+/** The version an organization-defined provider's facts are read at: the
+ * hash the catalog listing gives the definition beside them. Absent while
+ * the listing carries no hash, which the save refuses rather than guess. */
+function reviewedOf(vendor: ProviderVendor): { reviewed?: ReviewedVersions } {
+  const definitionHash = vendor.catalog.definitionHash;
+  return definitionHash === undefined ? {} : { reviewed: { definitionHash } };
+}
 
 /** The facts an organization-defined provider's credential edits — read off
  * the catalog listing, which is the definition's public shape. */
@@ -223,6 +232,9 @@ export interface ProviderCredentialExtras {
   /** Present while the setup step is the custom entry, or the credential
    * belongs to an organization-defined provider. Absent for a shipped one. */
   custom?: CustomProviderFacts;
+  /** For an organization-defined provider's credential: the version the
+   * form was seeded at, which its Save names. Never edited. */
+  reviewed?: ReviewedVersions;
 }
 
 const sameList = (a: readonly string[], b: readonly string[]) =>
@@ -368,7 +380,7 @@ const providerExtras: CredentialExtraModule<
   fromCredential: (credential, vendor) => ({
     allowlist: credential.modelAllowlist ?? [],
     ...(vendor !== undefined && isOrgDefined(vendor)
-      ? { custom: factsOf(vendor) }
+      ? { custom: factsOf(vendor), ...reviewedOf(vendor) }
       : {}),
   }),
   // Blank facts count as the untouched baseline: the custom entry seeds
@@ -389,6 +401,7 @@ const providerExtras: CredentialExtraModule<
   editArgs: (value) => ({
     modelAllowlist: value.allowlist.length > 0 ? value.allowlist : null,
     ...(value.custom !== undefined ? { customProvider: value.custom } : {}),
+    ...(value.reviewed !== undefined ? { reviewed: value.reviewed } : {}),
   }),
   isComplete: (value, vendor) => {
     if (!isCustomEntry(vendor) && value.custom === undefined) return true;

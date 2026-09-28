@@ -28,8 +28,9 @@ import {
  * definition first (the credential needs a slug to name), and, should the
  * credential then be refused, the definition taken back out so no provider
  * outlives the key it was created for. An edit of such a credential carries
- * the provider's facts the same way, saved against the definition's current
- * hash before the credential itself.
+ * the provider's facts the same way, saved before the credential itself and
+ * against the version of the definition the dialog read: a dialog opened
+ * before someone else's save is refused rather than written over it.
  */
 
 type CreateCredentialArgs =
@@ -42,11 +43,30 @@ export type CreateProviderCredentialArgs = CreateCredentialArgs & {
   customProvider?: CustomProviderFacts;
 };
 
+/** The native version the edit dialog read an organization-defined
+ * provider's facts at. */
+export interface ReviewedVersions {
+  /** The hash of the definition file the provider's facts were read from. */
+  definitionHash: string;
+}
+
 export type UpdateProviderCredentialArgs = UpdateCredentialArgs & {
   /** Present for a credential of an organization-defined provider: the
    * provider's facts as the dialog now shows them. */
   customProvider?: CustomProviderFacts;
+  /** What `customProvider` was read at: the edit saves against it, never
+   * against whatever is current at Save. */
+  reviewed?: ReviewedVersions;
 };
+
+/** The refusal of an edit whose provider moved since the dialog read it —
+ * the code the native compare-and-set answers the same case with. */
+function versionConflict(): AppError {
+  return new AppError({
+    code: 'CONFIG_VERSION_CONFLICT',
+    message: 'The provider changed since it was loaded.',
+  });
+}
 
 function useDefinitionWrites() {
   const queryClient = useQueryClient();
@@ -163,45 +183,55 @@ export function useUpdateProviderCredential() {
   const mutateAsync = async (
     args: UpdateProviderCredentialArgs,
   ): Promise<ReturnsOf<'provider_credentials/actions:updateCredential'>> => {
-    const { customProvider, ...credentialArgs } = args;
+    const { customProvider, reviewed, ...credentialArgs } = args;
     if (customProvider !== undefined) {
       const { organizationId } = credentialArgs;
       const name = customProvider.providerSlug;
-      const snapshot = await read.mutateAsync({ organizationId, name });
-      if (snapshot.config === null) {
-        throw new AppError({
-          code: 'PROVIDER_NOT_FOUND',
-          message: 'This provider no longer exists.',
-        });
-      }
-      const built = buildCustomProviderDefinition(
-        {
+      try {
+        if (reviewed === undefined) throw versionConflict();
+        // The definition is read for the fields the form has no input for
+        // (they ride along unchanged), and only while it is still the
+        // version the dialog showed: a newer one is someone else's save.
+        const snapshot = await read.mutateAsync({ organizationId, name });
+        if (snapshot.config === null) {
+          throw new AppError({
+            code: 'PROVIDER_NOT_FOUND',
+            message: 'This provider no longer exists.',
+          });
+        }
+        if (snapshot.hash !== reviewed.definitionHash) throw versionConflict();
+        const built = buildCustomProviderDefinition(
+          {
+            name,
+            // The name names the provider as well as the key.
+            displayName:
+              typeof credentialArgs.name === 'string' &&
+              credentialArgs.name.trim().length > 0
+                ? credentialArgs.name
+                : snapshot.config.displayName,
+            apiFormat: customProvider.apiFormat,
+            baseUrl: customProvider.baseUrl,
+            catalogSource: customProvider.catalogSource,
+          },
+          snapshot.config,
+        );
+        if (!built.ok) {
+          throw new AppError({
+            code: 'PROVIDER_DEFINITION_INVALID',
+            message: built.message,
+          });
+        }
+        await save.mutateAsync({
+          organizationId,
           name,
-          // The name names the provider as well as the key.
-          displayName:
-            typeof credentialArgs.name === 'string' &&
-            credentialArgs.name.trim().length > 0
-              ? credentialArgs.name
-              : snapshot.config.displayName,
-          apiFormat: customProvider.apiFormat,
-          baseUrl: customProvider.baseUrl,
-          catalogSource: customProvider.catalogSource,
-        },
-        snapshot.config,
-      );
-      if (!built.ok) {
-        throw new AppError({
-          code: 'PROVIDER_DEFINITION_INVALID',
-          message: built.message,
+          config: built.config,
+          expectedHash: reviewed.definitionHash,
         });
+      } finally {
+        // Saved or refused as stale, the listing (and the hash it carries)
+        // is behind the definition either way.
+        invalidate(organizationId);
       }
-      await save.mutateAsync({
-        organizationId,
-        name,
-        config: built.config,
-        expectedHash: snapshot.hash,
-      });
-      invalidate(organizationId);
     }
     return update.mutateAsync(credentialArgs);
   };
