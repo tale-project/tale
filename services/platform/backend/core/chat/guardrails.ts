@@ -108,6 +108,23 @@ export function mandatoryInstructionsFor(
     : effectiveMandatoryInstructions(policies.systemPrompt);
 }
 
+/**
+ * The org's mandatory instructions alone, for an agent run — a project agent
+ * working a task or an automation's agent step. Same policy file and rules
+ * as a chat turn's first block (absent when missing, disabled, blank or
+ * unparseable), so "Custom instructions" reaches every agent the settings
+ * page says it does, placed ahead of the agent's own instructions.
+ */
+export async function readMandatoryInstructions(
+  ctx: ActionCtx,
+  organizationId: string,
+): Promise<string | undefined> {
+  const systemPrompt = await readPolicy(ctx, organizationId, 'system_prompt');
+  return systemPrompt === null
+    ? undefined
+    : effectiveMandatoryInstructions(systemPrompt);
+}
+
 // -------------------------------------------------------------- the filters
 
 /**

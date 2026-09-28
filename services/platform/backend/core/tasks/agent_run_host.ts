@@ -39,6 +39,7 @@ import {
   resolveHarnessTurnContextWindow,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
+import { readMandatoryInstructions } from '../chat/guardrails';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
@@ -1091,7 +1092,13 @@ export async function startTaskAgentTurnImpl(
       const toolsGuidance = grantedToolsGuidance(
         normalizeToolGrants(args.tools),
       );
+      const mandatoryInstructions = await readMandatoryInstructions(
+        ctx,
+        args.organizationId,
+      );
       const instructions = [
+        // The organization's Custom instructions lead, as on a chat turn.
+        ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
           : []),
@@ -2217,7 +2224,13 @@ export async function steerTaskAgentTurnImpl(
     });
 
     const toolsGuidance = grantedToolsGuidance(normalizeToolGrants(args.tools));
+    const mandatoryInstructions = await readMandatoryInstructions(
+      ctx,
+      args.organizationId,
+    );
     const instructions = [
+      // The organization's Custom instructions lead, as on a chat turn.
+      ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
       ...(args.instructions !== undefined && args.instructions !== ''
         ? [args.instructions]
         : []),

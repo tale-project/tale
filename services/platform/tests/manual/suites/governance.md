@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 55 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 56 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -65,6 +65,12 @@ select lists only the current admin's keys (`useApiKeys`).
   aria-label = the section title) → **Save** (`common.actions.save`, the
   settings header's global bar) → reload → After reload the section Switch is
   still ON and the textarea still holds the typed text.
+- [ ] `GOV-F35` · **Custom instructions reach agents** — With GOV-F2's section
+  ON and holding "End every report with the line: Finance desk.", start a
+  project agent on a task, then run an automation whose agent step writes a
+  short report → Both the task's agent report and the automation step's output
+  end with **Finance desk.**, as a chat reply does; switch the section OFF,
+  save, and start the task agent again → the line no longer appears.
 - [ ] `GOV-F2b` · **Voice-output toggle** — `policies-limits` → flip **Voice
   output enabled for this organization**
   (`governance.voiceOutput.enabledLabel`) — it **autosaves** (toast

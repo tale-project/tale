@@ -41,6 +41,7 @@ import {
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
+import { readMandatoryInstructions } from '../chat/guardrails';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
@@ -1262,7 +1263,13 @@ export async function startWorkflowAgentTurnImpl(
               ),
             )
           : undefined;
+      const mandatoryInstructions = await readMandatoryInstructions(
+        ctx,
+        args.organizationId,
+      );
       const instructions = [
+        // The organization's Custom instructions lead, as on a chat turn.
+        ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
         ...(args.request.system !== undefined && args.request.system !== ''
           ? [args.request.system]
           : []),
@@ -1846,7 +1853,13 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
               ),
             )
           : undefined;
+      const mandatoryInstructions = await readMandatoryInstructions(
+        ctx,
+        args.organizationId,
+      );
       const instructions = [
+        // The organization's Custom instructions lead, as on a chat turn.
+        ...(mandatoryInstructions !== undefined ? [mandatoryInstructions] : []),
         ...(request.system !== undefined && request.system !== ''
           ? [request.system]
           : []),
