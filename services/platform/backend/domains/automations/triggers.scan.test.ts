@@ -9,11 +9,13 @@
  * inserted and an undeployed automation records a skip instead; a refused
  * start keeps its claim and records `start_refused`; an unusable expression
  * records `unusable_cron` and is left out of the next page; a schedule
- * whose organization no longer exists is never claimed, only disabled and
- * named once; and the undeployed schedules are summarised in one line, not
- * one per trigger. The real-Postgres probe (`integration-check.ts`) proves
- * the fairness count and the overlapping-scan exactly-once on the actual
- * schema.
+ * whose organization no longer exists is never claimed, only disabled
+ * (before any claim of its page) and named once; the undeployed, refused and
+ * disabled schedules are summarised in one line each, not one per trigger,
+ * and those lines are written even when a later page throws; and a worker
+ * that finds no `organization` table yet scans nothing. The real-Postgres
+ * probe (`integration-check.ts`) proves the fairness count and the
+ * overlapping-scan exactly-once on the actual schema.
  */
 
 import type { Sql } from 'postgres';
@@ -62,14 +64,20 @@ function triggerRow(id: string, now: number): Record<string, unknown> {
 }
 
 /**
- * Scripted `sql`: page queries pop from `pages`; the disable of orphaned
+ * Scripted `sql`: the `organization` table check answers `organizationTable`
+ * (present unless a test says otherwise), and the count of enabled schedules
+ * behind a missing table answers `waiting` (none unless a test says
+ * otherwise); page queries pop from `pages`, and
+ * a page scripted as an Error fails its query; the disable of orphaned
  * schedules pops from `retired`; inside `begin` the claim UPDATE pops from
  * `claims` and every other statement answers no rows; `beginRunInTx` is
  * mocked per test. The scan's own contract is what is under test — the run
  * store's is its own.
  */
 function fakeScan(script: {
-  pages: Record<string, unknown>[][];
+  organizationTable?: boolean;
+  waiting?: number;
+  pages: (Record<string, unknown>[] | Error)[];
   claims: { id: string }[][];
   retired?: { organizationId: string; name: string }[][];
 }): FakeScan {
@@ -78,8 +86,17 @@ function fakeScan(script: {
   const root = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
     statements.push({ text, values });
+    if (text.includes('to_regclass')) {
+      return Promise.resolve([{ present: script.organizationTable ?? true }]);
+    }
+    if (text.includes('count(*)')) {
+      return Promise.resolve([{ count: script.waiting ?? 0 }]);
+    }
     if (text.startsWith('SELECT')) {
-      return Promise.resolve(script.pages.shift() ?? []);
+      const page = script.pages.shift() ?? [];
+      return page instanceof Error
+        ? Promise.reject(page)
+        : Promise.resolve(page);
     }
     if (text.includes('SET enabled = false')) {
       return Promise.resolve(script.retired?.shift() ?? []);
@@ -107,6 +124,10 @@ function fakeScan(script: {
   return { sql: root as unknown as Sql, statements, transactions };
 }
 
+const pageQueriesOf = (fake: FakeScan): Statement[] =>
+  fake.statements.filter((s) =>
+    s.text.includes('FROM app.automation_triggers t WHERE'),
+  );
 const claimsOf = (fake: FakeScan): Statement[] =>
   fake.statements.filter((s) => s.text.includes('SET last_due_at_ms'));
 const fireStamps = (fake: FakeScan): Statement[] =>
@@ -166,9 +187,7 @@ describe('scanScheduledTriggers', () => {
       }),
     );
 
-    const pageQueries = fake.statements.filter((s) =>
-      s.text.startsWith('SELECT'),
-    );
+    const pageQueries = pageQueriesOf(fake);
     expect(pageQueries).toHaveLength(2);
     for (const query of pageQueries) {
       expect(query.text).toContain('ORDER BY id');
@@ -336,7 +355,9 @@ describe('scanScheduledTriggers', () => {
       orphaned: 0,
     });
     expect(beginRunInTx).not.toHaveBeenCalled();
-    expect(fake.statements).toHaveLength(1);
+    // The table check, then the one page: nothing claimed, nothing stamped.
+    expect(fake.statements).toHaveLength(2);
+    expect(pageQueriesOf(fake)).toHaveLength(1);
   });
 
   it('counts a re-bound schedule from its bind, never from the row’s creation', async () => {
@@ -525,5 +546,148 @@ describe('scanScheduledTriggers', () => {
     expect(claimsOf(fake)).toHaveLength(0);
     expect(beginRunInTx).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('still names what the pages before a failing page disabled, left undeployed or had refused', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const now = Date.now();
+    const fake = fakeScan({
+      pages: [
+        [
+          {
+            ...triggerRow('t1', now),
+            organizationId: 'org_gone',
+            orgMissing: true,
+          },
+          triggerRow('t2', now),
+          triggerRow('t3', now),
+        ],
+        // The second page's read dies: the scan fails, and a disabled
+        // schedule never enters a page again — its line is now or never.
+        new Error('connection lost'),
+      ],
+      claims: [[{ id: 't2' }], [{ id: 't3' }]],
+      retired: [[{ organizationId: 'org_gone', name: 'sched/t1' }]],
+    });
+    vi.mocked(beginRunInTx)
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(
+        new AutomationError(
+          'AUTOMATION_INPUT_INVALID',
+          'Run input does not match the automation inputs schema',
+          400,
+        ),
+      );
+
+    await expect(
+      scanScheduledTriggers(fake.sql, { pageSize: 3 }),
+    ).rejects.toThrow('connection lost');
+
+    expect(retirements(fake)).toHaveLength(1);
+    const lines = warn.mock.calls.map((call) => String(call[0]));
+    // The three summaries share one shape: the count, then the names.
+    expect(lines).toEqual([
+      '[automations] trigger scan: 1 due schedule(s) have no deployed version to run: org_1/sched/t2',
+      '[automations] trigger scan: 1 due schedule(s) were refused by their deployed version: org_1/sched/t3 (Run input does not match the automation inputs schema)',
+      '[automations] trigger scan: disabled 1 schedule(s) whose organization no longer exists: org_gone/sched/t1',
+    ]);
+  });
+
+  it('disables a page’s orphans before its first claim, so a claim that throws leaves none enabled', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const now = Date.now();
+    const fake = fakeScan({
+      pages: [
+        [
+          triggerRow('t1', now),
+          {
+            ...triggerRow('t2', now),
+            organizationId: 'org_gone',
+            orgMissing: true,
+          },
+        ],
+      ],
+      claims: [[{ id: 't1' }]],
+      retired: [[{ organizationId: 'org_gone', name: 'sched/t2' }]],
+    });
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(new Error('connection lost'));
+
+    await expect(
+      scanScheduledTriggers(fake.sql, { pageSize: 200 }),
+    ).rejects.toThrow('connection lost');
+
+    const texts = fake.statements.map((statement) => statement.text);
+    const retiredAt = texts.findIndex((text) =>
+      text.includes('SET enabled = false'),
+    );
+    const claimedAt = texts.findIndex((text) =>
+      text.includes('SET last_due_at_ms'),
+    );
+    expect(retiredAt).toBeGreaterThan(-1);
+    expect(retiredAt).toBeLessThan(claimedAt);
+    expect(retirements(fake)[0]?.values[0]).toEqual(['t2']);
+    expect(
+      warn.mock.calls.filter((call) =>
+        String(call[0]).includes('org_gone/sched/t2'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('scans nothing, and does not fail, before the organization table exists', async () => {
+    // A pure worker on a fresh install runs the minutely scan before an api
+    // role has booted and created Better Auth's tables: no table, no
+    // organization, so no schedule can be due — and nothing is disabled.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = fakeScan({
+      organizationTable: false,
+      pages: [[triggerRow('t1', Date.now())]],
+      claims: [[{ id: 't1' }]],
+    });
+
+    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+
+    expect(result).toEqual({
+      examined: 0,
+      fired: 0,
+      pages: 0,
+      undeployed: 0,
+      refused: 0,
+      unusable: 0,
+      orphaned: 0,
+    });
+    // The table check, then the count that finds no schedule waiting: no
+    // page read names the missing relation, and a fresh install is quiet.
+    expect(fake.statements.map((statement) => statement.text)).toEqual([
+      'SELECT to_regclass(\'"organization"\') IS NOT NULL AS present',
+      "SELECT count(*)::int AS count FROM app.automation_triggers WHERE kind = 'schedule' AND enabled = true",
+    ]);
+    expect(pageQueriesOf(fake)).toHaveLength(0);
+    expect(retirements(fake)).toHaveLength(0);
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('says so when enabled schedules wait but the connection sees no organization table', async () => {
+    // Not a fresh install: schedules exist, so Better Auth's tables do too,
+    // somewhere this worker's connection cannot see them. Nothing fires and
+    // nothing is disabled, but the scan no longer fails in silence either.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fake = fakeScan({
+      organizationTable: false,
+      waiting: 3,
+      pages: [[triggerRow('t1', Date.now())]],
+      claims: [[{ id: 't1' }]],
+    });
+
+    const result = await scanScheduledTriggers(fake.sql, { pageSize: 200 });
+
+    expect(result).toMatchObject({ examined: 0, fired: 0, pages: 0 });
+    expect(pageQueriesOf(fake)).toHaveLength(0);
+    expect(retirements(fake)).toHaveLength(0);
+    expect(beginRunInTx).not.toHaveBeenCalled();
+    const lines = warn.mock.calls.map((call) => String(call[0]));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('3 enabled schedule(s) wait');
+    expect(lines[0]).toContain('no "organization" table');
   });
 });
