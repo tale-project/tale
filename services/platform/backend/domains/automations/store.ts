@@ -2667,6 +2667,22 @@ export interface AnsweredAsk {
   taskId: string | null;
 }
 
+/** The run a question belongs to, or null when the organization has no
+ * such question — what a door checks the run's visibility against before
+ * it lets anyone answer. */
+export async function getAskRunId(
+  sql: Sql,
+  organizationId: string,
+  askId: string,
+): Promise<string | null> {
+  const rows = await sql<{ runId: string }[]>`
+    SELECT run_id AS "runId" FROM app.automation_human_asks
+    WHERE id = ${askId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  return rows[0]?.runId ?? null;
+}
+
 export async function answerAsk(
   sql: Sql,
   args: {

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 73 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -607,6 +607,14 @@ output:
       (`automations.detail.staleVersion.saveAnyway`) appends B's version on
       top instead (A's version stays in the **Version** history, the latest is B's).
       Nothing is ever reverted silently.
+- [ ] `AUTO-B8` · **Runs of a project you cannot see** — As an admin, bind an
+      automation to a project shared with one team only and start a run there
+      that stops on a question; sign in as a Member outside that team → The
+      automation's **Runs** list shows none of that project's runs, the
+      project is not named among its bindings, and opening the run's URL
+      directly answers **Run not found**; the member can neither cancel the
+      run nor answer its question (a hidden run answers like a missing one).
+      The same member added to the team sees the run.
 
 ## Run liveness — chaos recovery (backend, scripted)
 

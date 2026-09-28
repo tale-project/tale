@@ -21,19 +21,15 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import {
-  assertReadable,
   assertWritable,
   getProjectAuthContext,
-  listProjects,
-  loadProjectOrThrow,
-  ProjectError,
   type ProjectAuthContext,
-  type ProjectRow,
 } from '../projects/service.ts';
 import {
   credentialShimHandlers,
   listServingCredentialFacts,
 } from '../provider_credentials/service.ts';
+import { readableProject, readableProjectIds } from './project-visibility.ts';
 import {
   assertAutomationName,
   beginRun,
@@ -138,32 +134,12 @@ export async function authorizeActorRun(
   return getProjectAuthContext(sql, { organizationId, userId, role });
 }
 
-/** The engine/MCP actor has the same project visibility as its member. */
-async function readableActorProject(
-  sql: Sql | TransactionSql,
-  auth: ProjectAuthContext,
-  projectId: string,
-): Promise<ProjectRow | null> {
-  try {
-    const project = await loadProjectOrThrow(sql, projectId);
-    assertReadable(project, auth);
-    return project;
-  } catch (error) {
-    if (
-      error instanceof ProjectError &&
-      (error.code === 'PROJECT_NOT_FOUND' || error.code === 'PROJECT_FORBIDDEN')
-    )
-      return null;
-    throw error;
-  }
-}
-
 async function writableActorProject(
   sql: Sql | TransactionSql,
   auth: ProjectAuthContext,
   projectId: string,
 ): Promise<void> {
-  const project = await readableActorProject(sql, auth, projectId);
+  const project = await readableProject(sql, auth, projectId);
   if (project === null) {
     throw new ActorAuthError('PROJECT_NOT_FOUND', 'Project not found.');
   }
@@ -517,10 +493,10 @@ export function pgAutomationStore(
       );
       if (
         scope.projectId !== undefined &&
-        (await readableActorProject(sql, auth, scope.projectId)) === null
+        (await readableProject(sql, auth, scope.projectId)) === null
       )
         return [];
-      const projects = await listProjects(sql, auth, { includeArchived: true });
+      const visibleProjectIds = await readableProjectIds(sql, auth);
       return (
         await listRuns(sql, organizationId, {
           ...(options.name !== undefined ? { name: options.name } : {}),
@@ -528,7 +504,7 @@ export function pgAutomationStore(
           ...(scope.projectId !== undefined
             ? { projectId: scope.projectId }
             : {}),
-          visibleProjectIds: projects.map((project) => project.id),
+          visibleProjectIds,
         })
       ).map(toRunSummary);
     },
@@ -545,7 +521,7 @@ export function pgAutomationStore(
         return null;
       if (
         row.projectId !== null &&
-        (await readableActorProject(sql, auth, row.projectId)) === null
+        (await readableProject(sql, auth, row.projectId)) === null
       )
         return null;
       return {

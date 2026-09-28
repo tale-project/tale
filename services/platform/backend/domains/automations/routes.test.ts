@@ -18,13 +18,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { answerAsk, automationTombstone, deployedVersion, versionRow } =
-  vi.hoisted(() => ({
-    answerAsk: vi.fn(),
-    automationTombstone: vi.fn(),
-    deployedVersion: vi.fn(),
-    versionRow: vi.fn(),
-  }));
+const {
+  answerAsk,
+  automationTombstone,
+  deployedVersion,
+  getAskRunId,
+  versionRow,
+} = vi.hoisted(() => ({
+  answerAsk: vi.fn(),
+  automationTombstone: vi.fn(),
+  deployedVersion: vi.fn(),
+  // No stored question: the door leaves the not-found answer to answerAsk.
+  getAskRunId: vi.fn(async () => null),
+  versionRow: vi.fn(),
+}));
 
 vi.mock('./store.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./store.ts')>();
@@ -33,6 +40,7 @@ vi.mock('./store.ts', async (importOriginal) => {
     answerAsk,
     automationTombstone,
     deployedVersion,
+    getAskRunId,
     versionRow,
   };
 });
