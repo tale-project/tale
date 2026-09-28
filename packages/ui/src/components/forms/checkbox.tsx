@@ -126,6 +126,9 @@ const CheckboxBase = React.forwardRef<
     }
 
     if (description) {
+      // `leading-5` for the same reason as the label-only row below: a label
+      // that wraps keeps readable line spacing instead of Label's tight
+      // single-line default, and its first line stays centred on the box.
       return (
         <div className="flex items-start gap-2">
           <div className="mt-0.5">{checkbox}</div>
@@ -134,7 +137,7 @@ const CheckboxBase = React.forwardRef<
               <Label
                 htmlFor={id}
                 required={required}
-                className="cursor-pointer"
+                className="cursor-pointer leading-5"
               >
                 {label}
               </Label>
