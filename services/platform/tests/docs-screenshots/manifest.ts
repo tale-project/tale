@@ -29,16 +29,20 @@ import {
   DEMO_DATA_NOTICE,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
+  DEMO_INBOX,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
   DEMO_OWNER,
   DEMO_PROJECT_FILES,
+  DEMO_PRODUCTS,
   DEMO_PROJECTS,
   DEMO_PROVIDER_CREDENTIAL,
   DEMO_SKILLS,
   DEMO_SSO_EXAMPLE,
+  DEMO_TEST_RUN,
   DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
+  MOCK_PROVIDER_SLUG,
 } from './demo-content';
 
 export interface ShotContext {
@@ -164,23 +168,49 @@ const projectRoute = (ctx: ShotContext, sub = ''): string => {
 
 /**
  * Sanitizer for pages that print the deployment's own origin (a redirect
- * URL, a connection URL, an API endpoint): swap the capture rig's localhost
- * for a production-shaped host so no published image shows the rig.
+ * URL, a connection URL, an API endpoint): swap the capture rig's origin
+ * for a production-shaped host so no published image shows the rig. The rig
+ * origin is the page's own, so a stack on another port (`E2E_BASE_URL`)
+ * is sanitized too.
  */
 const replaceRigOrigin = async (page: Page): Promise<void> => {
   await page.evaluate(() => {
+    const rigOrigin = `${window.location.origin}/`;
     for (const el of document.querySelectorAll('td, span, div, code, p')) {
-      if (
-        el.children.length === 0 &&
-        el.textContent?.includes('http://localhost:3000/')
-      ) {
+      if (el.children.length === 0 && el.textContent?.includes(rigOrigin)) {
         el.textContent = el.textContent.replace(
-          'http://localhost:3000/',
+          rigOrigin,
           'https://tale.yourcompany.com/',
         );
       }
     }
   });
+};
+
+/**
+ * Sanitizer for surfaces that name the provider serving a model (a
+ * credential row, an agent row, the audio model in use) by its display name
+ * or its slug: the seeded credential sits on the offline mock gateway, while
+ * a customer's row names a real vendor. Swap in the production-shaped
+ * equivalent — never an invented row.
+ */
+const showMockProviderAsOpenRouter = async (page: Page): Promise<void> => {
+  await page.evaluate(
+    (swaps) => {
+      for (const el of document.querySelectorAll('td, span, div, p')) {
+        if (el.children.length > 0) continue;
+        for (const { rig, real } of swaps) {
+          if (el.textContent?.includes(rig)) {
+            el.textContent = el.textContent.replace(rig, real);
+          }
+        }
+      }
+    },
+    [
+      { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
+      { rig: `${MOCK_PROVIDER_SLUG} · `, real: 'openrouter · ' },
+    ],
+  );
 };
 
 /** Keep catalog examples reproducible when the local organization also has
@@ -391,18 +421,20 @@ export const SHOTS: readonly Shot[] = [
       );
     },
     readyWhen: (page) => page.getByText(DEMO_PROJECTS[0].tasks[0].title),
-    // The board renders SIX columns (Backlog … Cancelled) and they do not fit
-    // the standard 1440 frame — the last one gets sliced. Widen just this shot.
-    // Keep 1.6:1 (1920×1200): the README gallery tiles are straight downscales
-    // of these frames, and an off-ratio source would letterbox its tile.
-    viewport: { width: 1920, height: 1200 },
+    // The board renders SIX columns (Backlog … Cancelled) beside the Home
+    // panel, which cannot fold on a project page, and they do not fit the
+    // standard 1440 frame — the last ones get sliced. Widen just this shot
+    // until Cancelled fits whole. Keep 1.6:1 (2240×1400): the README gallery
+    // tiles are straight downscales of these frames, and an off-ratio source
+    // would letterbox its tile.
+    viewport: { width: 2240, height: 1400 },
   },
   {
     // The project's General tab — identity form, standing instructions, and
     // sharing. The whole page waits for the project record, and the sharing
-    // section then waits for the teams query (until it answers it shows a
-    // "no teams yet" hint) — so the owning-team picker is the last thing to
-    // settle and the honest "loaded" marker.
+    // section then waits for the teams query (until it answers it holds a
+    // spinner in the Audience row) — so the Audience picker is the last
+    // thing to settle and the honest "loaded" marker.
     name: 'project-general-tab',
     section: 'platform',
     route: '/dashboard/:orgId/projects',
@@ -412,7 +444,13 @@ export const SHOTS: readonly Shot[] = [
       });
     },
     readyWhen: (page) =>
-      page.getByText(t('projects.settings.owningTeam')).first(),
+      page.getByRole('combobox', {
+        name: t('projects.settings.audience'),
+        exact: true,
+      }),
+    // Taller than the default so the fold lands on the seam below Sharing
+    // (measured): the Audience row is what the General tab adds to identity.
+    viewport: { width: 1440, height: 1110 },
   },
   {
     // The project's Knowledge tab — attached files with their index state
@@ -446,20 +484,8 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByRole('button', { name: t('projects.agents.rowEdit') }).first(),
-    // Each row names the provider serving its model — the mock gateway here;
-    // a customer's row names a real vendor.
-    sanitize: async (page) => {
-      await page.evaluate(
-        ({ rig, real }) => {
-          for (const el of document.querySelectorAll('span, div, p')) {
-            if (el.children.length === 0 && el.textContent?.includes(rig)) {
-              el.textContent = el.textContent.replace(rig, real);
-            }
-          }
-        },
-        { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
-      );
-    },
+    // Each row names the provider serving its model.
+    sanitize: showMockProviderAsOpenRouter,
   },
   {
     // A new project agent starts with the document skills ticked, each row
@@ -531,6 +557,24 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/knowledge-entries',
     readyWhen: (page) =>
       page.getByText(DEMO_KNOWLEDGE_ENTRIES[0].topic).first(),
+  },
+  {
+    // Knowledge > Products — structured records an agent reads by field
+    // (stock, price, category, status) instead of retrieving passages. The
+    // table paints its chrome before its rows: gate on the row-count footer,
+    // which renders only once the list query answered.
+    name: 'knowledge-products-list',
+    section: 'platform',
+    route: '/dashboard/:orgId/products',
+    prepare: async (page) => {
+      await expect(page.locator('output').first()).toBeVisible({
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+    },
+    readyWhen: (page) =>
+      page.getByText(DEMO_PRODUCTS[DEMO_PRODUCTS.length - 1].name).first(),
+    // Three rows need no more height than the documents list's frame.
+    viewport: { width: 1440, height: 540 },
   },
   {
     // Knowledge > Websites with the Add website dialog open — domain plus
@@ -648,6 +692,38 @@ export const SHOTS: readonly Shot[] = [
       page
         .getByRole('button', { name: t('chat.picker.ariaLabel') })
         .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
+  },
+  {
+    // Home's Inbox view beside an open customer conversation: the seeded
+    // helpdesk mirror, newest first. Choose the view and open the
+    // conversation from the list as a reader does. The reply editor loads
+    // lazily behind a skeleton, so it is the last thing to settle.
+    name: 'home-inbox',
+    section: 'platform',
+    route: '/dashboard/:orgId/conversations/open',
+    prepare: async (page) => {
+      await page
+        .getByRole('radio', {
+          name: new RegExp(`^${escapeRegExp(t('home.views.inbox'))}`),
+        })
+        .click();
+      await page.getByText(DEMO_INBOX[0].subject).first().click();
+      await expect(
+        page
+          .getByText(
+            DEMO_INBOX[0].messages[DEMO_INBOX[0].messages.length - 1].content,
+          )
+          .first(),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      // The click leaves the pointer on the row, which swaps its initials
+      // for the selection checkbox; rest it on the empty thread instead.
+      await page.mouse.move(1000, 560);
+    },
+    readyWhen: (page) =>
+      page.getByLabel(t('conversations.messagePlaceholder')).first(),
   },
   {
     // Show the indexed uploads through the real filters, keeping unrelated
@@ -830,19 +906,16 @@ export const SHOTS: readonly Shot[] = [
         .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
         .first(),
     sanitize: async (page) => {
-      // The seeded credential sits on the offline mock gateway; a customer's
-      // row names a real vendor — the production-shaped equivalent, never an
-      // invented row.
-      await page.evaluate(
-        ({ rig, real }) => {
-          for (const el of document.querySelectorAll('td, span, div')) {
-            if (el.children.length === 0 && el.textContent?.includes(rig)) {
-              el.textContent = el.textContent.replace(rig, real);
-            }
-          }
-        },
-        { rig: MOCK_PROVIDER_DISPLAY_NAME, real: 'OpenRouter' },
-      );
+      await showMockProviderAsOpenRouter(page);
+      // The rig defines the mock inside the organization, so its row carries
+      // the Custom tag; the shipped vendor it stands in for carries none.
+      await page
+        .getByRole('row')
+        .filter({ hasText: DEMO_PROVIDER_CREDENTIAL })
+        .getByText(t('settings.providers.custom.badge'), { exact: true })
+        .evaluateAll((badges) => {
+          for (const badge of badges) badge.remove();
+        });
     },
   },
   {
@@ -934,9 +1007,32 @@ export const SHOTS: readonly Shot[] = [
         .first(),
   },
   {
+    // An automation's General tab — its trigger (the pack's schedule: cron,
+    // timezone, enabled) above the projects it is bound to. The form paints
+    // before the trigger query answers, so gate on the cron field holding
+    // the pack's expression. The tab is short; trim the empty frame below.
+    name: 'automation-general-trigger',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/general',
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.trigger.cronLabel'),
+        exact: true,
+      }),
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('textbox', {
+          name: t('automations.trigger.cronLabel'),
+          exact: true,
+        }),
+      ).not.toHaveValue('', { timeout: TIMEOUT.FIRST_PAINT });
+    },
+    viewport: { width: 1440, height: 640 },
+  },
+  {
     name: 'automation-run-input',
     section: 'platform',
-    route: '/dashboard/:orgId/automations/github-triage-issues/editor',
+    route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/editor`,
     prepare: async (page) => {
       // The run button can paint before the saved document has loaded. Wait
       // for its version picker so Test run has the saved input schema.
@@ -958,7 +1054,7 @@ export const SHOTS: readonly Shot[] = [
       });
       await dialog
         .getByRole('textbox', { name: t('automations.detail.runInput.label') })
-        .fill(JSON.stringify({ owner: 'tale-project', repo: 'tale' }, null, 2));
+        .fill(JSON.stringify(DEMO_TEST_RUN.input, null, 2));
       await dialog
         .getByText(t('automations.detail.runInput.schema'), { exact: true })
         .click();
@@ -979,6 +1075,23 @@ export const SHOTS: readonly Shot[] = [
         name: t('automations.detail.runMock'),
         exact: true,
       }),
+  },
+  {
+    // The seeded test run of the GitHub triage pack, opened from the Runs
+    // tab as a reader does: status, mode, version, starter and timing above
+    // the workflow with every node's result; the effects list starts below
+    // the fold (the canvas grows with the window). The canvas draws its
+    // boxes before the trace arrives — gate on the last node's result badge.
+    name: 'automation-run-detail',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/runs`,
+    prepare: async (page) => {
+      await page.locator('a[href*="/runs/"]').first().click();
+    },
+    readyWhen: (page) =>
+      page
+        .locator('[data-automation-node="report"]')
+        .getByText(t('automations.runs.nodeStatus.ok'), { exact: true }),
   },
   {
     // Settings > Connectors with Add credential open on its first step — the
@@ -1081,20 +1194,69 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // Settings > Metrics > Usage — totals, the token chart and the top
+    // assistants the seeded chats produced. The page renders its own
+    // skeleton (aria-busy, masked headings) until its one query answers.
+    name: 'metrics-usage',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/metrics/usage',
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('heading', {
+          name: t('analytics.usage.title'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', {
+        name: t('analytics.usage.title'),
+        exact: true,
+      }),
+  },
+  {
+    // Settings > Metrics > Chat health — turns, error and blocked rates, and
+    // the per-model breakdown of the seeded chats. Its sections load
+    // separately; wait until none is still busy.
+    name: 'metrics-chat-health',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/metrics/chat-health',
+    prepare: async (page) => {
+      await expect(
+        page.getByRole('heading', {
+          name: t('analytics.chatHealth.title'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, {
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', {
+        name: t('analytics.chatHealth.title'),
+        exact: true,
+      }),
+  },
+  {
     // The independent server-audio selection on Models. Crop to this section
     // so its current pick remains readable at normal documentation width.
     // Wait for the resolved status, not the static title above a skeleton.
     name: 'governance-content-models',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/content-models',
+    // The mock gateway lists a speech-to-text model, so Automatic resolves;
+    // the "no model available" warning is a broken stack, never the shot.
     readyWhen: (page) => {
       const resolved = t('governance.transcriptionModel.currentModel');
       const prefix = resolved.slice(0, resolved.indexOf('{')).trim();
-      return page
-        .getByText(prefix)
-        .or(page.getByText(t('governance.transcriptionModel.noAvailable')))
-        .first();
+      return page.getByText(prefix).first();
     },
+    // The model in use names the provider serving it.
+    sanitize: showMockProviderAsOpenRouter,
     capture: (page) =>
       page.getByRole('region', {
         name: t('governance.transcriptionModel.title'),
@@ -1302,6 +1464,44 @@ export const SHOTS: readonly Shot[] = [
       }),
   },
   {
+    // Settings > Sandboxes > Add device — the one-line install-and-connect
+    // command and the shorter form for a machine that already has the CLI.
+    // Opening the dialog mints a single-use join token; the waiting status
+    // renders only once it has arrived.
+    name: 'sandbox-add-device',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/sandboxes',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('sandboxes.devices.add'), exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('sandboxes.devices.addDialog.title') })
+        .getByText(t('sandboxes.devices.addDialog.waiting')),
+    // The commands carry the rig's origin and a live join token: swap in the
+    // production-shaped host and the stand-in token the dialog itself shows
+    // while it mints one, so a published image never holds a usable secret.
+    sanitize: async (page) => {
+      await page.evaluate(() => {
+        const origin = window.location.origin;
+        for (const el of document.querySelectorAll(
+          '[role="dialog"] code, [role="dialog"] pre, [role="dialog"] span, [role="dialog"] div, [role="dialog"] p',
+        )) {
+          if (el.children.length > 0 || !el.textContent) continue;
+          el.textContent = el.textContent
+            .replaceAll(origin, 'https://tale.yourcompany.com')
+            .replace(/tsdj_[0-9a-f]{64}/g, `tsdj_${'0'.repeat(64)}`);
+        }
+      });
+    },
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('sandboxes.devices.addDialog.title'),
+      }),
+  },
+  {
     // Governance > Guardrails — the three filter-layer status cards, the
     // org's custom instructions, and the content-safety, PII, and moderation
     // editors that filter every message in both directions. The enable
@@ -1333,6 +1533,16 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured) — 900 sliced the password
     // policy's Save/Discard row, 1120 sliced the two-factor grace-period input.
     viewport: { width: 1440, height: 1260 },
+  },
+  {
+    // Governance > Logs — the audit trail narrowed to the Member category
+    // (the `category` search the Filter writes), so the rows are the seed's
+    // member and team changes rather than the capture rig's session sweeps.
+    // Gate on the row-count footer, which renders once the listing answered.
+    name: 'governance-audit-logs',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/logs?category=member',
+    readyWhen: (page) => page.locator('output').first(),
   },
   {
     // Governance > Legal hold — the active-holds table and the Place legal

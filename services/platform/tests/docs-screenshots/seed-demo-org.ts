@@ -33,6 +33,9 @@ import {
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
+  DEMO_INBOX,
+  DEMO_INBOX_KEY_NAME,
+  DEMO_INBOX_SOURCE,
   DEMO_EMBEDDING_MODEL,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
@@ -49,6 +52,7 @@ import {
   DEMO_PROVIDER_CREDENTIAL,
   DEMO_SKILLS,
   DEMO_TEAMS,
+  DEMO_TEST_RUN,
   DEMO_WEBDAV_LABELS,
   DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
@@ -294,32 +298,56 @@ async function ensureProjectDescription(
   orgId: string,
   projectId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/projects/${projectId}/overview`);
   const description = page.getByRole('textbox', {
     name: t('projects.settings.description'),
   });
-  await expect(description).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   // The standing instructions live on the same tab and share its ONE
   // Save/Discard cluster with the identity form — fill whatever is still
-  // blank, then save once.
+  // blank, save once, and read both back from a fresh load. Right after the
+  // project was created, a description typed here has been lost on save while
+  // the instructions persisted (a later, quiet load saves both), so a pass
+  // that did not stick is repeated rather than trusted.
   const instructions = page.getByRole('textbox', {
     name: t('projects.instructions.label'),
   });
-  await expect(instructions).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  let dirty = false;
-  if ((await description.inputValue()) === '') {
-    await description.fill(DEMO_PROJECT_DESCRIPTION);
-    dirty = true;
-  }
-  if ((await instructions.inputValue()) === '') {
-    await instructions.fill(DEMO_PROJECT_INSTRUCTIONS);
-    dirty = true;
-  }
-  if (!dirty) return;
-  const save = page.getByRole('button', { name: t('common.actions.save') });
-  await save.click();
-  // The Save/Discard cluster disables once the form is clean again.
-  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+  const audience = page.getByRole('combobox', {
+    name: t('projects.settings.audience'),
+    exact: true,
+  });
+  let attempt = 0;
+  await expect(async () => {
+    attempt += 1;
+    if (attempt > 1) {
+      console.warn(
+        `[seed] project description did not persist — retry ${attempt}`,
+      );
+    }
+    await page.goto(`/dashboard/${orgId}/projects/${projectId}/overview`);
+    // The Audience picker is the last thing on the tab to settle.
+    await expect(audience).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(instructions).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    let dirty = false;
+    if ((await description.inputValue()) === '') {
+      await description.fill(DEMO_PROJECT_DESCRIPTION);
+      dirty = true;
+    }
+    if ((await instructions.inputValue()) === '') {
+      await instructions.fill(DEMO_PROJECT_INSTRUCTIONS);
+      dirty = true;
+    }
+    if (dirty) {
+      const save = page.getByRole('button', {
+        name: t('common.actions.save'),
+      });
+      await save.click();
+      // The Save/Discard cluster disables once the form is clean again.
+      await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+      await page.reload();
+      await expect(audience).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    }
+    await expect(description).toHaveValue(DEMO_PROJECT_DESCRIPTION);
+    await expect(instructions).toHaveValue(DEMO_PROJECT_INSTRUCTIONS);
+  }).toPass({ timeout: TIMEOUT.EXECUTION * 2 });
 }
 
 /**
@@ -945,9 +973,8 @@ async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
  * Without both, the post-credentials-rewrite composer lists no models and
  * every chat-dependent stage below dies typing into a disabled composer.
  */
-async function ensureMockProvider(page: Page, orgId: string): Promise<void> {
-  // The config dir is keyed by org SLUG; resolve it through Better Auth
-  // (the page session is already authenticated as the org owner).
+/** The org's slug, through Better Auth (the page session is the owner's). */
+async function orgSlugOf(page: Page, orgId: string): Promise<string> {
   const org = await page.evaluate(async (id) => {
     const res = await fetch(
       `/api/auth/organization/get-full-organization?organizationId=${id}`,
@@ -959,6 +986,12 @@ async function ensureMockProvider(page: Page, orgId: string): Promise<void> {
     return (await res.json()) as { slug?: string };
   }, orgId);
   if (!org.slug) throw new Error(`Org ${orgId} has no slug`);
+  return org.slug;
+}
+
+async function ensureMockProvider(page: Page, orgId: string): Promise<void> {
+  // The config dir is keyed by org SLUG.
+  const org = { slug: await orgSlugOf(page, orgId) };
 
   // PINNED to the fixtures tree the runbook starts the hermetic stack with
   // (capture.ts preflight). Deliberately NOT process.env.TALE_CONFIG_DIR:
@@ -1378,6 +1411,154 @@ async function ensureSkills(page: Page, orgId: string): Promise<void> {
 }
 
 /** A retired fixture must not satisfy a similarly named active device. */
+/**
+ * The Inbox, filled the way a helpdesk integration fills it: an API key named
+ * for the integration (created in Settings > API > REST, its secret read from
+ * the shown-once reveal) creates each contact and mirrors each conversation
+ * through the REST door. Idempotent: a listed conversation means the mirror
+ * already ran. A contact left by an interrupted run answers 409 and is kept.
+ */
+async function ensureInboxConversations(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/conversations/open`);
+  if (await alreadySeeded(page.getByText(DEMO_INBOX[0].subject))) return;
+
+  await page.goto(`/dashboard/${orgId}/settings/api/rest`);
+  await page
+    .getByRole('button', { name: t('settings.apiKeys.createKey') })
+    .first()
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: t('settings.apiKeys.createKey'),
+  });
+  await dialog
+    .getByLabel(t('settings.apiKeys.form.name'))
+    .fill(DEMO_INBOX_KEY_NAME);
+  await dialog
+    .getByRole('button', {
+      name: t('settings.apiKeys.createKeySubmit'),
+      exact: true,
+    })
+    .click();
+  const created = page.getByRole('dialog', {
+    name: t('settings.apiKeys.keyCreated'),
+  });
+  await expect(created).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  const apiKey = (await created.locator('code').textContent())?.trim();
+  if (!apiKey) throw new Error('The created API key was not shown');
+  await created
+    .getByRole('button', { name: t('common.actions.done'), exact: true })
+    .click();
+
+  const failures = await page.evaluate(
+    async ({ key, slug, source, conversations, seededAt }) => {
+      const headers = {
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+        'x-organization-slug': slug,
+      };
+      const failed: string[] = [];
+      for (const conversation of conversations) {
+        const contact = await fetch('/api/v1/contacts', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(conversation.contact),
+        });
+        if (!contact.ok && contact.status !== 409) {
+          failed.push(`contact ${contact.status}: ${await contact.text()}`);
+          continue;
+        }
+        const sync = await fetch('/api/v1/conversations/sync', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            source,
+            externalId: conversation.externalId,
+            externalContactId: conversation.contact.externalId,
+            version: 1,
+            subject: conversation.subject,
+            status: 'open',
+            messages: conversation.messages.map((message, index) => ({
+              externalId: `${conversation.externalId}-${index + 1}`,
+              content: message.content,
+              isCustomer: message.isCustomer,
+              authorName: message.authorName,
+              createdAt: seededAt - message.hoursAgo * 3_600_000,
+            })),
+          }),
+        });
+        if (!sync.ok) failed.push(`sync ${sync.status}: ${await sync.text()}`);
+      }
+      return failed;
+    },
+    {
+      key: apiKey,
+      slug: await orgSlugOf(page, orgId),
+      source: DEMO_INBOX_SOURCE,
+      conversations: DEMO_INBOX,
+      seededAt: Date.now(),
+    },
+  );
+  if (failures.length > 0) {
+    throw new Error(`Mirroring the demo inbox failed: ${failures.join('; ')}`);
+  }
+  await page.goto(`/dashboard/${orgId}/conversations/open`);
+  await expect(page.getByText(DEMO_INBOX[0].subject).first()).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
+}
+
+/**
+ * One finished test run of the GitHub triage pack, so its Runs tab and run
+ * page show a result rather than "has not run yet". Started through the
+ * editor's Test run dialog like a reader would; idempotent — any run of the
+ * automation is enough. The runs list does not refresh itself, so reload
+ * until the run has settled.
+ */
+async function ensureAutomationTestRun(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  const runsRoute = `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/runs`;
+  const runRow = page.locator(`a[href*="/runs/"]`);
+  await page.goto(runsRoute);
+  if (await alreadySeeded(runRow)) return;
+
+  await page.goto(
+    `/dashboard/${orgId}/automations/${DEMO_TEST_RUN.automation}/editor`,
+  );
+  await expect(
+    page.getByRole('button', {
+      name: t('automations.detail.versionSelect'),
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await page
+    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: t('automations.detail.runMock'),
+    exact: true,
+  });
+  await dialog
+    .getByRole('textbox', { name: t('automations.detail.runInput.label') })
+    .fill(JSON.stringify(DEMO_TEST_RUN.input, null, 2));
+  await dialog
+    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+  const succeeded = page.getByText(t('automations.runs.status.success'), {
+    exact: true,
+  });
+  await expect(async () => {
+    await page.goto(runsRoute);
+    await expect(succeeded.first()).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  }).toPass({ timeout: TIMEOUT.EXECUTION });
+}
+
 export function webdavPasswordRow(page: Page, label: string): Locator {
   return page.getByRole('row').filter({
     has: page.getByText(label, { exact: true }),
@@ -1666,9 +1847,13 @@ export async function seedDemoOrg(
   );
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
+  await step('automation test run', () => ensureAutomationTestRun(page, orgId));
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('API keys', () => ensureApiKeys(page, orgId));
+  await step('inbox conversations', () =>
+    ensureInboxConversations(page, orgId),
+  );
   await step('skills', () => ensureSkills(page, orgId));
   await step('WebDAV app-passwords', () => ensureWebdavPasswords(page, orgId));
   await step('custom instructions', () =>
