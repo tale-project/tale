@@ -29,6 +29,7 @@ import {
   MAX_SKILL_TEAMS,
   SKILL_EDIT_VISIBILITIES,
   SKILL_SLUG_REGEX,
+  SKILL_ORIGINS,
   SKILL_VISIBILITIES,
 } from '@tale/shared/schemas/skills';
 // ── Small builders ───────────────────────────────────────────────────────────
@@ -979,7 +980,7 @@ const skillSummaryProperties: Json = {
   },
   origin: {
     type: 'string',
-    enum: ['builtin', 'release', 'member'],
+    enum: [...SKILL_ORIGINS],
     description:
       'Where the skill came from: `release` — a managed configuration release installed it (its frontmatter carries `metadata.tale-release`); `builtin` — no owner is recorded, as on the catalog copies an organization starts with; `member` — the member named by `owner` created it',
   },

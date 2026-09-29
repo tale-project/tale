@@ -10,6 +10,7 @@ import {
   describeSkillSlugProblem,
   MAX_SKILL_TEAMS,
   type SkillFrontmatter,
+  type SkillOrigin,
 } from '@tale/shared/schemas/skills';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
@@ -50,7 +51,6 @@ import {
   type SkillBundleView,
   type SkillDocumentView,
   type SkillListingView,
-  type SkillOrigin,
   type SkillSummaryView,
 } from './views';
 

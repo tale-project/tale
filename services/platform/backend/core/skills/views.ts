@@ -8,16 +8,7 @@
  * markdown, which is all it ever is.
  */
 
-import type { SkillVisibility } from '@tale/shared/schemas/skills';
-
-/**
- * Where a skill came from, which decides how its "Created by" reads:
- * `release` — a managed configuration release installed it (its frontmatter
- * carries the release compiler's `metadata.tale-release` marker); `builtin`
- * — no owner is recorded, as on the catalog copies an organization starts
- * with; `member` — the member named by `owner` created it.
- */
-export type SkillOrigin = 'builtin' | 'release' | 'member';
+import type { SkillOrigin, SkillVisibility } from '@tale/shared/schemas/skills';
 
 /** The fields every skill view carries. */
 export interface SkillSummaryView {

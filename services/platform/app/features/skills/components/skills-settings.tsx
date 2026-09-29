@@ -1,5 +1,6 @@
 'use client';
 
+import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -37,7 +38,7 @@ interface SkillSummary {
   description: string;
   visibility: 'private' | 'team' | 'org';
   teams?: string[];
-  origin: 'builtin' | 'release' | 'member';
+  origin: SkillOrigin;
   ownerName?: string;
   icon?: string;
   labels?: string[];

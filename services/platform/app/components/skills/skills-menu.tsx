@@ -13,6 +13,7 @@
  * selection does is decided by the lane that runs the agent.
  */
 
+import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
@@ -23,7 +24,7 @@ import { useId, useMemo, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { type SkillOrigin, useSkillAttribution } from './use-skill-attribution';
+import { useSkillAttribution } from './use-skill-attribution';
 
 /** One skill, connector, or tool on offer. */
 export interface SkillOption {

@@ -1,3 +1,4 @@
+import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import type { Sql } from 'postgres';
 
 import {
@@ -13,7 +14,7 @@ import {
 } from '../../core/lib/providers/load_system_config.ts';
 import { inspectTranscriptionModels } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { listSkillsForViewer } from '../../core/skills/file_actions.ts';
-import type { SkillOrigin, SkillSummaryView } from '../../core/skills/views.ts';
+import type { SkillSummaryView } from '../../core/skills/views.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';

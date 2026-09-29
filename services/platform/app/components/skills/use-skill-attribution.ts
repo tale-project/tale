@@ -1,9 +1,7 @@
+import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import { useCallback } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-
-/** Where a skill came from, as every skill view and skill option carries it. */
-export type SkillOrigin = 'builtin' | 'release' | 'member';
 
 /** The facts "Created by" is read from. */
 export interface SkillCreatorFacts {
