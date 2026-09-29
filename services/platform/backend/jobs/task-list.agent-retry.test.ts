@@ -11,7 +11,8 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
+const { inPlaceOfRun, kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
+  inPlaceOfRun: vi.fn(async () => false),
   kickAgentRun: vi.fn(async () => ({ runId: 'run-retry' })),
   startedViaOfRun: vi.fn(
     async (): Promise<Record<string, string> | undefined> => undefined,
@@ -19,6 +20,7 @@ const { kickAgentRun, startedViaOfRun } = vi.hoisted(() => ({
 }));
 
 vi.mock('../domains/tasks/agent-runs.ts', () => ({
+  inPlaceOfRun,
   kickAgentRun,
   startedViaOfRun,
 }));
@@ -488,6 +490,35 @@ describe('task.agent_retry admission', () => {
     expect(
       statements.some((text) => text.includes('started_via IS NOT NULL')),
     ).toBe(false);
+  });
+
+  it('carries an in-place start into its retry, so the retry completes in place too', async () => {
+    const via = {
+      kind: 'automation',
+      runId: 'run-occurrence',
+      nodeId: 'start',
+      automation: 'autonomous-cycle/local-qa',
+    };
+    startedViaOfRun.mockResolvedValueOnce(via);
+    inPlaceOfRun.mockResolvedValueOnce(true);
+
+    await deliver({});
+
+    expect(inPlaceOfRun).toHaveBeenCalledWith(expect.anything(), 'run-failed');
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ startedVia: via, inPlace: true }),
+    );
+  });
+
+  it('never asks a person’s run whether it was in place', async () => {
+    await deliver({});
+
+    expect(inPlaceOfRun).not.toHaveBeenCalled();
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ inPlace: expect.anything() }),
+    );
   });
 
   it('refuses a starter that names nobody', async () => {

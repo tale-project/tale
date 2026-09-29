@@ -22,6 +22,7 @@
  * kept on the agent. */
 import { createHash, randomUUID } from 'node:crypto';
 
+import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
 import { createTaskList } from '../../jobs/task-list.ts';
@@ -29,6 +30,7 @@ import { deploy, saveVersion, setTrigger } from '../automations/store.ts';
 import { scanScheduledTriggers } from '../automations/triggers.ts';
 import { pgTaskStore } from '../connectors/task-store.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
+import { completeAgentRunInTx } from './agent-run-completion.ts';
 import { cancelAgentRunInTx, failAgentRunFromTurn } from './agent-runs.ts';
 import {
   AUTOMATED_STARTS_PER_TASK_PER_HOUR,
@@ -1896,6 +1898,315 @@ export async function checkDelegatedAgentStartTool(
       WHERE org_id = ${orgId} AND name = ${scheduleName}
     `;
     await sql`DELETE FROM app.projects WHERE id IN (${projectA}, ${projectB})`;
+    await fx.teardownUsers();
+  }
+}
+
+// ===========================================================================
+// A standing role recurs: a successful in-place run, then the next occurrence
+// ===========================================================================
+
+/**
+ * The real completion path (`completeAgentRunInTx`, what the turn host calls
+ * when a run finishes) for runs a schedule started in place, followed by the
+ * schedule's next occurrence. The card is left where it is and no review is
+ * requested — on a To do role card and on one a person moved to In progress —
+ * so the role recurs; the report, the deliverable and the run's provenance
+ * land as for any run. A default start still parks its result at In review for
+ * a person, and a run cancelled before its completion lands changes nothing.
+ */
+export async function checkInPlaceCompletionCycle(
+  sql: Sql,
+  ctx: LaneCtx,
+  record: Recorder,
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const fx = fixtures(sql, ctx);
+  const { suffix } = fx;
+  const projectA = randomUUID();
+  const roleAgent = randomUUID();
+  const progressAgent = randomUUID();
+  const ordinaryAgent = randomUUID();
+  const todoName = `itest/role-todo-${suffix}`;
+  const progressName = `itest/role-progress-${suffix}`;
+  const store = pgTaskStore(sql);
+  const release = await holdAgentJobs(sql, suffix, [projectA]);
+
+  const runCount = async (name: string): Promise<number> => {
+    const rows = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    return rows[0]?.count ?? -1;
+  };
+  /** One occurrence of the named schedule, landed by the worker. */
+  const fire = async (
+    name: string,
+  ): Promise<{ runId: string; output: Record<string, unknown> | null }> => {
+    const before = await runCount(name);
+    await sql`
+      UPDATE app.automation_triggers
+      SET last_due_at_ms = ${Date.now() - 120_000}, last_fired_at_ms = NULL
+      WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    await scanScheduledTriggers(sql);
+    const runs = await sql<{ id: string }[]>`
+      SELECT id FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${name}
+      ORDER BY started_at_ms DESC, id DESC LIMIT 1
+    `;
+    const runId = runs[0]?.id ?? '';
+    if ((await runCount(name)) === before || runId === '') {
+      return { runId: '', output: null };
+    }
+    await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_runs WHERE id = ${runId}
+      `;
+      return ['success', 'failed', 'cancelled'].includes(rows[0]?.status ?? '');
+    }, WAIT_MS);
+    const rows = await sql<{ output: unknown }[]>`
+      SELECT output FROM app.automation_runs WHERE id = ${runId}
+    `;
+    const output = rows[0]?.output;
+    return { runId, output: isRecord(output) ? output : null };
+  };
+  /** The turn host's successful completion of a run, as it calls it. */
+  const complete = (run: RunRow, report: string) =>
+    transactSerializable(sql, (tx) =>
+      completeAgentRunInTx(tx, {
+        organizationId: orgId,
+        taskId: run.taskId,
+        agentId: run.agentId,
+        execId: run.execId,
+        runId: run.id,
+        resultText: report,
+        body: report,
+        files: [
+          {
+            fileId: `itest-blob-${run.id}`,
+            fileName: `receipt-${run.id.slice(0, 8)}.md`,
+            fileType: 'text/markdown',
+            fileSize: 64,
+          },
+        ],
+      }),
+    );
+  const cardOf = async (taskId: string) => {
+    const rows = await sql<{ status: string; outputs: unknown }[]>`
+      SELECT status, outputs FROM app.tasks WHERE id = ${taskId}
+    `;
+    return rows[0];
+  };
+  const reviewsOf = (taskId: string) => sql<{ status: string }[]>`
+    SELECT status FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+  `;
+  const settledOf = async (runId: string) => {
+    const rows = await sql<{ status: string; ledger: number }[]>`
+      SELECT r.status,
+             (SELECT count(*)::int FROM app.audit_logs a
+              WHERE a.org_id = ${orgId} AND a.resource_type = 'agent_run'
+                AND a.resource_id = ${runId}
+                AND a.action = 'agent.run_settled') AS ledger
+      FROM app.project_agent_runs r WHERE r.id = ${runId}
+    `;
+    return rows[0];
+  };
+  const hasOutput = (outputs: unknown, runId: string): boolean =>
+    Array.isArray(outputs) &&
+    outputs.some((entry) => isRecord(entry) && entry.runId === runId);
+  const comments = async (taskId: string): Promise<string[]> =>
+    (await store.listComments({ organizationId: orgId, taskId })).comments.map(
+      (comment) => comment.body,
+    );
+  const documentFor = (name: string, taskId: string) => ({
+    version: 1,
+    name,
+    nodes: [
+      {
+        id: 'start',
+        type: 'task.start_agent',
+        input: { taskId, moveToInProgress: false },
+      },
+    ],
+    output: '{{ nodes.start.output }}',
+  });
+  const install = async (name: string, taskId: string) => {
+    await saveVersion(sql, {
+      organizationId: orgId,
+      name,
+      document: documentFor(name, taskId),
+      actor: userId,
+      projectId: projectA,
+    });
+    await deploy(sql, {
+      organizationId: orgId,
+      name,
+      version: 1,
+      actor: userId,
+    });
+  };
+  const schedule = (name: string, enabled: boolean) =>
+    setTrigger(sql, {
+      organizationId: orgId,
+      name,
+      trigger: {
+        kind: 'schedule',
+        cron: '* * * * *',
+        timezone: 'Europe/Zurich',
+        enabled,
+      },
+      actor: userId,
+    });
+
+  try {
+    await fx.insertProject(projectA, 'Standing roles');
+    await fx.insertAgent(roleAgent, projectA, 'Standing role');
+    await fx.insertAgent(progressAgent, projectA, 'Standing role in progress');
+    await fx.insertAgent(ordinaryAgent, projectA, 'Ordinary implementer');
+    const roleCard = await fx.insertTask({
+      projectId: projectA,
+      title: 'Autonomous cycle — role',
+      agentId: roleAgent,
+    });
+    const progressCard = await fx.insertTask({
+      projectId: projectA,
+      title: 'Autonomous cycle — role a person moved to In progress',
+      status: 'in_progress',
+      agentId: progressAgent,
+    });
+    const ordinaryCard = await fx.insertTask({
+      projectId: projectA,
+      title: 'Ordinary work',
+    });
+    await install(todoName, roleCard);
+    await install(progressName, progressCard);
+
+    // ---- a To do role: complete the occurrence, then the next one ------
+    await schedule(todoName, true);
+    const first = await fire(todoName);
+    const r1 = (await runsOf(sql, roleCard))[0];
+    const completed1 =
+      r1 === undefined
+        ? false
+        : await complete(r1, 'Role receipt: first occurrence done.');
+    const afterFirst = await cardOf(roleCard);
+    const reviewsFirst = await reviewsOf(roleCard);
+    const settled1 = r1 === undefined ? undefined : await settledOf(r1.id);
+    const roleComments = await comments(roleCard);
+    const second = await fire(todoName);
+    const roleRuns = await runsOf(sql, roleCard);
+    const afterSecond = await cardOf(roleCard);
+    record(
+      'in-place completion: a scheduled role run that completes leaves its To do card where it is with no review, keeps its report, deliverable and provenance, and the next occurrence starts the role again',
+      first.output?.started === true &&
+        r1 !== undefined &&
+        completed1 &&
+        settled1?.status === 'settled' &&
+        settled1.ledger === 1 &&
+        afterFirst?.status === 'todo' &&
+        hasOutput(afterFirst.outputs, r1.id) &&
+        reviewsFirst.length === 0 &&
+        roleComments.includes('Role receipt: first occurrence done.') &&
+        second.output?.started === true &&
+        roleRuns.length === 2 &&
+        roleRuns[1]?.status === 'queued' &&
+        roleRuns[1].trigger === 'automation' &&
+        afterSecond?.status === 'todo',
+      `first=${JSON.stringify(first.output)} completed=${completed1} run=${JSON.stringify(settled1)} card=${afterFirst?.status} output=${hasOutput(afterFirst?.outputs, r1?.id ?? '')} reviews=${reviewsFirst.length} comment=${roleComments.includes('Role receipt: first occurrence done.')} second=${JSON.stringify(second.output)} runs=${describeRuns(roleRuns)} card after=${afterSecond?.status}`,
+    );
+    await schedule(todoName, false);
+
+    // ---- a role card a person moved to In progress: the start's intent --
+    // decides the completion, not the card's column.
+    await schedule(progressName, true);
+    const third = await fire(progressName);
+    const r3 = (await runsOf(sql, progressCard))[0];
+    const completed3 =
+      r3 === undefined
+        ? false
+        : await complete(r3, 'Role receipt: in-progress occurrence done.');
+    const afterThird = await cardOf(progressCard);
+    const reviewsThird = await reviewsOf(progressCard);
+    const settled3 = r3 === undefined ? undefined : await settledOf(r3.id);
+    const fourth = await fire(progressName);
+    const progressRuns = await runsOf(sql, progressCard);
+    record(
+      'in-place completion: the in-place intent the start recorded, not the card’s column, decides the completion — a role card a person moved to In progress stays there with no review, and the next occurrence starts again',
+      third.output?.started === true &&
+        r3 !== undefined &&
+        completed3 &&
+        settled3?.status === 'settled' &&
+        afterThird?.status === 'in_progress' &&
+        reviewsThird.length === 0 &&
+        fourth.output?.started === true &&
+        progressRuns.length === 2,
+      `third=${JSON.stringify(third.output)} completed=${completed3} run=${JSON.stringify(settled3)} card=${afterThird?.status} reviews=${JSON.stringify(reviewsThird)} fourth=${JSON.stringify(fourth.output)} runs=${describeRuns(progressRuns)}`,
+    );
+
+    // ---- a run cancelled before its completion lands changes nothing ---
+    const r4 = progressRuns[1];
+    if (r4 !== undefined) {
+      await sql.begin((tx) =>
+        cancelAgentRunInTx(tx, {
+          organizationId: orgId,
+          runId: r4.id,
+          taskId: progressCard,
+        }),
+      );
+    }
+    const lateCompletion =
+      r4 === undefined ? true : await complete(r4, 'Too late.');
+    const afterCancel = await cardOf(progressCard);
+    const reviewsCancel = await reviewsOf(progressCard);
+    const cancelComments = await comments(progressCard);
+    record(
+      'in-place completion: a completion that lands after the run was cancelled writes nothing — no report, no card move, no review',
+      r4 !== undefined &&
+        !lateCompletion &&
+        afterCancel?.status === 'in_progress' &&
+        reviewsCancel.length === 0 &&
+        !cancelComments.includes('Too late.'),
+      `late=${lateCompletion} card=${afterCancel?.status} reviews=${reviewsCancel.length}`,
+    );
+
+    // ---- an ordinary start still parks its result for a person --------
+    const ordinary = await store.startAgent({
+      organizationId: orgId,
+      caller: { kind: 'workflow', runId: third.runId, nodeId: 'ordinary' },
+      taskId: ordinaryCard,
+      agentId: ordinaryAgent,
+    });
+    const r5 = (await runsOf(sql, ordinaryCard))[0];
+    const movedIn = await cardOf(ordinaryCard);
+    const completed5 =
+      r5 === undefined
+        ? false
+        : await complete(r5, 'Ordinary report: the fix is ready.');
+    const afterOrdinary = await cardOf(ordinaryCard);
+    const reviewsOrdinary = await reviewsOf(ordinaryCard);
+    record(
+      'in-place completion: an ordinary (default) start still moves its card to In progress and parks the completed result at In review with a pending review',
+      ordinary.started &&
+        r5 !== undefined &&
+        movedIn?.status === 'in_progress' &&
+        completed5 &&
+        afterOrdinary?.status === 'in_review' &&
+        reviewsOrdinary.length === 1 &&
+        reviewsOrdinary[0]?.status === 'pending',
+      `start=${JSON.stringify(ordinary)} moved=${movedIn?.status} completed=${completed5} card=${afterOrdinary?.status} reviews=${JSON.stringify(reviewsOrdinary)}`,
+    );
+  } finally {
+    await release();
+    for (const name of [todoName, progressName]) {
+      await sql`DELETE FROM app.automation_triggers WHERE org_id = ${orgId} AND name = ${name}`;
+      await sql`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${name}`;
+      await sql`DELETE FROM app.automation_deployments WHERE org_id = ${orgId} AND name = ${name}`;
+      await sql`DELETE FROM app.automation_project_bindings WHERE org_id = ${orgId} AND automation_name = ${name}`;
+      await sql`DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ${name}`;
+    }
+    // Cascades to agents, tasks and runs.
+    await sql`DELETE FROM app.projects WHERE id = ${projectA}`;
     await fx.teardownUsers();
   }
 }

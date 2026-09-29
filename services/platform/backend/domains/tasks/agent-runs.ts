@@ -131,6 +131,11 @@ export interface KickAgentRunArgs {
    * step or another agent's run (`delegated-start.ts`). An `automation` or
    * `delegated` kick names it; an auto-retry carries its predecessor's. */
   startedVia?: StartedVia;
+  /** The start left the card where it stood (`moveToInProgress: false`):
+   * the run's successful completion neither moves the card nor requests a
+   * review. Only with `startedVia`; an auto-retry carries its
+   * predecessor's. */
+  inPlace?: boolean;
   feedback?: string;
   /** Which text named the agent on a `mention` kick. A comment's body rides
    * as `feedback`; a description kick carries none, because the turn reads
@@ -207,7 +212,7 @@ export async function kickAgentRun(
       harness, model, model_provider, trigger, feedback, mention_source,
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
-      started_via_automation, started_via_agent_id
+      started_via_automation, started_via_agent_id, in_place
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
@@ -220,7 +225,8 @@ export async function kickAgentRun(
       ${via?.kind ?? null}, ${via?.runId ?? null},
       ${via?.kind === 'automation' ? via.nodeId : null},
       ${via?.kind === 'automation' ? via.automation : null},
-      ${via?.kind === 'agent' ? via.agentId : null}
+      ${via?.kind === 'agent' ? via.agentId : null},
+      ${via !== undefined && args.inPlace === true}
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id
@@ -240,6 +246,19 @@ export async function kickAgentRun(
       : {},
   );
   return { runId, execId, reused: false };
+}
+
+/** Whether a run was started in place (`moveToInProgress: false`) — what
+ * an auto-retry copies, so the retried run completes the same way. */
+export async function inPlaceOfRun(
+  sql: Sql | TransactionSql,
+  runId: string,
+): Promise<boolean> {
+  const rows = await sql<{ inPlace: boolean }[]>`
+    SELECT in_place AS "inPlace" FROM app.project_agent_runs
+    WHERE id = ${runId} LIMIT 1
+  `;
+  return rows[0]?.inPlace ?? false;
 }
 
 /** The provenance a run carries when an automation step or another agent

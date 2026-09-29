@@ -104,6 +104,7 @@ import {
 } from './domains/tasks/credential-rotation.integration.ts';
 import {
   checkDelegatedAgentStartTool,
+  checkInPlaceCompletionCycle,
   checkScheduledAgentStarts,
 } from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
@@ -56203,6 +56204,10 @@ async function main(): Promise<void> {
       [
         'checkDelegatedAgentStartTool',
         () => checkDelegatedAgentStartTool(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkInPlaceCompletionCycle',
+        () => checkInPlaceCompletionCycle(sql, authCtx, record),
       ],
       [
         'checkImportCursorContinuation',

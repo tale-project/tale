@@ -77,11 +77,12 @@ import {
  *
  * The card: `moveToInProgress` (the default) moves it to In progress, as
  * Start agent does, withdrawing a pending review (never approving one), and
- * the settle parks it at In review for a person. `false` leaves it where it
- * is — a standing task in To do that reports on every occurrence — and a
- * settle only parks a card that is In progress, so such a run asks for no
- * review. It starts only under open work (Backlog, To do, In progress):
- * see `in_review` / `closed` above.
+ * the completion parks it at In review for a person. `false` leaves it where
+ * it is — a standing task that reports on every occurrence — and the run
+ * records that intent (`in_place`, 0139), so its successful completion
+ * neither moves the card nor asks for a review, whatever column the card is
+ * in by then; its auto-retries carry it. It starts only under open work
+ * (Backlog, To do, In progress): see `in_review` / `closed` above.
  */
 
 /** Why a run a schedule began failed without launching: the schedule was
@@ -529,6 +530,7 @@ export async function startDelegatedAgentRun(
     startedBy: args.startedBy,
     trigger,
     startedVia: args.via,
+    inPlace: args.moveToInProgress === false,
     ...(args.feedback !== undefined && args.feedback.trim() !== ''
       ? { feedback: args.feedback }
       : {}),

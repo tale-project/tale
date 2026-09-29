@@ -9,15 +9,14 @@
 -- new kicks join them:
 --
 --   trigger = 'automation'  an automation run's `task.start_agent` step
---                           started it. The run works in place: the card is
---                           not moved at the start nor parked at In review at
---                           the settle, because the automation owns what
---                           happens next (a standing role runs on its card
---                           every occurrence without a review bell each time).
+--                           started it.
 --   trigger = 'delegated'   another agent's run started it with
---                           `task_start_agent`: the card moves to In progress
---                           and the result waits for a person at In review,
---                           exactly as after Start agent.
+--                           `task_start_agent`.
+--
+-- Either way the card moves to In progress and the result waits for a person
+-- at In review, exactly as after Start agent — unless the start asked to work
+-- in place (`moveToInProgress: false`, `in_place` below): a standing role runs
+-- on its card every occurrence without a review bell each time.
 --
 -- `started_by` keeps naming the door the WHOLE chain answers to: the person
 -- who started the delegating run (or the automation run), or
@@ -37,6 +36,15 @@
 --   started_via_automation the automation's name, kept for display after the
 --                         automation run is gone.
 --   started_via_agent_id  the delegating project agent.
+--   in_place              the start left the card where it stood
+--                         (`moveToInProgress: false`): the run's successful
+--                         completion neither moves the card nor requests a
+--                         review, whatever column the card is in by then (a
+--                         person may have moved a standing role's card to In
+--                         progress). Recorded at the kick and carried by its
+--                         auto-retries; the completion reads it, never infers
+--                         it from the card's column or the run's origin. Only
+--                         a run with `started_via` may be in place.
 --
 -- The slot receipt: an automation step starts a given task at most once per
 -- automation run — the unique index below. A step the engine re-delivers
@@ -44,8 +52,8 @@
 -- second one (an occurrence of a schedule is one automation run: the scan's
 -- claim, 0096). Auto-retries copy the via columns and are left out.
 --
--- Rolling-deploy safe: nullable columns, and the widened CHECK admits every
--- value the previous image writes. Its retry of a run started this way
+-- Rolling-deploy safe: nullable columns and a NOT NULL DEFAULT false one,
+-- and the widened CHECK admits every value the previous image writes. Its retry of a run started this way
 -- writes no via columns (the retry's provenance is lost for that window,
 -- nothing else), and its task card shows the new trigger values as raw keys
 -- until the roll completes.
@@ -63,7 +71,8 @@ ALTER TABLE app.project_agent_runs
   ADD COLUMN IF NOT EXISTS started_via_run_id text,
   ADD COLUMN IF NOT EXISTS started_via_node_id text,
   ADD COLUMN IF NOT EXISTS started_via_automation text,
-  ADD COLUMN IF NOT EXISTS started_via_agent_id text;
+  ADD COLUMN IF NOT EXISTS started_via_agent_id text,
+  ADD COLUMN IF NOT EXISTS in_place boolean NOT NULL DEFAULT false;
 
 DO $$ BEGIN
   IF NOT EXISTS (
@@ -102,6 +111,15 @@ DO $$ BEGIN
           AND trigger IS DISTINCT FROM 'delegated'
           AND (started_via IS NULL OR trigger = 'auto_retry'))
       );
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'app.project_agent_runs'::regclass
+      AND conname = 'project_agent_runs_in_place_automated'
+  ) THEN
+    ALTER TABLE app.project_agent_runs
+      ADD CONSTRAINT project_agent_runs_in_place_automated
+        CHECK (NOT in_place OR started_via IS NOT NULL);
   END IF;
 END $$;
 

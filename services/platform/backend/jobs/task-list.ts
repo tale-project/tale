@@ -47,6 +47,7 @@ import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
 import {
   failAgentRun,
+  inPlaceOfRun,
   kickAgentRun,
   startedViaOfRun,
 } from '../domains/tasks/agent-runs.ts';
@@ -1140,7 +1141,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             : {}),
           startedBy: newest.startedBy,
           trigger: 'auto_retry',
-          ...(startedVia !== undefined ? { startedVia } : {}),
+          ...(startedVia !== undefined
+            ? { startedVia, inPlace: await inPlaceOfRun(tx, newest.id) }
+            : {}),
           autoRetryAttempt: budget.attempt,
           // Queued now, so the card shows the retry; started once the
           // broker's cooldown has an account back.
