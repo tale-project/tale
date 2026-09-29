@@ -17,7 +17,8 @@ import {
   startReactServer,
 } from '@tale/ui/server';
 
-import { buildRedirectPathMap, normalizeRequestPath } from './lib/redirects';
+import { createRedirectRoute } from './lib/redirect-route';
+import { buildRedirectPathMap } from './lib/redirects';
 
 const monitoring = initServerMonitoring({
   dsn: process.env.SENTRY_DSN,
@@ -27,14 +28,17 @@ const monitoring = initServerMonitoring({
 });
 
 const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/+$/, '');
+const LOCALE_COOKIE_DOMAIN = process.env.LOCALE_COOKIE_DOMAIN || undefined;
 
 const artifacts = await createPrecompiledServer({
   dir: resolve(import.meta.dir, 'dist-seo'),
 });
 
-// Old → new URL paths for moved or merged pages (`docs/redirects.json`,
-// baked into the bundle at build time). Checked before static serving so
-// stale inbound links 301 to the new locale-preserving path.
+// Old → new URL paths for moved or merged pages (`docs/redirects.json`)
+// and for section folders without a page of their own (derived from
+// `docs/nav.json`), baked into the bundle at build time. Checked before
+// static serving so stale or guessed links 301 to a real page; an `/en`
+// page alias also pins the English locale cookie.
 const redirectPaths = buildRedirectPathMap();
 
 startReactServer({
@@ -43,17 +47,14 @@ startReactServer({
   port: Number(process.env.PORT ?? 3002),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'docs',
+  localeCookieDomain: LOCALE_COOKIE_DOMAIN,
   redirectPrefix: BASE_PATH,
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,
-  extraRoutes: (request, url) => {
-    if (request.method !== 'GET' && request.method !== 'HEAD') return null;
-    const target = redirectPaths.get(normalizeRequestPath(url.pathname));
-    if (!target) return null;
-    return new Response(null, {
-      status: 301,
-      headers: { Location: `${BASE_PATH}${target}${url.search}` },
-    });
-  },
+  extraRoutes: createRedirectRoute({
+    paths: redirectPaths,
+    basePath: BASE_PATH,
+    localeCookieDomain: LOCALE_COOKIE_DOMAIN,
+  }),
   artifacts,
 });

@@ -1,7 +1,10 @@
 import { absoluteSitePath } from '@tale/ui/seo/urls';
 
 import type { SupportedLocale } from '@/lib/i18n/locales';
-import { DEFAULT_DOCS_SITE_URL } from '@/lib/site-url';
+
+// Relative, not `@/`: the Bun-run server and prerender script import this
+// module, and Bun does not resolve the root tsconfig's `${configDir}` paths.
+import { DEFAULT_DOCS_SITE_URL } from '../site-url';
 
 // Vite replaces `import.meta.env.VITE_DOCS_SITE_URL` at build time so the
 // constant is available in the browser. Build scripts (Node/Bun) override
@@ -20,9 +23,17 @@ function resolveSiteUrl(): string {
 
 const SITE_URL = resolveSiteUrl();
 
+/**
+ * A slug's locale-less route: `foo/index` and `foo` serve the same URL, and
+ * the root `index` is the empty route.
+ */
+export function slugRoute(slug: string): string {
+  return slug === 'index' ? '' : slug.replace(/\/index$/, '');
+}
+
 /** Path on the docs host for a given (locale, slug). */
 export function docPath(locale: SupportedLocale, slug: string): string {
-  const cleaned = slug === 'index' ? '' : slug.replace(/\/index$/, '');
+  const cleaned = slugRoute(slug);
   if (locale === 'en') return cleaned ? `/${cleaned}` : '/';
   return cleaned ? `/${locale}/${cleaned}` : `/${locale}`;
 }
