@@ -460,7 +460,7 @@ output:
       URL carries `eval-d-agent`. Name `发票提醒` → `Saved as:
       automation-<8 hex>`, **Next** enabled, the created automation is titled
       `发票提醒`. Save a new version from the canvas (no presentation of its
-      own) → the list still shows the typed name, never "Automation <hex>".
+      own) → the list still shows the typed name, never "Automation ‹hex›".
 - [ ] `AUTO-F43` · **Deep link to a missing version** — Open an existing
       automation's editor with `?version=99` → The breadcrumb and tab strip
       stay; the editor area reads `automations.editor.versionNotFound.title`

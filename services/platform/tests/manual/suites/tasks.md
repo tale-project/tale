@@ -232,7 +232,7 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   a project agent with a skill, then narrow that skill's visibility so the
   project no longer sees it (do not delete it); start a task with the agent
   → The run fails at once with **the agent run could not start: the skill
-  "<slug>" is not available to this run …**, stays at one run — no
+  "‹slug›" is not available to this run …**, stays at one run — no
   **Auto-retry 1 of 3** — and the task's runs list shows a single failed row;
   after unticking the unavailable skill in the agent dialog, **Retry**
   starts a run that reaches the harness.
