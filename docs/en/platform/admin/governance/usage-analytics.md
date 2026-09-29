@@ -20,7 +20,7 @@ Assistant names can include supporting work such as chat-title generation. A req
 
 The dashboard uses recorded usage and metering information. Input and output tokens are separate, and services such as voice output or image generation may have different billing units. A token total alone cannot explain every cost.
 
-An image an agent generated appears under its image model in **Top models** and under the agent or automation in **Top assistants**, as one request per image. Its cost is the charge OpenRouter reported, or for OpenAI the list price of the image tokens OpenAI reported.
+An image an agent generated appears under its image model in **Top models** and under the agent or automation in **Top assistants**, as one request per image and without tokens. Its cost is the charge OpenRouter reported, or for OpenAI the list price of the image tokens OpenAI reported. A request the provider billed without returning a usable image counts the same way.
 
 Treat the displayed cost as recorded application usage, not an invoice from your provider. Provider pricing, subscriptions, credits, and unmetered calls can affect how it compares with the bill. A displayed zero does not prove that a provider charged nothing.
 

@@ -31,7 +31,7 @@ Une nouvelle tentative d’une exécution d’agent poursuit l’exécution lanc
 - **Les limites de l’organisation** s’appliquent à toute requête, y compris aux exécutions lancées par un déclencheur.
 - **Les limites de clé API** s’appliquent aux requêtes authentifiées par cette clé : les messages de chat qu’elle a envoyés et les exécutions qu’elle a lancées.
 
-Quand une limite est atteinte, Tale refuse la requête suivante avant de l’exécuter et nomme la limite. Un tour d’agent géré est refusé à son démarrage ; un tour déjà en cours conserve l’enveloppe qui lui a été accordée. Une image que l’agent demande pendant son tour est vérifiée à part, avant l’appel au modèle d’images : si une limite est atteinte, Tale refuse l’image et le tour continue. [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine) traite le cas où plusieurs règles visent la même personne.
+Quand une limite est atteinte, Tale refuse la requête suivante avant de l’exécuter et nomme la limite. Un tour d’agent géré est refusé à son démarrage ; un tour déjà en cours conserve l’enveloppe qui lui a été accordée. Une image que l’agent demande pendant son tour est vérifiée à part, avant l’appel au modèle d’images : si une limite est atteinte, Tale refuse l’image et le tour continue. L’image puise aussi dans l’enveloppe du tour qui l’a demandée. [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine) traite le cas où plusieurs règles visent la même personne.
 
 ## Trois situations à connaître
 

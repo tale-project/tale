@@ -31,7 +31,7 @@ A retry of an agent run continues the run its starter kicked off, so its usage s
 - **Organization limits** bind every request, including trigger-started runs.
 - **API-key limits** bind the requests authenticated with that key: the chat messages it sent and the runs it started.
 
-When a limit is reached, Tale refuses the next request before it runs and names the limit. A managed agent turn is refused at its start; a turn already running keeps the allowance it was given. An image the agent asks for during its turn is checked on its own before the image model is called, so a reached limit refuses the image while the turn continues. [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine) covers the case of several rules applying to one person.
+When a limit is reached, Tale refuses the next request before it runs and names the limit. A managed agent turn is refused at its start; a turn already running keeps the allowance it was given. An image the agent asks for during its turn is checked on its own before the image model is called, so a reached limit refuses the image while the turn continues. The image also draws on the allowance of the turn that asked for it. [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine) covers the case of several rules applying to one person.
 
 ## Three situations worth knowing
 

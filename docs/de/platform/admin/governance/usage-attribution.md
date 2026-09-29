@@ -31,7 +31,7 @@ Ein erneuter Versuch eines Agentenlaufs führt den Lauf fort, den sein Starter a
 - **Organisationslimits** binden jede Anfrage, auch die Läufe eines Triggers.
 - **API-Schlüssellimits** binden die Anfragen, die mit diesem Schlüssel authentifiziert wurden: die damit gesendeten Chatnachrichten und die damit gestarteten Läufe.
 
-Ist ein Limit erreicht, lehnt Tale die nächste Anfrage vor der Ausführung ab und nennt das Limit. Ein Zug eines verwalteten Agenten wird beim Start abgelehnt; ein bereits laufender Zug behält den Rahmen, den er bekommen hat. Ein Bild, das der Agent während seines Zugs anfordert, wird eigens geprüft, bevor das Bildmodell aufgerufen wird: Ist ein Limit erreicht, lehnt Tale das Bild ab, und der Zug läuft weiter. [So werden Regeln kombiniert](/de/platform/admin/governance/policies-and-limits#how-rules-combine) beschreibt den Fall, dass mehrere Regeln für eine Person gelten.
+Ist ein Limit erreicht, lehnt Tale die nächste Anfrage vor der Ausführung ab und nennt das Limit. Ein Zug eines verwalteten Agenten wird beim Start abgelehnt; ein bereits laufender Zug behält den Rahmen, den er bekommen hat. Ein Bild, das der Agent während seines Zugs anfordert, wird eigens geprüft, bevor das Bildmodell aufgerufen wird: Ist ein Limit erreicht, lehnt Tale das Bild ab, und der Zug läuft weiter. Das Bild zehrt außerdem vom Rahmen des Zugs, der es angefordert hat. [So werden Regeln kombiniert](/de/platform/admin/governance/policies-and-limits#how-rules-combine) beschreibt den Fall, dass mehrere Regeln für eine Person gelten.
 
 ## Drei Situationen, die du kennen solltest
 
