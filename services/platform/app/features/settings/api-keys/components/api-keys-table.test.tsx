@@ -180,6 +180,36 @@ describe('ApiKeysTable', () => {
       );
     });
 
+    it('offers no create to a holder whose right lapsed, yet lists and revokes their keys', () => {
+      render(
+        <ApiKeysTable
+          apiKeys={[makeApiKey({ name: 'Mirror worker' })]}
+          organizationId="org-1"
+          canCreate={false}
+        />,
+      );
+
+      expect(screen.getByText('Mirror worker')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).toBeNull();
+    });
+
+    it('says who may create one when a holder whose right lapsed has none left', () => {
+      render(
+        <ApiKeysTable apiKeys={[]} organizationId="org-1" canCreate={false} />,
+      );
+
+      expect(
+        screen.getByText(
+          'Creating a key takes the Owner, Admin or Developer role, or a competence an Admin grants for one.',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Create API key' }),
+      ).toBeNull();
+    });
+
     it.each([
       ['with keys', [makeApiKey()]],
       ['when empty', []],

@@ -12,10 +12,11 @@ interface ApiNavItem {
   slug: 'rest' | 'models' | 'mcp' | 'webdav';
   labelKey: 'apiRest' | 'apiModels' | 'mcp' | 'webdav';
   icon: LucideIcon;
-  /** Who sees the tab: `developer` — owners, admins and developers; `modelApi`
-   * — also a member who may call the model endpoints, for whom REST is where
-   * their personal key is made and Models where a tool is set up. */
-  audience: 'developer' | 'modelApi';
+  /** Who sees the tab: `developer` — owners, admins and developers; `apiKeys`
+   * — also a member who may create a personal API key, for whom REST is where
+   * it is made; `modelApi` — also a member who may call the model endpoints,
+   * for whom Models is where a tool is set up. */
+  audience: 'developer' | 'apiKeys' | 'modelApi';
 }
 
 /**
@@ -27,7 +28,7 @@ interface ApiNavItem {
  * REST surface — it re-registers when the daemon-runs rebuild lands.
  */
 export const API_NAV_ITEMS: ApiNavItem[] = [
-  { slug: 'rest', labelKey: 'apiRest', icon: KeyRound, audience: 'modelApi' },
+  { slug: 'rest', labelKey: 'apiRest', icon: KeyRound, audience: 'apiKeys' },
   {
     slug: 'models',
     labelKey: 'apiModels',
@@ -45,10 +46,12 @@ export const API_NAV_ITEMS: ApiNavItem[] = [
 
 /** The API tabs a member may open. */
 export function visibleApiNavItems(
-  access: Pick<ApiSettingsAccess, 'developer' | 'modelApi'>,
+  access: Pick<ApiSettingsAccess, 'developer' | 'apiKeys' | 'modelApi'>,
 ): ApiNavItem[] {
   return API_NAV_ITEMS.filter(
     (item) =>
-      access.developer || (item.audience === 'modelApi' && access.modelApi),
+      access.developer ||
+      (item.audience === 'apiKeys' && access.apiKeys) ||
+      (item.audience === 'modelApi' && access.modelApi),
   );
 }

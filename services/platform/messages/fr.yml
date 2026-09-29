@@ -2,8 +2,9 @@ accessDenied:
   title: Accès refusé
   connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
     aux paramètres de connectors.
-  apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
-    clés API.
+  apiKeys: Utiliser des clés API demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
+  apiTab: Cette page est réservée aux propriétaires, admins et développeurs.
+  apiModels: La configuration des endpoints de modèles est réservée aux propriétaires, admins et développeurs, et aux membres qui ont la compétence « Appeler les modèles par l'API ».
   organization:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
@@ -2717,6 +2718,7 @@ emptyStates:
   apiKeys:
     title: Aucune clé API pour l'instant
     description: Génère une clé pour connecter des outils et scripts externes.
+    descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées

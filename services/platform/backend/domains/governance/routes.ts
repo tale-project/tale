@@ -15,6 +15,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
+import { mayCreateApiKeys } from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -38,7 +39,7 @@ import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
 import { listModelApiModels } from '../model_api/models.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
-import { listOrgApiKeys } from './api-keys.ts';
+import { holdsApiKeys, listOrgApiKeys } from './api-keys.ts';
 import {
   findBudgetViolation,
   loadBudgetSubject,
@@ -530,6 +531,23 @@ export function createGovernanceRoutes(deps: {
             })
           ).map((model) => ({ id: model.id, label: model.label }));
     return c.json({ ...standing, models });
+  });
+
+  /**
+   * Whether the caller may create a personal API key — the rule the create
+   * endpoint's gate holds them to (`auth/api-key-create-gate.ts`): owner,
+   * admin or developer of any organization, or a live grant of a competence
+   * that is used with a key — and whether they hold one already. The API
+   * settings open the REST tab to such a member: to create a key, or to see
+   * and revoke the ones they hold after the right lapsed.
+   */
+  app.get('/my/api-keys', async (c) => {
+    const userId = c.get('sessionBundle').user.id;
+    const [mayCreate, holdsKeys] = await Promise.all([
+      mayCreateApiKeys(deps.sql, userId),
+      holdsApiKeys(deps.sql, userId),
+    ]);
+    return c.json({ mayCreate, holdsKeys });
   });
 
   /**
