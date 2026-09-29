@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
 
+import { CloudListingError } from '../lib/cloud-listing-error';
 import { useListingFailureToast } from './use-listing-failure-toast';
 
 // A cloud picker's listing runs its write as a query that retries it twice,
@@ -58,6 +59,23 @@ describe('useListingFailureToast', () => {
     rerender({ current: new Error('second') });
 
     expect(toast).toHaveBeenCalledTimes(2);
+  });
+
+  // A `success: false` listing carries the provider's raw answer: English,
+  // and often its JSON body. It goes to the log; the toast keeps its title.
+  it("never shows the provider's raw answer to a listing", () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const raw = 'OneDrive API error: 403 {"error":{"code":"accessDenied"}}';
+    render(new CloudListingError(raw));
+
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledWith({
+      title: TITLE,
+      description: undefined,
+      variant: 'destructive',
+    });
+    expect(warn).toHaveBeenCalledWith('Cloud listing failed:', raw);
+    warn.mockRestore();
   });
 
   it('leaves an error the dialog hands off to the connect dialog', () => {
