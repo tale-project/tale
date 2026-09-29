@@ -6,16 +6,9 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { useT } from '@tale/ui/i18n/client';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Loader2, SearchX } from 'lucide-react';
-import {
-  Fragment,
-  type ComponentType,
-  type Key,
-  type ReactNode,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { Fragment, type ComponentType, type Key, type ReactNode } from 'react';
 
+import { useFocusHandoff } from '../../hooks/use-focus-handoff';
 import { CatalogGridSkeleton } from './catalog-card-skeleton';
 import { CatalogGrid } from './catalog-grid';
 
@@ -105,24 +98,7 @@ export function CatalogLoadError({
   onFocusLost?: () => void;
 }) {
   const { t } = useT('common');
-  const [retryRow, setRetryRow] = useState<HTMLSpanElement | null>(null);
-  // Read as the alert leaves, so a host re-rendering with a new callback
-  // is never mistaken for the alert going away.
-  const onFocusLostRef = useRef(onFocusLost);
-  useLayoutEffect(() => {
-    onFocusLostRef.current = onFocusLost;
-  });
-  // The cleanup runs before React detaches the alert, while the focus is
-  // still inside it; the host's target takes it a frame later.
-  useLayoutEffect(() => {
-    if (retryRow === null) return undefined;
-    return () => {
-      const handoff = onFocusLostRef.current;
-      if (handoff !== undefined && retryRow.contains(document.activeElement)) {
-        requestAnimationFrame(handoff);
-      }
-    };
-  }, [retryRow]);
+  const setRetryRow = useFocusHandoff<HTMLSpanElement>(onFocusLost);
   return (
     <Alert
       variant="destructive"

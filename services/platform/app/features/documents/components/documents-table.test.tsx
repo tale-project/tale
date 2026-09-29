@@ -191,6 +191,28 @@ describe('DocumentsTable', () => {
     expect(retry).toHaveFocus();
   });
 
+  // Swept from the same review: with nothing loaded the failure is the
+  // table's error state, which a refresh the reader did not start swaps for
+  // the loading state; a focused Try again took the focus down with it.
+  it('hands a focused Try again in the error state to the list when a refresh replaces it', async () => {
+    paginatedMock.status = 'Exhausted';
+    paginatedMock.error = new Error('first page failed');
+    paginatedMock.errorCount = 1;
+    const { rerender } = render(
+      <DocumentsTable organizationId="test-org-id" />,
+    );
+    screen.getByRole('button', { name: 'common.errors.tryAgain' }).focus();
+
+    paginatedMock.status = 'LoadingFirstPage';
+    paginatedMock.error = null;
+    rerender(<DocumentsTable organizationId="test-org-id" />);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(
+      screen.getByRole('region', { name: 'knowledge.documents' }),
+    ).toHaveFocus();
+  });
+
   it('renders the fixed frame every overview list uses', () => {
     // The knowledge side of the same contract Projects and Automations now
     // hold: the table owns the scrollport, the page shell never grows.
