@@ -27,6 +27,17 @@ import { z } from 'zod';
 const DAY_MS = 86_400_000;
 const HALF_DAY_MS = DAY_MS / 2;
 
+function calendarRangeError(): RangeError {
+  return new RangeError(
+    'The repeat date is outside the supported calendar range',
+  );
+}
+
+function validInstant(ms: number): number {
+  if (!Number.isFinite(new Date(ms).getTime())) throw calendarRangeError();
+  return ms;
+}
+
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -191,7 +202,8 @@ export interface CalendarDate {
 
 /** The calendar day an instant falls on in `timeZone`. */
 export function calendarDateIn(ms: number, timeZone: string): CalendarDate {
-  const local = dayjs(ms).tz(timeZone);
+  const local = dayjs(validInstant(ms)).tz(timeZone);
+  if (!local.isValid()) throw calendarRangeError();
   return { year: local.year(), month: local.month() + 1, day: local.date() };
 }
 
@@ -217,21 +229,21 @@ export function startOfCalendarDate(
   date: CalendarDate,
   timeZone: string,
 ): number {
-  const iso = `${String(date.year).padStart(4, '0')}-${pad2(date.month)}-${pad2(date.day)}`;
-  return dayjs.tz(iso, timeZone).valueOf();
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
+  // Day.js' zone parser shifts extended ISO years instead of preserving
+  // midnight. Refuse that unsupported representation rather than invent a
+  // time-zone conversion or silently change the requested calendar date.
+  if (date.year > 9999 || date.year < 100) throw calendarRangeError();
+  const iso = new Date(toUtc(date)).toISOString().split('T')[0];
+  return validInstant(dayjs.tz(iso, timeZone).valueOf());
 }
 
 /** Calendar arithmetic runs on a UTC stand-in: no zone, no DST. */
 function toUtc(date: CalendarDate): number {
-  return Date.UTC(date.year, date.month - 1, date.day);
+  return validInstant(Date.UTC(date.year, date.month - 1, date.day));
 }
 
 function fromUtc(ms: number): CalendarDate {
-  const d = new Date(ms);
+  const d = new Date(validInstant(ms));
   return {
     year: d.getUTCFullYear(),
     month: d.getUTCMonth() + 1,
@@ -253,7 +265,7 @@ export function weekdayOf(date: CalendarDate): number {
 }
 
 function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return new Date(validInstant(Date.UTC(year, month, 0))).getUTCDate();
 }
 
 /** `month` may run past 12 (or below 1); it rolls into the year. */
@@ -292,16 +304,16 @@ function stepAfter(rule: TaskRepeat, date: CalendarDate): CalendarDate {
       return addDays(monday, rule.interval * 7 + (days[0] ?? 0));
     }
     case 'monthly': {
-      for (let k = 0; ; k += rule.interval) {
-        const candidate = clampedDate(date.year, date.month + k, rule.monthDay);
-        if (isAfter(candidate, date)) return candidate;
-      }
+      const candidate = clampedDate(date.year, date.month, rule.monthDay);
+      return isAfter(candidate, date)
+        ? candidate
+        : clampedDate(date.year, date.month + rule.interval, rule.monthDay);
     }
     case 'yearly': {
-      for (let k = 0; ; k += rule.interval) {
-        const candidate = clampedDate(date.year + k, rule.month, rule.monthDay);
-        if (isAfter(candidate, date)) return candidate;
-      }
+      const candidate = clampedDate(date.year, rule.month, rule.monthDay);
+      return isAfter(candidate, date)
+        ? candidate
+        : clampedDate(date.year + rule.interval, rule.month, rule.monthDay);
     }
   }
 }

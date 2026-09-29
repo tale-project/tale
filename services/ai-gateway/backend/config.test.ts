@@ -17,7 +17,21 @@ describe('loadConfig', () => {
     expect(config.refreshIntervalSeconds).toBe(300);
     expect(config.usageMinIntervalSeconds).toBe(180);
     expect(config.tokenRefreshSkewSeconds).toBe(300);
+    expect(config.tokenMinHandoutSeconds).toBe(3600);
     expect(config.encryptionKey).toHaveLength(32);
+  });
+
+  it('turns the hand-out floor off at zero, and refuses a negative one', () => {
+    expect(
+      loadConfig({ ...complete(), AI_GATEWAY_TOKEN_MIN_HANDOUT_SECONDS: '0' })
+        .config.tokenMinHandoutSeconds,
+    ).toBe(0);
+    expect(() =>
+      loadConfig({
+        ...complete(),
+        AI_GATEWAY_TOKEN_MIN_HANDOUT_SECONDS: '-1',
+      }),
+    ).toThrow(ConfigError);
   });
 
   it('names every missing secret at once', () => {

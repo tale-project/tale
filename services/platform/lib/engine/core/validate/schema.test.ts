@@ -72,6 +72,22 @@ describe('describeSchemaErrors', () => {
     ]);
   });
 
+  // What a task door's `AUTOMATION_INPUT_INVALID` sentence may carry
+  // (`backend/domains/tasks/errors.test.ts`, ADMITTED): the rule can quote
+  // the schema the automation's author stored, never the value refused.
+  it('quotes the schema’s own rule, never the refused value', () => {
+    const titled = compileSchema({
+      type: 'object',
+      properties: { title: { type: 'string', pattern: '^[A-Z]' } },
+    });
+    titled({ title: 'lowercase secret' });
+    const issues = describeSchemaErrors(titled.errors);
+    expect(issues).toEqual([
+      { path: 'title', message: 'must match pattern "^[A-Z]"' },
+    ]);
+    expect(JSON.stringify(issues)).not.toContain('lowercase secret');
+  });
+
   it('unescapes a JSON-pointer segment', () => {
     expect(issuesOf({ orderId: 'o-1', 'a/b': 7 })).toEqual([
       { path: 'a/b', message: 'must be string' },
