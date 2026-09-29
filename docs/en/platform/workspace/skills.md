@@ -135,13 +135,17 @@ Quote supporting text and mark missing information as "Not stated".
 | `license` | The terms supplied by the author. |
 | `recommended-packages` | Suggested dependencies; importing does not install them. |
 | `disable-model-invocation` | Requests explicit use of the skill. Treat this metadata as an instruction, not an access restriction. |
-| `icon` / `labels` | Library presentation; up to eight labels. |
+| `icon` / `labels` | Library presentation; up to eight labels of up to 40 characters each. |
 
 Tale preserves unrecognized frontmatter keys. The frontmatter limit is 16 KB and the complete `SKILL.md` limit is 512 KB. Keep frequently read instructions much smaller than these ceilings.
 
 ## Update and troubleshoot
 
 Open a row to edit its description, instructions, labels, and visibility. The **Bundle** tree lets you inspect supporting files. Changes are not pinned per agent: later staging uses the current bundle, so test shared changes with a representative task.
+
+**Labels** takes up to eight comma-separated labels of up to 40 characters each. When the list is longer, or a label is too long, the field says what to remove or shorten and **Save** stays unavailable; nothing you typed is dropped. The **Bundle** tree remembers the folders you collapse, per skill, in your browser.
+
+If Tale cannot load a skill or one of its files, the dialog says so and offers **Try again**. When a refresh fails, the version already on screen stays, unsaved changes included. A removed file is reported as no longer in the bundle, and an empty file as empty.
 
 If an agent cannot find the skill, check that it is equipped and visible to the project. Tale shows the agent a description excerpt of up to 300 characters to help it choose a relevant skill, so start the description with when the skill applies. If it ignores an equipped skill, name the skill in the task and check the result against its instructions. Read [Skills on agents](/platform/agents/skills) for how the equipped bundle is staged and presented to the agent.
 
