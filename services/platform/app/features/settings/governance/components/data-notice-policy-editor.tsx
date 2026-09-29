@@ -92,7 +92,7 @@ export function DataNoticePolicyEditor({
     organizationId,
     'data_classification_notice',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const cannotManage = ability.cannot('write', 'orgSettings');
 
   const saved = useMemo(

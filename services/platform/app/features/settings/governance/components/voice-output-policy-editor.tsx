@@ -42,7 +42,7 @@ export function VoiceOutputPolicyEditor({
     organizationId,
     'voice_output',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   // Derived straight from the query: the optimistic update flips it the instant
   // the switch is toggled and Convex rolls it back on failure, so no local

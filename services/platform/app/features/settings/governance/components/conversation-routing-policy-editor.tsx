@@ -470,7 +470,7 @@ export function ConversationRoutingPolicyEditor({
     organizationId,
     'conversation_routing',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
 

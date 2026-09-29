@@ -6,8 +6,10 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 /**
  * Save a governance policy to its per-org JSON file over HTTP. The backend
  * adapter invalidates policy reads after success, and also quota usage when
- * sandbox limits change. Editors using the shared Save/Discard cluster pass
- * `errorToast: false` so that cluster owns the single failure message.
+ * sandbox limits change. A caller that reports a failure itself passes
+ * `errorToast: false`, so the failure raises one toast: a toggle's or a
+ * section's own toast, or the shared Save/Discard cluster's for an editor
+ * whose `save` rethrows it. A caller that only logs keeps the default toast.
  *
  * Refuses `retention_policy` and `dsar_governance` — those route through
  * `useUpsertRetentionPolicy` / `useProposeDsarPolicy` (bounds / loosen-grace).
@@ -21,8 +23,10 @@ export function useUpsertGovernancePolicy(options?: { errorToast?: false }) {
 
 export function useProposeDsarPolicy() {
   // Files are the source of truth, so this is an action (filesystem write).
-  // The DSAR editor toasts its own failure message.
-  return useBackendAction('governance/dsar_policy:proposeDsarPolicy');
+  // The DSAR editor toasts its own failure message — opt out of the default.
+  return useBackendAction('governance/dsar_policy:proposeDsarPolicy', {
+    errorToast: false,
+  });
 }
 
 export function useCancelPendingDsarPolicyChange() {
@@ -41,8 +45,11 @@ export function useCancelPendingDsarPolicyChange() {
  * then calls an internal mutation for the actual write.
  */
 export function useUpsertRetentionPolicy() {
+  // The retention drawer reports a failure itself: a bounds refusal under
+  // its category, anything else in its own toast.
   return useBackendAction(
     'governance/retention_actions:upsertRetentionPolicyAction',
+    { errorToast: false },
   );
 }
 
@@ -51,6 +58,8 @@ export function useSaveModerationSecret() {
   return useBackendAction(
     'governance/moderation_provider/secrets:saveModerationSecret',
     {
+      // The API-key panel toasts its own failure message.
+      errorToast: false,
       onSuccess: (_data, variables) => {
         // Invalidate the mask query so the UI shows the updated fingerprint.
         void queryClient.invalidateQueries({
@@ -76,6 +85,8 @@ export function useApplyBoundsProposal() {
   return useBackendAction(
     'governance/retention_bounds_proposal:applyBoundsProposal',
     {
+      // The proposal banner toasts its own failure message.
+      errorToast: false,
       onSuccess: (_data, variables) => {
         void queryClient.invalidateQueries({
           queryKey: ['retention-bounds-proposal', variables.organizationId],
@@ -95,6 +106,8 @@ export function useRejectBoundsProposal() {
   return useBackendAction(
     'governance/retention_bounds_proposal:rejectBoundsProposal',
     {
+      // The proposal banner toasts its own failure message.
+      errorToast: false,
       onSuccess: (_data, variables) => {
         void queryClient.invalidateQueries({
           queryKey: ['retention-bounds-proposal', variables.organizationId],
@@ -104,28 +117,44 @@ export function useRejectBoundsProposal() {
   );
 }
 
+// Each legal-hold dialog toasts its own failure, read through
+// `mapLegalHoldError` (a known refusal by its house sentence, else the door's
+// own words); the default toast would report it a second time.
+
 export function usePlaceLegalHold() {
-  return useBackendMutation('governance/legal_hold:placeLegalHold');
+  return useBackendMutation('governance/legal_hold:placeLegalHold', {
+    errorToast: false,
+  });
 }
 
 export function useRequestLegalHoldRelease() {
-  return useBackendMutation('governance/legal_hold:requestLegalHoldRelease');
+  return useBackendMutation('governance/legal_hold:requestLegalHoldRelease', {
+    errorToast: false,
+  });
 }
 
 export function useApproveLegalHoldRelease() {
-  return useBackendMutation('governance/legal_hold:approveLegalHoldRelease');
+  return useBackendMutation('governance/legal_hold:approveLegalHoldRelease', {
+    errorToast: false,
+  });
 }
 
 export function useRejectLegalHoldRelease() {
-  return useBackendMutation('governance/legal_hold:rejectLegalHoldRelease');
+  return useBackendMutation('governance/legal_hold:rejectLegalHoldRelease', {
+    errorToast: false,
+  });
 }
 
 export function useUpsertLegalMatter() {
-  return useBackendMutation('governance/legal_hold:upsertLegalMatter');
+  return useBackendMutation('governance/legal_hold:upsertLegalMatter', {
+    errorToast: false,
+  });
 }
 
 export function useCloseLegalMatter() {
-  return useBackendMutation('governance/legal_hold:closeLegalMatter');
+  return useBackendMutation('governance/legal_hold:closeLegalMatter', {
+    errorToast: false,
+  });
 }
 
 // The competence dialogs explain a refusal themselves (inline in the grant
@@ -145,6 +174,8 @@ export function useRevokeCompetence() {
 export function useRestoreSoftDeletedRow() {
   const queryClient = useQueryClient();
   return useBackendMutation('governance/restore:restoreSoftDeletedRow', {
+    // The trash page toasts its own failure message.
+    errorToast: false,
     onSuccess: () => {
       // `convexQuery` produces keys of shape
       //   ['convexQuery', '<module>:<query>', args]

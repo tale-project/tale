@@ -498,7 +498,7 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
     organizationId,
     'budgets',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
   // The API keys an admin can attach a budget to: every member's live key,

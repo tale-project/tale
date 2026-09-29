@@ -47,7 +47,7 @@ function PersonalizationPolicyToggle({
     organizationId,
     policyType,
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   // Read the server value directly each render — no `useState` mirror copied in
   // via `useEffect`, so the real value is present on the first render after

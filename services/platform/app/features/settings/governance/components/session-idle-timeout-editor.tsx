@@ -61,7 +61,7 @@ export function SessionIdleTimeoutEditor({
     organizationId,
     'session_idle_timeout',
   );
-  const upsertMutation = useUpsertGovernancePolicy();
+  const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
 
   const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
   const cannotManage = ability.cannot('write', 'orgSettings');
