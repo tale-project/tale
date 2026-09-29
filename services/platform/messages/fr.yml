@@ -608,7 +608,7 @@ automations:
       description: Choisis « Créer une automatisation » pour partir d’un déclencheur et d’un agent, ou pour téléverser un paquet.
     emptyReader:
       title: Aucune automatisation en service
-      description: Une automatisation apparaît ici dès qu’un propriétaire, un administrateur ou un développeur la met en service.
+      description: Une automatisation apparaît ici dès qu’une personne ayant le rôle Propriétaire, Admin ou Développeur la met en service.
   createMenu:
     blank: Vierge (trigger + agent)
   blank:
