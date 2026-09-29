@@ -584,6 +584,29 @@ describe('relayToGateway — refusals', () => {
     expect(outcomes).toEqual([{ status: 'failed', countedOutputTokens: 0 }]);
   });
 
+  it('books nothing for a gateway that refused the connection: the request never left', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const refused = () =>
+      Promise.reject(
+        new TypeError('fetch failed', {
+          cause: Object.assign(
+            new Error('connect ECONNREFUSED 10.0.0.9:8080'),
+            {
+              code: 'ECONNREFUSED',
+            },
+          ),
+        }),
+      );
+    for (const stream of [false, true]) {
+      gateway(refused);
+      const { args: relay, outcomes } = args({ stream });
+      await expect(relayToGateway(relay)).rejects.toMatchObject({
+        status: 502,
+      });
+      expect(outcomes).toEqual([{ status: 'failed' }]);
+    }
+  });
+
   it('keeps internal addresses out of a relayed refusal, answering a generic one instead', async () => {
     gateway(() =>
       Response.json(

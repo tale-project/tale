@@ -142,6 +142,30 @@ function gatewayDispatcher(): Agent {
   return dispatcher;
 }
 
+/** The system codes of a gateway connection that was never made: the
+ * gateway refused or could not be found (a container being replaced by a
+ * deploy refuses), or the connect timed out. */
+const NOT_CONNECTED_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+/** Whether a failed gateway call never had a connection, so no request left
+ * this process. undici's `fetch failed` carries the reason on its `cause`. */
+function neverConnected(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && isRecord(current); depth++) {
+    const code = current.code;
+    if (typeof code === 'string' && NOT_CONNECTED_CODES.has(code)) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
 /** The gateway call, a seam for the unit layer. */
 export type GatewayFetch = (
   url: string,
@@ -675,11 +699,12 @@ export async function relayToGateway(args: RelayArgs): Promise<Response> {
     });
   } catch (error) {
     const cancelled = signal.aborted && !lapsed;
-    // The request may have reached the gateway, and the vendor its prompt,
-    // before the call failed.
+    // A request that never got a connection left this process and costs
+    // nothing. Any other may have reached the gateway, and the vendor its
+    // prompt, before the call failed.
     done({
       status: cancelled ? 'cancelled' : 'failed',
-      countedOutputTokens: 0,
+      ...(neverConnected(error) ? {} : { countedOutputTokens: 0 }),
     });
     if (lapsed) {
       console.warn(
