@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import type { TaskOwnership } from '../../core/tasks/access.ts';
 import type { ProjectAuthContext, ProjectRow } from '../projects/service.ts';
 import {
+  assertTaskCreatable,
+  assertTaskLabelsEditable,
   assertTaskReadable,
-  assertTaskWritable,
+  assertTaskWorkable,
   assigneeChanges,
+  mayWorkTask,
   TaskError,
 } from './service.ts';
 
@@ -43,6 +47,15 @@ const auth = (
   ...overrides,
 });
 
+/** Whose task it is: created by `user-2` unless the case says otherwise. */
+const task = (overrides: Partial<TaskOwnership> = {}): TaskOwnership => ({
+  createdBy: 'user-2',
+  createdByType: 'user',
+  assigneeType: null,
+  assigneeId: null,
+  ...overrides,
+});
+
 const thrown = (run: () => void): TaskError => {
   try {
     run();
@@ -62,9 +75,13 @@ describe('task guards — tenant isolation', () => {
     const read = thrown(() => assertTaskReadable(project(), foreign));
     expect(read.code).toBe('PROJECT_NOT_FOUND');
     expect(read.status).toBe(404);
-    const write = thrown(() => assertTaskWritable(project(), foreign));
+    const write = thrown(() => assertTaskWorkable(project(), task(), foreign));
     expect(write.code).toBe('PROJECT_NOT_FOUND');
     expect(write.status).toBe(404);
+    const create = thrown(() => assertTaskCreatable(project(), foreign));
+    expect(create.code).toBe('PROJECT_NOT_FOUND');
+    expect(create.status).toBe(404);
+    expect(mayWorkTask(project(), task(), foreign)).toBe(false);
   });
 
   it('the cross-org refusal is indistinguishable from a missing project', () => {
@@ -95,20 +112,77 @@ describe('task guards — tenant isolation', () => {
   });
 });
 
-describe('task guards — write access', () => {
-  it('a read-only member can read but never write', () => {
-    // 'member' is not in EDITOR_ROLES: org-wide projects are readable to
-    // every role, but every task mutation (status, runs, reviews) is edit.
-    const member = auth({ role: 'member' });
-    expect(() => assertTaskReadable(project(), member)).not.toThrow();
-    const refused = thrown(() => assertTaskWritable(project(), member));
-    expect(refused.code).toBe('RBAC_FORBIDDEN');
+describe('task guards — who creates and who works a task', () => {
+  const member = auth({ role: 'member', userId: 'user-1' });
+
+  it('a member creates a task in any project they can read', () => {
+    // The founder's call: delegating work to a project agent starts with a
+    // task, so creating one is a reader's right, not an editor's.
+    expect(() => assertTaskCreatable(project(), member)).not.toThrow();
+    expect(() =>
+      assertTaskCreatable(
+        project({ teamId: 'team-1', teamIds: ['team-1'] }),
+        auth({ role: 'member', userId: 'user-1', teamIds: ['team-1'] }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('a member cannot create in a team project they cannot see', () => {
+    const refused = thrown(() =>
+      assertTaskCreatable(
+        project({ teamId: 'team-1', teamIds: ['team-1'] }),
+        member,
+      ),
+    );
+    expect(refused.code).toBe('TASK_FORBIDDEN');
     expect(refused.status).toBe(403);
   });
 
-  it('editors and admins of the SAME org pass the write gate', () => {
+  it('a member works the tasks they created and the ones assigned to them', () => {
+    const created = task({ createdBy: 'user-1' });
+    const assigned = task({ assigneeType: 'user', assigneeId: 'user-1' });
+    for (const own of [created, assigned]) {
+      expect(() => assertTaskWorkable(project(), own, member)).not.toThrow();
+      expect(mayWorkTask(project(), own, member)).toBe(true);
+    }
+  });
+
+  it("a member cannot change someone else's task — reading and commenting stay theirs", () => {
+    // Created by another person, or by an agent or an automation that
+    // happens to carry the member's id, or handed to an agent: not theirs.
+    for (const others of [
+      task(),
+      task({ createdBy: 'user-1', createdByType: 'agent' }),
+      task({ assigneeType: 'agent', assigneeId: 'user-1' }),
+    ]) {
+      const refused = thrown(() =>
+        assertTaskWorkable(project(), others, member),
+      );
+      expect(refused.code).toBe('RBAC_FORBIDDEN');
+      expect(refused.status).toBe(403);
+      expect(mayWorkTask(project(), others, member)).toBe(false);
+    }
+    expect(() => assertTaskReadable(project(), member)).not.toThrow();
+  });
+
+  it('editors and admins of the SAME org work every task, as before', () => {
     for (const role of ['owner', 'admin', 'developer', 'editor']) {
-      expect(() => assertTaskWritable(project(), auth({ role }))).not.toThrow();
+      expect(() =>
+        assertTaskWorkable(project(), task(), auth({ role })),
+      ).not.toThrow();
+      expect(() =>
+        assertTaskCreatable(project(), auth({ role })),
+      ).not.toThrow();
+    }
+  });
+
+  it('the label catalog stays with the project editors', () => {
+    const refused = thrown(() => assertTaskLabelsEditable(project(), member));
+    expect(refused.code).toBe('RBAC_FORBIDDEN');
+    for (const role of ['owner', 'admin', 'developer', 'editor']) {
+      expect(() =>
+        assertTaskLabelsEditable(project(), auth({ role })),
+      ).not.toThrow();
     }
   });
 
@@ -120,12 +194,27 @@ describe('task guards — write access', () => {
     const archived = project({ archivedAt: 1_700_000_000_000 });
     expect(() => assertTaskReadable(archived, auth())).not.toThrow();
     for (const role of ['owner', 'admin', 'developer', 'editor']) {
-      const refused = thrown(() =>
-        assertTaskWritable(archived, auth({ role })),
-      );
-      expect(refused.code).toBe('PROJECT_ARCHIVED');
-      expect(refused.status).toBe(403);
+      for (const run of [
+        () => assertTaskWorkable(archived, task(), auth({ role })),
+        () => assertTaskCreatable(archived, auth({ role })),
+        () => assertTaskLabelsEditable(archived, auth({ role })),
+      ]) {
+        const refused = thrown(run);
+        expect(refused.code).toBe('PROJECT_ARCHIVED');
+        expect(refused.status).toBe(403);
+      }
     }
+    // The member's own task is archived with it.
+    const own = thrown(() =>
+      assertTaskWorkable(archived, task({ createdBy: 'user-1' }), member),
+    );
+    expect(own.code).toBe('PROJECT_ARCHIVED');
+    expect(thrown(() => assertTaskCreatable(archived, member)).code).toBe(
+      'PROJECT_ARCHIVED',
+    );
+    expect(mayWorkTask(archived, task({ createdBy: 'user-1' }), member)).toBe(
+      false,
+    );
   });
 });
 

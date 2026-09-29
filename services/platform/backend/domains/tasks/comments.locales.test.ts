@@ -23,7 +23,7 @@ vi.mock('./service.ts', async (importOriginal) => ({
     projectId: 'p-1',
     title: 'Check figures',
   }),
-  assertTaskWritable: vi.fn(),
+  assertTaskWorkable: vi.fn(),
 }));
 vi.mock('../threads/store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../threads/store.ts')>()),

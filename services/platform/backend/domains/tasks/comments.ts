@@ -42,9 +42,10 @@ import {
 import { mentionAutomationEnabled } from './run-start.ts';
 import {
   assertTaskReadable,
-  assertTaskWritable,
+  assertTaskWorkable,
   dispatchMentionedProjectAgent,
   loadTaskOrThrow,
+  mayWorkTask,
   TaskError,
   type TaskRow,
 } from './service.ts';
@@ -183,7 +184,8 @@ async function appendTaskComment(
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   // Commenting is READ-level (0.4 `addTaskComment*`): anyone who can see
-  // the task may join its discussion; edit/delete stay write-gated below.
+  // the task may join its discussion; edit/delete stay behind the task's
+  // work gate below.
   assertTaskReadable(project, auth);
   // Archived = read-only for the whole project, its discussions included —
   // the one code every write on it answers, so the app door and the
@@ -509,7 +511,7 @@ export async function editTaskComment(
   const meta = await loadCommentMeta(tx, args.messageId);
   const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  assertTaskWorkable(project, task, auth);
   assertCommentOwnerOrAdmin(auth, meta);
   const body = args.body.trim();
   const refusal = taskCommentRefusal(body);
@@ -599,7 +601,7 @@ async function removeTaskComment(
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, meta.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  assertTaskWorkable(project, task, auth);
   assertCommentOwnerOrAdmin(auth, meta);
   // Meta dies by FK when the message row goes.
   await deleteMessage(tx, messageId);
@@ -638,8 +640,9 @@ async function removeTaskComment(
  * automation starts nothing — a task runs only the workflow it belongs to.
  *
  * Refusals are deliberately quiet (the comment has already posted) and the
- * gate is WRITE access: commenting is read-level, but running a workflow is
- * an edit, so a read-only member's `@` stays a plain mention. One engine per
+ * gate is the task's work gate: commenting is read-level, but running a
+ * workflow is a change to the task, so the `@` of someone who may not work
+ * it stays a plain mention. One engine per
  * task across BOTH lanes — a task with a live agent run or a live automation
  * run keeps it; `startWorkflowForTask`'s own duplicate guard backstops the
  * pre-check.
@@ -686,13 +689,9 @@ async function maybeTriggerOwningAutomation(
   if (mentioned === undefined) return false;
   if (args.task.archivedAt !== null) return false;
   const project = await loadProjectOrThrow(tx, args.task.projectId);
-  try {
-    // Running a workflow is an EDIT: a read-only member's `@` stays a plain
-    // mention rather than a start (commenting itself is read-level).
-    assertTaskWritable(project, args.auth);
-  } catch {
-    return false;
-  }
+  // Running a workflow is a change to the task: the `@` of someone who may
+  // not work it stays a plain mention (commenting itself is read-level).
+  if (!mayWorkTask(project, args.task, args.auth)) return false;
   if (!(await ownsTask(tx, args.task, mentioned.id))) {
     console.warn(
       `[tasks] automation mention "${mentioned.id}" ignored: it does not own task ${args.task.id}`,

@@ -37,7 +37,7 @@ import {
   type AssigneeRef,
   assertAssigneeValid,
   assertTaskNotArchived,
-  assertTaskWritable,
+  assertTaskWorkable,
   computeEndRank,
   loadTaskOrThrow,
   nextTaskNumber,
@@ -1007,8 +1007,9 @@ interface ChainTreeRow {
  * own rule is cleared.
  *
  * Taking the copy back undoes the platform's own automatic write, not
- * anyone's work — it is untouched by definition — so an editor may do it,
- * where deleting a task takes an owner or an admin.
+ * anyone's work — it is untouched by definition — so whoever may work the
+ * task may do it (an editor, or the task's own creator or assignee), where
+ * deleting a task takes an owner or an admin.
  */
 export async function stopTaskRepeat(
   tx: TransactionSql,
@@ -1017,7 +1018,7 @@ export async function stopTaskRepeat(
 ): Promise<{ removedNextTask: boolean }> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  assertTaskWorkable(project, task, auth);
   assertTaskNotArchived(task);
   const lockedRows = await tx<
     {

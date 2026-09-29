@@ -53,6 +53,7 @@ import {
 import {
   findLatestAutomationRunForTask,
   findLiveAutomationRunForTask,
+  findTaskByExternalRef,
   resolveSetupFolderId,
   startWorkflowForTask,
   upsertTaskByExternalRef,
@@ -63,7 +64,11 @@ import { TaskReviewError } from './reviews.ts';
 import {
   addTaskDependency,
   archiveTask,
+  assertTaskCreatable,
+  assertTaskLabelsEditable,
+  assertTaskWorkable,
   assignTask,
+  boardTaskAccess,
   createTask,
   createTaskLabel,
   deleteTask,
@@ -90,7 +95,6 @@ import {
   updateTask,
   updateTaskStatus,
   assertTaskReadable,
-  assertTaskWritable,
   loadTaskOrThrow,
 } from './service.ts';
 
@@ -563,6 +567,12 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       }
 
       const result = await transactSerializable(deps.sql, async (tx) => {
+        // Both lanes of the intake need an active project the caller reads,
+        // checked before the folder below is minted: creating a task is open
+        // to every reader, reconciling the one the reference already names
+        // is a change to that task (its work gate, further down).
+        const project = await loadProjectOrThrow(tx, projectId);
+        assertTaskCreatable(project, auth);
         // Folder-driven flow: the folder IS the external subject; the setup
         // folder's id rides externalUrl (the desks' binding convention) and
         // its absence fails closed.
@@ -591,6 +601,25 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
             'externalId did not resolve',
           );
         }
+        const dedupeScope = args.projectId !== undefined ? 'project' : 'org';
+        const existing = await findTaskByExternalRef(tx, {
+          organizationId: auth.organizationId,
+          projectId,
+          externalSystem: args.externalSystem,
+          externalId,
+          dedupeScope,
+        });
+        if (existing !== null) {
+          // An organization-wide reference can name a task in another
+          // project, which is judged on its own project.
+          assertTaskWorkable(
+            existing.projectId === project.id
+              ? project
+              : await loadProjectOrThrow(tx, existing.projectId),
+            existing,
+            auth,
+          );
+        }
         const upserted = await upsertTaskByExternalRef(tx, {
           organizationId: auth.organizationId,
           actorId: auth.userId,
@@ -613,7 +642,9 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           ...(args.automationSlug !== undefined
             ? { automationSlug: args.automationSlug }
             : {}),
-          dedupeScope: args.projectId !== undefined ? 'project' : 'org',
+          dedupeScope,
+          // The label catalog is the project editors' to grow.
+          mintLabels: boardTaskAccess(project, auth).canEdit,
         });
         return { upserted, ensuredFolderId };
       });
@@ -767,7 +798,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const auth = await authCtx(c);
       await transactSerializable(deps.sql, async (tx) => {
         const project = await loadProjectOrThrow(tx, body.data.projectId);
-        assertTaskWritable(project, auth);
+        assertTaskLabelsEditable(project, auth);
         await ensureDefaultProjectLabels(tx, {
           organizationId: auth.organizationId,
           projectId: body.data.projectId,
@@ -1128,9 +1159,10 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         auth.organizationId,
       );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      // Starting a run is a WRITE (it spends budget and moves the card) —
-      // same gate as the manual agent-run kick, not the read-level banner.
-      assertTaskWritable(project, auth);
+      // Starting a run is a change to the task (it spends budget and moves
+      // the card) — the manual agent-run kick's gate, not the read-level
+      // banner's.
+      assertTaskWorkable(project, task, auth);
       const started = await startWorkflowForTask(deps.sql, {
         organizationId: auth.organizationId,
         task,
@@ -1168,10 +1200,10 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         auth.organizationId,
       );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      // The WRITE gate must precede the run cancel: `updateTaskStatus` below
-      // asserts writable too, but by then the live run would already be dead
-      // — a read-only member must be refused before any side effect.
-      assertTaskWritable(project, auth);
+      // The work gate must precede the run cancel: `updateTaskStatus` below
+      // asserts it too, but by then the live run would already be dead —
+      // someone who may not work the task is refused before any side effect.
+      assertTaskWorkable(project, task, auth);
       const live = await findLiveAutomationRunForTask(deps.sql, {
         organizationId: auth.organizationId,
         projectId: task.projectId,
@@ -1220,7 +1252,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         auth.organizationId,
       );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskWritable(project, auth);
+      assertTaskWorkable(project, task, auth);
       const live = await deps.sql<{ id: string }[]>`
         SELECT id FROM app.project_agent_runs
         WHERE task_id = ${task.id} AND status IN ('queued', 'running')
