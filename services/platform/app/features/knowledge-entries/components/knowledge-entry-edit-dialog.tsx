@@ -9,6 +9,7 @@ import { toast } from '@tale/ui/use-toast';
 import { type RefObject, useMemo } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,
@@ -92,6 +93,8 @@ export function KnowledgeEntryEditDialog({
             title: isDuplicate
               ? t('toast.addErrorDuplicate')
               : t('toast.updateError'),
+            // A duplicate is the whole story; any other refusal says why.
+            description: isDuplicate ? undefined : failureDetail(error),
             variant: 'destructive',
           });
         },

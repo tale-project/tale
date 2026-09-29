@@ -9,6 +9,7 @@ import { toast } from '@tale/ui/use-toast';
 import { type RefObject, useEffect, useMemo, useRef } from 'react';
 import * as z from 'zod';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
@@ -106,6 +107,7 @@ export function WebsiteEditDialog({
           console.error('Failed to update website:', error);
           toast({
             title: tWebsites('toast.updateError'),
+            description: failureDetail(error),
             variant: 'destructive',
           });
         },
