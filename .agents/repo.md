@@ -93,6 +93,17 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `services/platform/tests/guards/error-message-description.guard.test.ts` fails on a
   `description` or `title` built from an error's message under `services/platform/app` and
   `packages/ui/src`.
+- **One failure, one toast** — a failed `useBackendMutation` / `useBackendAction` raises a
+  destructive toast of its own unless its call passes `errorToast: false`; a custom `errorToast`
+  still toasts, and so does a `mutateAsync` awaited inside the caller's own `try`. A failure is
+  reported once: by that default toast, or by the caller — its `catch`, `.catch` or `onError`
+  toast, a batch's summary toast, `EditorActions` (and `useFormEditor`'s native submit) for a
+  controller whose `save` rethrows, `BulkDeleteBar` / `BulkArchiveBar` / `EntityDeleteDialog`
+  for a callback that rejects (give them `describeFailure`, so their one toast keeps the
+  reason) — never both. A caller that reports opts out: in the hook when every caller reports,
+  else through the hook's options at that call site; a caller that only logs keeps the default
+  toast. `services/platform/tests/guards/single-failure-toast.guard.test.ts` follows each write's
+  rejection to what reports it and fails on a second toast.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
 - **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
