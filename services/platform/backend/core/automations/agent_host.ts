@@ -49,6 +49,7 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
+import { resolveTurnImageGeneration } from '../lib/providers/resolve_image_model';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import {
   refuseBlindImageTurn,
@@ -93,10 +94,13 @@ import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
   ASK_HUMAN_TOOL,
   grantedToolsGuidance,
+  IMAGE_GENERATION_TOOL,
+  imageGenerationGuidance,
   KNOWLEDGE_READ_TOOLS,
   KNOWLEDGE_TOOLS_GUIDANCE,
   normalizeToolGrants,
   secretsGuidance,
+  type TurnOpRef,
 } from '../sandbox/tool_names';
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { isCredentialRotation } from '../tasks/task_auto_retry';
@@ -282,6 +286,38 @@ const ASK_HUMAN_GUIDANCE =
   'answer as your next message. Never guess, never invent placeholder ' +
   'values for such facts, and never ask about things you can determine ' +
   'yourself from the staged files.';
+
+/** Where an agent step's produced files are collected. */
+const WORKFLOW_OUTPUT_DIR = '/agent/output';
+
+/**
+ * One agent step's workspace-tool grant set and the token-scope facts that
+ * go with it: the automation baseline — ask_human + the knowledge pair
+ * (visibility derives from THIS run's project binding at dispatch, so the
+ * grant alone never widens what the run can read) — PLUS the node's
+ * configured tool grants (writes included; the explicit grant IS the
+ * standing authorization on this async lane) PLUS image generation while
+ * the organization's policy offers it, with the op the images are booked
+ * and delivered for. The first start and an answered-ask resume both mint
+ * through here, so a resumed turn keeps the equipment it had.
+ */
+function workflowTurnToolScope(
+  tools: readonly string[],
+  imageGeneration: boolean,
+  execId: string,
+): { toolGrants: string[]; turnOp?: TurnOpRef } {
+  return {
+    toolGrants: [
+      ASK_HUMAN_TOOL,
+      ...KNOWLEDGE_READ_TOOLS,
+      ...normalizeToolGrants(tools),
+      ...(imageGeneration ? [IMAGE_GENERATION_TOOL] : []),
+    ],
+    ...(imageGeneration
+      ? { turnOp: { kind: 'workflow-agent' as const, execId } }
+      : {}),
+  };
+}
 
 /** One project as the run-context query names it. */
 interface RunProjectRef {
@@ -1307,6 +1343,12 @@ export async function startWorkflowAgentTurnImpl(
           brokerTokenHash: auth.brokerTokenHash ?? null,
         },
       );
+      // Offered only while the organization's policy is on AND a model
+      // resolves — an absent tool, not a dead instruction, otherwise.
+      const imageModel = await resolveTurnImageGeneration(
+        ctx,
+        args.organizationId,
+      );
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1321,16 +1363,11 @@ export async function startWorkflowAgentTurnImpl(
             allowedModels: auth.allowedModels,
             connectorGrants: [...(args.request.connectors ?? [])],
             budgetCents: auth.budgetCents,
-            // The automation baseline — ask_human + the knowledge pair
-            // (visibility derives from THIS run's project binding at dispatch,
-            // so the grant alone never widens what the run can read) — PLUS
-            // the node's configured tool grants (writes included; the explicit
-            // grant IS the standing authorization on this async lane).
-            toolGrants: [
-              ASK_HUMAN_TOOL,
-              ...KNOWLEDGE_READ_TOOLS,
-              ...normalizeToolGrants(args.request.tools ?? []),
-            ],
+            ...workflowTurnToolScope(
+              args.request.tools ?? [],
+              imageModel !== null,
+              args.execId,
+            ),
           },
           expiresAt: args.deadlineAt,
         },
@@ -1399,9 +1436,12 @@ export async function startWorkflowAgentTurnImpl(
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(imageModel !== null
+          ? [imageGenerationGuidance(WORKFLOW_OUTPUT_DIR)]
+          : []),
         ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(args.request.secrets ?? []),
-        "Write every file you produce to /agent/output/ — files there are collected when your turn ends and become this step's output.",
+        `Write every file you produce to ${WORKFLOW_OUTPUT_DIR}/ — files there are collected when your turn ends and become this step's output.`,
       ].join('\n\n');
 
       // Per-exec credential env: the node's referenced secrets + any brokerable
@@ -1871,6 +1911,12 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           ? { excludeBrokerTokenHashes: agent.burnedBrokerTokenHashes }
           : {}),
       });
+      // Re-decided against the policy as it is now: the wait may have
+      // outlasted an admin switching image generation on or off.
+      const imageModel = await resolveTurnImageGeneration(
+        ctx,
+        args.organizationId,
+      );
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1885,13 +1931,12 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
             allowedModels: auth.allowedModels,
             connectorGrants: [...(request.connectors ?? [])],
             budgetCents: auth.budgetCents,
-            // Same grant set as the node's first start: baseline + configured
-            // tool grants, so the resumed turn keeps the equipment it had.
-            toolGrants: [
-              ASK_HUMAN_TOOL,
-              ...KNOWLEDGE_READ_TOOLS,
-              ...normalizeToolGrants(request.tools ?? []),
-            ],
+            // Same grant set as the node's first start.
+            ...workflowTurnToolScope(
+              request.tools ?? [],
+              imageModel !== null,
+              execId,
+            ),
           },
           expiresAt: deadlineAt,
         },
@@ -1989,9 +2034,12 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(imageModel !== null
+          ? [imageGenerationGuidance(WORKFLOW_OUTPUT_DIR)]
+          : []),
         ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(request.secrets ?? []),
-        "Write every file you produce to /agent/output/ — files there are collected when your turn ends and become this step's output.",
+        `Write every file you produce to ${WORKFLOW_OUTPUT_DIR}/ — files there are collected when your turn ends and become this step's output.`,
       ].join('\n\n');
       // No conversation handle means the delivery is a FRESH conversation:
       // an answer-only message would arrive without the assignment it
