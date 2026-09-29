@@ -35,7 +35,7 @@ Renseigne **Cron** et le **Fuseau horaire**. Les cinq champs représentent minut
 
 <Step title="Vérifier et enregistrer">
 
-Examine la prochaine occurrence affichée pour l’expression valide, puis clique sur **Enregistrer** à côté des onglets. Vérifie que la version en service accepte les données de planification du tableau. Active le déclencheur prêt à fonctionner avec **Actif** et enregistre à nouveau. Retrouve le prochain démarrage sous **Exécutions**.
+Examine la prochaine occurrence affichée pour l’expression valide : c’est la minute à laquelle la planification démarrera vraiment, changement d’heure compris. Clique ensuite sur **Enregistrer** à côté des onglets. Vérifie que la version en service accepte les données de planification du tableau. Active le déclencheur prêt à fonctionner avec **Actif** et enregistre à nouveau. Retrouve le prochain démarrage sous **Exécutions**.
 
 </Step>
 
@@ -80,6 +80,34 @@ L’URL autorise le démarrage. Protège-la comme un identifiant et ne la transm
 Choisis **Événement de la plateforme**, puis le **Nom de l’événement**. Enregistre et active le déclencheur quand il est prêt. Le schéma du workflow doit accepter l’enveloppe `trigger`, `event` et `payload` du tableau. Les événements produits par une exécution d’automatisation ne déclenchent pas d’autres départs : le workflow ne peut ainsi se relancer sans fin par ses propres changements.
 
 Un workflow qui exige des champs de premier niveau comme `owner` et `repo` n’accepte pas automatiquement les métadonnées d’un horaire ou le corps enveloppé d’un webhook. Adapte son schéma et ses références, ou utilise un démarrage API qui fournit ces champs. Les réglages du déclencheur ne permettent pas de définir des données d’entrée arbitraires enregistrées.
+
+## Démarrer un agent de projet selon une planification
+
+Une planification peut mettre au travail l’un des agents existants d’un projet : pour une tâche permanente dont l’agent rend compte à chaque occurrence, ou pour un travail récurrent que tu lancerais sinon à la main. Installe l’automatisation dans le projet de la tâche, ajoute une étape `task.start_agent` qui désigne la tâche, puis donne une planification à l’automatisation. Chaque occurrence démarre l’agent assigné à la tâche, ou assigne d’abord la tâche à l’agent que désigne `agentId`, qui doit appartenir au même projet. `feedback` est le message que l’exécution traite en premier, par exemple une mention de l’occurrence pour laquelle elle s’exécute :
+
+```yaml
+nodes:
+  - id: start
+    type: task.start_agent
+    input:
+      taskId: <ID de la tâche>
+      moveToInProgress: false
+      feedback: 'Scheduled occurrence {{ input.firedAt }}.'
+```
+
+L’étape renvoie l’exécution qu’elle a démarrée, et la chronologie de la tâche affiche cette exécution comme **automatisation**, avec un lien vers l’exécution de l’automatisation. Quand elle ne démarre rien, l’étape réussit tout de même et en donne la raison, si bien que l’occurrence est consignée au lieu d’être mise en file d’attente :
+
+| Réponse | Signification |
+| --- | --- |
+| `started: true` | L’exécution de l’agent a démarré ; `runId` l’identifie. |
+| `already_running` | L’exécution précédente de la tâche travaille encore et prend le travail en charge. Rien de nouveau ne démarre, et l’occurrence n’attend pas derrière elle. |
+| `agent_busy` | L’agent travaille sur une autre tâche (`busyTaskId`). Un agent ne traite qu’une tâche à la fois dans son espace de travail. |
+| `blocked` | Une tâche dont celle-ci dépend est encore ouverte (`blockedBy`). |
+| `paused` | La tâche a déjà reçu trois démarrages par des automatisations et des agents au cours de la dernière heure. `retryAfter` indique quand le suivant sera admis. |
+
+Une exécution lancée par une planification n’agit pour le compte de personne. Elle travaille avec les instructions, les secrets et les outils configurés de l’agent, et ses dépenses comptent comme des dépenses d’automatisation dans les limites de l’organisation. Les actions de connecteur qu’elle demande à la plateforme d’exécuter ne se font au nom de personne et sont donc refusées. Elle ne garde cette autorité que tant que la planification peut agir dans le projet : désactiver la planification, la retirer ou désinstaller l’automatisation du projet empêche le démarrage suivant, fait échouer une exécution qui n’a pas encore commencé et retire à une exécution en cours les outils de son espace de travail. Si une personne lance elle-même l’automatisation, l’exécution agit plutôt pour le compte de cette personne, tant qu’elle peut modifier le projet. Une exécution lancée par un webhook ou un événement de la plateforme ne peut pas démarrer d’agents, et une automatisation qui n’est pas installée dans le projet de la tâche n’a pas accès à ses agents.
+
+`moveToInProgress` décide de ce qui arrive à la carte. Par défaut, la carte passe à **En cours** et le résultat attend à **En revue** qu’une personne l’examine, comme après **Démarrer l'agent**. Avec `false`, la carte reste où elle est et l’exécution ne demande aucune revue, ce qui convient à une tâche permanente. Une telle exécution n’est pas relancée automatiquement en cas d’échec ; l’occurrence suivante la démarre à nouveau.
 
 ## Comprendre l’absence de démarrage
 

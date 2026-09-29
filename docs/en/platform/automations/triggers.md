@@ -35,7 +35,7 @@ Fill **Cron** and choose **Timezone**. A cron expression has five fields: minute
 
 <Step title="Check and save">
 
-Review the next occurrence shown for a valid expression, then click **Save** beside the tabs. Confirm that the workflow’s deployed version accepts the schedule input above. When ready, turn on **Enabled** and save again. Check the next started run under **Runs**.
+Review the next occurrence shown for a valid expression: it is the minute the schedule will actually start, daylight-saving changes included. Then click **Save** beside the tabs. Confirm that the workflow’s deployed version accepts the schedule input above. When ready, turn on **Enabled** and save again. Check the next started run under **Runs**.
 
 </Step>
 
@@ -80,6 +80,34 @@ The URL authorizes a run. Store it as a credential and share it only with the se
 Choose **Platform event**, select **Event name**, then save and enable when ready. Match the workflow’s schema to the `trigger`, `event` and `payload` wrapper in the table. Events raised by automation runs do not fire triggers, preventing a workflow from repeatedly starting itself through its own changes.
 
 A workflow expecting required top-level fields such as `owner` and `repo` cannot accept schedule metadata or a wrapped webhook unchanged. Adapt its input schema and references, or use an API-started run that supplies those fields. The trigger settings do not provide arbitrary saved input fields.
+
+## Start a project agent on a schedule
+
+A schedule can put one of a project's existing agents to work: a standing task the agent reports on at every occurrence, or recurring work you would otherwise start by hand. Install the automation in the task's project, add a `task.start_agent` step that names the task, and give the automation a schedule. Each occurrence starts the task's agent assignee, or first assigns the task to the agent `agentId` names, which must belong to the same project. `feedback` is the message the run addresses first, such as the occurrence it serves:
+
+```yaml
+nodes:
+  - id: start
+    type: task.start_agent
+    input:
+      taskId: <the task's ID>
+      moveToInProgress: false
+      feedback: 'Scheduled occurrence {{ input.firedAt }}.'
+```
+
+The step answers the run it started, and the task's timeline lists that run as **automation** with a link to the automation run. When it starts nothing, the step still succeeds and says why, so the occurrence is recorded rather than queued:
+
+| Answer | Meaning |
+| --- | --- |
+| `started: true` | The agent's run started; `runId` names it. |
+| `already_running` | The task's previous run is still working and carries the work. Nothing new starts, and the occurrence does not wait behind it. |
+| `agent_busy` | The agent is working another task (`busyTaskId`). An agent works one task at a time in its workspace. |
+| `blocked` | A task this one depends on is still open (`blockedBy`). |
+| `paused` | The task took three starts by automations and agents within the last hour. `retryAfter` says when the next one is admitted. |
+
+A run a schedule starts answers to no person. It works with the agent's configured instructions, secrets and tools, and its spend counts as automation spend against the organization's limits. Connector actions it asks the platform to run act for nobody, so they are refused. It keeps that authority only while the schedule may act in the project: turning the schedule off, removing it, or uninstalling the automation from the project stops the next start, fails a run that has not launched yet, and ends the workspace tools of a run in progress. A run a person starts from the automation answers to that person instead, as long as they can edit the project. A run a webhook or a platform event started cannot start agents, and an automation that is not installed in the task's project cannot reach its agents.
+
+`moveToInProgress` decides what happens to the card. By default the card moves to **In progress** and the result waits at **In review** for a person, as after **Start agent**. With `false` the card stays where it is and the run asks for no review, which suits a standing task. Such a run is not retried automatically when it fails; the next occurrence starts it again.
 
 ## Diagnose a missing start
 

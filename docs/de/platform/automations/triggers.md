@@ -35,7 +35,7 @@ Fülle **Cron** aus und wähle die **Zeitzone**. Die fünf Cron-Felder bedeuten 
 
 <Step title="Prüfen und speichern">
 
-Prüfe den nächsten angezeigten Zeitpunkt und klick neben den Tabs auf **Speichern**. Kontrolliere, ob die Live-Version die oben gezeigte Zeitplan-Eingabe akzeptiert. Schalte den fertigen Trigger mit **Aktiv** ein und speichere erneut. Den nächsten gestarteten Lauf findest du unter **Läufe**.
+Prüfe den nächsten angezeigten Zeitpunkt: Es ist die Minute, in der der Zeitplan tatsächlich startet, auch über eine Zeitumstellung hinweg. Klick dann neben den Tabs auf **Speichern**. Kontrolliere, ob die Live-Version die oben gezeigte Zeitplan-Eingabe akzeptiert. Schalte den fertigen Trigger mit **Aktiv** ein und speichere erneut. Den nächsten gestarteten Lauf findest du unter **Läufe**.
 
 </Step>
 
@@ -80,6 +80,34 @@ Die URL berechtigt zum Start. Bewahre sie wie Zugangsdaten auf und gib sie nur d
 Wähle **Plattform-Ereignis** und unter **Ereignisname** das Ereignis. Speichere und aktiviere den fertigen Trigger. Das Eingabeschema muss die Struktur mit `trigger`, `event` und `payload` aus der Tabelle akzeptieren. Von Automatisierungsläufen ausgelöste Ereignisse starten keine Trigger. So erzeugt ein Workflow durch seine eigenen Änderungen keine endlose Startschleife.
 
 Erwartet ein Workflow Pflichtfelder wie `owner` und `repo` auf oberster Ebene, passen Zeitplan-Metadaten oder eine eingepackte Webhook-Nutzlast nicht unverändert dazu. Passe Schema und Verweise an oder starte per API mit diesen Feldern. Die Trigger-Einstellungen bieten keine frei definierbaren gespeicherten Eingabefelder.
+
+## Einen Projektagenten nach Zeitplan starten
+
+Ein Zeitplan kann einen der bestehenden Agenten eines Projekts an die Arbeit schicken: für eine Daueraufgabe, über die der Agent bei jedem Termin berichtet, oder für wiederkehrende Arbeit, die du sonst von Hand starten würdest. Installiere die Automatisierung im Projekt der Aufgabe, füge einen Schritt `task.start_agent` hinzu, der die Aufgabe nennt, und gib der Automatisierung einen Zeitplan. Jeder Termin startet den Agenten, der für die Aufgabe zuständig ist, oder weist die Aufgabe zuerst dem Agenten zu, den `agentId` nennt; dieser muss zum selben Projekt gehören. `feedback` ist die Nachricht, auf die der Lauf als Erstes eingeht, etwa die Angabe des Termins, für den er läuft:
+
+```yaml
+nodes:
+  - id: start
+    type: task.start_agent
+    input:
+      taskId: <ID der Aufgabe>
+      moveToInProgress: false
+      feedback: 'Scheduled occurrence {{ input.firedAt }}.'
+```
+
+Der Schritt liefert den gestarteten Lauf zurück, und die Zeitleiste der Aufgabe führt diesen Lauf als **Automatisierung** mit einem Link zum Automatisierungslauf. Startet der Schritt nichts, ist er trotzdem erfolgreich und nennt den Grund. So bleibt der Termin festgehalten, statt für später eingereiht zu werden:
+
+| Antwort | Bedeutung |
+| --- | --- |
+| `started: true` | Der Lauf des Agenten wurde gestartet; `runId` nennt ihn. |
+| `already_running` | Der vorherige Lauf der Aufgabe arbeitet noch und trägt die Arbeit weiter. Es startet nichts Neues, und der Termin wartet nicht darauf, dass dieser Lauf endet. |
+| `agent_busy` | Der Agent arbeitet an einer anderen Aufgabe (`busyTaskId`). Ein Agent bearbeitet in seinem Arbeitsbereich jeweils nur eine Aufgabe. |
+| `blocked` | Eine Aufgabe, von der diese abhängt, ist noch offen (`blockedBy`). |
+| `paused` | Die Aufgabe hat in der letzten Stunde schon drei Starts durch Automatisierungen und Agenten erhalten. `retryAfter` gibt an, wann der nächste wieder zugelassen wird. |
+
+Ein Lauf, den ein Zeitplan startet, arbeitet in niemandes Auftrag. Er nutzt die konfigurierten Anweisungen, Secrets und Tools des Agenten, und seine Kosten zählen als Automatisierungskosten gegen die Limits der Organisation. Connector-Aktionen, die er über die Plattform ausführen lässt, erfolgen in niemandes Namen und werden deshalb abgelehnt. Diese Befugnis behält er nur, solange der Zeitplan im Projekt handeln darf: Schaltest du den Zeitplan aus, entfernst du ihn oder deinstallierst du die Automatisierung aus dem Projekt, unterbleibt der nächste Start, ein noch nicht angelaufener Lauf schlägt fehl, und ein bereits arbeitender Lauf verliert die Tools seines Arbeitsbereichs. Startet eine Person die Automatisierung selbst, arbeitet der Lauf stattdessen in ihrem Auftrag, solange sie das Projekt bearbeiten darf. Ein Lauf, den ein Webhook oder ein Plattform-Ereignis gestartet hat, kann keine Agenten starten, und eine Automatisierung, die nicht im Projekt der Aufgabe installiert ist, erreicht dessen Agenten nicht.
+
+`moveToInProgress` entscheidet, was mit der Karte geschieht. Standardmäßig wandert sie nach **In Bearbeitung**, und das Ergebnis wartet unter **In Prüfung** auf eine Person, wie nach **Agent starten**. Mit `false` bleibt die Karte, wo sie ist, und der Lauf verlangt keine Prüfung; das passt zu einer Daueraufgabe. Scheitert ein solcher Lauf, wird er nicht automatisch wiederholt; der nächste Termin startet ihn erneut.
 
 ## Einen ausgebliebenen Start untersuchen
 
