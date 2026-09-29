@@ -31,6 +31,17 @@ Pour le chat, l’accès est vérifié à l’utilisation, même pour un modèle
 Après un changement, teste les deux cas pour le membre concerné : un modèle autorisé doit fonctionner et un modèle interdit doit être refusé. Tester uniquement avec un compte admin ne prouve pas une règle propre à un rôle.
 </Tip>
 
+### Ouvrir les modèles de l’organisation aux clés API {#model-endpoints}
+
+**Endpoints de modèles pour les clés API** permet aux personnes autorisées d’utiliser les modèles que cette politique autorise depuis leurs propres outils, comme opencode, Claude Code ou des scripts écrits avec les SDK OpenAI ou Anthropic, avec une clé API personnelle et via des endpoints compatibles OpenAI et Anthropic. Ce réglage est désactivé par défaut. Active l’interrupteur **Endpoints de modèles pour les clés API** ; la modification est enregistrée aussitôt.
+
+- **Qui peut appeler.** Les propriétaires, admins et développeurs par leur rôle. Tout autre membre seulement avec la compétence **Appeler les modèles par l'API**, attribuée dans [Compétences](/fr/platform/admin/governance/competences).
+- **Quels modèles.** Les modèles de chat que servent tes identifiants de fournisseur avec clé API ou variable d’environnement, restreints par les modèles autorisés de chaque identifiant. Les règles d’accès ci-dessus s’appliquent à chaque appel, pour la personne dont la clé l’a envoyé. L’interrupteur agit indépendamment de **Activer la politique d'accès aux modèles** : quand cette politique est désactivée, seuls les modèles autorisés des identifiants restreignent la liste.
+- **Ce que chaque appel traverse.** Les budgets de [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) et les garde-fous d’entrée de [Garde-fous](/fr/platform/admin/governance/guardrails#model-endpoints). Les réponses des modèles ne sont pas filtrées.
+- **Où il apparaît.** Chaque appel est imputé à la personne et à la clé, comme **Appel API direct** dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
+
+Désactiver l’interrupteur fait refuser l’appel suivant avec `403 MODEL_API_DISABLED`. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor#model-endpoints) montre aux membres comment connecter leurs outils.
+
 ## Choisir le modèle qui lit les images
 
 Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la décrit pour l’agent. Un agent dont le propre modèle lit les images les lit lui-même ; le modèle de vision sert encore les outils d’image que les scripts et agents de code appellent dans leur bac à sable, comme la transcription par lots de pages scannées. Chaque agent géré en reçoit donc un dès qu’un modèle accessible existe.

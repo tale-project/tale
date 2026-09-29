@@ -47,6 +47,17 @@ Lege das Verhalten bei Nichterreichbarkeit fest: Fail-open lässt die Nachricht 
 
 Benutzerdefinierte Organisationsanweisungen werden vor den Anweisungen des Chat-Assistenten und vor den eigenen Anweisungen jedes Agenten eingefügt: bei Projekt-Agenten, die Aufgaben bearbeiten, und bei Agent-Knoten in Automatisierungen. Mitglieder können diese Organisationsrichtlinie nicht bearbeiten. Nutze sie für gemeinsames Verhalten und Begriffe. Für unabhängig durchzusetzende Einschränkungen verwendest du Zugriffsregeln und Filter, statt dich auf die Befolgung von Textanweisungen zu verlassen.
 
+## Guardrails an den Modell-Endpunkten {#model-endpoints}
+
+Schaltet deine Organisation die [Modell-Endpunkte für API-Schlüssel](/de/platform/admin/governance/content-models#model-endpoints) ein, prüft die Eingabeseite dieser Guardrails auch jede Anfrage an sie. Inhaltssicherheit, PII-Schutz und Moderationsanbieter lesen den System- und den Benutzertext der Anfrage, bevor Tale sie an das Modell weitergibt:
+
+- Blockieren lehnt die Anfrage mit `400 MODEL_API_GUARDRAIL_BLOCKED` ab, und beim Modell kommt nichts an.
+- Maskieren ersetzt den Treffer, und das Modell erhält den maskierten Text.
+- Tokenisierung lässt sich nicht umsetzen, weil Tale die Antwort des Modells unverändert weiterreicht und die Werte nicht darin wiederherstellen kann. Solange der PII-Schutz im Modus **Tokenisieren** aktiv ist, lehnt Tale jede Anfrage mit `403 MODEL_API_GUARDRAIL_UNSUPPORTED` ab; wähle **Maskieren** oder **Blockieren**, wenn Mitglieder die Modell-Endpunkte nutzen.
+- Fällt ein Moderationsanbieter unter Fail-closed aus, lehnt Tale die Anfrage mit `503 MODEL_API_GUARDRAIL_UNAVAILABLE` ab.
+
+Mehr wird dort nicht gefiltert: Regeln für die **Modell-Ausgabe** greifen nicht, und die Antworten des Modells, gestreamt oder nicht, die Assistenten-Turns und Tool-Ergebnisse einer Anfrage sowie ihre Bilder und Dokumente passieren ungeprüft. Benutzerdefinierte Anweisungen fügt Tale ebenfalls nicht hinzu; das Modell erhält die Anfrage so, wie das Tool des Aufrufers sie gesendet hat. Erkennungen erscheinen wie Chat-Erkennungen unter **Aktuelle Ereignisse**, jeweils erfasst unter `model-api:` gefolgt von der `X-Request-Id` der Anfrage, die auch der Aufrufer erhalten hat. Da Tools bei jeder Anfrage das ganze Gespräch erneut senden, übernimmt Tale für einen Text, den es vor wenigen Minuten geprüft hat, das damalige Ergebnis und erfasst eine Erkennung nur einmal statt bei jedem erneuten Senden.
+
 ## Prüfen und abstimmen
 
 Die aktuellen Ereignisse zeigen die letzten 50 Erkennungen, Blockierungen und Anbieterfehler. Filtere nach Schicht oder Ergebnis und prüfe Kategorie, Richtung und Zeitpunkt. Der erkannte Originaltext wird in diesen Ereignissen nicht gespeichert. Eine Zeile erklärt den Treffer, ohne seinen sensiblen Inhalt wiederzugeben.

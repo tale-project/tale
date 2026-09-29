@@ -13,7 +13,7 @@ Un seau de jetons se remplit en continu jusqu’à sa capacité de rafale. Une c
 
 | Trafic | Débit soutenu | Rafale | Budget attribué à |
 | --- | --- | --- | --- |
-| Appels généraux `/api/v1`, MCP compris | 120/minute | 200 | Détenteur de la clé |
+| Appels généraux `/api/v1`, MCP et endpoints de modèles compris | 120/minute | 200 | Détenteur de la clé |
 | Démarrages d’exécution, messages au modèle et démarrages de tâche | 20/minute | 40 | Détenteur de la clé |
 | Autorisation de téléversement et rattachement de fichier au projet | 240/minute | 300 | Détenteur de la clé |
 | Authentification par clé API échouée | 20/minute | 40 | IP source |
@@ -25,6 +25,8 @@ Les appels REST d’exécution et de téléversement consomment aussi le budget 
 L’exécution comprend les démarrages d’automatisation avec ou sans projet, les messages de fil et les démarrages explicites de tâche. La création ou mise à jour d’une tâche consomme aussi ce budget si `runWorkflowSlug` est fourni. Une requête qui démarre du travail est facturée une fois que son corps et ses en-têtes ont passé les vérifications propres de la porte — un `400 INVALID_BODY` ou `INVALID_HEADER` ne coûte rien — et avant que quoi que ce soit soit cherché, si bien qu’un `404` pour un fil, une tâche ou une automatisation que tu ne peux pas voir coûte un jeton, comme un `409` que l’état répond. Certaines mutations, comme les commentaires de tâche ou les changements de dossier, ont des limites supplémentaires partagées avec l’application.
 
 Dans un lot MCP, les appels d’outil supplémentaires consomment du budget supplémentaire. Le [point d’accès MCP](/fr/develop/mcp-endpoint) distingue une réponse HTTP `429` d’un message refusé à l’intérieur du lot. Les webhooks ont des budgets séparés ; les limites de l’expéditeur et du déclencheur doivent toutes deux permettre la livraison.
+
+Les appels aux [endpoints de modèles](/fr/develop/api-reference#model-endpoints) sous `/api/v1/openai` et `/api/v1/anthropic` ne comptent que dans le budget général, pour une requête chacun, en flux ou non ; ce qu’un appel peut dépenser est plafonné à part par les règles de budget.
 
 Le budget d’exécution limite la vitesse d’acceptation des messages, pas le nombre de tours simultanés. Les messages acceptés partagent une file entre toutes les organisations et les clés de l’instance. Chaque lot traite au maximum `WORKER_CONCURRENCY` tours, 5 par défaut ; le suivant attend la fin du lot en cours. Un envoi accepté peut donc attendre derrière d’autres clients. L’API n’expose ni position dans la file ni heure de démarrage estimée.
 
@@ -52,7 +54,7 @@ Branche ta logique sur `code`. `error` décrit l’attente dans une phrase et `r
 3. Si les refus continuent, augmente le délai exponentiellement avec une borne et une variation aléatoire. Par exemple, passe d’une à soixante secondes en respectant toujours une attente serveur plus longue.
 4. Conserve la clé d’idempotence initiale pour les opérations qui la prennent en charge. Un timeout au démarrage peut survenir après l’acceptation du travail.
 
-Un plafond de dépenses répond aussi par `429`, avec le `code` `BUDGET_EXCEEDED` : une règle de budget qui s’applique au propriétaire de la clé — la sienne, celle d’une équipe, de l’organisation ou de la clé API — est atteinte. Attendre quelques secondes ne suffit pas. `Retry-After` indique le temps restant avant la réinitialisation de la période, et `data` décrit le plafond : `scope`, `period`, `limitCode`, `used`, `limit` et `resetsAt` en millisecondes epoch. Rien n’est mis en file d’attente ; suspends le travail jusqu’à `resetsAt` ou demande à un administrateur de relever la limite dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits).
+Un plafond de dépenses répond aussi par `429`, avec le `code` `BUDGET_EXCEEDED` : une règle de budget qui s’applique au propriétaire de la clé — la sienne, celle d’une équipe, de l’organisation ou de la clé API — est atteinte. Attendre quelques secondes ne suffit pas. `Retry-After` indique le temps restant avant la réinitialisation de la période, et `data` décrit le plafond : `scope`, `period`, `limitCode`, `used`, `limit` et `resetsAt` en millisecondes epoch. Rien n’est mis en file d’attente ; suspends le travail jusqu’à `resetsAt` ou demande à un administrateur de relever la limite dans [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Sur les endpoints de modèles, les deux `429` arrivent au format d’erreur d’OpenAI ou d’Anthropic, avec le même `code` et `Retry-After`. Un budget épuisé y nomme son plafond dans le message plutôt que dans `data` et porte `x-should-retry: false`, pour que les SDK des fournisseurs ne réessaient pas d’eux-mêmes.
 
 Les autres réponses `4xx` nécessitent généralement une correction de requête, d’identifiants ou de droits. Ne traite pas tout échec comme une limite ; consulte le [modèle d’erreur](/fr/develop/api-reference#modele-derreur).
 

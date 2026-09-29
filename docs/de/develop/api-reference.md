@@ -41,13 +41,13 @@ Kontakte und Produkte sind nach `updatedAt`, dann `id`, jeweils absteigend sorti
 
 ## Authentifizierung
 
-Erstelle Schlüssel mit Admin- oder Entwicklerzugriff unter **Einstellungen > API > REST**; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller. Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
+Erstelle Schlüssel unter **Einstellungen > API > REST** als Inhaber, Admin oder Entwickler oder als Mitglied, dem ein Admin **Modelle über die API aufrufen** zugewiesen hat; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller. Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
 
 | Header | Regel |
 | --- | --- |
 | `Authorization: Bearer <key>` | Einzige erlaubte Stelle; die vollständige Zeichenfolge samt Präfix `tale` unverändert übernehmen |
 | `X-Organization-Slug: <slug>` | Aktuelle Mitgliedschaft auswählen; in wiederverwendbaren Integrationen immer mitsenden |
-| `x-api-key` | Führt zu `401`, auch neben einem gültigen Bearer-Header; macht aus dem Schlüssel keine App-Sitzung |
+| `x-api-key` | Führt zu `401`, auch neben einem gültigen Bearer-Header; macht aus dem Schlüssel keine App-Sitzung. Am Anthropic-kompatiblen [Modell-Endpunkt](#model-endpoints) nennt die Ablehnung den richtigen Weg: den Schlüssel als Auth-Token übergeben, mit `ANTHROPIC_AUTH_TOKEN` für Claude Code oder `authToken` beziehungsweise `auth_token` für die Anthropic-SDKs, und `ANTHROPIC_API_KEY` ungesetzt lassen (Vertrag 3.6.0) |
 
 Bei genau einer Organisation ist der Organisations-Header optional. Mit mehreren Mitgliedschaften braucht jede Anfrage ihn, auch beim Lesen. Die im Dashboard ausgewählte Organisation bestimmt niemals den API-Kontext. Die Groß-/Kleinschreibung des Slugs spielt keine Rolle; leere Werte oder reiner Leerraum gelten als fehlend.
 
@@ -71,6 +71,7 @@ Prüfe vor einer Operation sowohl die Rolle als auch den Zugriff auf die Ressour
 | `notificationExport` | Der Schlüssel darf Benachrichtigungen von Mitgliedern über `GET /api/v1/notifications/sync` exportieren. Inhaber und Admins haben diese Berechtigung durch ihre Rolle, alle anderen Mitglieder nur mit einer gültigen Berechtigung `tale:notifications.export`, die ein Admin erteilt hat; siehe [Export ohne Admin-Rolle delegieren](#export-ohne-admin-rolle-delegieren). Ohne sie liefert der Export `403 ROLE_FORBIDDEN`. |
 | `skillPublish` | Der Schlüssel darf über `PUT /api/v1/skills/{slug}` einen Skill mit der ganzen Organisation teilen. Ohne Richtlinie zur Skill-Freigabe darf das jedes Mitglied; mit ihr nur die zugelassenen Rollen und Mitglieder mit einer gültigen `tale:skills.publish`-Zuweisung — siehe [Skill-Pakete speichern und abgleichen](#skill-pakete-speichern-und-abgleichen). Ohne dieses Recht liefert ein solches Speichern `403 SKILL_PUBLISH_FORBIDDEN`. |
 | `actAs` | Der Schlüssel darf auf `POST …/runs/{runId}/asks/{askId}` und `POST …/tasks/{taskId}/review` einen `actor` nennen — das verifizierte Mitglied, für das eine weitergereichte Handlung festgehalten wird. Inhaber und Admins haben das Recht durch ihre Rolle; jedes andere Mitglied nur, solange eine `tale:rest.act-as`-Freigabe eines Admins gilt — siehe [Das Mitglied benennen, für das gehandelt wird](#das-mitglied-benennen-fuer-das-gehandelt-wird). Ohne dieses Recht antwortet ein gesendeter `actor` mit `403 ROLE_FORBIDDEN`. |
+| `modelApi` | Der Schlüssel darf die [kompatiblen Modell-Endpunkte](#model-endpoints) aufrufen: Die Organisation hat sie eingeschaltet, und der Schlüsselinhaber darf sie aufrufen. Inhaber, Admins und Entwickler dürfen das durch ihre Rolle, jedes andere Mitglied nur, solange eine `tale:models.api`-Zuweisung eines Admins gilt. Ohne dieses Recht antworten diese Routen mit `403 MODEL_API_DISABLED` oder `403 MODEL_API_FORBIDDEN` (Vertrag 3.6.0). |
 
 ## Was für jede Anfrage gilt
 
@@ -95,6 +96,7 @@ Sende JSON in UTF-8. Ungültiges UTF-8, NUL-Zeichen, ungepaarte UTF-16-Surrogate
 | --- | --- |
 | Normale JSON-Anfrage | 1 MiB |
 | Eingebetteter Dokumentinhalt | 32 MiB |
+| Anfrage an einen Modell-Endpunkt | 32 MiB |
 | Kontakt-Sammelimport | 8 MiB |
 | Konversations-Snapshot | 8 MiB |
 | Bereitgestellter Konversationsupload | 30 MiB |
@@ -235,6 +237,7 @@ Jede **201**, die eine adressierbare Ressource anlegt, trägt `Location` — den
 | Projekte | `/api/v1/projects/...`<br>Der Maschinenzugang für externe Worker: Projekte auflisten oder eines per externer ID nachschlagen, anlegen, archivieren und wiederherstellen, löschen; Ordner vorbereiten, Dateien hochladen, herunterladen und löschen, eine Datei sofort indexieren, Ordner löschen. |
 | Aufgaben | `/api/v1/projects/{id}/tasks/...`<br>Aufgaben aus externen Referenzen idempotent anlegen, Status lesen, Workflows starten (die Antwort nennt die `runId` zum Pollen), kommentieren und die Prüfung einer Aufgabe unter `GET .../review` lesen bzw. unter `POST .../review` für ein Mitglied entscheiden, jeweils im benannten Projekt. |
 | MCP | `POST /api/v1/mcp`<br>Der [MCP-Endpoint](/de/develop/mcp-endpoint) — derselbe Schlüssel, JSON-RPC statt REST. |
+| Modell-Endpunkte | `/api/v1/openai/...` und `/api/v1/anthropic/...`<br>OpenAI- und Anthropic-kompatible Aufrufe der Modelle der Organisation, ausgeschaltet, bis ein Admin sie einschaltet; siehe [Kompatible Modell-Endpunkte](#model-endpoints). |
 | Webhook-Trigger | `POST /api/projects/{id}/automations/webhook/{token}` oder `POST /api/automations/webhook/{token}`<br>Eine bereitgestellte Automatisierung per Token starten; [Webhooks](/de/develop/webhooks) erklärt URLs mit und ohne Projekt. |
 
 Automatisierungsdefinitionen bearbeitest du über den [MCP-Endpoint](/de/develop/mcp-endpoint) oder den Editor der App: Dort kannst du sie speichern, validieren, testen und bereitstellen. Diese REST-Oberfläche bietet dafür keine Routen. `tale deploy` veröffentlicht Deployment-Konfigurationen; der Befehl ist kein REST-Endpoint zum Bearbeiten von Definitionen.
@@ -865,6 +868,54 @@ Ein Modellfehler kann als Assistenten-Nachricht mit lesbarem `error` und, wenn v
 
 Wähl ein anderes Modell oder bring das Konto in Ordnung — Warten ändert nichts, und keiner von beiden ist ein `rate_limited`. Vor dem Öffnen des Turns prüft der Worker den angenommenen Thread und den Projektzugriff erneut. Wechselt der Thread während der Wartezeit das Projekt oder entfällt der Zugriff, führt er den Turn nicht aus und schreibt auch keine Fehlermeldung in den neuen Kontext.
 
+## Kompatible Modell-Endpunkte {#model-endpoints}
+
+Drei Routen beantworten die Schnittstellen von OpenAI und Anthropic für die Modelle der Organisation. So kann ein SDK oder ein Coding-Tool, das eine der beiden spricht, Tale als Modellanbieter verwenden (Vertrag 3.6.0). Sie sind ein reiner Zugang zum Modell: Die Anfrage geht an das Modell, das sie nennt, und die Antwort kommt so zurück, wie das Modell sie geschickt hat, ohne Assistent, Thread oder Tool von Tale dazwischen. Die Routen sind ausgeschaltet, bis ein Admin **Modell-Endpunkte für API-Schlüssel** einschaltet. Danach dürfen Inhaber, Admins und Entwickler sie aufrufen; jedes andere Mitglied braucht eine gültige `tale:models.api`-Zuweisung. [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor#model-endpoints) beschreibt die Einrichtung der Clients.
+
+| Route | Bedient |
+| --- | --- |
+| `POST /api/v1/openai/chat/completions` | OpenAI Chat Completions, als Server-Sent Events gestreamt oder vollständig beantwortet, mit Tools und `tool_calls`, Bildern und Dateien. Ein Stream endet mit `data: [DONE]`; den abschließenden Chunk mit dem Verbrauch gibt es nur, wenn `stream_options.include_usage` ihn anfordert. |
+| `GET /api/v1/openai/models` | Die Modell-IDs, die der Schlüsselinhaber aufrufen darf, als OpenAI-Liste: `owned_by` ist der Slug des Anbieters, `created` ist immer `0`. |
+| `POST /api/v1/anthropic/v1/messages` | Anthropic Messages, gestreamt oder vollständig, mit Tools, Bildern und Dokumenten. `anthropic-version` und `anthropic-beta` werden weitergereicht. |
+
+Die Authentifizierung ist dieselbe wie bei jeder anderen Operation: `Authorization: Bearer <key>` und, bei mehreren Mitgliedschaften, `X-Organization-Slug`. Die Routen teilen sich das allgemeine Ratenbudget und antworten wie alle anderen mit `X-Request-Id`. Sie ignorieren Query-Parameter, auch das `?beta=true` eines Anthropic-SDKs, und nehmen Bodys bis 32 MiB an. Tale liest die Felder, die es prüft, und reicht den Rest des Bodys unverändert weiter; die strengen Body- und Query-Regeln der übrigen Operationen gelten hier nicht.
+
+`model` hat an beiden Schnittstellen die Form `<providerSlug>/<modelId>`: der Slug des Anbieters, ein Schrägstrich und die ID des Modells im Katalog dieses Anbieters, etwa `openrouter/anthropic/claude-sonnet-4.6`. Da eine Katalog-ID Schrägstriche enthalten kann, ist der Anbieter der Teil vor dem ersten Schrägstrich. Antworten nennen die ID, die die Anfrage gesendet hat. Aufrufen darf der Schlüsselinhaber die Chatmodelle der Organisation, die Zugangsdaten mit API-Schlüssel oder Umgebungsvariable bereitstellen, eingeschränkt durch die erlaubten Modelle dieser Zugangsdaten und seinen Modellzugriff. Modelle hinter Abonnement-Zugangsdaten und Anbieter mit einem Endpunkt je Zugangsdaten-Eintrag, etwa Azure, werden nicht bedient. `GET /api/v1/models` nennt für jedes dieser Modelle Kontextfenster, Fähigkeiten und Preise, unter demselben `providerSlug` und derselben `id`.
+
+Jede Anfrage unterliegt dem Modellzugriff des Schlüsselinhabers, wird gegen jede Budgetgrenze geprüft, die für ihn, seine Teams, die Organisation und den Schlüssel gilt, und unter der Person und dem Schlüssel verbucht. Die Eingabe-Guardrails der Organisation prüfen ihren System- und Benutzertext, bevor sie weitergeht; die Antworten werden nicht gefiltert.
+
+### Eine Ablehnung im Format der Schnittstelle lesen
+
+Jede Ablehnung auf diesen Routen, auch die zu Authentifizierung, Organisation, Ratenlimit und Body-Größe, kommt im Fehlerformat der Schnittstelle, sodass ein SDK des Anbieters sie wie eine eigene liest. `code` enthält den stabilen Code von Tale. Auf den OpenAI-Routen:
+
+```json
+{ "error": { "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "type": "permission_error", "param": null, "code": "MODEL_API_DISABLED" } }
+```
+
+Auf der Anthropic-Route, die zusätzlich den Header `request-id` setzt:
+
+```json
+{ "type": "error", "error": { "type": "permission_error", "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "code": "MODEL_API_DISABLED" }, "request_id": "<X-Request-Id>" }
+```
+
+| Status | `code` | Bedeutung |
+| --- | --- | --- |
+| **403** | `MODEL_API_DISABLED` | Die Organisation hat die Endpunkte nicht eingeschaltet. |
+| **403** | `MODEL_API_FORBIDDEN` | Die Rolle des Schlüsselinhabers darf sie nicht aufrufen, und er hat keine gültige `tale:models.api`-Zuweisung. |
+| **403** | `MODEL_API_MODEL_FORBIDDEN` | Der Modellzugriff der Organisation sperrt das Modell für den Schlüsselinhaber. |
+| **404** | `MODEL_API_MODEL_UNKNOWN` | Kein Modell, das der Schlüsselinhaber aufrufen darf, hat diese ID; `GET /api/v1/openai/models` listet sie. |
+| **400** | `MODEL_API_VISION_UNSUPPORTED` | Die Anfrage enthält Bilder, und das Modell liest keine. |
+| **400** | `MODEL_API_TOOLS_UNSUPPORTED` | Die Anfrage bietet Tools an, und das Modell nimmt keine an. |
+| **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | Die Anfrage lässt ein Tool vom Modellanbieter selbst ausführen: bei OpenAI `web_search_options` oder ein Tool, dessen Typ nicht `function` oder `custom` ist; bei Anthropic Websuche, Web-Abruf, Codeausführung, ein MCP-Toolset, `mcp_servers` oder `container`. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | Eine Eingabe-Guardrail hat den System- oder Benutzertext blockiert; an das Modell wurde nichts gesendet. |
+| **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | Der PII-Schutz der Organisation tokenisiert, und das lässt sich bei einer weitergereichten Antwort nicht umsetzen. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | Ein Moderationsschritt ist unter einer Fail-closed-Richtlinie fehlgeschlagen. Versuche es später erneut. |
+| **429** | `BUDGET_EXCEEDED` | Eine Budgetgrenze, die für den Schlüsselinhaber oder den Schlüssel gilt, ist erreicht. Die Meldung nennt die Grenze, `Retry-After` die Zeit bis zum Zurücksetzen, und `x-should-retry: false` sagt den SDKs, dass sie es nicht erneut versuchen sollen. |
+| **503** | `MODEL_API_UNAVAILABLE` | Tale kann die Anfrage gerade nicht bedienen, etwa weil das Modell-Gateway das Modell nicht bereitstellen kann. Versuche es in Kürze erneut. |
+| **400**, **413**, **422**, **429**, **503**, **529** oder **502** | `MODEL_API_UPSTREAM_ERROR` | Der Modellanbieter hat die Anfrage abgelehnt. Die ersten sechs Status übernehmen den des Anbieters; jede andere Ablehnung wird mit **502** beantwortet. |
+| **400** | `INVALID_BODY` | Der Body ist keine Anfrage, die die Route weiterreichen kann, etwa mit einer Audioeingabe, einer Rolle, die sie nicht weiterreicht, oder einer Bild-URL, die weder `data:` noch `https:` ist. Die Meldung nennt das Feld, im OpenAI-Format auch `param`. |
+| **413** | `BODY_TOO_LARGE` | Der Body ist größer als 32 MiB. |
+
 ## Die Dateien eines Projekts durchsuchen
 
 Verwende die Projekt-URL, wenn alle Treffer aus einem Projekt stammen sollen. Die Suche erfasst ausschließlich dessen indexierte Dateien und verlangt Leserechte, auch bei einem archivierten Projekt. Dokumente der Wissensdatenbank oder von Teams, andere Projekte, Websites und E-Mail-Anhänge bleiben außen vor. Lass `corpus` weg oder setze es auf `"documents"`. Ein anderer Korpus oder `projectId` im Anfrageinhalt ergibt **400**.
@@ -1263,6 +1314,8 @@ Ablehnungen der API verwenden normalerweise dieses flache JSON-Format. Antworten
 { "error": "Automation not found", "code": "AUTOMATION_NOT_FOUND" }
 ```
 
+Die [kompatiblen Modell-Endpunkte](#model-endpoints) sind die Ausnahme: Unter `/api/v1/openai` und `/api/v1/anthropic` kommt jede Ablehnung, auch die zu Authentifizierung und Ratenlimit, im Fehlerformat von OpenAI oder Anthropic und trägt dort denselben `code`.
+
 `error` beschreibt das Problem für Menschen; `code` ist der stabile Wert für deine Programmlogik. Das OpenAPI-Schema `Error.code` enthält die bekannten Codes. Neue Codes können mit einem Minor-Release hinzukommen: Behandle unbekannte Werte anhand des HTTP-Status, statt die Antwort zurückzuweisen.
 
 Das optionale Feld `data` ergänzt strukturierte Angaben, etwa `issues` bei ungültigen Eingaben, `retryAfterMs` bei einem Rate-Limit oder `providers` bei einem mehrdeutigen Modell. Werte bekannte Codes gezielt aus und verwende den Status als Rückfall:
@@ -1332,4 +1385,4 @@ Veröffentlichte Versionshinweise findest du auf [GitHub Releases](https://githu
 
 ## Wo das hingehört
 
-Über den [MCP-Endpoint](/de/develop/mcp-endpoint) greifen MCP-Clients auf Tale zu und erstellen oder bearbeiten Automatisierungen. Die [Webhooks-Anleitung](/de/develop/webhooks) beschreibt eingehende Trigger, die Läufe ohne API-Schlüssel starten. Für die Arbeit mit Projekt-Agenten und Automatisierungen in der App führt dich der Bereich [Plattform](/de/platform) weiter. Wie du Tale in opencode, Claude Code oder ein Shell-Skript holst und was das OpenAI-kompatible `/api/v1/chat/completions` ersetzt, beschreibt [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor).
+Über den [MCP-Endpoint](/de/develop/mcp-endpoint) greifen MCP-Clients auf Tale zu und erstellen oder bearbeiten Automatisierungen. Die [Webhooks-Anleitung](/de/develop/webhooks) beschreibt eingehende Trigger, die Läufe ohne API-Schlüssel starten. Für die Arbeit mit Projekt-Agenten und Automatisierungen in der App führt dich der Bereich [Plattform](/de/platform) weiter. Wie du Tale in opencode, Claude Code oder ein Shell-Skript holst, als Modellanbieter über die [kompatiblen Modell-Endpunkte](#model-endpoints) oder als Quelle für Wissen und Tools, beschreibt [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor).

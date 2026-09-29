@@ -41,13 +41,13 @@ Automations, agents, skills, folders, models, browser sessions, versions, and tr
 
 ## Authentication
 
-Create keys in **Settings > API > REST** with Admin or Developer access; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
+Create keys in **Settings > API > REST** as an Owner, Admin, or Developer, or as a member an Admin granted **Call models over the API**; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
 
 | Header | Rule |
 | --- | --- |
 | `Authorization: Bearer <key>` | The only supported API-key location; preserve the whole opaque string, including its `tale` prefix |
 | `X-Organization-Slug: <slug>` | Select a current membership; always send it in reusable integrations |
-| `x-api-key` | Rejected with `401`, even beside a valid Bearer header; it cannot turn an API key into an app session |
+| `x-api-key` | Rejected with `401`, even beside a valid Bearer header; it cannot turn an API key into an app session. On the Anthropic-compatible [model endpoint](#model-endpoints), the refusal says to pass the key as an auth token instead: `ANTHROPIC_AUTH_TOKEN` for Claude Code, `authToken` or `auth_token` for the Anthropic SDKs, with `ANTHROPIC_API_KEY` unset (contract 3.6.0) |
 
 A user with exactly one organization can omit the organization header. With several memberships, every request needs it, including reads. The dashboard's selected organization never selects API scope. Slugs are matched without regard to case; blank or whitespace-only values count as absent.
 
@@ -71,6 +71,7 @@ Check both the role and the resource scope before offering an operation. Project
 | `notificationExport` | The key may export members’ notifications through `GET /api/v1/notifications/sync`. Owners and Admins have it through their role; any other member only while an Admin’s `tale:notifications.export` grant is live — see [Delegate the export without an Admin role](#delegate-the-export-without-an-admin-role). Without it, the export returns `403 ROLE_FORBIDDEN`. |
 | `skillPublish` | The key may share a skill with the whole organization through `PUT /api/v1/skills/{slug}`. Every member may while the organization has no skill sharing policy; under one, only the roles it admits and members holding a live `tale:skills.publish` grant — see [Save and synchronize skill bundles](#save-and-synchronize-skill-bundles). Without it, such a save returns `403 SKILL_PUBLISH_FORBIDDEN`. |
 | `actAs` | The key may name an `actor` — the verified member a relayed gesture is recorded for — on `POST …/runs/{runId}/asks/{askId}` and `POST …/tasks/{taskId}/review`. Owners and Admins have it through their role; any other member only while an Admin’s `tale:rest.act-as` grant is live — see [Name the member the gesture is for](#name-the-member-the-gesture-is-for). An `actor` sent without it returns `403 ROLE_FORBIDDEN`. |
+| `modelApi` | The key may call the [compatible model endpoints](#model-endpoints): the organization has turned them on, and the key holder may call them. Owners, Admins, and Developers may through their role; any other member only while an Admin's `tale:models.api` grant is live. Without it, those routes answer `403 MODEL_API_DISABLED` or `403 MODEL_API_FORBIDDEN` (contract 3.6.0). |
 
 ## What every request is held to
 
@@ -95,6 +96,7 @@ Send JSON encoded as UTF-8. Invalid UTF-8, NUL characters, unpaired UTF-16 surro
 | --- | --- |
 | Default JSON request | 1 MiB |
 | Inline document content | 32 MiB |
+| Model endpoint request | 32 MiB |
 | Contact bulk import | 8 MiB |
 | Conversation snapshot | 8 MiB |
 | Staged conversation upload | 30 MiB |
@@ -233,6 +235,7 @@ Automation authoring is separate from this REST surface. Use the [MCP endpoint](
 | Projects | `/api/v1/projects/...`<br>The machine endpoint for external workers: list projects or look one up by external id, create, archive and restore, delete; prepare folders, upload, download and delete files, index a file now, delete folders. |
 | Tasks | `/api/v1/projects/{id}/tasks/...`<br>Idempotent task creation from an external ref, state reads, workflow starts (answering the `runId` to poll), comments, and the task’s review — read at `GET .../review`, decided for a member at `POST .../review` — within the named project. |
 | MCP | `POST /api/v1/mcp`<br>The [MCP endpoint](/develop/mcp-endpoint) — same key, JSON-RPC instead of REST. |
+| Model endpoints | `/api/v1/openai/...` and `/api/v1/anthropic/...`<br>OpenAI- and Anthropic-compatible calls to the organization's models, off until an Admin turns them on; see [Compatible model endpoints](#model-endpoints). |
 | Webhook trigger | `POST /api/projects/{id}/automations/webhook/{token}` or `POST /api/automations/webhook/{token}`<br>Start a deployed automation using its token; the [Webhooks page](/develop/webhooks) covers project and non-project URLs. |
 
 ### Avoid overwriting a concurrent edit
@@ -838,6 +841,54 @@ A model failure can appear as an assistant message with readable `error` text an
 
 Pick another model or fix the account — waiting changes nothing, and neither is a `rate_limited`. The worker rechecks the accepted thread and project access before opening the turn. If the thread moves projects or access is lost while the request waits, it does not run or append an error in the new scope.
 
+## Compatible model endpoints {#model-endpoints}
+
+Three routes answer the OpenAI and Anthropic interfaces for the organization's models, so an SDK or a coding tool that speaks either one can use Tale as its model provider (contract 3.6.0). They are a bare model door: the request goes to the model it names and the answer comes back as the model sent it, with no assistant, thread, or Tale tool in between. They are off until an Admin turns on **Model endpoints for API keys**. Owners, Admins, and Developers may then call them; any other member needs a live `tale:models.api` grant. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor#model-endpoints) covers client setup.
+
+| Route | Serves |
+| --- | --- |
+| `POST /api/v1/openai/chat/completions` | OpenAI Chat Completions, streamed as server-sent events or answered whole, with tools and `tool_calls`, images, and files. A stream ends with `data: [DONE]`; its closing usage chunk comes only when `stream_options.include_usage` asks for it. |
+| `GET /api/v1/openai/models` | The model ids the key holder may call, as an OpenAI list: `owned_by` is the provider slug, and `created` is always `0`. |
+| `POST /api/v1/anthropic/v1/messages` | Anthropic Messages, streamed or whole, with tools, images, and documents. `anthropic-version` and `anthropic-beta` are passed on. |
+
+Authentication is the same as on every other operation: `Authorization: Bearer <key>` and, for a key holder with several memberships, `X-Organization-Slug`. The routes share the general rate budget and answer with `X-Request-Id` like any other. They ignore query parameters, an Anthropic SDK's `?beta=true` included, and take bodies up to 32 MiB. Tale reads the fields it governs and relays the rest of the body as sent, so the strict body and query rules of the other operations do not apply here.
+
+`model` is `<providerSlug>/<modelId>` on both interfaces: the provider's slug, a slash, and the model's id in that provider's catalog, such as `openrouter/anthropic/claude-sonnet-4.6`. Because a catalog id can contain slashes, the provider is the part before the first slash. Answers name the id the request sent. The key holder may call the organization's chat models that a credential with an API key or an environment variable serves, narrowed by the credential's model allowlist and the holder's model access; models behind a subscription credential and providers with an endpoint per credential, such as Azure, are not served. `GET /api/v1/models` gives each of these models' context window, capabilities, and prices under the same `providerSlug` and `id`.
+
+Every request is held to the key holder's model access, checked against every budget cap that binds the holder, their teams, the organization, and the key, and booked under the person and the key. The organization's input guardrails judge its system and user text before it is relayed; the answers are not filtered.
+
+### Read a refusal in the interface's shape
+
+Every refusal on these routes, the authentication, organization, rate-limit, and body-size refusals included, comes in the error shape of the interface, so a vendor SDK reads it as its own. `code` carries Tale's stable code. On the OpenAI routes:
+
+```json
+{ "error": { "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "type": "permission_error", "param": null, "code": "MODEL_API_DISABLED" } }
+```
+
+On the Anthropic route, which also sets a `request-id` header:
+
+```json
+{ "type": "error", "error": { "type": "permission_error", "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "code": "MODEL_API_DISABLED" }, "request_id": "<X-Request-Id>" }
+```
+
+| Status | `code` | Meaning |
+| --- | --- | --- |
+| **403** | `MODEL_API_DISABLED` | The organization has not turned the endpoints on. |
+| **403** | `MODEL_API_FORBIDDEN` | The key holder's role cannot call them, and the holder has no live `tale:models.api` grant. |
+| **403** | `MODEL_API_MODEL_FORBIDDEN` | The organization's model access blocks the model for the key holder. |
+| **404** | `MODEL_API_MODEL_UNKNOWN` | No model the key holder may call has this id; `GET /api/v1/openai/models` lists them. |
+| **400** | `MODEL_API_VISION_UNSUPPORTED` | The request carries images, and the model does not read them. |
+| **400** | `MODEL_API_TOOLS_UNSUPPORTED` | The request offers tools, and the model takes none. |
+| **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | The request asks the model vendor to run a tool: OpenAI `web_search_options` or a tool whose type is not `function` or `custom`; Anthropic web search, web fetch, code execution, an MCP toolset, `mcp_servers`, or `container`. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | An input guardrail blocked the system or user text; nothing was sent to the model. |
+| **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | The organization's PII protection tokenizes, which a relayed answer cannot honour. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | A moderation step failed under a fail-closed policy. Retry later. |
+| **429** | `BUDGET_EXCEEDED` | A budget cap that binds the key holder or the key is reached. The message names the cap, `Retry-After` names the time until it resets, and `x-should-retry: false` tells the SDKs not to retry. |
+| **503** | `MODEL_API_UNAVAILABLE` | Tale cannot serve the request right now, for example because the model gateway cannot serve the model. Retry shortly. |
+| **400**, **413**, **422**, **429**, **503**, **529**, or **502** | `MODEL_API_UPSTREAM_ERROR` | The model vendor refused the request. The first six keep the vendor's status; any other refusal is answered as **502**. |
+| **400** | `INVALID_BODY` | The body is not a request the route can relay, such as audio input, a role it does not relay, or an image URL that is neither `data:` nor `https:`. The message names the field, and so does `param` on the OpenAI shape. |
+| **413** | `BODY_TOO_LARGE` | The body is over 32 MiB. |
+
 ## Search a project's files
 
 Use the project search URL when results must come from one project. It searches only that project's indexed files and requires read access, including for an archived project. Hub or team documents, other projects, websites and email attachments are outside this search. Omit `corpus` or set it to `"documents"`; any other corpus or a `projectId` body field returns **400**.
@@ -1202,6 +1253,8 @@ API refusals normally use a flat JSON envelope. A conditional `304`, a `HEAD` re
 { "error": "Automation not found", "code": "AUTOMATION_NOT_FOUND" }
 ```
 
+The [compatible model endpoints](#model-endpoints) are the exception: under `/api/v1/openai` and `/api/v1/anthropic`, every refusal, the authentication and rate-limit ones included, takes the OpenAI or Anthropic error shape and carries the same `code` there.
+
 `error` is a sentence for humans; `code` is the stable value to branch on — every refusal the API itself makes carries one, and the OpenAPI document lists the full set as the `Error.code` enum. The set is additive: a new code is a minor change, so treat a value you do not know as a generic refusal of the status you got. Some refusals add `data` — `issues` for a refused body, `retryAfterMs` for a rate limit, `providers` for an ambiguous model. Branch on the code where one is named below, on the status otherwise:
 
 Read the exact error enum without a key:
@@ -1265,4 +1318,4 @@ A few endpoints live outside that document on purpose: `GET /api/health` is the 
 
 ## Where this fits
 
-This page is the REST half of the outside surface. The [MCP endpoint](/develop/mcp-endpoint) exposes the same platform to MCP clients — automation authoring lives there, not in REST. The [Webhooks page](/develop/webhooks) covers the inbound trigger that starts runs without a key. If you are building inside the product — project agents, automations — the [Platform tab](/platform) is your day-to-day; this page is for outside. To bring Tale into opencode, Claude Code, or a shell script, and for what replaced the OpenAI-compatible `/api/v1/chat/completions`, read [Use Tale from your editor or a script](/develop/use-tale-from-your-editor).
+This page is the REST half of the outside surface. The [MCP endpoint](/develop/mcp-endpoint) exposes the same platform to MCP clients — automation authoring lives there, not in REST. The [Webhooks page](/develop/webhooks) covers the inbound trigger that starts runs without a key. If you are building inside the product — project agents, automations — the [Platform tab](/platform) is your day-to-day; this page is for outside. To bring Tale into opencode, Claude Code, or a shell script, as their model provider through the [compatible model endpoints](#model-endpoints) or as a source of knowledge and tools, read [Use Tale from your editor or a script](/develop/use-tale-from-your-editor).

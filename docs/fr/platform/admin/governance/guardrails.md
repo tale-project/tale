@@ -47,6 +47,17 @@ Décide du comportement si le fournisseur est indisponible : fail-open laisse pa
 
 Les instructions personnalisées de l’organisation sont ajoutées avant celles de l’assistant de chat et avant les instructions propres de chaque agent : les agents de projet qui traitent des tâches et les nœuds agent des automatisations. Les membres ne peuvent pas modifier cette règle d’organisation. Utilise-les pour le comportement et le vocabulaire communs. Pour les restrictions à imposer indépendamment du respect d’un texte par le modèle, utilise les règles d’accès et les filtres.
 
+## Les garde-fous sur les endpoints de modèles {#model-endpoints}
+
+Quand ton organisation active les [endpoints de modèles pour les clés API](/fr/platform/admin/governance/content-models#model-endpoints), le côté entrée de ces garde-fous examine aussi chaque requête qui leur est envoyée. La sécurité du contenu, la protection PII et le fournisseur de modération lisent le texte système et le texte utilisateur de la requête avant que Tale la transmette au modèle :
+
+- Un blocage refuse la requête avec `400 MODEL_API_GUARDRAIL_BLOCKED`, et rien n’atteint le modèle.
+- Un masquage remplace la correspondance, et le modèle reçoit le texte masqué.
+- La tokenisation ne peut pas être respectée, car Tale relaie la réponse du modèle telle quelle et ne peut pas y restaurer les valeurs. Tant que la protection PII est active en mode **Tokeniser**, chaque requête est refusée avec `403 MODEL_API_GUARDRAIL_UNSUPPORTED` ; choisis **Masquer** ou **Bloquer** si des membres utilisent les endpoints de modèles.
+- Si un fournisseur de modération échoue en fail-closed, Tale refuse la requête avec `503 MODEL_API_GUARDRAIL_UNAVAILABLE`.
+
+Rien d’autre n’y est filtré : les règles qui vérifient la **Sortie modèle** ne s’appliquent pas, et les réponses du modèle, en flux ou non, les tours d’assistant et les résultats d’outils que porte une requête, ainsi que ses images et documents, passent sans contrôle. Tale n’ajoute pas non plus d’instructions personnalisées : le modèle reçoit la requête telle que l’outil de l’appelant l’a envoyée. Les détections apparaissent dans **Événements récents** comme celles du chat, chacune enregistrée sous `model-api:` suivi du `X-Request-Id` de la requête, celui que l’appelant a reçu. Comme les outils renvoient toute la conversation à chaque requête, Tale réutilise son verdict sur un texte examiné dans les dernières minutes et n’enregistre une détection qu’une fois, pas à chaque renvoi.
+
 ## Examiner et ajuster
 
 Les événements récents affichent les 50 dernières détections, blocages et erreurs fournisseur. Filtre par couche ou résultat et examine la catégorie, la direction et la date. Le texte brut détecté n’est pas conservé dans ces événements : la ligne explique la détection sans reproduire la valeur sensible.

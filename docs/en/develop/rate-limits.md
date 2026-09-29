@@ -13,7 +13,7 @@ A token bucket refills continuously up to its burst capacity. A short batch can 
 
 | Traffic | Sustained rate | Burst | Budget owner |
 | --- | --- | --- | --- |
-| General `/api/v1` traffic, including MCP | 120/minute | 200 | Key holder |
+| General `/api/v1` traffic, including MCP and the model endpoints | 120/minute | 200 | Key holder |
 | Run starts, model-message sends and task starts | 20/minute | 40 | Key holder |
 | Project upload handoff and file binding | 240/minute | 300 | Key holder |
 | Failed API-key authentication | 20/minute | 40 | Source IP |
@@ -25,6 +25,8 @@ REST execution and upload requests also consume the general budget. For example,
 Execution includes project and non-project automation starts, thread-message sends and explicit task starts. Task intake also consumes the execution budget when `runWorkflowSlug` is supplied. A starting-work request is charged once its body and headers have passed the endpoint's own checks — a `400 INVALID_BODY` or `INVALID_HEADER` spends nothing — and before anything is looked up, so a `404` for a thread, task or automation you cannot see costs a token, as does a `409` the state answers. Some mutations, such as task comments and folder changes, have additional domain budgets shared with the app.
 
 MCP batches have their own accounting: additional tool calls consume additional request budget. See [MCP endpoint](/develop/mcp-endpoint) for the difference between an HTTP `429` and a refused message inside a batch. Webhook budgets are separate from API-key traffic; both sender and trigger limits must allow a delivery.
+
+Calls to the [model endpoints](/develop/api-reference#model-endpoints) under `/api/v1/openai` and `/api/v1/anthropic` count against the general budget only, one request each, streamed or not; what a call may spend is capped separately by budget rules.
 
 The execution bucket limits how quickly messages are accepted, not how many turns run at once. Accepted chat messages share a deployment-wide queue across organizations and keys. Each worker batch runs up to `WORKER_CONCURRENCY` turns, 5 by default; the next batch waits for the current one to settle. A successful send can therefore wait behind other clients’ work. Queue position and estimated start time are not exposed.
 
@@ -52,7 +54,7 @@ Branch on `code`; `error` is a sentence describing the wait, and `requestId` ide
 3. Retry with a bounded exponential delay and jitter when refusals continue. For example, grow a delay from one second up to sixty seconds, always honoring a longer server-provided wait.
 4. Preserve the original idempotency key for operations that support one. A timeout after a run start may mean the run was already accepted.
 
-A spending cap answers `429` too, with `code` `BUDGET_EXCEEDED`: a budget rule that applies to the key holder — their own, a team’s, the organization’s, or the API key’s — has been reached. A short wait does not help. `Retry-After` names the time until the cap’s period resets, and `data` names the cap: `scope`, `period`, `limitCode`, `used`, `limit`, and `resetsAt` in epoch milliseconds. Nothing is queued; pause the work until `resetsAt`, or ask an administrator to raise the limit under [Policies & Limits](/platform/admin/governance/policies-and-limits).
+A spending cap answers `429` too, with `code` `BUDGET_EXCEEDED`: a budget rule that applies to the key holder — their own, a team’s, the organization’s, or the API key’s — has been reached. A short wait does not help. `Retry-After` names the time until the cap’s period resets, and `data` names the cap: `scope`, `period`, `limitCode`, `used`, `limit`, and `resetsAt` in epoch milliseconds. Nothing is queued; pause the work until `resetsAt`, or ask an administrator to raise the limit under [Policies & Limits](/platform/admin/governance/policies-and-limits). On the model endpoints, both 429s come in the OpenAI or Anthropic error shape with the same `code` and `Retry-After`. A spent budget names its cap in the message there instead of in `data`, and carries `x-should-retry: false` so the vendors' SDKs do not retry it on their own.
 
 Other `4xx` responses usually need a corrected request, credential or permission. Do not treat every failure as a rate limit; use the [error model](/develop/api-reference#error-model).
 
