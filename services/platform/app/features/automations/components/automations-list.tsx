@@ -39,6 +39,7 @@ import {
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
 import { automationListTarget } from '../lib/list-target';
+import { isListedForViewer } from '../lib/reader-listing';
 import { AutomationRowActions } from './automation-row-actions';
 import { BlankAutomationDialog } from './blank-automation-dialog';
 import { UploadAutomationDialog } from './upload-automation-dialog';
@@ -107,12 +108,7 @@ export function AutomationsList({
     // deployed automations only, not the drafts and undeployed packages
     // they could neither edit nor start.
     const listed = [...(automationsQuery.data ?? [])]
-      .filter(
-        (automation) =>
-          canAuthor ||
-          ('deployedVersion' in automation &&
-            automation.deployedVersion !== undefined),
-      )
+      .filter((automation) => isListedForViewer(automation, canAuthor))
       .sort((a, b) => a.name.localeCompare(b.name));
     return listed.map((automation) => {
       const icon = automationDisplayIcon(automation.presentation);

@@ -577,6 +577,10 @@ output:
       `automations.list.emptyReader.description`. An Owner, Admin or Developer
       in the same organization sees every automation, and an empty list tells
       them `automations.list.empty.description` (use **Create automation**).
+      In a project whose only bound automation is an undeployed draft, the
+      Member's project tab strip has no **Automations** tab while the author's
+      does; once that automation is deployed the tab appears for the Member
+      and lists it.
 
 ## Boundary & error tests
 
