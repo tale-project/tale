@@ -139,7 +139,7 @@ export function SkillDetailPane({
     form.metadata.labels !== savedForm.metadata.labels;
   const labelsInvalid =
     labelsChanged && labelsProblem(form.metadata.labels) !== null;
-  const retryFocus = useRetryFocus(read.status);
+  const retryFocus = useRetryFocus(read.status, slug);
   const retry = () => {
     retryFocus.arm();
     void skillQuery.refetch();

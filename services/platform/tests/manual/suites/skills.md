@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 34 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 35 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) that project agents and automation agent nodes are equipped with; chat
@@ -348,6 +348,15 @@ builtin skill from `configs/platform/custom/skills/`.
   collapsed folder, not past the tree; ArrowRight opens it and the arrows and
   Enter select the other file; the reopened dialog's tree takes Tab on
   `SKILL.md`.
+- [ ] `SKILL-A5` · **Try again keeps focus where it belongs** — Block a
+  bundle file's `/assets/<path>` request as in SKILL-B7 and open that file;
+  move to **Try again** (`common.actions.tryAgain`) and press Enter, then
+  move focus into the **Bundle** tree (Tab, or a click on a folder) while it
+  waits; press Try again again and this time leave focus alone; press it once
+  more and open another file from the tree while it waits → The first
+  failure leaves focus on the tree row you moved to; the second puts it on
+  the new **Try again**; the other file's failed read never moves focus off
+  its tree row.
 
 ## Performance
 

@@ -120,7 +120,7 @@ export function SkillAssetViewer({
   const notFound = read.status === 'ready' && read.data === null;
   const refreshFailed =
     read.status === 'ready' && read.data !== null && read.refreshFailed;
-  const retryFocus = useRetryFocus(read.status);
+  const retryFocus = useRetryFocus(read.status, assetPath);
   const retry = () => {
     retryFocus.arm();
     void assetQuery.refetch();
