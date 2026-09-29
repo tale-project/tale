@@ -142,6 +142,7 @@ interface RagCandidate {
   orgId: string;
   storageRef: string;
   ragStatus: string;
+  ragError: string | null;
 }
 
 /** What a sweep did, summed across its organizations. */
@@ -214,9 +215,12 @@ async function readCorpusStatuses(
  *    reach the lists;
  *  - any other fault in one org (its slug read) defers that org alone, and
  *    the orgs after it are still swept;
- *  - a recent `failed` row is reconciled too, so a false failure heals;
+ *  - a recent `failed` row is reconciled too, so a false failure heals —
+ *    but only after every stuck row: one limit covers both kinds, and a
+ *    stuck row is what the sweep exists for;
  *  - an already-failed row is never overwritten with the generic interrupted
- *    text — its real error is the more useful one.
+ *    text — its real error is the more useful one — and one that already
+ *    reads the corpus's error is left exactly as it is.
  *
  * Every write here moves a status the document list renders, so each
  * organization's lists hear the sweep once — and only for rows a document
@@ -230,9 +234,13 @@ export async function recoverStuckRagIndexing(
   const staleMs = options.staleMs ?? RAG_STALE_AFTER_MS;
   const staleBefore = Date.now() - staleMs;
   const failedAfter = Date.now() - RAG_FAILED_RECONCILE_WINDOW_MS;
+  // The stuck rows first, then the failed ones, each oldest first, as 0.4
+  // read them. Ranked by queue time alone, the failed rows of the last two
+  // days sorted ahead of every row that got stuck after them, and two
+  // hundred of them filled the batch: those rows were never reached.
   const candidates = await sql<RagCandidate[]>`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
-           rag_status AS "ragStatus"
+           rag_status AS "ragStatus", rag_error AS "ragError"
     FROM app.file_metadata
     WHERE storage_ref IS NOT NULL
       AND (
@@ -241,7 +249,7 @@ export async function recoverStuckRagIndexing(
         OR (rag_status = 'failed'
           AND coalesce(status_changed_at_ms, created_at_ms) > ${failedAfter})
       )
-    ORDER BY coalesce(rag_queued_at_ms, created_at_ms)
+    ORDER BY (rag_status = 'failed'), coalesce(rag_queued_at_ms, created_at_ms)
     LIMIT ${options.limit ?? RAG_MAX_PER_RUN}
   `;
   if (candidates.length === 0) return { adopted: 0, failed: 0, revived: 0 };
@@ -396,16 +404,35 @@ async function settleRagRow(
     return { moved, counts: 'adopted' };
   }
   if (status?.status === 'failed') {
-    // The corpus knows the REAL error; refresh the row with it.
+    if (row.ragStatus !== 'failed') {
+      // The corpus knows the REAL error; the generic text stands in only
+      // for none.
+      const moved = await sql<{ id: string }[]>`
+        UPDATE app.file_metadata SET
+          rag_status = 'failed',
+          rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
+          status_changed_at_ms = ${now}
+        WHERE id = ${row.id}
+        RETURNING id
+      `;
+      return { moved, counts: 'failed' };
+    }
+    // Already failed: the corpus's error replaces the row's. Without one the
+    // row keeps its own — a secret scan's refusal records none on the corpus
+    // — and only a row with none either takes the generic text.
+    const error = status.error ?? row.ragError ?? RAG_INTERRUPTED_MESSAGE;
+    // Settled once the row reads that error, and left as it is. Writing it
+    // again moved `status_changed_at_ms`, the clock of the failed window, so
+    // the row never left the window: it was rewritten, and its lists told, on
+    // every tick. Another text is corrected in place — the status has not
+    // changed, so neither does its clock.
+    if (row.ragError === error) return null;
     const moved = await sql<{ id: string }[]>`
-      UPDATE app.file_metadata SET
-        rag_status = 'failed',
-        rag_error = ${status.error ?? RAG_INTERRUPTED_MESSAGE},
-        status_changed_at_ms = ${now}
-      WHERE id = ${row.id}
+      UPDATE app.file_metadata SET rag_error = ${error}
+      WHERE id = ${row.id} AND rag_status = 'failed'
       RETURNING id
     `;
-    return { moved, counts: row.ragStatus === 'failed' ? null : 'failed' };
+    return { moved, counts: null };
   }
   if (status?.status === 'processing') {
     const updatedAt =
