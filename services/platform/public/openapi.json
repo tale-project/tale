@@ -2,12 +2,12 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.5.0",
+    "version": "3.7.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
     },
-    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). Each of the three refusals lists the slugs you may\nsend under `data.organizations`; `GET /api/v1/me` lists them too, as its\ntop-level `organizations`. The slug is matched without regard to case; a\nblank or whitespace-only header reads as absent.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation. Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}`. Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a 503\n`DATABASE_UNAVAILABLE`, a body-size 413 and a URL-size 414 add\n`requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\nUTF-16 code units`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON), `DATABASE_UNAVAILABLE` (503 with `Retry-After`, answered\nby the platform while its database restarts or cannot be reached — retry\nwith backoff) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{conversations, …}`, `{comments, …}`,\n  `{projects, …}`, `{files, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`, `{teams}`; search answers `{hits, diagnostics}`.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA 429 carries `Retry-After` in whole seconds.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). Each of the three refusals lists the slugs you may\nsend under `data.organizations`; `GET /api/v1/me` lists them too, as its\ntop-level `organizations`. The slug is matched without regard to case; a\nblank or whitespace-only header reads as absent.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. The\ncompatible model endpoints are the exception — see below: they relay the\nvendors' own bodies (a NUL included) and ignore query parameters. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation (a compatible model endpoint asked for `stream: true`\nanswers `text/event-stream`). Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}` — except on the compatible model endpoints, which answer every\nrefusal, the door's own included, in their vendor wire's shape with the same\n`code` (see below). Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a 503\n`DATABASE_UNAVAILABLE`, a body-size 413 and a URL-size 414 add\n`requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\nUTF-16 code units`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON), `DATABASE_UNAVAILABLE` (503 with `Retry-After`, answered\nby the platform while its database restarts or cannot be reached — retry\nwith backoff) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{conversations, …}`, `{comments, …}`,\n  `{projects, …}`, `{files, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`, `{teams}`; search answers `{hits, diagnostics}`; the\n  OpenAI-compatible model list answers `{data, object}` in OpenAI's shape.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA call to a compatible model endpoint draws from the reads bucket like any\nother request. A 429 carries `Retry-After` in whole seconds.\n\n## Compatible model endpoints\n\nThe organization's approved models, callable from a key holder's own tools\nover the two wires those tools already speak — so an OpenAI SDK, opencode,\nan Anthropic SDK or Claude Code uses Tale as its model provider:\n\n- **OpenAI** — base URL `https://<host>/api/v1/openai`:\n  `POST /chat/completions` (streamed or not, with tools and images) and\n  `GET /models`.\n- **Anthropic** — base URL `https://<host>/api/v1/anthropic`:\n  `POST /v1/messages` (streamed or not, with tools and images). Claude Code\n  takes it as `ANTHROPIC_BASE_URL`, the key as `ANTHROPIC_AUTH_TOKEN`\n  (an SDK: `authToken`), and the organization header, when the key needs\n  one, in `ANTHROPIC_CUSTOM_HEADERS`; leave `ANTHROPIC_API_KEY` unset, since\n  the `x-api-key` it sends is refused.\n\nBoth sit inside this door — the same Bearer key, `X-Organization-Slug`,\nrequest budget and `X-Request-Id` — and both are governed: an organization\nturns them on in its model access policy (off until then: 403\n`MODEL_API_DISABLED`); owners, administrators and developers may call them,\nany other member only with a live `tale:models.api` grant (403\n`MODEL_API_FORBIDDEN`; `capabilities.modelApi` on `GET /api/v1/me`\nanswers both gates). A model id is `<provider>/<model>` — the connector's\nslug and the model's id in its catalog — on both wires, and only a model the\nkey holder's model access and the provider credential's allowlist admit\nanswers (403 `MODEL_API_MODEL_FORBIDDEN`, 404 `MODEL_API_MODEL_UNKNOWN`).\nThe organization's input guardrails judge every text the caller wrote into\nthe request — every role, tool calls and results, tool definitions — before a\ncall (400 `MODEL_API_GUARDRAIL_BLOCKED`; a mask rewrites what the model\nreceives; 403 `MODEL_API_GUARDRAIL_UNSUPPORTED` for a PII policy that\ntokenizes; 503 `MODEL_API_GUARDRAIL_UNAVAILABLE` when a fail-closed step\ncannot judge or a policy cannot be read; 413 `MODEL_API_TEXT_TOO_LARGE`\npast 2 MB of text) — the answer is relayed unfiltered. A call's worst case\nis held whole against every budget that binds the key holder, their teams,\nthe organization and the key (429 `BUDGET_EXCEEDED` with `Retry-After`,\nnaming the output cap that would fit when the worst case does not), at most\n8 calls of a key holder or a key run at once (429\n`MODEL_API_CONCURRENCY_EXCEEDED`), and its spend is booked under the person\nand the key. A tool the vendor would\nrun (400 `MODEL_API_VENDOR_TOOL_UNSUPPORTED`), images for a model without\nvision (400 `MODEL_API_VISION_UNSUPPORTED`) and tools for a model without\nthem (400 `MODEL_API_TOOLS_UNSUPPORTED`) are refused before the call; a\ngateway that cannot serve the model answers 503 `MODEL_API_UNAVAILABLE`,\nand a vendor's own refusal is relayed as `MODEL_API_UPSTREAM_ERROR`.\nBodies and answers are the vendors' own shapes, and so is every refusal:\nOpenAI `{\"error\": {\"message\", \"type\", \"param\", \"code\"}}`, Anthropic\n`{\"type\": \"error\", \"error\": {\"type\", \"message\", \"code\"}, \"request_id\"}`.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
   },
   "servers": [
     {
@@ -86,6 +86,10 @@
     {
       "name": "MCP",
       "description": "The platform MCP endpoint (JSON-RPC over HTTP)."
+    },
+    {
+      "name": "Model endpoints",
+      "description": "The organization’s approved models over two vendor wires — OpenAI Chat Completions under `/api/v1/openai` and Anthropic Messages under `/api/v1/anthropic` — for the OpenAI and Anthropic SDKs, opencode and Claude Code. Off until an administrator turns them on; governed and metered like chat. Bodies, answers and refusals are the vendors’ own shapes (see “Compatible model endpoints” above)."
     },
     {
       "name": "Conversations",
@@ -449,7 +453,7 @@
       "get": {
         "tags": ["Organization"],
         "summary": "Who this key acts as",
-        "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — every organization the holder belongs to, and `capabilities`: the gates a deployment knob or a grant decides rather than the role alone (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` and `DELETE /api/v1/browser-sessions/{id}` would pass their gate; `notificationExport` — whether `GET /api/v1/notifications/sync` would, by role or through a `tale:notifications.export` grant; `skillPublish` — whether a `PUT /api/v1/skills/{slug}` that shares a skill with the whole organization would, under the organization’s skill sharing policy, by role or through a `tale:skills.publish` grant). `key` names the API key that made the request — its `name` and its `expiresAt` (epoch ms, `null` for a key minted to never expire) — so an unattended caller can rotate before the 401. Keys are minted, rotated and revoked in the app (Settings > API > REST): no operation on this surface creates, lists or revokes one.",
+        "description": "The key holder, the organization this request resolved to — its `slug` is the `X-Organization-Slug` value a multi-organization key sends — every organization the holder belongs to, and `capabilities`: the gates a deployment knob or a grant decides rather than the role alone (`deploymentEditor` — whether `POST /api/v1/browser-sessions/import` and `DELETE /api/v1/browser-sessions/{id}` would pass their gate; `notificationExport` — whether `GET /api/v1/notifications/sync` would, by role or through a `tale:notifications.export` grant; `skillPublish` — whether a `PUT /api/v1/skills/{slug}` that shares a skill with the whole organization would, under the organization’s skill sharing policy, by role or through a `tale:skills.publish` grant; `modelApi` — whether the compatible model endpoints would serve the key holder, the organization having turned them on and the role or a `tale:models.api` grant admitting them). `key` names the API key that made the request — its `name` and its `expiresAt` (epoch ms, `null` for a key minted to never expire) — so an unattended caller can rotate before the 401. Keys are minted, rotated and revoked in the app (Settings > API > REST): no operation on this surface creates, lists or revokes one.",
         "operationId": "getMe",
         "security": [
           {
@@ -17707,7 +17711,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Create a project task from an external ref (idempotent)",
-        "description": "Uses the project in the URL and requires project write access. The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200) — both keys are compared after NFC normalization and trimming, the form they are stored in, so a padded or differently normalized repeat is still the same task. An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 `AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee without replacing an existing one. `runWorkflowSlug` starts only a freshly created task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). An undeployed workflow or a start failure after the task committed returns `runId` null. An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body. `setupFolderName` binds the task to a root folder of the project by name (matched without regard to case): that folder’s id is stored as the task’s `externalUrl` — the Setup-folder binding a folder-driven automation reads off its task input — on the create and again on every repeat. It cannot be sent beside `externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.",
+        "description": "Uses the project in the URL. Every member who can read an active project may create a task through it, Members included; a repeat changes the task it names, so it takes that task’s work gate — an editor of the project (the Editor role or higher), or the member who created the task or is its person assignee (403 `RBAC_FORBIDDEN` otherwise, nothing written). The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200) — both keys are compared after NFC normalization and trimming, the form they are stored in, so a padded or differently normalized repeat is still the same task. An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 `AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee without replacing an existing one. A member who is not an editor of the project may name, in `automationSlug` and `runWorkflowSlug`, only an automation built for tasks (one whose deployed version declares a task contract) or the automation that already owns the task — 403 `RBAC_FORBIDDEN` otherwise, nothing written. `runWorkflowSlug` starts only a freshly created task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). An undeployed workflow or a start failure after the task committed returns `runId` null. An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body. `setupFolderName` binds the task to a root folder of the project by name (matched without regard to case): that folder’s id is stored as the task’s `externalUrl` — the Setup-folder binding a folder-driven automation reads off its task input — on the create and again on every repeat. It cannot be sent beside `externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.",
         "operationId": "createTask",
         "security": [
           {
@@ -17783,7 +17787,7 @@
                       "maxLength": 50
                     },
                     "maxItems": 50,
-                    "description": "Names resolved against the project label catalog (created when missing); trimmed and NFC-normalized, never blank, matched without regard to case — the catalog keeps the spelling a label was first created with, and two names differing only in case are one label. Read back as stored, in the order sent."
+                    "description": "Names resolved against the project label catalog (created when missing for an editor of the project; any other key holder names labels the catalog has — 400 `TASK_LABEL_UNKNOWN` otherwise, nothing written); trimmed and NFC-normalized, never blank, matched without regard to case — the catalog keeps the spelling a label was first created with, and two names differing only in case are one label. Read back as stored, in the order sent."
                   },
                   "externalUrl": {
                     "type": "string",
@@ -17860,7 +17864,7 @@
             }
           },
           "400": {
-            "description": "Malformed body (`INVALID_BODY` — `setupFolderName` beside `externalUrl` included), or `setupFolderName` names no root folder of this project (`SETUP_FOLDER_MISSING`)",
+            "description": "Malformed body (`INVALID_BODY` — `setupFolderName` beside `externalUrl` included), `setupFolderName` names no root folder of this project (`SETUP_FOLDER_MISSING`), or a key holder who is not the project’s editor names a label its catalog lacks (`TASK_LABEL_UNKNOWN`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -17899,7 +17903,7 @@
             }
           },
           "403": {
-            "description": "Project is read-only or archived, or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "Project is archived (`PROJECT_ARCHIVED`), a repeat names a task the key holder may not change, or a member names an automation not built for tasks (`RBAC_FORBIDDEN`), or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -18313,7 +18317,7 @@
       "patch": {
         "tags": ["Tasks"],
         "summary": "Archive or restore a project task",
-        "description": "The task’s lifecycle toggle — the one verb the board had and this door did not. `archived: true` archives the task: it stays readable through this door and refuses comments and starts with 403 `TASK_ARCHIVED`; `false` restores it. Both are idempotent — a task already in the requested state is left unchanged — so a mirror that supersedes a task (a re-delivery that opened a new one, a cancelled source record) can retire the old one without reading it first. Requires write access to an ACTIVE project (403 `PROJECT_ARCHIVED` / `RBAC_FORBIDDEN` otherwise); the task itself may be archived, which is what the restore is for. The task must belong to the URL project (404 `TASK_NOT_FOUND`). Answers the task as it now stands.",
+        "description": "The task’s lifecycle toggle — the one verb the board had and this door did not. `archived: true` archives the task: it stays readable through this door and refuses comments and starts with 403 `TASK_ARCHIVED`; `false` restores it. Both are idempotent — a task already in the requested state is left unchanged — so a mirror that supersedes a task (a re-delivery that opened a new one, a cancelled source record) can retire the old one without reading it first. Requires an ACTIVE project and the task’s work gate — an editor of the project, or the member who created the task or is its person assignee (403 `PROJECT_ARCHIVED` / `RBAC_FORBIDDEN` otherwise); the task itself may be archived, which is what the restore is for. The task must belong to the URL project (404 `TASK_NOT_FOUND`). Answers the task as it now stands.",
         "operationId": "setTaskArchived",
         "security": [
           {
@@ -18442,7 +18446,7 @@
             }
           },
           "403": {
-            "description": "Project is read-only for the key holder (`RBAC_FORBIDDEN`) or archived (`PROJECT_ARCHIVED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "The key holder may not change this task (`RBAC_FORBIDDEN`), or the project is archived (`PROJECT_ARCHIVED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -19216,7 +19220,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Start a deployed workflow on a project task",
-        "description": "Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED` (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A task carries at most one live run across agents and automations: a live automation run is reused; a live project-agent run refuses the start with 409 `TASK_HAS_LIVE_RUN` until it finishes or is cancelled. New work also requires task automation to be enabled: 403 `TASK_AUTOMATION_DISABLED` when off, 409 `TASK_AUTOMATION_UNAVAILABLE` when its policy cannot be read. Existing runs continue. After those guards the answer is 200 — branch on `started`, never on the status alone: `reason: \"already_running\"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: \"not_started\"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.",
+        "description": "Requires the task’s work gate — an editor of the project, or the member who created the task or is its person assignee (403 `RBAC_FORBIDDEN` otherwise) — on an active project, and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED` (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A member who is not an editor of the project starts only an automation built for tasks (its deployed version declares a task contract) or the automation that owns the task — 403 `RBAC_FORBIDDEN` otherwise, also judged before the execute budget is charged. A task carries at most one live run across agents and automations: a live automation run is reused; a live project-agent run refuses the start with 409 `TASK_HAS_LIVE_RUN` until it finishes or is cancelled. New work also requires task automation to be enabled: 403 `TASK_AUTOMATION_DISABLED` when off, 409 `TASK_AUTOMATION_UNAVAILABLE` when its policy cannot be read. Existing runs continue. After those guards the answer is 200 — branch on `started`, never on the status alone: `reason: \"already_running\"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: \"not_started\"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.",
         "operationId": "startTaskWorkflow",
         "security": [
           {
@@ -19363,7 +19367,7 @@
             }
           },
           "403": {
-            "description": "Project is read-only or archived, the task is archived (`TASK_ARCHIVED`), the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`), or task automation is off (`TASK_AUTOMATION_DISABLED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "The key holder may not change this task, or is a member naming an automation not built for tasks (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`), or task automation is off (`TASK_AUTOMATION_DISABLED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -19802,7 +19806,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Decide a task’s review for a member",
-        "description": "Requires write access to an active project and a task in `in_review` (409 `TASK_NOT_IN_REVIEW` otherwise). The decision is a person’s own gesture relayed from another application, so `actor` is required and the caller needs `capabilities.actAs` from `/me` (403 `ROLE_FORBIDDEN` without it); the member is resolved by verified e-mail (see `Actor`) and it is THEIR project access and the organization’s `review_policy` that decide, exactly as on the board — 403 `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them. `approve` is the move to Done: the pending review is recorded as approved by the member and audited, and the task’s status becomes `done` (a task with open subtasks answers 409 `TASK_HAS_OPEN_SUBTASKS`). `request_changes` withdraws the review, puts the member’s `comment` on the timeline and starts `workflowSlug` again on the task — the workflow reads the comment as operator feedback — so both fields are required for it; the task’s status becomes `in_progress` and the answer carries the run to poll (`started: false` with `reason` semantics as on `…/start`: a live run is reused). Charges the execute bucket on top of the general REST bucket.",
+        "description": "Requires an active project, the task’s work gate for the key holder and a task in `in_review` (409 `TASK_NOT_IN_REVIEW` otherwise). The decision is a person’s own gesture relayed from another application, so `actor` is required and the caller needs `capabilities.actAs` from `/me` (403 `ROLE_FORBIDDEN` without it); the member is resolved by verified e-mail (see `Actor`) and it is THEIR access and the organization’s `review_policy` that decide, exactly as on the board: an editor of the project decides any task’s review, any other member only one of a task they created or are the person assignee of — 403 `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them. `approve` is the move to Done: the pending review is recorded as approved by the member and audited, and the task’s status becomes `done` (a task with open subtasks answers 409 `TASK_HAS_OPEN_SUBTASKS`). `request_changes` withdraws the review, puts the member’s `comment` on the timeline and starts `workflowSlug` again on the task — the workflow reads the comment as operator feedback — so both fields are required for it, and a member who is not an editor may name only an automation built for tasks or the one that owns the task (403 `RBAC_FORBIDDEN`); the task’s status becomes `in_progress` and the answer carries the run to poll (`started: false` with `reason` semantics as on `…/start`: a live run is reused). Charges the execute bucket on top of the general REST bucket.",
         "operationId": "decideTaskReview",
         "security": [
           {
@@ -19984,7 +19988,7 @@
             }
           },
           "403": {
-            "description": "Project is read-only or archived, the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not write this task (`ACTOR_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -36964,6 +36968,842 @@
         ]
       }
     },
+    "/api/v1/openai/chat/completions": {
+      "post": {
+        "tags": ["Model endpoints"],
+        "summary": "Create a chat completion (OpenAI-compatible)",
+        "description": "OpenAI Chat Completions, relayed to the organization’s provider through the platform’s model gateway. An OpenAI SDK, opencode (`@ai-sdk/openai-compatible`) or any OpenAI-compatible client takes the base URL `https://<host>/api/v1/openai` and appends this path. `model` is an id `GET /api/v1/openai/models` lists: `<provider>/<model>`, the connector’s slug and the model’s id in its catalog (`openrouter/anthropic/claude-sonnet-4.6`). The body is OpenAI’s own and is relayed as sent, bar what the platform governs: `stream: true` answers `text/event-stream` chunks ending in `data: [DONE]` (the closing usage chunk only when `stream_options.include_usage` asks for it); `tools` are the caller’s own (`function`, `custom`) and come back as `tool_calls`; images ride `image_url` parts (`data:` or `https:`) for a model with vision; documents ride `file` parts (inline). The organization’s input guardrails judge every text the caller wrote first — every role, tool calls and results, tool definitions, a prediction, a response schema — a block refuses the request, a mask rewrites the text the model receives; the answer itself is not filtered. The request’s worst case (its prompt plus its output cap, once per answer; the catalog maximum is sent as `max_completion_tokens` when the request names no cap) is held whole against every budget that binds the key holder and the key before the call, and the spend is booked after it under the person and the key (usage shows it as Direct API). The answer is the vendor’s, `model` naming the id the request sent; a vendor refusal is relayed in this shape as `MODEL_API_UPSTREAM_ERROR`. Query parameters are ignored.",
+        "operationId": "createOpenAiChatCompletion",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "An OpenAI Chat Completions request — relayed as sent, bar the gateway’s own `fallbacks`, which is dropped",
+                "required": ["model", "messages"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "A model id `GET /api/v1/openai/models` lists (`<provider>/<model>`)"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "The conversation: `system`, `developer`, `user`, `assistant`, `tool` (and the older `function`) messages; user content is text, `image_url` and `file` parts",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "description": "Answer as a `text/event-stream` of chunks"
+                  },
+                  "tools": {
+                    "type": "array",
+                    "description": "The caller’s own tools (`function`, `custom`); the model asks for them in `tool_calls`",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The completion — or, with `stream: true`, its chunks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "A `chat.completion` object as OpenAI defines it, `model` the id the request named, `usage` as the vendor reported it"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events: one `data:` line per `chat.completion.chunk`, `data: [DONE]` last; a stream the vendor breaks off ends with a `data:` line carrying an `OpenAiError`"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "A body the endpoint cannot relay: not JSON, a missing `model` or `messages` (`max_tokens` on Anthropic), a role or content part outside the wire’s own, an image URL that is neither `data:` nor `https:`, a file stored in the vendor account (`file_id`, a `file` source), more than 8 answers (`n`), a service tier other than `auto`/`default` (OpenAI) or `auto`/`standard_only` (Anthropic), audio output, `store: true` (`INVALID_BODY`, `param` naming the field); a `context-1m` beta in `anthropic-beta` (`INVALID_HEADER`); a tool the vendor would run (`MODEL_API_VENDOR_TOOL_UNSUPPORTED`); images for a model without vision (`MODEL_API_VISION_UNSUPPORTED`); tools for a model that takes none (`MODEL_API_TOOLS_UNSUPPORTED`); text the organization’s input guardrails block, or would mask in a name (`MODEL_API_GUARDRAIL_BLOCKED`); or the vendor refused the request itself (`MODEL_API_UPSTREAM_ERROR`, its message relayed unless it names the platform’s internal addresses)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`) — the key rides `Authorization: Bearer <key>`; a request carrying `x-api-key` (where `ANTHROPIC_API_KEY` puts it) is refused whatever else it carries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "The organization has not turned the model endpoints on (`MODEL_API_DISABLED`); the key holder is neither owner, administrator nor developer and holds no `tale:models.api` grant (`MODEL_API_FORBIDDEN`); the organization’s model access refuses the model (`MODEL_API_MODEL_FORBIDDEN`); or its PII policy tokenizes, a round trip a relayed answer cannot make (`MODEL_API_GUARDRAIL_UNSUPPORTED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "No model this key holder may call carries the id (`MODEL_API_MODEL_UNKNOWN`); or the path is not one of the wire’s (`NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds 32 MiB (`BODY_TOO_LARGE`), the Anthropic Messages API’s own request limit; or, while the organization’s input guardrails are on, it carries more than 2 MB of text, more than 20,000 separate texts, or more new text than the guardrails read in one request (`MODEL_API_TEXT_TOO_LARGE`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "A budget cap that binds the key holder, one of their teams, the organization or the key is reached, or leaves less than the request’s worst case — its prompt plus its output cap, once per answer — in which case the message names the output cap that would fit (`BUDGET_EXCEEDED`, `Retry-After` naming when its period resets and `x-should-retry: false`); the key holder or the key already has 8 requests running in the organization (`MODEL_API_CONCURRENCY_EXCEEDED`, `Retry-After`); the key holder’s request budget is spent (`RATE_LIMITED`); or the vendor’s rate limit (`MODEL_API_UPSTREAM_ERROR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the answer carries the request id to quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "502": {
+            "description": "The model gateway could not be reached, the vendor failed, or its stream broke off before the answer was complete (`MODEL_API_UPSTREAM_ERROR`); a whole answer that outlived the gateway’s request timeout answers 504 with the same code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The model gateway cannot serve the model right now, the provider credential cannot be used, or the model access policy cannot be read (`MODEL_API_UNAVAILABLE`, `Retry-After`); a fail-closed input guardrail could not judge the request, or a guardrail policy cannot be read (`MODEL_API_GUARDRAIL_UNAVAILABLE`); or the vendor is overloaded (`MODEL_API_UPSTREAM_ERROR`); or the platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/openai/models": {
+      "get": {
+        "tags": ["Model endpoints"],
+        "summary": "List the models the key can call (OpenAI-compatible)",
+        "description": "The models this key holder may call through the compatible model endpoints, in OpenAI’s list shape — the complete set, never paginated: the organization’s configured chat models whose provider serves them with a direct credential (an API key or an environment variable), narrowed by each credential’s model allowlist and by the key holder’s model access. `id` is what `model` takes on both wires; `owned_by` is the provider’s slug; `created` is 0 — the catalog records no release date. Context windows, capabilities and prices are on `GET /api/v1/models`.",
+        "operationId": "listOpenAiModels",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "x-tale-pagination": "none",
+                  "required": ["data", "object"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["id", "object", "created", "owned_by"],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "`<provider>/<model>` — what `model` takes on both wires"
+                          },
+                          "object": {
+                            "type": "string",
+                            "enum": ["model"]
+                          },
+                          "created": {
+                            "type": "integer",
+                            "description": "Always 0 — the catalog records no release date"
+                          },
+                          "owned_by": {
+                            "type": "string",
+                            "description": "The provider’s slug"
+                          }
+                        }
+                      }
+                    },
+                    "object": {
+                      "type": "string",
+                      "enum": ["list"]
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`) — the key rides `Authorization: Bearer <key>`; a request carrying `x-api-key` (where `ANTHROPIC_API_KEY` puts it) is refused whatever else it carries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "The organization has not turned the model endpoints on (`MODEL_API_DISABLED`); the key holder is neither owner, administrator nor developer and holds no `tale:models.api` grant (`MODEL_API_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "The path is not one of the wire’s (`NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the answer carries the request id to quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The model access policy cannot be read right now (`MODEL_API_UNAVAILABLE`, `Retry-After`); or the platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/anthropic/v1/messages": {
+      "post": {
+        "tags": ["Model endpoints"],
+        "summary": "Create a message (Anthropic-compatible)",
+        "description": "Anthropic Messages, relayed to the organization’s provider through the platform’s model gateway. Claude Code and the Anthropic SDKs take the base URL `https://<host>/api/v1/anthropic` (`ANTHROPIC_BASE_URL`) and append `/v1/messages`; the key rides as a bearer token — `ANTHROPIC_AUTH_TOKEN` for Claude Code, `authToken`/`auth_token` for an SDK — with `ANTHROPIC_API_KEY` unset, since the `x-api-key` it sends is refused. A multi-organization key names the organization in `X-Organization-Slug` (Claude Code: `ANTHROPIC_CUSTOM_HEADERS`). `model` is an id `GET /api/v1/openai/models` lists; a provider that declares a native Anthropic endpoint is served through it, any other through the gateway’s translation. The body is Anthropic’s own and is relayed as sent, with `anthropic-version` and `anthropic-beta`; query parameters (the SDKs’ `beta=true`) are ignored. `max_tokens` is required; `stream: true` answers the Messages event stream. Images ride `image` blocks (base64 or an `https:` URL, in a tool result too) for a model with vision; documents ride `document` blocks; the caller’s own tools — plain ones and Anthropic’s client tools (`bash`, `text_editor`, `computer`, `memory`) — are relayed, a tool the vendor would run (web search, web fetch, code execution) and `mcp_servers` are not. The organization’s input guardrails judge the system prompt and the user text first; the answer is not filtered. The spend is held and booked as on the OpenAI endpoint. `count_tokens` and the other Messages routes are not served.",
+        "operationId": "createAnthropicMessage",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "An Anthropic Messages request — relayed as sent, bar the gateway’s own `fallbacks`, which is dropped",
+                "required": ["model", "messages", "max_tokens"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "A model id `GET /api/v1/openai/models` lists (`<provider>/<model>`)"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The most output tokens the answer may take"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "`user` and `assistant` turns; user content is `text`, `image`, `document`, `tool_result` and `search_result` blocks",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "system": {
+                    "description": "The system prompt: a string or `text` blocks"
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "description": "Answer as the Messages event stream"
+                  },
+                  "tools": {
+                    "type": "array",
+                    "description": "The caller’s own tools; the model asks for them in `tool_use` blocks",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The message — or, with `stream: true`, its events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "A `message` object as Anthropic defines it, `model` the id the request named, `usage` as the vendor reported it"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events as Anthropic defines them (`message_start`, `content_block_*`, `message_delta`, `message_stop`, `ping`); a stream the vendor breaks off ends with an `error` event carrying an `AnthropicError`"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "A body the endpoint cannot relay: not JSON, a missing `model` or `messages` (`max_tokens` on Anthropic), a role or content part outside the wire’s own, an image URL that is neither `data:` nor `https:`, a file stored in the vendor account (`file_id`, a `file` source), more than 8 answers (`n`), a service tier other than `auto`/`default` (OpenAI) or `auto`/`standard_only` (Anthropic), audio output, `store: true` (`INVALID_BODY`, `param` naming the field); a `context-1m` beta in `anthropic-beta` (`INVALID_HEADER`); a tool the vendor would run (`MODEL_API_VENDOR_TOOL_UNSUPPORTED`); images for a model without vision (`MODEL_API_VISION_UNSUPPORTED`); tools for a model that takes none (`MODEL_API_TOOLS_UNSUPPORTED`); text the organization’s input guardrails block, or would mask in a name (`MODEL_API_GUARDRAIL_BLOCKED`); or the vendor refused the request itself (`MODEL_API_UPSTREAM_ERROR`, its message relayed unless it names the platform’s internal addresses)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`) — the key rides `Authorization: Bearer <key>`; a request carrying `x-api-key` (where `ANTHROPIC_API_KEY` puts it) is refused whatever else it carries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "The organization has not turned the model endpoints on (`MODEL_API_DISABLED`); the key holder is neither owner, administrator nor developer and holds no `tale:models.api` grant (`MODEL_API_FORBIDDEN`); the organization’s model access refuses the model (`MODEL_API_MODEL_FORBIDDEN`); or its PII policy tokenizes, a round trip a relayed answer cannot make (`MODEL_API_GUARDRAIL_UNSUPPORTED`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "No model this key holder may call carries the id (`MODEL_API_MODEL_UNKNOWN`); or the path is not one of the wire’s (`NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds 32 MiB (`BODY_TOO_LARGE`), the Anthropic Messages API’s own request limit; or, while the organization’s input guardrails are on, it carries more than 2 MB of text, more than 20,000 separate texts, or more new text than the guardrails read in one request (`MODEL_API_TEXT_TOO_LARGE`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "A budget cap that binds the key holder, one of their teams, the organization or the key is reached, or leaves less than the request’s worst case — its prompt plus its output cap, once per answer — in which case the message names the output cap that would fit (`BUDGET_EXCEEDED`, `Retry-After` naming when its period resets and `x-should-retry: false`); the key holder or the key already has 8 requests running in the organization (`MODEL_API_CONCURRENCY_EXCEEDED`, `Retry-After`); the key holder’s request budget is spent (`RATE_LIMITED`); or the vendor’s rate limit (`MODEL_API_UPSTREAM_ERROR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the answer carries the request id to quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "502": {
+            "description": "The model gateway could not be reached, the vendor failed, or its stream broke off before the answer was complete (`MODEL_API_UPSTREAM_ERROR`); a whole answer that outlived the gateway’s request timeout answers 504 with the same code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The model gateway cannot serve the model right now, the provider credential cannot be used, or the model access policy cannot be read (`MODEL_API_UNAVAILABLE`, `Retry-After`); a fail-closed input guardrail could not judge the request, or a guardrail policy cannot be read (`MODEL_API_GUARDRAIL_UNAVAILABLE`); or the vendor is overloaded (`MODEL_API_UPSTREAM_ERROR`); or the platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnthropicError"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ]
+      }
+    },
     "/api/automations/webhook/{token}": {
       "post": {
         "tags": ["Automations"],
@@ -37396,7 +38236,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.5.0"
+          "example": "3.7.0"
         }
       },
       "Location": {
@@ -37478,6 +38318,449 @@
       }
     },
     "schemas": {
+      "OpenAiError": {
+        "type": "object",
+        "description": "A refusal on the OpenAI-compatible model endpoints, in OpenAI’s own error shape — the REST door’s refusals (a missing key, the organization header, the request budget) included. `code` is this API’s stable refusal code.",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["message", "type", "param", "code"],
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "What went wrong, in a sentence"
+              },
+              "type": {
+                "type": "string",
+                "description": "OpenAI’s error class: `invalid_request_error`, `authentication_error`, `permission_error`, `not_found_error`, `rate_limit_error`, `insufficient_quota` (a spent budget), `server_error`, or the vendor’s own on a relayed refusal"
+              },
+              "param": {
+                "type": "string",
+                "nullable": true,
+                "description": "The request field the refusal is about (`messages.2.content.0`), or null"
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "ACTOR_AMBIGUOUS",
+                  "ACTOR_DISABLED",
+                  "ACTOR_FORBIDDEN",
+                  "ACTOR_NOT_FOUND",
+                  "ACTOR_REBOUND",
+                  "ACTOR_UNVERIFIED",
+                  "ATTACHMENT_NOT_FOUND",
+                  "ATTACHMENT_NOT_OWNED",
+                  "ATTACHMENT_NOT_STAGED",
+                  "ATTACHMENT_SIZE_MISMATCH",
+                  "AUTHOR_UNVERIFIED",
+                  "AUTOMATION_DELIVERY_SCOPE_MISMATCH",
+                  "AUTOMATION_HAS_ACTIVE_RUNS",
+                  "AUTOMATION_INPUT_INVALID",
+                  "AUTOMATION_NOT_DEPLOYED",
+                  "AUTOMATION_NOT_FOUND",
+                  "AUTOMATION_NOT_INSTALLED",
+                  "AUTOMATION_PROJECT_FORBIDDEN",
+                  "AUTOMATION_PROJECT_SCOPE_REQUIRED",
+                  "AUTOMATION_TRIGGER_INVALID",
+                  "AUTOMATION_VERSION_NOT_DEPLOYED",
+                  "AUTOMATION_VERSION_UNKNOWN",
+                  "BLOB_NOT_FOUND",
+                  "BODY_CHUNK_MALFORMED",
+                  "BODY_LENGTH_MISMATCH",
+                  "BODY_TOO_LARGE",
+                  "BROWSER_SESSION_NOT_FOUND",
+                  "BUDGET_EXCEEDED",
+                  "CHAT_MODEL_AMBIGUOUS",
+                  "CHAT_MODEL_NOT_ON_PROVIDER",
+                  "CHAT_MODEL_UNKNOWN",
+                  "CHAT_PROVIDER_UNKNOWN",
+                  "CHAT_THREAD_ARCHIVED",
+                  "CHAT_THREAD_NOT_DIRECT",
+                  "CHAT_TURN_IN_PROGRESS",
+                  "CHAT_TURN_NOT_RUNNING",
+                  "CONTACT_AMBIGUOUS",
+                  "CONTACT_DUPLICATE_EMAIL",
+                  "CONTACT_DUPLICATE_EXTERNAL_ID",
+                  "CONTACT_IDENTITY_REQUIRED",
+                  "CONTACT_NOT_FOUND",
+                  "CONTACT_STALE",
+                  "CONVERSATION_CLOSED",
+                  "CONVERSATION_CONTACT_CONFLICT",
+                  "CONVERSATION_CONTACT_TRASHED",
+                  "CONVERSATION_NOT_FOUND",
+                  "CONVERSATION_SNAPSHOT_CONFLICT",
+                  "CONVERSATION_SOURCE_NOT_FOUND",
+                  "DATABASE_UNAVAILABLE",
+                  "DELIVERY_NOT_FOUND",
+                  "DELIVERY_RECEIPT_CONFLICT",
+                  "DELIVERY_RETRY_UNAVAILABLE",
+                  "DELIVERY_UNACKNOWLEDGED",
+                  "DOCUMENT_HAS_KNOWLEDGE_ENTRY",
+                  "DOCUMENT_NOT_FOUND",
+                  "DOCUMENT_RECORD_FROZEN",
+                  "DOCUMENT_RECORD_PROTECTED",
+                  "DOCUMENT_RECORD_REPLACEMENT_REQUIRED",
+                  "DOCUMENT_STALE",
+                  "DUPLICATE_PRODUCT_EXTERNAL_ID",
+                  "DUPLICATE_PRODUCT_NAME",
+                  "EMBEDDING_CREDENTIAL_REJECTED",
+                  "EMBEDDING_CREDIT_EXHAUSTED",
+                  "EMBEDDING_NOT_CONFIGURED",
+                  "EMBEDDING_UPSTREAM_ERROR",
+                  "EMPTY_ANSWER",
+                  "FILE_NOT_FOUND",
+                  "FILE_SIZE_INVALID",
+                  "FILE_TOO_LARGE",
+                  "FOLDER_DEPTH_EXCEEDED",
+                  "FOLDER_NAME_INVALID",
+                  "FOLDER_NAME_TAKEN",
+                  "FOLDER_NOT_ACCESSIBLE",
+                  "FOLDER_NOT_FOUND",
+                  "FORBIDDEN_DEPLOYMENT_EDITOR",
+                  "FORBIDDEN_INSTANCE_ADMIN",
+                  "HTTP_ERROR",
+                  "HUMAN_ASK_EXPIRED",
+                  "HUMAN_ASK_NOT_FOUND",
+                  "HUMAN_ASK_NOT_PENDING",
+                  "IDEMPOTENCY_KEY_REUSED",
+                  "INTEGRATION_NOT_OWNED",
+                  "INTERNAL_ERROR",
+                  "INVALID_BODY",
+                  "INVALID_CURSOR",
+                  "INVALID_HEADER",
+                  "INVALID_LIMIT",
+                  "INVALID_QUERY",
+                  "INVALID_SESSION",
+                  "INVALID_SKILL",
+                  "INVALID_SKILL_SLUG",
+                  "INVALID_URL",
+                  "KNOWLEDGE_ENTRY_DUPLICATE",
+                  "KNOWLEDGE_ENTRY_FORBIDDEN",
+                  "KNOWLEDGE_ENTRY_NOT_FOUND",
+                  "KNOWLEDGE_ENTRY_STORE_TIMEOUT",
+                  "KNOWLEDGE_ENTRY_SUPERSEDED",
+                  "LEGAL_HOLD_ACTIVE",
+                  "MESSAGE_NOT_FOUND",
+                  "METHOD_NOT_ALLOWED",
+                  "MODEL_API_CONCURRENCY_EXCEEDED",
+                  "MODEL_API_DISABLED",
+                  "MODEL_API_FORBIDDEN",
+                  "MODEL_API_GUARDRAIL_BLOCKED",
+                  "MODEL_API_GUARDRAIL_UNAVAILABLE",
+                  "MODEL_API_GUARDRAIL_UNSUPPORTED",
+                  "MODEL_API_MODEL_FORBIDDEN",
+                  "MODEL_API_MODEL_UNKNOWN",
+                  "MODEL_API_TEXT_TOO_LARGE",
+                  "MODEL_API_TOOLS_UNSUPPORTED",
+                  "MODEL_API_UNAVAILABLE",
+                  "MODEL_API_UPSTREAM_ERROR",
+                  "MODEL_API_VENDOR_TOOL_UNSUPPORTED",
+                  "MODEL_API_VISION_UNSUPPORTED",
+                  "NOT_FOUND",
+                  "OBJECT_STORE_UNAVAILABLE",
+                  "OBJECT_STORE_UNCONFIGURED",
+                  "ORG_FORBIDDEN",
+                  "ORG_SLUG_INVALID",
+                  "ORG_SLUG_REQUIRED",
+                  "PRECONDITION_FAILED",
+                  "PRODUCT_NOT_FOUND",
+                  "PRODUCT_STALE",
+                  "PROJECT_AGENT_CONNECTOR_UNKNOWN",
+                  "PROJECT_AGENT_HARNESS_INVALID",
+                  "PROJECT_AGENT_LIMIT",
+                  "PROJECT_AGENT_MODEL_INVALID",
+                  "PROJECT_AGENT_NAME_TAKEN",
+                  "PROJECT_AGENT_NOT_FOUND",
+                  "PROJECT_AGENT_PROVIDER_UNKNOWN",
+                  "PROJECT_AGENT_SECRETS_FORBIDDEN",
+                  "PROJECT_AGENT_SECRET_UNKNOWN",
+                  "PROJECT_AGENT_SKILL_UNKNOWN",
+                  "PROJECT_AGENT_STALE",
+                  "PROJECT_AGENT_TOOL_UNKNOWN",
+                  "PROJECT_ARCHIVED",
+                  "PROJECT_DUPLICATE_EXTERNAL_ID",
+                  "PROJECT_FORBIDDEN",
+                  "PROJECT_HAS_BOUND_AUTOMATIONS",
+                  "PROJECT_HAS_PROTECTED_RECORDS",
+                  "PROJECT_KEY_INVALID",
+                  "PROJECT_KEY_TAKEN",
+                  "PROJECT_LEGAL_HOLD",
+                  "PROJECT_NOT_FOUND",
+                  "PROJECT_SHARING_INVALID",
+                  "PURGE_INCOMPLETE",
+                  "RATE_LIMITED",
+                  "RBAC_FORBIDDEN",
+                  "REQUEST_TIMEOUT",
+                  "REVIEW_COMPETENCE_REQUIRED",
+                  "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
+                  "ROLE_FORBIDDEN",
+                  "RUN_ACTIVE",
+                  "RUN_NOT_FOUND",
+                  "SETUP_FOLDER_MISSING",
+                  "SKILL_EXISTS",
+                  "SKILL_FILE_NOT_FOUND",
+                  "SKILL_FORBIDDEN",
+                  "SKILL_MALFORMED",
+                  "SKILL_NOT_FOUND",
+                  "SKILL_PUBLISH_FORBIDDEN",
+                  "SKILL_STALE",
+                  "SKILL_TEAM_UNKNOWN",
+                  "TASK_ARCHIVED",
+                  "TASK_AUTOMATION_DISABLED",
+                  "TASK_AUTOMATION_UNAVAILABLE",
+                  "TASK_HAS_LIVE_RUN",
+                  "TASK_HAS_OPEN_SUBTASKS",
+                  "TASK_LABEL_UNKNOWN",
+                  "TASK_NOT_FOUND",
+                  "TASK_NOT_IN_REVIEW",
+                  "TEAM_ACCESS_DENIED",
+                  "TEAM_INHERITED_FROM_FOLDER",
+                  "TEAM_NOT_IN_ORG",
+                  "THREAD_NOT_FOUND",
+                  "UNAUTHORIZED",
+                  "UNSUPPORTED_FILE_TYPE",
+                  "UPLOAD_FILE_MISMATCH",
+                  "UPLOAD_INTENT_INVALID",
+                  "UPLOAD_POLICY_REJECTED",
+                  "UPSTREAM_UNAVAILABLE",
+                  "URI_TOO_LONG",
+                  "WEBSITE_DOMAIN_IMMUTABLE",
+                  "WEBSITE_DOMAIN_INVALID",
+                  "WEBSITE_DOMAIN_NOT_CRAWLABLE",
+                  "WEBSITE_DUPLICATE_DOMAIN",
+                  "WEBSITE_INVALID_LIST_URL",
+                  "WEBSITE_NOT_FOUND"
+                ],
+                "description": "The stable refusal code"
+              }
+            }
+          }
+        }
+      },
+      "AnthropicError": {
+        "type": "object",
+        "description": "A refusal on the Anthropic-compatible model endpoint, in Anthropic’s own error shape — the REST door’s refusals included. `error.code` is this API’s stable refusal code, an addition to Anthropic’s shape.",
+        "required": ["type", "error"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["error"]
+          },
+          "error": {
+            "type": "object",
+            "required": ["type", "message", "code"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Anthropic’s error class: `invalid_request_error`, `authentication_error`, `permission_error`, `not_found_error`, `request_too_large`, `rate_limit_error`, `api_error`, `overloaded_error`, or the vendor’s own on a relayed refusal"
+              },
+              "message": {
+                "type": "string",
+                "description": "What went wrong, in a sentence"
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "ACTOR_AMBIGUOUS",
+                  "ACTOR_DISABLED",
+                  "ACTOR_FORBIDDEN",
+                  "ACTOR_NOT_FOUND",
+                  "ACTOR_REBOUND",
+                  "ACTOR_UNVERIFIED",
+                  "ATTACHMENT_NOT_FOUND",
+                  "ATTACHMENT_NOT_OWNED",
+                  "ATTACHMENT_NOT_STAGED",
+                  "ATTACHMENT_SIZE_MISMATCH",
+                  "AUTHOR_UNVERIFIED",
+                  "AUTOMATION_DELIVERY_SCOPE_MISMATCH",
+                  "AUTOMATION_HAS_ACTIVE_RUNS",
+                  "AUTOMATION_INPUT_INVALID",
+                  "AUTOMATION_NOT_DEPLOYED",
+                  "AUTOMATION_NOT_FOUND",
+                  "AUTOMATION_NOT_INSTALLED",
+                  "AUTOMATION_PROJECT_FORBIDDEN",
+                  "AUTOMATION_PROJECT_SCOPE_REQUIRED",
+                  "AUTOMATION_TRIGGER_INVALID",
+                  "AUTOMATION_VERSION_NOT_DEPLOYED",
+                  "AUTOMATION_VERSION_UNKNOWN",
+                  "BLOB_NOT_FOUND",
+                  "BODY_CHUNK_MALFORMED",
+                  "BODY_LENGTH_MISMATCH",
+                  "BODY_TOO_LARGE",
+                  "BROWSER_SESSION_NOT_FOUND",
+                  "BUDGET_EXCEEDED",
+                  "CHAT_MODEL_AMBIGUOUS",
+                  "CHAT_MODEL_NOT_ON_PROVIDER",
+                  "CHAT_MODEL_UNKNOWN",
+                  "CHAT_PROVIDER_UNKNOWN",
+                  "CHAT_THREAD_ARCHIVED",
+                  "CHAT_THREAD_NOT_DIRECT",
+                  "CHAT_TURN_IN_PROGRESS",
+                  "CHAT_TURN_NOT_RUNNING",
+                  "CONTACT_AMBIGUOUS",
+                  "CONTACT_DUPLICATE_EMAIL",
+                  "CONTACT_DUPLICATE_EXTERNAL_ID",
+                  "CONTACT_IDENTITY_REQUIRED",
+                  "CONTACT_NOT_FOUND",
+                  "CONTACT_STALE",
+                  "CONVERSATION_CLOSED",
+                  "CONVERSATION_CONTACT_CONFLICT",
+                  "CONVERSATION_CONTACT_TRASHED",
+                  "CONVERSATION_NOT_FOUND",
+                  "CONVERSATION_SNAPSHOT_CONFLICT",
+                  "CONVERSATION_SOURCE_NOT_FOUND",
+                  "DATABASE_UNAVAILABLE",
+                  "DELIVERY_NOT_FOUND",
+                  "DELIVERY_RECEIPT_CONFLICT",
+                  "DELIVERY_RETRY_UNAVAILABLE",
+                  "DELIVERY_UNACKNOWLEDGED",
+                  "DOCUMENT_HAS_KNOWLEDGE_ENTRY",
+                  "DOCUMENT_NOT_FOUND",
+                  "DOCUMENT_RECORD_FROZEN",
+                  "DOCUMENT_RECORD_PROTECTED",
+                  "DOCUMENT_RECORD_REPLACEMENT_REQUIRED",
+                  "DOCUMENT_STALE",
+                  "DUPLICATE_PRODUCT_EXTERNAL_ID",
+                  "DUPLICATE_PRODUCT_NAME",
+                  "EMBEDDING_CREDENTIAL_REJECTED",
+                  "EMBEDDING_CREDIT_EXHAUSTED",
+                  "EMBEDDING_NOT_CONFIGURED",
+                  "EMBEDDING_UPSTREAM_ERROR",
+                  "EMPTY_ANSWER",
+                  "FILE_NOT_FOUND",
+                  "FILE_SIZE_INVALID",
+                  "FILE_TOO_LARGE",
+                  "FOLDER_DEPTH_EXCEEDED",
+                  "FOLDER_NAME_INVALID",
+                  "FOLDER_NAME_TAKEN",
+                  "FOLDER_NOT_ACCESSIBLE",
+                  "FOLDER_NOT_FOUND",
+                  "FORBIDDEN_DEPLOYMENT_EDITOR",
+                  "FORBIDDEN_INSTANCE_ADMIN",
+                  "HTTP_ERROR",
+                  "HUMAN_ASK_EXPIRED",
+                  "HUMAN_ASK_NOT_FOUND",
+                  "HUMAN_ASK_NOT_PENDING",
+                  "IDEMPOTENCY_KEY_REUSED",
+                  "INTEGRATION_NOT_OWNED",
+                  "INTERNAL_ERROR",
+                  "INVALID_BODY",
+                  "INVALID_CURSOR",
+                  "INVALID_HEADER",
+                  "INVALID_LIMIT",
+                  "INVALID_QUERY",
+                  "INVALID_SESSION",
+                  "INVALID_SKILL",
+                  "INVALID_SKILL_SLUG",
+                  "INVALID_URL",
+                  "KNOWLEDGE_ENTRY_DUPLICATE",
+                  "KNOWLEDGE_ENTRY_FORBIDDEN",
+                  "KNOWLEDGE_ENTRY_NOT_FOUND",
+                  "KNOWLEDGE_ENTRY_STORE_TIMEOUT",
+                  "KNOWLEDGE_ENTRY_SUPERSEDED",
+                  "LEGAL_HOLD_ACTIVE",
+                  "MESSAGE_NOT_FOUND",
+                  "METHOD_NOT_ALLOWED",
+                  "MODEL_API_CONCURRENCY_EXCEEDED",
+                  "MODEL_API_DISABLED",
+                  "MODEL_API_FORBIDDEN",
+                  "MODEL_API_GUARDRAIL_BLOCKED",
+                  "MODEL_API_GUARDRAIL_UNAVAILABLE",
+                  "MODEL_API_GUARDRAIL_UNSUPPORTED",
+                  "MODEL_API_MODEL_FORBIDDEN",
+                  "MODEL_API_MODEL_UNKNOWN",
+                  "MODEL_API_TEXT_TOO_LARGE",
+                  "MODEL_API_TOOLS_UNSUPPORTED",
+                  "MODEL_API_UNAVAILABLE",
+                  "MODEL_API_UPSTREAM_ERROR",
+                  "MODEL_API_VENDOR_TOOL_UNSUPPORTED",
+                  "MODEL_API_VISION_UNSUPPORTED",
+                  "NOT_FOUND",
+                  "OBJECT_STORE_UNAVAILABLE",
+                  "OBJECT_STORE_UNCONFIGURED",
+                  "ORG_FORBIDDEN",
+                  "ORG_SLUG_INVALID",
+                  "ORG_SLUG_REQUIRED",
+                  "PRECONDITION_FAILED",
+                  "PRODUCT_NOT_FOUND",
+                  "PRODUCT_STALE",
+                  "PROJECT_AGENT_CONNECTOR_UNKNOWN",
+                  "PROJECT_AGENT_HARNESS_INVALID",
+                  "PROJECT_AGENT_LIMIT",
+                  "PROJECT_AGENT_MODEL_INVALID",
+                  "PROJECT_AGENT_NAME_TAKEN",
+                  "PROJECT_AGENT_NOT_FOUND",
+                  "PROJECT_AGENT_PROVIDER_UNKNOWN",
+                  "PROJECT_AGENT_SECRETS_FORBIDDEN",
+                  "PROJECT_AGENT_SECRET_UNKNOWN",
+                  "PROJECT_AGENT_SKILL_UNKNOWN",
+                  "PROJECT_AGENT_STALE",
+                  "PROJECT_AGENT_TOOL_UNKNOWN",
+                  "PROJECT_ARCHIVED",
+                  "PROJECT_DUPLICATE_EXTERNAL_ID",
+                  "PROJECT_FORBIDDEN",
+                  "PROJECT_HAS_BOUND_AUTOMATIONS",
+                  "PROJECT_HAS_PROTECTED_RECORDS",
+                  "PROJECT_KEY_INVALID",
+                  "PROJECT_KEY_TAKEN",
+                  "PROJECT_LEGAL_HOLD",
+                  "PROJECT_NOT_FOUND",
+                  "PROJECT_SHARING_INVALID",
+                  "PURGE_INCOMPLETE",
+                  "RATE_LIMITED",
+                  "RBAC_FORBIDDEN",
+                  "REQUEST_TIMEOUT",
+                  "REVIEW_COMPETENCE_REQUIRED",
+                  "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
+                  "ROLE_FORBIDDEN",
+                  "RUN_ACTIVE",
+                  "RUN_NOT_FOUND",
+                  "SETUP_FOLDER_MISSING",
+                  "SKILL_EXISTS",
+                  "SKILL_FILE_NOT_FOUND",
+                  "SKILL_FORBIDDEN",
+                  "SKILL_MALFORMED",
+                  "SKILL_NOT_FOUND",
+                  "SKILL_PUBLISH_FORBIDDEN",
+                  "SKILL_STALE",
+                  "SKILL_TEAM_UNKNOWN",
+                  "TASK_ARCHIVED",
+                  "TASK_AUTOMATION_DISABLED",
+                  "TASK_AUTOMATION_UNAVAILABLE",
+                  "TASK_HAS_LIVE_RUN",
+                  "TASK_HAS_OPEN_SUBTASKS",
+                  "TASK_LABEL_UNKNOWN",
+                  "TASK_NOT_FOUND",
+                  "TASK_NOT_IN_REVIEW",
+                  "TEAM_ACCESS_DENIED",
+                  "TEAM_INHERITED_FROM_FOLDER",
+                  "TEAM_NOT_IN_ORG",
+                  "THREAD_NOT_FOUND",
+                  "UNAUTHORIZED",
+                  "UNSUPPORTED_FILE_TYPE",
+                  "UPLOAD_FILE_MISMATCH",
+                  "UPLOAD_INTENT_INVALID",
+                  "UPLOAD_POLICY_REJECTED",
+                  "UPSTREAM_UNAVAILABLE",
+                  "URI_TOO_LONG",
+                  "WEBSITE_DOMAIN_IMMUTABLE",
+                  "WEBSITE_DOMAIN_INVALID",
+                  "WEBSITE_DOMAIN_NOT_CRAWLABLE",
+                  "WEBSITE_DUPLICATE_DOMAIN",
+                  "WEBSITE_INVALID_LIST_URL",
+                  "WEBSITE_NOT_FOUND"
+                ],
+                "description": "The stable refusal code"
+              }
+            }
+          },
+          "request_id": {
+            "type": "string",
+            "description": "The request id — the same value as the `request-id` and `X-Request-Id` headers"
+          }
+        }
+      },
       "Error": {
         "type": "object",
         "required": ["error", "code"],
@@ -37589,6 +38872,20 @@
               "LEGAL_HOLD_ACTIVE",
               "MESSAGE_NOT_FOUND",
               "METHOD_NOT_ALLOWED",
+              "MODEL_API_CONCURRENCY_EXCEEDED",
+              "MODEL_API_DISABLED",
+              "MODEL_API_FORBIDDEN",
+              "MODEL_API_GUARDRAIL_BLOCKED",
+              "MODEL_API_GUARDRAIL_UNAVAILABLE",
+              "MODEL_API_GUARDRAIL_UNSUPPORTED",
+              "MODEL_API_MODEL_FORBIDDEN",
+              "MODEL_API_MODEL_UNKNOWN",
+              "MODEL_API_TEXT_TOO_LARGE",
+              "MODEL_API_TOOLS_UNSUPPORTED",
+              "MODEL_API_UNAVAILABLE",
+              "MODEL_API_UPSTREAM_ERROR",
+              "MODEL_API_VENDOR_TOOL_UNSUPPORTED",
+              "MODEL_API_VISION_UNSUPPORTED",
               "NOT_FOUND",
               "OBJECT_STORE_UNAVAILABLE",
               "OBJECT_STORE_UNCONFIGURED",
@@ -37643,6 +38940,7 @@
               "TASK_AUTOMATION_UNAVAILABLE",
               "TASK_HAS_LIVE_RUN",
               "TASK_HAS_OPEN_SUBTASKS",
+              "TASK_LABEL_UNKNOWN",
               "TASK_NOT_FOUND",
               "TASK_NOT_IN_REVIEW",
               "TEAM_ACCESS_DENIED",
@@ -38962,7 +40260,8 @@
               "developer",
               "notificationExport",
               "actAs",
-              "skillPublish"
+              "skillPublish",
+              "modelApi"
             ],
             "additionalProperties": false,
             "properties": {
@@ -38985,6 +40284,10 @@
               "skillPublish": {
                 "type": "boolean",
                 "description": "True when the key holder may share a skill with the whole organization through `PUT /api/v1/skills/{slug}` — create a `visibility: org` skill, widen one to `org`, or change an `org` skill in place. Every member may while the organization has no skill sharing policy; under one it is Editors and above or owners and administrators only, plus any member holding a live `tale:skills.publish` capability an administrator granted in the competence register. False there answers 403 `SKILL_PUBLISH_FORBIDDEN`; sharing with the key holder’s own teams is unaffected"
+              },
+              "modelApi": {
+                "type": "boolean",
+                "description": "True when the key holder may call the compatible model endpoints (`/api/v1/openai`, `/api/v1/anthropic`): the organization turned them on in its model access policy, and the key holder is an owner, administrator or developer by role, or any other member holding a live `tale:models.api` capability an administrator granted in the competence register. False there answers 403 `MODEL_API_DISABLED` or `MODEL_API_FORBIDDEN`"
               }
             }
           }

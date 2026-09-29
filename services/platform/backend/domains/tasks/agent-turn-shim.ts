@@ -12,8 +12,10 @@ import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
+import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
+import { loadProjectOrThrow } from '../projects/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
@@ -41,9 +43,11 @@ import {
   launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
+import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
   handTaskToInProgressForKick,
+  mayWorkTask,
 } from './service.ts';
 
 /**
@@ -109,6 +113,37 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         FROM app.project_agent_runs WHERE id = ${args.runId} LIMIT 1
       `;
       return rows[0] ?? null;
+    },
+
+    /**
+     * What the turn may hold, by the person who started the run: a run a
+     * member started (or one working in a member's workspace) is confined
+     * — none of the agent's secrets or brokered credentials enter its
+     * sandbox. Asked at every launch and steer restart, so a starter who
+     * lost the Editor role meanwhile no longer passes as one. A run that is
+     * gone answers confined: the lane never widens by default.
+     */
+    'tasks/agent_runs:getTaskAgentRunAuthority': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { runId: string };
+      const rows = await sql<
+        {
+          organizationId: string;
+          projectId: string;
+          agentId: string;
+          sessionId: string;
+          startedBy: string;
+        }[]
+      >`
+        SELECT org_id AS "organizationId", project_id AS "projectId",
+               agent_id AS "agentId", session_id AS "sessionId",
+               started_by AS "startedBy"
+        FROM app.project_agent_runs WHERE id = ${args.runId} LIMIT 1
+      `;
+      const run = rows[0];
+      return {
+        confined: run === undefined || (await isTaskRunConfined(sql, run)),
+      };
     },
 
     'tasks/agent_runs:setTaskAgentRunRunning': async (raw) => {
@@ -197,15 +232,24 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:rotateTaskAgentRunExec': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; fromExecId: string };
+      const args = raw as {
+        runId: string;
+        fromExecId: string;
+        /** The person whose steer restarts the turn; absent from a steer
+         * queued before it was carried. */
+        startedBy?: string;
+      };
       // The SINGLE-WINNER claim: guarded on (running, fromExecId), so two
       // concurrent steers cannot both rotate — the loser re-reads and sees
       // the new incarnation. The superseded chain orphans itself because
-      // every settle mark is exec-guarded.
+      // every settle mark is exec-guarded. The restarted turn is booked to
+      // the person who steered it: spend follows the run's starter.
       const execId = `${args.fromExecId}-2`;
       const rows = await sql<{ id: string }[]>`
         UPDATE app.project_agent_runs SET
-          exec_id = ${execId}, updated_at_ms = ${Date.now()}
+          exec_id = ${execId},
+          started_by = coalesce(${args.startedBy ?? null}, started_by),
+          updated_at_ms = ${Date.now()}
         WHERE id = ${args.runId} AND status = 'running'
           AND exec_id = ${args.fromExecId}
         RETURNING id
@@ -230,10 +274,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           projectId: string;
           assigneeType: string | null;
           assigneeId: string | null;
+          createdBy: string;
+          createdByType: string;
+          parentTaskId: string | null;
         }[]
       >`
         SELECT project_id AS "projectId", assignee_type AS "assigneeType",
-               assignee_id AS "assigneeId"
+               assignee_id AS "assigneeId", created_by AS "createdBy",
+               created_by_type AS "createdByType",
+               parent_task_id AS "parentTaskId"
         FROM app.tasks
         WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
           AND archived_at_ms IS NULL
@@ -245,6 +294,21 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       }
       if (task.assigneeType !== 'agent' || task.assigneeId === null) {
         return { started: false, reason: 'no_agent_assignee' };
+      }
+      // A run's starter may steer it on a task no longer theirs, but a new
+      // run is a change to the task: the work gate's, as at the comment.
+      const author = await authorizeActorRun(
+        sql,
+        args.organizationId,
+        args.authorId,
+        'membership',
+      ).catch((error: unknown) => {
+        console.warn('[task-agent] steer fallback author refused:', error);
+        return null;
+      });
+      const project = await loadProjectOrThrow(sql, task.projectId);
+      if (author === null || !(await mayWorkTask(sql, project, task, author))) {
+        return { started: false, reason: 'not_permitted' };
       }
       const agents = await sql<
         { harness: string; model: string; modelProvider: string | null }[]
@@ -705,7 +769,13 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'sandbox/session_queries:getActiveSessionByOwner': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { ownerType: string; ownerId: string };
+      const args = raw as {
+        ownerType: string;
+        ownerId: string;
+        /** One of the owner's workspaces: a project agent has its standing
+         * one and one per member who starts its runs. */
+        sessionId?: string;
+      };
       const rows = await sql<
         {
           sessionId: string;
@@ -719,6 +789,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                created_at_ms::float8 AS "createdAt", pinned
         FROM app.sandbox_sessions
         WHERE owner_type = ${args.ownerType} AND owner_id = ${args.ownerId}
+          AND (${args.sessionId ?? null}::text IS NULL
+            OR session_id = ${args.sessionId ?? null})
           AND status IN ('creating', 'active', 'stopped')
         ORDER BY created_at_ms DESC
         LIMIT 1

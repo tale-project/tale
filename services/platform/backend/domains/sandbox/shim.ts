@@ -2,12 +2,14 @@ import type { Sql } from 'postgres';
 
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
+import { isStandingProjectAgentSession } from '../../core/sandbox/session_naming.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
+import { isTaskRunConfined } from '../tasks/run-authority.ts';
 import { getCurrentUser } from '../users/service.ts';
 import { imageGenerationShimHandlers } from './image-generation.ts';
 import { workspaceWriteShimHandlers } from './workspace-write-shim.ts';
@@ -39,6 +41,9 @@ interface BindingResolution {
   kind: 'project' | 'org_run' | 'none';
   projectId?: string;
   actorId?: string;
+  /** Who the session belongs to: a project agent's session also answers to
+   * the person who started each run on it. */
+  ownerType?: 'project_agent' | 'workflow_run';
   /** `org_run` only: the automation's bound projects, empty when it is truly
    * org-level. */
   boundProjectIds?: string[];
@@ -99,6 +104,7 @@ async function resolveSessionBinding(
           kind: 'project',
           projectId: agent.projectId,
           actorId: agent.id,
+          ownerType: 'project_agent',
         };
       }
     }
@@ -135,6 +141,56 @@ async function resolveSessionBinding(
     };
   }
   return { kind: 'none' };
+}
+
+/**
+ * How far a project agent's task run may act, by the run the turn's token
+ * names: `ended` when that run is no longer live (its tools act for nobody),
+ * a task id when the run is confined to that task (a member started it, see
+ * `tasks/run-authority.ts`), neither when it acts with the agent's full
+ * project authority. A token that names no run predates the field — only
+ * the standing workspace existed then, and a member's workspace never lacks
+ * it.
+ */
+async function taskRunConfinement(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    agentId: string;
+    execId?: string;
+  },
+): Promise<'ended' | { taskId?: string }> {
+  if (args.execId === undefined) {
+    return isStandingProjectAgentSession(args.agentId, args.sessionId)
+      ? {}
+      : 'ended';
+  }
+  const runs = await sql<
+    {
+      taskId: string;
+      projectId: string;
+      agentId: string;
+      sessionId: string;
+      startedBy: string;
+    }[]
+  >`
+    SELECT task_id AS "taskId", project_id AS "projectId",
+           agent_id AS "agentId", session_id AS "sessionId",
+           started_by AS "startedBy"
+    FROM app.project_agent_runs
+    WHERE org_id = ${args.organizationId} AND session_id = ${args.sessionId}
+      AND exec_id = ${args.execId} AND status IN ('queued', 'running')
+    ORDER BY seq DESC
+    LIMIT 1
+  `;
+  const run = runs[0];
+  if (run === undefined) return 'ended';
+  const confined = await isTaskRunConfined(sql, {
+    organizationId: args.organizationId,
+    ...run,
+  });
+  return confined ? { taskId: run.taskId } : {};
 }
 
 /**
@@ -368,6 +424,8 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         sessionId: string;
         userId?: string;
+        /** The exec of the task run a task turn's token names. */
+        taskRunExecId?: string;
         subject: string;
         effect: 'read' | 'write';
       };
@@ -381,10 +439,29 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         binding.projectId !== undefined &&
         binding.actorId !== undefined
       ) {
+        // A project agent's session answers to the person who started the
+        // run: a member's run acts on its own task alone.
+        const confinement =
+          binding.ownerType === 'project_agent'
+            ? await taskRunConfinement(sql, {
+                organizationId: args.organizationId,
+                sessionId: args.sessionId,
+                agentId: binding.actorId,
+                ...(args.taskRunExecId !== undefined
+                  ? { execId: args.taskRunExecId }
+                  : {}),
+              })
+            : {};
+        if (confinement === 'ended') {
+          return { allowed: false, reason: 'run_ended' };
+        }
         return {
           allowed: true,
           actorId: binding.actorId,
           scope: { kind: 'project', projectId: binding.projectId },
+          ...(confinement.taskId !== undefined
+            ? { confinedToTaskId: confinement.taskId }
+            : {}),
         };
       }
       if (binding.kind === 'org_run' && binding.actorId !== undefined) {

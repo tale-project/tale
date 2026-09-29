@@ -77,6 +77,8 @@ type CreateConnectorCredentialResult =
 type GovernancePolicyResult = ReturnsOf<'governance/queries:getPolicy'>;
 type MyBudgetStatusResult = ReturnsOf<'governance/queries:getMyBudgetStatus'>;
 type MyBudgetUsageResult = ReturnsOf<'governance/queries:getMyBudgetUsage'>;
+type MyModelApiAccessResult =
+  ReturnsOf<'governance/queries:getMyModelApiAccess'>;
 type TrashListResult = ReturnsOf<'governance/queries:listTrashedRows'>;
 type LegalHoldItem = ItemOf<'governance/legal_hold_queries:listLegalHolds'>;
 type LegalMatterItem = ItemOf<'governance/legal_hold_queries:listLegalMatters'>;
@@ -331,6 +333,21 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
           '/governance/my/budget-status',
           { orgId },
         ).then((body) => body.status),
+    };
+  },
+  'governance/queries:getMyModelApiAccess': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Keyed under the policy entity: an admin flipping the switch hints
+      // every member, so an open API settings page follows at once. A grant
+      // changes the competence entity instead; that arrives on the next read.
+      queryKey: backendKey(orgId, 'governance_policy', 'my-model-api'),
+      queryFn: () =>
+        backendFetch<MyModelApiAccessResult>('/governance/my/model-api', {
+          orgId,
+        }),
+      staleTime: 30_000,
     };
   },
   'governance/queries:getMyBudgetUsage': (args, ctx) => {

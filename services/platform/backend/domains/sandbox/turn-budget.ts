@@ -1,26 +1,34 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
-import type { ReserveTurnBudgetResult } from '../../core/node_only/sandbox/turn_budget.ts';
 import {
   loadBudgetSubject,
   type OrgBudgetSubject,
   resolveTurnAllowance,
+  type TurnAllowance,
 } from '../governance/budget-gate.ts';
 import {
   lockBudgetAdmission,
   readInFlightReservations,
 } from '../governance/budget-reservations.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
-import { resolveSessionOpAttribution } from './op-attribution.ts';
+import {
+  resolveSessionOpAttribution,
+  type SessionOpAttribution,
+} from './op-attribution.ts';
 
 /**
  * Reserve a managed turn's gateway allowance under the org's spend cap —
  * the PG side of `sandbox/session_mutations:reserveTurnBudget`, taken by
- * both hosts right before they mint the turn's virtual key.
+ * both hosts right before they mint the turn's virtual key, and by the model
+ * endpoints for API keys before each request's key (`kind: 'model-api'`,
+ * its subject named by the caller).
  *
  * Under the org admission lock and the budget-admission lock the chat lane's
- * opens share (so no two admissions read the same remaining balance): the
+ * opens share (so no two admissions read the same remaining balance; a
+ * model-endpoint request takes the budget-admission lock alone — it admits
+ * no sandbox, so the sandbox admission lock would only queue it behind
+ * session starts): the
  * budget policy is evaluated for the run's starter against the ledger PLUS
  * what every other piece of work in flight holds — unsettled ops and live
  * chat turns alike — the allowance
@@ -36,18 +44,39 @@ export async function reserveTurnBudget(
     organizationId: string;
     sessionId: string;
     execId: string;
-    kind: 'task-agent' | 'workflow-agent';
+    /** `model-api`: one request through the model endpoints for API keys
+     * (`domains/model_api`), which has no run behind it and names its
+     * subject itself. */
+    kind: 'task-agent' | 'workflow-agent' | 'model-api';
     defaultBudgetCents: number;
     modelRef?: string;
     /** The harness this turn runs on — the op row's own record, which the
      * harness-turn metrics read ahead of the session's create-time stamp. */
     harness?: string;
+    /** The billing subject, when the caller authenticated it and there is
+     * no run to derive it from — the model endpoints' key holder, under
+     * `__direct_api__`, with the key. Stamped on the op row, where the
+     * settlement's attribution finds it (`resolveSessionOpAttribution`). */
+    subject?: SessionOpAttribution;
+    /** Admit the default whole or not at all, with this many tokens: the
+     * model endpoints' hold is the request's worst case, never a budget to
+     * shrink to what remains (`resolveTurnAllowance`'s `whole`). The tokens
+     * are also recorded on the row, where the in-flight holds count them
+     * against token caps. */
+    whole?: { prospectiveTokens: number };
+    /** At most this many requests of the subject — and, separately, of its
+     * API key — may be running in the organization at once; one more is
+     * refused before anything is held. */
+    concurrencyLimit?: number;
   },
-): Promise<ReserveTurnBudgetResult> {
+): Promise<TurnAllowance> {
   const defaultCents = Math.max(1, Math.floor(args.defaultBudgetCents));
   return sql.begin(async (tx) => {
-    await lockOrgAdmission(tx, args.organizationId);
-    const attribution = await resolveSessionOpAttribution(tx, args);
+    if (args.kind !== 'model-api') {
+      await lockOrgAdmission(tx, args.organizationId);
+    }
+    const attribution =
+      args.subject ?? (await resolveSessionOpAttribution(tx, args));
     const userId = attribution?.userId ?? '';
     const apiKey =
       attribution?.apiKeyId !== undefined
@@ -75,27 +104,54 @@ export async function reserveTurnBudget(
     // their generation rows: the allowance counts live chat turns as well
     // as the unsettled ops, and they count it.
     await lockBudgetAdmission(tx, args.organizationId);
+    if (args.concurrencyLimit !== undefined && userId !== '') {
+      const busy = await runningRequestsOf(tx, {
+        organizationId: args.organizationId,
+        kind: args.kind,
+        userId,
+        apiKeyId: attribution?.apiKeyId,
+      });
+      const scope =
+        busy.apiKey >= args.concurrencyLimit
+          ? 'apiKey'
+          : busy.user >= args.concurrencyLimit
+            ? 'user'
+            : undefined;
+      if (scope !== undefined) {
+        return {
+          allowed: false,
+          reason: `${scope === 'apiKey' ? 'This API key already has' : 'You already have'} ${args.concurrencyLimit} requests running; wait for one to finish.`,
+          concurrency: {
+            scope,
+            running: scope === 'apiKey' ? busy.apiKey : busy.user,
+            limit: args.concurrencyLimit,
+          },
+        };
+      }
+    }
     const allowance = await resolveTurnAllowance(tx, {
       ...subject,
       defaultCents,
       reservations: await readInFlightReservations(tx, subject, {
         op: { sessionId: args.sessionId, execId: args.execId },
       }),
+      ...(args.whole !== undefined ? { whole: args.whole } : {}),
     });
     if (!allowance.allowed) return allowance;
     const now = Date.now();
     await tx`
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
-        api_key_id, model_ref, harness, budget_cents, heartbeat_at_ms,
-        started_at_ms
+        api_key_id, model_ref, harness, budget_cents, reserved_tokens,
+        heartbeat_at_ms, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
         ${args.modelRef ?? null}, ${args.harness ?? null},
-        ${allowance.budgetCents}, ${now}, ${now}
+        ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
+        ${now}, ${now}
       )
       ON CONFLICT (session_id, exec_id) DO UPDATE SET
         budget_cents = EXCLUDED.budget_cents,
@@ -110,4 +166,28 @@ export async function reserveTurnBudget(
     `;
     return allowance;
   });
+}
+
+/** How many requests of `kind` the subject — and, separately, its API key —
+ * have running in the organization right now. Read under the
+ * budget-admission lock, so two admissions never count the same slot. */
+async function runningRequestsOf(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    kind: string;
+    userId: string;
+    apiKeyId: string | undefined;
+  },
+): Promise<{ user: number; apiKey: number }> {
+  const rows = await tx<{ user: number; apiKey: number }[]>`
+    SELECT
+      count(*) FILTER (WHERE user_id = ${args.userId})::int AS "user",
+      count(*) FILTER (WHERE api_key_id = ${args.apiKeyId ?? null})::int
+        AS "apiKey"
+    FROM app.sandbox_session_ops
+    WHERE org_id = ${args.organizationId} AND kind = ${args.kind}
+      AND status = 'running'
+  `;
+  return { user: rows[0]?.user ?? 0, apiKey: rows[0]?.apiKey ?? 0 };
 }

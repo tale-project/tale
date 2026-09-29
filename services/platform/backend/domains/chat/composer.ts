@@ -118,17 +118,17 @@ async function listConnectorCapabilities(
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export async function listComposerModels(
+/** The walk behind every model listing: the servable catalog, projected per
+ * (provider, model) and filtered by the member's model access — plus the
+ * shim it read through and whether a direct credential can synthesize
+ * speech, which the composer also answers. */
+async function walkGovernedChatModels(
   sql: Sql,
   args: { organizationId: string; userId: string },
 ): Promise<{
   models: ComposerModelOption[];
-  harnesses: Array<{ harness: string; label: string; iconUrl?: string }>;
-  voice: {
-    ttsAvailable: boolean;
-    transcriptionAvailable: boolean;
-    transcriptionUnavailableReason?: string;
-  };
+  ttsAvailable: boolean;
+  shim: ReturnType<typeof createCtxShim>;
 }> {
   // The SERVABLE set: each provider's active default credential — the row
   // every serving path resolves — never every active row, or the picker
@@ -153,11 +153,6 @@ export async function listComposerModels(
     },
   );
   const { byId, ttsAvailable } = collectComposerOptions(hits);
-  const transcription = await inspectTranscriptionModels(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver uses the shared provider and governance shim reads
-    shim as unknown as Parameters<typeof inspectTranscriptionModels>[0],
-    args.organizationId,
-  );
 
   // The governance model-access policy filters the catalog server-side —
   // the turn re-checks at send time.
@@ -180,6 +175,44 @@ export async function listComposerModels(
     (a, b) =>
       a.label.localeCompare(b.label) ||
       a.providerSlug.localeCompare(b.providerSlug),
+  );
+  return { models, ttsAvailable, shim };
+}
+
+/**
+ * The chat models a member may send to, as the composer lists them — each
+ * provider's servable catalog (its active default credential, the
+ * credential's model allowlist applied), one entry per (provider, model),
+ * filtered by the member's model access. The listing the model endpoints for
+ * API keys narrow to what their gateway can serve.
+ */
+export async function listGovernedChatModels(
+  sql: Sql,
+  args: { organizationId: string; userId: string },
+): Promise<ComposerModelOption[]> {
+  return (await walkGovernedChatModels(sql, args)).models;
+}
+
+export async function listComposerModels(
+  sql: Sql,
+  args: { organizationId: string; userId: string },
+): Promise<{
+  models: ComposerModelOption[];
+  harnesses: Array<{ harness: string; label: string; iconUrl?: string }>;
+  voice: {
+    ttsAvailable: boolean;
+    transcriptionAvailable: boolean;
+    transcriptionUnavailableReason?: string;
+  };
+}> {
+  const { models, ttsAvailable, shim } = await walkGovernedChatModels(
+    sql,
+    args,
+  );
+  const transcription = await inspectTranscriptionModels(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver uses the shared provider and governance shim reads
+    shim as unknown as Parameters<typeof inspectTranscriptionModels>[0],
+    args.organizationId,
   );
 
   // Only harnesses the managed lane can actually run.

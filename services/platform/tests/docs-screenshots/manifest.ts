@@ -39,6 +39,7 @@ import {
   DEMO_SSO_EXAMPLE,
   DEMO_WEBDAV_RETIRED_LABEL,
   MOCK_PROVIDER_DISPLAY_NAME,
+  MOCK_PROVIDER_SLUG,
 } from './demo-content';
 
 export interface ShotContext {
@@ -124,6 +125,60 @@ const skillSharingSection = (page: Page): Locator =>
     exact: true,
   });
 
+/** The Image generation section on Governance > Models. */
+const imageGenerationSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.imageGeneration.title'),
+    exact: true,
+  });
+
+/** The Model endpoints for API keys section on Governance > Models. */
+const modelEndpointsSection = (page: Page): Locator =>
+  page.getByRole('region', {
+    name: t('governance.modelAccess.modelApi.title'),
+    exact: true,
+  });
+
+/**
+ * Sanitizer for frames that name the capture rig's model gateway or origin:
+ * the mock provider's slug and display name, and the local app origin, in
+ * text and in read-only fields alike, become what a customer's page shows.
+ */
+const replaceRigNames = async (page: Page): Promise<void> => {
+  await page.evaluate(
+    ({ swaps }) => {
+      const swap = (text: string): string =>
+        swaps.reduce((out, [rig, real]) => out.split(rig).join(real), text);
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+      );
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent ?? '';
+        const next = swap(text);
+        if (next !== text) node.textContent = next;
+      }
+      for (const field of document.querySelectorAll<
+        HTMLInputElement | HTMLTextAreaElement
+      >('input, textarea')) {
+        const next = swap(field.value);
+        if (next !== field.value) field.value = next;
+      }
+    },
+    {
+      swaps: [
+        ['http://localhost:3000', 'https://tale.yourcompany.com'],
+        [MOCK_PROVIDER_DISPLAY_NAME, 'OpenRouter'],
+        [`${MOCK_PROVIDER_SLUG}/`, 'openrouter/'],
+        [MOCK_PROVIDER_SLUG, 'openrouter'],
+        // The mock catalog's placeholder model, as a model the demo
+        // organization's model access already names.
+        ['e2e-chat-model', 'google/gemini-3-flash-preview'],
+      ] as [string, string][],
+    },
+  );
+};
+
 /** Flip the notice switch and wait for its instant save to land. */
 async function setDataNotice(page: Page, on: boolean): Promise<void> {
   const toggle = dataNoticeSwitch(page);
@@ -165,21 +220,31 @@ const projectRoute = (ctx: ShotContext, sub = ''): string => {
 /**
  * Sanitizer for pages that print the deployment's own origin (a redirect
  * URL, a connection URL, an API endpoint): swap the capture rig's localhost
- * for a production-shaped host so no published image shows the rig.
+ * for a production-shaped host so no published image shows the rig. It keeps
+ * swapping until the capture: a field a late query remounts prints the rig's
+ * origin again, after the one pass that ran when the shot was ready.
  */
 const replaceRigOrigin = async (page: Page): Promise<void> => {
   await page.evaluate(() => {
-    for (const el of document.querySelectorAll('td, span, div, code, p')) {
-      if (
-        el.children.length === 0 &&
-        el.textContent?.includes('http://localhost:3000/')
-      ) {
-        el.textContent = el.textContent.replace(
-          'http://localhost:3000/',
-          'https://tale.yourcompany.com/',
-        );
+    const swap = () => {
+      for (const el of document.querySelectorAll('td, span, div, code, p')) {
+        if (
+          el.children.length === 0 &&
+          el.textContent?.includes('http://localhost:3000/')
+        ) {
+          el.textContent = el.textContent.replace(
+            'http://localhost:3000/',
+            'https://tale.yourcompany.com/',
+          );
+        }
       }
-    }
+    };
+    swap();
+    new MutationObserver(swap).observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
   });
 };
 
@@ -391,20 +456,24 @@ export const SHOTS: readonly Shot[] = [
       );
     },
     readyWhen: (page) => page.getByText(DEMO_PROJECTS[0].tasks[0].title),
-    // The board renders SIX columns (Backlog … Cancelled) and they do not fit
-    // the standard 1440 frame — the last one gets sliced. Widen just this shot.
-    // Keep 1.6:1 (1920×1200): the README gallery tiles are straight downscales
+    // The board renders SIX columns (Backlog … Cancelled) beside the Home
+    // panel, which a project page never folds away, and they do not fit the
+    // standard 1440 frame — the last one gets sliced. Widen just this shot.
+    // Keep 1.6:1 (2240×1400): the README gallery tiles are straight downscales
     // of these frames, and an off-ratio source would letterbox its tile.
-    viewport: { width: 1920, height: 1200 },
+    viewport: { width: 2240, height: 1400 },
   },
   {
     // The project's General tab — identity form, standing instructions, and
     // sharing. The whole page waits for the project record, and the sharing
-    // section then waits for the teams query (until it answers it shows a
-    // "no teams yet" hint) — so the owning-team picker is the last thing to
-    // settle and the honest "loaded" marker.
+    // section then waits for the teams query (until it answers, the Audience
+    // row holds a spinner under the same label) — so the audience picker is
+    // the last thing to settle and the honest "loaded" marker.
     name: 'project-general-tab',
     section: 'platform',
+    // Taller than the default so the Sharing section clears the fold under
+    // the Project rows and the Instructions editor.
+    viewport: { width: 1440, height: 1200 },
     route: '/dashboard/:orgId/projects',
     prepare: async (page, ctx) => {
       await page.goto(projectRoute(ctx, '/overview'), {
@@ -412,7 +481,10 @@ export const SHOTS: readonly Shot[] = [
       });
     },
     readyWhen: (page) =>
-      page.getByText(t('projects.settings.owningTeam')).first(),
+      page.getByRole('combobox', {
+        name: t('projects.settings.audience'),
+        exact: true,
+      }),
   },
   {
     // The project's Knowledge tab — attached files with their index state
@@ -867,6 +939,19 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
+    // Settings > API > Models — the two base URLs, the models the member may
+    // call and the tool setups. Gate on a listed model id: the list arrives
+    // after the page chrome.
+    name: 'settings-api-models',
+    section: 'develop',
+    route: '/dashboard/:orgId/settings/api/models',
+    readyWhen: (page) =>
+      page
+        .getByText(`${MOCK_PROVIDER_SLUG}/anthropic/claude-sonnet-4.6`)
+        .first(),
+    sanitize: replaceRigNames,
+  },
+  {
     // Four shipped triage examples, found with the real list search, show
     // their versions and deployment state beside Create automation.
     name: 'automations-catalog',
@@ -1100,6 +1185,35 @@ export const SHOTS: readonly Shot[] = [
         name: t('governance.transcriptionModel.title'),
         exact: true,
       }),
+  },
+  {
+    // Governance > Models — image generation switched on with a pinned image
+    // model (the demo organization's fixture pins the mock gateway's image
+    // model). Gate on the resolved sentence, not the static title above a
+    // skeleton; the frame names the vendor a customer's page names.
+    name: 'governance-image-generation',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/content-models',
+    readyWhen: (page) =>
+      imageGenerationSection(page).getByText(
+        /^Agents currently generate images with/,
+      ),
+    sanitize: replaceRigNames,
+    capture: (page) => imageGenerationSection(page),
+  },
+  {
+    // Governance > Models — the model endpoints for API keys, switched on in
+    // the demo organization's model access policy. The switch reads on only
+    // once the policy has loaded.
+    name: 'governance-model-endpoints',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/content-models',
+    readyWhen: (page) =>
+      modelEndpointsSection(page).getByRole('switch', {
+        name: t('governance.modelAccess.modelApi.enabled'),
+        checked: true,
+      }),
+    capture: (page) => modelEndpointsSection(page),
   },
   {
     // Governance > Policies & Limits — budget rules, upload/retention policy,

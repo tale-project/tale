@@ -10,7 +10,7 @@ import { Text } from '@tale/ui/text';
 import { useT } from '@/lib/i18n/client';
 
 import type { TaskStatus } from '../lib/display';
-import { TaskCard, type TaskRow } from './task-card';
+import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
 import { TaskStatusBadge } from './task-status-badge';
 
 export function BoardColumn({
@@ -19,7 +19,7 @@ export function BoardColumn({
   childrenByParent,
   onOpenTask,
   projectKey,
-  canEdit = false,
+  canWorkTask = readOnlyBoard,
   dropHint = null,
 }: {
   status: TaskStatus;
@@ -27,8 +27,8 @@ export function BoardColumn({
   childrenByParent?: Map<string, TaskRow[]>;
   onOpenTask?: (task: TaskRow) => void;
   projectKey?: string | null;
-  /** Caller may write to the project — gates drag-reorder and inline pickers. */
-  canEdit?: boolean;
+  /** Whether the viewer may work a task — gates its drag and pickers. */
+  canWorkTask?: (task: TaskRow) => boolean;
   /** The verb dropping the currently-dragged card here would carry ("Starts
    * the … run.") — announced in the header while the drag is active. */
   dropHint?: string | null;
@@ -84,7 +84,7 @@ export function BoardColumn({
               subtasks={childrenByParent?.get(task._id)}
               onOpen={onOpenTask}
               projectKey={projectKey}
-              canEdit={canEdit}
+              canWorkTask={canWorkTask}
             />
           ))}
         </SortableContext>

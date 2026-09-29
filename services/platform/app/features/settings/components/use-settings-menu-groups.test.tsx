@@ -12,6 +12,17 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true, cannot: () => false }),
 }));
 
+vi.mock(
+  '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
+  () => ({
+    useApiSettingsAccess: () => ({
+      developer: true,
+      modelApi: true,
+      loading: false,
+    }),
+  }),
+);
+
 function Probe({ scope }: { scope: SettingsMenuScope }) {
   const groups = useSettingsMenuGroups('org-1', scope);
   return (

@@ -307,6 +307,147 @@ describe('rollingWindowDedup', () => {
     const out = rollingWindowDedup(segs);
     expect(out).toEqual([seg(0.1, 3.0, 'now we will see all')]);
   });
+
+  it('keeps two speakers who start talking at the same moment (#3705)', () => {
+    // A human track times overlapping speakers to the same start. Neither
+    // line extends the other, so neither is a rolling repeat: dropping the
+    // shorter one deleted Alice's sentence from the transcript.
+    const out = rollingWindowDedup(
+      parseVtt(`WEBVTT
+
+00:00:01.000 --> 00:00:04.000
+<v Alice>The shipment is ready.</v>
+
+00:00:01.000 --> 00:00:09.000
+<v Bob>Hold the shipment until Monday.</v>`),
+    );
+    expect(out).toEqual([
+      {
+        startSec: 1,
+        endSec: 4,
+        text: 'The shipment is ready.',
+        speaker: 'Alice',
+      },
+      {
+        startSec: 1,
+        endSec: 9,
+        text: 'Hold the shipment until Monday.',
+        speaker: 'Bob',
+      },
+    ]);
+  });
+
+  it('keeps distinct unlabeled lines that share a start', () => {
+    // Two positioned lines (a sign and the dialogue) timed together.
+    const segs = [
+      seg(5, 8, 'EXIT ONLY'),
+      seg(5, 7, 'Where does this door go?'),
+    ];
+    expect(rollingWindowDedup(segs)).toEqual(segs);
+  });
+
+  it('does not merge the same line across two speakers', () => {
+    const segs: CaptionSegment[] = [
+      { startSec: 2, endSec: 3, text: 'Yes.', speaker: 'Alice' },
+      {
+        startSec: 2,
+        endSec: 4,
+        text: 'Yes, and it ships Monday.',
+        speaker: 'Bob',
+      },
+    ];
+    expect(rollingWindowDedup(segs)).toEqual(segs);
+  });
+
+  it('collapses a growing line whatever its case and punctuation', () => {
+    const segs = [
+      seg(0, 1, 'We'),
+      seg(0, 2, 'we will'),
+      seg(0, 3, 'We will ship'),
+      seg(0, 4, 'We will ship Monday.'),
+    ];
+    expect(rollingWindowDedup(segs)).toEqual([
+      seg(0, 4, 'We will ship Monday.'),
+    ]);
+  });
+
+  it('compares whole words, so a shorter word is not a prefix', () => {
+    // `no` is a character prefix of `now we`, not a word of it.
+    const segs = [seg(0, 1, 'no'), seg(0, 2, 'now we')];
+    expect(rollingWindowDedup(segs)).toEqual(segs);
+  });
+
+  it('grows each speaker line on its own when they interleave', () => {
+    const cue = (
+      endSec: number,
+      text: string,
+      speaker: string,
+    ): CaptionSegment => ({ startSec: 1, endSec, text, speaker });
+    expect(
+      rollingWindowDedup([
+        cue(2, 'The', 'Alice'),
+        cue(2, 'Hold', 'Bob'),
+        cue(3, 'The shipment', 'Alice'),
+        cue(3, 'Hold the shipment', 'Bob'),
+        cue(4, 'The shipment is ready.', 'Alice'),
+      ]),
+    ).toEqual([
+      cue(4, 'The shipment is ready.', 'Alice'),
+      cue(3, 'Hold the shipment', 'Bob'),
+    ]);
+  });
+
+  it('collapses a growing line in scripts written without spaces', () => {
+    expect(
+      rollingWindowDedup([
+        seg(0, 1, '今日は'),
+        seg(0, 2, '今日はいい'),
+        seg(0, 3, '今日は、いい天気ですね。'),
+      ]),
+    ).toEqual([seg(0, 3, '今日は、いい天気ですね。')]);
+    expect(
+      rollingWindowDedup([seg(4, 5, '我们'), seg(4, 6, '我们周一发货。')]),
+    ).toEqual([seg(4, 6, '我们周一发货。')]);
+    expect(
+      rollingWindowDedup([seg(7, 8, 'วันนี้'), seg(7, 9, 'วันนี้อากาศดี')]),
+    ).toEqual([seg(7, 9, 'วันนี้อากาศดี')]);
+  });
+
+  it('keeps two speakers of such a script who start together', () => {
+    const segs: CaptionSegment[] = [
+      { startSec: 1, endSec: 4, text: '準備できました。', speaker: 'Alice' },
+      {
+        startSec: 1,
+        endSec: 9,
+        text: '月曜まで待ってください。',
+        speaker: 'Bob',
+      },
+    ];
+    expect(rollingWindowDedup(segs)).toEqual(segs);
+    // Nor does a symbol-only cue vanish into a line that starts with it.
+    const music = [seg(2, 3, '♪'), seg(2, 4, '今日は')];
+    expect(rollingWindowDedup(music)).toEqual(music);
+  });
+
+  it('keeps the line with more words, not the longer raw text', () => {
+    // Both are ten characters long; only the second carries "go".
+    expect(
+      rollingWindowDedup([seg(0, 1, 'we -- will'), seg(0, 2, 'we will go')]),
+    ).toEqual([seg(0, 2, 'we will go')]);
+  });
+
+  it('stays linear on a hostile window of same-start cues', () => {
+    // The parser admits up to 50,000 segments; a VTT that times them all
+    // to one start must not turn the window scan quadratic.
+    const segs = Array.from({ length: 50_000 }, (_, i) =>
+      seg(0, 1, `line ${i} ${'x'.repeat(40)}`),
+    );
+    const start = performance.now();
+    const out = rollingWindowDedup(segs);
+    // Quadratic would take minutes; the bound is generous for a busy runner.
+    expect(performance.now() - start).toBeLessThan(5_000);
+    expect(out).toHaveLength(50_000);
+  });
 });
 
 describe('parseVtt — ReDoS hardening', () => {

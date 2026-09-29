@@ -21,6 +21,11 @@ export const PLATFORM_CAPABILITY_PREFIX = 'tale:';
  * that checks it through `holdsCapability`.
  */
 export const PLATFORM_CAPABILITIES = [
+  /** Call the organization's models with a personal API key through the
+   * OpenAI- and Anthropic-compatible endpoints, once the model-access
+   * policy turns them on — the right owners, admins and developers carry by
+   * role (`backend/domains/model_api/access.ts` `mayCallModelApi`). */
+  'tale:models.api',
   'tale:notifications.export',
   /** The REST door may act FOR another verified member the request names
    * (`actor` on a run's ask answer and a task's review decision —

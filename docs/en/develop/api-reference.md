@@ -41,13 +41,13 @@ Automations, agents, skills, folders, models, browser sessions, versions, and tr
 
 ## Authentication
 
-Create keys in **Settings > API > REST** with Admin or Developer access; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
+Create keys in **Settings > API > REST** as an Owner, Admin, or Developer, or as a member an Admin granted **Call models over the API**; [API keys](/platform/admin/api-keys) explains the UI. A key appears once and acts as the user who created it. This REST surface does not create, list, rotate, or revoke keys.
 
 | Header | Rule |
 | --- | --- |
 | `Authorization: Bearer <key>` | The only supported API-key location; preserve the whole opaque string, including its `tale` prefix |
 | `X-Organization-Slug: <slug>` | Select a current membership; always send it in reusable integrations |
-| `x-api-key` | Rejected with `401`, even beside a valid Bearer header; it cannot turn an API key into an app session |
+| `x-api-key` | Rejected with `401`, even beside a valid Bearer header; it cannot turn an API key into an app session. On the Anthropic-compatible [model endpoint](#model-endpoints), the refusal says to pass the key as an auth token instead: `ANTHROPIC_AUTH_TOKEN` for Claude Code, `authToken` or `auth_token` for the Anthropic SDKs, with `ANTHROPIC_API_KEY` unset (contract 3.6.0) |
 
 A user with exactly one organization can omit the organization header. With several memberships, every request needs it, including reads. The dashboard's selected organization never selects API scope. Slugs are matched without regard to case; blank or whitespace-only values count as absent.
 
@@ -62,7 +62,7 @@ Each of the three refusals lists the organizations you can select in `data.organ
 
 `GET /api/v1/me` also returns the membership list as `organizations`. Its `key.expiresAt` is epoch milliseconds, or `null` for a non-expiring key: rotate unattended credentials before expiry causes `401`. `key.name` identifies the credential in use.
 
-Check both the role and the resource scope before offering an operation. Project readers can chat and comment; resource changes and task-workflow starts require edit access.
+Check both the role and the resource scope before offering an operation. Project readers can chat, comment, and create tasks, and they can change and start the tasks they created or are assigned to; changes to other resources and to other people's tasks require edit access.
 
 | Capability returned by `/me` | What it permits |
 | --- | --- |
@@ -71,6 +71,7 @@ Check both the role and the resource scope before offering an operation. Project
 | `notificationExport` | The key may export members’ notifications through `GET /api/v1/notifications/sync`. Owners and Admins have it through their role; any other member only while an Admin’s `tale:notifications.export` grant is live — see [Delegate the export without an Admin role](#delegate-the-export-without-an-admin-role). Without it, the export returns `403 ROLE_FORBIDDEN`. |
 | `skillPublish` | The key may share a skill with the whole organization through `PUT /api/v1/skills/{slug}`. Every member may while the organization has no skill sharing policy; under one, only the roles it admits and members holding a live `tale:skills.publish` grant — see [Save and synchronize skill bundles](#save-and-synchronize-skill-bundles). Without it, such a save returns `403 SKILL_PUBLISH_FORBIDDEN`. |
 | `actAs` | The key may name an `actor` — the verified member a relayed gesture is recorded for — on `POST …/runs/{runId}/asks/{askId}` and `POST …/tasks/{taskId}/review`. Owners and Admins have it through their role; any other member only while an Admin’s `tale:rest.act-as` grant is live — see [Name the member the gesture is for](#name-the-member-the-gesture-is-for). An `actor` sent without it returns `403 ROLE_FORBIDDEN`. |
+| `modelApi` | The key may call the [compatible model endpoints](#model-endpoints): the organization has turned them on, and the key holder may call them. Owners, Admins, and Developers may through their role; any other member only while an Admin's `tale:models.api` grant is live. Without it, those routes answer `403 MODEL_API_DISABLED` or `403 MODEL_API_FORBIDDEN` (contract 3.6.0). |
 
 ## What every request is held to
 
@@ -95,6 +96,7 @@ Send JSON encoded as UTF-8. Invalid UTF-8, NUL characters, unpaired UTF-16 surro
 | --- | --- |
 | Default JSON request | 1 MiB |
 | Inline document content | 32 MiB |
+| Model endpoint request | 32 MiB |
 | Contact bulk import | 8 MiB |
 | Conversation snapshot | 8 MiB |
 | Staged conversation upload | 30 MiB |
@@ -233,6 +235,7 @@ Automation authoring is separate from this REST surface. Use the [MCP endpoint](
 | Projects | `/api/v1/projects/...`<br>The machine endpoint for external workers: list projects or look one up by external id, create, archive and restore, delete; prepare folders, upload, download and delete files, index a file now, delete folders. |
 | Tasks | `/api/v1/projects/{id}/tasks/...`<br>Idempotent task creation from an external ref, state reads, workflow starts (answering the `runId` to poll), comments, and the task’s review — read at `GET .../review`, decided for a member at `POST .../review` — within the named project. |
 | MCP | `POST /api/v1/mcp`<br>The [MCP endpoint](/develop/mcp-endpoint) — same key, JSON-RPC instead of REST. |
+| Model endpoints | `/api/v1/openai/...` and `/api/v1/anthropic/...`<br>OpenAI- and Anthropic-compatible calls to the organization's models, off until an Admin turns them on; see [Compatible model endpoints](#model-endpoints). |
 | Webhook trigger | `POST /api/projects/{id}/automations/webhook/{token}` or `POST /api/automations/webhook/{token}`<br>Start a deployed automation using its token; the [Webhooks page](/develop/webhooks) covers project and non-project URLs. |
 
 ### Avoid overwriting a concurrent edit
@@ -680,11 +683,11 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 # → 200 { "task": { "id": "...", "status": "done" }, "decision": "approve", "approvalId": "...", "actorUserId": "<userId>" }
 ```
 
-`approve` is the board’s move to Done: the member’s own project access and the organization’s `review_policy` apply exactly as there (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them), the review is recorded as approved by the member, and the task becomes `done`; a task with open subtasks returns **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` needs `comment` and `workflowSlug`: it withdraws the review, puts the comment on the timeline and starts the workflow again on the task, which reads the comment as feedback; the answer carries the `runId` to poll, with `started: false` when a live run was reused. A task that is not in review returns **409** `TASK_NOT_IN_REVIEW`. Every decision is audited as `task.review_relayed`, naming the member and the key that relayed for them.
+`approve` is the board’s move to Done: the member’s own right to change the task (an Editor or higher, or the member who created it or is its person assignee) and the organization’s `review_policy` apply exactly as there (**403** `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them), the review is recorded as approved by the member, and the task becomes `done`; a task with open subtasks returns **409** `TASK_HAS_OPEN_SUBTASKS`. `request_changes` needs `comment` and `workflowSlug`: it withdraws the review, puts the comment on the timeline and starts the workflow again on the task, which reads the comment as feedback; the answer carries the `runId` to poll, with `started: false` when a live run was reused. A task that is not in review returns **409** `TASK_NOT_IN_REVIEW`. Every decision is audited as `task.review_relayed`, naming the member and the key that relayed for them.
 
 ### Name the member the gesture is for
 
-`actor.email` names the member by e-mail. Tale resolves it against the organization with the same rule as the notification export: exactly one active membership whose address is verified. No such member returns **404** `ACTOR_NOT_FOUND`, two **409** `ACTOR_AMBIGUOUS`, an unverified address **403** `ACTOR_UNVERIFIED`, a disabled membership **403** `ACTOR_DISABLED`. Every answer returns the resolved `actorUserId`; pin it as `actor.userId` on later calls, and an address that has since moved to another account returns **409** `ACTOR_REBOUND` instead of acting as its new holder. A member who may not see the project — or, on the review door, not write its task — returns **403** `ACTOR_FORBIDDEN`; the key holder's own access is checked first, so this code always speaks of the actor.
+`actor.email` names the member by e-mail. Tale resolves it against the organization with the same rule as the notification export: exactly one active membership whose address is verified. No such member returns **404** `ACTOR_NOT_FOUND`, two **409** `ACTOR_AMBIGUOUS`, an unverified address **403** `ACTOR_UNVERIFIED`, a disabled membership **403** `ACTOR_DISABLED`. Every answer returns the resolved `actorUserId`; pin it as `actor.userId` on later calls, and an address that has since moved to another account returns **409** `ACTOR_REBOUND` instead of acting as its new holder. A member who may not see the project — or, on the review door, not change its task — returns **403** `ACTOR_FORBIDDEN`; the key holder's own access is checked first, so this code always speaks of the actor.
 
 Naming an actor is a right of its own. An Owner or Admin key has it by role; any other key holder needs the `tale:rest.act-as` capability, granted and revoked exactly like the export capability in [Delegate the export without an Admin role](#delegate-the-export-without-an-admin-role), with `"competence":"tale:rest.act-as"` in the grant body. `GET /api/v1/me` answers it as `capabilities.actAs`; an `actor` sent without it returns **403** `ROLE_FORBIDDEN` before any member is looked up. The member’s own permissions still decide what the relayed gesture may do.
 
@@ -837,6 +840,56 @@ A send that is still queued (the poll says `queued`) is stopped the same way: **
 A model failure can appear as an assistant message with readable `error` text and, when available, `errorCode`. The model list is the organization’s configured catalog, not a promise from the provider’s account, so two codes mean the account rather than the request: `credit_exhausted` (the balance is spent) and `model_not_entitled` (the provider’s plan excludes this model). `error` is the provider's own answer prefixed with its HTTP status — a provider **429** can classify as `model_not_entitled` when the plan, not the rate, refused the model — so branch on `errorCode`, never on the sentence.
 
 Pick another model or fix the account — waiting changes nothing, and neither is a `rate_limited`. The worker rechecks the accepted thread and project access before opening the turn. If the thread moves projects or access is lost while the request waits, it does not run or append an error in the new scope.
+
+## Compatible model endpoints {#model-endpoints}
+
+Three routes answer the OpenAI and Anthropic interfaces for the organization's models, so an SDK or a coding tool that speaks either one can use Tale as its model provider (contract 3.7.0). They are a bare model door: the request goes to the model it names and the answer comes back as the model sent it, with no assistant, thread, or Tale tool in between. They are off until an Admin turns on **Model endpoints for API keys**. Owners, Admins, and Developers may then call them; any other member needs a live `tale:models.api` grant. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor#model-endpoints) covers client setup.
+
+| Route | Serves |
+| --- | --- |
+| `POST /api/v1/openai/chat/completions` | OpenAI Chat Completions, streamed as server-sent events or answered whole, with tools and `tool_calls`, images, and files. A stream ends with `data: [DONE]`; its closing usage chunk comes only when `stream_options.include_usage` asks for it. |
+| `GET /api/v1/openai/models` | The model ids the key holder may call, as an OpenAI list: `owned_by` is the provider slug, and `created` is always `0`. |
+| `POST /api/v1/anthropic/v1/messages` | Anthropic Messages, streamed or whole, with tools, images, and documents. `anthropic-version` and `anthropic-beta` are passed on. |
+
+Authentication is the same as on every other operation: `Authorization: Bearer <key>` and, for a key holder with several memberships, `X-Organization-Slug`. The routes share the general rate budget and answer with `X-Request-Id` like any other. They ignore query parameters, an Anthropic SDK's `?beta=true` included, and take bodies up to 32 MiB. Tale reads the fields it governs and relays the rest of the body as sent, so the strict body and query rules of the other operations do not apply here.
+
+`model` is `<providerSlug>/<modelId>` on both interfaces: the provider's slug, a slash, and the model's id in that provider's catalog, such as `openrouter/anthropic/claude-sonnet-4.6`. Because a catalog id can contain slashes, the provider is the part before the first slash. Answers name the id the request sent. The key holder may call the organization's chat models that a credential with an API key or an environment variable serves, narrowed by the credential's model allowlist and the holder's model access; models behind a subscription credential and providers with an endpoint per credential, such as Azure, are not served. `GET /api/v1/models` gives each of these models' context window, capabilities, and prices under the same `providerSlug` and `id`.
+
+Every request is held to the key holder's model access, checked against every budget cap that binds the holder, their teams, the organization, and the key, and booked under the person and the key. The organization's input guardrails judge every text it carries before it is relayed; the answers are not filtered. A person, and each key, may have eight requests running at once.
+
+### Read a refusal in the interface's shape
+
+Every refusal on these routes, the authentication, organization, rate-limit, and body-size refusals included, comes in the error shape of the interface, so a vendor SDK reads it as its own. `code` carries Tale's stable code. On the OpenAI routes:
+
+```json
+{ "error": { "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "type": "permission_error", "param": null, "code": "MODEL_API_DISABLED" } }
+```
+
+On the Anthropic route, which also sets a `request-id` header:
+
+```json
+{ "type": "error", "error": { "type": "permission_error", "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "code": "MODEL_API_DISABLED" }, "request_id": "<X-Request-Id>" }
+```
+
+| Status | `code` | Meaning |
+| --- | --- | --- |
+| **403** | `MODEL_API_DISABLED` | The organization has not turned the endpoints on. |
+| **403** | `MODEL_API_FORBIDDEN` | The key holder's role cannot call them, and the holder has no live `tale:models.api` grant. |
+| **403** | `MODEL_API_MODEL_FORBIDDEN` | The organization's model access blocks the model for the key holder. |
+| **404** | `MODEL_API_MODEL_UNKNOWN` | No model the key holder may call has this id; `GET /api/v1/openai/models` lists them. |
+| **400** | `MODEL_API_VISION_UNSUPPORTED` | The request carries images, and the model does not read them. |
+| **400** | `MODEL_API_TOOLS_UNSUPPORTED` | The request offers tools, and the model takes none. |
+| **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | The request asks the model vendor to run a tool: OpenAI `web_search_options` or a tool whose type is not `function` or `custom`; Anthropic web search, web fetch, code execution, an MCP toolset, `mcp_servers`, or `container`. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | An input guardrail blocked a text in the request; nothing was sent to the model. |
+| **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | The organization's PII protection tokenizes, which a relayed answer cannot honour. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | A moderation step failed under a fail-closed policy, or a guardrail setting cannot be read. Retry later. |
+| **413** | `MODEL_API_TEXT_TOO_LARGE` | A guardrail is on, and the request carries more than 2 MB of text. |
+| **429** | `BUDGET_EXCEEDED` | A budget cap that binds the key holder or the key is reached, or the request's worst case, its prompt and output cap at the model's price, does not fit what is left; a lower `max_tokens` fits more. The message names the cap, `Retry-After` names the time until a reached cap resets, and `x-should-retry: false` tells the SDKs not to retry. |
+| **429** | `MODEL_API_CONCURRENCY_EXCEEDED` | The key holder, or the key, already has eight requests running. `Retry-After` asks for a two-second wait. |
+| **503** | `MODEL_API_UNAVAILABLE` | Tale cannot serve the request right now, for example because the model gateway cannot serve the model. Retry shortly. |
+| **400**, **413**, **422**, **429**, **503**, **529**, or **502** | `MODEL_API_UPSTREAM_ERROR` | The model vendor refused the request. The first six keep the vendor's status; any other refusal is answered as **502**. |
+| **400** | `INVALID_BODY` | The body is not a request the route can relay, such as audio input or output, a role it does not relay, an image URL that is neither `data:` nor `https:`, more than eight answers (`n`), a file stored in the vendor account (`file_id`, a `file` source), a `service_tier` other than the default, or `store: true`. The message names the field, and so does `param` on the OpenAI shape. |
+| **413** | `BODY_TOO_LARGE` | The body is over 32 MiB. |
 
 ## Search a project's files
 
@@ -1084,7 +1137,7 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 ### Create or update the mirrored task
 
-Task creation is idempotent per `(projectId, externalSystem, externalId)`: the first call creates (**201**, `created: true`) a task in `backlog` — the mirror's intake column, where the app's own Create task defaults to To do — and a repeat returns with the same task (**200**, `created: false`). Both keys are stored and compared after NFC normalization and trimming — the same rule as a project's `externalItemId` — so a padded or differently normalized repeat is still the same task, and a key that is blank once trimmed returns **400**. Take `projectId` from the URL; sending it in the body returns **400**. Creating a task requires edit access to an active project.
+Task creation is idempotent per `(projectId, externalSystem, externalId)`: the first call creates (**201**, `created: true`) a task in `backlog` — the mirror's intake column, where the app's own Create task defaults to To do — and a repeat returns with the same task (**200**, `created: false`). Both keys are stored and compared after NFC normalization and trimming — the same rule as a project's `externalItemId` — so a padded or differently normalized repeat is still the same task, and a key that is blank once trimmed returns **400**. Take `projectId` from the URL; sending it in the body returns **400**. Every key holder who can read an active project may create a task, Members included (contract 3.6.0). A repeat changes the task it names, so it needs the right to change that task: an Editor or higher, or the member who created the task or is its person assignee. Anyone else gets **403**, `RBAC_FORBIDDEN`, and nothing is written.
 
 For `externalSystem: "github"` or `"glitchtip"`, `externalState` never changes the Tale task's status. New tasks enter `backlog`; closing, resolving or reopening the upstream issue leaves local progress unchanged. The issue import automations display source status separately on the task.
 
@@ -1105,7 +1158,7 @@ Repeating an active task’s external reference updates its title and descriptio
 
 `description`, `labels`, `externalUrl`, and `setupFolderName` are optional. `title` takes up to 200 UTF-16 code units (most emoji count as 2) and `description` up to 20,000; `labels` takes up to 50 names of up to 50 code units each. `externalUrl` must be an absolute `http(s)` URL. A value past its limit, or another scheme, returns **400** rather than a silently altered task. `setupFolderName` binds the task to one of the project's root folders by name — matched without regard to case — and stores that folder's id as the task's `externalUrl`: the Setup-folder binding a folder-driven automation reads off its task input, resolved again on every repeat.
 
-A name no root folder of the project carries returns **400**, `SETUP_FOLDER_MISSING`, and nothing is created; sent beside `externalUrl`, it returns **400**, `INVALID_BODY`. Labels keep their spelling: a name is trimmed and NFC-normalized, matched against the project's catalog without regard to case, created with the spelling you sent when it is new, and read back as stored in the order you sent — so `["Bug", "P1"]` reads back as `["Bug", "P1"]`, while `["bug"]` on a project that already has `Bug` wears that existing label (two names differing only in case are one label, never two).
+A name no root folder of the project carries returns **400**, `SETUP_FOLDER_MISSING`, and nothing is created; sent beside `externalUrl`, it returns **400**, `INVALID_BODY`. Labels keep their spelling: a name is trimmed and NFC-normalized, matched against the project's catalog without regard to case, created with the spelling you sent when it is new, and read back as stored in the order you sent — so `["Bug", "P1"]` reads back as `["Bug", "P1"]`, while `["bug"]` on a project that already has `Bug` wears that existing label (two names differing only in case are one label, never two). Only an Editor or higher on the project creates labels this way; any other key holder names labels the catalog already has, and a new name returns **400**, `TASK_LABEL_UNKNOWN`, with nothing written.
 
 Send `automationSlug` when the task belongs to an automation: it becomes the assignee, and the task modal's work panel — the Start button, run progress, and the operator questions a run asks — keys on that ownership (a later re-pick fills a missing attribution, but never overwrites an assignee). `runWorkflowSlug` starts a deployed workflow on a newly created task in the same call — the run starts inline, so the response carries its `runId` (the run id to poll; `executionId` repeats it and is deprecated), or `runId: null` if the slug has no deployed version or starting fails after the task is committed. A null run ID does not undo the saved task; inspect and correct the workflow, then use the explicit start route.
 
@@ -1122,7 +1175,7 @@ curl -sS --compressed -X POST "https://your-host.example.com/api/v1/projects/<pr
 
 ### Check whether a task run started
 
-Starting requires edit access to an active project and an active task — an archived task returns **403**, `TASK_ARCHIVED` (the task read carries `archivedAt` while it is; `PATCH …/tasks/{taskId}` with `{ "archived": false }` restores it — see below). It wraps the task as `{task: ...}` and needs no additional developer capability; the run log attributes the start to your key. Poll `GET /api/v1/projects/{id}/runs/{runId}` with the `runId` (`executionId` carries the same value and is deprecated).
+Starting requires the right to change the task — an Editor or higher, or the member who created it or is its person assignee (**403**, `RBAC_FORBIDDEN`, otherwise) — in an active project, and an active task — an archived task returns **403**, `TASK_ARCHIVED` (the task read carries `archivedAt` while it is; `PATCH …/tasks/{taskId}` with `{ "archived": false }` restores it — see below). It wraps the task as `{task: ...}` and needs no additional developer capability; the run log attributes the start to your key. Poll `GET /api/v1/projects/{id}/runs/{runId}` with the `runId` (`executionId` carries the same value and is deprecated).
 
 The answer is **200** whether or not a run started, so branch on `started`, never on the status alone: with `started: false`, `reason: "already_running"` carries the in-flight run's `runId` — a task holds at most one live run, whichever automation started it, so that run may belong to another automation (its `name` says which); poll that run. A workflow bound to other projects returns **403**, `AUTOMATION_PROJECT_FORBIDDEN`. The `workflowSlug` names the automation as `GET /api/v1/automations` lists it — the `/` form (`billing/dunning`), never the `__` spelling the URL path takes — and must name one that exists — **404**, `AUTOMATION_NOT_FOUND`, otherwise — with a deployed version: one that is saved but not deployed returns **409**, `AUTOMATION_NOT_DEPLOYED` — the same two refusals the intake gives an `automationSlug`, judged before the execute budget is charged; `reason: "not_started"` is left for the one residual case, a deployment withdrawn between that check and the start.
 
@@ -1134,7 +1187,7 @@ Concurrent starts for the same task share the one in-flight run, whichever autom
 
 ### Archive or restore a task
 
-`PATCH /api/v1/projects/{id}/tasks/{taskId}` with `{ "archived": true }` archives the task — the board's own archive: it stays readable here and refuses comments and starts with **403**, `TASK_ARCHIVED` — and `{ "archived": false }` restores it. Both are idempotent, so a mirror that supersedes a task (a re-delivery that opened a new one, a source record that was cancelled) retires the old task without reading it first. It needs write access to an **active** project (**403**, `PROJECT_ARCHIVED` or `RBAC_FORBIDDEN`); the task itself may be archived, which is what the restore is for. The body takes exactly `archived`; title, description and labels travel through the intake's repeat. The answer is the task as it now stands.
+`PATCH /api/v1/projects/{id}/tasks/{taskId}` with `{ "archived": true }` archives the task — the board's own archive: it stays readable here and refuses comments and starts with **403**, `TASK_ARCHIVED` — and `{ "archived": false }` restores it. Both are idempotent, so a mirror that supersedes a task (a re-delivery that opened a new one, a source record that was cancelled) retires the old task without reading it first. It needs an **active** project and the right to change the task, as an Editor or higher or as the member who created it or is its person assignee (**403**, `PROJECT_ARCHIVED` or `RBAC_FORBIDDEN`); the task itself may be archived, which is what the restore is for. The body takes exactly `archived`; title, description and labels travel through the intake's repeat. The answer is the task as it now stands.
 
 ```bash
 curl -sS --compressed -X PATCH "https://your-host.example.com/api/v1/projects/<projectId>/tasks/<taskId>" \
@@ -1202,6 +1255,8 @@ API refusals normally use a flat JSON envelope. A conditional `304`, a `HEAD` re
 { "error": "Automation not found", "code": "AUTOMATION_NOT_FOUND" }
 ```
 
+The [compatible model endpoints](#model-endpoints) are the exception: under `/api/v1/openai` and `/api/v1/anthropic`, every refusal, the authentication and rate-limit ones included, takes the OpenAI or Anthropic error shape and carries the same `code` there.
+
 `error` is a sentence for humans; `code` is the stable value to branch on — every refusal the API itself makes carries one, and the OpenAPI document lists the full set as the `Error.code` enum. The set is additive: a new code is a minor change, so treat a value you do not know as a generic refusal of the status you got. Some refusals add `data` — `issues` for a refused body, `retryAfterMs` for a rate limit, `providers` for an ambiguous model. Branch on the code where one is named below, on the status otherwise:
 
 Read the exact error enum without a key:
@@ -1231,7 +1286,7 @@ Body validation rejects missing required values, incorrect types, unknown keys, 
 | `BODY_LENGTH_MISMATCH` | Under HTTP/2, the body ended before its declared `Content-Length`. The edge response has a fresh `requestId` and no `X-Tale-Api-Version`. |
 
 - **401** — missing or invalid API key (`UNAUTHORIZED`), with a `WWW-Authenticate: Bearer` challenge.
-- **403** — the holder lacks the required role (`ROLE_FORBIDDEN`, `KNOWLEDGE_ENTRY_FORBIDDEN`) or project edit access, a document's or project's `teamIds` names a team the holder is not in (`TEAM_ACCESS_DENIED`), a skill save would share with the whole organization while the organization reserves that (`SKILL_PUBLISH_FORBIDDEN`), the project or task is archived for a requested mutation (`PROJECT_ARCHIVED`, `TASK_ARCHIVED` — a project's `teamIds` included), an automation cannot run in this project, or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`).
+- **403** — the holder lacks the required role (`ROLE_FORBIDDEN`, `KNOWLEDGE_ENTRY_FORBIDDEN`) or project edit access, may not change another member's task (`RBAC_FORBIDDEN`), a document's or project's `teamIds` names a team the holder is not in (`TEAM_ACCESS_DENIED`), a skill save would share with the whole organization while the organization reserves that (`SKILL_PUBLISH_FORBIDDEN`), the project or task is archived for a requested mutation (`PROJECT_ARCHIVED`, `TASK_ARCHIVED` — a project's `teamIds` included), an automation cannot run in this project, or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`).
 - **404** — the resource is absent, invisible to the holder, owned by another thread user, or belongs to a different project than the URL names; each family names its own code (`PROJECT_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `THREAD_NOT_FOUND`, …), an `X-Organization-Slug` that names no organization returns `ORG_SLUG_INVALID`, and an unknown route returns `NOT_FOUND` — once the key is checked: keyless, the endpoint's **401** comes first, so a path this endpoint never served (`/api/v1/openapi.json`, say) returns **401** without a key and **404** with one; the document itself lives at `/openapi.json`, outside the endpoint and keyless.
 - **405** — the route exists, but not for that verb (`METHOD_NOT_ALLOWED`); `Allow` lists the verbs it serves.
 - **409** — the state refuses the action: no deployed version, a bound automation called without a project URL, a run still in flight on delete (`RUN_ACTIVE`), an `Idempotency-Key` reused with a different body (`IDEMPOTENCY_KEY_REUSED`), an archived thread or a turn already running, a duplicate — a contact's `email` or `externalId` (`CONTACT_DUPLICATE_EMAIL`, `CONTACT_DUPLICATE_EXTERNAL_ID`), a product's `name` or `externalId` (`DUPLICATE_PRODUCT_NAME`, `DUPLICATE_PRODUCT_EXTERNAL_ID`), a knowledge entry's topic (`KNOWLEDGE_ENTRY_DUPLICATE`), a project's `externalItemId` (`PROJECT_DUPLICATE_EXTERNAL_ID`) —, a superseded knowledge entry (`KNOWLEDGE_ENTRY_SUPERSEDED`), a stale `expectedUpdatedAt` (`CONTACT_STALE`, `PRODUCT_STALE`, `DOCUMENT_STALE`), a document that backs an active knowledge entry (`DOCUMENT_HAS_KNOWLEDGE_ENTRY` — delete or update the entry instead), a delivery retry on one that is not dead-lettered (`DELIVERY_RETRY_UNAVAILABLE`), a newer conversation content snapshot bound to a trashed contact (`CONVERSATION_CONTACT_TRASHED`), or search without an embedding model.
@@ -1265,4 +1320,4 @@ A few endpoints live outside that document on purpose: `GET /api/health` is the 
 
 ## Where this fits
 
-This page is the REST half of the outside surface. The [MCP endpoint](/develop/mcp-endpoint) exposes the same platform to MCP clients — automation authoring lives there, not in REST. The [Webhooks page](/develop/webhooks) covers the inbound trigger that starts runs without a key. If you are building inside the product — project agents, automations — the [Platform tab](/platform) is your day-to-day; this page is for outside. To bring Tale into opencode, Claude Code, or a shell script, and for what replaced the OpenAI-compatible `/api/v1/chat/completions`, read [Use Tale from your editor or a script](/develop/use-tale-from-your-editor).
+This page is the REST half of the outside surface. The [MCP endpoint](/develop/mcp-endpoint) exposes the same platform to MCP clients — automation authoring lives there, not in REST. The [Webhooks page](/develop/webhooks) covers the inbound trigger that starts runs without a key. If you are building inside the product — project agents, automations — the [Platform tab](/platform) is your day-to-day; this page is for outside. To bring Tale into opencode, Claude Code, or a shell script, as their model provider through the [compatible model endpoints](#model-endpoints) or as a source of knowledge and tools, read [Use Tale from your editor or a script](/develop/use-tale-from-your-editor).

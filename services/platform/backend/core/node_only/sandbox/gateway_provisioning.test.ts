@@ -7,6 +7,7 @@ import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import {
   buildProviderProvision,
+  gatewayProvisioningFailureStage,
   provisionSessionGatewayKey,
 } from './gateway_provisioning';
 import {
@@ -169,18 +170,26 @@ describe('provisionSessionGatewayKey', () => {
       allowedModels: MODELS,
       budgetCents: 500,
     });
-    // One provision for the one unique provider, despite two models.
+    // One provision for the one unique provider, despite two models. A
+    // sandbox session reuses nothing: every create lists the org's keys and
+    // re-asserts the auth posture, and its key name carries no request id.
     expect(mockedResolve).toHaveBeenCalledTimes(1);
-    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
-      expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' }),
-    ]);
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' })],
+      { reuseRecent: false },
+    );
     expect(applyGatewayConfig).toHaveBeenCalledTimes(1);
-    expect(mintVirtualKey).toHaveBeenCalledWith({
-      budgetCents: 500,
-      allowedModels: MODELS,
-      organizationId: 'org_1',
-      sessionId: 'sess-1',
-    });
+    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: false });
+    expect(mintVirtualKey).toHaveBeenCalledWith(
+      {
+        budgetCents: 500,
+        allowedModels: MODELS,
+        organizationId: 'org_1',
+        sessionId: 'sess-1',
+      },
+      { reuseRecent: false },
+    );
     expect(result.token).toBe('sk-bf-t');
     expect(result.keyId).toBe('vk-9');
     expect(result.keyHash).toMatch(/^[0-9a-f]{64}$/);
@@ -313,13 +322,17 @@ describe('provisionSessionGatewayKey', () => {
     });
     // One credential resolve for the connector, one per-model gateway record.
     expect(mockedResolve).toHaveBeenCalledTimes(1);
-    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
-      expect.objectContaining({
-        name: 'org_1__deepseek__deepseek-v4-flash',
-        models: ['deepseek-v4-flash'],
-        apiKey: 'sk-ds',
-      }),
-    ]);
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [
+        expect.objectContaining({
+          name: 'org_1__deepseek__deepseek-v4-flash',
+          models: ['deepseek-v4-flash'],
+          apiKey: 'sk-ds',
+        }),
+      ],
+      { reuseRecent: false },
+    );
     // The price is scoped to that same per-model record, matched on the
     // wire model id (the ref with the record prefix stripped).
     expect(ensureModelPricingOverride).toHaveBeenCalledWith({
@@ -356,15 +369,19 @@ describe('provisionSessionGatewayKey', () => {
       ],
       budgetCents: 500,
     });
-    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
-      expect.objectContaining({
-        name: 'org_1__deepseek__deepseek-v4-flash__anthropic',
-        baseUrl: 'https://api.deepseek.com/anthropic',
-        apiFormat: 'anthropic',
-        models: ['deepseek-v4-flash'],
-        apiKey: 'sk-ds',
-      }),
-    ]);
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [
+        expect.objectContaining({
+          name: 'org_1__deepseek__deepseek-v4-flash__anthropic',
+          baseUrl: 'https://api.deepseek.com/anthropic',
+          apiFormat: 'anthropic',
+          models: ['deepseek-v4-flash'],
+          apiKey: 'sk-ds',
+        }),
+      ],
+      { reuseRecent: false },
+    );
     // Pricing scoped to that SAME distinct record, else its turns bill 0.
     expect(ensureModelPricingOverride).toHaveBeenCalledWith({
       gatewayProvider: 'org_1__deepseek__deepseek-v4-flash__anthropic',
@@ -400,15 +417,19 @@ describe('provisionSessionGatewayKey', () => {
       ],
       budgetCents: 500,
     });
-    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
-      expect.objectContaining({
-        name: 'org_1__openrouter__anthropic_claude-sonnet-5__anthropic',
-        baseUrl: 'https://openrouter.ai/api',
-        apiFormat: 'anthropic',
-        models: ['anthropic/claude-sonnet-5'],
-        apiKey: 'sk-live',
-      }),
-    ]);
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [
+        expect.objectContaining({
+          name: 'org_1__openrouter__anthropic_claude-sonnet-5__anthropic',
+          baseUrl: 'https://openrouter.ai/api',
+          apiFormat: 'anthropic',
+          models: ['anthropic/claude-sonnet-5'],
+          apiKey: 'sk-live',
+        }),
+      ],
+      { reuseRecent: false },
+    );
     expect(ensureModelPricingOverride).toHaveBeenCalledWith({
       gatewayProvider:
         'org_1__openrouter__anthropic_claude-sonnet-5__anthropic',
@@ -644,6 +665,295 @@ describe('provisionSessionGatewayKey', () => {
       organizationId: 'org_1',
       providerSlug: 'openrouter',
       credentialId: 'cred-42',
+    });
+  });
+});
+
+/** A subscription credential: its forced harness authenticates directly, so
+ * the gateway has nothing to serve it with. */
+const SUBSCRIPTION_RESOLUTION = {
+  authMethod: 'subscription-broker',
+  credentialId: asCredId('cred-3'),
+  name: 'Claude sub',
+  token: 'tok',
+  targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+  brokerTokenHash: 'synthetic-broker-account-hash',
+} as const;
+
+/** What a call threw — failing the test when it did not throw. */
+async function refusalOf(call: Promise<unknown>): Promise<unknown> {
+  return call.then(
+    () => {
+      throw new Error('expected the provisioning to refuse');
+    },
+    (error: unknown) => error,
+  );
+}
+
+describe('provisionSessionGatewayKey — request-scoped keys', () => {
+  const MODEL = [
+    { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+  ];
+  const REQUEST = {
+    organizationId: 'org_1',
+    sessionId: 'model-api:key-1',
+    allowedModels: MODEL,
+    budgetCents: 4,
+    requestScoped: true,
+  };
+
+  it('reuses what the process verified moments ago and names the key after its request', async () => {
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+
+    await provisionSessionGatewayKey(fakeCtx(), {
+      ...REQUEST,
+      requestId: 'req-1',
+    });
+
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [expect.objectContaining({ name: 'openrouter', apiKey: 'sk-live' })],
+      { reuseRecent: true },
+    );
+    expect(applyGatewayConfig).toHaveBeenCalledWith({ reuseRecent: true });
+    expect(mintVirtualKey).toHaveBeenCalledWith(
+      {
+        budgetCents: 4,
+        allowedModels: MODEL,
+        organizationId: 'org_1',
+        sessionId: 'model-api:key-1',
+        requestId: 'req-1',
+      },
+      { reuseRecent: true },
+    );
+  });
+
+  it('resolves the credential on every request, so one disabled since the last refuses at once', async () => {
+    mockedResolve.mockResolvedValueOnce(apiKeyResolution());
+    mockedResolve.mockRejectedValueOnce(
+      new AppError({
+        code: 'CREDENTIAL_DISABLED',
+        message: 'Credential "Main key" is disabled',
+      }),
+    );
+
+    await provisionSessionGatewayKey(fakeCtx(), {
+      ...REQUEST,
+      requestId: 'req-1',
+    });
+    const refusal = await refusalOf(
+      provisionSessionGatewayKey(fakeCtx(), { ...REQUEST, requestId: 'req-2' }),
+    );
+
+    expect(mockedResolve).toHaveBeenCalledTimes(2);
+    expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a provider whose credential the gateway cannot serve, where a sandbox session goes on as before', async () => {
+    // The gateway may still hold the org's key from the api-key credential
+    // this provider used before, and the process may remember its id: a
+    // request-scoped mint must never bind a record it did not provision.
+    mockedResolve.mockResolvedValue(SUBSCRIPTION_RESOLUTION);
+    const models = [{ providerSlug: 'anthropic', modelId: 'claude-fable-5' }];
+
+    const refusal = await refusalOf(
+      provisionSessionGatewayKey(fakeCtx(), {
+        ...REQUEST,
+        allowedModels: models,
+        requestId: 'req-1',
+      }),
+    );
+
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toBe(
+      'Provider "anthropic" cannot serve this session: its credential cannot be served through the sandbox LLM gateway (a subscription runs only in its vendor\'s harness, and a per-credential endpoint is not provisioned into the gateway)',
+    );
+    expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+
+    // A sandbox session keeps its path: nothing to push, the mint decides.
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-sub',
+      allowedModels: models,
+      budgetCents: 4,
+    });
+    expect(provisionProviders).toHaveBeenCalledWith('org_1', [], {
+      reuseRecent: false,
+    });
+    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('gatewayProvisioningFailureStage', () => {
+  const ARGS = {
+    organizationId: 'org_1',
+    sessionId: 'sess-f',
+    allowedModels: [
+      { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+    ],
+    budgetCents: 100,
+  };
+
+  describe('credential — the credential could not be resolved or used', () => {
+    it('a disabled or deleted credential, keeping its message and cause', async () => {
+      const cause = new AppError({
+        code: 'CREDENTIAL_DISABLED',
+        message: 'Credential "Main key" is disabled',
+      });
+      mockedResolve.mockRejectedValueOnce(cause);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), ARGS),
+      );
+
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+      expect((refusal as Error).message).toBe(
+        'Provider "openrouter" cannot serve this session: Credential "Main key" is disabled',
+      );
+      expect((refusal as Error).cause).toBe(cause);
+    });
+
+    it('an unknown provider', async () => {
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), {
+          ...ARGS,
+          allowedModels: [{ providerSlug: 'not-a-provider', modelId: 'm' }],
+        }),
+      );
+
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+      expect((refusal as Error).message).toMatch(
+        /^Provider "not-a-provider" cannot serve this session: Unknown provider/,
+      );
+    });
+
+    it('a secret that could not be read', async () => {
+      const cause = new Error('the credential secret could not be decrypted');
+      mockedResolve.mockRejectedValueOnce(cause);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), ARGS),
+      );
+
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+      expect((refusal as Error).cause).toBe(cause);
+    });
+
+    it('a subscription-only credential behind a request-scoped key', async () => {
+      mockedResolve.mockResolvedValue(SUBSCRIPTION_RESOLUTION);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), {
+          ...ARGS,
+          allowedModels: [
+            { providerSlug: 'anthropic', modelId: 'claude-fable-5' },
+          ],
+          requestScoped: true,
+        }),
+      );
+
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+    });
+  });
+
+  describe('gateway — everything after the credential resolved', () => {
+    it('the credential push, keeping its message and cause', async () => {
+      mockedResolve.mockResolvedValue(apiKeyResolution());
+      const cause = new Error('llm-gateway create key failed (503)');
+      vi.mocked(provisionProviders).mockResolvedValueOnce([
+        { name: 'openrouter', error: cause },
+      ]);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), ARGS),
+      );
+
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('gateway');
+      expect((refusal as Error).message).toBe(
+        'Provider "openrouter" cannot serve this session: its credential could not be pushed to the sandbox LLM gateway (llm-gateway create key failed (503))',
+      );
+      expect((refusal as Error).cause).toBe(cause);
+    });
+
+    it('the auth-posture apply, whose own error comes through as it was', async () => {
+      mockedResolve.mockResolvedValue(apiKeyResolution());
+      const failure = new Error('llm-gateway get config failed (502)');
+      vi.mocked(applyGatewayConfig).mockRejectedValueOnce(failure);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), ARGS),
+      );
+
+      expect(refusal).toBe(failure);
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('gateway');
+    });
+
+    it("a custom record's price the gateway would not take", async () => {
+      mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      mockedCatalog.mockResolvedValue([
+        {
+          id: 'deepseek-v4-flash',
+          pricing: { inputCentsPerMillion: 14, outputCentsPerMillion: 28 },
+        },
+      ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
+      const cause = new Error('llm-gateway create pricing override failed');
+      vi.mocked(ensureModelPricingOverride).mockRejectedValueOnce(cause);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), {
+          ...ARGS,
+          allowedModels: [
+            { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
+          ],
+        }),
+      );
+
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('gateway');
+      expect((refusal as Error).message).toMatch(
+        /the price of deepseek-v4-flash could not be pushed/,
+      );
+      expect((refusal as Error).cause).toBe(cause);
+    });
+
+    it('the mint', async () => {
+      mockedResolve.mockResolvedValue(apiKeyResolution());
+      const failure = new Error('llm-gateway mint key failed (500)');
+      vi.mocked(mintVirtualKey).mockRejectedValueOnce(failure);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), ARGS),
+      );
+
+      expect(refusal).toBe(failure);
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('gateway');
+    });
+
+    it('a deployment without the admin password', async () => {
+      vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+      vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx(), ARGS),
+      );
+
+      expect(gatewayProvisioningFailureStage(refusal)).toBe('gateway');
+    });
+
+    it('anything else, including a foreign error that claims a stage', () => {
+      expect(gatewayProvisioningFailureStage(new Error('boom'))).toBe(
+        'gateway',
+      );
+      expect(gatewayProvisioningFailureStage('boom')).toBe('gateway');
+      expect(gatewayProvisioningFailureStage(undefined)).toBe('gateway');
+      expect(
+        gatewayProvisioningFailureStage(
+          Object.assign(new Error('not ours'), { stage: 'credential' }),
+        ),
+      ).toBe('gateway');
     });
   });
 });

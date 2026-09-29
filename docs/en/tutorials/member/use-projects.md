@@ -7,7 +7,7 @@ Create a project when several chats need the same reference material. In this wa
 
 ## Before you begin
 
-You need the **Member** role or higher and a short text document, PDF with selectable text, or modern Office file. Choose a file whose contents you can verify, such as a project brief with a named owner and a review date. An admin must have configured document storage and an embedding model for searchable uploads.
+Creating the project, uploading its files, and saving its instructions need the **Editor** role or higher. As a **Member**, ask an Editor for those steps, or use a project you can already open, and start at [Ask a question and check the source](#ask-a-question-and-check-the-source). You need a short text document, PDF with selectable text, or modern Office file. Choose a file whose contents you can verify, such as a project brief with a named owner and a review date. An admin must have configured document storage and an embedding model for searchable uploads.
 
 New projects are **Org-wide**. Use non-sensitive material for this walkthrough; if the real project needs restricted access, set its owning team under **General > Sharing** before uploading its files. Project chats remain personal until you share them.
 

@@ -1255,6 +1255,7 @@ chat:
       notFound: Video link not found — it may have been removed
       notUploader: Only the person who added this video can change it
       notRetryable: Can't retry right now — the video may already be processing again
+      threadNotFound: This chat is no longer available
     actions:
       removeLink: Remove
       retry: Try again
@@ -1265,6 +1266,8 @@ chat:
     toast:
       ingestFailedTitle: Couldn't add this video
       retryFailedTitle: Couldn't retry this video
+      removeFailedTitle: Couldn't remove this video
+      removeFailedDescription: It's still attached to your message — try removing it again
   fallback:
     image: Image
   loadingConversation: Loading conversation…
@@ -1750,6 +1753,7 @@ conversations:
   updating: Updating conversations...
   bulk:
     progress: 'Updating conversations... {settled} of {total}'
+    outcomeWithReason: '{outcome} — {reason}'
     sendMessages: Send messages
     close: Close
     reopen: Reopen
@@ -3525,6 +3529,9 @@ governance:
       until: Until {date}
       noExpiry: No expiry
     capabilities:
+      modelsApi:
+        label: Call models over the API
+        description: Use the organization's models from one's own tools with a personal API key, through the OpenAI- and Anthropic-compatible endpoints, once the model access policy turns them on. Owners, admins and developers can without it.
       notificationsExport:
         label: Export notifications
         description: Read the notifications another member can see through the REST API, to mirror them into another application.
@@ -3874,6 +3881,14 @@ governance:
       models that would no longer be permitted: {rules}. Affected users will
       fall back to another permitted model.'
     removeDefaultConfirmAction: Save anyway
+    modelApi:
+      title: Model endpoints for API keys
+      description: Let owners, admins and developers — and members granted the
+        Call models over the API competence — use the models this policy allows
+        from their own tools with a personal API key, over OpenAI- and
+        Anthropic-compatible endpoints. Calls count against budgets and pass the
+        input guardrails; the models' answers are not filtered.
+      enabled: Enable model endpoints for API keys
   dataSubjectRequests:
     title: Data subject requests
     entityLabel: requests
@@ -4493,6 +4508,9 @@ metadata:
   mcp:
     title: MCP
     description: Connect MCP clients to this workspace over MCP.
+  modelEndpoints:
+    title: Model endpoints
+    description: Call the organization's models from your own tools over OpenAI- and Anthropic-compatible endpoints.
   sandboxes:
     title: Sandboxes
     description: Manage your organization's remote sandboxes.
@@ -4520,6 +4538,7 @@ navigation:
   apiKeys: API keys
   api: API
   apiRest: REST
+  apiModels: Models
   branding: Branding
   governance: Governance
   metrics: Metrics
@@ -5566,6 +5585,64 @@ settings:
     exampleHelp: Lists the tools — put your API key in place; the organization
       header is already filled in.
     copyExample: Copy example request
+  modelEndpoints:
+    title: Model endpoints
+    description: Use the organization's models from your own tools — opencode,
+      Claude Code, the OpenAI and Anthropic SDKs — with a personal API key.
+    loadFailed: Couldn't load the model endpoints' status.
+    governanceNote: Every call counts against your budgets and passes the
+      organization's input guardrails; the models' answers are not filtered.
+    disabled:
+      title: Model endpoints are not enabled for your organization
+      description: An admin turns them on under Settings → Governance →
+        Models → Model access.
+      openPolicy: Open model access
+    forbidden:
+      title: Your role cannot call the model endpoints
+      description: Owners, admins and developers can. Ask an admin to grant
+        you the Call models over the API competence.
+    openaiUrl:
+      label: OpenAI-compatible base URL
+      description: For the OpenAI SDKs, opencode and other OpenAI-compatible
+        clients, which append /chat/completions.
+      copy: Copy OpenAI-compatible base URL
+    anthropicUrl:
+      label: Anthropic-compatible base URL
+      description: For Claude Code (ANTHROPIC_BASE_URL) and the Anthropic
+        SDKs, which append /v1/messages.
+      copy: Copy Anthropic-compatible base URL
+    apiKey:
+      label: API key
+      description: Send a personal API key as a bearer token in the
+        Authorization header. Create one under
+      link: REST API keys.
+    orgSlug:
+      label: Organization slug
+      description: Send it as the X-Organization-Slug header when your key
+        belongs to more than one organization.
+      copy: Copy organization slug
+    models:
+      label: Models you can call
+      description: Use these ids as the model name on both endpoints. Your
+        model access decides the list.
+      empty: No model is available to you yet. An admin connects providers
+        and decides model access.
+      copy: Copy model id {id}
+    opencode:
+      title: opencode
+      description: Add the provider to opencode.json. The key comes from the
+        TALE_API_KEY environment variable.
+      copy: Copy opencode configuration
+    claudeCode:
+      title: Claude Code
+      description: Set these variables before you start claude. Leave
+        ANTHROPIC_API_KEY unset — Tale refuses the header it sends.
+      copy: Copy Claude Code variables
+    openaiSdk:
+      title: OpenAI SDK (Python)
+      description: Point the client at Tale. Streaming, tools and images work
+        as they do with OpenAI.
+      copy: Copy OpenAI SDK example
   account:
     profile:
       title: Profile
@@ -7365,7 +7442,7 @@ tasks:
     deleteConfirmDescription: Removes "{label}" from the project and from every task that uses it.
     errors:
       TASK_LABEL_NAME_TAKEN: A label with that name already exists.
-      TASK_LABEL_UNKNOWN: That label isn't in this project — type its name in the picker to create it.
+      TASK_LABEL_UNKNOWN: That label isn't in this project — pick one it already has. Editors and higher roles add new labels in the picker.
       TASK_LABELS_INVALID: Invalid label name.
       TASK_LABEL_IN_USE: That label is still on a task.
       createFailed: Couldn't create the label.
@@ -7630,6 +7707,7 @@ tasks:
     breakerPaused: "{slug} won't respond — agent runs are paused on this task"
     budgetPaused: "{slug} won't respond — monthly budget exhausted"
     agentNotLive: "{slug} won't respond — agent is not installed or is disabled"
+    notPermitted: "{slug} won't respond — you can't start agents on this task"
   mentionPicker:
     title: Mention a member, agent, or automation
     empty: No matches

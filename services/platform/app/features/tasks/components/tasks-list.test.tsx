@@ -99,7 +99,11 @@ describe('TasksList keyboard access', () => {
       rank: 'a1',
     });
     const { user } = render(
-      <TasksList tasks={[first, second]} canEdit onOpenTask={onOpenTask} />,
+      <TasksList
+        tasks={[first, second]}
+        canWorkTask={() => true}
+        onOpenTask={onOpenTask}
+      />,
     );
 
     screen.getByRole('button', { name: 'To do 2' }).focus();
@@ -130,7 +134,11 @@ describe('TasksList keyboard access', () => {
       title: 'Check the total',
     });
     const { user, container } = render(
-      <TasksList tasks={[parent, child]} canEdit onOpenTask={onOpenTask} />,
+      <TasksList
+        tasks={[parent, child]}
+        canWorkTask={() => true}
+        onOpenTask={onOpenTask}
+      />,
     );
 
     screen.getByRole('button', { name: 'Subtasks' }).focus();
@@ -164,7 +172,11 @@ describe('TasksList keyboard access', () => {
       const task = makeTask({ archivedAt });
       const onOpenTask = vi.fn();
       const { user } = render(
-        <TasksList tasks={[task]} canEdit={canEdit} onOpenTask={onOpenTask} />,
+        <TasksList
+          tasks={[task]}
+          canWorkTask={() => canEdit}
+          onOpenTask={onOpenTask}
+        />,
       );
       const title = screen.getByRole('button', { name: task.title });
       expect(title).not.toHaveAttribute('aria-disabled');
@@ -179,7 +191,11 @@ describe('TasksList keyboard access', () => {
     const task = makeTask();
     const onOpenTask = vi.fn();
     const { user } = render(
-      <TasksList tasks={[task]} canEdit onOpenTask={onOpenTask} />,
+      <TasksList
+        tasks={[task]}
+        canWorkTask={() => true}
+        onOpenTask={onOpenTask}
+      />,
     );
     const title = screen.getByRole('button', { name: task.title });
     title.focus();

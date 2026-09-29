@@ -5,7 +5,7 @@ description: Give a member one narrow right or a qualification without an Admin 
 
 Use **Settings > Governance > Competences** as an Admin or Owner to keep the organization's competence register. A competence is one of two things:
 
-- A **platform capability** lets a member do one narrow thing that otherwise needs an Admin role. Grant it to the account behind an integration instead of making that account an Admin, which would also let it manage members, single sign-on and passwords.
+- A **platform capability** lets a member do one narrow thing that otherwise needs a higher role. Grant it to the account behind an integration instead of making that account an Admin, which would also let it manage members, single sign-on and passwords.
 - A **qualification** is a name your organization's review policy can require of the person who approves a review.
 
 A grant applies in this organization only. Tale records every grant and revocation in the audit log, and removing a member from the organization revokes their grants.
@@ -17,10 +17,13 @@ A grant applies in this organization only. Tale records every grant and revocati
 | **Export notifications** (`tale:notifications.export`) | Read the notifications another member can see through the REST API, so another application can mirror them.                                               |
 | **Act for another member** (`tale:rest.act-as`)        | Name the member an API call answers a question or decides a review for. The task timeline and the audit log then show that person instead of the API key. |
 | **Publish skills to the organization** (`tale:skills.publish`) | Share a skill with the whole organization even when the [skill sharing policy](/platform/admin/governance/policies-and-limits#skill-sharing) reserves that for Editors or admins. |
+| **Call models over the API** (`tale:models.api`) | Call the organization's models from one's own tools with a personal API key, through the [model endpoints](/develop/use-tale-from-your-editor#model-endpoints), once the organization turns them on. It also opens **Settings > API** with its **REST** and **Models** tabs, to create the key and read the setup. |
 
-Owners and Admins have all three through their role. Any other member, for example a Developer account whose API key an integration uses, needs the capability granted here. Without it, the REST API answers an export or an `actor` with `403 ROLE_FORBIDDEN`. The [API reference](/develop/api-reference#name-the-member-the-gesture-is-for) describes both requests.
+Owners and Admins have all four through their role, and Developers also have **Call models over the API** through theirs. Any other member needs the capability granted here, for example a Developer account whose API key an integration uses for an export. Without it, the REST API answers an export or an `actor` with `403 ROLE_FORBIDDEN`, and the model endpoints answer `403 MODEL_API_FORBIDDEN`. The [API reference](/develop/api-reference#name-the-member-the-gesture-is-for) describes the export and `actor` requests.
 
 **Publish skills to the organization** matters only while the skill sharing policy reserves organization-wide skills. Under **Editors and above**, Editors and Developers already have it through their role. Without it, a member can share skills with their own teams only, and the skill editor, uploads, and the REST API refuse an organization-wide skill with `403 SKILL_PUBLISH_FORBIDDEN`.
+
+**Call models over the API** takes effect only once the organization turns on the model endpoints under [Models](/platform/admin/governance/content-models#model-endpoints). A member who holds it can open **Settings > API** with its **REST** and **Models** tabs to create a personal key and copy the setup; the **MCP** and **WebDAV** tabs stay with Owners, Admins, and Developers. Once the grant is revoked, Tale refuses the member's next model call.
 
 ## Grant a competence
 
@@ -51,6 +54,6 @@ Removing a member revokes every active grant they hold — capabilities and qual
 
 <Tip>
 
-An integration can check its own key with `GET /api/v1/me`: `capabilities.actAs`, `capabilities.notificationExport`, and `capabilities.skillPublish` say whether the key may use each capability, through its role or a grant.
+An integration can check its own key with `GET /api/v1/me`: `capabilities.actAs`, `capabilities.notificationExport`, `capabilities.skillPublish`, and `capabilities.modelApi` say whether the key may use each capability, through its role or a grant; `capabilities.modelApi` also needs the model endpoints turned on.
 
 </Tip>

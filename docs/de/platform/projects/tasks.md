@@ -3,7 +3,7 @@ title: Aufgaben auf dem Projektboard verwalten
 description: Erstelle Aufgaben, lege Verantwortliche fest, verfolge den Fortschritt und prüfe die Ergebnisse an einem Ort.
 ---
 
-Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkeit, Status, Dateien und die Diskussion zum Ergebnis. Nutze das Projektboard sowohl für menschliche Arbeit als auch für Aufgaben, die du einem Agenten überträgst. Zum Ändern von Aufgaben brauchst du Bearbeitungszugriff auf das Projekt, und das Projekt muss aktiv sein: Ein archiviertes Projekt bleibt schreibgeschützt, bis ein Administrator es wiederherstellt.
+Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkeit, Status, Dateien und die Diskussion zum Ergebnis. Nutze das Projektboard sowohl für menschliche Arbeit als auch für Aufgaben, die du einem Agenten überträgst. Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. [Wer eine Aufgabe ändern darf](#wer-aufgaben-erstellen-und-aendern-darf), hängt von deiner Rolle ab und davon, ob es deine Aufgabe ist. Das Projekt muss aktiv sein: Ein archiviertes Projekt bleibt schreibgeschützt, bis ein Administrator es wiederherstellt.
 
 <Frame caption="Das Board ordnet Aufgaben nach Status. Unter Liste siehst du dieselben Aufgaben als Zeilen.">
 
@@ -23,6 +23,8 @@ Ein Titel darf bis zu 200 Zeichen lang sein, eine Beschreibung bis zu 20.000; di
 
 Tale vergibt eine Kennung aus dem Projektkürzel, etwa `WEB-1`. Verwende sie in Verweisen auf die Arbeit, damit ähnlich benannte Aufgaben unterscheidbar bleiben.
 
+Eine Automatisierung, die für Aufgaben gebaut ist, kann in **Aufgabe erstellen** auch eine Vorlage anbieten: Ihr Name steht dann über dem Formular neben **Leere Aufgabe**. Wähle sie, gib den Namen ein, den die Automatisierung verlangt, etwa ein Quartal, und klicke auf **Aufgabe erstellen**; zuständig ist dann die Automatisierung. Gibt es für diesen Namen schon eine Aufgabe, öffnet Tale diese, statt eine zweite anzulegen, und meldet **Für dieses Subjekt existiert bereits eine Aufgabe.** Mitglieder können sie dort lesen und kommentieren, ändern sie aber nur, wenn es ihre eigene ist. Vorlagen, die im Projekt Ordner oder Einstellungsdateien anlegen, stehen nur Redakteuren und höheren Rollen zur Verfügung.
+
 <Tip>
 
 Eine hilfreiche Beschreibung nennt Ausgangsmaterial, gewünschtes Ergebnis und Abschlusskriterium. Zum Beispiel: „Vergleiche den Prüftermin im angehängten Briefing mit den Gesprächsnotizen. Halte Abweichungen in einem Kommentar fest und nenne beide Dateien als Quelle.“
@@ -35,13 +37,44 @@ Eine hilfreiche Beschreibung nennt Ausgangsmaterial, gewünschtes Ergebnis und A
 
 </Frame>
 
+## Wer Aufgaben erstellen und ändern darf
+
+Wer ein Projekt öffnen kann, kann darin Aufgaben erstellen. Redakteure und höhere Rollen dürfen jede Aufgabe im Projekt ändern. Mitglieder ändern die Aufgaben, die sie selbst erstellt haben oder die ihnen zugewiesen sind, und haben dort dieselben Möglichkeiten wie ein Redakteur:
+
+- Titel, Beschreibung, Anhänge, Teilaufgaben, Termine, Priorität, Labels, Reviewer und Wiederholung bearbeiten.
+- Die Aufgabe sich selbst, einem anderen Mitglied des Projekts, einem seiner Agenten oder einer für Aufgaben gebauten Automatisierung zuweisen.
+- Den Agenten starten, lenken oder stoppen, auch mit einer @-Erwähnung in einem Kommentar.
+- Den Status ändern und ein Ergebnis annehmen, indem sie die Aufgabe auf **Erledigt** setzen.
+- Die Aufgabe archivieren oder wiederherstellen.
+
+Das gilt auch für die Teilaufgaben unter einer solchen Aufgabe, egal wer sie angelegt hat, etwa ein Agent, der die Arbeit aufgeteilt hat. Sie hindern ein Mitglied also nie daran, seine Aufgabe abzuschließen.
+
+Aufgaben anderer können Mitglieder lesen und kommentieren. Erwähnen sie dort einen Agenten, bleibt das eine gewöhnliche Erwähnung, die nichts startet. Eigene Kommentare kann jede Person auf jeder Aufgabe bearbeiten und löschen, die sie lesen darf; Inhaber und Admins können auch Kommentare anderer löschen.
+
+Gibst du eine Aufgabe, die dir zugewiesen war, an jemand anderen weiter, an eine Person oder einen Agenten, gibst du damit auch das Recht ab, sie zu ändern – es sei denn, du hast sie erstellt. Einen Lauf, den du gestartet hast, behältst du aber in der Hand: Übergibt deine @-Erwähnung die Aufgabe an einen Agenten, kannst du diesen Lauf mit weiteren Erwähnungen lenken und mit **Lauf abbrechen** stoppen, bis er endet.
+
+Eine Abhängigkeit gehört zu der Aufgabe, die durch sie blockiert wird. Mitglieder halten Abhängigkeiten deshalb nur für ihre eigenen Aufgaben fest: unter **Blockiert von** bei einer eigenen Aufgabe oder unter **Blockiert** bei jeder Aufgabe, die sie öffnen können, wobei sie eine eigene Aufgabe als die blockierte wählen. Einstellungen, Agenten, Dateien und der Label-Katalog des Projekts bleiben bei Redakteuren und höheren Rollen; Mitglieder wählen aus den Labels, die das Projekt schon hat. Löschen können nur Inhaber und Admins; alle anderen, die eine Aufgabe ändern dürfen, archivieren sie stattdessen.
+
+Für Automatisierungen gilt eine engere Regel, denn eine Automatisierung handelt in eigenem Namen, mit den Connector-Zugangsdaten der Organisation, und nicht im Namen der Person, die sie startet. Mitglieder können eine Aufgabe nur einer für Aufgaben gebauten Automatisierung übergeben, also einem der Einträge unter **Automatisierungen** bei **Zuständig**, oder der Automatisierung, der die Aufgabe schon gehört. Auch starten oder um Änderungen bitten können Mitglieder nur solche Automatisierungen. Alle anderen bleiben Redakteuren und höheren Rollen vorbehalten.
+
+### Agentenläufe, die ein Mitglied startet
+
+Ein Lauf, den jemand ohne Bearbeitungsrecht für das Projekt startet, etwa ein Mitglied, bleibt bei seiner Aufgabe:
+
+- Seine Plattform-Tools ändern nur diese Aufgabe und die Teilaufgaben darunter: Der Agent legt neue Aufgaben nur als Teilaufgaben dieser Aufgabe an, verwendet nur Labels, die das Projekt schon hat, und kann keine Einträge aus anderen Systemen ins Projekt synchronisieren.
+- Er kann keine Dokumente im Projekt speichern. Die Dateien, die er erzeugt, landen trotzdem unter **Ergebnisdateien** an der Aufgabe.
+- Der Lauf erhält weder die **Secrets** des Agenten noch das Token eines zugeordneten GitHub-Zugangs. Der Agent erfährt, welche Zugangsdaten zurückgehalten wurden, und soll in seinem Bericht darauf hinweisen, wenn die Arbeit sie braucht; dann muss ein Redakteur oder eine höhere Rolle ihn starten. Die Connectors des Agenten funktionieren weiter und handeln im Namen der Person, die den Lauf gestartet hat.
+- Er arbeitet in einem eigenen Arbeitsbereich, der für die Läufe dieser Person mit diesem Agenten bestehen bleibt: Dateien aus Läufen, die Redakteure gestartet haben, liegen dort nicht, und was dieser Lauf hinterlässt, erreicht jene Läufe nie. Spätere Läufe derselben Person mit dem Agenten finden es wieder.
+
+Der Lauf kann weiterhin die Aufgaben und das Wissen des Projekts lesen und behält diese Grenzen auch, wenn ein Redakteur ihn später lenkt. Ein Lauf, den ein Redakteur oder eine höhere Rolle startet, hat auf jeder Aufgabe die volle Ausstattung des Agenten. Der Kommentar eines Mitglieds kann das ändern: Startet die Laufzeit des Agenten neu, um den Kommentar aufzunehmen, wie es [alle Laufzeiten außer Claude Code](/de/platform/agents/harnesses) tun, zählt der Rest des Laufs als Lauf des Mitglieds, mit denselben Grenzen für seine Tools und Zugangsdaten.
+
 ## Zuständigkeit und Prüfung festlegen
 
 **Zuständig** bestimmt, wer die Arbeit übernimmt: eine Person, ein Projektagent oder eine im Projekt verfügbare Automation. **Reviewer** benennt die Person, die bei einem prüfbereiten Agentenergebnis benachrichtigt wird. Reviewer können nur Mitglieder mit Bearbeitungszugriff auf das Projekt sein.
 
 Einen Agenten zuweisen und seinen Lauf starten sind zwei Entscheidungen. Klicke nach der Zuweisung auf **Agent starten** oder verschiebe die Aufgabe nach **In Bearbeitung**. Lies [Aufgaben automatisieren](/de/platform/projects/task-automation), bevor du Arbeit mit verbundenen Diensten oder Dateiergebnissen startest.
 
-Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch andere Mitglieder mit Bearbeitungszugriff dürfen das Ergebnis annehmen.
+Der Reviewer erhält die Prüfanfrage, hat aber kein ausschließliches Entscheidungsrecht. Auch alle anderen, die die Aufgabe ändern dürfen, können das Ergebnis annehmen: Redakteure und höhere Rollen oder das Mitglied, dem die Aufgabe gehört. Verlangt deine Organisation ein unabhängiges Review, kann allerdings die Person, die den geprüften Agentenlauf gestartet hat, sein Ergebnis nicht annehmen; stammt das Ergebnis nicht aus einem Agentenlauf, gilt das für die Person, die die Aufgabe erstellt hat. Einen Lauf, den ein Mitglied auf seiner eigenen Aufgabe gestartet hat, muss dann ein Redakteur oder eine höhere Rolle annehmen, während das Mitglied einen Lauf, den ein Redakteur dort gestartet hat, weiterhin selbst annehmen kann.
 
 ## Fortschritt mit dem Status zeigen
 
@@ -81,7 +114,7 @@ Klicke in den Details der Aufgabe oder im Dialog **Aufgabe erstellen** auf **Wie
 
 <Frame caption="Wähle die Wiederholung in den Aufgabendetails; die Vorschau zeigt die nächsten Fälligkeiten.">
 
-![Das Menü Repeat der Aufgabe Sign off the launch checklist listet Never, Daily, Every weekday, Weekly on Monday (ausgewählt), Monthly on day 28, Yearly on Sep 28 und Custom, dazu die nächsten Fälligkeiten und die Option, die nächste Aufgabe am Fälligkeitstag zu erstellen.](/images/platform/project-task-repeat.webp)
+![Das Menü Repeat der Aufgabe Sign off the launch checklist listet Never, Daily, Every weekday, Weekly on Tuesday (ausgewählt), Monthly on day 29, Yearly on Sep 29 und Custom, dazu die nächsten Fälligkeiten und die Option, die nächste Aufgabe am Fälligkeitstag zu erstellen.](/images/platform/project-task-repeat.webp)
 
 </Frame>
 
@@ -110,6 +143,8 @@ Unter **Wiederholen** verweist die vorherige Aufgabe auf die nächste, etwa mit 
 ### Eine Serie beenden
 
 Schließt du eine wiederkehrende Aufgabe ab, nennt die Meldung **Nächste Aufgabe erstellt** das Fälligkeitsdatum der nächsten und bietet **Wiederholung beenden** an. Dieselbe Schaltfläche bleibt bei der Aufgabe, die die nächste erstellt hat, unter **Wiederholen** neben **Nächste Aufgabe**, solange sich die nächste Aufgabe noch wiederholt. Hat noch niemand die nächste Aufgabe angefasst (sie steht unverändert in **Zu erledigen**, ohne Kommentare und ohne Agentenlauf), wird sie samt ihren Teilaufgaben entfernt. Andernfalls bleibt sie bestehen und wiederholt sich nicht mehr. In beiden Fällen endet die Serie: Bei der Aufgabe, von der aus du sie beendet hast, zeigt **Wiederholen** dann **Nie**, und der Tooltip lautet **Die Serie wurde beendet.** Hast du die Schaltfläche unter **Wiederholen** verwendet, springt der Fokus danach auf **Wiederholen**. Du kannst auch bei der neuesten Aufgabe der Serie **Wiederholen** auf **Nie** stellen.
+
+**Wiederholung beenden** wirkt nur auf Aufgaben, die du ändern darfst: auf die, bei der du es verwendest, und auf die späteren Aufgaben der Serie, die du ebenfalls ändern darfst. Frühere Aufgaben zeigen ihre Wiederholung weiterhin an. Gehört eine spätere Aufgabe inzwischen jemand anderem, etwa weil sie neu zugewiesen wurde, behält sie ihre Wiederholung, und die Serie geht von ihr aus weiter; eine nächste Aufgabe wird dann nicht entfernt.
 
 Löschst du die neueste Aufgabe einer Serie, endet die Serie. Die Aufgabe davor erstellt keine weitere, auch wenn du sie wieder öffnest und erneut abschließt: Sie zeigt kein Wiederholungssymbol, und ihr Feld **Wiederholen** bleibt gesperrt, mit dem Tooltip **Die nächste Aufgabe wurde gelöscht. Diese Aufgabe kann sich nicht noch einmal wiederholen.** Löschst du eine frühere Aufgabe, geht die Serie bei der neuesten weiter.
 
@@ -148,4 +183,4 @@ In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Ta
 
 Kannst du die Aufgabe bearbeiten, drückst du auf ihrem Titel die **Leertaste**, um sie aufzunehmen. Verschiebe sie mit den Pfeiltasten und lege sie mit der **Leertaste** wieder ab. **Escape** bricht das Verschieben ab und lässt die Aufgabe, wo sie war. Ein Screenreader nennt die Aufgabe beim Aufnehmen und sagt beim Verschieben ihren Status und ihre Position an.
 
-Prüfe bei einer abgelehnten Änderung zuerst den Zustand der Aufgabe: Ein aktiver Agentenlauf verhindert die Neuzuweisung, offene Teilaufgaben verhindern den Abschluss, und der Projektzugriff entscheidet über deine Bearbeitungsrechte.
+Prüfe bei einer abgelehnten Änderung zuerst den Zustand der Aufgabe: Ein aktiver Agentenlauf verhindert die Neuzuweisung, offene Teilaufgaben verhindern den Abschluss, und deine Rolle und ob es deine Aufgabe ist, entscheiden darüber, ob du sie überhaupt ändern darfst.

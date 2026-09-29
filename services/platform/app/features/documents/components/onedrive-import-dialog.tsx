@@ -24,6 +24,7 @@ import {
   useSharePointSites,
 } from '../hooks/queries';
 import { useListingFailureToast } from '../hooks/use-listing-failure-toast';
+import { CloudListingError } from '../lib/cloud-listing-error';
 import { OneDrivePickerStage } from './onedrive-import/onedrive-picker-stage';
 import { OneDriveSettingsStage } from './onedrive-import/onedrive-settings-stage';
 import type {
@@ -300,9 +301,12 @@ export function OneDriveImportDialog({
 
         // A folder that cannot be listed whole cannot be imported whole:
         // stop here (the caller reports it) instead of importing the rest
-        // and calling that a success.
+        // and calling that a success. The provider's answer is for the log,
+        // never for the toast.
         if (!folderResult.success || !folderResult.items) {
-          throw new Error(folderResult.error || t('onedrive.loadFailed'));
+          throw new CloudListingError(
+            folderResult.error || 'Failed to load the folder',
+          );
         }
         if (folderResult.truncated) {
           throw new Error(
@@ -550,24 +554,38 @@ export function OneDriveImportDialog({
         setSelectedItems(new Map());
         onSuccess?.();
       } else {
+        // The answer's `error` is the backend's own English (the grant
+        // check's sentence, a vendor's refusal): the log keeps it.
+        console.warn('OneDrive import did not complete:', result.error);
         toast({
           title:
             importType === 'one-time'
               ? t('onedrive.importFailed')
               : t('onedrive.syncFailed'),
-          description: result.error || tCommon('errors.generic'),
+          description: tCommon('errors.generic'),
           variant: 'destructive',
         });
       }
     } catch (error) {
-      console.error('Failed to import from OneDrive:', error);
+      // A folder the provider would not list carries its raw answer, in
+      // English: the log keeps it, and the toast says only that the import
+      // failed. A refusal keeps its words, and so does a folder too large
+      // to import whole.
+      const unworded = error instanceof CloudListingError;
+      if (unworded) {
+        console.warn('OneDrive import listing failed:', error.message);
+      } else {
+        console.error('Failed to import from OneDrive:', error);
+      }
 
       toast({
         title:
           importType === 'one-time'
             ? t('onedrive.importFailed')
             : t('onedrive.syncFailed'),
-        description: failureDetail(error) ?? tCommon('errors.generic'),
+        description: unworded
+          ? tCommon('errors.generic')
+          : (failureDetail(error) ?? tCommon('errors.generic')),
         variant: 'destructive',
       });
     } finally {

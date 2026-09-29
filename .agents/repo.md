@@ -308,13 +308,13 @@ default means deleting the override and fixing what surfaces:
   refs) has no twin in `services/platform/backend/rest/v1-tasks.ts` (2026-09, round g). The
   archive half was paid down on 2026-09-21 (contract 1.20.0): `PATCH …/tasks/{taskId}`
   `{archived}` runs the board's `archiveTask`/`restoreTask` inside the door's serializable
-  transaction, idempotent both ways, behind the project write gate and the project-scoped task
-  lookup (an archived task must stay writable there, or nothing could restore it). Paying
-  down the delete means `DELETE …/tasks/{taskId}` → 204 with the cascade named in its
-  description, gated the way the PATCH is (the project write gate, then the task's own
-  project — an archived task stays deletable) so `assertTaskWritable`'s
-  `RBAC_FORBIDDEN`/`TASK_FORBIDDEN` never leak, `deleteTask`'s owner/admin rule surfaced as
-  403 `ROLE_FORBIDDEN`, and a contract bump.
+  transaction, idempotent both ways, behind the active-project check, the project-scoped task
+  lookup and the task's work gate (an archived task must stay writable there, or nothing could
+  restore it). Paying down the delete means `DELETE …/tasks/{taskId}` → 204 with the cascade
+  named in its description, gated the way the PATCH is (the active project, the task's own
+  project, then `assertTaskWorkable` — an archived task stays deletable) so its
+  `TASK_FORBIDDEN` never leaks, `deleteTask`'s owner/admin rule surfaced as 403
+  `ROLE_FORBIDDEN`, and a contract bump.
 - **A webhook bind does not say whether the deployed `inputs` schema admits a delivery** — a
   `PUT …/triggers` of kind `webhook` answers `deployed`, and every delivery then dies on 400
   `AUTOMATION_INPUT_INVALID` when the version's `inputs` schema does not take
@@ -462,3 +462,20 @@ default means deleting the override and fixing what surfaces:
   and hand them to the same predicate), or at least reporting `truncated` when a cap stopped a
   pre-pass and the answer came back short of its limit, with a case in
   `search-chat.privacy.test.ts` where 50 unreadable body matches sit ahead of the member's own.
+- **The pinned model gateway does not notice a caller leaving** — Bifrost v1.6.11
+  (`services/sandbox-llm-gateway/Dockerfile`) keeps a whole (non-streamed) answer running at the
+  vendor after the caller hangs up, and drops the partial usage of a stream that ends early, so
+  the model endpoints for API keys (`services/platform/backend/domains/model_api/`) settle a
+  broken-off call late — after the gateway's request timeout — or at a local floor (the prompt
+  and the relayed output at the catalog price) instead of the vendor's own figure (2026-09).
+  Paying it down means moving to a Bifrost release that cancels the upstream call on a client
+  disconnect and books the partial usage of a cut stream (v2.2.0 or later), then dropping the
+  deferred settle and the floor in `metering.ts` for the gateway's figure.
+- **A turn's image spend sits beside its model allowance, not inside it** — `generate_image`
+  admits an image only when its estimate fits what the turn's allowance has left after the
+  model's live spend (`services/platform/backend/domains/sandbox/image-generation.ts`), but the
+  turn's gateway key keeps its full cap, so the model may still spend the whole allowance
+  afterwards: a turn's worst case is about two allowances, and budget caps still count both
+  (2026-09). Paying it down means lowering the key's budget by the booked image spend in the
+  settle (`core/node_only/sandbox/llm_gateway_admin.ts`), once it is verified that the pinned
+  Bifrost keeps `current_usage` across a budget update.

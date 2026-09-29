@@ -41,10 +41,12 @@ Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne don
 | **Admin** | Gérer les personnes, les services, les politiques et le travail de l’équipe | Tous les paramètres de l’organisation, sans transfert de propriété. |
 | **Développeur** | Créer des agents, des automatisations et des intégrations | Paramètres techniques des fournisseurs, connecteurs et API ; pas de gestion des membres. |
 | **Éditeur** | Entretenir les contenus et traiter le travail quotidien | Modification du contenu ; lecture seule des ressources de workflows et de connecteurs. |
-| **Membre** | Utiliser le chat et lire les ressources partagées | Pas d’administration ; peut donner un avis sur les messages. |
+| **Membre** | Utiliser le chat, lire les ressources partagées et créer des tâches de projet, en confiant les siennes aux agents du projet | Pas d’administration ; peut donner un avis sur les messages. |
 | **Désactivé** | Aucun accès actif | Conserve l’adhésion sans accorder de permissions. |
 
 Les personnes qui ne sont ni propriétaires ni admins ne peuvent pas ouvrir **Paramètres > Membres** ; elles voient leur propre rôle dans [**Paramètres > Compte > Ton rôle**](/fr/platform/member/preferences#role).
+
+Les tâches de projet suivent une règle qui leur est propre : toute personne qui peut ouvrir un projet y crée des tâches et modifie les siennes, celles qu’elle a créées ou qui lui sont attribuées, tandis que les Éditeurs et les rôles supérieurs modifient toutes les tâches. Les paramètres, les agents et les fichiers du projet restent réservés aux Éditeurs. [Gérer les tâches d’un projet](/fr/platform/projects/tasks#qui-peut-creer-et-modifier-les-taches) détaille ce qu’un Membre peut faire de ses propres tâches.
 
 Ce tableau décrit les capacités des rôles, sans garantir l’accès à chaque élément. Les conversations suivent leur attribution : une personne voit le travail qui lui est attribué ou qui appartient à ses équipes. Les conversations non attribuées restent réservées aux propriétaires et aux admins pour le triage. Consulte [le routage des conversations](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations).
 

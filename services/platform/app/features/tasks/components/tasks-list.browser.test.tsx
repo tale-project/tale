@@ -119,7 +119,7 @@ describe.each([400, 1280])('TasksList at %ipx (real Chromium)', (width) => {
         <div className="bg-background text-foreground h-160 w-full">
           <TasksList
             tasks={[first, second, child]}
-            canEdit
+            canWorkTask={() => true}
             onOpenTask={onOpenTask}
           />
         </div>,
@@ -189,7 +189,13 @@ describe.each([400, 1280])('TasksList at %ipx (real Chromium)', (width) => {
 it('reorders with Space, ArrowDown, Space without opening the task', async () => {
   await page.viewport(1280, 900);
   const onOpenTask = vi.fn();
-  render(<TasksList tasks={[first, second]} canEdit onOpenTask={onOpenTask} />);
+  render(
+    <TasksList
+      tasks={[first, second]}
+      canWorkTask={() => true}
+      onOpenTask={onOpenTask}
+    />,
+  );
   screen.getByRole('button', { name: first.title }).focus();
   await userEvent.keyboard(' ');
   await expect
@@ -230,7 +236,13 @@ it.each([400, 1280])(
   async (width) => {
     await page.viewport(width, 900);
     const onOpenTask = vi.fn();
-    render(<KanbanBoard tasks={[first]} canEdit onOpenTask={onOpenTask} />);
+    render(
+      <KanbanBoard
+        tasks={[first]}
+        canWorkTask={() => true}
+        onOpenTask={onOpenTask}
+      />,
+    );
     const title = screen.getByRole('button', { name: first.title });
     title.focus();
     await userEvent.keyboard('{Enter}');
@@ -256,7 +268,11 @@ it.each([400, 1280])(
     const onOpenTask = vi.fn();
     render(
       <div className="h-60 w-full max-w-3xl">
-        <TasksList tasks={tasks} canEdit onOpenTask={onOpenTask} />
+        <TasksList
+          tasks={tasks}
+          canWorkTask={() => true}
+          onOpenTask={onOpenTask}
+        />
       </div>,
     );
     const heading = screen.getByRole('button', { name: 'To do 25' });
@@ -359,9 +375,9 @@ describe('keyboard drag announcements (real Chromium)', () => {
       const tasks = [welcome, overview, checklist];
       render(
         layout === 'List' ? (
-          <TasksList tasks={tasks} projectKey="GS" canEdit />
+          <TasksList tasks={tasks} projectKey="GS" canWorkTask={() => true} />
         ) : (
-          <KanbanBoard tasks={tasks} projectKey="GS" canEdit />
+          <KanbanBoard tasks={tasks} projectKey="GS" canWorkTask={() => true} />
         ),
       );
       const said = recordAnnouncements();
@@ -380,7 +396,13 @@ describe('keyboard drag announcements (real Chromium)', () => {
 
   it('names the List task, its status and position, and restores focus on Escape', async () => {
     await page.viewport(1280, 900);
-    render(<TasksList tasks={[welcome, overview]} projectKey="GS" canEdit />);
+    render(
+      <TasksList
+        tasks={[welcome, overview]}
+        projectKey="GS"
+        canWorkTask={() => true}
+      />,
+    );
     const said = recordAnnouncements();
     const title = screen.getByRole('button', { name: welcome.title });
     expect(instructionsOf(title)).toBe(
@@ -417,7 +439,7 @@ describe('keyboard drag announcements (real Chromium)', () => {
       <KanbanBoard
         tasks={[welcome, overview, checklist]}
         projectKey="GS"
-        canEdit
+        canWorkTask={() => true}
       />,
     );
     const title = await screen.findByRole('button', { name: welcome.title });
@@ -459,7 +481,9 @@ describe('keyboard drag announcements (real Chromium)', () => {
   it('names a task without a key by its title and never falls back to its id once it is gone (French)', async () => {
     await page.viewport(400, 900);
     localStorage.setItem('user-locale', 'fr-FR');
-    const view = render(<TasksList tasks={[welcome, overview]} canEdit />);
+    const view = render(
+      <TasksList tasks={[welcome, overview]} canWorkTask={() => true} />,
+    );
     const title = await screen.findByRole('button', { name: overview.title });
     await expect
       .poll(() => instructionsOf(title))
@@ -473,7 +497,7 @@ describe('keyboard drag announcements (real Chromium)', () => {
       'Tu as saisi Draft a company overview. Statut À faire, position 2 sur 2. Déplace-la avec les touches fléchées, dépose-la avec Espace ou annule avec Échap.',
     );
     // Deleted or archived elsewhere while it is held.
-    view.rerender(<TasksList tasks={[welcome]} canEdit />);
+    view.rerender(<TasksList tasks={[welcome]} canWorkTask={() => true} />);
     await userEvent.keyboard('{Escape}');
     await said.said(
       "Cette tâche n'est plus affichée ici\u00a0: elle n'a pas été déplacée.",

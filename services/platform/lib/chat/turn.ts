@@ -1094,7 +1094,9 @@ function sortKeysDeep(value: unknown): unknown {
   return value;
 }
 
-function refusalReason(refusal: GuardrailRefusal): string {
+/** The sentence a guardrail refusal is reported with — the chat turn's and
+ * the model endpoints' alike (`backend/domains/model_api/guardrails.ts`). */
+export function refusalReason(refusal: GuardrailRefusal): string {
   if (refusal.stepError) {
     return `The ${refusal.filterName} guardrail failed (${refusal.stepError}) and the policy is to refuse rather than let the message through.`;
   }

@@ -76,6 +76,7 @@ import {
 import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { useDescriptionCap } from '../hooks/use-description-cap';
+import { useTaskAccess } from '../hooks/use-task-access';
 import {
   plannedTransitionKind,
   useTaskStatusChoreography,
@@ -454,6 +455,21 @@ function matchesNaming(naming: string, value: string): boolean {
  * submit button (in the modal footer) via the `form` attribute. */
 const SETUP_FORM_ID = 'automation-settings-setup';
 
+/** Whether creating from the template writes project files — the subject's
+ * folder, or the settings its required forms save on first use. Project
+ * files are the project editors', so only they are offered such a template;
+ * every other reader creates the plain task. */
+function templateWritesProjectFiles(
+  template: ResolvedTaskSubjectContract,
+): boolean {
+  return (
+    template.contract.input?.kind === 'folder' ||
+    (template.settings?.forms ?? []).some(
+      (form) => isFieldsForm(form) && form.required === true,
+    )
+  );
+}
+
 /**
  * The one-field template create: the subject's natural key (e.g. a period
  * folder name) is the only input — the contract derives the title, provisions
@@ -465,6 +481,7 @@ function TemplateCreateBody({
   projectId,
   template,
   chips,
+  canEditProject,
   onClose,
   onCreated,
 }: {
@@ -472,6 +489,9 @@ function TemplateCreateBody({
   projectId: string;
   template: ResolvedTaskSubjectContract;
   chips: ReactNode;
+  /** The viewer edits the project: the automation's settings files there
+   * are theirs to change. */
+  canEditProject: boolean;
   onClose: () => void;
   /** Open the created (or re-picked) task right away — the subject panel
    * there names the next step instead of leaving the card silent in Backlog. */
@@ -616,7 +636,7 @@ function TemplateCreateBody({
       <Text as="p" variant="muted">
         {t('automation.hint', { name: displayName })}
       </Text>
-      {settings !== null && phase === 'create' && (
+      {settings !== null && phase === 'create' && canEditProject && (
         <Button
           variant="ghost"
           size="sm"
@@ -791,9 +811,16 @@ function CreateTaskBody({
   const { t: tCommon } = useT('common');
   const { formatNumber } = useFormatNumber();
   const createTask = useCreateTask();
+  // Every reader of the project creates tasks; the label catalog and the
+  // project's files stay its editors'.
+  const { project } = useProject(projectId);
+  const canEditProject = project?.canEdit === true;
   // Subject templates: contracts with `create.enabled` offer one chip each;
   // a one-field create beside the blank form.
-  const templates = useTaskSubjectTemplates(organizationId, projectId);
+  const subjectTemplates = useTaskSubjectTemplates(organizationId, projectId);
+  const templates = canEditProject
+    ? subjectTemplates
+    : subjectTemplates.filter((entry) => !templateWritesProjectFiles(entry));
   const [templateSlug, setTemplateSlug] = useState<string | null>(null);
   const activeTemplate =
     templates.find((entry) => entry.automationSlug === templateSlug) ?? null;
@@ -927,6 +954,7 @@ function CreateTaskBody({
         projectId={projectId}
         template={activeTemplate}
         chips={chips}
+        canEditProject={canEditProject}
         onClose={onClose}
         onCreated={onCreated}
       />
@@ -1076,27 +1104,30 @@ function CreateTaskBody({
               label={t('fields.labels')}
               stacked
               trailing={
-                <IconButton
-                  icon={Settings2}
-                  size="sm"
-                  variant="ghost"
-                  className="text-muted-foreground -my-1 size-6"
-                  aria-label={t('labels.manage')}
-                  onClick={() => setLabelsManageOpen(true)}
-                />
+                canEditProject ? (
+                  <IconButton
+                    icon={Settings2}
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted-foreground -my-1 size-6"
+                    aria-label={t('labels.manage')}
+                    onClick={() => setLabelsManageOpen(true)}
+                  />
+                ) : undefined
               }
             >
               <LabelEditor
                 labels={labels}
                 onChange={setLabels}
                 projectId={projectId}
+                canManage={canEditProject}
               />
             </PropertyField>
             <LabelManageDialog
               open={labelsManageOpen}
               onOpenChange={setLabelsManageOpen}
               projectId={projectId}
-              canEdit
+              canEdit={canEditProject}
             />
           </>
         }
@@ -1151,10 +1182,19 @@ export function EditTaskBody({
   const {
     task,
     canEdit,
+    canCreate,
     canComment,
+    ancestors,
     notFound,
     error: readError,
   } = useTask(taskId);
+  // Editors work every task; any other reader of the project works the
+  // tasks they created or are assigned to, and the subtasks under them —
+  // the server's own rule.
+  const { canWorkTask, canControlLiveRun } = useTaskAccess(
+    task?.organizationId,
+    { canEdit, canCreate },
+  );
   const { project } = useProject(task?.projectId);
   const identifier = formatTaskIdentifier(project?.key, task?.number);
   const { copy } = useCopy();
@@ -1390,7 +1430,11 @@ export function EditTaskBody({
   }
 
   const isArchived = task.archivedAt != null;
-  const canMutate = canEdit && !isArchived;
+  // Whoever may work the task changes it; the label catalog and the
+  // project's files around it stay the project editors'.
+  const canWork = canWorkTask(task, ancestors);
+  const canMutate = canWork && !isArchived;
+  const canEditProject = canEdit && !isArchived;
   // The rule is the open task's to change. A closed one keeps the rule it
   // closed with, one that already continued its series has handed it on for
   // good — even once that next task is deleted — and an automation's task
@@ -1512,7 +1556,7 @@ export function EditTaskBody({
         label={t('fields.labels')}
         stacked
         trailing={
-          canMutate ? (
+          canEditProject ? (
             <IconButton
               icon={Settings2}
               size="sm"
@@ -1527,6 +1571,7 @@ export function EditTaskBody({
         <LabelEditor
           labels={labelNames}
           disabled={!canMutate}
+          canManage={canEditProject}
           projectId={task.projectId}
           onChange={(labels) =>
             void updateTask
@@ -1539,7 +1584,7 @@ export function EditTaskBody({
         open={labelsManageOpen}
         onOpenChange={setLabelsManageOpen}
         projectId={task.projectId}
-        canEdit={canMutate}
+        canEdit={canEditProject}
       />
     </>
   );
@@ -1720,7 +1765,9 @@ export function EditTaskBody({
             folderId={boundFolderId}
             contract={ownedBy.contract}
             automationName={ownedBy.displayName}
-            canEdit={canMutate}
+            // The bound folder's files are project documents — the project
+            // editors' to add and remove, whoever works the task.
+            canEdit={canEditProject}
             // Removal ends at review: from In review on, the folder is
             // the delivered evidence base — reviewers decide on what
             // the run actually read. It also pauses while a run is
@@ -1728,7 +1775,7 @@ export function EditTaskBody({
             // mid-run delete yanks inputs out from under the agent);
             // an unresolved live-run fact locks rather than allows.
             canRemove={
-              canMutate &&
+              canEditProject &&
               task.status !== 'in_review' &&
               task.status !== 'done' &&
               task.status !== 'cancelled' &&
@@ -1878,6 +1925,7 @@ export function EditTaskBody({
         organizationId={task.organizationId}
         projectId={task.projectId}
         canComment={canComment}
+        canWork={canWork}
         currentUserId={me?.userId}
         isAdmin={me?.isAdmin}
         commentCount={task.commentCount}
@@ -2029,6 +2077,9 @@ export function EditTaskBody({
             taskId={task._id}
             assigneeId={task.assigneeId}
             canEdit={canMutate}
+            canStopRun={(startedBy) =>
+              !isArchived && canControlLiveRun(task, startedBy, ancestors)
+            }
             assigneeLive={assigneeLive}
           />
         </PropertyField>
@@ -2152,9 +2203,9 @@ export function EditTaskBody({
       </PropertyField>
       {/* Closes this section: who made the task, when — and whether the
                 viewer hears about it. Watching needs read access only, so it
-                sits outside the canEdit gate that follows. */}
+                sits outside the work gate that follows. */}
       <TaskWatchControl taskId={task._id} />
-      {canEdit && (
+      {canWork && (
         <>
           <PanelDivider />
           {/* shrink-0, like every PropertyField row: the panel is a
@@ -2287,6 +2338,7 @@ export function EditTaskBody({
                 organizationId={task.organizationId}
                 projectId={task.projectId}
                 canComment={canComment}
+                canWork={canWork}
                 {...(me?.userId !== undefined
                   ? { currentUserId: me.userId }
                   : {})}
