@@ -40,6 +40,12 @@ Test both cases after changing access: an allowed model should work and a denied
 - **What each call passes.** The budgets under [Policies and limits](/platform/admin/governance/policies-and-limits) and the input guardrails under [Guardrails](/platform/admin/governance/guardrails#model-endpoints). The models' answers are not filtered.
 - **Where it shows.** Each call is booked under the person and the key, as **Direct API** in [Usage analytics](/platform/admin/governance/usage-analytics).
 
+<Frame caption="Governance > Models — Model endpoints for API keys, switched on.">
+
+![The Model endpoints for API keys section on the Models page with its switch on, explaining that Owners, Admins, Developers, and members granted Call models over the API may use the organization's models from their own tools.](/images/platform/governance-model-endpoints.webp)
+
+</Frame>
+
 Turning the switch off refuses the next call with `403 MODEL_API_DISABLED`. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor#model-endpoints) shows members how to connect their tools.
 
 ## Choose the image-reading model
@@ -57,6 +63,12 @@ Pin a model if you need a stable choice. The picker offers models that can read 
 1. Turn on **Let agents generate images**. The switch saves at once.
 2. Leave **Image model** on **Automatic**, or select a model and save the page's pending changes in the header.
 3. Check the line below the picker. It names the model agents use.
+
+<Frame caption="Governance > Models — image generation on, with a pinned image model.">
+
+![The Image generation section with its switch on, the Image model picker set to OpenRouter · google/gemini-2.5-flash-image, and the line below it naming the model agents currently use.](/images/platform/governance-image-generation.webp)
+
+</Frame>
 
 **Automatic** uses the first model of a short recommended list that your provider credentials reach: Gemini 2.5 Flash Image, GPT Image 1 Mini, GPT Image 1, then FLUX.2 Pro. It considers OpenRouter and OpenAI credentials. The picker lists every image model your credentials can serve, including those of other compatible providers. A selected model stays fixed until you change it; if it becomes unavailable, Tale reports it and does not switch to another model. Turning image generation off keeps the selected model for the next time you turn it on.
 
