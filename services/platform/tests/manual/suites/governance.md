@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 58 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 69 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -21,7 +21,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Surface               | Route (sub-path)                          | Page contents (verified)                                                                    |
 | --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Index →               | ``(redirects to`content-models`)          | 307 → `content-models`                                                                      |
-| Content & Models      | `content-models`                          | Default models, Model access, Vision model, Audio transcription model                       |
+| Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Audio transcription model |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
 | Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
@@ -46,6 +46,15 @@ target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
 select lists every member's live key, read from
 `GET /api/app/governance/api-keys` (disabled and expired keys are left out).
+
+**GOV-F38–GOV-F44 and GOV-B14–GOV-B16 (model endpoints for API keys)** call
+`/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
+**Settings → API → REST** and need a chat model that a provider credential of
+type **API key** or **Environment variable** serves — in mode A, connect the
+`e2e-mock` provider's environment credential. Every refusal those boxes judge
+is answered before the model gateway is reached, so they run in mode A; a
+successful answer needs mode B with the sandbox model gateway running (mode A
+ends such a call in 503 `MODEL_API_UNAVAILABLE`).
 
 > **Agent note**: save → reload → assert the **persisted control state**,
 > never the toast. Voice output autosaves on toggle (no Save button); the
@@ -436,6 +445,88 @@ select lists every member's live key, read from
   `governance_policy.created` then `governance_policy.updated` row for
   `skill_sharing`; a Member never reaches the page. What each mode does to
   skills is `SKILL-B5` / `SKILL-B6`.
+- [ ] `GOV-F38` · **Model endpoints are off by default** — On an org whose
+  model access policy never turned them on, with an owner's API key (see
+  [settings.md](settings.md) SET-F32), call `GET /api/v1/openai/models`,
+  `POST /api/v1/openai/chat/completions` and
+  `POST /api/v1/anthropic/v1/messages` (any body) → Each answers 403 with code
+  `MODEL_API_DISABLED` in its interface's error shape: the OpenAI paths as
+  `{"error": {"message": "…", "type": "permission_error", "param": null, "code": "MODEL_API_DISABLED"}}`,
+  the Anthropic path as
+  `{"type": "error", "error": {"type": "permission_error", "message": "…", "code": "MODEL_API_DISABLED"}, "request_id": "…"}`
+  with a `request-id` header of the same value — never the flat
+  `{"error", "code"}` envelope; `GET /api/v1/me` answers
+  `capabilities.modelApi: false`; on `content-models` the **Model endpoints
+  for API keys** section (`governance.modelAccess.modelApi.title`) shows its
+  switch (`governance.modelAccess.modelApi.enabled`) off.
+- [ ] `GOV-F39` · **Turn the model endpoints on** — As an admin on
+  `content-models`, turn on the **Model endpoints for API keys** switch
+  (`governance.modelAccess.modelApi.enabled`) → It saves at once (toast
+  `governance.modelAccess.saved`) and is still on after a reload, while
+  **Enable model access policy** (`governance.modelAccess.enabled`) keeps its
+  own state — neither switch moves the other; **Logs** lists a
+  `governance_policy.created` or `governance_policy.updated` row for
+  `model_access`; with an owner's or a developer's key, `GET /api/v1/me`
+  answers `capabilities.modelApi: true` and `GET /api/v1/openai/models` answers
+  200 with `{"object": "list", "data": […]}` whose ids read
+  `<providerSlug>/<modelId>`, with `owned_by` the provider slug and `created`
+  0 — the ids the **Models** tab lists (SET-F65). Switch it off → the next call
+  answers 403 `MODEL_API_DISABLED` without a restart. Switch it back on for
+  the boxes below, and restore the state you found at the end of the run.
+- [ ] `GOV-F40` · **Model access binds every model call** — With the model
+  endpoints on (GOV-F39) and **Enable model access policy** on in
+  **Blocklist** mode, add a rule for a Developer account that blocks model M →
+  With that account's key, `GET /api/v1/openai/models` no longer lists M's id;
+  a chat completion naming it answers 403 `MODEL_API_MODEL_FORBIDDEN` (`param`
+  is `model`) and a message on the Anthropic path the same, in its shape,
+  while a model the rule leaves alone gets past this check (mode A: 503
+  `MODEL_API_UNAVAILABLE` from the gateway step; mode B: 200); a made-up id
+  such as `openrouter/no-such-model` answers 404 `MODEL_API_MODEL_UNKNOWN`, and
+  so does a listed model's bare catalog id without its provider prefix. The
+  owner's key still lists M. Remove the rule afterwards.
+- [ ] `GOV-F41` · **Grant Call models over the API** — With the model
+  endpoints on, give a second account the **Developer** role, let it create an
+  API key under `/dashboard/{org}/settings/api/rest`, then change its role to
+  **Member** → The same key's `GET /api/v1/openai/models` answers 403
+  `MODEL_API_FORBIDDEN` whose message names **Call models over the API** and
+  `tale:models.api`, and `GET /api/v1/me` answers
+  `capabilities.modelApi: false`. On `competences` grant it **Call models over
+  the API** (`governance.competences.capabilities.modelsApi.label`) → the key's
+  next call lists the member's models with no restart, and `GET /api/v1/me`
+  answers `capabilities.modelApi: true`; **Revoke** the grant → the next call answers
+  403 `MODEL_API_FORBIDDEN` again, and **Logs** lists `competence_granted` and
+  `competence_revoked`. What the member sees under **Settings → API** is
+  SET-B26.
+- [ ] `GOV-F42` · **A budget cap refuses a model call in the interface's
+  shape** — Save the GOV-F4b rule on a key at **Max requests** 1, spend that
+  request with one REST send (`POST /api/v1/threads/{id}/messages`) or one
+  model call with the key, wait a few seconds, then call
+  `POST /api/v1/openai/chat/completions` and
+  `POST /api/v1/anthropic/v1/messages` with it → Both answer 429
+  `BUDGET_EXCEEDED`, the OpenAI one with `type` `insufficient_quota` and the
+  Anthropic one with `type` `rate_limit_error`, each carrying `Retry-After` in
+  seconds (at most the time until the period resets), `x-should-retry: false`
+  and a message naming the cap; the OpenAI Python SDK raises its rate-limit
+  error at once instead of retrying. **Delete the rule after**.
+- [ ] `GOV-F43` · **Model calls land in Usage as Direct API** — Mode B. Make a
+  few chat completions and messages with a Developer's key, then open `usage`
+  → In **Top assistants** (`analytics.usage.tables.topAgents.title`) the calls
+  sit on one **Direct API** row (`analytics.usage.directApi`) whose request
+  count equals the calls made and whose cost is above zero; in **Per-user
+  usage** (`analytics.usage.tables.users.title`) they sit on the Developer's
+  own row — no row reads `api-key:…`; a GOV-F4b rule on that key and the
+  Developer's personal caps under **Settings → Usage** count the same requests.
+- [ ] `GOV-F44` · **Input guardrails judge model calls** — On `guardrails`,
+  with a **Content safety** category checking user input in **Block** mode,
+  send a chat completion whose user message contains its word → 400
+  `MODEL_API_GUARDRAIL_BLOCKED` whose message says nothing was sent to the
+  model, and **Recent events**
+  (`governance.guardrailsOverview.recentEvents.title`) shows the block; the
+  same word only inside an assistant turn or a tool result gets past the
+  guardrails. Mode B: switch the category to **Mask** → the call answers 200,
+  **Recent events** shows the mask, and a model asked to repeat the message
+  word for word repeats the placeholder, not the word; a category that checks
+  only model output leaves the answer untouched. Restore the guardrails.
 
 ## Boundary & error tests
 
@@ -511,6 +602,29 @@ select lists every member's live key, read from
   (`governance.voiceOutput.title`) and **Conversation routing**
   (`governance.conversationRouting.title`) paint their saved state, and every
   policy read answers 200.
+- [ ] `GOV-B14` · **Tokenize mode refuses every model call** — On
+  `guardrails` turn **PII protection** (`governance.pii.title`) on in
+  **Tokenize** mode (`piiConfigPanel.modeTokenize`), then send a chat
+  completion and a message naming a listed model → Both answer 403
+  `MODEL_API_GUARDRAIL_UNSUPPORTED` whose message says to set the PII policy to
+  mask or block, even when the text holds no personal data; switch the mode to
+  **Mask** (`piiConfigPanel.modeMask`) → that refusal is gone. Restore the
+  mode.
+- [ ] `GOV-B15` · **A failing moderation provider closes the door** —
+  Configure the **Moderation provider**
+  (`governance.moderationProvider.title`) with an unreachable endpoint
+  (`http://127.0.0.1:9/`) and **Fail behavior**
+  (`governance.moderationProvider.failBehavior`) for input set to **Fail closed
+  (block)** (`governance.moderationProvider.failClosed`), then send a chat
+  completion with user text → 503 `MODEL_API_GUARDRAIL_UNAVAILABLE` saying the
+  text was not relayed; with **Fail open (pass)**
+  (`governance.moderationProvider.failOpen`) the same call gets past the
+  guardrails. Restore the provider.
+- [ ] `GOV-B16` · **A credential's allowlist narrows the list for everyone** —
+  Under **Settings → AI providers** edit the default credential of a provider
+  and leave model M out of its **Model allowlist** → For every key holder, the
+  owner included, `GET /api/v1/openai/models` drops M, and a call naming it
+  answers 404 `MODEL_API_MODEL_UNKNOWN`; put M back → it is listed again.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -534,6 +648,14 @@ select lists every member's live key, read from
   on**, **Sent to** and **Route to** are each announced by their label, the
   plus-address hint is read with **Sent to**, and an invalid or duplicate
   address is announced as the field's error.
+- [ ] `GOV-A6` · **Model endpoints switch by keyboard** → On
+  `content-models`, Tab reaches the **Model endpoints for API keys** switch
+  after the model access rules; it is a `switch` named **Enable model
+  endpoints for API keys** (`governance.modelAccess.modelApi.enabled`), Space
+  toggles it and `aria-checked` follows; the section's title and description
+  (`governance.modelAccess.modelApi.description`) stand right before it, and in
+  `de` and `fr` the description wraps without clipping or horizontal scrolling
+  at narrow widths.
 
 ## Performance
 

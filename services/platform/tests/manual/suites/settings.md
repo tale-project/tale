@@ -1,11 +1,11 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 97 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 107 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
 AI providers, Connectors, Skills, Branding, Sandboxes, Governance, Metrics)
-and **Advanced** (API: REST / MCP / WebDAV, Enterprise SSO, Data residency).
+and **Advanced** (API: REST / Models / MCP / WebDAV, Enterprise SSO, Data residency).
 Governance has its own guide ([governance.md](governance.md)); data-residency
 depth lives in [data-residency.md](data-residency.md) (one route case here);
 connector depth (per-type credentials, OAuth, imap-smtp) lives in
@@ -41,6 +41,7 @@ disclosure rows whose children render indented.
 | Sandboxes                  | `/dashboard/{org}/settings/sandboxes`                                      |
 | Metrics (smoke only)       | `/dashboard/{org}/settings/metrics/usage` (index redirects here)           |
 | API → REST (API keys)      | `/dashboard/{org}/settings/api/rest` (`…/settings/api` redirects here)     |
+| API → Models               | `/dashboard/{org}/settings/api/models`                                     |
 | API → MCP                  | `/dashboard/{org}/settings/api/mcp`                                        |
 | API → WebDAV               | `/dashboard/{org}/settings/api/webdav`                                     |
 | Enterprise SSO             | `/dashboard/{org}/settings/enterprise-sso`                                 |
@@ -63,12 +64,15 @@ Bring the stack up and sign in per [SETUP.md](../setup.md) as an **owner**.
 Role gating (from `lib/permissions/ability.ts`): the Organization-group pages
 plus Enterprise SSO, Data residency, Governance, and Metrics need
 `orgSettings` read (**owner/admin**); Providers, Connectors, Sandboxes, and
-the API section need `developerSettings` read (**owner/admin/developer**);
+the API section need `developerSettings` read (**owner/admin/developer**), except that a member holding the **Call models over the API** competence opens the API section's REST and Models tabs (SET-B26);
 Skills and the Personal group are open to every member. SET-B4–SET-B5 need a
 second account per role (mint via `POST /api/auth/sign-up/email`, add under
 Settings → Members); SET-F16 needs a second **already-existing** account. Mode
-A makes the connector add-credential smoke (SET-F25) deterministic. Restore
-any toggled setting after the run.
+A makes the connector add-credential smoke (SET-F25) deterministic. The model
+endpoint boxes (SET-F64–SET-F68, SET-B23–SET-B26, SET-A10) need the
+endpoints switched on as in governance.md GOV-F39; a real answer needs mode B
+with the sandbox model gateway running. Restore any toggled setting after the
+run.
 
 > **Agent note**: pages on the header **Save** / **Discard** cluster
 > (`common.actions.save` / `common.actions.discard`) — Account profile,
@@ -734,6 +738,65 @@ any toggled setting after the run.
   (`settings.apiDocs.openDocs`) sits under the table in both states. No page
   scrolls sideways at 390 px, and every button label is readable in both
   themes.
+- [ ] `SET-F64` · **Models tab while the model endpoints are off** — As an
+  owner, with **Model endpoints for API keys** off (governance.md GOV-F38),
+  open `/dashboard/{org}/settings/api/models` → The API pages read **REST**,
+  **Models** (`navigation.apiModels`), **MCP** and **WebDAV** in that order,
+  in the settings rail's API row and, at narrow widths, in the tab strip; the
+  page shows **Model endpoints are not enabled for your organization**
+  (`settings.modelEndpoints.disabled.title`) with
+  `settings.modelEndpoints.disabled.description` and an **Open model access**
+  button (`settings.modelEndpoints.disabled.openPolicy`) that lands on
+  `/dashboard/{org}/settings/governance/content-models`; a developer sees the
+  same state without the button; no base URL, slug or setup renders.
+- [ ] `SET-F65` · **Models tab once the model endpoints are on** — With
+  GOV-F39's switch on, reload `/dashboard/{org}/settings/api/models` as an
+  owner → The page (`settings.modelEndpoints.title`) shows its description and
+  `settings.modelEndpoints.governanceNote`; **OpenAI-compatible base URL**
+  (`settings.modelEndpoints.openaiUrl.label`) reads `<site>/api/v1/openai` and
+  **Anthropic-compatible base URL**
+  (`settings.modelEndpoints.anthropicUrl.label`) `<site>/api/v1/anthropic`,
+  where `<site>` is the deployment's `SITE_URL` rather than the browser's
+  address; **Organization slug** (`settings.modelEndpoints.orgSlug.label`)
+  reads this org's slug; **Models you can call**
+  (`settings.modelEndpoints.models.label`) lists exactly the ids
+  `GET /api/v1/openai/models` answers for you, each with its own copy button
+  (`settings.modelEndpoints.models.copy`); the **API key** row
+  (`settings.modelEndpoints.apiKey.label`) links to the REST page; the
+  **opencode**, **Claude Code** and **OpenAI SDK (Python)** setups
+  (`settings.modelEndpoints.opencode.title`,
+  `settings.modelEndpoints.claudeCode.title`,
+  `settings.modelEndpoints.openaiSdk.title`) carry those URLs, the slug and the
+  first listed model, and each copy button puts exactly the shown text on the
+  clipboard. With no model available the list reads
+  `settings.modelEndpoints.models.empty`.
+- [ ] `SET-F66` · **The OpenAI SDK against Tale** — Mode B. Run the **OpenAI
+  SDK (Python)** setup from SET-F65 with a SET-F32 key (`pip install openai`)
+  → It prints a whole answer whose `model` field is the id you sent; with
+  `stream=True` the text arrives in pieces, and a `curl -N` of the same
+  streamed request ends with `data: [DONE]` and carries no usage chunk unless
+  the body sets `"stream_options": {"include_usage": true}`, when the last
+  chunk carries `usage`; a request offering one `function` tool that the
+  prompt makes the model call comes back with `tool_calls` and
+  `finish_reason` `tool_calls`, and sending the tool result back yields the
+  final answer; an `image_url` part with a `data:` URL sent to a vision model
+  is answered.
+- [ ] `SET-F67` · **Claude Code and the Anthropic SDK against Tale** — Mode B.
+  Export the **Claude Code** variables SET-F65 copies (the key as
+  `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` unset) and run `claude` in a
+  scratch folder → Claude Code answers on the model you named; a prompt that
+  makes it read and edit a file with its own tools completes, the calls
+  travelling as `tool_use` and back as tool results; asking it to search the
+  web fails with `MODEL_API_VENDOR_TOOL_UNSUPPORTED` while the session keeps
+  working. The Anthropic Python SDK with `auth_token`, the organization header
+  and `ANTHROPIC_API_KEY` unset prints a message, and with `stream=True` its
+  events end in `message_stop`.
+- [ ] `SET-F68` · **opencode against Tale** — Mode B. Put the **opencode**
+  setup SET-F65 copies into `opencode.json`, export `TALE_API_KEY` and start
+  opencode → The **Tale** provider and its model are offered, and a prompt is
+  answered by that model; with the MCP block of
+  `/dashboard/{org}/settings/api/mcp` in the same file, a `tale_get_knowledge`
+  call works in the same session.
 
 ## Boundary & error tests
 
@@ -866,6 +929,44 @@ any toggled setting after the run.
   and stays **Default**. A sibling's **Actions** → **Make default**
   (`settings.credentials.makeDefault`) succeeds — the model now resolves
   the sibling — and C then disables and deletes.
+- [ ] `SET-B23` · **A key in x-api-key on the Anthropic path** — Call
+  `POST /api/v1/anthropic/v1/messages` with the key in `x-api-key` instead of
+  `Authorization: Bearer` (or run Claude Code with `ANTHROPIC_API_KEY` set) →
+  401 in the Anthropic shape (`type` `authentication_error`, code
+  `UNAUTHORIZED`) with `WWW-Authenticate: Bearer`, whose message says to set
+  the key as `ANTHROPIC_AUTH_TOKEN` (Claude Code) or `authToken` /
+  `auth_token` (Anthropic SDKs) and leave `ANTHROPIC_API_KEY` unset; the same
+  header on `POST /api/v1/openai/chat/completions` answers 401 in the OpenAI
+  shape without that hint.
+- [ ] `SET-B24` · **Revoking the key ends model access** — Mode B. Start a long
+  streamed answer with a key (`stream=True` and a prompt asking for a long
+  text), then revoke that key under `/dashboard/{org}/settings/api/rest` while
+  it streams → The running stream finishes normally; the key's next call
+  answers 401 in the interface's shape, and a new key works at once.
+- [ ] `SET-B25` · **Requests the model endpoints refuse** — With a listed
+  model, send each request below and read the interface's error shape → An
+  image to a model without vision (`capabilities.vision: false` in
+  `GET /api/v1/models`) answers 400 `MODEL_API_VISION_UNSUPPORTED`; tools to a
+  model without tool support 400 `MODEL_API_TOOLS_UNSUPPORTED`;
+  `web_search_options` on the OpenAI path, or a `web_search_20250305` tool, an
+  `mcp_servers` or a `container` field on the Anthropic path, 400
+  `MODEL_API_VENDOR_TOOL_UNSUPPORTED` naming the field; an `input_audio` part
+  400 `INVALID_BODY` naming the part; an Anthropic message without
+  `max_tokens` 400 `INVALID_BODY`; a body over 32 MiB 413 `BODY_TOO_LARGE`;
+  `?beta=true` on the Anthropic path is accepted;
+  `POST /api/v1/anthropic/v1/messages/count_tokens` answers 404 in the
+  Anthropic shape; the retired `POST /api/v1/chat/completions` answers 404
+  `NOT_FOUND` in the flat envelope.
+- [ ] `SET-B26` · **A granted member sees REST and Models only** — Sign in as
+  governance.md GOV-F41's **Member** while it holds **Call models over the
+  API** → The settings rail shows **API** with only **REST** and **Models**;
+  the member creates an API key on `/dashboard/{org}/settings/api/rest` and
+  reads the setup on `/dashboard/{org}/settings/api/models` (or its
+  not-enabled state while the endpoints are off);
+  `/dashboard/{org}/settings/api/mcp` and `/dashboard/{org}/settings/api/webdav`
+  by URL show the access-denied message (`accessDenied.apiKeys`). Revoke the
+  grant → the API row disappears, and `/dashboard/{org}/settings/api/models`
+  shows `accessDenied.apiKeys` too.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -906,6 +1007,20 @@ any toggled setting after the run.
   scrolling at narrow widths in `en`, `de` and `fr`; a screen reader announces
   **{name} is connected.** when the device arrives; Escape returns focus to
   **Add device**.
+- [ ] `SET-A10` · **Models tab by keyboard** → On
+  `/dashboard/{org}/settings/api/models` with the model endpoints on, Tab
+  through the page: every copy button takes visible focus and is named for
+  what it copies (`settings.modelEndpoints.openaiUrl.copy`,
+  `settings.modelEndpoints.anthropicUrl.copy`,
+  `settings.modelEndpoints.orgSlug.copy`, `settings.modelEndpoints.models.copy`
+  with the model's id, `settings.modelEndpoints.opencode.copy`,
+  `settings.modelEndpoints.claudeCode.copy`,
+  `settings.modelEndpoints.openaiSdk.copy`), copies on Enter and confirms the
+  copy in text, not colour alone; each value is announced with its label; the
+  **REST API keys** link (`settings.modelEndpoints.apiKey.link`) is reachable;
+  at narrow widths in `en`, `de` and `fr` the setups wrap or scroll inside
+  their own block and the page never scrolls sideways; in the not-enabled
+  state, **Open model access** is reachable the same way.
 
 ## Performance
 
