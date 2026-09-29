@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   readInFlightReservations: vi.fn(),
   incrementUsageLedger: vi.fn(),
   readVirtualKeySpend: vi.fn(),
+  setVirtualKeyBudget: vi.fn(),
 }));
 
 vi.mock('./op-attribution.ts', () => ({
@@ -39,6 +40,7 @@ vi.mock('../governance/service.ts', () => ({
 }));
 vi.mock('../../core/node_only/sandbox/llm_gateway_admin.ts', () => ({
   readVirtualKeySpend: mocks.readVirtualKeySpend,
+  setVirtualKeyBudget: mocks.setVirtualKeyBudget,
 }));
 
 const {
@@ -128,6 +130,7 @@ beforeEach(() => {
   mocks.findBudgetViolation.mockResolvedValue(null);
   mocks.incrementUsageLedger.mockResolvedValue(undefined);
   mocks.readVirtualKeySpend.mockResolvedValue({ status: 'ok', cents: 0 });
+  mocks.setVirtualKeyBudget.mockResolvedValue('ok');
 });
 
 describe('resolveImageTurnContext', () => {
@@ -286,6 +289,51 @@ describe('admitImageGeneration', () => {
     ).resolves.toMatchObject({ admitted: true, holdCents: 50 });
   });
 
+  it("sets the images' hold aside from the key's cap before any provider is called", async () => {
+    const { sql } = opSql({ mintedKeyId: 'vk_1', imageSpentCents: 100 });
+    mocks.readVirtualKeySpend.mockResolvedValue({ status: 'ok', cents: 330 });
+    await expect(
+      admitImageGeneration(sql, { ...ADMIT, images: 2 }, deps),
+    ).resolves.toMatchObject({ admitted: true, holdCents: 50 });
+    // The model keeps what the allowance has left once the images booked
+    // and held are out of it: 500 − 100 − 50. Its own 330 stays counted
+    // on the key.
+    expect(mocks.setVirtualKeyBudget).toHaveBeenCalledWith('vk_1', 350);
+  });
+
+  it('takes the admission back when the cap cannot be moved', async () => {
+    const { sql, statements } = opSql({ mintedKeyId: 'vk_1' });
+    mocks.setVirtualKeyBudget.mockRejectedValueOnce(new Error('gateway down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toEqual({
+      admitted: false,
+      code: 'spend_unknown',
+      message:
+        "The platform could not set the images' cost aside from this turn's spend allowance, so it cannot generate them now.",
+    });
+    expect(warn).toHaveBeenCalled();
+    const withdraw = statements.find((s) =>
+      s.text.includes('images_admitted = greatest(0, images_admitted - ?)'),
+    );
+    // Only this admission's own mark: a newer call's is left alone.
+    expect(withdraw?.text).toContain(
+      'WHERE id = ? AND image_call_started_at_ms = ?',
+    );
+    expect(withdraw?.values).toEqual([3, 'op_1', NOW]);
+
+    // A key the gateway no longer holds: the turn is over.
+    const gone = opSql({ mintedKeyId: 'vk_1' });
+    mocks.setVirtualKeyBudget.mockResolvedValueOnce('gone');
+    await expect(
+      admitImageGeneration(gone.sql, ADMIT, deps),
+    ).resolves.toMatchObject({ admitted: false, code: 'run_ended' });
+    expect(
+      gone.statements.some((s) =>
+        s.text.includes('images_admitted = greatest(0, images_admitted - ?)'),
+      ),
+    ).toBe(true);
+  });
+
   it('measures a subscription turn against the deployment’s default allowance', async () => {
     const { sql } = opSql({ budgetCents: null, imageSpentCents: 450 });
     await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toMatchObject(
@@ -294,8 +342,9 @@ describe('admitImageGeneration', () => {
     await expect(
       admitImageGeneration(sql, { ...ADMIT, images: 2 }, deps),
     ).resolves.toMatchObject({ admitted: true });
-    // Its model spend is the vendor's: no gateway key to read.
+    // Its model spend is the vendor's: no gateway key to read, or to cap.
     expect(mocks.readVirtualKeySpend).not.toHaveBeenCalled();
+    expect(mocks.setVirtualKeyBudget).not.toHaveBeenCalled();
 
     process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS = '1000';
     await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toMatchObject(
@@ -476,6 +525,65 @@ describe('settleImageGeneration', () => {
       'pa-alice',
       'exec_1',
     ]);
+  });
+
+  it("moves the key's cap to the allowance less every image booked or still held", async () => {
+    const { sql } = scriptedSql([
+      {
+        match: 'RETURNING minted_key_id',
+        rows: [
+          {
+            mintedKeyId: 'vk_1',
+            budgetCents: 500,
+            imageSpentCents: 103.9,
+            imageHoldCents: 25,
+          },
+        ],
+      },
+    ]);
+    await settleImageGeneration(sql, { ...SETTLE, charges: [3.9] });
+    expect(mocks.setVirtualKeyBudget).toHaveBeenCalledWith('vk_1', 371.1);
+  });
+
+  it('books the images even when the cap cannot be moved', async () => {
+    const { sql } = scriptedSql([
+      {
+        match: 'RETURNING minted_key_id',
+        rows: [
+          {
+            mintedKeyId: 'vk_1',
+            budgetCents: 500,
+            imageSpentCents: 3.9,
+            imageHoldCents: 0,
+          },
+        ],
+      },
+    ]);
+    mocks.setVirtualKeyBudget.mockRejectedValueOnce(new Error('gateway down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await expect(
+      settleImageGeneration(sql, { ...SETTLE, charges: [3.9] }),
+    ).resolves.toBeUndefined();
+    expect(mocks.incrementUsageLedger).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('leaves a subscription turn without a key uncapped by the settle', async () => {
+    const { sql } = scriptedSql([
+      {
+        match: 'RETURNING minted_key_id',
+        rows: [
+          {
+            mintedKeyId: null,
+            budgetCents: null,
+            imageSpentCents: 3.9,
+            imageHoldCents: 0,
+          },
+        ],
+      },
+    ]);
+    await settleImageGeneration(sql, { ...SETTLE, charges: [3.9] });
+    expect(mocks.setVirtualKeyBudget).not.toHaveBeenCalled();
   });
 
   it('releases the hold with nothing to book when nothing was billed', async () => {
