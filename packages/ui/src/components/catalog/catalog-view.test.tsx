@@ -7,7 +7,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 import { CatalogCard } from './catalog-grid';
-import { CatalogView } from './catalog-view';
+import { CatalogLoadError, CatalogView } from './catalog-view';
 
 interface Row {
   slug: string;
@@ -67,6 +67,32 @@ describe('CatalogView', () => {
     });
     screen.getByRole('button', { name: 'Try again' }).click();
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  // A refresh of rows that stay on screen keeps its alert up while the retry
+  // runs: the retry reads busy there, and a focused one keeps focus.
+  it('marks a running retry busy without dropping its focus', () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(
+      <CatalogLoadError message="Couldn't refresh." onRetry={onRetry} />,
+    );
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+
+    rerender(
+      <CatalogLoadError
+        message="Couldn't refresh."
+        onRetry={onRetry}
+        isRetrying
+      />,
+    );
+    const busy = screen.getByRole('button', { name: 'Try again' });
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    expect(busy).not.toBeDisabled();
+    expect(busy).toHaveFocus();
+    busy.click();
+    expect(onRetry).not.toHaveBeenCalled();
   });
 
   it('offers the create CTA only when nothing exists yet', () => {

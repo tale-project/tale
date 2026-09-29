@@ -6,7 +6,7 @@ import type {
   EntityLabel,
 } from '@tale/ui/data-table/data-table-types';
 import type { SortingState } from '@tanstack/react-table';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 
 import {
   filterByTextSearch,
@@ -37,7 +37,9 @@ export const DEFAULT_LIST_PAGE_SIZE = 20;
  * loaded renders the table's error state with the retry, never the
  * collection's empty state — "No projects yet" over a 500 read as data loss
  * (2026-09-26 evaluation, G-07). With rows already loaded the rows stay on
- * screen and the next successful refetch heals it.
+ * screen and the next successful refetch heals it; the host names the
+ * failure above the table, with the same retry. A paginated source stops
+ * loading further pages until then (`infiniteScroll.loadFailed`).
  */
 interface RequestOutcome {
   /** The request's error once the retry policy gave up; `null`/absent
@@ -157,6 +159,9 @@ interface ListPageTableProps<TData> {
     onLoadMore: () => void;
     isLoadingMore: boolean;
     isInitialLoading: boolean;
+    /** A request failed while rows are on screen and the backend may hold
+     * more: nothing is loading, and nothing will until the retry. */
+    loadFailed: boolean;
     entityLabel?: EntityLabel;
     /** Unfiltered total from rawData — differs from the shown count when filters are active */
     totalCount?: number;
@@ -232,6 +237,17 @@ export function useListPage<TData>(
       ? dataSource.status === 'LoadingFirstPage'
       : dataSource.data === undefined;
 
+  const requestError = dataSource.error ?? null;
+  // With rows on screen, a failed request halts a paginated source where it
+  // stands: draining on would re-issue the failed page on every render, and
+  // the table would keep promising rows ("loading", "scroll for more") that
+  // no request is fetching. A retry in flight reads as loading again.
+  const loadFailed =
+    requestError !== null &&
+    rawData.length > 0 &&
+    dataSource.type === 'paginated' &&
+    dataSource.status === 'CanLoadMore';
+
   // 2. Managed search state
   const [managedSearchValue, setManagedSearchValue] = useState('');
 
@@ -305,6 +321,16 @@ export function useListPage<TData>(
     [processed, displayCount, hasActiveSort],
   );
 
+  // A halted source has no scroll to page its loaded rows in (the table
+  // stops watching the end of the list), so the window opens to all of
+  // them — and stays open once the retry succeeds, so nothing leaves the
+  // screen on recovery.
+  useEffect(() => {
+    if (loadFailed) {
+      setDisplayCount((prev) => Math.max(prev, processed.length));
+    }
+  }, [loadFailed, processed.length]);
+
   // 7. Compute hasMore. `displayed` already holds every processed row while a
   // sort is active, so only an un-drained backend can still add to it.
   const localRemaining = !hasActiveSort && displayCount < processed.length;
@@ -327,13 +353,14 @@ export function useListPage<TData>(
       const remainingAfterIncrement = processed.length - nextDisplayCount;
       if (
         remainingAfterIncrement <= pageSize &&
-        dataSource.status === 'CanLoadMore'
+        dataSource.status === 'CanLoadMore' &&
+        !loadFailed
       ) {
         dataSource.loadMore(pageSize * 3);
       }
     }
     setDisplayCount((prev) => prev + pageSize);
-  }, [dataSource, displayCount, processed.length, pageSize]);
+  }, [dataSource, displayCount, processed.length, pageSize, loadFailed]);
 
   // 10. Build search config
   const searchConfig = useMemo((): DataTableSearchConfig | undefined => {
@@ -405,7 +432,6 @@ export function useListPage<TData>(
 
   // A failed request with nothing loaded is the table's error state (with
   // its retry), never its empty state; loaded rows outlive a failed refetch.
-  const requestError = dataSource.error ?? null;
   const sharedTableProps = {
     search: searchConfig,
     filters: filterConfigs,
@@ -426,7 +452,8 @@ export function useListPage<TData>(
   if (
     (hasActiveClientFilter || hasActiveSort) &&
     dataSource.type === 'paginated' &&
-    dataSource.status === 'CanLoadMore'
+    dataSource.status === 'CanLoadMore' &&
+    !loadFailed
   ) {
     dataSource.loadMore(pageSize * 3);
   }
@@ -450,6 +477,7 @@ export function useListPage<TData>(
           dataSource.type === 'paginated'
             ? dataSource.status === 'LoadingFirstPage'
             : dataSource.data === undefined,
+        loadFailed,
         entityLabel,
         // In entity units when rows aggregate (countRow) — a folder row stands
         // in for its members, so summing per-row counts keeps the footer's

@@ -5,7 +5,7 @@ import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useT } from '@tale/ui/i18n/client';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { SearchX } from 'lucide-react';
+import { Loader2, SearchX } from 'lucide-react';
 import { Fragment, type ComponentType, type ReactNode } from 'react';
 
 import { CatalogGridSkeleton } from './catalog-card-skeleton';
@@ -69,13 +69,20 @@ interface CatalogViewProps<T> {
   className?: string;
 }
 
-/** Destructive alert for a failed listing, with an optional inline retry. */
+/**
+ * Destructive alert for a failed listing, with an optional inline retry.
+ * `isRetrying` marks the retry busy while it runs, for a host that keeps
+ * the alert up until the request settles — a refresh of rows that stay on
+ * screen, rather than a first read that goes back to its loading state.
+ */
 export function CatalogLoadError({
   message,
   onRetry,
+  isRetrying = false,
 }: {
   message: string;
   onRetry?: () => void;
+  isRetrying?: boolean;
 }) {
   const { t } = useT('common');
   return (
@@ -89,7 +96,15 @@ export function CatalogLoadError({
               type="button"
               variant="link"
               className="text-foreground h-auto min-h-0 p-0 text-sm"
-              onClick={onRetry}
+              // Busy, not gone: `isLoading` would disable the button natively
+              // and drop a focused retry's focus — also when the host starts
+              // the request itself (a refetch as the tab regains focus). It
+              // stays focusable and inert instead, with Button's own spinner.
+              icon={isRetrying ? Loader2 : undefined}
+              iconClassName="animate-spin motion-reduce:animate-none"
+              aria-busy={isRetrying || undefined}
+              aria-disabled={isRetrying || undefined}
+              onClick={isRetrying ? undefined : onRetry}
             >
               {t('actions.tryAgain')}
             </Button>

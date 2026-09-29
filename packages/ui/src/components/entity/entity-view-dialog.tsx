@@ -11,6 +11,7 @@ import { Text } from '@tale/ui/text';
 import { Pencil, X, type LucideIcon } from 'lucide-react';
 import {
   type ReactNode,
+  type Ref,
   type RefObject,
   useEffect,
   useId,
@@ -274,6 +275,13 @@ interface EntityViewSectionProps {
   title: string;
   /** Right-aligned caption next to the heading, e.g. a count */
   meta?: ReactNode;
+  /**
+   * Makes the section a programmatic focus target (`tabIndex={-1}`) for a
+   * host that moves focus into it — e.g. when a retry replaces the control
+   * that held focus. The section keeps its name, so a screen reader says
+   * where focus landed.
+   */
+  focusRef?: Ref<HTMLElement>;
   children: ReactNode;
 }
 
@@ -284,12 +292,21 @@ interface EntityViewSectionProps {
 export function EntityViewSection({
   title,
   meta,
+  focusRef,
   children,
 }: EntityViewSectionProps) {
   const headingId = useId();
 
   return (
-    <Stack as="section" gap={3} aria-labelledby={headingId}>
+    <Stack
+      as="section"
+      gap={3}
+      aria-labelledby={headingId}
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `Stack` renders its `as` element, here a <section>; its ref type is fixed to HTMLDivElement
+      ref={focusRef as Ref<HTMLDivElement> | undefined}
+      tabIndex={focusRef !== undefined ? -1 : undefined}
+      className={focusRef !== undefined ? 'outline-none' : undefined}
+    >
       <Row gap={2} justify="between" wrap>
         <Heading id={headingId} level={3} size="sm">
           {title}

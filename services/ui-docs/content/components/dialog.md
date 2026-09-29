@@ -58,7 +58,9 @@ the dialog title.
 `facts` renders aligned label/value rows; items with `colSpan: 2` use the full width
 for longer content. Put pages or version history in `EntityViewSection`, and pass
 `identifier={{ label, value, hint? }}` for a compact copyable ID after all sections;
-`hint` is a caption saying what the value does and does not identify.
+`hint` is a caption saying what the value does and does not identify. Give a section
+`focusRef` when the host moves focus into it — for instance when a retry replaces the
+control that held focus — so focus lands on the named section rather than the dialog.
 Keep descriptions in one place rather than repeating them in the summary and body.
 
 ## Base dialog options

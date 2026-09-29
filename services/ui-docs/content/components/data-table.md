@@ -81,6 +81,8 @@ Set `isLoading` while fetching the initial data. `approxRowCount` helps reserve 
 
 Pass `error` and `onRetry` for a failed query. A load failure should explain recovery rather than masquerade as an empty collection. Keep filter state when retrying so the request still matches what the reader sees.
 
+Rows already on screen stay through a failed refetch, and the host names that failure above the table with the same retry. When a cursor source fails while more rows may exist, set `infiniteScroll.loadFailed` until the retry: the table stops asking for more on scroll, a search that matches none of the loaded rows says it searched only those instead of showing a skeleton, and the count footer says the rest could not be loaded. [`useListPage`](/docs/patterns/list-page) sets the flag from its data source.
+
 ## Pick one paging model
 
 On a collection screen, let [`useListPage`](/docs/patterns/list-page) choose: it drives the cursor model below for an in-memory set and for backend pages alike, so every list loads more on scroll and ends on the same count footer. The table's own models remain for a table outside that pattern.
