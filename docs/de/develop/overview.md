@@ -20,7 +20,7 @@ Diese Anleitungen helfen dir, einen Client zu schreiben, ein externes System anz
 
 ## Die erste Anfrage zuverlässig machen
 
-Wähle die Zugangsdaten passend zur Schnittstelle: REST und MCP verwenden API-Schlüssel, WebDAV ein App-Passwort und Webhooks eine geheime Trigger-URL. Diese Zugangsdaten sind nicht austauschbar.
+Wähle die Zugangsdaten passend zur Schnittstelle: REST, MCP und die Modell-Endpunkte verwenden API-Schlüssel, WebDAV ein App-Passwort und Webhooks eine geheime Trigger-URL. Diese Zugangsdaten sind nicht austauschbar.
 
 Erstelle für jede Integration einen eigenen API-Schlüssel. Sende ihn nur an die vorgesehene Instanz und speichere ihn nicht in der Versionsverwaltung. [Deine erste API-Anfrage](/de/get-started/developers) erklärt Instanz-URLs und den Organisationskontext. Bei längeren Vorgängen ist eine angenommene Anfrage noch kein fertiges Ergebnis: Frage die Ressource oder den Lauf ab und behandle auch fehlgeschlagene Ergebnisse.
 

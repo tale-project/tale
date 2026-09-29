@@ -458,7 +458,14 @@ function parseJsonExactly(c: Context<RestEnv>, raw: string): unknown {
  */
 export async function readJsonBody(
   c: Context<RestEnv>,
-  options: { maxBytes?: number } = {},
+  options: {
+    maxBytes?: number;
+    /** The body is relayed, never stored (the model endpoints): a NUL or an
+     * unpaired surrogate in it is the caller's text to send on — both
+     * re-serialize as the escapes they arrived as — not a value Postgres
+     * would refuse. */
+    relayOnly?: boolean;
+  } = {},
 ): Promise<unknown> {
   const raw = await readUtf8Body(c, options.maxBytes ?? DEFAULT_BODY_BYTES);
   if (raw === null) return INVALID_JSON;
@@ -472,7 +479,7 @@ export async function readJsonBody(
     );
     return INVALID_JSON;
   }
-  return refuseUnstorableText(c, parsed);
+  return options.relayOnly === true ? parsed : refuseUnstorableText(c, parsed);
 }
 
 /**

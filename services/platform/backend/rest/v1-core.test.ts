@@ -296,6 +296,8 @@ describe('GET /me capabilities', () => {
       notificationExport: true,
       actAs: true,
       skillPublish: true,
+      // No model-access policy can be read without a config root: shut.
+      modelApi: false,
     });
     process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = 'someone-else@example.com';
     expect((await me()).capabilities).toEqual({
@@ -304,6 +306,8 @@ describe('GET /me capabilities', () => {
       notificationExport: true,
       actAs: true,
       skillPublish: true,
+      // No model-access policy can be read without a config root: shut.
+      modelApi: false,
     });
   });
 
@@ -316,6 +320,8 @@ describe('GET /me capabilities', () => {
       notificationExport: true,
       actAs: true,
       skillPublish: true,
+      // No model-access policy can be read without a config root: shut.
+      modelApi: false,
     });
   });
 });
@@ -427,6 +433,70 @@ describe('GET /me skillPublish', () => {
         .filter((q) => q.text.includes('FROM app.competence_records'))
         .map((q) => q.values),
     ).toContainEqual(['org-1', 'user-1', 'tale:skills.publish']);
+  });
+});
+
+/**
+ * `GET /me` answers the model endpoints' two gates as
+ * `capabilities.modelApi` — the organization's switch on its model-access
+ * policy, then the role or a live `tale:models.api` grant — the very
+ * function the endpoints run, so a client learns before its first call
+ * whether it would be refused.
+ */
+describe('GET /me modelApi', () => {
+  let configDir: string;
+  let savedConfigDir: string | undefined;
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configDir = await mkdtemp(path.join(tmpdir(), 'tale-me-model-api-'));
+    process.env.TALE_CONFIG_DIR = configDir;
+  });
+  afterEach(async () => {
+    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = savedConfigDir;
+    await rm(configDir, { recursive: true, force: true });
+  });
+
+  const setSwitch = async (enabled: boolean) => {
+    const dir = path.join(configDir, 'acme', 'governance');
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, 'model-access.yml'),
+      `enabled: false\nmode: blocklist\nrules: []\nmodelApi:\n  enabled: ${enabled}\n`,
+    );
+  };
+  const meAs = async (role: string, grants: object[]) => {
+    const { sql, queries } = fakeSql(
+      [{ organizationId: 'org-1', role, name: 'Acme', slug: 'acme' }],
+      (text) =>
+        text.includes('FROM app.competence_records')
+          ? grants
+          : answerKeyRow(keyRow())(text),
+    );
+    const res = await mount(sql, 'key-1', role).request('http://localhost/me');
+    expect(res.status).toBe(200);
+    const body: { capabilities: { modelApi: boolean } } = await res.json();
+    return { modelApi: body.capabilities.modelApi, queries };
+  };
+  const live = { expiresAt: null, revokedAt: null };
+
+  it('is false for everyone while the organization has not turned the endpoints on', async () => {
+    expect((await meAs('owner', [])).modelApi).toBe(false);
+    await setSwitch(false);
+    expect((await meAs('admin', [])).modelApi).toBe(false);
+  });
+
+  it('follows the role once they are on, and a live grant beyond it', async () => {
+    await setSwitch(true);
+    expect((await meAs('developer', [])).modelApi).toBe(true);
+    expect((await meAs('member', [])).modelApi).toBe(false);
+    const { modelApi, queries } = await meAs('editor', [live]);
+    expect(modelApi).toBe(true);
+    expect(
+      queries
+        .filter((q) => q.text.includes('FROM app.competence_records'))
+        .map((q) => q.values),
+    ).toContainEqual(['org-1', 'user-1', 'tale:models.api']);
   });
 });
 

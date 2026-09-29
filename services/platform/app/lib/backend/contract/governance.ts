@@ -686,6 +686,21 @@ export interface GovernanceContract {
       requests: null | { used: number; limit: number };
     }>;
   };
+  'governance/queries:getMyModelApiAccess': {
+    kind: 'query';
+    args: { organizationId: string };
+    /** The reader's standing at the model endpoints for API keys. */
+    returns: {
+      /** The organization turned the endpoints on (model access policy). */
+      enabled: boolean;
+      /** The reader may call them: owner, admin or developer by role, or a
+       * live `tale:models.api` grant. */
+      allowed: boolean;
+      /** The models the reader may call there, by the id both wires take —
+       * empty unless `enabled` and `allowed` both hold. */
+      models: Array<{ id: string; label: string }>;
+    };
+  };
   'governance/queries:getOrgUsageMetrics': {
     kind: 'query';
     args: {

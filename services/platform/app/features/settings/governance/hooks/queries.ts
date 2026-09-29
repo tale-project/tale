@@ -83,6 +83,17 @@ export function useMyBudgetUsage(organizationId: string) {
 }
 
 /**
+ * The reader's standing at the model endpoints for API keys — whether the
+ * organization turned them on, whether the reader may call them, and the
+ * models they may call there. Any member may read their own.
+ */
+export function useMyModelApiAccess(organizationId: string) {
+  return useBackendQuery('governance/queries:getMyModelApiAccess', {
+    organizationId,
+  });
+}
+
+/**
  * Resolved password policy for the given organization — an admin read: the
  * server refuses members, and this then returns the built-in defaults, as it
  * does while the query is loading, when no organizationId is available, or

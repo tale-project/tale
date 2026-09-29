@@ -16,6 +16,24 @@ export const TASK_AGENT_OP_KIND: SandboxAgentOpKind = 'task-agent';
 /** The kind the automation agent host files its turn ops under. */
 export const WORKFLOW_AGENT_OP_KIND: SandboxAgentOpKind = 'workflow-agent';
 
+/**
+ * The kind one request through the model endpoints for API keys files its op
+ * under (`domains/model_api`). Deliberately NOT an agent-turn kind: the row
+ * belongs to no sandbox session (its `session_id` is `model-api:<key id>`,
+ * which names no session row) and runs no harness, so the run-card, metric
+ * and session reads above never see it. It borrows the op row for what the
+ * managed turns already keep there — the gateway allowance held against the
+ * budget caps, the minted key, and the settlement facts the reconcile sweep
+ * finishes.
+ */
+export const MODEL_API_OP_KIND = 'model-api';
+
+/** The `session_id` a model-endpoint request's op row carries — one per API
+ * key, so a key's requests read together. */
+export function modelApiOpSessionId(apiKeyId: string): string {
+  return `${MODEL_API_OP_KIND}:${apiKeyId}`;
+}
+
 /** Per-owner concurrent-session cap (org cap lives spawner-side too). */
 export const SANDBOX_MAX_SESSIONS_PER_OWNER = 1;
 export const SANDBOX_SESSION_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;

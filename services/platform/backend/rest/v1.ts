@@ -12,6 +12,7 @@ import {
 } from '../auth/auth.ts';
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
+import { isModelApiDoorPath } from '../domains/model_api/wire.ts';
 import {
   listSelectableOrganizations,
   resolveUserOrganization,
@@ -38,6 +39,7 @@ import { createRestBrowserSessionRoutes } from './v1-browser-sessions.ts';
 import { createConversationRestRoutes } from './v1-conversations.ts';
 import { createCoreRoutes } from './v1-core.ts';
 import { createRestMcpRoutes } from './v1-mcp.ts';
+import { createModelApiRestRoutes } from './v1-model-api.ts';
 import { createNotificationRestRoutes } from './v1-notifications.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
 import { createTaskRestRoutes } from './v1-tasks.ts';
@@ -72,8 +74,10 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * v1-tasks (external-ref intake, comments, start), v1-threads (chat).
  * `/websites` rides the crawler family (v1-websites), `/browser-sessions`
  * is the operator door to the video-ingest cookie pool
- * (v1-browser-sessions), and `/api/v1/mcp` rides automations_builder
- * (v1-mcp); the automation webhook trigger lives at
+ * (v1-browser-sessions), `/api/v1/mcp` rides automations_builder
+ * (v1-mcp), and `/api/v1/openai` + `/api/v1/anthropic` are the model
+ * endpoints for API keys (v1-model-api: vendor wires, answered in their own
+ * error shapes); the automation webhook trigger lives at
  * `/api/automations/webhook/:token` for org-only automations and
  * `/api/projects/:id/automations/webhook/:token` for installed project
  * automations (app.ts). The token is their sole credential.
@@ -379,6 +383,10 @@ export function createRestV1Routes(deps: {
     ) {
       return next();
     }
+    // The model endpoints speak vendor wires whose SDKs add their own query
+    // parameters — an Anthropic SDK sends `POST /v1/messages?beta=true` —
+    // and the door reads no query there and relays none.
+    if (isModelApiDoorPath(c.req.path)) return next();
     const [stray] = Object.keys(c.req.queries());
     if (stray === undefined) return next();
     return c.json(
@@ -406,6 +414,7 @@ export function createRestV1Routes(deps: {
   app.route('/', createRestWebsiteRoutes({ sql: deps.sql }));
   app.route('/', createRestBrowserSessionRoutes({ sql: deps.sql }));
   app.route('/', createRestMcpRoutes({ sql: deps.sql }));
+  app.route('/', createModelApiRestRoutes({ sql: deps.sql }));
 
   return app;
 }

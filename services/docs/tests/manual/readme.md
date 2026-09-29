@@ -29,17 +29,17 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-106 boxes across 6 suites. Every suite declares the ID prefix its
+108 boxes across 6 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
 | Suite | Prefix | Area | Boxes |
 |---|---|---|---|
 | [accessibility](suites/accessibility.md) | `A11Y-` | cross-cutting WCAG 2.1 AA sweep (theme, image zoom, video player, PWA banner) | 15 |
-| [content](suites/content.md) | `CONT-` | code blocks + copy buttons, heading deep links, markdown components, images + zoom, videos, page actions | 29 |
+| [content](suites/content.md) | `CONT-` | code blocks + copy buttons, heading deep links, markdown components, images + zoom, videos, page actions | 30 |
 | [locale](suites/locale.md) | `LOC-` | `/de` + `/fr` trees, `de-CH` overlay, language switcher, translated chrome | 12 |
 | [navigation](suites/navigation.md) | `NAV-` | rail integrity, breadcrumbs, prev/next, outline scroll-spy, phone drawer, 404s, moved-page and guessed-address 301s, PWA offline/update | 24 |
-| [search](suites/search.md) | `SEARCH-` | search dialog, shortcuts, results, recents, per-locale index, index freshness | 14 |
+| [search](suites/search.md) | `SEARCH-` | search dialog, shortcuts, results, recents, per-locale index, index freshness | 15 |
 | [seo](suites/seo.md) | `SEO-` | prerendered head, JSON-LD, sitemap, robots, llms + `.md` endpoints, security headers, legal noindex, OG | 12 |
 
 ## How a round runs

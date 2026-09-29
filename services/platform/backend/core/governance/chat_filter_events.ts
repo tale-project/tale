@@ -21,4 +21,8 @@ export interface ChatFilterEventInput {
   readonly attempt?: number;
   readonly agentSlug?: string;
   readonly actorType?: string;
+  /** The request id the caller was answered with, where the lane keys its
+   * events by an id of its own (a model-endpoint request's `X-Request-Id`,
+   * beside `threadId = model-api:<server id>`). */
+  readonly requestId?: string;
 }

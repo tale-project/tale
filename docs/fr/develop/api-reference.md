@@ -41,13 +41,13 @@ Les contacts et produits sont triés par `updatedAt`, puis `id`, dans l’ordre 
 
 ## Authentification
 
-Crée les clés dans **Paramètres > API > REST** avec un accès administrateur ou développeur ; [Clés API](/fr/platform/admin/api-keys) explique l'interface. Une clé n'apparaît qu'une fois et agit comme la personne qui l'a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
+Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué **Appeler les modèles par l'API** ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
 
 | En-tête | Règle |
 | --- | --- |
 | `Authorization: Bearer <key>` | Seul emplacement accepté ; conserver toute la chaîne opaque, y compris son préfixe `tale` |
 | `X-Organization-Slug: <slug>` | Sélectionner une appartenance actuelle ; toujours l'envoyer dans une intégration réutilisable |
-| `x-api-key` | Refusé avec `401`, même avec un Bearer valide ; ne transforme pas la clé en session applicative |
+| `x-api-key` | Refusé avec `401`, même avec un Bearer valide ; ne transforme pas la clé en session applicative. Sur l’[endpoint de modèles](#model-endpoints) compatible Anthropic, le refus indique la marche à suivre : passer la clé comme jeton d’authentification, avec `ANTHROPIC_AUTH_TOKEN` pour Claude Code ou `authToken` et `auth_token` pour les SDK Anthropic, et laisser `ANTHROPIC_API_KEY` non définie (contrat 3.6.0) |
 
 Une personne appartenant à une seule organisation peut omettre l'en-tête d'organisation. Avec plusieurs appartenances, il est nécessaire à chaque appel, lectures comprises. L'organisation ouverte dans le tableau de bord ne sélectionne jamais le périmètre API. La casse du slug est ignorée ; une valeur vide ou composée d'espaces compte comme absente.
 
@@ -71,6 +71,7 @@ Avant de proposer une opération, vérifie le rôle et l’accès à la ressourc
 | `notificationExport` | La clé peut exporter les notifications des membres avec `GET /api/v1/notifications/sync`. Les Propriétaires et Admins disposent de cette capacité par leur rôle ; les autres membres seulement tant qu’une attribution `tale:notifications.export` accordée par un Admin est active. Voir [Déléguer l’export sans rôle Admin](#deleguer-lexport-sans-role-admin). Sinon, l’export renvoie `403 ROLE_FORBIDDEN`. |
 | `skillPublish` | La clé peut partager un skill avec toute l’organisation par `PUT /api/v1/skills/{slug}`. Sans politique de partage des skills, chaque membre le peut ; avec elle, seulement les rôles qu’elle admet et les membres qui détiennent une attribution `tale:skills.publish` active — voir [Enregistrer et synchroniser les bundles de skills](#enregistrer-et-synchroniser-les-bundles-de-skills). Sans ce droit, un tel enregistrement renvoie `403 SKILL_PUBLISH_FORBIDDEN`. |
 | `actAs` | La clé peut nommer un `actor` — le membre vérifié pour lequel un geste relayé est enregistré — sur `POST …/runs/{runId}/asks/{askId}` et `POST …/tasks/{taskId}/review`. Les Propriétaires et les Admins l’ont par leur rôle ; tout autre membre seulement tant qu’une attribution `tale:rest.act-as` faite par un Admin est active — voir [Nommer le membre pour lequel on agit](#nommer-le-membre-pour-lequel-on-agit). Sans ce droit, un `actor` envoyé donne `403 ROLE_FORBIDDEN`. |
+| `modelApi` | La clé peut appeler les [endpoints de modèles compatibles](#model-endpoints) : l’organisation les a activés et le détenteur de la clé peut les appeler. Les Propriétaires, Admins et Développeurs le peuvent par leur rôle ; tout autre membre seulement tant qu’une attribution `tale:models.api` faite par un Admin est active. Sinon, ces routes répondent `403 MODEL_API_DISABLED` ou `403 MODEL_API_FORBIDDEN` (contrat 3.6.0). |
 
 ## Ce que chaque requête doit respecter
 
@@ -96,6 +97,7 @@ Les opérations JSON renvoient du JSON quel que soit `Accept`, même si cet en-t
 | --- | --- |
 | Requête JSON ordinaire | 1 Mio |
 | Contenu de document intégré | 32 Mio |
+| Requête vers un endpoint de modèles | 32 Mio |
 | Import groupé de contacts | 8 Mio |
 | Instantané de conversation | 8 Mio |
 | Chargement préparé pour une conversation | 30 Mio |
@@ -257,6 +259,7 @@ Chaque **201** qui crée une ressource adressable porte `Location` — le chemin
 | Projets | `/api/v1/projects/...`<br>Lister les projets ou en chercher un par identifiant externe ; créer, archiver, restaurer ou supprimer un projet ; gérer ses dossiers et charger, télécharger, supprimer ou indexer ses fichiers. |
 | Tâches | `/api/v1/projects/{id}/tasks/...`<br>Créer une tâche depuis une référence externe sans doublon, lire son état, démarrer un workflow, commenter, et traiter sa relecture : `GET .../review` la lit, `POST .../review` la décide pour un membre. Le démarrage renvoie le `runId` à suivre. |
 | MCP | `POST /api/v1/mcp`<br>Appeler l’[endpoint MCP](/fr/develop/mcp-endpoint) avec la même clé, en JSON-RPC. |
+| Endpoints de modèles | `/api/v1/openai/...` et `/api/v1/anthropic/...`<br>Appels compatibles OpenAI et Anthropic aux modèles de l’organisation, désactivés tant qu’un admin ne les a pas activés ; voir [Endpoints de modèles compatibles](#model-endpoints). |
 | Déclencheur webhook | `POST /api/projects/{id}/automations/webhook/{token}` ou `POST /api/automations/webhook/{token}`<br>Démarrer une automatisation déployée avec son jeton ; voir [Webhooks](/fr/develop/webhooks) pour les URL avec ou sans projet. |
 
 **Exécutions.** `GET /api/v1/runs` liste les exécutions visibles de toutes les automatisations. Pour lire une exécution de projet, utilise `/api/v1/projects/{id}/runs/{runId}`, y compris pour l’annuler ou la supprimer. `/api/v1/runs/{runId}` expose uniquement une exécution sans projet.
@@ -1008,6 +1011,56 @@ Base le traitement automatique sur `errorCode`, pas sur la phrase ni sur le seul
 
 Avant de traiter un envoi accepté, le worker vérifie à nouveau le fil et l’accès au projet. Si le fil a changé de projet ou si l’accès a été retiré pendant l’attente, il n’exécute pas le tour et n’ajoute pas d’erreur dans le nouveau contexte.
 
+## Endpoints de modèles compatibles {#model-endpoints}
+
+Trois routes répondent aux interfaces d’OpenAI et d’Anthropic pour les modèles de l’organisation : un SDK ou un outil de code qui parle l’une d’elles peut ainsi utiliser Tale comme fournisseur de modèles (contrat 3.7.0). Il s’agit d’un accès direct au modèle : la requête va au modèle qu’elle nomme et la réponse revient telle que le modèle l’a envoyée, sans assistant, fil ni outil de Tale entre les deux. Ces routes restent désactivées tant qu’un admin n’a pas activé **Endpoints de modèles pour les clés API**. Les propriétaires, admins et développeurs peuvent ensuite les appeler ; tout autre membre a besoin d’une attribution `tale:models.api` active. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor#model-endpoints) explique la configuration des clients.
+
+| Route | Sert |
+| --- | --- |
+| `POST /api/v1/openai/chat/completions` | OpenAI Chat Completions, en flux d’événements envoyés par le serveur (SSE) ou en réponse complète, avec outils et `tool_calls`, images et fichiers. Un flux se termine par `data: [DONE]` ; son dernier fragment, qui porte la consommation, n’arrive que si `stream_options.include_usage` le demande. |
+| `GET /api/v1/openai/models` | Les identifiants des modèles que le détenteur de la clé peut appeler, en liste OpenAI : `owned_by` est le slug du fournisseur, et `created` vaut toujours `0`. |
+| `POST /api/v1/anthropic/v1/messages` | Anthropic Messages, en flux ou en réponse complète, avec outils, images et documents. `anthropic-version` et `anthropic-beta` sont transmis. |
+
+L’authentification est la même que pour toute autre opération : `Authorization: Bearer <key>` et, pour un détenteur de plusieurs appartenances, `X-Organization-Slug`. Ces routes partagent le budget de débit général et répondent avec `X-Request-Id` comme les autres. Elles ignorent les paramètres de requête, y compris le `?beta=true` d’un SDK Anthropic, et acceptent des corps jusqu’à 32 Mio. Tale lit les champs qu’il encadre et relaie le reste du corps tel quel : les règles strictes de corps et de paramètres des autres opérations ne s’appliquent pas ici.
+
+`model` prend la forme `<providerSlug>/<modelId>` sur les deux interfaces : le slug du fournisseur, une barre oblique et l’identifiant du modèle dans le catalogue de ce fournisseur, par exemple `openrouter/anthropic/claude-sonnet-4.6`. Comme un identifiant de catalogue peut contenir des barres obliques, le fournisseur est la partie avant la première. Les réponses nomment l’identifiant envoyé par la requête. Le détenteur de la clé peut appeler les modèles de chat de l’organisation que servent des identifiants avec clé API ou variable d’environnement, restreints par les modèles autorisés de ces identifiants et par son accès aux modèles ; les modèles servis par des identifiants d’abonnement et les fournisseurs dont l’adresse est définie pour chaque identifiant, comme Azure, ne sont pas servis. `GET /api/v1/models` donne pour chacun de ces modèles sa fenêtre de contexte, ses capacités et ses prix, sous les mêmes `providerSlug` et `id`.
+
+Chaque requête est soumise à l’accès aux modèles du détenteur de la clé, vérifiée par rapport à chaque plafond de budget qui s’applique à lui, à ses équipes, à l’organisation et à la clé, puis imputée à la personne et à la clé. Les garde-fous d’entrée de l’organisation examinent chaque texte qu’elle porte avant qu’elle soit relayée ; les réponses ne sont pas filtrées. Une personne, et chaque clé, peuvent avoir huit requêtes en cours en même temps.
+
+### Lire un refus au format de l’interface
+
+Chaque refus sur ces routes, y compris ceux liés à l’authentification, à l’organisation, à la limite de débit et à la taille du corps, arrive au format d’erreur de l’interface, si bien qu’un SDK du fournisseur le lit comme le sien. `code` porte le code stable de Tale. Sur les routes OpenAI :
+
+```json
+{ "error": { "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "type": "permission_error", "param": null, "code": "MODEL_API_DISABLED" } }
+```
+
+Sur la route Anthropic, qui ajoute l’en-tête `request-id` :
+
+```json
+{ "type": "error", "error": { "type": "permission_error", "message": "The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.", "code": "MODEL_API_DISABLED" }, "request_id": "<X-Request-Id>" }
+```
+
+| Statut | `code` | Signification |
+| --- | --- | --- |
+| **403** | `MODEL_API_DISABLED` | L’organisation n’a pas activé les endpoints. |
+| **403** | `MODEL_API_FORBIDDEN` | Le rôle du détenteur de la clé ne peut pas les appeler, et il n’a pas d’attribution `tale:models.api` active. |
+| **403** | `MODEL_API_MODEL_FORBIDDEN` | L’accès aux modèles de l’organisation bloque ce modèle pour le détenteur de la clé. |
+| **404** | `MODEL_API_MODEL_UNKNOWN` | Aucun modèle que le détenteur peut appeler ne porte cet identifiant ; `GET /api/v1/openai/models` les liste. |
+| **400** | `MODEL_API_VISION_UNSUPPORTED` | La requête contient des images, et le modèle ne les lit pas. |
+| **400** | `MODEL_API_TOOLS_UNSUPPORTED` | La requête propose des outils, et le modèle n’en accepte pas. |
+| **400** | `MODEL_API_VENDOR_TOOL_UNSUPPORTED` | La requête demande au fournisseur du modèle d’exécuter lui-même un outil : chez OpenAI, `web_search_options` ou un outil dont le type n’est ni `function` ni `custom` ; chez Anthropic, la recherche web, la récupération web, l’exécution de code, un ensemble d’outils MCP, `mcp_servers` ou `container`. |
+| **400** | `MODEL_API_GUARDRAIL_BLOCKED` | Un garde-fou d’entrée a bloqué un texte de la requête ; rien n’a été envoyé au modèle. |
+| **403** | `MODEL_API_GUARDRAIL_UNSUPPORTED` | La protection PII de l’organisation tokenise, ce qu’une réponse relayée ne permet pas de respecter. |
+| **503** | `MODEL_API_GUARDRAIL_UNAVAILABLE` | Une étape de modération a échoué sous une politique fail-closed, ou un réglage de garde-fou est illisible. Réessaie plus tard. |
+| **413** | `MODEL_API_TEXT_TOO_LARGE` | Un garde-fou est actif, et la requête porte plus de 2 Mo de texte. |
+| **429** | `BUDGET_EXCEEDED` | Un plafond de budget qui s’applique au détenteur de la clé ou à la clé est atteint, ou le pire cas de la requête, son prompt et son plafond de sortie au prix du modèle, ne tient pas dans ce qui reste ; un `max_tokens` plus bas passe plus facilement. Le message nomme le plafond, `Retry-After` indique le temps restant avant la réinitialisation d’un plafond atteint, et `x-should-retry: false` indique aux SDK de ne pas réessayer. |
+| **429** | `MODEL_API_CONCURRENCY_EXCEEDED` | Le détenteur de la clé, ou la clé, a déjà huit requêtes en cours. `Retry-After` demande d’attendre deux secondes. |
+| **503** | `MODEL_API_UNAVAILABLE` | Tale ne peut pas servir la requête pour le moment, par exemple parce que la passerelle de modèles ne peut pas servir ce modèle. Réessaie sous peu. |
+| **400**, **413**, **422**, **429**, **503**, **529** ou **502** | `MODEL_API_UPSTREAM_ERROR` | Le fournisseur du modèle a refusé la requête. Les six premiers statuts reprennent celui du fournisseur ; tout autre refus est renvoyé en **502**. |
+| **400** | `INVALID_BODY` | Le corps n’est pas une requête que la route peut relayer, par exemple avec de l’audio en entrée ou en sortie, un rôle qu’elle ne relaie pas, une URL d’image qui n’est ni `data:` ni `https:`, plus de huit réponses (`n`), un fichier stocké dans le compte du fournisseur (`file_id`, une source de type `file`), un `service_tier` autre que celui par défaut ou `store: true`. Le message nomme le champ, tout comme `param` au format OpenAI. |
+| **413** | `BODY_TOO_LARGE` | Le corps dépasse 32 Mio. |
+
 ## Rechercher dans les fichiers d’un projet
 
 Utilise l’URL du projet pour limiter les résultats à ses fichiers indexés. L’accès en lecture suffit, même si le projet est archivé. Les documents de l’organisation ou des équipes, les autres projets, les sites web et les pièces jointes d’e-mails sont exclus.
@@ -1519,6 +1572,8 @@ Les erreurs ordinaires produites par l’API utilisent un objet JSON plat :
 { "error": "Automation not found", "code": "AUTOMATION_NOT_FOUND" }
 ```
 
+Les [endpoints de modèles compatibles](#model-endpoints) font exception : sous `/api/v1/openai` et `/api/v1/anthropic`, chaque refus, y compris ceux liés à l’authentification et à la limite de débit, prend le format d’erreur d’OpenAI ou d’Anthropic et y porte le même `code`.
+
 `error` contient un message destiné à une personne. `code` fournit l’identifiant stable à utiliser dans ton programme. Les refus émis par l’API possèdent ce code ; OpenAPI en énumère les valeurs dans `Error.code`.
 
 De nouveaux codes peuvent être ajoutés dans une version mineure. Prévois donc un traitement générique selon le statut HTTP pour les codes inconnus. Certains refus ajoutent `data`, par exemple `issues` pour un corps invalide, `retryAfterMs` pour une limite de débit ou `providers` pour un modèle ambigu.
@@ -1610,4 +1665,4 @@ Les notes publiées sont disponibles sur [GitHub Releases](https://github.com/ta
 
 Utilise cette référence pour intégrer Tale depuis une application externe via REST. Le [point d’accès MCP](/fr/develop/mcp-endpoint) donne accès à la plateforme aux clients MCP et permet d’écrire les automatisations, une opération absente de REST.
 
-Les [webhooks](/fr/develop/webhooks) démarrent des exécutions entrantes sans clé API. Pour configurer le travail directement dans Tale, notamment les agents de projet et les automatisations, consulte la documentation [Plateforme](/fr/platform). Pour utiliser Tale dans opencode, Claude Code ou un script shell, et savoir ce qui remplace `/api/v1/chat/completions` compatible OpenAI, lis [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor).
+Les [webhooks](/fr/develop/webhooks) démarrent des exécutions entrantes sans clé API. Pour configurer le travail directement dans Tale, notamment les agents de projet et les automatisations, consulte la documentation [Plateforme](/fr/platform). Pour utiliser Tale dans opencode, Claude Code ou un script shell, comme fournisseur de modèles par les [endpoints de modèles compatibles](#model-endpoints) ou comme source de connaissances et d’outils, lis [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor).

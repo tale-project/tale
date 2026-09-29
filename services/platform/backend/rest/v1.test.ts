@@ -850,3 +850,45 @@ describe('/api/v1 door — an unavailable database', () => {
     }
   });
 });
+
+/**
+ * A write takes no query parameters on this door — except on the model
+ * endpoints, whose vendor SDKs add their own (`POST /v1/messages?beta=true`
+ * from an Anthropic SDK): the door reads none there and relays none.
+ */
+describe('/api/v1 door — query parameters on writes', () => {
+  function writeDoor(sql: Sql, auth: Auth) {
+    const app = createRestV1Routes({ sql, auth });
+    app.post('/anthropic/probe', (c) => c.json({ ok: true }));
+    app.post('/openai/probe', (c) => c.json({ ok: true }));
+    app.post('/probe', (c) => c.json({ ok: true }));
+    return app;
+  }
+
+  it('refuses a query on an ordinary write', async () => {
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const res = await writeDoor(sql, auth).request(
+      'http://localhost/probe?beta=true',
+      { method: 'POST', ...bearer(GOOD_KEY) },
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+
+  it.each(['/anthropic/probe?beta=true', '/openai/probe?api-version=1'])(
+    'lets the vendor wire’s own query through on %s',
+    async (path) => {
+      const { sql } = fakeSql();
+      const { auth } = fakeAuth();
+      const res = await writeDoor(sql, auth).request(
+        `http://localhost${path}`,
+        {
+          method: 'POST',
+          ...bearer(GOOD_KEY),
+        },
+      );
+      expect(res.status).toBe(200);
+    },
+  );
+});
