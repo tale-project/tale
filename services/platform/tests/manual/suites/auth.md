@@ -408,8 +408,12 @@ compute codes from the enrollment secret.
   **Knowledge search is off** (`settings.dataResidency.orgEmbedding.banner.title`,
   a provider but no embedding model) → the banner's words sit below the
   notch, and the shell's header (a chat's own header on a chat) directly
-  below the banner, with no blank band between them; end the session there →
-  the notice clears the notch and the banner under it takes no second pad.
+  below the banner, with no blank band between them, and the band under the
+  status bar wears the banner's tint; reload with the network throttled, so
+  the banner arrives after the page → the header moves down by the banner's
+  height alone and its title never passes under the notch; end the session
+  there → the notice clears the notch and the banner under it takes no
+  second pad.
   At 375 px, end the session while tab 1 shows `/dashboard/changelog`, then
   while it shows `/dashboard/create-organization` with a name typed into the
   wizard → the notice stands in the flow above the page, never over it:
