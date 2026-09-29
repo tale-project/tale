@@ -21,7 +21,7 @@ Use **Settings > Governance > Policies & Limits** as an Admin or Owner to contro
 
 For example, a monthly role rule can give Editors a USD 50 personal spending limit, while an organization rule caps everyone's combined spend at USD 500. These are example amounts, not recommended defaults.
 
-Budgets apply to new billable work, including chat, voice output, and managed agent runs. Tale checks every chat request before it runs — a sent message, a regenerated or edited reply, both sides of a model comparison, a message waiting for an attachment, and a send through the REST API — and refuses it once a cap that applies is reached, naming the cap and when it resets. Replies still being written hold what they may spend, so requests sent at the same moment cannot pass a nearly reached cap together. Image generation needs cost or request limits because its usage is not measured as text tokens. Investigate warnings in [Usage analytics](/platform/admin/governance/usage-analytics).
+Budgets apply to new billable work, including chat, voice output, and managed agent runs. Tale checks every chat request before it runs — a sent message, a regenerated or edited reply, both sides of a model comparison, a message waiting for an attachment, and a send through the REST API — and refuses it once a cap that applies is reached, naming the cap and when it resets. Replies still being written hold what they may spend, so requests sent at the same moment cannot pass a nearly reached cap together. Investigate warnings in [Usage analytics](/platform/admin/governance/usage-analytics).
 
 ## Understand which caps apply
 
