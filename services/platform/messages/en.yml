@@ -1037,6 +1037,20 @@ chat:
   markAsRead: Mark as read
   markAsUnread: Mark as unread
   readOnlyShared: Shared with the project — read-only
+  createTask:
+    button: Create task from chat
+    projectTitle: Create a task from this chat
+    projectDescription: Choose the project the task belongs to. A project agent there can work on it and deliver the files.
+    projectLabel: Project
+    projectPlaceholder: Choose a project
+    projectEmpty: No project matches
+    noProjects: There's no project to create the task in yet. Ask an Editor or Admin to create one.
+    continue: Continue
+    fromChat: 'From the chat: {title}'
+    fromChatUntitled: From the chat
+    created: Task created in {project}
+    openTask: Open task
+    openTaskAltText: Open the task you just created on its project's board
   export:
     button: Export
     title: Export chat

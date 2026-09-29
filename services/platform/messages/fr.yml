@@ -1092,6 +1092,20 @@ chat:
   markAsRead: Marquer comme lu
   markAsUnread: Marquer comme non lu
   readOnlyShared: Partagé avec le projet — lecture seule
+  createTask:
+    button: Créer une tâche depuis le chat
+    projectTitle: Créer une tâche à partir de ce chat
+    projectDescription: Choisis le projet auquel la tâche appartient. Un agent de ce projet peut la traiter et livrer les fichiers.
+    projectLabel: Projet
+    projectPlaceholder: Choisir un projet
+    projectEmpty: Aucun projet ne correspond
+    noProjects: Il n’y a encore aucun projet où créer la tâche. Demande à un éditeur ou à un admin d’en créer un.
+    continue: Continuer
+    fromChat: 'Depuis le chat : {title}'
+    fromChatUntitled: Depuis le chat
+    created: Tâche créée dans {project}
+    openTask: Ouvrir la tâche
+    openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
   export:
     button: Exporter
     title: Exporter le chat
