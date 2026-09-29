@@ -27,6 +27,7 @@ import {
 } from '@/app/features/settings/teams/lib/audience-filter';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useArchiveProject } from '../hooks/mutations';
@@ -480,6 +481,7 @@ export function ProjectsTable({
             onClearSelection={handleClearSelection}
             onArchiveItem={handleArchiveItem}
             onComplete={handleClearSelection}
+            describeFailure={firstFailureDetail}
           />
         }
       />

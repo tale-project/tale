@@ -8,6 +8,7 @@ import { toast } from '@tale/ui/use-toast';
 import { useEffect, useMemo } from 'react';
 import { z } from 'zod/v4';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
@@ -91,7 +92,11 @@ export function ProjectRenameDialog({
         }
       }
       console.error('rename project failed', error);
-      toast({ title: t('settings.saveError'), variant: 'destructive' });
+      toast({
+        title: t('settings.saveError'),
+        description: failureDetail(error),
+        variant: 'destructive',
+      });
     }
   };
 

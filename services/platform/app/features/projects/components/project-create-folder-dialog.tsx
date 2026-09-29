@@ -10,6 +10,7 @@ import * as z from 'zod';
 
 import { useCreateFolder } from '@/app/features/documents/hooks/mutations';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 interface ProjectCreateFolderDialogProps {
@@ -80,6 +81,8 @@ export function ProjectCreateFolderDialog({
         title: isDuplicate
           ? tDocuments('folder.duplicateName')
           : tDocuments('folder.createFailed'),
+        // A taken name is the whole story; any other refusal says why.
+        description: isDuplicate ? undefined : failureDetail(error),
         variant: 'destructive',
       });
     } finally {
