@@ -65,6 +65,12 @@ describe('SkillsMenu', () => {
           { slug: 'orphan', label: 'orphan', origin: 'member' },
           { slug: 'docx', label: 'docx', origin: 'builtin' },
           { slug: 'invoices', label: 'invoices', origin: 'release' },
+          {
+            slug: 'spoofed',
+            label: 'spoofed',
+            origin: 'release',
+            ownerName: 'Mallory',
+          },
         ]}
         connectors={[]}
         tools={[]}
@@ -80,6 +86,11 @@ describe('SkillsMenu', () => {
     expect(await row('orphan')).toHaveTextContent('By a former member');
     expect(await row('docx')).toHaveTextContent('Built-in');
     expect(await row('invoices')).toHaveTextContent('Configuration release');
+    // The release marker is plain frontmatter any upload can carry, so the
+    // caption names whose upload installed the skill.
+    expect(await row('spoofed')).toHaveTextContent(
+      'Configuration release · Mallory',
+    );
   });
 
   it('adds no caption to an option that carries no provenance', async () => {

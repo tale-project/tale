@@ -1,7 +1,9 @@
 /**
  * The skill library says who created every skill — a member by name, a
  * departed one as a former member, the catalog copies as built-in and a
- * managed configuration release as such — and finds skills by that name.
+ * managed configuration release as such, beside the member whose upload
+ * installed it (the release marker is plain frontmatter any upload can
+ * carry) — and finds skills by that name.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -80,7 +82,7 @@ describe('SkillsSettings — Created by', () => {
     expect(createdByOf('house-voice')).toBe('Ada Lovelace');
     expect(createdByOf('old-notes')).toBe('Former member');
     expect(createdByOf('docx')).toBe('Built-in');
-    expect(createdByOf('invoices')).toBe('Configuration release');
+    expect(createdByOf('invoices')).toBe('Configuration release · Ops Bot');
   });
 
   it('finds skills by the name of their creator', async () => {
@@ -93,6 +95,19 @@ describe('SkillsSettings — Created by', () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'docx' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('finds a configuration release by the member who installed it', async () => {
+    const { user } = render(<SkillsSettings organizationId="org1" />);
+
+    await user.type(screen.getByPlaceholderText('Search skills'), 'Ops Bot');
+
+    expect(
+      await screen.findByRole('button', { name: 'invoices' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'house-voice' }),
     ).not.toBeInTheDocument();
   });
 });

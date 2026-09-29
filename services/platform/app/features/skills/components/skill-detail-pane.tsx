@@ -166,7 +166,7 @@ export function SkillDetailPane({
   const savedSharing: SkillSharingValue | undefined = savedForm
     ? savedForm.metadata.sharing
     : undefined;
-  const createdBy = attribution.createdBy(skill, { detailed: true });
+  const createdBy = attribution.createdBy(skill);
   const lastEditedBy = attribution.lastEditedBy(skill);
 
   return (
