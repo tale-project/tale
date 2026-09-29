@@ -34,6 +34,12 @@ The endpoints are off until an Admin turns on **Model endpoints for API keys** u
 
 **Settings > API > Models** collects what your tools need: both base URLs, the organization slug, the models you can call with a copy button for each id, and configuration to copy for opencode, Claude Code, and the OpenAI SDK for Python. While your organization has not turned the endpoints on, the tab reads **Model endpoints are not enabled for your organization**, and Owners and Admins find **Open model access** there.
 
+<Frame caption="Settings > API > Models — the base URLs, the organization slug, and the models you can call.">
+
+![The Models tab under Settings > API showing the OpenAI- and Anthropic-compatible base URLs, the Authorization header for an API key, the organization slug northlight-labs, and five model ids, each with a copy button.](/images/develop/settings-api-models.webp)
+
+</Frame>
+
 ### Connection settings
 
 | Setting | Value |

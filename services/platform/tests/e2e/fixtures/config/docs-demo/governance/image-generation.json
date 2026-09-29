@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "providerSlug": "e2e-mock",
+  "modelId": "google/gemini-2.5-flash-image"
+}
