@@ -473,3 +473,101 @@ describe('task.start_agent', () => {
     });
   });
 });
+
+/**
+ * `task.get_import_cursor` / `task.save_import_cursor`: a scheduled import's
+ * position between occurrences. The rim narrows the key and insists on the
+ * workflow caller; the store (`backend/domains/tasks/import-cursors.ts`) keeps
+ * the compare-and-set and the attempt count — its lane proves them on
+ * Postgres.
+ */
+describe('task.get_import_cursor / task.save_import_cursor', () => {
+  const caller = { kind: 'workflow', runId: 'run-1', nodeId: 'cursor' };
+  const key = {
+    projectId: 'project-1',
+    externalSystem: 'github',
+    source: 'tale-project/tale',
+  };
+
+  it('reads the position for the step, keyed by project, system and source', async () => {
+    const read = {
+      cursor: '{"page":6}',
+      batch: 2,
+      resumed: true,
+      restarted: false,
+      passStartedAt: 1,
+      lastDrainedAt: null,
+    };
+    const getImportCursor = vi.fn().mockResolvedValue(read);
+    await expect(
+      platformTaskNatives({ getImportCursor } as never)[
+        'task.get_import_cursor'
+      ]?.({ ...key, source: ' tale-project/tale ' }, {
+        organizationId: 'org-1',
+        caller,
+      } as never),
+    ).resolves.toEqual(read);
+    expect(getImportCursor).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller,
+      ...key,
+    });
+  });
+
+  it('saves from the cursor the batch started at to the next one', async () => {
+    const saved = { saved: true, drained: false, batch: 2, conflict: false };
+    const saveImportCursor = vi.fn().mockResolvedValue(saved);
+    await expect(
+      platformTaskNatives({ saveImportCursor } as never)[
+        'task.save_import_cursor'
+      ]?.({ ...key, from: '{"page":6}', next: '{"page":11}' }, {
+        organizationId: 'org-1',
+        caller,
+      } as never),
+    ).resolves.toEqual(saved);
+    expect(saveImportCursor).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      caller,
+      ...key,
+      from: '{"page":6}',
+      next: '{"page":11}',
+    });
+  });
+
+  it.each([
+    ['task.get_import_cursor', key],
+    ['task.save_import_cursor', { ...key, from: '', next: '' }],
+  ])('%s runs only as an automation step', async (impl, input) => {
+    const store = { getImportCursor: vi.fn(), saveImportCursor: vi.fn() };
+    for (const ctx of [
+      { organizationId: 'org-1' },
+      { organizationId: 'org-1', caller: { kind: 'user', userId: 'user-1' } },
+    ]) {
+      await expect(
+        platformTaskNatives(store as never)[impl]?.(input, ctx as never),
+      ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    }
+    expect(store.getImportCursor).not.toHaveBeenCalled();
+    expect(store.saveImportCursor).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['task.get_import_cursor', { ...key, externalSystem: 'jira' }],
+    ['task.get_import_cursor', { ...key, source: '' }],
+    ['task.get_import_cursor', { ...key, source: 'x'.repeat(201) }],
+    ['task.get_import_cursor', { ...key, cursor: 'c' }],
+    ['task.save_import_cursor', { ...key, from: '' }],
+    ['task.save_import_cursor', { ...key, from: '', next: null }],
+    ['task.save_import_cursor', { ...key, from: '', next: 'x'.repeat(12_001) }],
+  ])('%s refuses %o before touching the store', async (impl, input) => {
+    const store = { getImportCursor: vi.fn(), saveImportCursor: vi.fn() };
+    await expect(
+      platformTaskNatives(store as never)[impl]?.(input, {
+        organizationId: 'org-1',
+        caller,
+      } as never),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(store.getImportCursor).not.toHaveBeenCalled();
+    expect(store.saveImportCursor).not.toHaveBeenCalled();
+  });
+});

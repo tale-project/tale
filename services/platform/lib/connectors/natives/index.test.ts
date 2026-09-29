@@ -144,6 +144,24 @@ const NATIVE_ACTIONS: Array<{
     },
   },
   {
+    impl: 'task.get_import_cursor',
+    connector: 'task',
+    action: 'get_import_cursor',
+    input: { projectId: 'proj_1', externalSystem: 'github', source: 'o/r' },
+  },
+  {
+    impl: 'task.save_import_cursor',
+    connector: 'task',
+    action: 'save_import_cursor',
+    input: {
+      projectId: 'proj_1',
+      externalSystem: 'github',
+      source: 'o/r',
+      from: '',
+      next: '',
+    },
+  },
+  {
     impl: 'document.list',
     connector: 'document',
     action: 'list',
@@ -350,6 +368,22 @@ const taskStore: WorkflowTaskStore = {
       runId: 'run_double',
       taskId,
       agentId: 'agent_double',
+    }),
+  getImportCursor: () =>
+    Promise.resolve({
+      cursor: '',
+      batch: 1,
+      resumed: false,
+      restarted: false,
+      passStartedAt: null,
+      lastDrainedAt: null,
+    }),
+  saveImportCursor: ({ next }) =>
+    Promise.resolve({
+      saved: true,
+      drained: next === '',
+      batch: 1,
+      conflict: false,
     }),
 };
 

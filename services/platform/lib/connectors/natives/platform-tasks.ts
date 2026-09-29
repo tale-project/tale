@@ -1,7 +1,8 @@
 /**
  * Native backend for the `task` platform connector — the task lifecycle as
  * automation capabilities: read a task, move its status, write and read its
- * discussion comments, and put the task's project agent to work.
+ * discussion comments, put the task's project agent to work, and keep a
+ * scheduled issue import's position between its occurrences.
  *
  * The thin rim: input narrowing and the marker-window semantics. The store
  * fronts the task domain's own trusted writers, so actor attribution, the
@@ -150,6 +151,45 @@ export interface WorkflowTaskStore {
     feedback?: string;
     moveToInProgress?: boolean;
   }): Promise<WorkflowAgentStart>;
+  /** Where a scheduled import of the project's source resumes, counting the
+   * read as an attempt. */
+  getImportCursor(
+    args: WorkflowImportCursorKey,
+  ): Promise<WorkflowImportCursorRead>;
+  /** Advance the source's position, compare-and-set on the cursor the batch
+   * started at. */
+  saveImportCursor(
+    args: WorkflowImportCursorKey & { from: string; next: string },
+  ): Promise<WorkflowImportCursorSave>;
+}
+
+/** Which listing an import position belongs to. */
+interface WorkflowImportCursorKey {
+  organizationId: string;
+  caller: ConnectorCaller;
+  projectId: string;
+  externalSystem: 'github' | 'glitchtip';
+  source: string;
+}
+
+/** What `task.get_import_cursor` answers. */
+interface WorkflowImportCursorRead {
+  /** Where this batch starts — `''` for the first batch of a pass. */
+  cursor: string;
+  batch: number;
+  resumed: boolean;
+  /** The stored position failed repeatedly and this batch starts over. */
+  restarted: boolean;
+  passStartedAt: number | null;
+  lastDrainedAt: number | null;
+}
+
+/** What `task.save_import_cursor` answers. */
+interface WorkflowImportCursorSave {
+  saved: boolean;
+  drained: boolean;
+  batch: number;
+  conflict: boolean;
 }
 
 /** What `task.start_agent` answers: the run it started (or found), or why
@@ -258,6 +298,21 @@ const startAgentInput = taskRef
     agentId: z.string().min(1).max(200).optional(),
     feedback: z.string().max(START_FEEDBACK_MAX).optional(),
     moveToInProgress: z.boolean().optional(),
+  })
+  .strict();
+
+const importCursorKeyInput = z
+  .object({
+    projectId: z.string().trim().min(1),
+    externalSystem: z.enum(['github', 'glitchtip']),
+    source: z.string().trim().min(1).max(200),
+  })
+  .strict();
+
+const saveImportCursorInput = importCursorKeyInput
+  .extend({
+    from: z.string().max(12000),
+    next: z.string().max(12000),
   })
   .strict();
 
@@ -521,8 +576,42 @@ export function platformTaskNatives(
     });
   };
 
+  const workflowCaller = (
+    action: string,
+    ctx: NativeConnectorContext,
+  ): ConnectorCaller => {
+    if (ctx.caller?.kind !== 'workflow') {
+      throw new ConnectorError(
+        'INPUT_INVALID',
+        `task.${action} runs only as an automation step`,
+        {},
+      );
+    }
+    return ctx.caller;
+  };
+  const getImportCursor: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = importCursorKeyInput.safeParse(input);
+    if (!parsed.success) refuse('get_import_cursor', parsed.error);
+    return store.getImportCursor({
+      ...parsed.data,
+      organizationId: ctx.organizationId,
+      caller: workflowCaller('get_import_cursor', ctx),
+    });
+  };
+  const saveImportCursor: NativeConnectorImpl = async (input, ctx) => {
+    const parsed = saveImportCursorInput.safeParse(input);
+    if (!parsed.success) refuse('save_import_cursor', parsed.error);
+    return store.saveImportCursor({
+      ...parsed.data,
+      organizationId: ctx.organizationId,
+      caller: workflowCaller('save_import_cursor', ctx),
+    });
+  };
+
   return {
     'task.start_agent': startAgent,
+    'task.get_import_cursor': getImportCursor,
+    'task.save_import_cursor': saveImportCursor,
     'task.upsert': upsert,
     'task.upsert_issues': upsertIssues,
     'task.list_external_issues': listExternal,

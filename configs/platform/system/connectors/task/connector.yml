@@ -6,9 +6,9 @@
 name: task
 displayName: Tasks
 description: >-
-  Read a task, move its status, write or read its discussion comments, and
-  put its project agent to work — the platform's own task board as
-  automation steps.
+  Read a task, move its status, write or read its discussion comments, put
+  its project agent to work, and keep a scheduled issue import's position
+  between occurrences — the platform's own task board as automation steps.
 tags:
   - Platform
 auth:
@@ -226,6 +226,63 @@ actions:
       kind: native
       impl: task.list_external_issues
     exampleInput: { projectId: proj_mock, externalSystem: github, repositoryId: 1 }
+  - name: get_import_cursor
+    description: >-
+      Where a scheduled issue import of this project's source resumes: the
+      cursor its last saved batch left, so each occurrence imports one bounded
+      batch from where the previous one stopped until the listing is drained.
+      Pass cursor to the importer and hand it back to save_import_cursor as
+      from. Answers '' for the first batch of a pass. Reading a stored cursor
+      counts an attempt; after three reads without a save (the batch keeps
+      failing) the next read starts the pass over (restarted). Runs only as an
+      automation step.
+    effects: read
+    input:
+      type: object
+      required: [projectId, externalSystem, source]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        externalSystem: { type: string, enum: [github, glitchtip] }
+        source:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Your name for the listing, such as owner/repo; automations naming the same source share one pass.
+    output: '{ cursor: string, batch: number, resumed: boolean, restarted: boolean, passStartedAt: number | null, lastDrainedAt: number | null }'
+    mock: |
+      return { cursor: '', batch: 1, resumed: false, restarted: false, passStartedAt: null, lastDrainedAt: null };
+    backend:
+      kind: native
+      impl: task.get_import_cursor
+    exampleInput: { projectId: proj_mock, externalSystem: github, source: example/web }
+  - name: save_import_cursor
+    description: >-
+      Record how far a scheduled issue import got: from is the cursor its batch
+      started at, as get_import_cursor answered it, and next the importer's
+      nextCursor, or '' once the listing is drained, which completes the pass.
+      Saves only while the stored cursor is still from, so a failed import
+      (whose run saves nothing) retries its batch next occurrence and an
+      overlapping run cannot move the pass backwards (saved false, conflict
+      true). Runs only as an automation step.
+    effects: write
+    input:
+      type: object
+      required: [projectId, externalSystem, source, from, next]
+      additionalProperties: false
+      properties:
+        projectId: { type: string, minLength: 1 }
+        externalSystem: { type: string, enum: [github, glitchtip] }
+        source: { type: string, minLength: 1, maxLength: 200 }
+        from: { type: string, maxLength: 12000, description: The cursor the batch started at. }
+        next: { type: string, maxLength: 12000, description: "The importer's nextCursor; '' once the listing is drained." }
+    output: '{ saved: boolean, drained: boolean, batch: number, conflict: boolean }'
+    mock: |
+      return { saved: true, drained: String(input.next ?? '') === '', batch: 1, conflict: false };
+    backend:
+      kind: native
+      impl: task.save_import_cursor
+    exampleInput: { projectId: proj_mock, externalSystem: github, source: example/web, from: '', next: '' }
   - name: upsert_issues
     description: Atomically import or refresh a batch of issue snapshots. New tasks require an open source; repeat sync keeps Tale edits and status. Titles and descriptions are cut to 200 and 20,000 UTF-16 code units, ending in "…"; a blank title refuses the batch, naming the item. Returns one result per source with the title its task carries, and taskId null when a closed source has no task.
     effects: write

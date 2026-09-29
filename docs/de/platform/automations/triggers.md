@@ -111,6 +111,39 @@ Ein Lauf, den ein Zeitplan startet, arbeitet in niemandes Auftrag. Er nutzt die 
 
 `moveToInProgress` entscheidet, was mit der Karte geschieht. Standardmäßig wandert sie nach **In Bearbeitung**, und das Ergebnis wartet unter **In Prüfung** auf eine Person, wie nach **Agent starten**; eine Prüfung, die zur früheren Arbeit noch offen ist, wird zurückgezogen, nie genehmigt. Mit `false` bleibt die Karte, wo sie ist, und der Lauf verlangt keine Prüfung; das passt zu einer Daueraufgabe unter **Zu erledigen**. Ein solcher Start läuft nur unter offener Arbeit (**Backlog**, **Zu erledigen** oder **In Bearbeitung**): Eine Karte, die unter **In Prüfung** wartet, antwortet `in_review`, eine abgeschlossene `closed`. So stellt die Karte nie frühere Arbeit zur Beurteilung oder als erledigt dar, während darunter neue Arbeit läuft. Scheitert ein solcher Lauf, wird er nicht automatisch wiederholt; der nächste Termin startet ihn erneut.
 
+### Jedes Issue nach Zeitplan importieren
+
+Ein Issue-Import liest pro Lauf höchstens einen Stapel mit bis zu 500 Issues und meldet, wo der nächste Stapel beginnt. Eine Person setzt ihn mit **Import fortsetzen** fort; ein Zeitplan merkt sich die Position stattdessen zwischen seinen Terminen. So importiert jeder Termin einen Stapel ab der Stelle, an der der vorherige aufgehört hat, bis alle offenen Issues gelesen sind, und der Termin danach beginnt den nächsten Durchgang. Lies die Position mit `task.get_import_cursor`, gib sie an den Import weiter und speichere dessen `nextCursor` mit `task.save_import_cursor`:
+
+```yaml
+nodes:
+  - id: position
+    type: task.get_import_cursor
+    onError: continue
+    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
+  - id: issues
+    type: subautomation
+    automation: github-import-issues
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      owner: owner
+      repo: repo
+      limit: 500
+      cursor: '{{ nodes.position.output.cursor }}'
+  - id: progress
+    type: task.save_import_cursor
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      externalSystem: github
+      source: owner/repo
+      from: '{{ nodes.position.output.cursor }}'
+      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+```
+
+`source` ist dein Name für die Liste; Automatisierungen, die dieselbe Quelle nennen, teilen sich einen Durchgang. Die Position rückt nur vor, wenn das Speichern noch den Cursor vorfindet, bei dem der Stapel begonnen hat. Ein fehlgeschlagener Import speichert nichts, also wiederholt der nächste Termin denselben Stapel, und ein überlappender Lauf kann den Durchgang nicht zurücksetzen. Nach drei Lesevorgängen einer Position ohne Speichern beginnt der nächste den Durchgang neu (`restarted`), statt eine Position zu wiederholen, die die Quelle immer wieder ablehnt, etwa nach der Umbenennung des Repositorys. Das Speichern meldet `batch` und `drained`, die ein Beleg angeben kann. Jeder Lauf aktualisiert außerdem bis zu 500 früher importierte Issues, die am längsten ungeprüften zuerst, sodass eine große Sammlung über mehrere Termine aktualisiert wird.
+
 ## Einen ausgebliebenen Start untersuchen
 
 Prüfe zuerst **Aktiv**, die Live-Version und den letzten Auslösezeitpunkt. Lies anschließend einen gegebenenfalls protokollierten Grund:

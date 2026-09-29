@@ -108,6 +108,7 @@ import {
 } from './domains/tasks/delegated-start.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
+import { checkImportCursorContinuation } from './domains/tasks/import-cursors.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
@@ -56038,6 +56039,10 @@ async function main(): Promise<void> {
       [
         'checkDelegatedAgentStartTool',
         () => checkDelegatedAgentStartTool(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkImportCursorContinuation',
+        () => checkImportCursorContinuation(sql, authCtx, record),
       ],
       [
         'checkTaskWorkflowParentMoves',

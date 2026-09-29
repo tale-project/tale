@@ -35,6 +35,7 @@ import {
   startDelegatedAgentRun,
 } from '../tasks/delegated-start.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
+import { readImportCursor, saveImportCursor } from '../tasks/import-cursors.ts';
 import {
   agentUpdateTaskStatusTrusted,
   assertTaskCreatable,
@@ -510,6 +511,34 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           ...(moveToInProgress !== undefined ? { moveToInProgress } : {}),
         });
         return workflowAgentStartOf(outcome);
+      });
+    },
+    async getImportCursor({ organizationId, caller, ...key }) {
+      if (caller.kind !== 'workflow') {
+        throw new TaskError(
+          'IMPORT_CURSOR_FORBIDDEN',
+          'Only an automation step keeps an import position',
+          403,
+        );
+      }
+      return sql.begin(async (tx) => {
+        // The run must still write in the project: the same reach its
+        // import's own upserts are held to.
+        await authorizeProject(tx, organizationId, key.projectId, caller);
+        return readImportCursor(tx, { organizationId, ...key });
+      });
+    },
+    async saveImportCursor({ organizationId, caller, from, next, ...key }) {
+      if (caller.kind !== 'workflow') {
+        throw new TaskError(
+          'IMPORT_CURSOR_FORBIDDEN',
+          'Only an automation step keeps an import position',
+          403,
+        );
+      }
+      return sql.begin(async (tx) => {
+        await authorizeProject(tx, organizationId, key.projectId, caller);
+        return saveImportCursor(tx, { organizationId, ...key }, { from, next });
       });
     },
     async listComments({ organizationId, taskId }) {

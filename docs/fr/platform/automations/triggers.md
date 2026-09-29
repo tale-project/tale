@@ -111,6 +111,39 @@ Une exécution lancée par une planification n’agit pour le compte de personne
 
 `moveToInProgress` décide de ce qui arrive à la carte. Par défaut, la carte passe à **En cours** et le résultat attend à **En revue** qu’une personne l’examine, comme après **Démarrer l'agent** ; une revue encore en attente sur le travail précédent est retirée, jamais validée. Avec `false`, la carte reste où elle est et l’exécution ne demande aucune revue, ce qui convient à une tâche permanente dans **À faire**. Ce démarrage ne s’exécute que sous un travail ouvert (**Backlog**, **À faire** ou **En cours**) : une carte qui attend à **En revue** répond `in_review`, une carte close `closed`, si bien que la carte ne présente jamais un travail antérieur au jugement, ou comme terminé, pendant qu’un nouveau travail s’exécute dessous. Une telle exécution n’est pas relancée automatiquement en cas d’échec ; l’occurrence suivante la démarre à nouveau.
 
+### Importer chaque issue selon une planification
+
+Un import d’issues lit au plus un lot par exécution, jusqu’à 500 issues, et indique où commence le lot suivant. Une personne le poursuit avec **Poursuivre l'import** ; une planification conserve plutôt la position entre ses occurrences, si bien que chaque occurrence importe un lot à partir de l’endroit où la précédente s’est arrêtée, jusqu’à ce que toutes les issues ouvertes aient été lues, et l’occurrence suivante commence la passe d’après. Lis la position avec `task.get_import_cursor`, transmets-la à l’import et enregistre son `nextCursor` avec `task.save_import_cursor` :
+
+```yaml
+nodes:
+  - id: position
+    type: task.get_import_cursor
+    onError: continue
+    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
+  - id: issues
+    type: subautomation
+    automation: github-import-issues
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      owner: owner
+      repo: repo
+      limit: 500
+      cursor: '{{ nodes.position.output.cursor }}'
+  - id: progress
+    type: task.save_import_cursor
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      externalSystem: github
+      source: owner/repo
+      from: '{{ nodes.position.output.cursor }}'
+      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+```
+
+`source` est le nom que tu donnes à la liste ; les automatisations qui nomment la même source partagent une même passe. La position n’avance que si l’enregistrement trouve encore le curseur auquel le lot a commencé. Un import qui échoue n’enregistre rien, si bien que l’occurrence suivante reprend le même lot, et une exécution qui se chevauche ne peut pas faire reculer la passe. Après trois lectures d’une même position sans enregistrement, la lecture suivante recommence la passe (`restarted`) au lieu de réessayer une position que la source refuse sans cesse, par exemple après le renommage du dépôt. L’enregistrement indique `batch` et `drained`, qu’un reçu peut rapporter. Chaque exécution rafraîchit aussi jusqu’à 500 issues importées auparavant, en commençant par celles vérifiées le moins récemment, si bien qu’une grande collection est rafraîchie sur plusieurs occurrences.
+
 ## Comprendre l’absence de démarrage
 
 Vérifie d’abord **Actif**, la version en service et le dernier déclenchement. Lis ensuite le motif éventuellement enregistré :

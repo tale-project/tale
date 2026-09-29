@@ -111,6 +111,39 @@ A run a schedule starts answers to no person. It works with the agent's configur
 
 `moveToInProgress` decides what happens to the card. By default the card moves to **In progress** and the result waits at **In review** for a person, as after **Start agent**; a review still pending on the earlier work is withdrawn, never approved. With `false` the card stays where it is and the run asks for no review, which suits a standing task in **To do**. That start only runs under open work (**Backlog**, **To do** or **In progress**): a card waiting at **In review** answers `in_review` and a closed one `closed`, so the card never presents earlier work for judgment, or as finished, while new work runs under it. Such a run is not retried automatically when it fails; the next occurrence starts it again.
 
+### Import every issue on a schedule
+
+An issue import reads at most one batch per run, up to 500 issues, and answers where the next batch starts. A person continues it with **Continue import**; a schedule keeps the position between its occurrences instead, so each occurrence imports one batch from where the last one stopped until every open issue has been read, and the occurrence after that starts the next pass. Read the position with `task.get_import_cursor`, pass it to the importer, and save the importer's `nextCursor` with `task.save_import_cursor`:
+
+```yaml
+nodes:
+  - id: position
+    type: task.get_import_cursor
+    onError: continue
+    input: { projectId: <the project's ID>, externalSystem: github, source: owner/repo }
+  - id: issues
+    type: subautomation
+    automation: github-import-issues
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      owner: owner
+      repo: repo
+      limit: 500
+      cursor: '{{ nodes.position.output.cursor }}'
+  - id: progress
+    type: task.save_import_cursor
+    onError: continue
+    input:
+      projectId: <the project's ID>
+      externalSystem: github
+      source: owner/repo
+      from: '{{ nodes.position.output.cursor }}'
+      next: '{{ nodes.issues.output.nextCursor ?? "" }}'
+```
+
+`source` is your name for the listing; automations that name the same source share one pass. The position advances only when the save still finds the cursor the batch started at. An import that fails saves nothing, so the next occurrence retries the same batch, and an overlapping run cannot move the pass backwards. After three reads of one position without a save, the next read starts the pass over (`restarted`) instead of retrying a position the source keeps refusing, for example after the repository was renamed. The save answers `batch` and `drained`, which a receipt can report. Each run also refreshes up to 500 issues imported earlier, the longest-unchecked first, so a large collection is refreshed over several occurrences.
+
 ## Diagnose a missing start
 
 First check **Enabled**, the deployed version and the last-fired information. Then inspect any recorded skip reason:
