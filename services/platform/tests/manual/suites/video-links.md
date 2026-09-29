@@ -73,11 +73,12 @@ provider/configuration refusals from browser failures.
   from `services/platform` with network access → The suite retrieves real
   metadata and a non-empty transcript, or explicitly skips a bot-wall/rate-limit
   outcome. Other failures are investigated as regressions.
-- [ ] `VID-F8` · **Deduplication across chats** — In chat A paste the
-  captioned URL, open chat B and paste it there, then return to chat A and
-  paste it again → Chat A still shows one chip for the video and chat B its
-  own; the third `POST /api/app/video-links/ingest` answers the `jobId` of the
-  first paste in chat A. Reload chat A → still one chip.
+- [ ] `VID-F8` · **Deduplication across chats** — In an existing chat A
+  (not the new-chat page, whose pastes are never deduplicated) paste the
+  captioned URL, open existing chat B and paste it there, then return to chat
+  A and paste it again → Chat A still shows one chip for the video and chat B
+  its own; the third `POST /api/app/video-links/ingest` answers the `jobId` of
+  the first paste in chat A. Reload chat A → still one chip.
 
 ## Boundary & error tests
 
@@ -105,13 +106,17 @@ provider/configuration refusals from browser failures.
   (`chat.videoLink.actions.removeLink`) on a chip → The chip leaves, comes
   back, and a destructive toast reads **Couldn't remove this video**
   (`chat.videoLink.toast.removeFailedTitle`) with the reason under it
-  (`common.errors.connectionLost` for a blocked request). Reload → the chip is
-  still there. Unblock and click **Remove** again → the chip goes away with no
-  toast, and stays away after a reload. Block `*/retry` instead and click
-  **Try again** (`chat.videoLink.actions.retry`) on a failed chip, in the
-  composer and in a queued message's row → each shows **Couldn't retry this
-  video** (`chat.videoLink.toast.retryFailedTitle`) with the reason and keeps
-  the failed chip.
+  (`common.errors.connectionLost` for a blocked request). A blocked request
+  reads as an unreachable backend, so **Can't reach Tale**
+  (`connectivity.backendTitle`) may cover the page until the next health check
+  clears it. Reload → the chip is still there. Unblock and click **Remove**
+  again → the chip goes away with no toast, and stays away after a reload.
+  Block `*/retry` instead and click **Try again**
+  (`chat.videoLink.actions.retry`) on a failed chip (VID-B1 leaves one) → the
+  toast reads **Couldn't retry this video**
+  (`chat.videoLink.toast.retryFailedTitle`) with the reason, and the failed
+  chip stays. Repeat in a queued message's row: send while a video still
+  processes, so the message waits, and retry there once that video fails.
 
 ## Accessibility (WCAG 2.1 AA)
 
