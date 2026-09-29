@@ -1277,9 +1277,11 @@ describe('reconcileMailAttachmentStamps — how long a clear holds its rows', ()
       // The bound lapses: the corpus side rolls back, its stamps still on.
       await vi.advanceTimersByTimeAsync(5_000);
       expect(ends()).toEqual(['BEGIN', 'ROLLBACK']);
-      // Its app transaction never ends: the pass waits for that only so
-      // long, then goes on with the next clear, and only that one counts.
-      await vi.advanceTimersByTimeAsync(15_000);
+      // Its app transaction never ends: the pass waits for that as long
+      // again, then goes on with the next clear, and only that one counts.
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(ends()).toEqual(['BEGIN', 'ROLLBACK']);
+      await vi.advanceTimersByTimeAsync(1);
       const result = await pass;
       expect(ends()).toEqual(['BEGIN', 'ROLLBACK', 'BEGIN', 'COMMIT']);
       expect(result).toEqual({ ...QUIET, stampsScanned: 150, cleared: 50 });
