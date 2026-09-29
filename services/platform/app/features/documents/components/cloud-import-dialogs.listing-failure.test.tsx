@@ -256,20 +256,67 @@ describe.each(DIALOGS)(
   },
 );
 
-// A grant that lapses while a person browses SharePoint first shows on the
-// drives listing: it used to be neither toasted nor handed off.
-it('hands a lapsed grant on the SharePoint drives listing to the connect dialog', async () => {
-  listingsAnswer({
-    'onedrive/actions:listSharePointDrives': async () => MICROSOFT_LAPSED_GRANT,
-  });
-  const onRequireConnect = vi.fn();
-  const { user } = renderDialog(OneDriveImportDialog, onRequireConnect);
+// The SharePoint listings report the same way as the files listing: each
+// one's failure toasts once, and a grant that lapses while a person browses
+// hands off wherever it first shows — the sites, a site's libraries, or a
+// library's files. A lapse on the drives listing used to be neither toasted
+// nor handed off.
+describe.each([
+  { depth: 'sites', listing: 'onedrive/actions:listSharePointSites' },
+  { depth: 'drives', listing: 'onedrive/actions:listSharePointDrives' },
+  { depth: 'files', listing: 'onedrive/actions:listSharePointFiles' },
+] as const)(
+  'the SharePoint $depth listing when it fails',
+  ({ depth, listing }) => {
+    it('says so once, after the retries, with the localized title alone', async () => {
+      const runs = listingsAnswer({
+        [listing]: async () => ({ success: false, error: RAW_ANSWER }),
+      });
+      const { user } = renderDialog(OneDriveImportDialog);
 
-  await browseSharePoint(user, 'drives');
+      await browseSharePoint(user, depth);
 
-  await waitFor(() => expect(onRequireConnect).toHaveBeenCalled());
-  expect(toast).not.toHaveBeenCalled();
-});
+      await waitFor(() => expect(toast).toHaveBeenCalled());
+      expect(runs.get(listing)).toHaveBeenCalledTimes(3);
+      expect(shownToasts()).toEqual([
+        {
+          title: documents('onedrive.loadFailed'),
+          description: undefined,
+          variant: 'destructive',
+        },
+      ]);
+      expect(JSON.stringify(shownToasts())).not.toContain('API error');
+    });
+
+    it("says so once with a refusal's own words", async () => {
+      const runs = listingsAnswer({ [listing]: refused });
+      const { user } = renderDialog(OneDriveImportDialog);
+
+      await browseSharePoint(user, depth);
+
+      await waitFor(() => expect(toast).toHaveBeenCalled());
+      expect(runs.get(listing)).toHaveBeenCalledTimes(3);
+      expect(shownToasts()).toEqual([
+        {
+          title: documents('onedrive.loadFailed'),
+          description: REFUSAL,
+          variant: 'destructive',
+        },
+      ]);
+    });
+
+    it('hands a lapsed grant to the connect dialog, with no toast', async () => {
+      listingsAnswer({ [listing]: async () => MICROSOFT_LAPSED_GRANT });
+      const onRequireConnect = vi.fn();
+      const { user } = renderDialog(OneDriveImportDialog, onRequireConnect);
+
+      await browseSharePoint(user, depth);
+
+      await waitFor(() => expect(onRequireConnect).toHaveBeenCalled());
+      expect(toast).not.toHaveBeenCalled();
+    });
+  },
+);
 
 // Importing a selected folder lists it again, and a folder that cannot be
 // listed whole stops the import. A `success: false` answer to that walk put
