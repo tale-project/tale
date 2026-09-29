@@ -51,9 +51,9 @@ Créer un skill ne l’ajoute pas automatiquement à un agent. Ouvre l’agent d
 
 </Steps>
 
-<Frame caption="L’éditeur réunit les fichiers du bundle, la description, les libellés et la visibilité, puis la section Instructions.">
+<Frame caption="L’éditeur indique qui a créé le skill et réunit les fichiers du bundle, la description, les libellés et la visibilité, puis la section Instructions.">
 
-![L’éditeur du skill docx affiche l’arborescence, la description, les libellés, la visibilité Organisation et le titre Instructions.](/images/platform/skill-library-detail.webp)
+![L’éditeur du skill docx affiche l’arborescence à côté de Créé par Fourni avec Tale, la description, l’icône, les libellés, la visibilité Organisation et le titre Instructions.](/images/platform/skill-library-detail.webp)
 
 </Frame>
 
@@ -100,6 +100,12 @@ Les skills déjà partagés avec l’organisation le restent.
 ## Voir qui a créé et modifié un skill
 
 La colonne **Créé par** indique le membre qui a créé chaque skill. Recherche un nom dans la bibliothèque pour retrouver tout ce que cette personne a partagé. Pour un skill sans créateur enregistré, comme les skills de documents fournis à la création de ton organisation, elle affiche **Fourni avec Tale** ; pour un skill installé par une release de configuration gérée, **Release de configuration** suivi du membre dont le téléversement l’a installé. Quand le créateur a quitté l’organisation, elle affiche **Ancien membre**.
+
+<Frame caption="Paramètres > Skills — la colonne Créé par nomme le membre qui a écrit chaque skill et marque les skills de documents comme Fourni avec Tale.">
+
+![La bibliothèque liste sept skills : brief-summary et release-notes créés par Alex Rivera, puis docx, pdf, pptx, visual-aspect-analyzer et xlsx marqués Fourni avec Tale, tous partagés avec l’Organisation.](/images/platform/skill-library-list.webp)
+
+</Frame>
 
 Ouvre un skill pour voir **Créé par** et **Dernière modification par** : le membre dont l’enregistrement ou le téléversement dans Tale a produit la version actuelle. **Dernière modification par** n’apparaît pas si personne n’a modifié le skill depuis sa création, ou si son fichier a changé en dehors de Tale depuis la dernière modification. La liste des skills dans l’[équipement d’un agent](/fr/platform/agents/skills) indique elle aussi le créateur sous chaque skill.
 

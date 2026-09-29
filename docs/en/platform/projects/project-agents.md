@@ -39,6 +39,12 @@ An older configuration may name a model without a pinned provider. The dialog re
 
 Under **Skills, connectors & tools**, add the bundles, services and platform operations the work needs. A new agent preselects the document skills `docx`, `pptx`, `xlsx` and `pdf` that are available to the project. They provide instructions for working with Word, PowerPoint, Excel and PDF files. Untick any the agent does not need; editing an existing agent keeps its saved equipment. Skill availability follows the project’s team access, not merely what you personally can see. A missing skill may therefore require a sharing change.
 
+<Frame caption="A new agent's Skills menu with the document skills already switched on; each skill names who created it.">
+
+![The New agent dialog with its Skills menu open: docx, pdf, pptx, and xlsx are switched on and marked Built-in, while brief-summary and release-notes by Alex Rivera and visual-aspect-analyzer stay off.](/images/platform/project-agent-document-skills.webp)
+
+</Frame>
+
 Read the **Writes data** label before granting a platform write tool: it authorizes real operations within that tool’s access rules. Connector broker actions available to agents are read-only; direct GitHub tooling or explicit secrets use separate access paths.
 
 A run’s connector calls act for the member who started it, whether with **Start agent**, **Retry**, a move to **In progress** or an @mention of the agent. They use the organization’s [connector credentials](/platform/admin/connectors) and are recorded under that member. If that member leaves the organization or is disabled, the calls are refused: use **Cancel run** (or let the run finish), then start it again so it acts for you. When a comment restarts the run to guide it, as every runtime except Claude Code does, the calls act for the comment's author from then on.
@@ -61,7 +67,7 @@ Select **Create agent**. Check the new row’s runtime, provider and model, then
 
 Open a task in the same project, choose the agent as assignee and select **Start agent**. Assignment and execution are separate actions. Provide the files and acceptance criteria before starting. You don't need project edit access for this: a Member can put an agent to work on a task they created or that is assigned to them, and an Editor or higher on any task in the project. A run a Member starts keeps to that task, without the agent's secrets and in a workspace of its own; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
 
-The agent’s report appears in task comments and collected files appear as deliverables. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
+The agent’s report appears in task comments and collected files appear as deliverables. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), the agent can also create images for the task; they appear among the deliverables and count against the member who started the run. Successful agent work moves to **In review** for a person’s judgment. Mention the agent in a comment to guide a running task or continue the conversation; the chosen harness determines whether guidance enters the existing process or starts a continuation.
 
 [Task automation](/platform/projects/task-automation) explains progress, stopping and review. The ordinary Chat assistant remains separate, even when a chat has project context.
 

@@ -21,7 +21,7 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Polit
 
 Par exemple, une règle mensuelle de rôle peut donner aux rédacteurs un budget personnel de 50 USD, tandis qu’une règle d’organisation plafonne les dépenses cumulées à 500 USD. Ce sont des exemples, pas des valeurs recommandées.
 
-Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie vocale et les exécutions d’agents gérés. Tale vérifie chaque requête de chat avant son exécution — un message envoyé, une réponse régénérée ou modifiée, les deux côtés d’une comparaison de modèles, un message en attente d’une pièce jointe et un envoi par l’API REST — et la refuse dès qu’un plafond applicable est atteint, en indiquant ce plafond et le moment de sa réinitialisation. Les réponses en cours de rédaction réservent ce qu’elles peuvent dépenser, afin que des requêtes envoyées au même moment ne franchissent pas ensemble un plafond presque atteint. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
+Les budgets concernent les nouveaux travaux facturables, dont le chat, la sortie vocale, les exécutions d’agents gérés et les images que créent les agents. Tale vérifie chaque requête de chat avant son exécution — un message envoyé, une réponse régénérée ou modifiée, les deux côtés d’une comparaison de modèles, un message en attente d’une pièce jointe et un envoi par l’API REST — et la refuse dès qu’un plafond applicable est atteint, en indiquant ce plafond et le moment de sa réinitialisation. Les réponses en cours de rédaction réservent ce qu’elles peuvent dépenser, afin que des requêtes envoyées au même moment ne franchissent pas ensemble un plafond presque atteint. La demande d’image d’un agent est vérifiée de la même façon avant l’appel au modèle d’images : pendant que ses images sont créées, elle réserve un coût estimé, et la vérification compte aussi ce que l’exécution de l’agent peut encore dépenser pour son modèle. Chaque image compte pour une requête. La génération d’images a besoin de limites de coût ou de requêtes, car son usage ne se mesure pas en tokens de texte. Examine les alertes dans l’[analyse de l’usage](/fr/platform/admin/governance/usage-analytics).
 
 ## Comprendre les plafonds applicables
 
@@ -87,6 +87,12 @@ Par défaut, chaque membre peut partager un skill avec toute l’organisation. *
 - **Tous les membres** conserve le comportement par défaut.
 - **Éditeurs et au-delà** autorise les éditeurs, les développeurs, les admins et les propriétaires, c’est-à-dire les rôles qui équipent les agents.
 - **Propriétaires et admins uniquement** n’autorise que les propriétaires et les admins.
+
+<Frame caption="Gouvernance > Politiques et limites — le partage des skills décide qui peut partager un skill avec toute l’organisation.">
+
+![La section Partage des skills avec Partager les skills avec l'organisation réglé sur Tous les membres, et l’indication que les propriétaires et les admins le peuvent toujours et qu’un membre de plus peut recevoir Publier des skills pour l'organisation dans Compétences.](/images/platform/governance-skill-sharing.webp)
+
+</Frame>
 
 Les propriétaires et les admins peuvent toujours partager avec tout le monde. Pour l’autoriser à une personne de plus sans lui donner un rôle plus élevé, attribue-lui **Publier des skills pour l'organisation** dans [Compétences](/fr/platform/admin/governance/competences).
 

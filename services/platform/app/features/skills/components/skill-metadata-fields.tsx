@@ -77,7 +77,7 @@ export function SkillMetadataFields({
       <SettingsFieldRow
         label={t('iconPicker.label')}
         wideControl
-        className="sm:items-center"
+        className="@xl/field-layout:items-center"
       >
         <SkillIconPicker
           value={values.icon}

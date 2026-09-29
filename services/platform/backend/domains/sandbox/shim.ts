@@ -11,6 +11,7 @@ import { resolveCredentialRowForShim } from '../connector_credentials/service.ts
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { isTaskRunConfined } from '../tasks/run-authority.ts';
 import { getCurrentUser } from '../users/service.ts';
+import { imageGenerationShimHandlers } from './image-generation.ts';
 import { workspaceWriteShimHandlers } from './workspace-write-shim.ts';
 
 /**
@@ -241,11 +242,13 @@ async function projectsKnowledgeScope(
 export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
   const base = chatShimHandlers(sql);
   return {
-    // The two lanes the dispatch reaches beyond the read doors: the task /
-    // document writers, and `ask_human`. Both are stated here because the
-    // in-container dispatch builds ITS shim from this map alone.
+    // The lanes the dispatch reaches beyond the read doors: the task /
+    // document writers, `ask_human`, and `generate_image`'s turn, budget and
+    // ledger seams. All are stated here because the in-container dispatch
+    // builds ITS shim from this map alone.
     ...workspaceWriteShimHandlers(sql),
     ...automationAskShimHandlers(sql),
+    ...imageGenerationShimHandlers(sql),
 
     'agent_secrets/actions:resolveAgentSecretsEnv': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the turn-equipment resolver passes exactly this shape

@@ -21,7 +21,7 @@ Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Richtli
 
 Eine monatliche Rollenregel könnte Redakteuren beispielsweise ein persönliches Ausgabenlimit von 50 USD geben, während eine Organisationsregel die gemeinsamen Ausgaben auf 500 USD begrenzt. Das sind Beispielbeträge, keine empfohlenen Standardwerte.
 
-Budgets gelten für neue kostenpflichtige Arbeit, einschließlich Chat, Sprachausgabe und verwalteter Agentenläufe. Tale prüft jede Chat-Anfrage, bevor sie läuft — eine gesendete Nachricht, eine neu erzeugte oder bearbeitete Antwort, beide Seiten eines Modellvergleichs, eine Nachricht, die auf einen Anhang wartet, und ein Senden über die REST-API — und lehnt sie ab, sobald eine zutreffende Grenze erreicht ist. Die Ablehnung nennt die Grenze und wann sie zurückgesetzt wird. Antworten, die noch geschrieben werden, halten fest, was sie verbrauchen können, damit gleichzeitig gesendete Anfragen eine fast erreichte Grenze nicht gemeinsam überschreiten. Untersuche Warnungen in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics).
+Budgets gelten für neue kostenpflichtige Arbeit, einschließlich Chat, Sprachausgabe, verwalteter Agentenläufe und der Bilder, die Agenten erstellen. Tale prüft jede Chat-Anfrage, bevor sie läuft — eine gesendete Nachricht, eine neu erzeugte oder bearbeitete Antwort, beide Seiten eines Modellvergleichs, eine Nachricht, die auf einen Anhang wartet, und ein Senden über die REST-API — und lehnt sie ab, sobald eine zutreffende Grenze erreicht ist. Die Ablehnung nennt die Grenze und wann sie zurückgesetzt wird. Antworten, die noch geschrieben werden, halten fest, was sie verbrauchen können, damit gleichzeitig gesendete Anfragen eine fast erreichte Grenze nicht gemeinsam überschreiten. Die Bildanfrage eines Agenten wird ebenso geprüft, bevor das Bildmodell aufgerufen wird: Solange ihre Bilder entstehen, hält sie geschätzte Kosten fest, und die Prüfung zählt auch mit, was der eigene Lauf des Agenten noch für sein Modell ausgeben kann. Jedes Bild zählt als eine Anfrage. Die Bildgenerierung braucht Kosten- oder Anfragelimits, weil ihre Nutzung nicht in Text-Tokens gemessen wird. Untersuche Warnungen in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics).
 
 ## Verstehen, welche Grenzen gelten
 
@@ -87,6 +87,12 @@ Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teil
 - **Alle Mitglieder** behält die Voreinstellung bei.
 - **Redakteure und höher** lässt Redakteure, Entwickler, Admins und Inhaber zu, also die Rollen, die Agenten ausstatten.
 - **Nur Inhaber und Admins** lässt nur Inhaber und Admins zu.
+
+<Frame caption="Richtlinien > Richtlinien & Limits — die Skill-Freigabe legt fest, wer einen Skill mit der ganzen Organisation teilen darf.">
+
+![Der Bereich Skill-Freigabe mit Skills mit der Organisation teilen auf Alle Mitglieder und dem Hinweis, dass Inhaber und Admins das immer dürfen und ein weiteres Mitglied unter Kompetenzen Skills für die Organisation veröffentlichen erhalten kann.](/images/platform/governance-skill-sharing.webp)
+
+</Frame>
 
 Inhaber und Admins dürfen immer mit allen teilen. Soll eine weitere Person das ohne höhere Rolle dürfen, weise ihr unter [Kompetenzen](/de/platform/admin/governance/competences) **Skills für die Organisation veröffentlichen** zu.
 

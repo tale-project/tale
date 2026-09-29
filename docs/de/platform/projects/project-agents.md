@@ -39,6 +39,12 @@ Eine ältere Konfiguration kann ein Modell ohne festgelegten Provider enthalten.
 
 Füge unter **Skills, Connectors & Tools** die benötigten Bundles, Dienste und Plattformoperationen hinzu. Bei einem neuen Agenten sind die Dokument-Skills `docx`, `pptx`, `xlsx` und `pdf` vorausgewählt, sofern sie für das Projekt verfügbar sind. Sie enthalten Anleitungen für die Arbeit mit Word-, PowerPoint-, Excel- und PDF-Dateien. Entferne die Häkchen bei Skills, die der Agent nicht braucht. Beim Bearbeiten eines bestehenden Agenten bleibt seine gespeicherte Ausstattung erhalten. Verfügbare Skills folgen dem Team-Zugriff des Projekts, nicht nur deiner persönlichen Sichtbarkeit. Ein fehlender Skill kann deshalb eine andere Freigabe brauchen.
 
+<Frame caption="Das Skills-Menü eines neuen Agenten mit bereits eingeschalteten Dokument-Skills; bei jedem Skill steht, wer ihn erstellt hat.">
+
+![Der Dialog Neuer Agent mit geöffnetem Skills-Menü: docx, pdf, pptx und xlsx sind eingeschaltet und als Mitgeliefert gekennzeichnet, brief-summary und release-notes von Alex Rivera sowie visual-aspect-analyzer bleiben aus.](/images/platform/project-agent-document-skills.webp)
+
+</Frame>
+
 Beachte **Schreibt Daten**, bevor du ein Plattform-Schreib-Tool vergibst. Es erlaubt echte Operationen innerhalb seiner Zugriffsregeln. Der Connector-Broker bietet Agenten nur Leseaktionen; direkte GitHub-Werkzeuge und ausdrücklich vergebene Secrets haben eigene Zugangswege.
 
 Die Connector-Aufrufe eines Laufs erfolgen im Namen des Mitglieds, das ihn gestartet hat, ob mit **Agent starten**, mit **Erneut ausführen**, durch Verschieben nach **In Bearbeitung** oder durch eine Erwähnung des Agenten mit @. Sie nutzen die [Connector-Zugangsdaten](/de/platform/admin/connectors) der Organisation und werden diesem Mitglied zugeordnet. Verlässt es die Organisation oder wird es deaktiviert, lehnt Tale die Aufrufe ab. Beende den Lauf dann mit **Lauf abbrechen** (oder lass ihn zu Ende laufen) und starte ihn selbst neu, damit er in deinem Namen arbeitet. Startet ein Kommentar den Lauf neu, um ihn zu lenken, wie bei allen Laufzeiten außer Claude Code, erfolgen die Aufrufe ab dann im Namen der Person, die den Kommentar geschrieben hat.
@@ -61,7 +67,7 @@ Wähle **Agent erstellen**. Prüfe Laufzeit, Provider und Modell der neuen Zeile
 
 Öffne eine Aufgabe desselben Projekts, wähle den Agenten als Zuständigen und klicke auf **Agent starten**. Zuweisung und Ausführung sind getrennte Aktionen. Ergänze Dateien und Abnahmekriterien vor dem Start. Bearbeitungszugriff auf das Projekt brauchst du dafür nicht: Mitglieder lassen einen Agenten an Aufgaben arbeiten, die sie erstellt haben oder die ihnen zugewiesen sind, Redakteure und höhere Rollen an jeder Aufgabe des Projekts. Ein Lauf, den ein Mitglied startet, bleibt bei dieser Aufgabe, ohne die Secrets des Agenten und in einem eigenen Arbeitsbereich; [Agentenläufe, die ein Mitglied startet](/de/platform/projects/tasks#agentenlaeufe-die-ein-mitglied-startet) zählt auf, was sich ändert.
 
-Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit eine Person sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Der Harness bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
+Der Bericht erscheint als Aufgabenkommentar; gesammelte Dateien werden als Ergebnisse angehängt. Hat ein Admin die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet, kann der Agent für die Aufgabe auch Bilder erstellen. Sie erscheinen bei den Ergebnisdateien und zählen für das Mitglied, das den Lauf gestartet hat. Nach erfolgreicher Agentenarbeit steht die Aufgabe **In Prüfung**, damit eine Person sie beurteilt. Erwähne den Agenten in einem Kommentar, um die Arbeit zu lenken oder fortzusetzen. Der Harness bestimmt, ob der Hinweis in den laufenden Prozess gelangt oder eine Fortsetzung startet.
 
 Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Fortschritt, Stoppen und Prüfung. Der gewöhnliche Chat-Assistent bleibt davon getrennt, auch mit Projektkontext.
 

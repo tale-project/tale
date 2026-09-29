@@ -16,6 +16,7 @@ import {
   WORKFLOW_AGENT_OP_KIND,
 } from '../../core/sandbox/session_constants.ts';
 import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
+import type { TurnOpRef } from '../../core/sandbox/tool_names.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
@@ -465,6 +466,10 @@ export interface SessionTokenScope {
    * exec. The workspace tools read the live run on it: a run its starter
    * could not have edited the project for acts on its own task alone. */
   taskRun?: { execId: string };
+  /** The op this token's turn is — written only on a turn granted
+   * `generate_image`, whose dispatch books the images under that op's run
+   * and saves them into its delivery box. Names no person either. */
+  turnOp?: TurnOpRef;
 }
 
 /** Persist a minted token's sha256 hash + scope (never the plaintext). */

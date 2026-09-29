@@ -2816,6 +2816,59 @@ governance:
     searchModels: Modelle suchen
     noModelsFound: Kein Modell verfügbar, das Bilder liest
     saveFailed: Modell für Bilder konnte nicht gespeichert werden
+  imageGeneration:
+    title: Bildgenerierung
+    description:
+      Projekt-Agenten können bei ihren Aufgaben Bilder erstellen, ebenso
+      Agent-Knoten in Automatisierungen. Die Kosten trägt deine Organisation.
+      Die Funktion bleibt aus, bis du sie einschaltest. Im Chat entstehen nie
+      Bilder.
+    enabledLabel: Agenten Bilder erstellen lassen
+    label: Bildmodell
+    labelHint:
+      Automatisch nimmt das erste empfohlene Bildmodell, das deine
+      Anbieterzugänge erreichen. Ein festgelegtes Modell bleibt ausgewählt,
+      bis du es änderst, auch wenn es nicht mehr verfügbar ist.
+    automaticLabel: Automatisch
+    automaticHint: Tale wählt aus den empfohlenen Bildmodellen, die deine Zugänge erreichen.
+    currentModel:
+      pinned: 'Agenten erstellen Bilder derzeit mit {model}.'
+      preferred: 'Agenten erstellen Bilder derzeit mit {model} — die empfohlene Wahl.'
+    draftHint: Speichere, um diese Auswahl anzuwenden.
+    noAvailable:
+      Keines der empfohlenen Bildmodelle ist verfügbar, daher erhalten
+      Agenten kein Tool für Bilder. Füge unter KI-Anbieter einen Zugang zu
+      OpenRouter oder OpenAI hinzu oder wähle eines der aufgeführten Modelle.
+    unavailable:
+      Das gespeicherte Bildmodell ist nicht verfügbar, daher erhalten Agenten
+      kein Tool für Bilder. Wähle ein anderes Modell oder Automatisch oder
+      prüfe den Anbieterzugang und die dafür erlaubten Modelle. Solange diese
+      Auswahl gespeichert ist, wechselt Tale nicht zu einem anderen Modell.
+    invalidPolicy:
+      Die gespeicherte Konfiguration der Bildgenerierung ist ungültig, daher
+      erhalten Agenten kein Tool für Bilder. Schalte die Bildgenerierung
+      aus und wieder ein oder wähle ein Modell und speichere, um sie zu
+      korrigieren.
+    policyUnavailable:
+      Die gespeicherte Konfiguration der Bildgenerierung konnte nicht gelesen
+      werden. Versuche es erneut, bevor du sie änderst. Bis sie lesbar ist,
+      erhalten Agenten kein Tool für Bilder.
+    resolutionFailed:
+      Tale konnte das Bildmodell nicht prüfen. Prüfe die Verbindung zum
+      Anbieter und versuche es erneut.
+    loadFailed: Die Einstellungen zur Bildgenerierung konnten nicht geladen werden. Versuche es erneut.
+    invalidSelection: Ungültige gespeicherte Konfiguration
+    unknownSelection: Gespeicherte Auswahl konnte nicht gelesen werden
+    savedUnavailable: Gespeicherte Auswahl ist derzeit nicht verfügbar
+    providersLink: KI-Anbieter
+    retry: Erneut versuchen
+    searchModels: Bildmodelle suchen
+    noModelsFound: Kein passendes Bildmodell
+    saveFailed: Einstellungen zur Bildgenerierung konnten nicht gespeichert werden
+    remoteUpdate:
+      Diese Einstellung wurde in einer anderen Sitzung geändert. Verwirf deinen
+      Entwurf, um die gespeicherte Auswahl zu laden, oder speichere, um sie zu
+      ersetzen.
   transcriptionModel:
     title: Modell für Audiotranskription
     description:

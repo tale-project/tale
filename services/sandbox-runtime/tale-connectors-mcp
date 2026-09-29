@@ -43,8 +43,34 @@ const TOOLS_BASE_URL = BASE_URL.endsWith('/connectors')
 // "not configured" rather than authing with the wrong secret.
 const TOKEN = process.env.TALE_CONNECTORS_TOKEN || '';
 
+// A timeout from the environment, else its default. The environment knob
+// exists for the bridge's own tests; nothing in a session sets it.
+function timeoutFromEnv(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 // Bound a single platform request so a slow/hung endpoint can't stall the turn.
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = timeoutFromEnv(
+  'TALE_CONNECTORS_REQUEST_TIMEOUT_MS',
+  30000,
+);
+// Workspace tools the platform runs for minutes, not seconds: an image
+// generation waits on a provider that can take two minutes per image. They
+// get their own, longer bound — the platform bounds each provider call
+// itself — and report MCP progress while they run (see below).
+const LONG_WORKSPACE_TOOLS = new Set(['generate_image']);
+const LONG_REQUEST_TIMEOUT_MS = timeoutFromEnv(
+  'TALE_CONNECTORS_LONG_REQUEST_TIMEOUT_MS',
+  300000,
+);
+// How often a long call reports progress. An MCP client that asked for
+// progress (a progressToken on the call) restarts its own timeout on each
+// report — a client on the MCP SDK's defaults otherwise gives up after 60 s.
+const PROGRESS_INTERVAL_MS = timeoutFromEnv(
+  'TALE_CONNECTORS_PROGRESS_INTERVAL_MS',
+  15000,
+);
 // Bound a single un-newlined stdin line so a misbehaving client can't grow the
 // read buffer without limit (the stdin peer is the trusted MCP host, so this is
 // defense-in-depth).
@@ -91,7 +117,9 @@ const TOOLS = [
       'Example: workspace_tool({tool:"rag_search", args:{query:"..."}}) ' +
       'searches org knowledge; task_find/task_get read the boards, ' +
       'task_create/task_comment/task_update_status/task_upsert_by_external_ref ' +
-      'write to them, and document_create saves a file to the hub. The exact ' +
+      'write to them, document_create saves a file to the hub, and ' +
+      'generate_image (where the organization allows it) creates images ' +
+      'into your workspace. The exact ' +
       'set is per agent — call workspace_status FIRST to see which tools are ' +
       'granted and their argument shapes. If the result has status ' +
       '"unavailable" or "invalid_args", relay the message to the user and do ' +
@@ -131,7 +159,12 @@ function sendError(id, code, message) {
   send({ jsonrpc: '2.0', id, error: { code, message } });
 }
 
-async function callPlatform(path, body, baseUrl = BASE_URL) {
+async function callPlatform(
+  path,
+  body,
+  baseUrl = BASE_URL,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+) {
   if (!baseUrl || !TOKEN) {
     return { ok: false, text: 'platform bridge is not configured' };
   }
@@ -143,7 +176,7 @@ async function callPlatform(path, body, baseUrl = BASE_URL) {
         authorization: `Bearer ${TOKEN}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     // The platform always answers with JSON (structured ok / unavailable /
     // requires_approval / error bodies). A non-JSON response is an infra-layer
@@ -161,7 +194,7 @@ async function callPlatform(path, body, baseUrl = BASE_URL) {
   } catch (err) {
     const reason =
       err && err.name === 'TimeoutError'
-        ? `timed out after ${REQUEST_TIMEOUT_MS}ms`
+        ? `timed out after ${timeoutMs}ms`
         : err && err.message
           ? err.message
           : String(err);
@@ -177,7 +210,30 @@ function toolText(text, isError) {
   return { content: [{ type: 'text', text }], isError: isError === true };
 }
 
-async function handleToolCall(name, args) {
+// Report progress on `progressToken` every PROGRESS_INTERVAL_MS until the
+// returned stop function is called. No token, no reports: the MCP spec lets
+// a server send progress only for a request that asked for it.
+function reportProgress(progressToken) {
+  if (progressToken === undefined || progressToken === null) {
+    return () => {};
+  }
+  let progress = 0;
+  const timer = setInterval(() => {
+    progress += 1;
+    send({
+      jsonrpc: '2.0',
+      method: 'notifications/progress',
+      params: {
+        progressToken,
+        progress,
+        message: 'The platform is still working on this call.',
+      },
+    });
+  }, PROGRESS_INTERVAL_MS);
+  return () => clearInterval(timer);
+}
+
+async function handleToolCall(name, args, progressToken) {
   if (name === 'connector') {
     const slug = typeof args.slug === 'string' ? args.slug : '';
     const operation = typeof args.operation === 'string' ? args.operation : '';
@@ -204,12 +260,19 @@ async function handleToolCall(name, args) {
     if (!tool) {
       return toolText('"tool" is required.', true);
     }
-    const res = await callPlatform(
-      '/execute',
-      { tool, args: callArgs },
-      TOOLS_BASE_URL,
-    );
-    return toolText(res.text, !res.ok);
+    const long = LONG_WORKSPACE_TOOLS.has(tool);
+    const stopProgress = long ? reportProgress(progressToken) : () => {};
+    try {
+      const res = await callPlatform(
+        '/execute',
+        { tool, args: callArgs },
+        TOOLS_BASE_URL,
+        long ? LONG_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+      );
+      return toolText(res.text, !res.ok);
+    } finally {
+      stopProgress();
+    }
   }
   if (name === 'workspace_status') {
     const res = await callPlatform('/status', {}, TOOLS_BASE_URL);
@@ -241,7 +304,12 @@ async function handleMessage(msg) {
   }
   if (method === 'tools/call') {
     const params = msg.params || {};
-    const result = await handleToolCall(params.name, params.arguments || {});
+    const meta = params._meta && typeof params._meta === 'object' ? params._meta : {};
+    const result = await handleToolCall(
+      params.name,
+      params.arguments || {},
+      meta.progressToken,
+    );
     sendResult(id, result);
     return;
   }

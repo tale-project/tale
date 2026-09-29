@@ -7,6 +7,8 @@
  * actually serve them.
  */
 
+import type { ProviderDefinition } from '@tale/shared/schemas/providers';
+
 export interface ProviderCredentialsContract {
   'provider_credentials/actions:createCredential': {
     kind: 'action';
@@ -40,6 +42,28 @@ export interface ProviderCredentialsContract {
       broker?: unknown;
       organizationId: string;
       credentialId: string;
+    };
+    returns: null;
+  };
+  /**
+   * The edit dialog's Save for a credential of an organization-defined
+   * provider: the credential's fields and the provider's definition, as one
+   * write — each part against the hash the dialog read it at, and a refusal
+   * of either writing neither.
+   */
+  'provider_credentials/actions:updateCredentialWithDefinition': {
+    kind: 'action';
+    args: {
+      name?: string;
+      endpointUrl?: string;
+      modelAllowlist?: null | string[];
+      organizationId: string;
+      credentialId: string;
+      /** The credential's `hash` when the dialog read it. */
+      expectedHash: string;
+      /** The provider's definition as the dialog now builds it, and the
+       * hash of the version its facts were read from. */
+      definition: { config: ProviderDefinition; expectedHash: string };
     };
     returns: null;
   };
@@ -85,6 +109,9 @@ export interface ProviderCredentialsContract {
         | 'subscription-key'
         | 'subscription-broker';
       name: string;
+      /** The row's native version: an edit that names it is refused once
+       * the row has changed since. */
+      hash: string;
     }>;
   };
 }

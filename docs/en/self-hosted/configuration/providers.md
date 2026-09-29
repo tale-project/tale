@@ -56,6 +56,30 @@ For a custom OpenAI-compatible endpoint, use `catalog.source: models-endpoint` a
 
 Tale sends bearer-authenticated multipart `file` and `model` fields to `POST <baseUrl>/audio/transcriptions`. For OpenRouter it requests `response_format: json`, because some of its models reject `verbose_json`. Other compatible endpoints must accept `response_format: verbose_json`. The JSON response provides the transcript as `text`. Tale prefers a valid `duration` and falls back to valid `usage.seconds`. When neither is usable, it uses a local duration measurement where available. Timestamped `segments` can supply video timestamps; without them, the transcript remains plain text. Listing the model does not prove this API works. Refresh the catalog, select the model, then test a short recording and verify the request in that endpoint’s logs.
 
+## Configure image generation
+
+The organization policy lives at `TALE_CONFIG_DIR/<org>/governance/image-generation.yml`, with policy type `image_generation`. The [Models page](/platform/admin/governance/content-models#let-agents-generate-images) edits the same settings. A new organization is seeded with image generation off, and an absent file means off too:
+
+```yaml
+enabled: false
+```
+
+Set `enabled: true` for automatic selection, or pin a model with both fields:
+
+```yaml
+enabled: true
+providerSlug: openai
+modelId: gpt-image-1
+```
+
+A partial pin or an unknown field is invalid. An invalid or unreadable file leaves image generation off, and the Models page names the problem. Automatic selection tries `google/gemini-2.5-flash-image`, `gpt-image-1-mini`, `gpt-image-1` and `black-forest-labs/flux.2-pro`, in that order, through an OpenRouter or OpenAI default credential. An unavailable pin never falls back to another model. A pin may stay in the file while `enabled` is `false`.
+
+The backend calls the image model with the organization's credential; no key enters the sandbox. For OpenRouter it sends `POST <baseUrl>/images`, OpenRouter's Image API, with an aspect ratio of `1:1`, `3:2` or `2:3`, and records the cost the response reports. For any other provider it speaks OpenAI's images API: `POST <baseUrl>/images/generations`, or `POST <baseUrl>/images/edits` as multipart form data when the agent passes reference images, asking a GPT image model for `medium` quality. It then prices the token counts the response reports from the model's catalog entry. Tale discovers OpenRouter's image models from `/models?output_modalities=image`, and the shipped OpenAI catalog lists `gpt-image-1` and `gpt-image-1-mini`.
+
+A custom OpenAI-compatible endpoint's `/models` response must declare an image model with `image` among `architecture.output_modalities` or `modalities.output`, and a positive `context_length` or `context_window`. Tale saves raster images only (PNG, JPEG, WebP, GIF) and refuses a model's SVG; a reference image an agent passes must be a PNG, JPEG or WebP file of at most 4 MB. Listing a model does not prove the endpoint works: turn image generation on, pin the model, have an agent create a test image, then check the request in the endpoint's logs.
+
+One agent turn creates at most 16 images and runs one generation at a time. Before each call, Tale holds USD 0.25 per image against the turn's allowance and the budget caps, then books the reported cost in place of the hold when the call ends. A turn on a vendor subscription has no gateway allowance, so its images are measured against the deployment's default turn allowance.
+
 ## Verify sandbox model access
 
 Chat calls a provider from the backend. Coding-agent sessions use `sandbox-llm-gateway`, so a successful chat does not prove the agent path. Make the endpoint resolvable and reachable from both the backend and the gateway; each HTTPS client must trust its certificate. A hostname such as `https://models.internal/v1` still needs the private-provider opt-in when DNS resolves it to a private address. Plain HTTP remains limited to hostname forms accepted by the provider schema, such as private IP literals, `localhost` and `.local`.

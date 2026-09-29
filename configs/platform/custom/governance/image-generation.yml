@@ -1,0 +1,5 @@
+# Image generation for agents: project agents working a task and automation
+# agent steps get the generate_image tool only while this is on. Chat never
+# generates images. When on, leave providerSlug and modelId out to let the
+# platform pick from its curated list, or set both to pin one model.
+enabled: false

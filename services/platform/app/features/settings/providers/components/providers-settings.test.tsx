@@ -745,12 +745,14 @@ describe('ProvidersSettings', () => {
       catalogSource: 'models-endpoint',
       authMethods: ['api-key', 'env'],
       models: [model('qwen-plus')],
+      definitionHash: 'h1',
     } as unknown as ProviderCatalog;
     const customCredential = credential({
       id: 'c9',
       name: 'Qwen CN',
       providerSlug: 'qwen-cn',
       isDefault: true,
+      hash: 'c1',
     });
 
     /** Open the add flow and pick the pinned custom entry. */
@@ -942,7 +944,125 @@ describe('ProvidersSettings', () => {
             baseUrl: 'https://maas.example.test/v2',
             catalogSource: 'models-endpoint',
           },
+          // The versions the facts on screen were read at.
+          reviewed: { credentialHash: 'c1', definitionHash: 'h1' },
         }),
+      );
+    });
+
+    it('opens on the facts and versions the listing holds now, not the ones it first rendered', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [customCredential];
+      updateCredential.mockResolvedValue(null);
+      const { rerender, user } = renderPage();
+      // Another session moved the provider to v2: the listing refetched.
+      fixtures.catalogs = [
+        anthropicProvider,
+        {
+          ...customVendor,
+          baseUrl: 'https://maas.example.test/v2',
+          definitionHash: 'h2',
+        },
+      ];
+      fixtures.credentials = [{ ...customCredential, hash: 'c2' }];
+      rerender(
+        <WithHeaderSlot>
+          <ProvidersSettings organizationId="org-1" />
+        </WithHeaderSlot>,
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      expect(dialog.getByRole('textbox', { name: /^Base URL/ })).toHaveValue(
+        'https://maas.example.test/v2',
+      );
+      const name = dialog.getByRole('textbox', { name: /^Provider name/ });
+      await user.clear(name);
+      await user.type(name, 'Qwen China');
+      await user.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(updateCredential).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'Qwen China',
+            customProvider: expect.objectContaining({
+              baseUrl: 'https://maas.example.test/v2',
+            }),
+            reviewed: { credentialHash: 'c2', definitionHash: 'h2' },
+          }),
+        ),
+      );
+    });
+
+    it('keeps an open edit dialog, and what was typed in it, when the list refetches', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [customCredential, ...defaultCredentials];
+      const { rerender, user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      const name = dialog.getByRole('textbox', { name: /^Provider name/ });
+      await user.clear(name);
+      await user.type(name, 'Qwen typed');
+      // Another session saves a credential: the hint refetches the list.
+      fixtures.credentials = [customCredential, ...defaultCredentials.slice(1)];
+      rerender(
+        <WithHeaderSlot>
+          <ProvidersSettings organizationId="org-1" />
+        </WithHeaderSlot>,
+      );
+      expect(
+        screen.getByRole('dialog', { name: 'Edit credential' }),
+      ).toBeInTheDocument();
+      expect(
+        within(
+          screen.getByRole('dialog', { name: 'Edit credential' }),
+        ).getByRole('textbox', { name: /^Provider name/ }),
+      ).toHaveValue('Qwen typed');
+    });
+
+    it('shows the refusal of an edit the provider moved under, inline', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [customCredential];
+      updateCredential.mockRejectedValue(
+        new AppError({
+          code: 'CONFIG_VERSION_CONFLICT',
+          message: 'The provider changed since it was loaded.',
+        }),
+      );
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      const name = dialog.getByRole('textbox', { name: /^Provider name/ });
+      await user.clear(name);
+      await user.type(name, 'Qwen China');
+      await user.click(dialog.getByRole('button', { name: 'Save' }));
+      expect(await dialog.findByRole('alert')).toHaveTextContent(
+        'The provider changed since it was loaded. Reopen the dialog and try again.',
       );
     });
   });

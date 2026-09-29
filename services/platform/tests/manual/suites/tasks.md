@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 90 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 92 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -48,9 +48,9 @@ TASK-B17 alone needs a deployed automation with a task contract bound to the
 project (as in AUTO-F32). TASK-F47 needs a project agent on Claude Code
 whose credential is a subscription broker on a local Tale AI gateway
 (`services/ai-gateway`) holding one Claude account. The member boxes
-(TASK-F48, TASK-F49, TASK-B25, TASK-B26) need a second account whose role is
-**Member**, the default of **Add member** (SETUP.md extras); TASK-F49 also
-needs a project agent that can run, and TASK-B26 a team the member is not in.
+(TASK-F49, TASK-F50, TASK-B26, TASK-B27) need a second account whose role is
+**Member**, the default of **Add member** (SETUP.md extras); TASK-F50 also
+needs a project agent that can run, and TASK-B27 a team the member is not in.
 
 > **Agent note**: board DnD is `dnd-kit` — a single `dragTo` drops the card
 > back at its source; drag with stepped mouse moves (down → several small
@@ -323,6 +323,20 @@ needs a project agent that can run, and TASK-B26 a team the member is not in.
   that `require('docx')` and `require('pptxgenjs')` run anyway; remove the
   allowlist afterwards — env-gated: mark **ENVIRONMENT** without a runnable
   harness.
+- [ ] `TASK-F48` · **An agent creates an image into the task's deliverables**
+  — With **Image generation** on ([governance.md](governance.md) GOV-F38) and
+  an OpenRouter or OpenAI credential, signed in as a second member with
+  project edit access, **Start agent** (`tasks.agentRun.start`) on a task that
+  asks for "a square cover image for the launch post, saved as cover.png" →
+  **Details** (`tasks.run.details`) shows the agent's `workspace_tool` call to
+  `generate_image` answering `ok` with the saved path; when the run settles,
+  **Deliverables** (`tasks.outputs.label`) lists `cover.png` (or the same name
+  ending in .jpg or .webp, whichever format the model returned) and it opens
+  as the image; on `/dashboard/{org}/settings/metrics/usage` the image model appears
+  under **Top models** (`analytics.usage.tables.topModels.title`) with one
+  request per image, and **Per-user usage** books it to the member who started
+  the run, not to the task's creator — env-gated: mark **ENVIRONMENT** without
+  a runnable harness and an image-capable credential.
 
 ### The task page
 
@@ -589,7 +603,7 @@ needs a project agent that can run, and TASK-B26 a team the member is not in.
 
 ### A member's own tasks
 
-- [ ] `TASK-F48` · **A member creates a task** — Signed in as the member, open
+- [ ] `TASK-F49` · **A member creates a task** — Signed in as the member, open
   an organization-wide project's **Tasks** tab and press **Create task**
   (`tasks.actions.create`) in the header; create a task with a title and an
   attachment → The card lands in **To do** (`tasks.status.todo`); after a
@@ -598,8 +612,8 @@ needs a project agent that can run, and TASK-B26 a team the member is not in.
   picker and **Archive** (`tasks.actions.archive`) is offered, while the
   **Labels** field has no **Manage labels** (`tasks.labels.manage`) and there
   is no **Delete** (`tasks.actions.delete`).
-- [ ] `TASK-F49` · **A member puts a project agent on their task and closes
-  it** — On the task from `TASK-F48`, pick a project agent under **Assignee**
+- [ ] `TASK-F50` · **A member puts a project agent on their task and closes
+  it** — On the task from `TASK-F49`, pick a project agent under **Assignee**
   (`tasks.fields.assignee`) and press **Start agent** (`tasks.agentRun.start`)
   → The card moves to **In progress** (`tasks.status.in_progress`) and the Run
   field reads **Working…** (`tasks.agentRun.status.running`); once the run
@@ -872,7 +886,7 @@ needs a project agent that can run, and TASK-B26 a team the member is not in.
   its card shows no repeat icon, and its **Repeat**, still reading its rule, is
   locked with the same reason — and its close creates nothing and no toast —
   each also after a reload.
-- [ ] `TASK-B25` · **A member cannot change someone else's task** — As the
+- [ ] `TASK-B26` · **A member cannot change someone else's task** — As the
   member, open a task an editor created and assigned to someone else → Its
   title is plain text, **Status** shows a badge without a picker, there is no
   **Archive**, and its card on the board does not drag; the comment box still
@@ -880,12 +894,26 @@ needs a project agent that can run, and TASK-B26 a team the member is not in.
   respond — you can't start agents on this task**
   (`tasks.mentionPreview.notPermitted`); after posting, the task keeps its
   status and assignee, also after a reload.
-- [ ] `TASK-B26` · **No task in a team project the member cannot see** — As an
+- [ ] `TASK-B27` · **No task in a team project the member cannot see** — As an
   admin, restrict a project to a team the member is not in (**General >
   Sharing**) and copy its board URL; sign in as the member → The project is
   missing from Home's **Projects**, and the copied URL answers **We couldn't
   find that project. It may have been deleted.**
   (`projects.errors.PROJECT_NOT_FOUND`) with no **Create task**.
+- [ ] `TASK-B25` · **A reached spend cap refuses the image, not the run** —
+  With **Image generation** on, **Start agent** (`tasks.agentRun.start`) on a
+  task that asks the agent to research for a minute and then create an image
+  for the result; while it researches, add a monthly cost rule on
+  `/dashboard/{org}/settings/governance/policies-limits` (**Budget rules**,
+  `governance.budgets.title`) that caps the starting member below what they
+  have already spent → The agent's `generate_image` call answers
+  `unavailable` with `budget_exceeded` and the cap's own sentence ("Usage
+  limit reached. Your monthly cost limit is used up until …"), the agent's
+  report says no image was generated, no image lands under **Deliverables**
+  (`tasks.outputs.label`), and the usage page shows no new request for the
+  image model; the run itself still settles. Restore: delete the rule —
+  env-gated: mark **ENVIRONMENT** without a runnable harness and an
+  image-capable credential.
 
 ## Accessibility (WCAG 2.1 AA)
 

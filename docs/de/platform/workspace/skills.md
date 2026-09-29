@@ -51,9 +51,9 @@ Ein neuer Skill wird keinem Agenten automatisch zugeordnet. Öffne den Agenten d
 
 </Steps>
 
-<Frame caption="Der Skill-Editor vereint Bundle-Dateien, Beschreibung, Labels und Sichtbarkeit. Darunter beginnen die Anweisungen.">
+<Frame caption="Der Skill-Editor nennt, wer den Skill erstellt hat, und vereint Bundle-Dateien, Beschreibung, Labels und Sichtbarkeit. Darunter beginnen die Anweisungen.">
 
-![Der Editor des Skills docx zeigt den Dateibaum, Beschreibung, Labels, die Sichtbarkeit Organisation und die Überschrift Anweisungen.](/images/platform/skill-library-detail.webp)
+![Der Editor des Skills docx zeigt den Dateibaum neben Erstellt von Mitgeliefert, Beschreibung, Icon, Labels, die Sichtbarkeit Organisation und die Überschrift Anweisungen.](/images/platform/skill-library-detail.webp)
 
 </Frame>
 
@@ -100,6 +100,12 @@ Skills, die schon mit der Organisation geteilt waren, bleiben geteilt.
 ## Sehen, wer einen Skill erstellt und geändert hat
 
 Die Spalte **Erstellt von** nennt das Mitglied, das den jeweiligen Skill erstellt hat. Suche in der Bibliothek nach einem Namen, um alles zu finden, was diese Person geteilt hat. Bei einem Skill ohne festgehaltenen Ersteller, etwa den Dokument-Skills, mit denen deine Organisation startet, steht dort **Mitgeliefert**, bei einem Skill aus einem verwalteten Konfigurations-Release **Konfigurations-Release** mit dem Mitglied, dessen Upload ihn installiert hat. Hat der Ersteller die Organisation verlassen, steht dort **Ehemaliges Mitglied**.
+
+<Frame caption="Einstellungen > Skills — die Spalte Erstellt von nennt das Mitglied, das den Skill geschrieben hat, und kennzeichnet die Dokument-Skills als Mitgeliefert.">
+
+![Die Skill-Bibliothek listet sieben Skills: brief-summary und release-notes, erstellt von Alex Rivera, sowie docx, pdf, pptx, visual-aspect-analyzer und xlsx als Mitgeliefert, alle für die Organisation freigegeben.](/images/platform/skill-library-list.webp)
+
+</Frame>
 
 Öffne einen Skill, um **Erstellt von** und **Zuletzt bearbeitet von** zu sehen: das Mitglied, dessen Speichern oder Hochladen in Tale die aktuelle Version erzeugt hat. **Zuletzt bearbeitet von** fehlt, wenn seit dem Erstellen niemand den Skill bearbeitet hat oder die Datei seit der letzten Bearbeitung außerhalb von Tale geändert wurde. Auch die Skill-Liste in der [Ausrüstung eines Agenten](/de/platform/agents/skills) nennt unter jedem Skill seinen Ersteller.
 

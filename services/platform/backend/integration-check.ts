@@ -85,9 +85,11 @@ import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts'
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
+import { checkCustomProviderCredentialEdit } from './domains/provider_credentials/custom-provider-edit.integration.ts';
 import { checkRetentionAuditTrail } from './domains/retention/audit-trail.integration.ts';
 import { checkChatFilterEventRetention } from './domains/retention/chat-filter-events.integration.ts';
 import { checkSandboxIdleRelease } from './domains/sandbox/idle-release.integration.ts';
+import { checkImageGenerationAdmission } from './domains/sandbox/image-generation.integration.ts';
 import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.ts';
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
@@ -55391,6 +55393,10 @@ async function main(): Promise<void> {
         () => checkProviderCredentialConfiguration(sql, authCtx, record),
       ],
       [
+        'checkCustomProviderCredentialEdit',
+        () => checkCustomProviderCredentialEdit(sql, baseUrl, authCtx, record),
+      ],
+      [
         'checkBrokerAccountSelection',
         () => checkBrokerAccountSelection(sql, authCtx, record),
       ],
@@ -55980,6 +55986,10 @@ async function main(): Promise<void> {
       [
         'checkSandboxIdleRelease',
         () => checkSandboxIdleRelease(sql, authCtx, record),
+      ],
+      [
+        'checkImageGenerationAdmission',
+        () => checkImageGenerationAdmission(sql, authCtx, record),
       ],
       [
         'checkSandboxDevices',

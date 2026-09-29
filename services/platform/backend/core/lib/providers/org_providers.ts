@@ -39,7 +39,7 @@ import {
 
 import { parseYaml } from '../../../../lib/shared/config/yaml';
 import { zodErrorMessage } from '../../../../lib/shared/schemas/format-error';
-import { errnoCode, getConfigRoot, validateOrgSlug } from '../file_io';
+import { errnoCode, getConfigRoot, sha256, validateOrgSlug } from '../file_io';
 import { orgSlugFromId } from '../helpers/org_slug';
 import {
   loadProviderDefinitions,
@@ -55,6 +55,16 @@ export function resolveProvidersDir(orgSlug: string): string {
 }
 
 /**
+ * One custom provider as its file holds it: the definition, and the hash of
+ * the exact bytes it was parsed from — the native version an edit of those
+ * facts names as its precondition.
+ */
+export interface OrgCustomProviderSnapshot {
+  provider: ProviderDefinition;
+  hash: string;
+}
+
+/**
  * The org's custom providers, sorted by name. Missing dir → empty (the
  * domain is created on demand); invalid files are skipped with an error log.
  */
@@ -62,6 +72,16 @@ export function loadOrgCustomProviders(
   orgSlug: string,
   options: LoadSystemConfigOptions = {},
 ): ProviderDefinition[] {
+  return loadOrgCustomProviderSnapshots(orgSlug, options).map(
+    (snapshot) => snapshot.provider,
+  );
+}
+
+/** {@link loadOrgCustomProviders}, each definition with the hash of its file. */
+export function loadOrgCustomProviderSnapshots(
+  orgSlug: string,
+  options: LoadSystemConfigOptions = {},
+): OrgCustomProviderSnapshot[] {
   const dir = resolveProvidersDir(orgSlug);
   let entries: string[];
   try {
@@ -75,14 +95,16 @@ export function loadOrgCustomProviders(
   const shippedNames = new Set(
     loadProviderDefinitions(options).map((provider) => provider.name),
   );
-  const providers: ProviderDefinition[] = [];
+  const providers: OrgCustomProviderSnapshot[] = [];
   for (const entry of entries.sort()) {
     if (!entry.endsWith('.yml') || entry.endsWith('.secrets.yml')) continue;
     const file = path.join(dir, entry);
     const stem = entry.slice(0, -'.yml'.length);
     let provider: ProviderDefinition;
+    let content: string;
     try {
-      const parsed = parseYaml(readFileSync(file, 'utf8'));
+      content = readFileSync(file, 'utf8');
+      const parsed = parseYaml(content);
       if (!parsed.ok) throw new Error(parsed.error);
       const outcome = providerDefinitionSchema.safeParse(parsed.data);
       if (!outcome.success) {
@@ -108,7 +130,7 @@ export function loadOrgCustomProviders(
       );
       continue;
     }
-    providers.push(provider);
+    providers.push({ provider, hash: sha256(content) });
   }
   return providers;
 }

@@ -87,6 +87,33 @@ describe('readInFlightReservations', () => {
     );
   });
 
+  it('adds an image generation in flight to its turn’s hold, one request per image', async () => {
+    const { sql, statements } = scriptedSql([NO_HOLDS]);
+    await readInFlightReservations(sql, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      userTeamIds: ['team-1'],
+    });
+    const read = statements[0]?.text ?? '';
+    // A turn holds its allowance plus its generation's estimate — and a
+    // subscription turn, which has no allowance, holds while one runs.
+    expect(read).toContain(
+      '(coalesce(budget_cents, 0) + image_hold_cents)::float8',
+    );
+    expect(read).toContain(
+      '(budget_cents IS NOT NULL OR image_call_started_at_ms IS NOT NULL)',
+    );
+    // Requests are summed, not counted: a turn is one, each image one more.
+    expect(read).toContain(
+      '((CASE WHEN budget_cents IS NULL THEN 0 ELSE 1 END) + image_hold_requests)::float8',
+    );
+    expect(read).toContain('sum(h.requests)::float8 AS "requests"');
+    expect(read).toContain(
+      'coalesce(sum(requests), 0)::float8 AS "orgRequests"',
+    );
+    expect(read).not.toContain('count(*)');
+  });
+
   it('leaves the key bucket out of a session request and holds nothing for an idle organization', async () => {
     const { sql } = scriptedSql([NO_HOLDS]);
     await expect(

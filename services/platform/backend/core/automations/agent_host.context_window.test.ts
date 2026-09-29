@@ -562,11 +562,18 @@ describe("the organization's Custom instructions", () => {
     for (const instructions of io.instructions) {
       expect(instructions.split(HOUSE_RULE)).toHaveLength(2);
     }
-    expect(
-      start.queries.find(
-        (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
-      )?.args,
-    ).toEqual({ organizationId: 'org-1', policyType: 'system_prompt' });
+    // Every policy the start reads (the Custom instructions, the image
+    // generation switch) is the run's own organization's, never another's.
+    const policyReads = start.queries.filter(
+      (q) => q.name === 'governance/internal_queries:getPolicyConfigInternal',
+    );
+    expect(policyReads.map((q) => q.args)).toContainEqual({
+      organizationId: 'org-1',
+      policyType: 'system_prompt',
+    });
+    for (const read of policyReads) {
+      expect(read.args).toMatchObject({ organizationId: 'org-1' });
+    }
     expect(console.error).not.toHaveBeenCalled();
   });
 

@@ -18,7 +18,9 @@ Les noms d’assistants peuvent inclure des tâches auxiliaires, comme la créat
 
 ## Lire les coûts avec les tokens
 
-Le tableau de bord utilise les données d’usage et de consommation enregistrées. Les tokens d’entrée et de sortie sont séparés. Des services comme la sortie vocale peuvent utiliser d’autres unités de facturation. Le total de tokens ne suffit donc pas à expliquer tous les coûts.
+Le tableau de bord utilise les données d’usage et de consommation enregistrées. Les tokens d’entrée et de sortie sont séparés. Des services comme la sortie vocale ou la génération d’images peuvent utiliser d’autres unités de facturation. Le total de tokens ne suffit donc pas à expliquer tous les coûts.
+
+Une image créée par un agent apparaît sous son modèle d’images dans **Principaux modèles** et sous l’agent ou l’automatisation dans **Principaux assistants**, à raison d’une requête par image et sans tokens. Son coût est le montant indiqué par OpenRouter ou, pour OpenAI, le tarif public des tokens d’image indiqués par OpenAI. Une requête facturée par le fournisseur sans image exploitable compte de la même façon.
 
 Lis le coût affiché comme l’usage enregistré par l’application, pas comme une facture du fournisseur. Tarifs, abonnements, crédits et appels non mesurés peuvent modifier la comparaison. Un zéro affiché ne prouve pas que le fournisseur n’a rien facturé.
 

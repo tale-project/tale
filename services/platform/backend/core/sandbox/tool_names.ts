@@ -5,6 +5,8 @@
  * either.
  */
 
+import { SANDBOX_TURN_MAX_GENERATED_IMAGES } from './session_constants';
+
 /**
  * The ask-a-human tool of an automation agent turn: registers a question for
  * the run's operator, then the agent ends its turn and is resumed with the
@@ -35,6 +37,68 @@ export const KNOWLEDGE_TOOLS_GUIDANCE =
   'id or a crawled page URL). Use them when you need organization facts ' +
   'that are not in your staged files; call workspace_status to see ' +
   'everything granted.';
+
+/**
+ * The image-generation tool. Granted to a managed agent turn — a project
+ * agent's task run or an automation's agent step — only while the
+ * organization's `image_generation` policy is on AND a model resolves for
+ * it; never to chat, and never user-grantable (it is in no
+ * {@link AGENT_TOOL_CATALOG}: the organization's policy is the switch). The
+ * dispatch lives in `node_only/sandbox/workspace_image_tool.ts`.
+ */
+export const IMAGE_GENERATION_TOOL = 'generate_image';
+
+/**
+ * The instructions line that makes {@link IMAGE_GENERATION_TOOL}
+ * discoverable — on a turn granted it, and only there, so no turn is told
+ * about a tool it cannot call. `outputDir` is the turn's own delivery box,
+ * where saved images are collected as the turn's output.
+ */
+export function imageGenerationGuidance(outputDir: string): string {
+  return (
+    'You can create images: call the "workspace_tool" MCP tool with ' +
+    `{tool: "${IMAGE_GENERATION_TOOL}", args: {prompt, path?, size?, ` +
+    'count?, inputImages?}}. The platform generates them with the ' +
+    "organization's image model and saves them into " +
+    `${outputDir}/ — name a file there (no subfolders: only the box's top ` +
+    'level is delivered) or a path under /agent/workspace/ — answering ' +
+    'with the saved paths; call workspace_status for the argument details. ' +
+    'Every image is billed to the organization and counts against this ' +
+    `turn's spend allowance, at most ${SANDBOX_TURN_MAX_GENERATED_IMAGES} ` +
+    'images a turn — create what the task needs, not variations for their ' +
+    'own sake.'
+  );
+}
+
+/**
+ * The op a turn's session token serves: the exec whose run a platform-side
+ * generation is booked under, and whose delivery box receives its files.
+ * Written into the token scope as `turnOp` on a turn granted
+ * {@link IMAGE_GENERATION_TOOL} and read by that tool's dispatch alone. It
+ * names no person: the dispatch reads the person from the run on every call,
+ * so a token that outlives its run generates nothing.
+ */
+export interface TurnOpRef {
+  kind: 'task-agent' | 'workflow-agent';
+  execId: string;
+}
+
+/** A token scope's `turnOp`, or `undefined` when it carries none (a token
+ * minted before the field existed, or a turn not granted the tool). */
+export function readTurnOpRef(value: unknown): TurnOpRef | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as { kind?: unknown; execId?: unknown };
+  if (
+    (record.kind === 'task-agent' || record.kind === 'workflow-agent') &&
+    typeof record.execId === 'string' &&
+    record.execId !== ''
+  ) {
+    return { kind: record.kind, execId: record.execId };
+  }
+  return undefined;
+}
 
 /**
  * Knowledge refs kept per recorded tool call (`sandboxToolCalls.knowledgeRefs`
