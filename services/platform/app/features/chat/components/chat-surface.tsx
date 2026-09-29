@@ -38,6 +38,7 @@ import {
   Cpu,
   Download,
   Ellipsis,
+  ListChecks,
   MessageCircle,
   MessageSquareOff,
   Pin,
@@ -144,6 +145,7 @@ import { ChatTranscript } from './chat-transcript';
 import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
+import { CreateTaskFromChat } from './create-task-from-chat';
 import { DeferredSendTray } from './deferred-send-tray';
 import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
@@ -454,6 +456,7 @@ function ChatSurfaceInner({
   // treatment): status, link, republish, and revoke in one place. The row
   // menu keeps its one-gesture share+copy.
   const [shareOpen, setShareOpen] = useState(false);
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
 
   // The Home panel (chats, tasks and the inbox in one list) sits beside the
   // conversation; the shell owns it, this column only toggles it.
@@ -553,6 +556,18 @@ function ChatSurfaceInner({
         icon: Download,
         onClick: () => setExportOpen(true),
       },
+      // The hand-over to a project agent: chat answers, a task produces the
+      // file. A pair settles first, as for Share.
+      ...(pair === null && threadId !== undefined
+        ? [
+            {
+              type: 'item' as const,
+              label: t('createTask.button'),
+              icon: ListChecks,
+              onClick: () => setCreateTaskOpen(true),
+            },
+          ]
+        : []),
     ],
     // The row menu's thread actions, one for one — shared handlers keep the
     // menus from drifting.
@@ -2148,6 +2163,23 @@ function ChatSurfaceInner({
             threadTitle={headerThread?.title}
           />
         )}
+
+        {/* The header menu's Create task — the task dialog, drafted from the
+          sibling on screen, linking back to the root. */}
+        {createTaskOpen &&
+          threadId !== undefined &&
+          viewThreadId !== undefined && (
+            <CreateTaskFromChat
+              open={createTaskOpen}
+              onOpenChange={setCreateTaskOpen}
+              organizationId={organizationId}
+              threadId={threadId}
+              viewThreadId={viewThreadId}
+              threadTitle={headerThread?.title}
+              projectId={headerThread?.projectId}
+              viewerIsOwner={viewerIsOwner}
+            />
+          )}
 
         {/* The header menu's Share — status, link, republish, revoke. The
           link names the root; the snapshot is the sibling on screen. */}

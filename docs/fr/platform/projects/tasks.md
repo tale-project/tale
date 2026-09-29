@@ -23,6 +23,8 @@ Un titre compte jusqu’à 200 caractères et une description jusqu’à 20 00
 
 Tale attribue un identifiant à partir de la clé du projet, par exemple `WEB-1`. Utilise-le pour désigner le travail sans confondre des tâches aux titres proches.
 
+Une conversation peut aussi lancer une tâche : **Créer une tâche depuis le chat** dans le menu **⋯** du chat ouvre **Créer une tâche** avec ta demande, les fichiers du chat et un lien vers celui-ci. Voir [Transformer un chat en tâche](/fr/platform/chat/basics#create-task-from-chat).
+
 Une automatisation conçue pour les tâches peut aussi proposer un modèle dans **Créer une tâche** : son nom apparaît alors à côté de **Tâche vierge**, au-dessus du formulaire. Choisis-la, saisis le nom qu’elle demande, par exemple un trimestre, puis clique sur **Créer une tâche** ; l’automatisation devient responsable de la tâche. Si une tâche existe déjà pour ce nom, Tale l’ouvre au lieu d’en créer une deuxième et indique **Une tâche existe déjà pour ce sujet.** Un Membre peut alors la lire et la commenter, mais ne la modifie que si elle est la sienne. Les modèles qui créent des dossiers ou des fichiers de paramètres dans le projet ne sont proposés qu’aux Éditeurs et aux rôles supérieurs.
 
 <Tip>

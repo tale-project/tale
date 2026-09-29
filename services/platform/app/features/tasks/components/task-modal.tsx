@@ -157,6 +157,19 @@ function stripPreviews(attachments: FileAttachment[]) {
   }));
 }
 
+/** What a create starts with instead of a blank form (see `TaskModal`). */
+export interface TaskDraft {
+  title: string;
+  description: string;
+  /** Files already uploaded by the person creating the task. */
+  attachments: readonly {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }[];
+}
+
 /**
  * The ONE task modal — used for BOTH creating a task and viewing/editing one.
  * `taskId` present → edit mode (live mutations on the loaded task, plus the
@@ -176,6 +189,8 @@ export function TaskModal({
   projectId,
   taskId,
   defaultStatus,
+  draft,
+  onTaskCreated,
   onOpenTask,
   showProjectLink = false,
 }: {
@@ -187,6 +202,12 @@ export function TaskModal({
   taskId?: string | null;
   /** Initial status for create mode (e.g. the "+" of a list section). */
   defaultStatus?: TaskStatus;
+  /** What create mode starts with instead of a blank form — a task drafted
+   * from a chat. Read once, when the form mounts. */
+  draft?: TaskDraft;
+  /** Create mode: the caller reports the created task itself (with a way to
+   * open it) in place of the plain "Task created" toast. */
+  onTaskCreated?: (taskId: string) => void;
   /** Navigate to another task (subtasks / dependency links). */
   onOpenTask?: (taskId: string) => void;
   /** All-projects board: show a link to the task's project in the detail. */
@@ -233,8 +254,10 @@ export function TaskModal({
             projectId={projectId}
             // Board creates default to `todo` so new tasks land in a visible lane.
             defaultStatus={defaultStatus ?? 'todo'}
+            draft={draft}
             onClose={() => onOpenChange(false)}
             onCreated={onOpenTask}
+            onTaskCreated={onTaskCreated}
           />
         )}
       </ResponsiveDialogContent>
@@ -797,16 +820,22 @@ function CreateTaskBody({
   organizationId,
   projectId,
   defaultStatus,
+  draft,
   onClose,
   onCreated,
+  onTaskCreated,
 }: {
   organizationId: string;
   projectId: string;
   defaultStatus: TaskStatus;
+  draft?: TaskDraft;
   onClose: () => void;
   /** Open the created (or re-picked) task — the template flow lands the user
    * inside the task modal where the subject panel names the next step. */
   onCreated?: (taskId: string) => void;
+  /** The blank form's create, reported by the caller instead of the plain
+   * toast. */
+  onTaskCreated?: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -829,10 +858,11 @@ function CreateTaskBody({
     useFileUpload({
       organizationId,
       allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
+      ...(draft !== undefined && { initialAttachments: draft.attachments }),
     });
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState(draft?.title ?? '');
+  const [description, setDescription] = useState(draft?.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
   const pasteCounterRef = useRef(1);
   const [priority, setPriority] = useState<TaskPriority | null>(null);
@@ -877,7 +907,7 @@ function CreateTaskBody({
     if (!trimmed || submitting || descriptionOverCap) return;
     setSubmitting(true);
     try {
-      await createTask.mutateAsync({
+      const taskId = await createTask.mutateAsync({
         organizationId,
         projectId,
         title: trimmed,
@@ -897,8 +927,11 @@ function CreateTaskBody({
             ? repeat
             : undefined,
       });
-      toast({ title: t('actions.created'), variant: 'success' });
+      if (onTaskCreated === undefined) {
+        toast({ title: t('actions.created'), variant: 'success' });
+      }
       onClose();
+      onTaskCreated?.(taskId);
     } catch (error) {
       console.error('Create task error:', error);
       const code = error instanceof AppError ? error.data?.code : undefined;

@@ -87,6 +87,9 @@ interface FileUploadConfig {
   transcriptionUnavailableReason?: string;
   /** Open contextual recovery after a media operation is refused. */
   onTranscriptionUnavailable?: (reason?: string) => void;
+  /** Files already uploaded that the list starts with — a task drafted from
+   * a chat carries the files shared there. Read once, on mount. */
+  initialAttachments?: readonly FileAttachment[];
 }
 
 const DEFAULT_UPLOAD_CONFIG = {
@@ -96,7 +99,9 @@ const DEFAULT_UPLOAD_CONFIG = {
 
 export function useFileUpload(config: FileUploadConfig) {
   const { t } = useT('chat');
-  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [attachments, setAttachments] = useState<FileAttachment[]>(() => [
+    ...(config.initialAttachments ?? []),
+  ]);
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
   // Backend-aware upload handoff: routes to the org's own S3 bucket when
   // configured, else Convex `_storage`. An ACTION (not a mutation) because
