@@ -88,6 +88,12 @@ Par défaut, chaque membre peut partager un skill avec toute l’organisation. *
 - **Éditeurs et au-delà** autorise les éditeurs, les développeurs, les admins et les propriétaires, c’est-à-dire les rôles qui équipent les agents.
 - **Propriétaires et admins uniquement** n’autorise que les propriétaires et les admins.
 
+<Frame caption="Gouvernance > Politiques et limites — le partage des skills décide qui peut partager un skill avec toute l’organisation.">
+
+![La section Partage des skills avec Partager les skills avec l'organisation réglé sur Tous les membres, et l’indication que les propriétaires et les admins le peuvent toujours et qu’un membre de plus peut recevoir Publier des skills pour l'organisation dans Compétences.](/images/platform/governance-skill-sharing.webp)
+
+</Frame>
+
 Les propriétaires et les admins peuvent toujours partager avec tout le monde. Pour l’autoriser à une personne de plus sans lui donner un rôle plus élevé, attribue-lui **Publier des skills pour l'organisation** dans [Compétences](/fr/platform/admin/governance/competences).
 
 Les autres membres peuvent toujours créer des skills et les partager avec leurs propres équipes. Ils ne peuvent ni créer un skill pour toute l’organisation, ni étendre l’un des leurs à **Organisation**, ni modifier sur place un skill partagé avec l’organisation. Ils peuvent restreindre un de leurs skills à leurs équipes, avec d’autres modifications dans le même enregistrement, ou le supprimer. La règle s’applique dans l’éditeur de skills, aux téléversements de zip et de dossier, aux paquets d’automatisation qui contiennent des skills et à l’API REST. Chaque refus apparaît dans les [journaux d’audit](/fr/platform/admin/governance/audit-logs) sous **Publication d'un skill refusée**.

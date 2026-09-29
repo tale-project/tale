@@ -47,6 +47,7 @@ import {
   DEMO_PROJECTS,
   DEMO_PRODUCTS,
   DEMO_PROVIDER_CREDENTIAL,
+  DEMO_SKILLS,
   DEMO_TEAMS,
   DEMO_WEBDAV_LABELS,
   DEMO_WEBDAV_RETIRED_LABEL,
@@ -1325,6 +1326,57 @@ async function ensureApiKeys(page: Page, orgId: string): Promise<void> {
   }
 }
 
+/**
+ * House skills (Settings > Skills). The built-in document skills are always
+ * listed, so their row is the settled marker for the skills query — an
+ * unresolved table would otherwise read as "not seeded" and create twice.
+ */
+async function ensureSkills(page: Page, orgId: string): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/settings/skills`);
+  const skillRow = (slug: string): Locator =>
+    page
+      .getByRole('row')
+      .filter({ has: page.getByText(slug, { exact: true }) })
+      .first();
+  await expect(skillRow('docx')).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  for (const skill of DEMO_SKILLS) {
+    if (await isPresent(skillRow(skill.slug))) continue;
+    await page
+      .getByRole('button', { name: t('skills.addMenu.label'), exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', {
+        name: t('skills.createMenu.blank'),
+        exact: true,
+      })
+      .click();
+    const dialog = page.getByRole('dialog', {
+      name: t('skills.createDialog.title'),
+    });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await dialog
+      .getByLabel(t('skills.createDialog.nameLabel'), { exact: true })
+      .fill(skill.slug);
+    await dialog
+      .getByLabel(t('skills.form.description'), { exact: true })
+      .fill(skill.description);
+    await dialog
+      .getByRole('button', {
+        name: t('skills.createDialog.submit'),
+        exact: true,
+      })
+      .click();
+    // Creating opens the new skill's own dialog; close it back to the list.
+    const detail = page.getByRole('dialog', { name: skill.slug, exact: true });
+    await expect(detail).toBeVisible({ timeout: TIMEOUT.PERSIST });
+    await page.keyboard.press('Escape');
+    await expect(detail).toBeHidden({ timeout: TIMEOUT.VISIBLE });
+    await expect(skillRow(skill.slug)).toBeVisible({
+      timeout: TIMEOUT.FIRST_PAINT,
+    });
+  }
+}
+
 /** A retired fixture must not satisfy a similarly named active device. */
 export function webdavPasswordRow(page: Page, label: string): Locator {
   return page.getByRole('row').filter({
@@ -1617,6 +1669,7 @@ export async function seedDemoOrg(
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('API keys', () => ensureApiKeys(page, orgId));
+  await step('skills', () => ensureSkills(page, orgId));
   await step('WebDAV app-passwords', () => ensureWebdavPasswords(page, orgId));
   await step('custom instructions', () =>
     ensureCustomInstructions(page, orgId),

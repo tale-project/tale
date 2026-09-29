@@ -51,9 +51,9 @@ Creating a skill does not equip an agent automatically. Open the intended projec
 
 </Steps>
 
-<Frame caption="The skill editor puts bundle files, description, labels, and visibility together, with Instructions below.">
+<Frame caption="The skill editor names who created the skill and puts bundle files, description, labels, and visibility together, with Instructions below.">
 
-![The docx skill editor shows its bundle file tree, description, labels, Organization visibility, and the Instructions heading.](/images/platform/skill-library-detail.webp)
+![The docx skill editor shows its bundle file tree beside Created by Built-in, the description, icon, labels, Organization visibility, and the Instructions heading.](/images/platform/skill-library-detail.webp)
 
 </Frame>
 
@@ -100,6 +100,12 @@ Skills that were already shared with the organization stay shared.
 ## See who created and changed a skill
 
 The **Created by** column names the member who created each skill. Search the library for a name to find everything that person shared. The column shows **Built-in** for a skill without a recorded creator, such as the document skills your organization starts with, and **Configuration release** with the member whose upload installed it for a skill a managed configuration release installed. Once the creator leaves the organization, it shows **Former member**.
+
+<Frame caption="Settings > Skills — the Created by column names the member who wrote each skill and marks the document skills as Built-in.">
+
+![The skill library lists seven skills: brief-summary and release-notes created by Alex Rivera, and docx, pdf, pptx, visual-aspect-analyzer, and xlsx marked Built-in, each shared with the Organization.](/images/platform/skill-library-list.webp)
+
+</Frame>
 
 Open a skill to see **Created by** and **Last edited by**: the member whose save or upload in Tale produced the current version. **Last edited by** is left out when nobody has edited the skill since it was created, or when its file changed outside Tale since the last edit. The skill list in an [agent's equipment](/platform/agents/skills) names the creator under each skill as well.
 

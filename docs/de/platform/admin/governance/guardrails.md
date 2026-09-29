@@ -7,7 +7,7 @@ Als Admin oder Inhaber steuerst du unter **Einstellungen > Richtlinien > Guardra
 
 <Frame caption="Richtlinien > Guardrails — die drei Status-Karten der Filterebenen (Inhaltssicherheit, PII-Erkennung, Moderationsanbieter) über dem Log der letzten Ereignisse.">
 
-![Die Einstellungsseite Guardrails zeigt drei Status-Karten — Inhaltssicherheit aus, PII-Erkennung aus, Moderations-Anbieter nicht konfiguriert — über dem Feed der letzten Ereignisse, der noch keine meldet, und den benutzerdefinierten Anweisungen der Organisation.](/images/platform/governance-guardrails.webp)
+![Die Einstellungsseite Guardrails zeigt drei Status-Karten — Inhaltssicherheit an mit zwei Kategorien für Ein- und Ausgabe, PII-Erkennung an im Maskierungsmodus, Moderations-Anbieter nicht konfiguriert — über dem Feed der letzten Ereignisse, der noch keine meldet, und den benutzerdefinierten Anweisungen der Organisation.](/images/platform/governance-guardrails.webp)
 
 </Frame>
 

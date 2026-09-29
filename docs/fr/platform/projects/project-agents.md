@@ -39,6 +39,12 @@ Une ancienne configuration peut nommer un modèle sans fournisseur fixé. Le dia
 
 Sous **Skills, connectors & outils**, ajoute les bundles, services et opérations nécessaires. Pour un nouvel agent, les skills de documents `docx`, `pptx`, `xlsx` et `pdf` sont cochés s’ils sont accessibles au projet. Ils contiennent des consignes pour travailler avec des fichiers Word, PowerPoint, Excel et PDF. Décoche ceux dont l’agent n’a pas besoin. La modification d’un agent existant conserve son équipement enregistré. La liste de skills suit les accès des équipes du projet, pas seulement ta visibilité personnelle. Un skill absent peut donc demander une modification de son partage.
 
+<Frame caption="Le menu Skills d’un nouvel agent, avec les skills de documents déjà activés ; chaque skill indique qui l’a créé.">
+
+![La boîte Nouvel agent avec le menu Skills ouvert : docx, pdf, pptx et xlsx sont activés et marqués Fourni avec Tale, tandis que brief-summary et release-notes par Alex Rivera ainsi que visual-aspect-analyzer restent désactivés.](/images/platform/project-agent-document-skills.webp)
+
+</Frame>
+
 Lis **Écrit des données** avant d’accorder un outil d’écriture : il autorise des opérations réelles selon ses règles d’accès. Le broker de connectors ne propose que des lectures aux agents. Les outils GitHub directs et les secrets explicitement accordés suivent d’autres voies.
 
 Les appels de connecteurs d’une exécution se font au nom du membre qui l’a démarrée, que ce soit avec **Démarrer l'agent**, **Relancer**, un passage à **En cours** ou une mention de l’agent avec @. Ils utilisent les [identifiants des connecteurs](/fr/platform/admin/connectors) de l’organisation et sont enregistrés au nom de ce membre. Si ce membre quitte l’organisation ou est désactivé, les appels sont refusés : utilise **Annuler l'exécution** (ou laisse l’exécution se terminer), puis redémarre-la pour qu’elle se fasse en ton nom.
