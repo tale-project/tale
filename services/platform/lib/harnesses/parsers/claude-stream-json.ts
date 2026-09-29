@@ -285,7 +285,8 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
       if (finalText) out.finalText = finalText;
       // The CLI reports a turn-terminating API error via `is_error` +
       // `api_error_status` while LEAVING `subtype:'success'` — surface both
-      // so a caller can classify (e.g. rotate the token on a 429/401). The
+      // so a caller can classify: on a brokered turn a 429 cools the account
+      // down and a 401 (`credential_rotated`) resumes on a fresh vend. The
       // status code is absent (null) for mid-stream failures.
       if (typeof ev.is_error === 'boolean') out.isError = ev.is_error;
       if (typeof ev.api_error_status === 'number') {

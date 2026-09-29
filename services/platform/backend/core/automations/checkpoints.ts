@@ -110,8 +110,13 @@ export interface AgentCursor {
   brokerTokenHash?: string;
   /** Broker-token hashes burned by prior failed attempts of this node
    * execution, carried so the re-kick's mint can exclude them (softly — an
-   * exhausted pool falls back to every account). */
+   * exhausted pool falls back to every account). A free credential rotation
+   * adds none: its account holds a fresh token. */
   burnedBrokerTokenHashes?: string[];
+  /** Credential rotations in a row that preceded this attempt — the broker
+   * refreshing the account under a turn (`credential_rotated`). The first
+   * `CREDENTIAL_ROTATION_FREE_RETRIES` resume for free; absent = none. */
+  credentialRotations?: number;
   /** The conversation this attempt resumed — the failed attempt's harness
    * session handle — so the record says the retry continued, not restarted. */
   resumedFrom?: string;

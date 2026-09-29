@@ -71,6 +71,21 @@ describe('ActiveHoldsSection — place-hold dialog', () => {
     });
   });
 
+  it('keeps foreground ink over the create-matter action’s accent tint', async () => {
+    // The browser companion judges the painted contrast: this picker is
+    // dark:bg-muted, where even a page-safe accent text shade can fail.
+    const { user } = render(<ActiveHoldsSection organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /Place legal hold/i }));
+    await screen.findByRole('dialog');
+    await user.click(screen.getByLabelText('Matter'));
+
+    const create = await screen.findByRole('button', {
+      name: 'Create new matter…',
+    });
+    expect(create).toHaveClass('text-foreground', 'hover:bg-primary/10');
+    expect(create).not.toHaveClass('hover:bg-accent');
+  });
+
   it('passes axe audit with the place-hold dialog open', async () => {
     const { user } = render(<ActiveHoldsSection organizationId="org-1" />);
     await user.click(screen.getByRole('button', { name: /Place legal hold/i }));

@@ -179,6 +179,58 @@ describe('a brokered automation agent reaching a vendor rate limit', () => {
   );
 });
 
+describe('a brokered automation agent turn the vendor answered 401', () => {
+  // Observed live (2026-09-28): the AI gateway refreshed every account at
+  // once and a turn's token was revoked mid-work ("401 OAuth access token
+  // has been revoked"). The broker's rotation, not a fault of the account.
+  const REVOKED = [
+    INIT,
+    {
+      type: 'result',
+      subtype: 'success',
+      is_error: true,
+      api_error_status: 401,
+      result:
+        'API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth access token has been revoked."}}',
+      session_id: 'conv-1',
+    },
+  ];
+
+  it('settles as credential_rotated with the handle, and cools nothing down', async () => {
+    io.stdout = ndjson(REVOKED);
+    const { ctx, mutations } = makeCtx('stable-selected-account-hash');
+
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+
+    expect(settledOf(mutations)[0]?.args).toMatchObject({
+      result: {
+        errored: true,
+        failureCode: 'credential_rotated',
+        apiErrorStatus: 401,
+        agentSessionId: 'conv-1',
+      },
+    });
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+  });
+
+  it('stays a harness error on a turn the broker did not serve', async () => {
+    io.stdout = ndjson(REVOKED);
+    const { ctx, mutations } = makeCtx();
+
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+
+    expect(settledOf(mutations)[0]?.args).toMatchObject({
+      result: { failureCode: 'harness_error', apiErrorStatus: 401 },
+    });
+  });
+});
+
 it('persists a Codex subscription turn’s terminal usage with its result', async () => {
   io.stdout = ndjson([
     { type: 'thread.started', thread_id: 'codex-subscription' },

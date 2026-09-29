@@ -463,7 +463,7 @@ describe('TaskModal — the details panel’s Repeat row', () => {
   // A due-date series continued while the task stayed open, and that next
   // task was deleted since: the task never continues again, so the row is
   // locked on its own rule, with nothing left to open or stop.
-  it('says the series ended once its next task was deleted', async () => {
+  it('says this task cannot repeat again once its next task was deleted', async () => {
     openTask({
       ...baseTask,
       status: 'todo',
@@ -475,7 +475,7 @@ describe('TaskModal — the details panel’s Repeat row', () => {
     });
     expect(locked).toHaveAttribute('aria-disabled', 'true');
     expect(locked).toHaveAccessibleDescription(
-      'Weekly on Monday Its next task was deleted, so this series has ended.',
+      'Weekly on Monday Its next task was deleted. This task cannot repeat again.',
     );
     expect(screen.queryByRole('button', { name: /^Next task/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Stop repeating' })).toBeNull();

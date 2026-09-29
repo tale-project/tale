@@ -88,9 +88,11 @@ import { checkSandboxLifecycle } from './domains/sandbox/lifecycle.integration.t
 import { checkSandboxRetiredTablesDropped } from './domains/sandbox/retired-tables.integration.ts';
 import { checkSandboxDevices } from './domains/sandbox_devices/devices.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkCredentialRotationRetry } from './domains/tasks/credential-rotation.integration.ts';
 import { checkTaskDescriptionMentions } from './domains/tasks/description-mentions.integration.ts';
 import { checkTaskExternalIssueSync } from './domains/tasks/external-issue.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
+import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
@@ -15202,9 +15204,10 @@ async function checkRestMachineJourney(
 
   // The owning automation's two absences are two refusals (round d,
   // S3-4c): a name nobody saved is 404 AUTOMATION_NOT_FOUND; a saved one
-  // with nothing deployed is 409 AUTOMATION_NOT_DEPLOYED, naming it — and
-  // neither creates the task. `journey/parked` is saved through the session
-  // surface (REST has no save) and never deployed.
+  // with nothing deployed is 409 AUTOMATION_NOT_DEPLOYED, whose sentence
+  // repeats no slug (TALE-75) — and neither creates the task.
+  // `journey/parked` is saved through the session surface (REST has no
+  // save) and never deployed.
   const appSend = (route: string, body: unknown): Promise<Response> =>
     fetch(`${base}${route}`, {
       method: 'POST',
@@ -15323,14 +15326,16 @@ async function checkRestMachineJourney(
       parkedOwner.status === 409 &&
       parkedOwnerBody.success &&
       parkedOwnerBody.data.code === 'AUTOMATION_NOT_DEPLOYED' &&
-      parkedOwnerBody.data.error.includes('journey/parked') &&
+      parkedOwnerBody.data.error.includes('no deployed version') &&
+      !parkedOwnerBody.data.error.includes('journey/parked') &&
       ghostStart.status === 404 &&
       ghostStartBody.success &&
       ghostStartBody.data.code === 'AUTOMATION_NOT_FOUND' &&
       parkedStart.status === 409 &&
       parkedStartBody.success &&
       parkedStartBody.data.code === 'AUTOMATION_NOT_DEPLOYED' &&
-      parkedStartBody.data.error.includes('journey/parked') &&
+      parkedStartBody.data.error.includes('no deployed version') &&
+      !parkedStartBody.data.error.includes('journey/parked') &&
       orphanRows[0]?.count === '0' &&
       parkedTrigger.success &&
       !parkedTrigger.data.deployed &&
@@ -55731,6 +55736,10 @@ async function main(): Promise<void> {
         () => checkTaskRunStartFence(sql, authCtx, record),
       ],
       [
+        'checkCredentialRotationRetry',
+        () => checkCredentialRotationRetry(sql, authCtx, record),
+      ],
+      [
         'checkSessionOpTranscriptMerge',
         () => checkSessionOpTranscriptMerge(sql, authCtx, record),
       ],
@@ -55747,6 +55756,10 @@ async function main(): Promise<void> {
         () => checkProjectTaskMetrics(sql, authCtx, record),
       ],
       ['checkTaskRepeat', () => checkTaskRepeat(sql, authCtx, record)],
+      [
+        'checkTaskRepeatSeriesUpgrade',
+        () => checkTaskRepeatSeriesUpgrade(sql, authCtx, record),
+      ],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),

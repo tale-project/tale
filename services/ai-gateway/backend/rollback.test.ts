@@ -146,6 +146,7 @@ describe('the account document, read by the release before this one', () => {
       },
       cipher: createTokenCipher(randomBytes(32)),
       tokenRefreshSkewSeconds: 300,
+      tokenMinHandoutSeconds: 3600,
       usageMinIntervalSeconds: 180,
       now: () => new Date('2026-09-24T10:00:00.000Z'),
     });

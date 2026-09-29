@@ -129,11 +129,13 @@ export const BrandingPreview = memo(function BrandingPreview({
         <BrowserChrome appName={appName} faviconUrl={faviconUrl} />
 
         <Row gap={0} align="stretch" className="h-[400px]">
-          {/* Rail */}
+          {/* Rail — on the page background like the live rail, the surface
+              the accent's text shade is derived against. */}
           <Stack
             gap={0}
             align="center"
-            className="bg-sidebar border-border w-11 shrink-0 border-r py-2.5"
+            className="bg-background border-border w-11 shrink-0 border-r py-2.5"
+            data-testid="preview-rail"
           >
             <Row gap={0} justify="center" className="size-7">
               {logoUrl ? (

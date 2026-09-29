@@ -344,6 +344,7 @@
     "./tooltip": "./src/components/overlays/tooltip.tsx",
     "./trend-indicator": "./src/components/data-display/trend-indicator.tsx",
     "./use-copy": "./src/hooks/use-copy.ts",
+    "./use-date-fns-locale": "./src/hooks/use-date-fns-locale.ts",
     "./use-debounce": "./src/hooks/use-debounce.ts",
     "./use-dropdown-placement": "./src/hooks/use-dropdown-placement.ts",
     "./use-form": "./src/components/forms/use-form.ts",

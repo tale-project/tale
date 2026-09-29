@@ -81,6 +81,14 @@ export class AutomationError extends Error {
   }
 }
 
+/** The `AUTOMATION_PROJECT_FORBIDDEN` sentence — one copy for the run
+ * insert's binding check and the REST task intake's, which had drifted
+ * apart ("that" / "this project", TALE-75 review). Static, like every
+ * refusal a task door relays (`domains/tasks/errors.test.ts`): the
+ * automation's name is what the caller sent. */
+export const AUTOMATION_NOT_BOUND_SENTENCE =
+  'The automation is not bound to that project.';
+
 /** The engine's name grammar (`lib/engine/core/validate/name.ts`) — ONE rule
  * for the document validator, the subautomation reference parser, this store
  * and the `__` URL codec, so a name the validator passes is a name this store
@@ -1708,7 +1716,7 @@ export async function resolveRunProject(
       // and the sentence travels to the app, REST and a workflow's trace.
       throw new AutomationError(
         'AUTOMATION_PROJECT_FORBIDDEN',
-        'The automation is not bound to that project.',
+        AUTOMATION_NOT_BOUND_SENTENCE,
         403,
       );
     }

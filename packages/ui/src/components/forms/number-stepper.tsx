@@ -78,6 +78,9 @@ export function NumberStepper({
   // What the field shows while someone types a number not yet committed —
   // an empty field, or one out of range. `null` shows `value`.
   const [typed, setTyped] = useState<string | null>(null);
+  // Pointer and keyboard steps start from the same number the field shows,
+  // including an out-of-range draft that has not settled on blur yet.
+  const current = typed !== null && typed !== '' ? Number(typed) : value;
 
   const commit = (next: number) => {
     setTyped(null);
@@ -110,7 +113,6 @@ export function NumberStepper({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    const current = typed !== null && typed !== '' ? Number(typed) : value;
     switch (event.key) {
       case 'ArrowUp':
         event.preventDefault();
@@ -164,9 +166,9 @@ export function NumberStepper({
         tabIndex={-1}
         aria-label={decrementLabel ?? t('numberStepper.decrease')}
         aria-controls={id}
-        disabled={disabled || value <= min}
+        disabled={disabled || current <= min}
         onPointerDown={keepFocus}
-        onClick={() => commit(value - step)}
+        onClick={() => commit(current - step)}
         className={BUTTON_CLASSES}
       >
         <Minus className="size-4" aria-hidden="true" />
@@ -195,9 +197,9 @@ export function NumberStepper({
         tabIndex={-1}
         aria-label={incrementLabel ?? t('numberStepper.increase')}
         aria-controls={id}
-        disabled={disabled || value >= max}
+        disabled={disabled || current >= max}
         onPointerDown={keepFocus}
-        onClick={() => commit(value + step)}
+        onClick={() => commit(current + step)}
         className={BUTTON_CLASSES}
       >
         <Plus className="size-4" aria-hidden="true" />
