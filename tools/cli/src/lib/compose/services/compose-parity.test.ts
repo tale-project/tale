@@ -739,10 +739,15 @@ describe('release artifact identity', () => {
       env: { ...process.env, SKIP_BUILD: '', PULL_POLICY: '', ...env },
     });
 
+  /** The Build lanes pull each image by the digest its build job recorded
+   * (one receipt per image) and check its revision label; the release lane
+   * pulls its version tags. Either way the stand-in `docker` logs the pulls
+   * and tags, and answers an inspect with the source commit. */
+  const CI_DIGEST = `sha256:${'a'.repeat(64)}`;
+  const CI_SOURCE = 'b'.repeat(40);
   const prepareImages = (step: Step, services: string[]) => {
     const script = step
       .run!.replaceAll('${{ needs.prepare.outputs.version_number }}', '0.5.43')
-      .replaceAll('${{ needs.changes.outputs.image_tag }}', 'ci-proof')
       .replaceAll('${{ env.REGISTRY }}', 'ghcr.io')
       .replaceAll('${{ github.repository }}', 'tale-project/tale');
     // Match the Ubuntu workflow's LF output when Git Bash uses native jq.exe.
@@ -750,12 +755,28 @@ describe('release artifact identity', () => {
       process.platform === 'win32'
         ? 'jq() { command jq --binary "$@"; };\n'
         : '';
-    const result = shell(
-      jqMode +
-        'docker() { printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
-        script,
-      { SERVICE_NAMES: JSON.stringify(services) },
-    );
+    const receipts = mkdtempSync(resolve(tmpdir(), 'tale-image-receipts-'));
+    let result: ReturnType<typeof shell>;
+    try {
+      for (const service of services) {
+        writeFileSync(
+          resolve(receipts, `${service}.json`),
+          JSON.stringify({ service, digest: CI_DIGEST, revision: CI_SOURCE }),
+        );
+      }
+      result = shell(
+        jqMode +
+          'docker() { if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "$SOURCE_SHA"; return; fi; printf "DOCKER"; printf "\\t%s" "$@"; printf "\\n"; };\n' +
+          script,
+        {
+          SERVICE_NAMES: JSON.stringify(services),
+          RECEIPTS: receipts,
+          SOURCE_SHA: CI_SOURCE,
+        },
+      );
+    } finally {
+      rmSync(receipts, { recursive: true, force: true });
+    }
     expect(result.status).toBe(0);
     const images = new Map<string, string>();
     for (const line of result.stdout.split('\n')) {
@@ -793,10 +814,13 @@ describe('release artifact identity', () => {
         )!,
         services,
       );
+      const repositoryOf = (image: string) =>
+        image.split('@')[0]!.replace(/:[^/]*$/, '');
       for (const [alias, source] of tested) {
-        if (alias.endsWith(':ci-proof')) continue;
+        if (alias === source) continue;
+        expect(source).toEndWith(`@${CI_DIGEST}`);
         expect(released.get(alias)).toBe(
-          source.replace(':ci-proof', ':0.5.43-amd64'),
+          `${repositoryOf(source)}:0.5.43-amd64`,
         );
       }
     },
