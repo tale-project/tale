@@ -45,7 +45,7 @@ Génère des valeurs uniques avant le premier démarrage et conserve-les dans to
 | `ENCRYPTION_SECRET_HEX` | Valeur hexadécimale de 32 octets, par exemple via `openssl rand -hex 32` ; la conserver pour les valeurs déjà chiffrées en base. |
 | `DB_PASSWORD` ou identifiants de base externe | Correspondre au rôle réellement utilisé par le backend. |
 | `SANDBOX_TOKEN` | Même jeton aléatoire dans le backend et le spawner. |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Identifiant de gestion stable partagé avec le backend ; le nom d’utilisateur vaut `admin` par défaut. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | Même secret stable dans le backend et le gateway ; un gateway sans compte d’administration n’en crée un que pour un appelant qui présente ce secret. Le nom d’utilisateur vaut `admin` par défaut. |
 | `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY` | Identifiants valides pour le stockage ; les mapper sur `MINIO_ROOT_USER` et `MINIO_ROOT_PASSWORD` pour MinIO. |
 | `OBJECT_STORE_PUBLIC_ENDPOINT` | Point d’accès joignable par le navigateur, généralement `SITE_URL` lorsque le proxy relaie le stockage fourni. |
 | Identité age SOPS | Nécessaire aux fichiers de configuration chiffrés ; voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops). |

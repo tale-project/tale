@@ -19,6 +19,10 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
  * platform re-provisions per session. The transitional `llm-gateway` network
  * alias keeps the old hostname resolving for one release so in-flight sessions
  * survive the deploy that lands the rename.
+ *
+ * The `.env` it reads carries SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD, which the
+ * gateway image turns into its setup token: a fresh gateway creates its admin
+ * account only for a platform that presents it.
  */
 export function createSandboxLlmGatewayService(
   config: ServiceConfig,

@@ -911,11 +911,13 @@ services:
       # always writes a real .env, so production is unaffected.
       - path: .env
         required: false
-    # No gateway-read env knobs: auth + VK enforcement are config-store fields
-    # the platform pushes via applyGatewayConfig() (admin creds come from the
-    # platform's SANDBOX_LLM_GATEWAY_ADMIN_USERNAME / SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
-    # — required on the backend, never set on the gateway container itself;
-    # compose.dev.yml carries an insecure dev default for the backend tier).
+    # Auth + VK enforcement are config-store fields the platform pushes via
+    # applyGatewayConfig() with its SANDBOX_LLM_GATEWAY_ADMIN_USERNAME /
+    # SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD. The one env value the gateway reads
+    # is that password, from the .env above: its image turns it into the setup
+    # token a fresh gateway demands before it creates the admin account
+    # (services/sandbox-llm-gateway/docker-entrypoint.sh). compose.dev.yml
+    # carries the insecure dev default for both sides.
     volumes:
       # SQLite config/log store (providers + minted keys + auth config survive
       # restarts). Wipe this volume to re-bootstrap auth from scratch. Volume name
