@@ -164,11 +164,14 @@ builtin skill from `configs/platform/custom/skills/`.
   (`skills.attribution.builtin`) on `docx`, **Former member**
   (`skills.attribution.formerMember`) on B's skill — never a raw user id —
   and a skill a managed configuration release installed reads
-  **Configuration release** (`skills.attribution.release`); searching A's
-  name keeps only A's skills; the skill dialog's **Created by** row
-  (`skills.attribution.createdBy`) says the same, for a release skill with
-  the installing member (`skills.attribution.releaseBy`); every cell of the
-  row still fits the page at 1280 px in English, German and French.
+  **Configuration release · <installing member>**
+  (`skills.attribution.releaseBy`); a zip A uploads whose `SKILL.md`
+  frontmatter carries the release marker (`tale-release` under `metadata`)
+  reads **Configuration release · <A's name>**,
+  never the bare label; searching A's name keeps only A's skills; the skill
+  dialog's **Created by** row (`skills.attribution.createdBy`) says the
+  same; every cell of the row still fits the page at 1280 px in English,
+  German and French.
 - [ ] `SKILL-F17` · **Last edited by** — Open the skill A just created; then,
   as an admin C, change its description and save; then edit its `SKILL.md`
   on disk (`$TALE_CONFIG_DIR/<org>/skills/<slug>/SKILL.md`) and reload → A
@@ -183,7 +186,7 @@ builtin skill from `configs/platform/custom/skills/`.
   skills menu → Under every skill row a caption names its creator: **By
   <name>** (`skills.attribution.byMember`), **By a former member**
   (`skills.attribution.byFormerMember`), **Built-in** or **Configuration
-  release**; connector and tool rows carry no such caption; the caption is
+  release · <installing member>**; connector and tool rows carry no such caption; the caption is
   part of the row's accessible name and toggling a row still works by
   keyboard.
 - [ ] `SKILL-F19` · **Skill writes in the audit log** — As an admin: create a
