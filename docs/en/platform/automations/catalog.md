@@ -79,7 +79,7 @@ Keep a zip within 20 MiB compressed and 20 MiB expanded, with at most 500 files,
 
 ## Resolve skill conflicts
 
-The manifest’s `skills` list must match the folders carried under `skills/`: undeclared folders and declared-but-missing bundles are rejected. Each bundle needs valid `SKILL.md` frontmatter with a `name` matching its folder.
+The manifest’s `skills` list must match the folders carried under `skills/`: undeclared folders and declared-but-missing bundles are rejected. Each bundle needs valid `SKILL.md` frontmatter with a `name` matching its folder. Carried skills follow the skill library's rules: a new skill belongs to the person uploading the package, and a replacement keeps its owner or belongs to the uploader if it had none. New or changed team lists may name only teams the uploader may share with; existing lists can stay unchanged. Tale checks every carried skill's audience before installing any of them.
 
 ```yaml
 # automation.yml

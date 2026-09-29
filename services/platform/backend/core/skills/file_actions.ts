@@ -407,7 +407,7 @@ export async function saveSkillForViewer(
     if (
       teams !== undefined &&
       args.assertTeamsAssignable !== undefined &&
-      (args.teams !== undefined || existing === null)
+      (args.teams !== undefined || !sameTeams(teams, existing))
     ) {
       await args.assertTeamsAssignable(teams);
     }
@@ -530,10 +530,11 @@ const PRIVATE_SKILLS_RETIRED_MESSAGE =
  *
  * `existing` is the bundle the upload replaces, or `null` for a new slug — a
  * slug whose current document is unreadable counts as new, since there is
- * nothing left to preserve. Sharing (`team`/`org` + `teams`) is honored as
- * declared: any member may share, and the parse step already refused the
- * inconsistent shapes. `SKILL.md` stays byte-for-byte when the zip already
- * says what the readers will conclude.
+ * nothing left to preserve. Sharing (`team`/`org` + `teams`) uses the editor's
+ * team normalization, so the audience checked is the one readers see —
+ * and the audience rule for `teams` is {@link prepareBundleWrite}'s, which
+ * every upload door writes through. `SKILL.md` stays byte-for-byte when the
+ * zip already says what the readers will conclude.
  */
 export function normalizedBundleFiles(
   parsed: ParsedBundle,
@@ -553,20 +554,78 @@ export function normalizedBundleFiles(
     existing === null
       ? uploader.userId
       : (existing.meta.owner ?? uploader.userId);
+  const teams = resolveTeams(
+    parsed.meta.visibility,
+    parsed.meta.teams,
+    undefined,
+  );
 
   const files = parsed.files.map((file) => ({
     path: file.relPath,
     content: file.content,
   }));
-  if (parsed.meta.owner === owner) return files;
+  if (
+    parsed.meta.owner === owner &&
+    (teams === undefined ||
+      (teams.length === parsed.meta.teams?.length &&
+        teams.every((id, index) => id === parsed.meta.teams?.[index])))
+  )
+    return files;
 
   const meta: SkillFrontmatter = { ...parsed.meta, owner };
+  if (teams !== undefined) meta.teams = teams;
   const rewritten = serializeSkillMd(meta, parsed.body);
   return files.map((file) =>
     file.path === SKILL_DOCUMENT_NAME
       ? { path: file.path, content: Buffer.from(rewritten, 'utf-8') }
       : file,
   );
+}
+
+/**
+ * The files an uploaded bundle is written as, after the rules every write
+ * door applies: the audience rule for a team skill's `teams` — the
+ * organization's own teams, and for a non-admin only their own — checked when
+ * the list is new or differs from the bundle it replaces (like the editor's
+ * save, so an unchanged re-upload never fails on a team deleted since), then
+ * the owner and private-retired rules of {@link normalizedBundleFiles}. Both
+ * upload lanes write through it: the skill zip and an automation package's
+ * carried skills. `assertTeamsAssignable` is supplied by the door, which owns
+ * the database handle, and throws the refusal it answers.
+ */
+export async function prepareBundleWrite(args: {
+  parsed: ParsedBundle;
+  uploader: UserSkillViewer;
+  existing: OrgSkill | null;
+  assertTeamsAssignable: (teamIds: string[]) => Promise<void>;
+}): Promise<Array<{ path: string; content: Buffer }>> {
+  const files = normalizedBundleFiles(
+    args.parsed,
+    args.uploader,
+    args.existing,
+  );
+  const teams =
+    resolveTeams(
+      args.parsed.meta.visibility,
+      args.parsed.meta.teams,
+      undefined,
+    ) ?? [];
+  if (teams.length > 0 && !sameTeams(teams, args.existing)) {
+    await args.assertTeamsAssignable([...teams]);
+  }
+  return files;
+}
+
+/** Compare with the actual stored IDs, without normalizing a legacy padded
+ * ID: making that ID visible to its real team is a new assignment. */
+function sameTeams(
+  teams: readonly string[],
+  existing: OrgSkill | null,
+): boolean {
+  if (existing?.meta.visibility !== 'team') return false;
+  const before = new Set(existing.meta.teams ?? []);
+  const after = new Set(teams);
+  return before.size === after.size && [...after].every((id) => before.has(id));
 }
 
 /**

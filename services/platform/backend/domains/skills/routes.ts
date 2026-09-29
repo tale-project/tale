@@ -3,7 +3,7 @@ import {
   skillEditFields,
 } from '@tale/shared/schemas/skills';
 import { Hono, type Context } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
@@ -70,8 +70,11 @@ export function createSkillRoutes(deps: {
       },
       // The audience rule for a team skill's `teams` (the org's own teams;
       // a non-admin only their own), answered in the skill door's codes.
-      assertTeamsAssignable: (ids: string[]) =>
-        assertSkillTeamsAssignable(deps.sql, {
+      assertTeamsAssignable: (
+        ids: string[],
+        reader: Sql | TransactionSql = deps.sql,
+      ) =>
+        assertSkillTeamsAssignable(reader, {
           organizationId: c.get('orgId'),
           role,
           teamIds,
@@ -134,7 +137,13 @@ export function createSkillRoutes(deps: {
         deps.sql,
         c.get('orgId'),
         slug,
-        () => saveSkillForViewer({ ...who, slug, ...body.data }),
+        (tx) =>
+          saveSkillForViewer({
+            ...who,
+            slug,
+            ...body.data,
+            assertTeamsAssignable: (ids) => who.assertTeamsAssignable(ids, tx),
+          }),
       );
       return c.json({ skill: saved.skill });
     } catch (error) {
@@ -160,6 +169,7 @@ export function createSkillRoutes(deps: {
           viewer: who.viewer,
           storageId: body.data.storageId,
           ...(body.data.force !== undefined ? { force: body.data.force } : {}),
+          assertTeamsAssignable: who.assertTeamsAssignable,
         }),
       );
     } catch (error) {
@@ -177,10 +187,10 @@ export function createSkillRoutes(deps: {
         deps.sql,
         c.get('orgId'),
         slug,
-        async () => {
+        async (tx) => {
           const removed = await deleteSkillForViewer({ ...who, slug });
           if (!removed) return false;
-          detachedAgents = await unequipDeletedSkill(deps.sql, {
+          detachedAgents = await unequipDeletedSkill(tx, {
             organizationId: c.get('orgId'),
             slug,
             actor: { id: user.id, email: user.email },

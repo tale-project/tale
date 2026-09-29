@@ -199,6 +199,14 @@ builtin skill from `configs/platform/custom/skills/`.
   `skills.createDialog.namePatternError` and Create stays blocked; the same
   caps are enforced server-side (`convex/skills/bundle_zip.ts`), so a bypassed
   client still cannot persist a bad bundle.
+- [ ] `SKILL-B4` · **Uploads cannot borrow a name or a team** — As a Member in
+  team T1 only, upload a zip whose `SKILL.md` says `owner: <another member's
+  id>` → the new skill lists you as its owner. Upload one that says
+  `visibility: team` with the id of a team T2 you are not in (or an id that
+  does not exist) → the upload is refused because you cannot share with that
+  team, and no skill is written. As a Developer, upload an automation package
+  carrying the same two skills → the same outcomes; re-uploading an unchanged
+  package reports its skills as unchanged, with no overwrite prompt.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -1,5 +1,5 @@
 import type { Context, Env } from 'hono';
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
@@ -59,7 +59,7 @@ export function skillErrorResponse<E extends Env>(
  * the `AppError` shape the skill doors answer with the statuses above.
  */
 export function assertSkillTeamsAssignable(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   viewer: { organizationId: string; role: string; teamIds: readonly string[] },
 ): (teamIds: string[]) => Promise<void> {
   return async (teamIds) => {

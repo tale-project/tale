@@ -23,13 +23,19 @@ import type { StoreAdapter } from '../../../lib/engine/core/slots';
 import { validate } from '../../../lib/engine/core/validate';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { readOrgSkill } from '../../../lib/skills/listing';
+import { readOrgSkill, type OrgSkill } from '../../../lib/skills/listing';
+import { parseSkillMd } from '../../../lib/skills/parse';
 import {
   canEditSkill,
   type UserSkillViewer,
 } from '../../../lib/skills/visibility';
 import { isRecord } from '../../../lib/utils/type-utils';
 import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
+import type { ParsedBundle } from '../skills/bundle_zip';
+import {
+  normalizedBundleFiles,
+  prepareBundleWrite,
+} from '../skills/file_actions';
 import {
   createOrgSkillReader,
   listSkillSlugs,
@@ -75,6 +81,11 @@ export interface UploadArgs {
   overwriteSkills?: string[];
 }
 
+/** The audience reader bound to the connection holding the writer lock. */
+export interface UploadSkillWriter {
+  assertTeamsAssignable(teamIds: string[]): Promise<void>;
+}
+
 /** The host half of the lane — auth already checked by the caller. */
 export interface UploadHost {
   orgSlug: string;
@@ -101,6 +112,12 @@ export interface UploadHost {
     teamIds: string[];
     isOrgAdmin: boolean;
   } | null>;
+  /** Serialize carried-skill reads, permission checks and writes with all
+   * other library writers, including writers served by another replica. */
+  withSkillWriterLocks<T>(
+    slugs: readonly string[],
+    work: (writer: UploadSkillWriter) => Promise<T>,
+  ): Promise<T>;
   /** The organization's store, for validation: subautomation references
    * resolve against it and `llm`/`agent` models are checked against what
    * the organization serves. Absent on a bare harness. */
@@ -240,12 +257,47 @@ function bundlesEqual(
   return true;
 }
 
+/** A carried skill as the parsed bundle the skill write rules read. */
+function carriedAsBundle(skill: CarriedSkill): ParsedBundle {
+  const { meta, body } = parseSkillMd(
+    skill.skillMdText,
+    `skills/${skill.slug}/SKILL.md`,
+  );
+  const files = skill.files.map((file) => ({
+    relPath: file.path,
+    content: Buffer.from(file.content),
+  }));
+  return {
+    slug: skill.slug,
+    meta,
+    body,
+    files,
+    totalBytes: files.reduce((sum, file) => sum + file.content.length, 0),
+  };
+}
+
+/** One carried skill's decision and the files it is written as. */
+interface SkillWrite {
+  skill: CarriedSkill;
+  parsed: ParsedBundle;
+  action: SkillReport['action'];
+  /** The bundle after the owner, private and audience rules. */
+  files: Array<{ path: string; content: Buffer }>;
+  /** The skill it replaces, for the audience rule's "changed teams". */
+  existing: OrgSkill | null;
+}
+
 /**
  * Decide what happens to each carried skill: `created` for a new slug,
- * `unchanged` for a byte-identical bundle, `replaced` when the caller
- * confirmed the slug. A differing bundle the caller may not edit refuses
- * outright; differing bundles not yet confirmed are collected for the
- * `needs_confirm` round-trip.
+ * `unchanged` for a bundle that already reads exactly as it would be
+ * written, `replaced` when the caller confirmed the slug. A carried skill is
+ * judged as the skill write rules would write it — the owner the library
+ * keeps (never the one a package declares), the private-retired rule — so
+ * an unchanged re-upload stays `unchanged`, and so does a bundle that still
+ * matches the package byte for byte because it was installed before those
+ * rules applied to carried skills. A differing bundle the caller may
+ * not edit refuses outright; differing bundles not yet confirmed are
+ * collected for the `needs_confirm` round-trip.
  */
 async function planSkillWrites(
   orgSlug: string,
@@ -253,32 +305,30 @@ async function planSkillWrites(
   viewer: UserSkillViewer,
   overwriteSkills: readonly string[],
 ): Promise<
-  | {
-      kind: 'ok';
-      plan: { skill: CarriedSkill; action: SkillReport['action'] }[];
-    }
+  | { kind: 'ok'; plan: SkillWrite[] }
   | { kind: 'needs_confirm'; slugs: string[] }
 > {
   const overwrite = new Set(overwriteSkills);
-  const plan: { skill: CarriedSkill; action: SkillReport['action'] }[] = [];
+  const plan: SkillWrite[] = [];
   const unconfirmed: string[] = [];
   const forbidden: string[] = [];
   for (const skill of carried) {
-    const existing = await readSkillBundleFiles(orgSlug, skill.slug);
-    if (existing === null) {
-      plan.push({ skill, action: 'created' });
+    const parsed = carriedAsBundle(skill);
+    const stored = await readSkillBundleFiles(orgSlug, skill.slug);
+    if (stored === null) {
+      plan.push({
+        skill,
+        parsed,
+        action: 'created',
+        files: normalizedBundleFiles(parsed, viewer, null),
+        existing: null,
+      });
       continue;
     }
-    if (bundlesEqual(existing, skill.files)) {
-      plan.push({ skill, action: 'unchanged' });
-      continue;
-    }
+    let current: OrgSkill | null = null;
     let editable: boolean;
     try {
-      const current = await readOrgSkill(
-        createOrgSkillReader(orgSlug),
-        skill.slug,
-      );
+      current = await readOrgSkill(createOrgSkillReader(orgSlug), skill.slug);
       editable =
         current === null
           ? viewer.isOrgAdmin
@@ -291,6 +341,22 @@ async function planSkillWrites(
       );
       editable = viewer.isOrgAdmin;
     }
+    const files = normalizedBundleFiles(parsed, viewer, current);
+    // A bundle installed before carried skills followed the owner rule was
+    // written exactly as the package carried it, usually with no owner. The
+    // same package re-uploaded changes nothing on disk, so it stays
+    // `unchanged`: it neither adopts the skill for its uploader nor refuses
+    // one who could not edit it.
+    if (bundlesEqual(stored, files) || bundlesEqual(stored, skill.files)) {
+      plan.push({
+        skill,
+        parsed,
+        action: 'unchanged',
+        files,
+        existing: current,
+      });
+      continue;
+    }
     if (!editable) {
       forbidden.push(skill.slug);
       continue;
@@ -299,12 +365,12 @@ async function planSkillWrites(
       unconfirmed.push(skill.slug);
       continue;
     }
-    plan.push({ skill, action: 'replaced' });
+    plan.push({ skill, parsed, action: 'replaced', files, existing: current });
   }
   if (forbidden.length > 0) {
     refuse(
       'SKILL_CONFLICT_FORBIDDEN',
-      `You cannot overwrite the existing skill(s) ${forbidden.sort().join(', ')} — they belong to another member.`,
+      `You cannot overwrite the existing skill(s) ${forbidden.sort().join(', ')} — you do not have permission to edit them.`,
     );
   }
   if (unconfirmed.length > 0) {
@@ -458,11 +524,50 @@ export async function uploadAutomationImpl(
       teamIds: viewerContext?.teamIds ?? [],
       isOrgAdmin: viewerContext?.isOrgAdmin ?? host.isOrgAdmin,
     };
-    const outcome = await planSkillWrites(
-      host.orgSlug,
-      parsed.skills,
-      viewer,
-      args.overwriteSkills ?? [],
+    const outcome = await host.withSkillWriterLocks(
+      carriedSlugs,
+      async (writer) => {
+        const planned = await planSkillWrites(
+          host.orgSlug,
+          parsed.skills,
+          viewer,
+          args.overwriteSkills ?? [],
+        );
+        if (planned.kind === 'needs_confirm') return planned;
+
+        // The team-audience rule for every skill about to be written, before
+        // any is: a refused team leaves the organization's skills untouched.
+        for (const entry of planned.plan) {
+          if (entry.action === 'unchanged') continue;
+          entry.files = await prepareBundleWrite({
+            parsed: entry.parsed,
+            uploader: viewer,
+            existing: entry.existing,
+            assertTeamsAssignable: (teamIds) =>
+              writer.assertTeamsAssignable(teamIds),
+          });
+        }
+
+        // Skills first: they are org config with their own history trail, and a
+        // save refusal after them leaves nothing broken — re-uploading reports
+        // them `unchanged`.
+        for (const entry of planned.plan) {
+          if (entry.action === 'unchanged') continue;
+          try {
+            await writeSkillBundleFiles(
+              host.orgSlug,
+              entry.skill.slug,
+              entry.files,
+            );
+          } catch (error) {
+            refuse(
+              'SKILL_WRITE_FAILED',
+              `could not install the carried skill "${entry.skill.slug}": ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+        return planned;
+      },
     );
     if (outcome.kind === 'needs_confirm') {
       return {
@@ -470,28 +575,6 @@ export async function uploadAutomationImpl(
         status: 'needs_confirm',
         skillConflicts: outcome.slugs,
       };
-    }
-
-    // Skills first: they are org config with their own history trail, and a
-    // save refusal after them leaves nothing broken — re-uploading reports
-    // them `unchanged`.
-    for (const entry of outcome.plan) {
-      if (entry.action === 'unchanged') continue;
-      try {
-        await writeSkillBundleFiles(
-          host.orgSlug,
-          entry.skill.slug,
-          entry.skill.files.map((file) => ({
-            path: file.path,
-            content: Buffer.from(file.content),
-          })),
-        );
-      } catch (error) {
-        refuse(
-          'SKILL_WRITE_FAILED',
-          `could not install the carried skill "${entry.skill.slug}": ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
     }
 
     const taskContract = manifest?.subjects?.task;
