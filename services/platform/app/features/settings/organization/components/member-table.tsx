@@ -17,6 +17,7 @@ import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import { useMemo, useCallback, useState } from 'react';
 
+import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useRemoveMember } from '../hooks/mutations';
@@ -63,7 +64,7 @@ export function MemberTable({
   const { t: tSettings } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const removeMember = useRemoveMember();
+  const removeMember = useRemoveMember({ errorToast: false });
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -76,7 +77,8 @@ export function MemberTable({
       // user table — so no `string` schema type). The row id we
       // pull from RowSelectionState matches `Member._id` directly.
       // Let failures propagate so `BulkDeleteBar` surfaces a single batch
-      // toast instead of one per failed row.
+      // toast instead of one per failed row: the write's own toast stays
+      // quiet, and the bar's names the first refusal's reason.
       await removeMember.mutateAsync({ memberId: id });
     },
     [removeMember],
@@ -207,6 +209,7 @@ export function MemberTable({
           onClearSelection={handleClearSelection}
           onDeleteItem={handleDeleteItem}
           onDeleteComplete={handleClearSelection}
+          describeFailure={firstFailureDetail}
         />
       }
       {...list.tableProps}

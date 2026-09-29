@@ -12,14 +12,18 @@ export function useWebdavAppPasswords(organizationId: string) {
   return data;
 }
 
+// The settings page toasts a failed create or revoke itself (a spent limit
+// or a gone password by name); the default toast would report it again.
 export function useCreateWebdavAppPassword() {
-  return useBackendMutation('webdav/app_password_mutations:createAppPassword')
-    .mutateAsync;
+  return useBackendMutation('webdav/app_password_mutations:createAppPassword', {
+    errorToast: false,
+  }).mutateAsync;
 }
 
 export function useRevokeWebdavAppPassword() {
-  return useBackendMutation('webdav/app_password_mutations:revokeAppPassword')
-    .mutateAsync;
+  return useBackendMutation('webdav/app_password_mutations:revokeAppPassword', {
+    errorToast: false,
+  }).mutateAsync;
 }
 
 export type WebdavAppPasswordRow = NonNullable<

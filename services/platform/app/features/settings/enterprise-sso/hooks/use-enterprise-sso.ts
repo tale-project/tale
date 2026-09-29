@@ -14,21 +14,34 @@ export function useEnterpriseSso(organizationId: string) {
   });
 }
 
+// The form reports a failure of the writes below that opt out itself: a
+// save through its Save cluster (a missing secret under its input), a
+// connection test, a metadata import or a SCIM token in its own toast. The
+// default toast would report it a second time.
+
 export function useUpsertOidc() {
-  return useBackendAction('enterprise_sso/config/actions:upsertOidc');
+  return useBackendAction('enterprise_sso/config/actions:upsertOidc', {
+    errorToast: false,
+  });
 }
 
 export function useUpsertSaml() {
-  return useBackendAction('enterprise_sso/config/actions:upsertSaml');
+  return useBackendAction('enterprise_sso/config/actions:upsertSaml', {
+    errorToast: false,
+  });
 }
 
 export function useTestSsoConnection() {
-  return useBackendAction('enterprise_sso/config/actions:testConnection');
+  return useBackendAction('enterprise_sso/config/actions:testConnection', {
+    errorToast: false,
+  });
 }
 
 /** Parse IdP federation metadata (URL or uploaded XML) into the SAML fields. */
 export function useParseSamlMetadata() {
-  return useBackendAction('enterprise_sso/config/actions:parseIdpMetadata');
+  return useBackendAction('enterprise_sso/config/actions:parseIdpMetadata', {
+    errorToast: false,
+  });
 }
 
 export function useRevealOidcClientId() {
@@ -45,7 +58,9 @@ export function useRemoveSso() {
 
 // SCIM token management (mutations on the SCIM token row).
 export function useRegenerateScimToken() {
-  return useBackendMutation('scim/mutations:regenerateToken');
+  return useBackendMutation('scim/mutations:regenerateToken', {
+    errorToast: false,
+  });
 }
 
 export function useDisableScim() {
