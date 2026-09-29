@@ -345,13 +345,15 @@ async function reconcileRange(
   return { scanned, released, failures };
 }
 
-/** Log each failure of a release the reconcile ran — the next run retries
- * what its walks still find, the release job what they never would
- * (`requeueBlobFailures`) — and hand the outcome on. */
+/** Log each corpus-stage failure of a release the reconcile ran — the next
+ * run retries it, since its rows still list the ref — and hand the outcome
+ * on. A blob-stage failure is `requeueBlobFailures`' to log: whether the
+ * release job took it is half of what its line has to say. */
 function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
   for (const failure of outcome.failures) {
+    if (failure.stage !== 'corpus') continue;
     console.warn(
-      `[knowledge] reconcile release failed for ${failure.ref} (${failure.stage}): ${failure.message}`,
+      `[knowledge] reconcile release failed for ${failure.ref} (corpus): ${failure.message}`,
     );
   }
   return outcome;
@@ -369,23 +371,42 @@ function warnReleaseFailures(outcome: ReleaseOutcome): ReleaseOutcome {
  * jobs are bounded as the mail lanes' are (`queueRefRelease`), and an
  * enqueue that fails is logged, not thrown, so the next job is still queued
  * and the organization's other passes still run.
+ *
+ * Each failed byte delete is logged with what became of it — re-queued, or
+ * not re-queued when its job could not be queued — so a failure the job
+ * retries never reads as final.
  */
 async function requeueBlobFailures(
   sql: Sql,
   organizationId: string,
   outcome: ReleaseOutcome,
 ): Promise<ReleaseOutcome> {
-  const refs = outcome.failures
-    .filter((failure) => failure.stage === 'blob')
-    .map((failure) => failure.ref);
-  await queueRefRelease(sql, organizationId, refs, {
-    onChunkError: (job, error) => {
-      console.warn(
-        `[knowledge] could not re-queue a byte release for org ${organizationId} (refs=${job.length}), their bytes stay:`,
-        error,
-      );
+  const failures = outcome.failures.filter(
+    (failure) => failure.stage === 'blob',
+  );
+  const unqueued: { refs: string[]; error: unknown }[] = [];
+  await queueRefRelease(
+    sql,
+    organizationId,
+    failures.map((failure) => failure.ref),
+    {
+      onChunkError: (refs, error) => {
+        unqueued.push({ refs, error });
+      },
     },
-  });
+  );
+  const stranded = new Set(unqueued.flatMap((job) => job.refs));
+  for (const failure of failures) {
+    console.warn(
+      `[knowledge] reconcile release failed for ${failure.ref} (blob): ${failure.message} — ${stranded.has(failure.ref) ? 'not re-queued' : 're-queued to knowledge.release_refs'}`,
+    );
+  }
+  for (const job of unqueued) {
+    console.warn(
+      `[knowledge] could not re-queue a byte release for org ${organizationId} (refs=${job.refs.length}), their bytes stay:`,
+      job.error,
+    );
+  }
   return outcome;
 }
 
