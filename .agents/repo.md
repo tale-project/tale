@@ -98,12 +98,20 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   still toasts, and so does a `mutateAsync` awaited inside the caller's own `try`. A failure is
   reported once: by that default toast, or by the caller — its `catch`, `.catch` or `onError`
   toast, a batch's summary toast, `EditorActions` (and `useFormEditor`'s native submit) for a
-  controller whose `save` rethrows, `BulkDeleteBar` / `BulkArchiveBar` / `EntityDeleteDialog`
-  for a callback that rejects (give them `describeFailure`, so their one toast keeps the
-  reason) — never both. A caller that reports opts out: in the hook when every caller reports,
-  else through the hook's options at that call site; a caller that only logs keeps the default
-  toast. `services/platform/tests/guards/single-failure-toast.guard.test.ts` follows each write's
-  rejection to what reports it and fails on a second toast.
+  controller whose `save` rethrows (a `useFormEditor`, or a hand-written `EditorController`),
+  `BulkDeleteBar` / `BulkArchiveBar` / `EntityDeleteDialog` for a callback that rejects (give
+  them `describeFailure`, so their one toast keeps the reason), `EnvVarListEditor` for an
+  `onSet` / `onDelete` that rejects, a react-query `queryFn` that runs the write (each retry
+  would toast; report the query's final error once) — never both. A caller that reports opts
+  out: in the hook when every caller reports, else through the hook's options at that call site;
+  a caller that only logs keeps the default toast. A write that opts out is reported from its
+  call's own promise (`mutateAsync(args).then(onSuccess, onError)`, or a `try`), or keeps its
+  own toast (a custom `errorToast` with the verb's title and `failureDetail`) — never from
+  `mutate(args, { onError })` alone: react-query drops that callback once another `mutate`
+  starts on the same hook or the caller unmounts first, and the failure goes unreported.
+  `services/platform/tests/guards/single-failure-toast.guard.test.ts` follows each write's
+  rejection to what reports it, and fails on a second toast, on a quiet write whose one report
+  hangs on `mutate`'s `onError`, and on a batch surface without `describeFailure`.
 - **Scaffold new parts from templates** — beyond the shared `gen:package|service|tool|skill`, tale
   adds `bun run gen:migration` and `bun run gen:episode` (docs-video episodes).
 - **Four manual layers, one shape** — `services/{platform,web,docs,ui-docs}/tests/manual/` each carry the
