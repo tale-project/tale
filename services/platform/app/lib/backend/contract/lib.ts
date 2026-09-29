@@ -142,4 +142,24 @@ export interface LibContract {
       error?: { code: string };
     };
   };
+  /** Whether agents may generate images, every image model a pin may name
+   * (the admission a turn applies), and what a turn would use right now. */
+  'lib/providers/image_generation_actions:getImageGenerationState': {
+    kind: 'action';
+    args: { organizationId: string };
+    returns: {
+      enabled: boolean;
+      models: Array<{
+        providerSlug: string;
+        providerDisplayName: string;
+        modelId: string;
+      }>;
+      pick: {
+        providerSlug: string;
+        modelId: string;
+        source: 'pinned' | 'preferred';
+      } | null;
+      error?: { code: string };
+    };
+  };
 }
