@@ -225,12 +225,14 @@ describe('an automation package carrying a skill', () => {
       expect(writeSkillBundleFiles).not.toHaveBeenCalled();
     });
 
-    it('installs a carried skill shared with the uploader’s own team', async () => {
+    it('installs a carried skill shared with the uploader’s own team, without reading the publish right', async () => {
       const host = hostFor(
         await pack(skillMd('visibility: team\nteams:\n  - t-mine\n')),
         allowTeams,
         false,
       );
+      const mayPublishOrgWide = vi.fn(async () => false);
+      host.mayPublishOrgWide = mayPublishOrgWide;
       expect(
         await uploadAutomationImpl(host, { storageId: 's3:x' }),
       ).toMatchObject({
@@ -238,6 +240,7 @@ describe('an automation package carrying a skill', () => {
         skills: [{ slug: 'triage', action: 'created' }],
       });
       expect(writtenMeta().visibility).toBe('team');
+      expect(mayPublishOrgWide).not.toHaveBeenCalled();
     });
 
     it('lets a package whose organization-wide skill is already installed as carried through unchanged', async () => {

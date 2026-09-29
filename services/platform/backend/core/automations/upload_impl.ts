@@ -553,7 +553,18 @@ export async function uploadAutomationImpl(
       teamIds: viewerContext?.teamIds ?? [],
       isOrgAdmin: viewerContext?.isOrgAdmin ?? host.isOrgAdmin,
     };
-    const mayPublishOrgWide = await host.mayPublishOrgWide();
+    // The publish right matters only to a carried skill shared with the whole
+    // organization (an unmarked one included), so a package without one never
+    // reads the policy. It is read here, before the writer locks: the answer
+    // reads through the pool, and reserving a second connection under the
+    // held lock deadlocks when competing writers fill it.
+    const carriesOrgWideSkill = parsed.skills.some(
+      (skill) =>
+        parseSkillMd(skill.skillMdText, `skills/${skill.slug}/SKILL.md`).meta
+          .visibility === 'org',
+    );
+    const mayPublishOrgWide =
+      carriesOrgWideSkill && (await host.mayPublishOrgWide());
     const outcome = await host.withSkillWriterLocks(
       carriedSlugs,
       async (writer) => {
