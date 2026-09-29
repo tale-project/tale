@@ -304,13 +304,13 @@ default means deleting the override and fixing what surfaces:
   refs) has no twin in `services/platform/backend/rest/v1-tasks.ts` (2026-09, round g). The
   archive half was paid down on 2026-09-21 (contract 1.20.0): `PATCH …/tasks/{taskId}`
   `{archived}` runs the board's `archiveTask`/`restoreTask` inside the door's serializable
-  transaction, idempotent both ways, behind the project write gate and the project-scoped task
-  lookup (an archived task must stay writable there, or nothing could restore it). Paying
-  down the delete means `DELETE …/tasks/{taskId}` → 204 with the cascade named in its
-  description, gated the way the PATCH is (the project write gate, then the task's own
-  project — an archived task stays deletable) so `assertTaskWritable`'s
-  `RBAC_FORBIDDEN`/`TASK_FORBIDDEN` never leak, `deleteTask`'s owner/admin rule surfaced as
-  403 `ROLE_FORBIDDEN`, and a contract bump.
+  transaction, idempotent both ways, behind the active-project check, the project-scoped task
+  lookup and the task's work gate (an archived task must stay writable there, or nothing could
+  restore it). Paying down the delete means `DELETE …/tasks/{taskId}` → 204 with the cascade
+  named in its description, gated the way the PATCH is (the active project, the task's own
+  project, then `assertTaskWorkable` — an archived task stays deletable) so its
+  `TASK_FORBIDDEN` never leaks, `deleteTask`'s owner/admin rule surfaced as 403
+  `ROLE_FORBIDDEN`, and a contract bump.
 - **A webhook bind does not say whether the deployed `inputs` schema admits a delivery** — a
   `PUT …/triggers` of kind `webhook` answers `deployed`, and every delivery then dies on 400
   `AUTOMATION_INPUT_INVALID` when the version's `inputs` schema does not take

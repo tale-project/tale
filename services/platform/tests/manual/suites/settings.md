@@ -866,6 +866,19 @@ any toggled setting after the run.
   and stays **Default**. A sibling's **Actions** → **Make default**
   (`settings.credentials.makeDefault`) succeeds — the model now resolves
   the sibling — and C then disables and deletes.
+- [ ] `SET-B21` · **A custom provider's edit saves whole or not at all** —
+  With a custom provider holding two credentials A and B (`SET-F43`), open
+  A's **Edit credential** (`settings.credentials.edit`), change **Base URL**
+  (`settings.providers.custom.baseUrl`) and set **Provider name**
+  (`settings.providers.custom.nameLabel`) to B's name → **Save** → the dialog
+  keeps the form and shows the server's sentence (a credential named B
+  already exists), no toast; **Cancel**, reload → A's **Edit credential**
+  still shows the old **Base URL** and name. Then open A's **Edit credential**
+  in two tabs; in the second change **Base URL** and save; in the first
+  change only the name and save → the first dialog stays open and shows
+  `settings.providers.custom.errors.versionConflict`; reload the second
+  tab → its **Base URL** stands; reopen the first dialog → it shows that
+  **Base URL**, and the rename now saves.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -141,6 +141,7 @@ export async function checkTaskRunConnectorCaller(
         harness: 'claude-code',
         connectors: ['document'],
         tools: [],
+        imageGeneration: false,
         deadlineAt: Date.now() + 600_000,
         prepared: {
           tokenHash: sha256(token),

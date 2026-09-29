@@ -109,3 +109,47 @@ describe('provider_credentials/actions:updateCredential', () => {
     });
   });
 });
+
+/**
+ * The custom provider's edit goes out as ONE request — the credential's
+ * fields, its reviewed hash, and the definition with the hash its facts were
+ * read at — to a door that refuses any field it does not take.
+ */
+describe('provider_credentials/actions:updateCredentialWithDefinition', () => {
+  const adapter =
+    settingsWriteAdapters[
+      'provider_credentials/actions:updateCredentialWithDefinition'
+    ];
+
+  it('posts the fields and both versions to the combined door', async () => {
+    const fetchMock = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { ok: true }));
+    const definition = {
+      config: { name: 'gateway', displayName: 'Gateway A2' },
+      expectedHash: 'd'.repeat(64),
+    };
+    await adapter?.run(
+      {
+        credentialId: 'cred-5',
+        name: 'Gateway A2',
+        modelAllowlist: null,
+        endpointUrl: undefined,
+        expectedHash: 'c'.repeat(64),
+        definition,
+      },
+      { organizationId: 'org1' },
+    );
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      '/api/app/provider-credentials/cred-5/with-definition?orgId=org1',
+    );
+    expect(init?.method ?? 'POST').toBe('POST');
+    expect(jsonBody(init)).toEqual({
+      name: 'Gateway A2',
+      modelAllowlist: null,
+      expectedHash: 'c'.repeat(64),
+      definition,
+    });
+  });
+});

@@ -16,6 +16,13 @@ import {
   EDITOR_ROLES,
 } from '../../core/projects/access.ts';
 import {
+  canWorkTask,
+  TASK_ANCESTRY_DEPTH_MAX,
+  type TaskAccess,
+  taskAccessFrom,
+  type TaskOwnership,
+} from '../../core/tasks/access.ts';
+import {
   TASK_AUDIT_ACTIONS,
   TASK_RESOURCE_TYPE,
 } from '../../core/tasks/audit_actions.ts';
@@ -54,6 +61,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { cancelAgentRunInTx, kickAgentRun } from './agent-runs.ts';
+import { assertAutomationForTask } from './automation-access.ts';
 import { TaskError } from './errors.ts';
 import {
   assertTaskCanRepeat,
@@ -77,8 +85,11 @@ import { mentionAutomationEnabled } from './run-start.ts';
  * Tasks domain, Tier A — the task board core: CRUD, status choreography
  * (human semantics), polymorphic assignee, LexoRank ordering (rank module
  * reused), dependencies (DAG-guarded), label catalog, board views, activity
- * timeline, and the project rollup transitions. Access is INHERITED from the
- * parent project (reused matrix).
+ * timeline, and the project rollup transitions. Access starts from the
+ * parent project (reused matrix): its readers read, comment and create
+ * tasks, and each task is worked by the project's editors and by the reader
+ * whose own task it is (`core/tasks/access.ts`, enforced by
+ * {@link assertTaskCreatable} and {@link assertTaskWorkable}).
  *
  * Tier B lands with its infrastructure (ledger): discussion comments +
  * mentions (thread store), agent runs / review arc / status verbs that kick
@@ -234,10 +245,12 @@ export function assertTaskReadable(
   }
 }
 
-export function assertTaskWritable(
+/** The caller's task access in a project, archive left out: every door
+ * refuses an archived project with its own code. Throws the read refusal. */
+function readableTaskAccess(
   project: ProjectRow,
   auth: ProjectAuthContext,
-): void {
+): TaskAccess {
   assertTaskProjectSameOrg(project, auth);
   const access = checkProjectAccess(
     { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
@@ -247,28 +260,160 @@ export function assertTaskWritable(
   if (!access.canRead) {
     throw new TaskError('TASK_FORBIDDEN', 'No project access', 403);
   }
-  if (!access.canEdit) {
-    throw new TaskError('RBAC_FORBIDDEN', 'Editor role required', 403);
-  }
-  // Archived = read-only for the whole project, tasks included; the code
-  // the project's own writes answer, so the UI can say "restore it first".
+  return taskAccessFrom(access);
+}
+
+/** Archived = read-only for the whole project, tasks included; the code the
+ * project's own writes answer, so the UI can say "restore it first". */
+function assertTaskProjectActive(project: ProjectRow): void {
   if (project.archivedAt !== null) {
     throw new TaskError('PROJECT_ARCHIVED', 'Project is archived', 403);
   }
 }
 
-/** The board's `canEdit` flag: project edit access on an ACTIVE project. */
-function projectTasksEditable(
+/**
+ * The create gate: every member who can read the project may add a task to
+ * it while it is active (`core/tasks/access.ts`). A subtask is a change to
+ * its parent as well, so `createTask` also holds the parent to
+ * {@link assertTaskWorkable}.
+ */
+export function assertTaskCreatable(
   project: ProjectRow,
   auth: ProjectAuthContext,
-): boolean {
-  return (
+): void {
+  readableTaskAccess(project, auth);
+  assertTaskProjectActive(project);
+}
+
+/** What the work gate reads of a task: whose it is, and the parent it
+ * hangs under (the rule looks up the subtask tree for an owner). */
+export type WorkableTask = TaskOwnership & { parentTaskId?: string | null };
+
+/**
+ * The owners up a task's subtask tree, nearest parent first, as far as
+ * {@link TASK_ANCESTRY_DEPTH_MAX} — one bounded recursive read, taken only
+ * when the task itself does not settle the question.
+ */
+async function loadTaskAncestry(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  parentTaskId: string,
+): Promise<TaskOwnership[]> {
+  return sql<TaskOwnership[]>`
+    WITH RECURSIVE up AS (
+      SELECT id, parent_task_id, created_by, created_by_type, assignee_type,
+             assignee_id, 1 AS depth
+      FROM app.tasks
+      WHERE id = ${parentTaskId} AND org_id = ${organizationId}
+      UNION ALL
+      SELECT t.id, t.parent_task_id, t.created_by, t.created_by_type,
+             t.assignee_type, t.assignee_id, up.depth + 1
+      FROM app.tasks t JOIN up ON t.id = up.parent_task_id
+      WHERE t.org_id = ${organizationId}
+        AND up.depth < ${TASK_ANCESTRY_DEPTH_MAX}
+    )
+    SELECT created_by AS "createdBy", created_by_type AS "createdByType",
+           assignee_type AS "assigneeType", assignee_id AS "assigneeId"
+    FROM up
+    ORDER BY depth
+  `;
+}
+
+/** `canWorkTask` with the subtask tree read on demand: an editor, or the
+ * task itself, answers without a query. */
+async function mayWorkWithAccess(
+  sql: Sql | TransactionSql,
+  access: TaskAccess,
+  task: WorkableTask,
+  auth: ProjectAuthContext,
+): Promise<boolean> {
+  if (canWorkTask(access, task, auth.userId)) return true;
+  if (access.canEdit || !access.canCreate || task.parentTaskId == null) {
+    return false;
+  }
+  const ancestors = await loadTaskAncestry(
+    sql,
+    auth.organizationId,
+    task.parentTaskId,
+  );
+  return canWorkTask(access, task, auth.userId, ancestors);
+}
+
+/**
+ * The gate of every write on one task — its fields, assignee, status and
+ * review decision, runs, attachments, dependencies, archive: an editor of
+ * the project, or a reader whose own task it is (`canWorkTask`: they
+ * created it, it is assigned to them, or it hangs under such a task), on an
+ * active project. A reader on someone else's task keeps the read-level
+ * verbs: reading it and commenting.
+ */
+export async function assertTaskWorkable(
+  sql: Sql | TransactionSql,
+  project: ProjectRow,
+  task: WorkableTask,
+  auth: ProjectAuthContext,
+): Promise<void> {
+  const access = readableTaskAccess(project, auth);
+  if (!(await mayWorkWithAccess(sql, access, task, auth))) {
+    throw new TaskError(
+      'RBAC_FORBIDDEN',
+      'Only an editor, or the person who created the task or is assigned to it, may change it',
+      403,
+    );
+  }
+  assertTaskProjectActive(project);
+}
+
+/** {@link assertTaskWorkable} as an answer, for the lanes that downgrade
+ * instead of refusing (an @mention that stays a plain mention). */
+export async function mayWorkTask(
+  sql: Sql | TransactionSql,
+  project: ProjectRow,
+  task: WorkableTask,
+  auth: ProjectAuthContext,
+): Promise<boolean> {
+  if (project.organizationId !== auth.organizationId) return false;
+  return mayWorkWithAccess(sql, boardTaskAccess(project, auth), task, auth);
+}
+
+/**
+ * The label catalog's gate — creating, renaming, deleting and seeding a
+ * project's labels is project administration, an editor's (the Editor role
+ * or higher on an active project). Putting an existing label on a task is a
+ * change to that task, under {@link assertTaskWorkable}.
+ */
+export function assertTaskLabelsEditable(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): void {
+  const access = readableTaskAccess(project, auth);
+  if (!access.canEdit) {
+    throw new TaskError('RBAC_FORBIDDEN', 'Editor role required', 403);
+  }
+  assertTaskProjectActive(project);
+}
+
+/**
+ * The board's and the task sheet's access flags: the caller's task access
+ * on an ACTIVE project (both false on an archived one). The app decides
+ * each task with `canWorkTask` from these and the signed-in person.
+ */
+export function boardTaskAccess(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): TaskAccess {
+  const access = taskAccessFrom(
     checkProjectAccess(
       { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
       auth.teamIds,
       auth.role,
-    ).canEdit && project.archivedAt === null
+    ),
   );
+  const active = project.archivedAt === null;
+  return {
+    canEdit: access.canEdit && active,
+    canCreate: access.canCreate && active,
+  };
 }
 
 export function assertTaskNotArchived(task: Pick<TaskRow, 'archivedAt'>): void {
@@ -477,7 +622,7 @@ export async function createTaskLabel(
   args: { projectId: string; name: string },
 ): Promise<string> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertTaskWritable(project, auth);
+  assertTaskLabelsEditable(project, auth);
   const ids = await resolveProjectLabels(tx, {
     organizationId: auth.organizationId,
     projectId: args.projectId,
@@ -511,7 +656,7 @@ export async function renameTaskLabel(
     throw new TaskError('TASK_LABEL_UNKNOWN', 'Label not found', 404);
   }
   const project = await loadProjectOrThrow(tx, label.projectId);
-  assertTaskWritable(project, auth);
+  assertTaskLabelsEditable(project, auth);
   const normalized = normalizeLabelNames([args.name])?.[0];
   if (!normalized) {
     throw new TaskError('TASK_LABELS_INVALID', 'Invalid label name');
@@ -558,7 +703,7 @@ export async function deleteTaskLabel(
     throw new TaskError('TASK_LABEL_UNKNOWN', 'Label not found', 404);
   }
   const project = await loadProjectOrThrow(tx, label.projectId);
-  assertTaskWritable(project, auth);
+  assertTaskLabelsEditable(project, auth);
   if (args.detach !== true) {
     const inUse = await tx<{ id: string }[]>`
       SELECT id FROM app.tasks
@@ -1111,7 +1256,7 @@ export async function createTask(
   args: CreateTaskArgs,
 ): Promise<string> {
   const project = await loadProjectOrThrow(tx, args.projectId);
-  assertTaskWritable(project, auth);
+  assertTaskCreatable(project, auth);
 
   const title = validateTitle(args.title);
   const description = validateDescription(args.description);
@@ -1136,6 +1281,14 @@ export async function createTask(
     });
   }
   await assertAssigneeValid(tx, { project, auth, assignee });
+  if (assignee?.assigneeType === 'app') {
+    await assertAutomationForTask(tx, {
+      project,
+      auth,
+      task: null,
+      automation: assignee.assigneeId,
+    });
+  }
   const attachments =
     args.attachments !== undefined
       ? normalizeAttachments(args.attachments)
@@ -1155,6 +1308,9 @@ export async function createTask(
     if (parent.projectId !== args.projectId) {
       throw new TaskError('TASK_PARENT_PROJECT_MISMATCH', 'Parent mismatch');
     }
+    // A subtask changes its parent too — the parent cannot close while it
+    // is open — so it is added by whoever may work the parent.
+    await assertTaskWorkable(tx, project, parent, auth);
     if (parent.archivedAt !== null) {
       throw new TaskError('TASK_PARENT_ARCHIVED', 'Parent archived');
     }
@@ -1365,7 +1521,7 @@ export async function updateTask(
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
 
   const previousState: Record<string, unknown> = {};
@@ -1699,7 +1855,7 @@ export async function updateTaskStatus(
 ): Promise<TaskRepeatCopy | null> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
   if (task.status === status) {
     return null;
@@ -1853,6 +2009,9 @@ export async function agentCreateTaskTrusted(
     priority?: TaskPriority;
     labels?: string[];
     parentTaskId?: string;
+    /** `false` for a run a member started: it names only labels the
+     * catalog already has, which stays its editors' to grow. */
+    mintLabels?: boolean;
   },
 ): Promise<{ taskId: string }> {
   const project = await loadProjectOrThrow(tx, args.projectId);
@@ -1890,7 +2049,7 @@ export async function agentCreateTaskTrusted(
       projectId: args.projectId,
       names: args.labels,
       createdBy: args.actorId,
-      createIfMissing: true,
+      createIfMissing: args.mintLabels ?? true,
     })) ?? [];
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
@@ -2198,11 +2357,19 @@ export async function assignTask(
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
 
   const assignee = normalizeAssignee(args);
   await assertAssigneeValid(tx, { project, auth, assignee });
+  if (assignee?.assigneeType === 'app' && assigneeChanges(task, assignee)) {
+    await assertAutomationForTask(tx, {
+      project,
+      auth,
+      task,
+      automation: assignee.assigneeId,
+    });
+  }
   // A live run holds the task for its current worker: transferring it
   // mid-flight would leave the old agent driving (settle comments, the
   // in_review park) a card that now shows someone else's name, and "Run
@@ -2253,7 +2420,7 @@ export async function moveTask(
 ): Promise<TaskRepeatCopy | null> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
 
   const statusChanges = task.status !== args.status;
@@ -2340,7 +2507,7 @@ export async function archiveTask(
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   if (task.archivedAt !== null) {
     return;
   }
@@ -2371,7 +2538,7 @@ export async function restoreTask(
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   if (task.archivedAt === null) {
     return;
   }
@@ -2405,6 +2572,11 @@ export async function restoreTask(
  * shared retirement walk (`retire.ts` `retireTasksInTx`), which the project
  * door runs over ITS tasks too. This door adds the project rollup
  * transitions (the project survives its task) and the audit row.
+ *
+ * Working a task is not enough to delete it, even for the person who created
+ * it: the subtree, its discussion and its files can hold other people's
+ * work, which archiving keeps and a delete does not. Editors and a task's
+ * own creator or assignee archive; owners and admins delete.
  */
 export async function deleteTask(
   tx: TransactionSql,
@@ -2413,7 +2585,7 @@ export async function deleteTask(
 ): Promise<{ deletedChildCount: number }> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   if (!['owner', 'admin'].includes(auth.role)) {
     throw new TaskError('ROLE_FORBIDDEN', 'Admin role required', 403);
   }
@@ -2534,7 +2706,9 @@ export async function addTaskDependency(
     );
   }
   const project = await loadProjectOrThrow(tx, blocker.projectId);
-  assertTaskWritable(project, auth);
+  // "Blocked by" is the blocked task's own record — its activity line and
+  // its Blocked chip — so the edge is a change to that task.
+  await assertTaskWorkable(tx, project, blocked, auth);
 
   // Adding blocker→blocked creates a cycle iff blocker is reachable FROM
   // blocked already.
@@ -2587,7 +2761,8 @@ export async function removeTaskDependency(
     auth.organizationId,
   );
   const project = await loadProjectOrThrow(tx, blocked.projectId);
-  assertTaskWritable(project, auth);
+  // The edge is the blocked task's record, as when it was added.
+  await assertTaskWorkable(tx, project, blocked, auth);
   const deleted = await tx`
     DELETE FROM app.task_dependencies
     WHERE blocker_task_id = ${args.blockerTaskId}
@@ -2770,14 +2945,15 @@ export async function listTasksByProject(
   auth: ProjectAuthContext,
   projectId: string,
   filters: TaskListFilters = {},
-): Promise<{
-  tasks: DecoratedTaskRow[];
-  truncated: boolean;
-  canEdit: boolean;
-}> {
+): Promise<
+  {
+    tasks: DecoratedTaskRow[];
+    truncated: boolean;
+  } & TaskAccess
+> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertTaskReadable(project, auth);
-  const canEdit = projectTasksEditable(project, auth);
+  const access = boardTaskAccess(project, auth);
   const rows = await sql<TaskRow[]>`
     SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
     WHERE project_id = ${projectId}
@@ -2790,7 +2966,7 @@ export async function listTasksByProject(
   return {
     tasks: await decorateProjectPage(sql, auth.organizationId, projectId, page),
     truncated,
-    canEdit,
+    ...access,
   };
 }
 
@@ -2841,22 +3017,28 @@ export async function listTasksForAgent(
  * All-projects board: every task in projects the caller can read (newest
  * activity first, then re-grouped (status, rank) — the 0.4 walk), each row
  * stamped with its project's key so cards can render `KEY-123` without a
- * second lookup. `canEdit` is role-level (editor+), the per-write gates stay
- * server-side.
+ * second lookup. The access flags are role-level — an editor role edits
+ * every project it can read, and every member creates in them and works
+ * their own tasks (the list holds active projects only); the per-write
+ * gates stay server-side.
  */
 export async function listTasksForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
   filters: TaskListFilters = {},
-): Promise<{
-  tasks: DecoratedTaskRow[];
-  truncated: boolean;
-  canEdit: boolean;
-}> {
+): Promise<
+  {
+    tasks: DecoratedTaskRow[];
+    truncated: boolean;
+  } & TaskAccess
+> {
   const projects = await listProjects(sql, auth);
-  const canEdit = EDITOR_ROLES.has(auth.role);
+  const access: TaskAccess = {
+    canEdit: EDITOR_ROLES.has(auth.role),
+    canCreate: auth.role !== 'disabled',
+  };
   if (projects.length === 0) {
-    return { tasks: [], truncated: false, canEdit };
+    return { tasks: [], truncated: false, ...access };
   }
   const projectKeys = new Map(
     projects.map((project) => [project.id, project.key]),
@@ -2908,7 +3090,7 @@ export async function listTasksForAccessibleProjects(
         : decorated;
     }),
     truncated,
-    canEdit,
+    ...access,
   };
 }
 
@@ -2916,15 +3098,23 @@ export async function getTask(
   sql: Sql,
   auth: ProjectAuthContext,
   taskId: string,
-): Promise<{
-  task: DecoratedTaskRow;
-  canEdit: boolean;
-  canComment: boolean;
-}> {
+): Promise<
+  {
+    task: DecoratedTaskRow;
+    canComment: boolean;
+    /** The owners up the task's subtask tree, nearest parent first — the
+     * sheet decides with them whether the viewer may work a subtask. */
+    ancestors: TaskOwnership[];
+  } & TaskAccess
+> {
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
-  const canEdit = projectTasksEditable(project, auth);
+  const access = boardTaskAccess(project, auth);
+  const ancestors =
+    task.parentTaskId === null
+      ? []
+      : await loadTaskAncestry(sql, auth.organizationId, task.parentTaskId);
   const [decorated] = await decorateProjectPage(
     sql,
     auth.organizationId,
@@ -2936,10 +3126,11 @@ export async function getTask(
   }
   return {
     task: decorated,
-    canEdit,
+    ...access,
     // Reaching here means the caller passed the project read gate — exactly
     // the requirement to comment (a READ-level action, the 0.4 posture).
     canComment: true,
+    ancestors,
   };
 }
 
@@ -3146,13 +3337,18 @@ export async function searchTasks(
 export interface MentionTriggerPreviewRow {
   slug: string;
   willTrigger: boolean;
-  reason: 'ok' | 'pack_disabled' | 'breaker_paused';
+  reason: 'ok' | 'pack_disabled' | 'breaker_paused' | 'not_permitted';
 }
 
 /**
  * Per mentioned agent slug: would saving put it to work — and if not, why.
  * The 0.4 gate set minus the run-breaker leg (`breaker_paused` stays in the
- * union for shape stability; the pg task row has no pause bookkeeping yet).
+ * union for shape stability; the pg task row has no pause bookkeeping yet),
+ * plus the dispatcher's own work gate: on a task the viewer may not work,
+ * the mention stays a plain one (`not_permitted`) — except for the agent
+ * whose live run the viewer started, which their comment still steers. A
+ * new task's description (a project target) is its creator's, who may work
+ * it.
  */
 export async function mentionTriggerPreview(
   sql: Sql,
@@ -3163,8 +3359,9 @@ export async function mentionTriggerPreview(
   if (slugs.length === 0) return [];
 
   let project: ProjectRow;
+  let task: TaskRow | undefined;
   if (args.taskId !== undefined) {
-    const task = await loadTaskOrThrow(sql, args.taskId, auth.organizationId);
+    task = await loadTaskOrThrow(sql, args.taskId, auth.organizationId);
     project = await loadProjectOrThrow(sql, task.projectId);
   } else if (args.projectId !== undefined) {
     project = await loadProjectOrThrow(sql, args.projectId);
@@ -3172,6 +3369,17 @@ export async function mentionTriggerPreview(
     throw new TaskError('INVALID_ARGUMENTS', 'taskId or projectId required');
   }
   assertTaskReadable(project, auth);
+  // On a task the viewer may not work, only the agent whose running run
+  // they started would hear them (a steer); every other mention stays plain.
+  let steerableAgentId: string | undefined;
+  const restricted =
+    task !== undefined && !(await mayWorkTask(sql, project, task, auth));
+  if (task !== undefined && restricted) {
+    const live = await liveAgentRunOfTask(sql, task.id);
+    if (live?.status === 'running' && live.startedBy === auth.userId) {
+      steerableAgentId = live.agentId;
+    }
+  }
 
   const automationPolicy = await readGovernancePolicyForOrg(
     sql,
@@ -3181,11 +3389,34 @@ export async function mentionTriggerPreview(
   const packEnabled = automationPolicy?.enabled !== false;
 
   return slugs.map((slug) => {
+    if (restricted && slug !== steerableAgentId) {
+      return { slug, willTrigger: false, reason: 'not_permitted' as const };
+    }
     if (!packEnabled) {
       return { slug, willTrigger: false, reason: 'pack_disabled' as const };
     }
     return { slug, willTrigger: true, reason: 'ok' as const };
   });
+}
+
+/** The task's live agent run (queued or running), with its starter — the
+ * person who may stop and steer it even once the task is no longer theirs. */
+export async function liveAgentRunOfTask(
+  sql: Sql | TransactionSql,
+  taskId: string,
+): Promise<
+  { id: string; agentId: string; status: string; startedBy: string } | undefined
+> {
+  const rows = await sql<
+    { id: string; agentId: string; status: string; startedBy: string }[]
+  >`
+    SELECT id, agent_id AS "agentId", status, started_by AS "startedBy"
+    FROM app.project_agent_runs
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+    ORDER BY started_at_ms DESC
+    LIMIT 1
+  `;
+  return rows[0];
 }
 
 /** Whether any run family holds this task live (agent turn or automation). */
@@ -3310,9 +3541,13 @@ async function fanOutDescriptionMentions(
  *   which does not re-read the brief, is handed that current text).
  *
  * Every refusal is quiet — the text is saved and its humans are notified
- * either way. The gate is WRITE access: commenting is read-level, but
- * assigning and running are edits, so a read-only member's `@` stays a plain
- * mention. Only a HUMAN's text dispatches — an agent's own comment naming
+ * either way. The gate is the task's work gate ({@link mayWorkTask}):
+ * commenting is read-level, but assigning and running are changes to the
+ * task, so the `@` of someone who may not work it — a member on another
+ * person's task — stays a plain mention. The one exception is the live
+ * run's own starter, who may steer it even once the task is no longer
+ * theirs (handing an assigned task to an agent makes the agent its
+ * assignee). Only a HUMAN's text dispatches — an agent's own comment naming
  * itself would loop.
  */
 export async function dispatchMentionedProjectAgent(
@@ -3336,14 +3571,7 @@ export async function dispatchMentionedProjectAgent(
   );
   if (mentionedAgentIds.size === 0) return;
   if (args.task.archivedAt !== null) return;
-  try {
-    assertTaskWritable(args.project, args.auth);
-  } catch {
-    console.warn(
-      `[tasks] agent mention on ${args.task.id} stays a plain mention (author lacks write access)`,
-    );
-    return;
-  }
+  const mayWork = await mayWorkTask(tx, args.project, args.task, args.auth);
 
   const runs = await tx<
     {
@@ -3356,12 +3584,14 @@ export async function dispatchMentionedProjectAgent(
       model: string;
       modelProvider: string | null;
       deadlineAt: number;
+      startedBy: string;
     }[]
   >`
     SELECT id, agent_id AS "agentId", status, exec_id AS "execId",
            session_id AS "sessionId", harness, model,
            model_provider AS "modelProvider",
-           deadline_at_ms::float8 AS "deadlineAt"
+           deadline_at_ms::float8 AS "deadlineAt",
+           started_by AS "startedBy"
     FROM app.project_agent_runs
     WHERE task_id = ${args.task.id} AND org_id = ${args.auth.organizationId}
       AND status IN ('queued', 'running')
@@ -3373,6 +3603,13 @@ export async function dispatchMentionedProjectAgent(
     // write commits); a live run of an UNMENTIONED instance is never
     // preempted or reassigned over.
     if (run.status !== 'running' || !mentionedAgentIds.has(run.agentId)) {
+      return;
+    }
+    // Steering is the work gate's, and the run's own starter's.
+    if (!mayWork && run.startedBy !== args.auth.userId) {
+      console.warn(
+        `[tasks] agent mention on ${args.task.id} stays a plain mention (the author may not work this task)`,
+      );
       return;
     }
     const agents = await tx<
@@ -3424,6 +3661,13 @@ export async function dispatchMentionedProjectAgent(
       authorId: args.authorId,
       attempt: 0,
     });
+    return;
+  }
+
+  if (!mayWork) {
+    console.warn(
+      `[tasks] agent mention on ${args.task.id} stays a plain mention (the author may not work this task)`,
+    );
     return;
   }
 
@@ -3521,7 +3765,7 @@ export async function startTaskAgentRunManual(
 ): Promise<{ started: boolean; reason?: string }> {
   const task = await loadTaskOrThrow(tx, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  await assertTaskWorkable(tx, project, task, auth);
   assertTaskNotArchived(task);
   if (task.assigneeType !== 'agent' || task.assigneeId === null) {
     return { started: false, reason: 'no_agent_assignee' };

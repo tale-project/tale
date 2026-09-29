@@ -106,6 +106,15 @@ export function useConversationSelection(conversations: ConversationItem[]) {
     setSelectionState({ type: 'individual', selectedIds: new Set() });
   }, []);
 
+  /** Keep exactly these conversations selected — what a bulk verb could not
+   * change, so trying again reaches only them. */
+  const selectOnly = useCallback((conversationIds: Iterable<string>) => {
+    setSelectionState({
+      type: 'individual',
+      selectedIds: new Set(conversationIds),
+    });
+  }, []);
+
   return {
     selectionState,
     handleConversationCheck,
@@ -115,5 +124,6 @@ export function useConversationSelection(conversations: ConversationItem[]) {
     selectedCount,
     hasSelectedItems,
     clearSelection,
+    selectOnly,
   };
 }

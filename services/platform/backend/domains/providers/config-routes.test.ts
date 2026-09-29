@@ -300,6 +300,45 @@ describe('native custom provider definition HTTP door', () => {
     expect((await remove()).status).toBe(404);
   });
 
+  it('gives an organization-defined provider the hash of the file its listed facts come from', async () => {
+    catalog.mockResolvedValue([]);
+    const listed = async () =>
+      (
+        (await (await app().request('/catalogs?orgId=org-a')).json()) as {
+          catalogs: Array<{
+            name: string;
+            baseUrl?: string;
+            definitionHash?: string;
+          }>;
+        }
+      ).catalogs;
+    const read = async () =>
+      (await (
+        await app().request(`/definitions/local-chat?orgId=org-a`)
+      ).json()) as { hash: string };
+    expect((await put({ config: definition, expectedHash: null })).status).toBe(
+      200,
+    );
+    const first = (await listed()).find((entry) => entry.name === 'local-chat');
+    expect(first?.definitionHash).toBe((await read()).hash);
+    // A shipped provider has no file of the organization's to name.
+    expect(
+      (await listed()).find((entry) => entry.name === 'openai'),
+    ).not.toHaveProperty('definitionHash');
+
+    const moved = await put({
+      config: { ...definition, baseUrl: 'https://models.example.test/v2' },
+      expectedHash: first?.definitionHash,
+    });
+    expect(moved.status).toBe(200);
+    const second = (await listed()).find(
+      (entry) => entry.name === 'local-chat',
+    );
+    expect(second?.baseUrl).toBe('https://models.example.test/v2');
+    expect(second?.definitionHash).toBe((await read()).hash);
+    expect(second?.definitionHash).not.toBe(first?.definitionHash);
+  });
+
   it('marks organization-defined providers in the catalog listing', async () => {
     catalog.mockResolvedValue([]);
     expect((await put({ config: definition, expectedHash: null })).status).toBe(

@@ -171,6 +171,68 @@ describe('native configuration declaration', () => {
     ).toBe(false);
   });
 
+  test('accepts image generation off or automatic and validates a pinned image model', () => {
+    const declaration = (
+      apiFormat = 'openai',
+      tags = ['image-generation'],
+      modelId = 'example-image',
+    ) => ({
+      schemaVersion: 1,
+      resources: [
+        {
+          kind: 'provider',
+          config: {
+            name: 'example-images',
+            displayName: 'Example images',
+            apiFormat,
+            baseUrl: 'https://images.example.invalid/v1',
+            catalog: { source: 'models-endpoint' },
+            auth: [{ method: 'api-key' }],
+          },
+          expectedModels: [
+            {
+              id: 'example-image',
+              provider: 'example-images',
+              tags,
+              supportsTools: false,
+              supportsVision: true,
+              outputsMedia: true,
+              contextWindow: 32_000,
+            },
+          ],
+        },
+        {
+          kind: 'governance',
+          key: 'image_generation',
+          config: { enabled: true, providerSlug: 'example-images', modelId },
+        },
+      ],
+    });
+    for (const config of [{ enabled: false }, { enabled: true }]) {
+      expect(
+        platformConfigurationSchema.safeParse({
+          schemaVersion: 1,
+          resources: [{ kind: 'governance', key: 'image_generation', config }],
+        }).success,
+      ).toBe(true);
+    }
+    expect(platformConfigurationSchema.safeParse(declaration()).success).toBe(
+      true,
+    );
+    expect(
+      platformConfigurationSchema.safeParse(declaration('anthropic')).success,
+    ).toBe(false);
+    expect(
+      platformConfigurationSchema.safeParse(declaration('openai', ['chat']))
+        .success,
+    ).toBe(false);
+    expect(
+      platformConfigurationSchema.safeParse(
+        declaration('openai', ['image-generation'], 'missing'),
+      ).success,
+    ).toBe(false);
+  });
+
   test('rejects raw credential secrets and unrelated environment variables', () => {
     for (const changes of [
       { secret: 'must-never-appear' },

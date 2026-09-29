@@ -71,7 +71,8 @@ export interface UseInboxListOptions {
   onAssigneeFilterChange?: (values: string[]) => void;
   /** Server-side provider filter; the control renders only with options. */
   channelFilter?: ChannelFilter;
-  /** After a bulk verb lands (selection is cleared by then). */
+  /** After a bulk verb lands (the selection holds only what it could not
+   * change by then — usually nothing). */
   onBulkComplete?: () => void;
 }
 
@@ -287,12 +288,18 @@ export function useInboxList({
   ]);
 
   const selection = useConversationSelection(filteredConversations);
-  const { clearSelection } = selection;
+  const { clearSelection, selectOnly } = selection;
 
-  const handleBulkComplete = useCallback(() => {
-    clearSelection();
-    onBulkComplete?.();
-  }, [clearSelection, onBulkComplete]);
+  // What a refused batch named stays selected, so the verb can be retried
+  // on exactly those; everything else the verb reached leaves the selection.
+  const handleBulkComplete = useCallback(
+    (unsettledIds: readonly string[]) => {
+      if (unsettledIds.length === 0) clearSelection();
+      else selectOnly(unsettledIds);
+      onBulkComplete?.();
+    },
+    [clearSelection, selectOnly, onBulkComplete],
+  );
 
   const bulk = useBulkActions({
     organizationId,

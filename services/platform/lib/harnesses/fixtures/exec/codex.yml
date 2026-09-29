@@ -352,6 +352,8 @@ managed-mcp-headless-bridge:
     - mcp_servers.connectors.command="tale-connectors-mcp"
     - -c
     - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
+    - -c
+    - mcp_servers.connectors.tool_timeout_sec=330
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -389,6 +391,8 @@ managed-mcp-bridge-only:
     - mcp_servers.connectors.command="tale-connectors-mcp"
     - -c
     - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
+    - -c
+    - mcp_servers.connectors.tool_timeout_sec=330
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
@@ -535,6 +539,8 @@ managed-kitchen-sink:
     - mcp_servers.connectors.command="tale-connectors-mcp"
     - -c
     - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
+    - -c
+    - mcp_servers.connectors.tool_timeout_sec=330
     - -m
     - claude-opus-4-6
     - '-'

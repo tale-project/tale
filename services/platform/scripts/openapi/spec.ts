@@ -3864,7 +3864,11 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Create a project task from an external ref (idempotent)',
       description:
-        'Uses the project in the URL and requires project write access. The first ' +
+        'Uses the project in the URL. Every member who can read an active project ' +
+        'may create a task through it, Members included; a repeat changes the task ' +
+        'it names, so it takes that task’s work gate — an editor of the project ' +
+        '(the Editor role or higher), or the member who created the task or is its ' +
+        'person assignee (403 `RBAC_FORBIDDEN` otherwise, nothing written). The first ' +
         '`(project, externalSystem, externalId)` intake creates a task (201); a repeat ' +
         'returns the same task (200) — both keys are compared after NFC normalization ' +
         'and trimming, the form they are stored in, so a padded or differently ' +
@@ -3875,7 +3879,11 @@ export function buildSpec(): Json {
         'name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed ' +
         'version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 ' +
         '`AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee ' +
-        'without replacing an existing one. `runWorkflowSlug` starts only a freshly created ' +
+        'without replacing an existing one. A member who is not an editor of the project ' +
+        'may name, in `automationSlug` and `runWorkflowSlug`, only an automation built for ' +
+        'tasks (one whose deployed version declares a task contract) or the automation ' +
+        'that already owns the task — 403 `RBAC_FORBIDDEN` otherwise, nothing written. ' +
+        '`runWorkflowSlug` starts only a freshly created ' +
         'task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` ' +
         'carries the same value and is deprecated). An undeployed ' +
         'workflow or a start failure after the task committed returns `runId` null. ' +
@@ -3933,7 +3941,10 @@ export function buildSpec(): Json {
             maxItems: 50,
             description:
               'Names resolved against the project label catalog (created ' +
-              'when missing); trimmed and NFC-normalized, never blank, ' +
+              'when missing for an editor of the project; any other key ' +
+              'holder names labels the catalog has — 400 ' +
+              '`TASK_LABEL_UNKNOWN` otherwise, nothing written); trimmed and ' +
+              'NFC-normalized, never blank, ' +
               'matched without regard to case — the catalog keeps the ' +
               'spelling a label was first created with, and two names ' +
               'differing only in case are one label. Read back as stored, ' +
@@ -4003,7 +4014,7 @@ export function buildSpec(): Json {
           ref('TaskUpsertResult'),
         ),
         '403': errorResponse(
-          'Project is read-only or archived, or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`)',
+          'Project is archived (`PROJECT_ARCHIVED`), a repeat names a task the key holder may not change, or a member names an automation not built for tasks (`RBAC_FORBIDDEN`), or the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`)',
         ),
         '404': errorResponse(
           'Project missing or invisible (`PROJECT_NOT_FOUND`), or `automationSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',
@@ -4015,7 +4026,7 @@ export function buildSpec(): Json {
         // Richer than the standard 400: the Setup-folder binding's own
         // refusal lands here too, with its code.
         '400': errorResponse(
-          'Malformed body (`INVALID_BODY` — `setupFolderName` beside `externalUrl` included), or `setupFolderName` names no root folder of this project (`SETUP_FOLDER_MISSING`)',
+          'Malformed body (`INVALID_BODY` — `setupFolderName` beside `externalUrl` included), `setupFolderName` names no root folder of this project (`SETUP_FOLDER_MISSING`), or a key holder who is not the project’s editor names a label its catalog lacks (`TASK_LABEL_UNKNOWN`)',
         ),
       },
     },
@@ -4043,7 +4054,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Archive or restore a project task',
       description:
-        'The task’s lifecycle toggle — the one verb the board had and this door did not. `archived: true` archives the task: it stays readable through this door and refuses comments and starts with 403 `TASK_ARCHIVED`; `false` restores it. Both are idempotent — a task already in the requested state is left unchanged — so a mirror that supersedes a task (a re-delivery that opened a new one, a cancelled source record) can retire the old one without reading it first. Requires write access to an ACTIVE project (403 `PROJECT_ARCHIVED` / `RBAC_FORBIDDEN` otherwise); the task itself may be archived, which is what the restore is for. The task must belong to the URL project (404 `TASK_NOT_FOUND`). Answers the task as it now stands.',
+        'The task’s lifecycle toggle — the one verb the board had and this door did not. `archived: true` archives the task: it stays readable through this door and refuses comments and starts with 403 `TASK_ARCHIVED`; `false` restores it. Both are idempotent — a task already in the requested state is left unchanged — so a mirror that supersedes a task (a re-delivery that opened a new one, a cancelled source record) can retire the old one without reading it first. Requires an ACTIVE project and the task’s work gate — an editor of the project, or the member who created the task or is its person assignee (403 `PROJECT_ARCHIVED` / `RBAC_FORBIDDEN` otherwise); the task itself may be archived, which is what the restore is for. The task must belong to the URL project (404 `TASK_NOT_FOUND`). Answers the task as it now stands.',
       operationId: 'setTaskArchived',
       security: sec,
       parameters: taskParameters,
@@ -4065,7 +4076,7 @@ export function buildSpec(): Json {
           properties: { task: ref('Task') },
         }),
         '403': errorResponse(
-          'Project is read-only for the key holder (`RBAC_FORBIDDEN`) or archived (`PROJECT_ARCHIVED`)',
+          'The key holder may not change this task (`RBAC_FORBIDDEN`), or the project is archived (`PROJECT_ARCHIVED`)',
         ),
         '404': taskNotFound,
         ...standardErrors,
@@ -4187,7 +4198,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Start a deployed workflow on a project task',
       description:
-        'Requires write access to an active project and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED` (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A task carries at most one live run across agents and automations: a live automation run is reused; a live project-agent run refuses the start with 409 `TASK_HAS_LIVE_RUN` until it finishes or is cancelled. New work also requires task automation to be enabled: 403 `TASK_AUTOMATION_DISABLED` when off, 409 `TASK_AUTOMATION_UNAVAILABLE` when its policy cannot be read. Existing runs continue. After those guards the answer is 200 — branch on `started`, never on the status alone: `reason: "already_running"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: "not_started"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
+        'Requires the task’s work gate — an editor of the project, or the member who created the task or is its person assignee (403 `RBAC_FORBIDDEN` otherwise) — on an active project, and an active task belonging to it (an archived task answers 403 `TASK_ARCHIVED`). Runs the deployed workflow with this task as its input, attributed to the URL project and api-key:<userId>. `workflowSlug` must name an automation that exists — 404 `AUTOMATION_NOT_FOUND` otherwise — with a deployed version: one saved but not deployed answers 409 `AUTOMATION_NOT_DEPLOYED` (the two refusals `POST …/tasks` gives an `automationSlug`), judged before the execute budget is charged. An organization automation can operate in the project; a project-bound automation must include this project (403 `AUTOMATION_PROJECT_FORBIDDEN` otherwise). A member who is not an editor of the project starts only an automation built for tasks (its deployed version declares a task contract) or the automation that owns the task — 403 `RBAC_FORBIDDEN` otherwise, also judged before the execute budget is charged. A task carries at most one live run across agents and automations: a live automation run is reused; a live project-agent run refuses the start with 409 `TASK_HAS_LIVE_RUN` until it finishes or is cancelled. New work also requires task automation to be enabled: 403 `TASK_AUTOMATION_DISABLED` when off, 409 `TASK_AUTOMATION_UNAVAILABLE` when its policy cannot be read. Existing runs continue. After those guards the answer is 200 — branch on `started`, never on the status alone: `reason: "already_running"` carries the in-flight run — read its `name` at GET /api/v1/projects/{id}/runs/{runId} to learn which automation holds the task — and `reason: "not_started"` with a null `runId` is the residual case of a deployment withdrawn between the check and the start; other refusals return their error status. Poll `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). Charges the execute bucket on top of the general REST bucket.',
       operationId: 'startTaskWorkflow',
       security: sec,
       parameters: taskParameters,
@@ -4233,7 +4244,7 @@ export function buildSpec(): Json {
           },
         }),
         '403': errorResponse(
-          'Project is read-only or archived, the task is archived ' +
+          'The key holder may not change this task, or is a member naming an automation not built for tasks (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived ' +
             '(`TASK_ARCHIVED`), the automation is bound to other projects (`AUTOMATION_PROJECT_FORBIDDEN`), or task automation is off (`TASK_AUTOMATION_DISABLED`)',
         ),
         '404': errorResponse(
@@ -4295,7 +4306,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Decide a task’s review for a member',
       description:
-        'Requires write access to an active project and a task in `in_review` (409 `TASK_NOT_IN_REVIEW` otherwise). The decision is a person’s own gesture relayed from another application, so `actor` is required and the caller needs `capabilities.actAs` from `/me` (403 `ROLE_FORBIDDEN` without it); the member is resolved by verified e-mail (see `Actor`) and it is THEIR project access and the organization’s `review_policy` that decide, exactly as on the board — 403 `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them. `approve` is the move to Done: the pending review is recorded as approved by the member and audited, and the task’s status becomes `done` (a task with open subtasks answers 409 `TASK_HAS_OPEN_SUBTASKS`). `request_changes` withdraws the review, puts the member’s `comment` on the timeline and starts `workflowSlug` again on the task — the workflow reads the comment as operator feedback — so both fields are required for it; the task’s status becomes `in_progress` and the answer carries the run to poll (`started: false` with `reason` semantics as on `…/start`: a live run is reused). Charges the execute bucket on top of the general REST bucket.',
+        'Requires an active project, the task’s work gate for the key holder and a task in `in_review` (409 `TASK_NOT_IN_REVIEW` otherwise). The decision is a person’s own gesture relayed from another application, so `actor` is required and the caller needs `capabilities.actAs` from `/me` (403 `ROLE_FORBIDDEN` without it); the member is resolved by verified e-mail (see `Actor`) and it is THEIR access and the organization’s `review_policy` that decide, exactly as on the board: an editor of the project decides any task’s review, any other member only one of a task they created or are the person assignee of — 403 `REVIEW_INDEPENDENT_REVIEWER_REQUIRED` or `REVIEW_COMPETENCE_REQUIRED` when the policy refuses them. `approve` is the move to Done: the pending review is recorded as approved by the member and audited, and the task’s status becomes `done` (a task with open subtasks answers 409 `TASK_HAS_OPEN_SUBTASKS`). `request_changes` withdraws the review, puts the member’s `comment` on the timeline and starts `workflowSlug` again on the task — the workflow reads the comment as operator feedback — so both fields are required for it, and a member who is not an editor may name only an automation built for tasks or the one that owns the task (403 `RBAC_FORBIDDEN`); the task’s status becomes `in_progress` and the answer carries the run to poll (`started: false` with `reason` semantics as on `…/start`: a live run is reused). Charges the execute bucket on top of the general REST bucket.',
       operationId: 'decideTaskReview',
       security: sec,
       parameters: taskParameters,
@@ -4370,7 +4381,7 @@ export function buildSpec(): Json {
           },
         }),
         '403': errorResponse(
-          'Project is read-only or archived, the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not write this task (`ACTOR_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`)',
+          'The key holder may not change this task (`RBAC_FORBIDDEN`), the project is archived (`PROJECT_ARCHIVED`), the task is archived (`TASK_ARCHIVED`), an `actor` sent without `capabilities.actAs` (`ROLE_FORBIDDEN`), an actor whose e-mail is unverified (`ACTOR_UNVERIFIED`), whose membership is disabled (`ACTOR_DISABLED`) or who may not change this task (`ACTOR_FORBIDDEN`), a member requesting changes through an automation not built for tasks (`RBAC_FORBIDDEN`), or a member the review policy refuses (`REVIEW_INDEPENDENT_REVIEWER_REQUIRED`, `REVIEW_COMPETENCE_REQUIRED`)',
         ),
         '404': errorResponse(
           'The project is missing or invisible (`PROJECT_NOT_FOUND`), the task is missing or outside this project (`TASK_NOT_FOUND`), no member carries the actor’s e-mail (`ACTOR_NOT_FOUND`), or `workflowSlug` names an automation nobody saved (`AUTOMATION_NOT_FOUND`)',

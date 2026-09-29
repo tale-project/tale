@@ -223,6 +223,15 @@ export interface UpsertTaskByExternalRefArgs {
   dedupeScope?: 'org' | 'project';
   /** `false` = update-only reconcile — never materializes a missing task. */
   createIfMissing?: boolean;
+  /** `false` = `labels` must already be in the project's catalog (400
+   * `TASK_LABEL_UNKNOWN` otherwise): the intake of a person who may not
+   * administer the catalog — a member who is not the project's editor.
+   * Default `true`: an import, an agent or a workflow mints what it names. */
+  mintLabels?: boolean;
+  /** Asked before the upsert changes a task that already exists (the
+   * reconcile), and throws to refuse it: a sync a person drives changes
+   * only the tasks that person may work. */
+  authorizeReconcile?: (task: TaskRow) => Promise<void>;
 }
 
 /** What {@link upsertTaskByExternalRef} answers. */
@@ -416,7 +425,7 @@ export async function upsertTaskByExternalRef(
             projectId: existing.projectId,
             names: args.labels,
             createdBy: args.actorId,
-            createIfMissing: true,
+            createIfMissing: args.mintLabels ?? true,
           })) ?? [])
         : existing.labelIds;
 
@@ -569,6 +578,7 @@ export async function upsertTaskByExternalRef(
 
   const existing = await findExisting();
   if (existing) {
+    await args.authorizeReconcile?.(existing);
     return {
       taskId: existing.id,
       created: false,
@@ -621,7 +631,7 @@ export async function upsertTaskByExternalRef(
       projectId,
       names: args.labels,
       createdBy: args.actorId,
-      createIfMissing: true,
+      createIfMissing: args.mintLabels ?? true,
     })) ?? [];
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.tasks (
@@ -666,6 +676,7 @@ export async function upsertTaskByExternalRef(
       }
       throw new Error('TASK_CREATE_FAILED: the insert answered no row');
     }
+    await args.authorizeReconcile?.(winner);
     return {
       taskId: winner.id,
       created: false,

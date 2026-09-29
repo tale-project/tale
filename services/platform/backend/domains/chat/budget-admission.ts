@@ -6,6 +6,7 @@ import {
   findBudgetViolation,
   loadBudgetSubject,
 } from '../governance/budget-gate.ts';
+import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
 import {
   lockBudgetAdmission,
   readInFlightReservations,
@@ -43,25 +44,6 @@ export class ChatBudgetExceededError extends AppError<ChatBudgetRefusal> {
     super(refusal);
     this.name = 'ChatBudgetExceededError';
   }
-}
-
-const BUCKET_OWNER: Record<BudgetViolation['scope'], string> = {
-  user: 'Your',
-  team: "Your team's",
-  org: "The organization's",
-  apiKey: "This API key's",
-};
-
-const CAP_NAME: Record<BudgetViolation['code'], string> = {
-  TOKEN_LIMIT: 'token',
-  COST_LIMIT: 'cost',
-  REQUEST_LIMIT: 'request',
-};
-
-/** The sentence a refused sender reads — it starts with "Usage limit
- * reached" so a client that only has the text still recognises it. */
-function budgetRefusalMessage(violation: BudgetViolation): string {
-  return `Usage limit reached. ${BUCKET_OWNER[violation.scope]} ${violation.period} ${CAP_NAME[violation.code]} limit is used up until ${new Date(violation.resetsAt).toISOString()}.`;
 }
 
 function toChatBudgetRefusal(violation: BudgetViolation): ChatBudgetRefusal {

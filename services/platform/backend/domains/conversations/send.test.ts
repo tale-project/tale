@@ -1013,3 +1013,92 @@ describe('runSendMessageJob — the credential', () => {
     );
   });
 });
+
+/**
+ * A send and a recalled send rewrite the conversation's summary from a read
+ * of the row, so they read it `FOR UPDATE` in the transaction that writes it
+ * back — the rule in `service.ts`'s module doc. Unlocked, a reply beside an
+ * inbound message wrote back the unread count it had read (#3735).
+ */
+describe('the send lane rewrites the summary from a locked read', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const actor = { userId: 'u1' };
+  const LOAD = 'FROM app.conversation_messages WHERE id = ? LIMIT 1';
+
+  function lockedReadBeforeUpdate(statements: Statement[]): Statement {
+    const update = statements.findIndex((st) =>
+      st.text.startsWith('UPDATE app.conversations SET'),
+    );
+    expect(update, 'the summary is rewritten').toBeGreaterThan(-1);
+    const read = statements
+      .slice(0, update)
+      .findLast(
+        (st) =>
+          st.text.startsWith('SELECT') &&
+          st.text.includes('FROM app.conversations WHERE id = ?'),
+      );
+    expect(read, 'the row is read first').toBeDefined();
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- asserted defined above
+    return read!;
+  }
+
+  it('when a reply is queued', async () => {
+    const { sql, statements } = fakeSql({
+      'FROM app.conversations c': [
+        {
+          organizationId: 'o1',
+          connectorName: 'imap-smtp',
+          channel: 'email',
+          subject: 'Order 42',
+          contactEmail: 'carla@ext.test',
+        },
+      ],
+      'FROM app.conversations WHERE id': [
+        { id: 'c1', organizationId: 'o1', metadata: { unread_count: 2 } },
+      ],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+    await replyToConversation(sql, {
+      conversationId: 'c1',
+      organizationId: 'o1',
+      content: '<p>On its way.</p>',
+      actor,
+    });
+    const read = lockedReadBeforeUpdate(statements);
+    expect(read.text).toMatch(/ FOR UPDATE$/);
+    expect(read.begin).not.toBeNull();
+  });
+
+  it.each([
+    [
+      'an undo',
+      QUEUED_ROW,
+      "AND delivery_state = 'queued'",
+      (sql: Sql) =>
+        undoSendMessage(sql, { organizationId: 'o1', messageId: 'm1', actor }),
+    ],
+    [
+      'a discard',
+      { ...QUEUED_ROW, deliveryState: 'failed' as const },
+      "AND delivery_state = 'failed'",
+      (sql: Sql) =>
+        discardOutboundMessage(sql, {
+          organizationId: 'o1',
+          messageId: 'm1',
+          actor,
+        }),
+    ],
+  ])('when %s walks the activity time back', async (_, row, remove, run) => {
+    const { sql, statements } = fakeSql({
+      [LOAD]: [row],
+      [remove]: [{ id: 'm1' }],
+      'AS "createdAt" FROM app.conversations': [
+        { metadata: { unread_count: 2 }, createdAt: 500 },
+      ],
+    });
+    await run(sql);
+    const read = lockedReadBeforeUpdate(statements);
+    expect(read.text).toMatch(/ FOR UPDATE$/);
+    expect(read.begin).not.toBeNull();
+  });
+});

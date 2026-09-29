@@ -456,7 +456,7 @@ describe('page skeleton geometry in Chromium', () => {
     (canEdit) => {
       const { rerender } = render(
         <div data-testid="fixture" style={{ width: 272 }}>
-          <TaskCard task={TASK} projectKey="TAL" canEdit={canEdit} />
+          <TaskCard task={TASK} projectKey="TAL" canWorkTask={() => canEdit} />
         </div>,
       );
       const liveCard = requireElement(
@@ -489,7 +489,11 @@ describe('page skeleton geometry in Chromium', () => {
 
       rerender(
         <div data-testid="fixture" style={{ width: 760, height: 600 }}>
-          <TasksList tasks={[TASK]} projectKey="TAL" canEdit={canEdit} />
+          <TasksList
+            tasks={[TASK]}
+            projectKey="TAL"
+            canWorkTask={() => canEdit}
+          />
         </div>,
       );
       const liveRow = screen.getByText(TASK.title).parentElement;

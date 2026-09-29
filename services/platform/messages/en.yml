@@ -1749,6 +1749,7 @@ conversations:
     sent: Email sent
   updating: Updating conversations...
   bulk:
+    progress: 'Updating conversations... {settled} of {total}'
     sendMessages: Send messages
     close: Close
     reopen: Reopen
@@ -1861,6 +1862,8 @@ conversations:
     discard: Delete
   list:
     empty: No conversations in this tab
+    loadFailed: Couldn't load conversations
+    loadFailedDescription: Something went wrong while loading these conversations.
   activate:
     title: No conversations yet
     description: Incoming conversations from your connected channels will appear here.
@@ -2718,6 +2721,55 @@ governance:
     searchModels: Search models
     noModelsFound: No model that reads images is available
     saveFailed: Couldn't save the vision model
+  imageGeneration:
+    title: Image generation
+    description:
+      Lets project agents working on tasks and agent nodes in automations
+      create images, billed to your organization. Off until you turn it on.
+      Chat never creates images.
+    enabledLabel: Let agents generate images
+    label: Image model
+    labelHint:
+      Automatic uses the first recommended image model your provider
+      credentials reach. A fixed selection stays in effect until you change
+      it, even if that model becomes unavailable.
+    automaticLabel: Automatic
+    automaticHint: Let Tale choose from the recommended image models your credentials reach.
+    currentModel:
+      pinned: 'Agents currently generate images with {model}.'
+      preferred: 'Agents currently generate images with {model}, the recommended choice.'
+    draftHint: Save to apply this selection.
+    noAvailable:
+      None of the recommended image models is available, so agents get no
+      image tool. Add an OpenRouter or OpenAI credential in AI providers, or
+      choose one of the listed models.
+    unavailable:
+      The saved image model is unavailable, so agents get no image tool.
+      Choose another model or Automatic, or check its provider credential and
+      the models it allows. Tale will not switch to another model while this
+      selection is saved.
+    invalidPolicy:
+      The saved image generation configuration is invalid, so agents get no
+      image tool. Switch image generation off and on, or choose a model and
+      save, to repair it.
+    policyUnavailable:
+      The saved image generation configuration could not be read. Retry
+      before changing it. Agents get no image tool until it can be read.
+    resolutionFailed:
+      Tale could not check the image model. Check the provider connection and
+      retry.
+    loadFailed: Couldn't load the image generation settings. Retry to load them.
+    invalidSelection: Invalid saved configuration
+    unknownSelection: Saved selection could not be read
+    savedUnavailable: Saved selection is not currently available
+    providersLink: AI providers
+    retry: Retry
+    searchModels: Search image models
+    noModelsFound: No matching image model
+    saveFailed: Couldn't save the image generation settings
+    remoteUpdate:
+      This setting changed in another session. Discard your draft to load the
+      saved selection, or save to replace it.
   transcriptionModel:
     title: Audio transcription model
     description:
@@ -7313,7 +7365,7 @@ tasks:
     deleteConfirmDescription: Removes "{label}" from the project and from every task that uses it.
     errors:
       TASK_LABEL_NAME_TAKEN: A label with that name already exists.
-      TASK_LABEL_UNKNOWN: That label isn't in this project — type its name in the picker to create it.
+      TASK_LABEL_UNKNOWN: That label isn't in this project — pick one it already has. Editors and higher roles add new labels in the picker.
       TASK_LABELS_INVALID: Invalid label name.
       TASK_LABEL_IN_USE: That label is still on a task.
       createFailed: Couldn't create the label.
@@ -7584,6 +7636,7 @@ tasks:
     breakerPaused: "{slug} won't respond — agent runs are paused on this task"
     budgetPaused: "{slug} won't respond — monthly budget exhausted"
     agentNotLive: "{slug} won't respond — agent is not installed or is disabled"
+    notPermitted: "{slug} won't respond — you can't start agents on this task"
   mentionPicker:
     title: Mention a member, agent, or automation
     empty: No matches

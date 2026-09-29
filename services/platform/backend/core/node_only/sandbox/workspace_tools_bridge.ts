@@ -22,8 +22,10 @@ import { internal } from '../../lib/handler_names';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import {
   ASK_HUMAN_TOOL,
+  IMAGE_GENERATION_TOOL,
   KNOWLEDGE_REFS_PER_CALL_CAP,
   WRITE_EFFECT_TOOLS,
+  type TurnOpRef,
 } from '../../sandbox/tool_names';
 import type { SessionActionSubject } from '../../sandbox/workspace_access';
 import {
@@ -40,6 +42,10 @@ import {
   TASK_LABELS_CAP,
   WORKSPACE_TASK_TOOLS,
 } from './workspace_domain_tools';
+import {
+  IMAGE_GENERATION_TOOL_DESCRIPTION,
+  runGenerateImage,
+} from './workspace_image_tool';
 import {
   isRecord,
   readCursor,
@@ -73,6 +79,7 @@ const ALL_WORKSPACE_TOOLS: readonly string[] = [
   ...WORKSPACE_READ_TOOLS,
   ...WORKSPACE_TASK_TOOLS,
   'document_create',
+  IMAGE_GENERATION_TOOL,
 ];
 
 const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_EFFECT_TOOLS);
@@ -205,15 +212,24 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'string (a file name, e.g. "report.md"), content: string, contentType?: ' +
     'string (default text/plain)}. The same name refreshes the same document ' +
     '(idempotent).',
+  [IMAGE_GENERATION_TOOL]: IMAGE_GENERATION_TOOL_DESCRIPTION,
 };
 
 /** The blocker a refused session-authority dispatch relays. `subject` names
  * the data domain in the role-denied case, so the model can tell the user
  * exactly what their role cannot reach. */
 function actionContextBlocker(
-  reason: 'no_access_context' | 'not_a_member' | 'read_denied',
+  reason: 'no_access_context' | 'not_a_member' | 'read_denied' | 'run_ended',
   subject?: string,
 ): BridgeBlocker {
+  if (reason === 'run_ended') {
+    return {
+      code: 'run_ended',
+      guidance:
+        'The task run this session served has ended, so its workspace tools ' +
+        'act for nobody any more. Stop; do not retry.',
+    };
+  }
   if (reason === 'no_access_context') {
     return {
       code: 'no_access_context',
@@ -259,6 +275,12 @@ export async function dispatchWorkspaceToolImpl(
     sessionId: string;
     userId?: string;
     mintedKeyId?: string;
+    /** The exec of the task run a task turn's token names: the run whose
+     * starter the task and document tools answer to. */
+    taskRunExecId?: string;
+    /** The token's own `turnOp` — the turn a generation is booked and
+     * delivered for. Read by `generate_image` alone. */
+    turn?: TurnOpRef;
     tool: string;
     callArgs: unknown;
   },
@@ -332,6 +354,8 @@ async function runWorkspaceTool(
     organizationId: string;
     sessionId: string;
     userId?: string;
+    taskRunExecId?: string;
+    turn?: TurnOpRef;
     tool: string;
     callArgs: unknown;
   },
@@ -341,6 +365,18 @@ async function runWorkspaceTool(
   // exactly when the narrowing left nothing (`never`), so it needs the raw
   // requested name to still be a plain string.
   const requestedTool: string = args.tool;
+
+  // Not an org-data read either: the turn the TOKEN serves decides whose
+  // spend it is and where the images land; the org policy is re-read on the
+  // call, so a grant alone never keeps a switched-off capability alive.
+  if (args.tool === IMAGE_GENERATION_TOOL) {
+    return await runGenerateImage(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      turn: args.turn,
+      callArgs,
+    });
+  }
 
   // Not an org-data read: no turn user required (an automation run carries
   // none), no role matrix — the ask attaches to the run the SESSION proves,
@@ -355,7 +391,8 @@ async function runWorkspaceTool(
 
   // The task family and document_create act with the session's OWN authority
   // (binding first, user-read fallback — writes and tasks are binding-only),
-  // resolved once here and handed to the domain handlers.
+  // resolved once here and handed to the domain handlers. A task turn's
+  // authority also answers to the person who started its run.
   if (isWorkspaceTaskTool(args.tool) || args.tool === 'document_create') {
     const context = await ctx.runQuery(
       internal.sandbox.workspace_access.resolveSessionActionContext,
@@ -363,6 +400,9 @@ async function runWorkspaceTool(
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         ...(args.userId !== undefined ? { userId: args.userId } : {}),
+        ...(args.taskRunExecId !== undefined
+          ? { taskRunExecId: args.taskRunExecId }
+          : {}),
         subject: args.tool === 'document_create' ? 'documents' : 'tasks',
         effect: WRITE_TOOL_SET.has(args.tool) ? 'write' : 'read',
       },
@@ -378,7 +418,13 @@ async function runWorkspaceTool(
         ],
       };
     }
-    const authority = { actorId: context.actorId, scope: context.scope };
+    const authority = {
+      actorId: context.actorId,
+      scope: context.scope,
+      ...(typeof context.confinedToTaskId === 'string'
+        ? { confinedToTaskId: context.confinedToTaskId }
+        : {}),
+    };
     if (args.tool === 'document_create') {
       return await runDocumentCreate(ctx, {
         organizationId: args.organizationId,
@@ -497,13 +543,17 @@ async function runWorkspaceTool(
   }
 
   // The remaining find tools are org-wide reads behind the same binding-first
-  // door, then plain org-scoped internal queries.
+  // door, then plain org-scoped internal queries. A task turn names its run
+  // here too: the door answers for a live run only.
   const context = await ctx.runQuery(
     internal.sandbox.workspace_access.resolveSessionActionContext,
     {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      ...(args.taskRunExecId !== undefined
+        ? { taskRunExecId: args.taskRunExecId }
+        : {}),
       subject: TOOL_READ_SUBJECT[args.tool],
       effect: 'read',
     },
@@ -971,7 +1021,9 @@ export function workspaceToolStatusImpl(grants: readonly string[]): unknown {
     tools: grants.map((name) => ({
       name,
       description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
-      readOnly: !WRITE_TOOL_SET.has(name),
+      // Image generation changes no org data, but it writes files and
+      // spends the organization's money: never badge it read-only.
+      readOnly: !WRITE_TOOL_SET.has(name) && name !== IMAGE_GENERATION_TOOL,
     })),
   };
 }

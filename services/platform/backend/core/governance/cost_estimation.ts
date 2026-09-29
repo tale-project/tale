@@ -1,7 +1,8 @@
 /**
- * Cost estimates for the calls a provider bills by audio minute or by
- * character rather than by token. Token-priced chat turns are costed from the
- * provider catalog instead (`estimateCostCents` in `lib/chat/turn.ts`).
+ * Cost estimates for the calls a provider bills by audio minute, by
+ * character, or per generated image rather than by chat token. Token-priced
+ * chat turns are costed from the provider catalog instead
+ * (`estimateCostCents` in `lib/chat/turn.ts`).
  */
 
 /**
@@ -25,6 +26,43 @@ export function estimateTranscriptionCostCents(
 ): number {
   if (!centsPerAudioMinute || audioDurationSec <= 0) return 0;
   return roundCents((audioDurationSec / 60) * centsPerAudioMinute);
+}
+
+/**
+ * The ledger's cost in cents for one image-generation call. The provider's
+ * own reported charge wins (OpenRouter reports every call's cost in US
+ * dollars); otherwise the reported token counts are priced from the catalog
+ * (OpenAI's GPT image models: text input, image input and image output
+ * tokens are priced apart, an image input falling back to the text input
+ * rate when the catalog gives none). Returns 0 when the call reported
+ * neither — the ledger still counts the request, so a request cap binds.
+ */
+export function estimateImageGenerationCostCents(args: {
+  reportedUsd?: number;
+  usage?: {
+    textInputTokens: number;
+    imageInputTokens: number;
+    outputTokens: number;
+  };
+  pricing?: {
+    inputCentsPerMillion: number;
+    outputCentsPerMillion: number;
+    imageInputCentsPerMillion?: number;
+  };
+}): number {
+  if (args.reportedUsd !== undefined && args.reportedUsd >= 0) {
+    return roundCents(args.reportedUsd * 100);
+  }
+  if (args.usage === undefined || args.pricing === undefined) return 0;
+  const { usage, pricing } = args;
+  const imageInputRate =
+    pricing.imageInputCentsPerMillion ?? pricing.inputCentsPerMillion;
+  return roundCents(
+    (usage.textInputTokens * pricing.inputCentsPerMillion +
+      usage.imageInputTokens * imageInputRate +
+      usage.outputTokens * pricing.outputCentsPerMillion) /
+      1_000_000,
+  );
 }
 
 /**

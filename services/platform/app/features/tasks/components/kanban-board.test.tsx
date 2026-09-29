@@ -143,7 +143,7 @@ describe('KanbanBoard card semantics', () => {
     render(
       <KanbanBoard
         projectKey="TAL"
-        canEdit
+        canWorkTask={() => true}
         tasks={[makeTask('Ship it', 'todo', 'a0')]}
       />,
     );
@@ -180,7 +180,6 @@ describe('KanbanBoard card semantics', () => {
     render(
       <KanbanBoard
         projectKey="TAL"
-        canEdit={false}
         tasks={[makeTask('Ship it', 'todo', 'a0')]}
       />,
     );
@@ -195,12 +194,7 @@ describe('KanbanBoard card semantics', () => {
     const onOpenTask = vi.fn();
     const task = makeTask('Ship it', 'todo', 'a0');
     const { user } = render(
-      <KanbanBoard
-        projectKey="TAL"
-        canEdit={false}
-        tasks={[task]}
-        onOpenTask={onOpenTask}
-      />,
+      <KanbanBoard projectKey="TAL" tasks={[task]} onOpenTask={onOpenTask} />,
     );
     screen.getByRole('button', { name: 'Ship it' }).focus();
     await user.keyboard(' ');
@@ -218,7 +212,7 @@ describe('KanbanBoard card semantics', () => {
     const { user } = render(
       <KanbanBoard
         projectKey="TAL"
-        canEdit
+        canWorkTask={() => true}
         tasks={[task]}
         onOpenTask={onOpenTask}
       />,

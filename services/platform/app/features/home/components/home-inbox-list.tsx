@@ -41,6 +41,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomeRowsSkeleton } from '@/app/components/layout/home-panel-skeleton';
 import { BulkSendDialog } from '@/app/features/conversations/components/bulk-send-dialog';
+import { ConversationListLoadError } from '@/app/features/conversations/components/conversation-list-load-error';
 import { useListConversationsPaginated } from '@/app/features/conversations/hooks/queries';
 import { useInboxChannelOptions } from '@/app/features/conversations/hooks/use-inbox-channel-options';
 import {
@@ -56,6 +57,7 @@ import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
+import { BULK_CONVERSATION_LIMIT } from '@/lib/shared/conversations/bulk-limit';
 
 import { useEnteringKeys } from '../hooks/use-entering-keys';
 import { toHomeConversationItem } from '../hooks/use-home-data';
@@ -284,6 +286,16 @@ export function HomeInboxList({
   ];
 
   const busy = bulk.isBulkProcessing;
+  // A selection larger than one request goes out in batches; the bar counts
+  // them off in place of the selection count until the last one settles.
+  const bulkProgressText =
+    bulk.bulkProgress !== null &&
+    bulk.bulkProgress.total > BULK_CONVERSATION_LIMIT
+      ? tConversations('bulk.progress', {
+          settled: bulk.bulkProgress.settled,
+          total: bulk.bulkProgress.total,
+        })
+      : undefined;
 
   return (
     <>
@@ -333,21 +345,21 @@ export function HomeInboxList({
             })}
             className="bg-muted/70 animate-in fade-in-0 zoom-in-95 flex h-8 items-center gap-1 rounded-lg pr-1 pl-2 duration-150"
           >
+            {/* Three states, as on the phone list: a partial selection reads
+                mixed, and ticking it then selects every row the list shows. */}
             <Checkbox
-              checked={
-                selection.selectAllChecked
-                  ? true
-                  : selection.hasSelectedItems
-                    ? 'indeterminate'
-                    : false
-              }
+              checked={selection.selectAllChecked}
               onCheckedChange={selection.handleSelectAll}
               aria-label={tCommon('aria.selectAll')}
             />
             <span className="ml-1 min-w-0 flex-1 truncate text-xs font-medium tabular-nums">
-              {tConversations('bulk.selectedCount', {
-                count: selection.selectedCount,
-              })}
+              {bulkProgressText ??
+                tConversations('bulk.selectedCount', {
+                  count: selection.selectedCount,
+                })}
+            </span>
+            <span role="status" className="sr-only">
+              {bulkProgressText}
             </span>
             {status === 'open' && (
               <>
@@ -434,7 +446,11 @@ export function HomeInboxList({
             <HomeRowsSkeleton />
           </Skeletonize>
         ) : groups.length === 0 ? (
-          pageStatus === 'CanLoadMore' || pageStatus === 'LoadingMore' ? (
+          paginated.error !== null ? (
+            // Nothing to show because the read failed, not because the
+            // status is empty: say so, and offer the retry.
+            <ConversationListLoadError onRetry={paginated.retry} />
+          ) : pageStatus === 'CanLoadMore' || pageStatus === 'LoadingMore' ? (
             <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
               <HomeRowsSkeleton />
             </Skeletonize>

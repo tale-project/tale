@@ -143,6 +143,50 @@ describe('TaskComments author previews', () => {
   });
 });
 
+describe('TaskComments — who may change a comment', () => {
+  const thread = (props: {
+    currentUserId: string;
+    canWork: boolean;
+    isAdmin?: boolean;
+  }) =>
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+        {...props}
+      />,
+    );
+
+  it('lets an author edit and delete their own comment on a task they may not work', () => {
+    localeState.locale = 'en';
+    thread({ currentUserId: 'user_1', canWork: false });
+    expect(
+      screen.getByRole('button', { name: 'actions.edit' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'actions.delete' }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a member nothing on someone else's comment", () => {
+    localeState.locale = 'en';
+    thread({ currentUserId: 'user_2', canWork: false });
+    expect(screen.queryByRole('button', { name: 'actions.edit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'actions.delete' })).toBeNull();
+  });
+
+  it("lets an admin delete someone else's comment, never edit it", () => {
+    localeState.locale = 'en';
+    thread({ currentUserId: 'user_2', canWork: true, isAdmin: true });
+    expect(
+      screen.getAllByRole('button', { name: 'actions.delete' }),
+    ).not.toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'actions.edit' })).toBeNull();
+  });
+});
+
 describe('TaskComments bodyByLocale', () => {
   it('renders the body for the active UI locale', () => {
     localeState.locale = 'de';

@@ -59,6 +59,14 @@ const OPENROUTER_CATALOG_URL = 'https://openrouter.ai/api/v1/models';
  * this second listing no embedding model can ever enter the catalog. */
 const OPENROUTER_EMBEDDINGS_CATALOG_URL =
   'https://openrouter.ai/api/v1/models?output_modalities=embeddings';
+/** The default listing also carries TEXT-output models only, so an image
+ * generator that writes no text (FLUX, Recraft, gpt-image-1) is served only
+ * behind this filter (verified against the live API, 2026-09-29). Without
+ * it the image-generation picker could offer only the few image models that
+ * also write text. A supplement like the embeddings listing: a failed fetch
+ * narrows image coverage, never the chat catalog. */
+const OPENROUTER_IMAGE_CATALOG_URL =
+  'https://openrouter.ai/api/v1/models?output_modalities=image';
 /** STT is another separately published population. Keep its cache/failure
  * state separate so audio discovery outages neither blank chat nor become
  * a successful chat-only catalog that claims no transcription is configured. */
@@ -483,7 +491,11 @@ export async function getProviderCatalog(
       const [primary, speech] = await Promise.allSettled([
         cachedLiveCatalog(
           provider.name,
-          [OPENROUTER_CATALOG_URL, OPENROUTER_EMBEDDINGS_CATALOG_URL],
+          [
+            OPENROUTER_CATALOG_URL,
+            OPENROUTER_EMBEDDINGS_CATALOG_URL,
+            OPENROUTER_IMAGE_CATALOG_URL,
+          ],
           options,
         ),
         transcription,

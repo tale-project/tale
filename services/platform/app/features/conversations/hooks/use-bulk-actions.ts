@@ -1,8 +1,10 @@
 import { toast } from '@tale/ui/use-toast';
 import { useState, useCallback } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
+import { bulkConversationBatches } from '@/lib/shared/conversations/bulk-limit';
 
 import type { SelectionState } from '../types/selection';
 import { isAllSelection } from '../types/selection';
@@ -40,11 +42,86 @@ function getSelectedConversations(
     : conversations.filter((c) => selectionState.selectedIds.has(c._id));
 }
 
+/** What the bulk door answers for one batch. */
+interface BulkResult {
+  successCount: number;
+  failedCount: number;
+  errors: string[];
+}
+
+/** How far a bulk verb has got: the selected conversations its settled
+ * requests named, out of all of them. */
+export interface BulkProgress {
+  settled: number;
+  total: number;
+}
+
+/** What one bulk verb over a selection came to. */
+interface BulkOutcome {
+  successCount: number;
+  failedCount: number;
+  /** How many of the conversations the door answered for, either way. */
+  answeredCount: number;
+  /** The conversations a refused request named — the ones to try again. */
+  unsettledIds: string[];
+  /** Why the first refused request was refused. */
+  firstError?: unknown;
+}
+
+/**
+ * One bulk verb over `ids`, in consecutive requests of at most
+ * `BULK_CONVERSATION_LIMIT` — the most the door takes, so a selection of
+ * any size can go out. A refused request counts every conversation it named
+ * as failed and leaves them unsettled; the requests after it still go.
+ */
+async function runBulkInBatches(
+  ids: readonly string[],
+  send: (conversationIds: string[]) => Promise<BulkResult>,
+  onProgress: (progress: BulkProgress) => void,
+): Promise<BulkOutcome> {
+  const outcome: BulkOutcome = {
+    successCount: 0,
+    failedCount: 0,
+    answeredCount: 0,
+    unsettledIds: [],
+  };
+  let settled = 0;
+  onProgress({ settled, total: ids.length });
+  for (const batch of bulkConversationBatches(ids)) {
+    try {
+      const result = await send(batch);
+      outcome.successCount += result.successCount;
+      outcome.failedCount += result.failedCount;
+      outcome.answeredCount += batch.length;
+    } catch (error) {
+      console.error('A bulk conversation request was refused:', error);
+      outcome.failedCount += batch.length;
+      outcome.unsettledIds.push(...batch);
+      outcome.firstError ??= error;
+    }
+    settled += batch.length;
+    onProgress({ settled, total: ids.length });
+  }
+  return outcome;
+}
+
 interface UseBulkActionsOptions {
   organizationId: string;
   conversations: ConversationItem[];
   selectionState: SelectionState;
-  onComplete: () => void;
+  /**
+   * After a verb changed at least one conversation. `unsettledIds` are the
+   * ones a refused request named: they stay selected for another try.
+   */
+  onComplete: (unsettledIds: readonly string[]) => void;
+}
+
+/** The copy one status verb's outcome reads in: title on success, the
+ * description with its counts, and the title when nothing changed. */
+interface VerbCopy {
+  done: string;
+  description: string;
+  failed: string;
 }
 
 export function useBulkActions({
@@ -55,14 +132,18 @@ export function useBulkActions({
 }: UseBulkActionsOptions) {
   const { t: tConversations } = useT('conversations');
 
-  const { mutateAsync: bulkArchive } = useBulkArchiveConversations();
-  const { mutateAsync: bulkResolve } = useBulkCloseConversations();
-  const { mutateAsync: bulkReopen } = useBulkReopenConversations();
-  const { mutateAsync: bulkSpam } = useBulkSpamConversations();
-  const { mutateAsync: bulkUnarchive } = useBulkUnarchiveConversations();
+  // The outcome toast below says what happened to the whole selection, so
+  // a refused batch must not raise the generic failure toast of its own.
+  const quiet = { errorToast: false } as const;
+  const { mutateAsync: bulkArchive } = useBulkArchiveConversations(quiet);
+  const { mutateAsync: bulkResolve } = useBulkCloseConversations(quiet);
+  const { mutateAsync: bulkReopen } = useBulkReopenConversations(quiet);
+  const { mutateAsync: bulkSpam } = useBulkSpamConversations(quiet);
+  const { mutateAsync: bulkUnarchive } = useBulkUnarchiveConversations(quiet);
   const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
 
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
   const [bulkSendDialog, setBulkSendDialog] = useState({
     isOpen: false,
     isSending: false,
@@ -133,7 +214,7 @@ export function useBulkActions({
         });
 
         setBulkSendDialog({ isOpen: false, isSending: false });
-        onComplete();
+        onComplete([]);
       } catch (error) {
         console.error('Error sending messages:', error);
         toast({
@@ -156,223 +237,122 @@ export function useBulkActions({
     ],
   );
 
-  const handleBulkResolve = useCallback(async () => {
-    if (isBulkProcessing) return;
+  /**
+   * The five status verbs, one way: the selection goes out in batches the
+   * door takes, the busy state and the progress hold until the last one
+   * settles, and the toast states what the whole selection came to. A
+   * refused batch keeps its conversations selected; when nothing changed at
+   * all, the selection stays as it was.
+   */
+  const runStatusVerb = useCallback(
+    async (
+      send: (args: { conversationIds: string[] }) => Promise<BulkResult>,
+      copy: VerbCopy,
+    ) => {
+      if (isBulkProcessing) return;
 
-    setIsBulkProcessing(true);
+      setIsBulkProcessing(true);
+      try {
+        const outcome = await runBulkInBatches(
+          getSelectedConversationIds(selectionState, conversations),
+          (conversationIds) => send({ conversationIds }),
+          setBulkProgress,
+        );
+        if (outcome.answeredCount === 0) {
+          const reason = failureDetail(outcome.firstError);
+          toast({
+            title: tConversations(copy.failed),
+            ...(reason !== undefined ? { description: reason } : {}),
+            variant: 'destructive',
+          });
+          return;
+        }
 
-    try {
-      const conversationIds = getSelectedConversationIds(
-        selectionState,
-        conversations,
-      );
+        toast({
+          title: tConversations(copy.done),
+          description: tConversations(copy.description, {
+            successCount: outcome.successCount,
+            failedCount: outcome.failedCount,
+          }),
+          variant: outcome.successCount > 0 ? 'default' : 'destructive',
+        });
+        // The requests name rows by `_id`; the selection keeps their `id`.
+        const selectionIdOf = new Map(
+          conversations.map((row) => [row._id, row.id]),
+        );
+        onComplete(
+          outcome.unsettledIds.map((_id) => selectionIdOf.get(_id) ?? _id),
+        );
+      } catch (error) {
+        console.error('Error running a bulk conversation verb:', error);
+        toast({ title: tConversations(copy.failed), variant: 'destructive' });
+      } finally {
+        setIsBulkProcessing(false);
+        setBulkProgress(null);
+      }
+    },
+    [
+      isBulkProcessing,
+      selectionState,
+      conversations,
+      tConversations,
+      onComplete,
+    ],
+  );
 
-      const result = await bulkResolve({
-        conversationIds: conversationIds,
-      });
+  const handleBulkResolve = useCallback(
+    () =>
+      runStatusVerb(bulkResolve, {
+        done: 'bulk.resolved',
+        description: 'bulk.resolvedDescription',
+        failed: 'bulk.resolveFailed',
+      }),
+    [runStatusVerb, bulkResolve],
+  );
 
-      toast({
-        title: tConversations('bulk.resolved'),
-        description: tConversations('bulk.resolvedDescription', {
-          successCount: result.successCount,
-          failedCount: result.failedCount,
-        }),
-        variant: result.successCount > 0 ? 'default' : 'destructive',
-      });
+  const handleBulkReopen = useCallback(
+    () =>
+      runStatusVerb(bulkReopen, {
+        done: 'bulk.reopened',
+        description: 'bulk.reopenedDescription',
+        failed: 'bulk.reopenFailed',
+      }),
+    [runStatusVerb, bulkReopen],
+  );
 
-      onComplete();
-    } catch (error) {
-      console.error('Error resolving conversations:', error);
-      toast({
-        title: tConversations('bulk.resolveFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  }, [
-    isBulkProcessing,
-    selectionState,
-    conversations,
-    bulkResolve,
-    tConversations,
-    onComplete,
-  ]);
+  const handleBulkSpam = useCallback(
+    () =>
+      runStatusVerb(bulkSpam, {
+        done: 'bulk.markedAsSpam',
+        description: 'bulk.markedAsSpamDescription',
+        failed: 'bulk.spamFailed',
+      }),
+    [runStatusVerb, bulkSpam],
+  );
 
-  const handleBulkReopen = useCallback(async () => {
-    if (isBulkProcessing) return;
+  const handleBulkArchive = useCallback(
+    () =>
+      runStatusVerb(bulkArchive, {
+        done: 'bulk.archived',
+        description: 'bulk.archivedDescription',
+        failed: 'bulk.archiveFailed',
+      }),
+    [runStatusVerb, bulkArchive],
+  );
 
-    setIsBulkProcessing(true);
-
-    try {
-      const conversationIds = getSelectedConversationIds(
-        selectionState,
-        conversations,
-      );
-
-      const result = await bulkReopen({
-        conversationIds: conversationIds,
-      });
-
-      toast({
-        title: tConversations('bulk.reopened'),
-        description: tConversations('bulk.reopenedDescription', {
-          successCount: result.successCount,
-          failedCount: result.failedCount,
-        }),
-        variant: result.successCount > 0 ? 'default' : 'destructive',
-      });
-
-      onComplete();
-    } catch (error) {
-      console.error('Error reopening conversations:', error);
-      toast({
-        title: tConversations('bulk.reopenFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  }, [
-    isBulkProcessing,
-    selectionState,
-    conversations,
-    bulkReopen,
-    tConversations,
-    onComplete,
-  ]);
-
-  const handleBulkSpam = useCallback(async () => {
-    if (isBulkProcessing) return;
-
-    setIsBulkProcessing(true);
-
-    try {
-      const conversationIds = getSelectedConversationIds(
-        selectionState,
-        conversations,
-      );
-
-      const result = await bulkSpam({
-        conversationIds: conversationIds,
-      });
-
-      toast({
-        title: tConversations('bulk.markedAsSpam'),
-        description: tConversations('bulk.markedAsSpamDescription', {
-          successCount: result.successCount,
-          failedCount: result.failedCount,
-        }),
-        variant: result.successCount > 0 ? 'default' : 'destructive',
-      });
-
-      onComplete();
-    } catch (error) {
-      console.error('Error marking conversations as spam:', error);
-      toast({
-        title: tConversations('bulk.spamFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  }, [
-    isBulkProcessing,
-    selectionState,
-    conversations,
-    bulkSpam,
-    tConversations,
-    onComplete,
-  ]);
-
-  const handleBulkArchive = useCallback(async () => {
-    if (isBulkProcessing) return;
-
-    setIsBulkProcessing(true);
-
-    try {
-      const conversationIds = getSelectedConversationIds(
-        selectionState,
-        conversations,
-      );
-
-      const result = await bulkArchive({
-        conversationIds: conversationIds,
-      });
-
-      toast({
-        title: tConversations('bulk.archived'),
-        description: tConversations('bulk.archivedDescription', {
-          successCount: result.successCount,
-          failedCount: result.failedCount,
-        }),
-        variant: result.successCount > 0 ? 'default' : 'destructive',
-      });
-
-      onComplete();
-    } catch (error) {
-      console.error('Error archiving conversations:', error);
-      toast({
-        title: tConversations('bulk.archiveFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  }, [
-    isBulkProcessing,
-    selectionState,
-    conversations,
-    bulkArchive,
-    tConversations,
-    onComplete,
-  ]);
-
-  const handleBulkUnarchive = useCallback(async () => {
-    if (isBulkProcessing) return;
-
-    setIsBulkProcessing(true);
-
-    try {
-      const conversationIds = getSelectedConversationIds(
-        selectionState,
-        conversations,
-      );
-
-      const result = await bulkUnarchive({
-        conversationIds: conversationIds,
-      });
-
-      toast({
-        title: tConversations('bulk.unarchived'),
-        description: tConversations('bulk.unarchivedDescription', {
-          successCount: result.successCount,
-          failedCount: result.failedCount,
-        }),
-        variant: result.successCount > 0 ? 'default' : 'destructive',
-      });
-
-      onComplete();
-    } catch (error) {
-      console.error('Error unarchiving conversations:', error);
-      toast({
-        title: tConversations('bulk.unarchiveFailed'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  }, [
-    isBulkProcessing,
-    selectionState,
-    conversations,
-    bulkUnarchive,
-    tConversations,
-    onComplete,
-  ]);
+  const handleBulkUnarchive = useCallback(
+    () =>
+      runStatusVerb(bulkUnarchive, {
+        done: 'bulk.unarchived',
+        description: 'bulk.unarchivedDescription',
+        failed: 'bulk.unarchiveFailed',
+      }),
+    [runStatusVerb, bulkUnarchive],
+  );
 
   return {
     isBulkProcessing,
+    bulkProgress,
     bulkSendDialog,
     openBulkSendDialog,
     closeBulkSendDialog,

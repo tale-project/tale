@@ -1,6 +1,7 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import type { TaskOwnership } from '@/backend/core/tasks/access';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
 type TaskStatusFilter =
@@ -38,9 +39,13 @@ export function useTasksByProject(
   return {
     tasks: data?.tasks ?? [],
     truncated: data?.truncated ?? false,
-    // Defaults to false until the read resolves, so write controls stay hidden
-    // (rather than flashing) for a viewer who turns out to be read-only.
+    // Both default to false until the read resolves, so write controls stay
+    // hidden (rather than flashing) for a viewer who turns out to be
+    // read-only. `canEdit`: an editor of the project, who works every task;
+    // `canCreate`: a reader, who creates tasks and works their own — decide
+    // one task with `useTaskAccess`.
     canEdit: data?.canEdit ?? false,
+    canCreate: data?.canCreate ?? false,
     isLoading,
   };
 }
@@ -75,6 +80,7 @@ export function useTasksAcrossProjects(options?: {
     tasks: data?.tasks ?? [],
     truncated: data?.truncated ?? false,
     canEdit: data?.canEdit ?? false,
+    canCreate: data?.canCreate ?? false,
     isLoading,
   };
 }
@@ -86,6 +92,9 @@ const TASK_MISSING_CODES: ReadonlySet<string> = new Set([
   'TASK_FORBIDDEN',
 ]);
 
+/** One stable empty ancestry, so a root task's access decision memoizes. */
+const NO_ANCESTORS: readonly TaskOwnership[] = [];
+
 export function useTask(taskId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading, error } = useBackendQuery(
@@ -95,7 +104,14 @@ export function useTask(taskId: string | undefined) {
   const code = backendErrorCode(error);
   return {
     task: data?.task ?? null,
+    // The task's project access, as on the board: decide this task with
+    // `useTaskAccess` (an editor works it; a reader works it when it is
+    // theirs).
     canEdit: data?.canEdit ?? false,
+    canCreate: data?.canCreate ?? false,
+    // Whose the task's parents are: a subtask under the viewer's own task is
+    // theirs to work too.
+    ancestors: data?.ancestors ?? NO_ANCESTORS,
     // Commenting is read-level: default false until the read resolves so the
     // composer doesn't flash, then true for any member who can open the task.
     canComment: data?.canComment ?? false,

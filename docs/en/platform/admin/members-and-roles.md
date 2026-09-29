@@ -41,10 +41,12 @@ After adding a person, assign the teams they need. A role alone does not put the
 | **Admin** | Manage people, services, policies, and the team's work | Full organization settings; cannot transfer ownership. |
 | **Developer** | Build agents, automations, and integrations | Technical settings such as providers, connectors, and API access; no member administration. |
 | **Editor** | Maintain content and operate day-to-day work | Content editing; workflow and connector resources are read-only. |
-| **Member** | Use chat and read resources shared with them | No organization administration; can submit message feedback. |
+| **Member** | Use chat, read resources shared with them, and create project tasks, working their own tasks with project agents | No organization administration; can submit message feedback. |
 | **Disabled** | No active access | Retains the membership record without granting permissions. |
 
 People who are not Owners or Admins cannot open **Settings > Members**; they see their own role under [**Settings > Account > Your role**](/platform/member/preferences#role).
+
+Project tasks follow a rule of their own: every member who can open a project creates tasks in it and changes the tasks they created or that are assigned to them, while Editors and higher roles change every task. The project's settings, agents, and files stay with Editors. [Manage tasks on a project board](/platform/projects/tasks#who-can-create-and-change-tasks) lists what a Member can do with their own tasks.
 
 These are role capabilities, not a promise that every record is visible. Conversation reads follow assignment: a person sees work assigned to them or their teams; unassigned conversations remain with Owners and Admins for triage. See [conversation routing](/platform/admin/governance/policies-and-limits#conversation-routing).
 

@@ -262,5 +262,22 @@
  * would create a `visibility: org` skill, widen one to `org` or change an
  * `org` skill in place; `GET /api/v1/me` answers
  * `capabilities.skillPublish`.
+ *
+ * 3.6.0 — 2026-09-29: members create tasks and work their own. `POST
+ * /api/v1/projects/{id}/tasks` creates a task for every key holder who can
+ * read an active project, Members included, where it answered them 403
+ * `RBAC_FORBIDDEN`. A change to one task — the intake's repeat, `PATCH
+ * …/tasks/{taskId}`, `POST …/start`, and `POST …/review` for the key holder
+ * and for the member it acts for — takes that task's work gate: an editor of
+ * the project (the Editor role or higher), or the member who created the
+ * task or is its person assignee; anyone else still gets 403
+ * `RBAC_FORBIDDEN` (`ACTOR_FORBIDDEN` for the actor). The intake of a key
+ * holder who is not the project's editor creates no label: a name the
+ * project's catalog lacks answers the new 400 `TASK_LABEL_UNKNOWN`, nothing
+ * written. Such a key holder also names, in the intake's `automationSlug`
+ * and `runWorkflowSlug`, `…/start`'s and a review's `workflowSlug`, only an
+ * automation built for tasks (its deployed version declares a task
+ * contract) or the automation that owns the task: 403 `RBAC_FORBIDDEN`
+ * otherwise.
  */
-export const API_CONTRACT_VERSION = '3.5.0';
+export const API_CONTRACT_VERSION = '3.6.0';

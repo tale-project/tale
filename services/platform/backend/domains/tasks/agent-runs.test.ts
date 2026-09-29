@@ -432,6 +432,85 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
   });
 });
 
+describe('kickAgentRun — the workspace follows the person who starts the run', () => {
+  beforeEach(() => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  /** The kick's statements with their values, answering the starter's
+   * membership and the project's audience from the case. */
+  function kickTx(role: string | null): {
+    tx: TransactionSql;
+    sessionId: () => unknown;
+  } {
+    let inserted: unknown[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      if (text.includes('FROM "member"')) {
+        return Promise.resolve(
+          role === null
+            ? []
+            : [{ id: 'm-1', organizationId: 'org-1', userId: 'u-1', role }],
+        );
+      }
+      if (text.includes('AS "teamIds" FROM app.projects')) {
+        return Promise.resolve([{ teamIds: [] }]);
+      }
+      if (text.startsWith('INSERT INTO app.project_agent_runs')) {
+        inserted = values;
+        return Promise.resolve([{ id: 'run-new' }]);
+      }
+      return Promise.resolve([]);
+    };
+    const tx = Object.assign(tag, { unsafe: (text: string) => text });
+    return {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js transaction function
+      tx: tx as unknown as TransactionSql,
+      // The insert binds org, project, task, agent, exec, then the session.
+      sessionId: () => inserted[5],
+    };
+  }
+
+  const kick = {
+    organizationId: 'org-1',
+    projectId: 'p-1',
+    taskId: 'task-1',
+    agentId: 'agent-1',
+    harness: 'claude-code',
+    model: 'm',
+    startedBy: 'u-1',
+  };
+
+  it("joins the agent's standing workspace for a project editor", async () => {
+    for (const role of ['owner', 'admin', 'developer', 'editor']) {
+      const { tx, sessionId } = kickTx(role);
+      await kickAgentRun(tx, kick);
+      expect(sessionId()).toBe('pa-agent-1');
+    }
+  });
+
+  it('works in a workspace of its own for a member, apart from the standing one and from other members', async () => {
+    const { tx, sessionId } = kickTx('member');
+    await kickAgentRun(tx, kick);
+    const own = sessionId();
+    expect(own).toMatch(/^pa-agent-1-m[0-9a-f]{16}$/);
+    const other = kickTx('member');
+    await kickAgentRun(other.tx, { ...kick, startedBy: 'u-2' });
+    expect(other.sessionId()).not.toBe(own);
+    // The same member keeps their workspace from run to run.
+    const again = kickTx('member');
+    await kickAgentRun(again.tx, kick);
+    expect(again.sessionId()).toBe(own);
+  });
+
+  it('treats a starter who is no longer a member like a member', async () => {
+    const { tx, sessionId } = kickTx(null);
+    await kickAgentRun(tx, kick);
+    expect(sessionId()).not.toBe('pa-agent-1');
+  });
+});
+
 describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its deadline', () => {
   beforeEach(() => {
     vi.mocked(addJobInTx).mockReset();

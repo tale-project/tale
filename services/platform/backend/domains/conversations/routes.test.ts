@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
-import type { Context } from 'hono';
+import { Hono, type Context } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
@@ -29,6 +29,9 @@ const {
   listConversationMessages,
   loadMessageForViewer,
   addMessageToConversation,
+  assignConversation,
+  assignConversationTeam,
+  bulkSetConversationStatus,
   undoSendMessage,
   retrySendMessage,
   discardOutboundMessage,
@@ -44,6 +47,9 @@ const {
   listConversationMessages: vi.fn(),
   loadMessageForViewer: vi.fn(),
   addMessageToConversation: vi.fn(),
+  assignConversation: vi.fn(),
+  assignConversationTeam: vi.fn(),
+  bulkSetConversationStatus: vi.fn(),
   undoSendMessage: vi.fn(),
   retrySendMessage: vi.fn(),
   discardOutboundMessage: vi.fn(),
@@ -64,6 +70,9 @@ vi.mock('./service.ts', async (importOriginal) => {
     listConversationMessages,
     loadMessageForViewer,
     addMessageToConversation,
+    assignConversation,
+    assignConversationTeam,
+    bulkSetConversationStatus,
   };
 });
 
@@ -112,6 +121,8 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
   };
 });
 
+import { BULK_CONVERSATION_LIMIT } from '../../../lib/shared/conversations/bulk-limit.ts';
+import { appJsonBody } from '../../lib/app-json-body.ts';
 import { createConversationRoutes } from './routes.ts';
 import { ConversationError, viewerCanWrite } from './service.ts';
 
@@ -570,6 +581,143 @@ describe('conversations route — message doors share the visibility guard', () 
       );
     });
   }
+});
+
+/**
+ * The assignment doors take the person's or the team's id, or `null` to clear
+ * that dimension — what the Inbox's **Unassign** and **Remove team** send. A
+ * body that states no target clears nothing: it used to, because a JSON parse
+ * failure fell back to `{}` and an absent field read as "unassign", so a
+ * truncated request answered 200 and took the conversation away from its
+ * person (#3708), while the product's own `null` was refused (#3732). Mounted
+ * behind the app door's JSON reader, as `/api/app/*` is in production.
+ */
+describe('conversations route — the assignment doors name their target', () => {
+  const door = () => {
+    const app = new Hono();
+    app.use('*', appJsonBody());
+    app.route('/', makeApp());
+    return app;
+  };
+  const post = (path: string, body: string) =>
+    door().request(`/c1/${path}?orgId=o1`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    assignConversation.mockResolvedValue(undefined);
+    assignConversationTeam.mockResolvedValue(undefined);
+  });
+
+  const doors = [
+    ['assign', 'assigneeUserId', assignConversation, 'user-2'],
+    ['assign-team', 'assigneeTeamId', assignConversationTeam, 'team-2'],
+  ] as const;
+
+  for (const [path, field, service, id] of doors) {
+    it(`POST /:id/${path} sets the ${field} it names`, async () => {
+      const res = await post(path, JSON.stringify({ [field]: id }));
+      expect(res.status).toBe(200);
+      expect(service).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ conversationId: 'c1', [field]: id }),
+      );
+    });
+
+    it(`POST /:id/${path} clears on null, the Inbox's clear gesture`, async () => {
+      const res = await post(path, JSON.stringify({ [field]: null }));
+      expect(res.status).toBe(200);
+      expect(service).toHaveBeenCalledTimes(1);
+      expect(service).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ conversationId: 'c1', [field]: null }),
+      );
+    });
+
+    it.each([
+      ['a truncated body', `{"${field}":`],
+      ['an empty body', ''],
+    ])(`POST /:id/${path} refuses %s as not JSON`, async (_case, body) => {
+      const res = await post(path, body);
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toMatchObject({
+        code: 'INVALID_JSON',
+      });
+      expect(service).not.toHaveBeenCalled();
+    });
+
+    it(`POST /:id/${path} refuses a body without ${field} instead of clearing`, async () => {
+      const res = await post(path, '{}');
+      expect(res.status).toBe(400);
+      await expect(res.json()).resolves.toMatchObject({
+        error: 'invalid body',
+        data: { issues: [{ path: field, message: 'is required' }] },
+      });
+      expect(service).not.toHaveBeenCalled();
+    });
+
+    it.each([42, '', ['user-2']])(
+      `POST /:id/${path} refuses ${field} %j`,
+      async (value) => {
+        const res = await post(path, JSON.stringify({ [field]: value }));
+        expect(res.status).toBe(400);
+        await expect(res.json()).resolves.toMatchObject({
+          data: { issues: [{ path: field }] },
+        });
+        expect(service).not.toHaveBeenCalled();
+      },
+    );
+  }
+});
+
+/**
+ * The status verbs take at most `BULK_CONVERSATION_LIMIT` ids a request —
+ * the number the Inbox batches a larger selection by, so the two cannot
+ * disagree (#3733).
+ */
+describe('conversations route — a bulk verb names at most one batch', () => {
+  const post = (count: number) =>
+    makeApp().request('/bulk/close?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        conversationIds: Array.from({ length: count }, (_, i) => `c${i}`),
+      }),
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    loadVisibleConversation.mockResolvedValue({ id: 'c' });
+    bulkSetConversationStatus.mockImplementation(
+      async (_sql: unknown, args: { conversationIds: string[] }) => ({
+        successCount: args.conversationIds.length,
+        failedCount: 0,
+        errors: [],
+      }),
+    );
+  });
+
+  it('takes a full batch', async () => {
+    const res = await post(BULK_CONVERSATION_LIMIT);
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      successCount: BULK_CONVERSATION_LIMIT,
+      failedCount: 0,
+    });
+  });
+
+  it('refuses one id more, naming the field, before any row is read', async () => {
+    const res = await post(BULK_CONVERSATION_LIMIT + 1);
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      data: { issues: [{ path: 'conversationIds' }] },
+    });
+    expect(loadVisibleConversation).not.toHaveBeenCalled();
+    expect(bulkSetConversationStatus).not.toHaveBeenCalled();
+  });
 });
 
 /**

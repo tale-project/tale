@@ -70,6 +70,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 vi.mock('@/app/features/conversations/hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     isBulkProcessing: false,
+    bulkProgress: null,
     bulkSendDialog: { isOpen: false, isSending: false },
     openBulkSendDialog: vi.fn(),
     closeBulkSendDialog: vi.fn(),
@@ -312,6 +313,137 @@ describe('HomeInboxList search and filters', () => {
     expect(filterButton()).toBeDisabled();
     await user.keyboard('abc');
     expect(searchBox()).toHaveValue('abc');
+    expect(filterButton()).toBeEnabled();
+  });
+});
+
+/**
+ * The toolbar's Select all reads the selection in three states, as the phone
+ * list's does: nothing, some, or every row the list shows. It coerced the
+ * partial state to "checked", so one ticked row read as all of them, and the
+ * next click cleared the row instead of selecting the rest (#3734).
+ */
+describe('HomeInboxList select all', () => {
+  const rows = [
+    conversation('c1', 'Invoice shows the wrong VAT'),
+    conversation('c2', 'Invoice for March missing'),
+    conversation('c3', 'Delivery is late'),
+  ];
+  const rowBoxes = () =>
+    screen.getAllByRole('checkbox', { name: 'Select conversation' });
+  const selectAll = () => screen.getByRole('checkbox', { name: 'Select all' });
+  const toolbar = () => screen.getByRole('toolbar');
+
+  beforeEach(() => {
+    listing.current = pages(rows);
+  });
+
+  it('reads mixed over a partial selection, and ticking it selects the rest', async () => {
+    const { user } = renderInbox();
+    await user.click(rowBoxes()[0]!);
+
+    expect(toolbar()).toHaveAccessibleName('1 selected');
+    expect(selectAll()).toHaveAttribute('aria-checked', 'mixed');
+
+    await user.click(selectAll());
+    expect(toolbar()).toHaveAccessibleName('3 selected');
+    expect(selectAll()).toHaveAttribute('aria-checked', 'true');
+    for (const box of rowBoxes()) {
+      expect(box).toHaveAttribute('aria-checked', 'true');
+    }
+
+    // Ticked while every row is selected, it lets go of all of them.
+    await user.click(selectAll());
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    for (const box of rowBoxes()) {
+      expect(box).toHaveAttribute('aria-checked', 'false');
+    }
+  });
+
+  it('reads checked once each row is ticked by hand', async () => {
+    const { user } = renderInbox();
+    for (const box of rowBoxes()) await user.click(box);
+
+    expect(toolbar()).toHaveAccessibleName('3 selected');
+    expect(selectAll()).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('counts and selects only the rows a search leaves', async () => {
+    const { user } = renderInbox();
+    await user.type(searchBox(), 'Invoice');
+    expect(rowBoxes()).toHaveLength(2);
+
+    await user.click(rowBoxes()[0]!);
+    expect(selectAll()).toHaveAttribute('aria-checked', 'mixed');
+    await user.click(selectAll());
+    expect(toolbar()).toHaveAccessibleName('2 selected');
+
+    // The row the search hid was never selected.
+    await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+    await user.type(searchBox(), '{Backspace>7/}');
+    expect(rowBoxes()).toHaveLength(3);
+    for (const box of rowBoxes()) {
+      expect(box).toHaveAttribute('aria-checked', 'false');
+    }
+  });
+});
+
+/**
+ * A read that failed once its retries gave up is not an empty status: the
+ * view says the list did not load and offers **Try again**, where it used to
+ * read **No conversations** with nothing to recover from (#3709). Rows that
+ * did load stay on screen.
+ */
+describe('HomeInboxList read failure', () => {
+  const failed = (
+    results: ConversationItem[] = [],
+    status: UsePaginatedQueryReturnType<ConversationItem>['status'] = 'Exhausted',
+  ) => ({
+    ...pages(results, status),
+    error: new Error('Request failed with status 503'),
+  });
+
+  it('says the list did not load, instead of that the status is empty', async () => {
+    listing.current = failed();
+    const { user } = renderInbox();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load conversations",
+    );
+    expect(screen.queryByText('No conversations')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(listing.current.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the rows that loaded when a later read fails', () => {
+    listing.current = failed([
+      conversation('c1', 'Invoice shows the wrong VAT'),
+    ]);
+    renderInbox();
+
+    expect(
+      screen.getByRole('link', { name: /Invoice shows the wrong VAT/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says so too when a facet had narrowed the loaded rows to none and the next page failed', () => {
+    window.localStorage.setItem(
+      'home-inbox-read-org-1',
+      JSON.stringify('unread'),
+    );
+    listing.current = failed(
+      [conversation('c1', 'Invoice shows the wrong VAT')],
+      'CanLoadMore',
+    );
+    renderInbox();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load conversations",
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    // The facet that narrowed the list stays undoable.
     expect(filterButton()).toBeEnabled();
   });
 });
