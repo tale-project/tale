@@ -70,3 +70,15 @@ export async function listOrgApiKeys(
     expiresAt: row.expiresAt === null ? null : row.expiresAt.getTime(),
   }));
 }
+
+/**
+ * Whether `userId` holds an API key of any state. Whatever the create rule
+ * says today — a developer moved to a lower role, a revoked competence — the
+ * holder keeps seeing their own keys, and revoking them.
+ */
+export async function holdsApiKeys(sql: Sql, userId: string): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    SELECT "id" FROM "apikey" WHERE "referenceId" = ${userId} LIMIT 1
+  `;
+  return rows.length > 0;
+}

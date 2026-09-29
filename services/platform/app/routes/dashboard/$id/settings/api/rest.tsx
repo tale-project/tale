@@ -8,6 +8,7 @@ import {
 } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { cachedAbility } from '@/app/lib/loader-preload';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -34,6 +35,9 @@ function ApiRestPage() {
   const { t: tSettings } = useT('settings');
 
   const { data: apiKeys, error, refetch } = useApiKeys(organizationId);
+  // The parent layout waited for it; a member whose right lapsed still opens
+  // this page for the keys they hold.
+  const { createApiKeys } = useApiSettingsAccess(organizationId);
 
   // Access is gated by the parent `api` route layout. Section title (not a
   // page title) — the settings rail already names the page.
@@ -62,6 +66,7 @@ function ApiRestPage() {
         <ApiKeysTable
           apiKeys={apiKeys}
           organizationId={organizationId}
+          canCreate={createApiKeys}
           error={error}
           onRetry={() => void refetch()}
         />

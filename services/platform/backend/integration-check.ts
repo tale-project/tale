@@ -525,6 +525,39 @@ async function signUpOrgMember(
   return { ...user, memberId: inserted[0]?.id ?? '' };
 }
 
+/**
+ * Run `mint` — an API-key create over HTTP — with `seat.userId` seated as a
+ * developer of `seat.orgId`, then put their role back. The create gate
+ * admits owners, admins, developers and the holders of a competence that is
+ * used with a key; a lane that proves a door refuses a lower role's key makes
+ * that key the way one arises in production, from a developer later moved
+ * to a lower role.
+ */
+async function asKeyCreator<T>(
+  sql: Sql,
+  seat: { orgId: string; userId: string },
+  mint: () => Promise<T>,
+): Promise<T> {
+  const rows = await sql<{ role: string }[]>`
+    SELECT "role" FROM "member"
+    WHERE "organizationId" = ${seat.orgId} AND "userId" = ${seat.userId}
+  `;
+  const role = rows[0]?.role;
+  if (role === undefined) return await mint();
+  await sql`
+    UPDATE "member" SET "role" = 'developer'
+    WHERE "organizationId" = ${seat.orgId} AND "userId" = ${seat.userId}
+  `;
+  try {
+    return await mint();
+  } finally {
+    await sql`
+      UPDATE "member" SET "role" = ${role}
+      WHERE "organizationId" = ${seat.orgId} AND "userId" = ${seat.userId}
+    `;
+  }
+}
+
 async function checkAuthAndSse(
   sql: Sql,
   base: string,
@@ -6405,7 +6438,9 @@ async function checkDocumentWriteGuards(
     );
     return minted.success ? minted.data.key : '';
   };
-  const memberKey = await mintKey(memberCookie, 'itest-doc-guards-member');
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-doc-guards-member'),
+  );
   const ownerKey = await mintKey(cookie, 'itest-doc-guards-owner');
 
   // The api-key plugin has no hooks of its own: the auth after-hook audits
@@ -6858,7 +6893,9 @@ async function checkDocumentWriteGuards(
     title: 'team-scoped.txt',
     teamId,
   });
-  const editorKey = await mintKey(editorCookie, 'itest-doc-guards-editor');
+  const editorKey = await asKeyCreator(sql, { orgId, userId: editorId }, () =>
+    mintKey(editorCookie, 'itest-doc-guards-editor'),
+  );
   const foreignEditor = await v1(editorKey, 'POST', '/documents', {
     title: 'team-scoped.txt',
     teamId,
@@ -13645,14 +13682,18 @@ async function checkMcp(
 
   // The developer gate: a member-role key gets the refusal as DATA (flagged
   // isError) on the persisting tools while every read tool keeps answering.
-  const { cookie: memberCookie } = await signUpOrgMember(
+  const { cookie: memberCookie, userId: memberUserId } = await signUpOrgMember(
     sql,
     base,
     orgId,
     'mcp-member',
     'member',
   );
-  const memberKey = await mintKey(memberCookie, 'itest-mcp-member');
+  const memberKey = await asKeyCreator(
+    sql,
+    { orgId, userId: memberUserId },
+    () => mintKey(memberCookie, 'itest-mcp-member'),
+  );
   const refusal = toolValue(
     (
       await rpc(
@@ -50198,6 +50239,108 @@ async function checkAccountAuthzHardening(
 }
 
 /**
+ * The API-key create gate (`auth/api-key-create-gate.ts`) against the real
+ * member, competence and key tables: a Member holding no competence is
+ * refused `403 API_KEY_CREATE_FORBIDDEN` before a key exists, and the
+ * settings read (`GET /api/app/governance/my/api-keys`) says so; a live
+ * `tale:notifications.export` grant admits the next create and the read; a
+ * revoked grant refuses again; a Developer creates without any grant.
+ */
+async function checkApiKeyCreateGate(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  suffix: string,
+): Promise<void> {
+  const member = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keygate-member-${suffix}`,
+    'member',
+  );
+  const developer = await signUpOrgMember(
+    sql,
+    base,
+    ctx.orgId,
+    `keygate-developer-${suffix}`,
+    'developer',
+  );
+  const create = async (cookie: string, name: string) => {
+    const res = await fetch(`${base}/api/auth/api-key/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ name }),
+    });
+    const body = z
+      .object({ code: z.string().optional() })
+      .loose()
+      .safeParse(await res.json().catch(() => ({})));
+    return {
+      status: res.status,
+      code: body.success ? (body.data.code ?? 'none') : 'unparsed',
+    };
+  };
+  const standing = async (cookie: string) => {
+    const res = await fetch(
+      `${base}/api/app/governance/my/api-keys?orgId=${ctx.orgId}`,
+      { headers: { cookie } },
+    );
+    const body = z
+      .object({ mayCreate: z.boolean() })
+      .safeParse(await res.json().catch(() => null));
+    return body.success ? body.data.mayCreate : null;
+  };
+  const keyCount = async (userId: string): Promise<number> =>
+    (
+      await sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM "apikey" WHERE "referenceId" = ${userId}
+      `
+    )[0]?.n ?? -1;
+
+  const refused = await create(member.cookie, `keygate-refused-${suffix}`);
+  const refusedStanding = await standing(member.cookie);
+  const refusedKeys = await keyCount(member.userId);
+
+  const grant = await sql<{ id: string }[]>`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms
+    ) VALUES (
+      ${ctx.orgId}, ${member.userId}, 'tale:notifications.export',
+      ${ctx.userId}, ${Date.now()}
+    )
+    RETURNING id
+  `;
+  const granted = await create(member.cookie, `keygate-granted-${suffix}`);
+  const grantedStanding = await standing(member.cookie);
+
+  await sql`
+    UPDATE app.competence_records
+    SET revoked_at_ms = ${Date.now()}, revoked_by = ${ctx.userId}
+    WHERE id = ${grant[0]?.id ?? ''}
+  `;
+  const revoked = await create(member.cookie, `keygate-revoked-${suffix}`);
+  const byDeveloper = await create(
+    developer.cookie,
+    `keygate-developer-${suffix}`,
+  );
+
+  record(
+    'API keys: a Member holding no key-using competence is refused, a live grant admits the next create, a revoked one refuses again, a Developer needs none',
+    refused.status === 403 &&
+      refused.code === 'API_KEY_CREATE_FORBIDDEN' &&
+      refusedStanding === false &&
+      refusedKeys === 0 &&
+      granted.status === 200 &&
+      grantedStanding === true &&
+      revoked.status === 403 &&
+      revoked.code === 'API_KEY_CREATE_FORBIDDEN' &&
+      byDeveloper.status === 200,
+    `member: ${refused.status}/${refused.code} mayCreate=${String(refusedStanding)} keys=${refusedKeys} (want 403/API_KEY_CREATE_FORBIDDEN false 0); granted: ${granted.status} mayCreate=${String(grantedStanding)} (want 200 true); revoked: ${revoked.status}/${revoked.code} (want 403/API_KEY_CREATE_FORBIDDEN); developer: ${byDeveloper.status} (want 200)`,
+  );
+}
+
+/**
  * The budget editor's per-key picker (`GET /api/app/governance/api-keys`):
  * an admin lists every live key held by a member of the organization — never
  * a non-member's, never an expired one, never a secret — and a non-admin is
@@ -50235,6 +50378,19 @@ async function checkOrgApiKeyListing(
     'developer',
   );
   const outsider = await signUpUser(base, `keylist-outsider-${suffix}`);
+  // A key holder from another organization — its owner, which the create
+  // gate admits — whose key this organization's listing must never show.
+  const outsiderOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${outsiderOrgId}, ${`Key listing outsider ${suffix}`},
+            ${`keylist-outsider-${suffix}`}, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${outsiderOrgId}, ${outsider.userId}, 'owner',
+            ${new Date()})
+  `;
   const memberKey = await mint(member.cookie, `keylist-live-${suffix}`);
   const expiredKey = await mint(member.cookie, `keylist-expired-${suffix}`);
   const outsiderKey = await mint(outsider.cookie, `keylist-out-${suffix}`);
@@ -54051,7 +54207,11 @@ async function checkTeamScopeRetirement(
     );
     return minted.success ? minted.data.key : '';
   };
-  const editorKey = await mintKey(editor.cookie, 'itest-teamscope-editor');
+  const editorKey = await asKeyCreator(
+    sql,
+    { orgId, userId: editor.userId },
+    () => mintKey(editor.cookie, 'itest-teamscope-editor'),
+  );
   const v1 = (
     key: string,
     method: 'GET' | 'POST',
@@ -55803,6 +55963,10 @@ async function main(): Promise<void> {
       [
         'checkOrgApiKeyListing',
         () => checkOrgApiKeyListing(sql, baseUrl, authCtx, orgSuffix),
+      ],
+      [
+        'checkApiKeyCreateGate',
+        () => checkApiKeyCreateGate(sql, baseUrl, authCtx, orgSuffix),
       ],
       ['checkLegalHolds', () => checkLegalHolds(sql, baseUrl, authCtx)],
       [

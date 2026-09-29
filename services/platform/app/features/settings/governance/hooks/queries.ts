@@ -94,6 +94,16 @@ export function useMyModelApiAccess(organizationId: string) {
 }
 
 /**
+ * Whether the reader may create a personal API key — the rule the create
+ * endpoint holds them to. Any member may read their own.
+ */
+export function useMyApiKeyAccess(organizationId: string) {
+  return useBackendQuery('governance/queries:getMyApiKeyAccess', {
+    organizationId,
+  });
+}
+
+/**
  * Resolved password policy for the given organization — an admin read: the
  * server refuses members, and this then returns the built-in defaults, as it
  * does while the query is loading, when no organizationId is available, or

@@ -2,9 +2,9 @@ accessDenied:
   title: Zugriff verweigert
   connectors: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
     Connector-Einstellungen zuzugreifen.
-  apiKeys:
-    Du benötigst Admin- oder Entwickler-Berechtigungen, um API-Schlüssel zu
-    verwalten.
+  apiKeys: API-Schlüssel nutzen Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
+  apiTab: Diese Seite ist Inhabern, Admins und Entwicklern vorbehalten.
+  apiModels: Die Einrichtung der Modell-Endpunkte ist Inhabern, Admins und Entwicklern vorbehalten und Mitgliedern mit der Kompetenz „Modelle über die API aufrufen“.
   organization: Du benötigst Admin-Berechtigungen, um auf die
     Organisationseinstellungen zuzugreifen.
   branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
@@ -1081,6 +1081,20 @@ chat:
   markAsRead: Als gelesen markieren
   markAsUnread: Als ungelesen markieren
   readOnlyShared: Mit dem Projekt geteilt — nur Lesen
+  createTask:
+    button: Aufgabe aus Chat erstellen
+    projectTitle: Aufgabe aus diesem Chat erstellen
+    projectDescription: Wähle das Projekt, zu dem die Aufgabe gehört. Ein Projekt-Agent dort kann sie bearbeiten und die Dateien liefern.
+    projectLabel: Projekt
+    projectPlaceholder: Projekt wählen
+    projectEmpty: Kein passendes Projekt
+    noProjects: Es gibt noch kein Projekt für die Aufgabe. Bitte einen Redakteur oder Admin, eines anzulegen.
+    continue: Weiter
+    fromChat: 'Aus dem Chat: {title}'
+    fromChatUntitled: Aus dem Chat
+    created: Aufgabe in {project} erstellt
+    openTask: Aufgabe öffnen
+    openTaskAltText: Die eben erstellte Aufgabe auf dem Board ihres Projekts öffnen
   export:
     button: Exportieren
     title: Chat exportieren
@@ -2691,6 +2705,7 @@ emptyStates:
   apiKeys:
     title: Noch keine API-Schlüssel
     description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
+    descriptionNoCreate: Einen Schlüssel erstellen können Inhaber, Admins und Entwickler oder wer von einem Admin eine Kompetenz dafür erhalten hat.
 governance:
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert

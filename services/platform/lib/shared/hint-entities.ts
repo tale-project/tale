@@ -90,7 +90,8 @@ export const TEAM_HINT_ENTITY = 'team';
 
 /**
  * The API keys of an organization's members — the budget editor's per-key
- * picker. Keys are created, renamed and revoked through Better Auth's own
+ * picker, and each member's own API settings, which keep the REST tab open
+ * while they hold a key. Keys are created, renamed and revoked through Better Auth's own
  * api-key endpoints, never an app route, so the after-hook in `auth.ts`
  * emits this entity to every organization the key's holder belongs to (a
  * key works in each of them). Without it an admin's open picker kept its

@@ -2,8 +2,9 @@ accessDenied:
   title: Accès refusé
   connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
     aux paramètres de connectors.
-  apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
-    clés API.
+  apiKeys: Utiliser des clés API demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
+  apiTab: Cette page est réservée aux propriétaires, admins et développeurs.
+  apiModels: La configuration des endpoints de modèles est réservée aux propriétaires, admins et développeurs, et aux membres qui ont la compétence « Appeler les modèles par l'API ».
   organization:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
@@ -1092,6 +1093,20 @@ chat:
   markAsRead: Marquer comme lu
   markAsUnread: Marquer comme non lu
   readOnlyShared: Partagé avec le projet — lecture seule
+  createTask:
+    button: Créer une tâche depuis le chat
+    projectTitle: Créer une tâche à partir de ce chat
+    projectDescription: Choisis le projet auquel la tâche appartient. Un agent de ce projet peut la traiter et livrer les fichiers.
+    projectLabel: Projet
+    projectPlaceholder: Choisir un projet
+    projectEmpty: Aucun projet ne correspond
+    noProjects: Il n’y a encore aucun projet où créer la tâche. Demande à un éditeur ou à un admin d’en créer un.
+    continue: Continuer
+    fromChat: 'Depuis le chat : {title}'
+    fromChatUntitled: Depuis le chat
+    created: Tâche créée dans {project}
+    openTask: Ouvrir la tâche
+    openTaskAltText: Ouvrir la tâche que tu viens de créer sur le tableau de son projet
   export:
     button: Exporter
     title: Exporter le chat
@@ -2718,6 +2733,7 @@ emptyStates:
   apiKeys:
     title: Aucune clé API pour l'instant
     description: Génère une clé pour connecter des outils et scripts externes.
+    descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées

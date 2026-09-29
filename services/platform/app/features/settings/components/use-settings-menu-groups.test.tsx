@@ -17,6 +17,7 @@ vi.mock(
   () => ({
     useApiSettingsAccess: () => ({
       developer: true,
+      apiKeys: true,
       modelApi: true,
       loading: false,
     }),

@@ -25,9 +25,10 @@ import { API_NAV_ITEMS, visibleApiNavItems } from './-nav-items';
  * lists these same pages — so this layout renders only a bounded content
  * pane, with a horizontal tab strip on mobile.
  *
- * Owners, admins and developers open every page; a member who may call the
- * model endpoints (a `tale:models.api` grant) opens REST and Models — where
- * their personal key is made and a tool is set up — and no other.
+ * Owners, admins and developers open every page; a member who may create a
+ * personal API key (a competence that is used with one) opens REST, where it
+ * is made, and one who may call the model endpoints (a `tale:models.api`
+ * grant) Models too, where a tool is set up — and no other.
  */
 export const Route = createFileRoute('/dashboard/$id/settings/api')({
   head: () => ({ meta: seo('apiKeys') }),
@@ -49,17 +50,17 @@ function ApiSettingsLayout() {
     () =>
       visibleApiNavItems({
         developer: access.developer,
+        apiKeys: access.apiKeys,
         modelApi: access.modelApi,
       }),
-    [access.developer, access.modelApi],
+    [access.developer, access.apiKeys, access.modelApi],
   );
   // The page the path names: a tab this member may not open is denied, the
-  // way the whole section is for a member who may open none of it.
+  // way the whole section is for a member who may open none of it — each
+  // saying why.
   const openSlug = pathname.slice(basePath.length + 1).split('/')[0] ?? '';
   const openItem = API_NAV_ITEMS.find((item) => item.slug === openSlug);
-  const denied =
-    visibleItems.length === 0 ||
-    (openItem !== undefined && !visibleItems.includes(openItem));
+  const tabDenied = openItem !== undefined && !visibleItems.includes(openItem);
 
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -87,8 +88,18 @@ function ApiSettingsLayout() {
     );
   }
 
-  if (denied) {
+  if (visibleItems.length === 0) {
     return <AccessDenied message={tAccessDenied('apiKeys')} />;
+  }
+
+  if (tabDenied) {
+    return (
+      <AccessDenied
+        message={tAccessDenied(
+          openItem.audience === 'modelApi' ? 'apiModels' : 'apiTab',
+        )}
+      />
+    );
   }
 
   return (
