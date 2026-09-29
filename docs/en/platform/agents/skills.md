@@ -22,7 +22,7 @@ Open the [project agent](/platform/projects/project-agents) and select the neede
 
 Legacy private skills cannot be equipped on a project agent. The same access rule is checked when a task runs; selecting a skill does not grant the project permanent access to it.
 
-Each skill in the list names who created it: a member, **Built-in** for the skills your organization starts with, or **Configuration release**. Check where an unfamiliar skill comes from before you equip it.
+Each skill in the list names who created it: a member, **Built-in** for the skills your organization starts with, or **Configuration release** with the member whose upload installed it. Check where an unfamiliar skill comes from before you equip it.
 
 ## Use skills in an automation
 

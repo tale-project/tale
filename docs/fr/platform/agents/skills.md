@@ -22,7 +22,7 @@ Ouvre l’[agent de projet](/fr/platform/projects/project-agents) et sélectionn
 
 Les anciens skills privés ne peuvent pas équiper un agent de projet. La même règle d’accès est vérifiée au démarrage d’une tâche : sélectionner un skill ne donne pas au projet un accès permanent à celui-ci.
 
-Chaque skill de la liste indique son créateur : un membre, **Fourni avec Tale** pour les skills fournis à la création de ton organisation, ou **Release de configuration**. Vérifie l’origine d’un skill inconnu avant d’en équiper un agent.
+Chaque skill de la liste indique son créateur : un membre, **Fourni avec Tale** pour les skills fournis à la création de ton organisation, ou **Release de configuration** suivi du membre dont le téléversement l’a installé. Vérifie l’origine d’un skill inconnu avant d’en équiper un agent.
 
 ## Utiliser des skills dans une automatisation
 

@@ -87,9 +87,9 @@ Narrowing visibility asks for confirmation because some agents may lose access. 
 
 ## See who created and changed a skill
 
-The **Created by** column names the member who created each skill. Search the library for a name to find everything that person shared. The column shows **Built-in** for a skill without a recorded creator, such as the document skills your organization starts with, and **Configuration release** for a skill a managed configuration release installed. Once the creator leaves the organization, it shows **Former member**.
+The **Created by** column names the member who created each skill. Search the library for a name to find everything that person shared. The column shows **Built-in** for a skill without a recorded creator, such as the document skills your organization starts with, and **Configuration release** with the member whose upload installed it for a skill a managed configuration release installed. Once the creator leaves the organization, it shows **Former member**.
 
-Open a skill to see **Created by** and **Last edited by**: the member whose save or upload in Tale produced the current version. **Last edited by** is left out when nobody has edited the skill since it was created, or when its file changed outside Tale since the last edit. For a configuration release, **Created by** also names the member whose upload installed it. The skill list in an [agent's equipment](/platform/agents/skills) names the creator under each skill as well.
+Open a skill to see **Created by** and **Last edited by**: the member whose save or upload in Tale produced the current version. **Last edited by** is left out when nobody has edited the skill since it was created, or when its file changed outside Tale since the last edit. The skill list in an [agent's equipment](/platform/agents/skills) names the creator under each skill as well.
 
 Tale records creating, editing, uploading and deleting a skill, and every change to its visibility or teams, in the audit log. Administrators and owners find these entries under **Settings > Governance > Logs** in the **Skill** category.
 
