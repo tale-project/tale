@@ -108,6 +108,24 @@ describe('governance adapters', () => {
   });
 });
 
+describe('organization API key listing adapter', () => {
+  it('reads every member key of the organization for the budget picker', async () => {
+    const keys = [{ id: 'key-1', name: 'CI', start: 'tale_A', userId: 'u-1' }];
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json({ keys }));
+    const read = settingsReadAdapters['governance/api_keys:listOrgApiKeys']?.(
+      { organizationId: 'org-a' },
+      {},
+    );
+    await expect(read?.queryFn()).resolves.toEqual(keys);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/app/governance/api-keys?orgId=org-a',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+});
+
 describe('competence register adapters', () => {
   it('reads the register as its record list', async () => {
     const records = [{ id: 'record-a', competence: 'tale:rest.act-as' }];

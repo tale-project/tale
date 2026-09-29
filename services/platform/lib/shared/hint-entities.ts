@@ -75,3 +75,14 @@ export const MEMBER_HINT_ENTITY = 'member';
  * entity so a membership change refreshes the same lists.
  */
 export const TEAM_HINT_ENTITY = 'team';
+
+/**
+ * The API keys of an organization's members — the budget editor's per-key
+ * picker. Keys are created, renamed and revoked through Better Auth's own
+ * api-key endpoints, never an app route, so the after-hook in `auth.ts`
+ * emits this entity to every organization the key's holder belongs to (a
+ * key works in each of them). Without it an admin's open picker kept its
+ * first answer for the whole stale window: a key a member had just created
+ * was missing, and a revoked one still offered.
+ */
+export const API_KEY_HINT_ENTITY = 'api_key';
