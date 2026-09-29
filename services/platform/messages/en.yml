@@ -1869,7 +1869,12 @@ conversations:
       Install an email automation (Gmail, Outlook, or IMAP)
       to start reading and replying to conversations here.
     composeNotice: To email {name}, first install an email automation.
+    composeNoticeReader: You can email {name} once an email automation is deployed.
     browseAutomations: Browse automations
+    noAutomationReaderDescription:
+      Once someone with the Owner, Admin, or Developer role deploys an email
+      automation (Gmail, Outlook, or IMAP), you can read and reply to
+      conversations here.
   filter:
     all: All
     read: Read

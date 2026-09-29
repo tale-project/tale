@@ -63,6 +63,18 @@ vi.mock('@/app/features/conversations/hooks/queries', () => ({
     contactId ? mockComposeContactName : { name: undefined, isLoading: false },
 }));
 
+// Who is looking: an author (Owner, Admin, Developer) can deploy the mail
+// automation that feeds the Inbox; a Member or Editor cannot.
+const viewer = { canAuthor: true };
+vi.mock('@/app/hooks/use-ability', () => ({
+  useAbility: () => ({
+    can: (action: string, subject: string) =>
+      action === 'read' && subject === 'developerSettings'
+        ? viewer.canAuthor
+        : true,
+  }),
+}));
+
 vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'user-1' } }),
 }));
@@ -112,6 +124,7 @@ beforeEach(() => {
   mockInboxAvailability = { isLoading: false, hasInbox: false };
   mockComposeContactName = { name: undefined, isLoading: false };
   mockNavigate.mockClear();
+  viewer.canAuthor = true;
 });
 
 afterEach(() => {
@@ -151,6 +164,39 @@ describe('ConversationsLayout', () => {
     expect(
       screen.getByRole('link', { name: 'Browse automations' }),
     ).toBeInTheDocument();
+  });
+
+  it('tells a reader who can set up the Inbox instead of linking to Automations', () => {
+    viewer.canAuthor = false;
+
+    render(<ConversationsLayout />);
+
+    expect(
+      screen.getByRole('heading', { name: 'Set up your Inbox' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Once someone with the Owner, Admin, or Developer role/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Browse automations' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('words the compose notice for a reader, who cannot install anything', () => {
+    viewer.canAuthor = false;
+    mockSearch = { compose: 'new', composeContact: 'contact-1' };
+    mockComposeContactName = { name: 'Ada Lovelace', isLoading: false };
+
+    render(<ConversationsLayout />);
+
+    expect(
+      screen.getByText(
+        'You can email Ada Lovelace once an email automation is deployed.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/first install an email automation\./),
+    ).not.toBeInTheDocument();
   });
 
   it('falls back to a generic contact label while the contact is still loading', () => {
