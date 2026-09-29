@@ -28,6 +28,7 @@ const {
   readGovernancePolicySnapshot,
   getSandboxDeploymentLimits,
   getUserTeamIds,
+  listModelApiModels,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   createAuditLog: vi.fn(),
@@ -39,6 +40,7 @@ const {
   readGovernancePolicySnapshot: vi.fn(),
   getSandboxDeploymentLimits: vi.fn(),
   getUserTeamIds: vi.fn(),
+  listModelApiModels: vi.fn(),
 }));
 
 vi.mock('@tale/shared/db/serializable', () => ({ transactSerializable }));
@@ -53,6 +55,7 @@ vi.mock('../../lib/governance-policy-write.ts', () => ({
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
+vi.mock('../model_api/models.ts', () => ({ listModelApiModels }));
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
   getUserTeamIds,
@@ -442,6 +445,79 @@ describe('POST /policies/sandbox_quota — deployment capacity', () => {
       expectNoWrite();
     },
   );
+});
+
+describe('GET /my/model-api', () => {
+  async function read(sql: never = {} as never): Promise<Response> {
+    return await createGovernanceRoutes({ sql, auth: {} as never }).request(
+      '/my/model-api?orgId=o1',
+    );
+  }
+
+  beforeEach(() => {
+    readGovernancePolicyForOrg.mockReset();
+    listModelApiModels.mockReset();
+  });
+
+  it('answers whether the organization turned the model endpoints on and whether this member may call them', async () => {
+    caller.role = 'developer';
+    readGovernancePolicyForOrg.mockResolvedValue({
+      enabled: false,
+      mode: 'blocklist',
+      rules: [],
+      modelApi: { enabled: true },
+    });
+    resolveOrgSlug.mockResolvedValue('acme');
+    listModelApiModels.mockResolvedValue([
+      {
+        id: 'deepseek/deepseek-v4-flash',
+        label: 'DeepSeek V4 Flash',
+        providerSlug: 'deepseek',
+      },
+    ]);
+    const res = await read();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      enabled: true,
+      allowed: true,
+      models: [
+        { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+      ],
+    });
+    expect(listModelApiModels).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'o1',
+      orgSlug: 'acme',
+      userId: 'u1',
+    });
+    // The switch is read the way an authorization policy must be.
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'model_access',
+      { strict: true },
+    );
+  });
+
+  it('answers a member without the grant, and the switch off, as they are', async () => {
+    caller.role = 'member';
+    readGovernancePolicyForOrg.mockResolvedValue(null);
+    const grants: unknown[][] = [];
+    const sql = (async (
+      _strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => {
+      grants.push(values);
+      return [];
+    }) as never;
+    expect(await (await read(sql)).json()).toEqual({
+      enabled: false,
+      allowed: false,
+      models: [],
+    });
+    expect(grants).toEqual([['o1', 'u1', 'tale:models.api']]);
+    // Nothing to list for a member the endpoints would refuse.
+    expect(listModelApiModels).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /my/budget-usage', () => {

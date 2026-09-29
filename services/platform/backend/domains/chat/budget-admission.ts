@@ -64,7 +64,11 @@ function budgetRefusalMessage(violation: BudgetViolation): string {
   return `Usage limit reached. ${BUCKET_OWNER[violation.scope]} ${violation.period} ${CAP_NAME[violation.code]} limit is used up until ${new Date(violation.resetsAt).toISOString()}.`;
 }
 
-function toChatBudgetRefusal(violation: BudgetViolation): ChatBudgetRefusal {
+/** A reached cap as the coded refusal every budget lane answers — the chat
+ * turn's and the model endpoints'. */
+export function toChatBudgetRefusal(
+  violation: BudgetViolation,
+): ChatBudgetRefusal {
   return {
     code: 'BUDGET_EXCEEDED',
     message: budgetRefusalMessage(violation),

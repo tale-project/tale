@@ -111,13 +111,19 @@ function domainSourcesReachableFromHandlers(): {
 }
 
 /** Every SHOUTING code a domain module throws through one of its error
- * classes (`new ContactError('CONTACT_STALE', …)`) or answers in a coded
- * envelope. Lower-case codes are the app doors' own vocabulary and are
- * not the REST door's business. */
+ * classes (`new ContactError('CONTACT_STALE', …)`), throws as a model
+ * endpoint's refusal (`new ModelApiRefusal(403, 'MODEL_API_DISABLED', …)`,
+ * the status first) or answers in a coded envelope. Lower-case codes are
+ * the app doors' own vocabulary and are not the REST door's business. */
 function domainCodes(source: string): string[] {
   const found = new Set<string>();
   for (const match of source.matchAll(
     /new [A-Z][A-Za-z]*Error\(\s*'([A-Z][A-Z0-9_]{3,})'/g,
+  )) {
+    found.add(match[1] ?? '');
+  }
+  for (const match of source.matchAll(
+    /new ModelApiRefusal\(\s*\d{3},\s*'([A-Z][A-Z0-9_]{3,})'/g,
   )) {
     found.add(match[1] ?? '');
   }
@@ -483,11 +489,20 @@ describe('the REST error-code registry', () => {
       'utf8',
     );
     // Backticked SHOUTING identifiers in descriptions are codes — bar the
-    // one environment variable a description names.
+    // environment variables a description names: the deployment editor
+    // allowlist, and the Claude Code / Anthropic SDK variables the model
+    // endpoints' section tells a client to set.
+    const ENVIRONMENT_VARIABLES = new Set([
+      'TALE_DEPLOYMENT_CONFIG_ADMINS',
+      'ANTHROPIC_API_KEY',
+      'ANTHROPIC_AUTH_TOKEN',
+      'ANTHROPIC_BASE_URL',
+      'ANTHROPIC_CUSTOM_HEADERS',
+    ]);
     const named = new Set(
       [...spec.matchAll(/`([A-Z][A-Z0-9_]{3,})`/g)]
         .map((match) => match[1] ?? '')
-        .filter((code) => code !== 'TALE_DEPLOYMENT_CONFIG_ADMINS'),
+        .filter((code) => !ENVIRONMENT_VARIABLES.has(code)),
     );
     const unregistered = [...named].filter((code) => !isRestErrorCode(code));
     expect(unregistered.sort()).toEqual([]);

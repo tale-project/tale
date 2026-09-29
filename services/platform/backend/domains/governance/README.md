@@ -24,7 +24,8 @@ page, the budget gate, erasure and retention are its readers.
 4. **A keyed start books to its key too.** When an API key authenticated the chat send or the run
    start, the ledger row carries `api_key_id` beside the person, so the key's own budget caps see
    the spend the docs promise them. Run rows keep the key in `automation_runs.api_key_id`
-   (`0110_run_billing_subject.sql`); the reservation stamps it on `sandbox_session_ops`.
+   (`0110_run_billing_subject.sql`); the reservation stamps it on `sandbox_session_ops`, and an
+   unsettled op's hold counts against the key's caps as well as the person's.
 5. **`agent_slug` is a stable identifier, never a display name.** A chat assistant books under its
    slug, a project agent under its id (`project_agents.id`), an automation under its name (a
    unique path per organization), the system lanes under their sentinels (`__tts__`,
@@ -34,7 +35,10 @@ page, the budget gate, erasure and retention are its readers.
    `request.userId` (`lib/chat/turn.ts`, `recordUsage`). Managed turns — reservation
    (`domains/sandbox/turn-budget.ts`) and settlement (`domains/sandbox/spend-settlement.ts`)
    alike — resolve their subject through `resolveSessionOpAttribution`
-   (`domains/sandbox/op-attribution.ts`). The same subject decides whom a task turn's connector
+   (`domains/sandbox/op-attribution.ts`). A request through the model endpoints for API keys
+   (`/api/v1/openai`, `/api/v1/anthropic`) has no run: its door names the subject — the key holder,
+   `__direct_api__`, the key — to the same reservation (`subject`), which stamps it on its op row
+   (kind `model-api`), and the settlement's resolver reads that stamp. The same subject decides whom a task turn's connector
    calls act for: the connectors bridge (`domains/connectors/bridge-routes.ts`) resolves it on
    every call from the live run on the exec the turn's token names (`scope.connectorCaller`),
    so a call is booked, audited and run for one person. A run's `started_by` is parsed only by
@@ -59,6 +63,7 @@ page, the budget gate, erasure and retention are its readers.
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare) | `project_agents.id` | — |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` |
 | Voice output, transcription | `domains/tts`, `domains/files/transcription.ts` | the requester | `__tts__`, `__transcription__` | — |
+| Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key |
 | Connector call | `recordConnectorUsage` | the caller | optional | — |
 
 ## Readers
@@ -77,6 +82,8 @@ page, the budget gate, erasure and retention are its readers.
 - `domains/sandbox/op-attribution.test.ts` — the subject per lane, sentinel, key, stamp fallback.
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
+- `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder
+  with the key and books the gateway's figure under the person, `__direct_api__` and the key.
 - `core/tasks/agent_run_host.connector_caller.test.ts`, `domains/connectors/bridge-routes.test.ts`
   — a task turn's connector calls act for the run's starter while the run is live, and for
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an

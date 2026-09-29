@@ -1,23 +1,28 @@
 import type { Sql } from 'postgres';
 
 import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
-import type { ReserveTurnBudgetResult } from '../../core/node_only/sandbox/turn_budget.ts';
 import {
   loadBudgetSubject,
   type OrgBudgetSubject,
   resolveTurnAllowance,
+  type TurnAllowance,
 } from '../governance/budget-gate.ts';
 import {
   lockBudgetAdmission,
   readInFlightReservations,
 } from '../governance/budget-reservations.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
-import { resolveSessionOpAttribution } from './op-attribution.ts';
+import {
+  resolveSessionOpAttribution,
+  type SessionOpAttribution,
+} from './op-attribution.ts';
 
 /**
  * Reserve a managed turn's gateway allowance under the org's spend cap —
  * the PG side of `sandbox/session_mutations:reserveTurnBudget`, taken by
- * both hosts right before they mint the turn's virtual key.
+ * both hosts right before they mint the turn's virtual key, and by the model
+ * endpoints for API keys before each request's key (`kind: 'model-api'`,
+ * its subject named by the caller).
  *
  * Under the org admission lock and the budget-admission lock the chat lane's
  * opens share (so no two admissions read the same remaining balance): the
@@ -36,18 +41,27 @@ export async function reserveTurnBudget(
     organizationId: string;
     sessionId: string;
     execId: string;
-    kind: 'task-agent' | 'workflow-agent';
+    /** `model-api`: one request through the model endpoints for API keys
+     * (`domains/model_api`), which has no run behind it and names its
+     * subject itself. */
+    kind: 'task-agent' | 'workflow-agent' | 'model-api';
     defaultBudgetCents: number;
     modelRef?: string;
     /** The harness this turn runs on — the op row's own record, which the
      * harness-turn metrics read ahead of the session's create-time stamp. */
     harness?: string;
+    /** The billing subject, when the caller authenticated it and there is
+     * no run to derive it from — the model endpoints' key holder, under
+     * `__direct_api__`, with the key. Stamped on the op row, where the
+     * settlement's attribution finds it (`resolveSessionOpAttribution`). */
+    subject?: SessionOpAttribution;
   },
-): Promise<ReserveTurnBudgetResult> {
+): Promise<TurnAllowance> {
   const defaultCents = Math.max(1, Math.floor(args.defaultBudgetCents));
   return sql.begin(async (tx) => {
     await lockOrgAdmission(tx, args.organizationId);
-    const attribution = await resolveSessionOpAttribution(tx, args);
+    const attribution =
+      args.subject ?? (await resolveSessionOpAttribution(tx, args));
     const userId = attribution?.userId ?? '';
     const apiKey =
       attribution?.apiKeyId !== undefined

@@ -131,6 +131,67 @@ describe('resolveTurnAllowance', () => {
     }
   });
 
+  it('names the cap that refused — whose bucket, which limit, when it resets', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [{ scope: 'org', period: 'daily', maxRequests: 3 }],
+    };
+    const allowance = await resolveTurnAllowance(
+      ledger({ org: { totalTokens: 0, costEstimate: 0, requestCount: 2 } }),
+      {
+        ...SUBJECT,
+        defaultCents: 500,
+        // One request in flight fills the third slot.
+        reservations: {
+          org: { costCents: 0, tokens: 0, requests: 1 },
+          user: { costCents: 0, tokens: 0, requests: 0 },
+        },
+      },
+    );
+    expect(allowance.allowed).toBe(false);
+    if (!allowance.allowed) {
+      expect(allowance.violation).toMatchObject({
+        scope: 'org',
+        code: 'REQUEST_LIMIT',
+        period: 'daily',
+        limit: 3,
+      });
+      expect(allowance.violation?.resetsAt).toBeGreaterThan(Date.now());
+    }
+  });
+
+  it('names the personal cost cap a cent from its limit', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'user',
+          scopeId: 'user-1',
+          period: 'weekly',
+          maxCostCents: 1_000,
+        },
+        { scope: 'org', period: 'monthly', maxCostCents: 100_000 },
+      ],
+    };
+    const allowance = await resolveTurnAllowance(
+      ledger({
+        user: { totalTokens: 0, costEstimate: 998.6, requestCount: 9 },
+        org: { totalTokens: 0, costEstimate: 5_000, requestCount: 90 },
+      }),
+      { ...SUBJECT, defaultCents: 500, reservations: holds(0, 0.5) },
+    );
+    expect(allowance.allowed).toBe(false);
+    if (!allowance.allowed) {
+      expect(allowance.reason).toMatch(/Cost limit reached/);
+      expect(allowance.violation).toMatchObject({
+        scope: 'user',
+        code: 'COST_LIMIT',
+        period: 'weekly',
+        limit: 1_000,
+      });
+    }
+  });
+
   it('binds the personal cap against the user’s own spend and reservations', async () => {
     policy.config = {
       enabled: true,

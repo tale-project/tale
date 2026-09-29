@@ -1541,6 +1541,7 @@ describe('every operation with its own byte cap names it in its 413', () => {
   it('sees the caps the handlers hold their bodies to', () => {
     expect([...caps.keys()].sort()).toEqual([
       'PATCH /api/v1/documents/{id}',
+      'POST /api/v1/anthropic/v1/messages',
       'POST /api/v1/contacts/bulk',
       'POST /api/v1/conversations/deliveries/claim',
       'POST /api/v1/conversations/deliveries/{id}/ack',
@@ -1548,6 +1549,7 @@ describe('every operation with its own byte cap names it in its 413', () => {
       'POST /api/v1/conversations/sync',
       'POST /api/v1/conversations/uploads',
       'POST /api/v1/documents',
+      'POST /api/v1/openai/chat/completions',
       'PUT /api/v1/skills/{slug}',
     ]);
   });
@@ -1727,15 +1729,20 @@ describe('the pagination families', () => {
  * an `allOf`/`oneOf`/`anyOf` member or an array's items, carries
  * `additionalProperties: false`. The bulk contacts body shipped without
  * it (2026-09-13 round-e evaluation, E1-05a), so a generated client typed
- * it open while the wire refused a stray key. Two kinds of door are open
+ * it open while the wire refused a stray key. Three kinds of door are open
  * on purpose: the MCP door (JSON-RPC, whose `params` are each tool's own
- * schema) and the two webhook doors (any JSON value is the payload).
+ * schema), the two webhook doors (any JSON value is the payload), and the
+ * compatible model endpoints (the vendors' own bodies, relayed).
  */
 describe('every JSON request body is strict', () => {
   const OPEN_BY_DESIGN: ReadonlySet<string> = new Set([
     'POST /api/v1/mcp',
     'POST /api/automations/webhook/{token}',
     'POST /api/projects/{id}/automations/webhook/{token}',
+    // The compatible model endpoints relay the vendors' own request bodies,
+    // which grow fields the platform relays without knowing them.
+    'POST /api/v1/openai/chat/completions',
+    'POST /api/v1/anthropic/v1/messages',
   ]);
   const schemas = (spec.components as { schemas: Record<string, Json> })
     .schemas;

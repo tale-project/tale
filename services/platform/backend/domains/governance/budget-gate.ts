@@ -539,7 +539,14 @@ export async function readBudgetStanding(
 
 export type TurnAllowance =
   | { allowed: true; budgetCents: number }
-  | { allowed: false; reason: string };
+  | {
+      allowed: false;
+      reason: string;
+      /** The cap that refused — whose bucket, which limit, and when its
+       * period resets — for a door that answers the refusal as the chat
+       * lane's coded `BUDGET_EXCEEDED` (the model endpoints). */
+      violation?: BudgetViolation;
+    };
 
 /**
  * The gateway allowance a managed turn may be minted with: the deployment's
@@ -562,6 +569,11 @@ export async function resolveTurnAllowance(
   const { reservations } = args;
   const now = Date.now();
   let allowance = args.defaultCents;
+  /** The cost bucket with the least room left — the cap to name when what
+   * remains is under a cent. */
+  let tightest:
+    | { bucket: BudgetBucket; period: BudgetRule['period'] }
+    | undefined;
   for (const { period, limits } of await applicableLimitsByPeriod(sql, args)) {
     for (const bucket of await bucketsFor(
       sql,
@@ -574,27 +586,57 @@ export async function resolveTurnAllowance(
       // One more cent and one more request: refused means nothing usable
       // remains under this rule — its own wording names the cap.
       const violation = checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
-      if (violation) {
+      if (violation?.code !== undefined) {
+        const reason =
+          violation.reason ??
+          `The organization's ${period} spend cap has been reached.`;
         return {
           allowed: false,
-          reason:
-            violation.reason ??
-            `The organization's ${period} spend cap has been reached.`,
+          reason,
+          violation: {
+            scope: bucket.scope,
+            ...(bucket.teamId !== undefined ? { teamId: bucket.teamId } : {}),
+            code: violation.code,
+            period,
+            used: violation.used ?? 0,
+            limit: violation.limit ?? 0,
+            reason,
+            resetsAt: buildPeriodEndFromTimestamp(period, now),
+          },
         };
       }
       if (bucket.rule.maxCostCents != null) {
-        allowance = Math.min(
-          allowance,
-          bucket.rule.maxCostCents - bucket.usage.costEstimate,
-        );
+        const room = bucket.rule.maxCostCents - bucket.usage.costEstimate;
+        if (room < allowance) {
+          allowance = room;
+          tightest = { bucket, period };
+        }
       }
     }
   }
   const budgetCents = Math.floor(allowance);
   if (budgetCents < 1) {
+    const reason =
+      'The organization’s spend cap leaves no allowance for this turn.';
     return {
       allowed: false,
-      reason: 'The organization’s spend cap leaves no allowance for this turn.',
+      reason,
+      ...(tightest !== undefined && tightest.bucket.rule.maxCostCents != null
+        ? {
+            violation: {
+              scope: tightest.bucket.scope,
+              ...(tightest.bucket.teamId !== undefined
+                ? { teamId: tightest.bucket.teamId }
+                : {}),
+              code: 'COST_LIMIT' as const,
+              period: tightest.period,
+              used: tightest.bucket.usage.costEstimate,
+              limit: tightest.bucket.rule.maxCostCents,
+              reason,
+              resetsAt: buildPeriodEndFromTimestamp(tightest.period, now),
+            },
+          }
+        : {}),
     };
   }
   return { allowed: true, budgetCents };

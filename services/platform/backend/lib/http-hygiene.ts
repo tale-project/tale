@@ -150,6 +150,13 @@ export function nulUrlGuard<E extends Env>(): MiddlewareHandler<E> {
  */
 export function apiKeyHeaderGuard<E extends Env>(
   headerNames: readonly string[],
+  options: {
+    /** A sentence added for a path whose clients are known to send the
+     * refused header by default — the Anthropic-compatible model endpoint,
+     * whose SDKs put a key in `x-api-key` unless it is given as an auth
+     * token. */
+    hintFor?: (path: string) => string | undefined;
+  } = {},
 ): MiddlewareHandler<E> {
   return async (c, next) => {
     const present = headerNames.find(
@@ -157,9 +164,10 @@ export function apiKeyHeaderGuard<E extends Env>(
     );
     if (present !== undefined) {
       c.header('WWW-Authenticate', 'Bearer');
+      const hint = options.hintFor?.(c.req.path);
       return c.json(
         {
-          error: `The "${present}" header is not accepted — send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1`,
+          error: `The "${present}" header is not accepted — send an API key as "Authorization: Bearer <key>" to the REST API under /api/v1${hint === undefined ? '' : ` — ${hint}`}`,
           code: 'UNAUTHORIZED',
         },
         401,

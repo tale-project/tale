@@ -67,6 +67,19 @@ function llmGatewayUrl(): string {
   return gatewayEnv('URL') ?? 'http://sandbox-llm-gateway:8080';
 }
 
+/**
+ * Where the platform itself sends an inference request through the gateway
+ * — the model endpoints for API keys (`domains/model_api`), which relay a
+ * key holder's call with a per-request virtual key. The gateway serves
+ * inference and its management API on one port, and the platform reaches it
+ * on the internal network at the same address it manages it through; the
+ * port is never published. `route` is the gateway's own path (`/openai/v1/
+ * chat/completions`, `/anthropic/v1/messages`).
+ */
+export function gatewayInferenceUrl(route: string): string {
+  return `${llmGatewayUrl().replace(/\/+$/, '')}${route}`;
+}
+
 /** Admin username for the gateway management plane (auth_config). */
 function adminUsername(): string {
   return gatewayEnv('ADMIN_USERNAME') ?? 'admin';

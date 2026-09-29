@@ -86,6 +86,7 @@ import {
   getKnowledgeEntryVersions,
   updateKnowledgeEntry,
 } from '../domains/knowledge_entries/service.ts';
+import { resolveModelApiGate } from '../domains/model_api/access.ts';
 import { listUserOrganizations } from '../domains/organizations/service.ts';
 import {
   productCreateSchema,
@@ -346,6 +347,20 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           userId: c.get('userId'),
           role: c.get('role'),
         }),
+        // The model endpoints' two gates (`/api/v1/openai`,
+        // `/api/v1/anthropic`): the organization turned them on and this
+        // key holder may call them — by role, or by a live
+        // `tale:models.api` grant — so a client learns it before a 403
+        // `MODEL_API_DISABLED` / `MODEL_API_FORBIDDEN`.
+        modelApi:
+          (
+            await resolveModelApiGate(deps.sql, {
+              organizationId: c.get('organizationId'),
+              orgSlug: c.get('orgSlug'),
+              userId: c.get('userId'),
+              role: c.get('role'),
+            })
+          ).kind === 'open',
       },
       key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
     });

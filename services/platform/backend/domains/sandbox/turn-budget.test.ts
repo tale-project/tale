@@ -227,6 +227,56 @@ describe('reserveTurnBudget', () => {
     );
   });
 
+  it('measures a model-endpoint request as the subject its door authenticated, and stamps it', async () => {
+    gate.resolveTurnAllowance.mockResolvedValue({
+      allowed: true,
+      budgetCents: 40,
+    });
+    const { sql, statements } = fakeSql([]);
+
+    await reserveTurnBudget(sql, {
+      organizationId: 'org-1',
+      sessionId: 'model-api:key-9',
+      execId: 'req-1',
+      kind: 'model-api',
+      defaultBudgetCents: 40,
+      modelRef: 'openrouter/openrouter/anthropic/claude-sonnet-4.6',
+      subject: {
+        userId: 'user-3',
+        agentSlug: '__direct_api__',
+        apiKeyId: 'key-9',
+      },
+    });
+
+    // No run to derive the subject from — the door named it.
+    expect(
+      statements.some(
+        (s) =>
+          s.text.includes('app.project_agent_runs') ||
+          s.text.includes('app.automation_runs'),
+      ),
+    ).toBe(false);
+    expect(gate.loadBudgetSubject).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      userId: 'user-3',
+      apiKeyId: 'key-9',
+    });
+    const upsert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.sandbox_session_ops'),
+    );
+    expect(upsert?.values).toEqual(
+      expect.arrayContaining([
+        'model-api:key-9',
+        'req-1',
+        'model-api',
+        'user-3',
+        '__direct_api__',
+        'key-9',
+        40,
+      ]),
+    );
+  });
+
   it('evaluates a trigger-started run as nobody: org caps only, booked under the automation sentinel', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: true,

@@ -262,5 +262,24 @@
  * would create a `visibility: org` skill, widen one to `org` or change an
  * `org` skill in place; `GET /api/v1/me` answers
  * `capabilities.skillPublish`.
+ *
+ * 3.6.0 — 2026-09-29: compatible model endpoints for personal API keys —
+ * `POST /api/v1/openai/chat/completions` and `GET /api/v1/openai/models`
+ * (OpenAI Chat Completions) and `POST /api/v1/anthropic/v1/messages`
+ * (Anthropic Messages), streamed and not, with tools and images, relayed
+ * through the platform's model gateway. Off until an organization turns them
+ * on in its model access policy; owners, administrators and developers may
+ * call them, any other member through the new `tale:models.api` capability.
+ * Model access, credential allowlists, the input guardrails and the budget
+ * caps apply; spend books under the person and the key. Bodies, answers and
+ * refusals are the vendors' own shapes (`OpenAiError`, `AnthropicError`),
+ * the stable code in `code`; new codes `MODEL_API_DISABLED`,
+ * `MODEL_API_FORBIDDEN`, `MODEL_API_MODEL_FORBIDDEN`,
+ * `MODEL_API_MODEL_UNKNOWN`, `MODEL_API_VISION_UNSUPPORTED`,
+ * `MODEL_API_TOOLS_UNSUPPORTED`, `MODEL_API_VENDOR_TOOL_UNSUPPORTED`,
+ * `MODEL_API_GUARDRAIL_BLOCKED`, `MODEL_API_GUARDRAIL_UNSUPPORTED`,
+ * `MODEL_API_GUARDRAIL_UNAVAILABLE`, `MODEL_API_UNAVAILABLE` and
+ * `MODEL_API_UPSTREAM_ERROR`. `GET /api/v1/me` answers
+ * `capabilities.modelApi`.
  */
-export const API_CONTRACT_VERSION = '3.5.0';
+export const API_CONTRACT_VERSION = '3.6.0';

@@ -7,6 +7,7 @@ import {
   sessionSetPinned,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
+import { closeStaleModelApiOps } from '../model_api/metering.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import { RECOVERY_STALE_MS } from './recovery.ts';
@@ -221,6 +222,18 @@ export async function runSandboxWatchdog(
       now,
       ...(signal !== undefined ? { signal } : {}),
     });
+  }
+
+  // A model-endpoint request whose process died mid-answer never closed its
+  // op: close it now, so the sweep below books what the gateway metered and
+  // deletes its key (domains/model_api/metering.ts).
+  try {
+    await closeStaleModelApiOps(sql, now);
+  } catch (error: unknown) {
+    console.error(
+      '[watchdog] closing lost model-endpoint requests failed:',
+      error,
+    );
   }
 
   // SETTLE: finalized ops whose gateway-key settlement is still open past
