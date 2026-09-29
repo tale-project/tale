@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('../data/chat-backend', () => ({
+  useChatQueryClient: () => ({ refetchQueries: vi.fn(async () => undefined) }),
   useChatProjects: () =>
     state.projectsFailed
       ? { status: 'unavailable' }
