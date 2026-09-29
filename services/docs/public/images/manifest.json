@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "file": "images/develop/settings-api-models.webp",
+      "shot": "settings-api-models",
+      "route": "/dashboard/:orgId/settings/api/models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800
+    },
+    {
       "file": "images/get-started/documents-list.webp",
       "shot": "documents-list",
       "route": "/dashboard/:orgId/documents",
@@ -225,7 +237,7 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1538,
+      "width": 1536,
       "height": 660
     },
     {
@@ -265,6 +277,18 @@
       "height": 1800
     },
     {
+      "file": "images/platform/governance-image-generation.webp",
+      "shot": "governance-image-generation",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 394
+    },
+    {
       "file": "images/platform/governance-legal-hold.webp",
       "shot": "governance-legal-hold",
       "route": "/dashboard/:orgId/settings/governance/legal-hold",
@@ -275,6 +299,18 @@
       "dpr": 2,
       "width": 2880,
       "height": 1920
+    },
+    {
+      "file": "images/platform/governance-model-endpoints.webp",
+      "shot": "governance-model-endpoints",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 1538,
+      "height": 274
     },
     {
       "file": "images/platform/governance-policies-limits.webp",
@@ -309,7 +345,7 @@
         "height": 900
       },
       "dpr": 2,
-      "width": 1538,
+      "width": 1536,
       "height": 356
     },
     {
@@ -354,11 +390,11 @@
       "route": "/dashboard/:orgId/projects",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 1200
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 2400
     },
     {
       "file": "images/platform/project-knowledge-files.webp",
@@ -401,12 +437,12 @@
       "shot": "projects-task-board",
       "route": "/dashboard/:orgId/projects",
       "viewport": {
-        "width": 1920,
-        "height": 1200
+        "width": 2240,
+        "height": 1400
       },
       "dpr": 2,
-      "width": 3840,
-      "height": 2400
+      "width": 4480,
+      "height": 2800
     },
     {
       "file": "images/platform/sandbox-infrastructure-capacity.webp",

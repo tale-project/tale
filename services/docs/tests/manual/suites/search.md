@@ -1,6 +1,6 @@
 # Search
 
-> **Prefix** `SEARCH-` · **Reset** none · **Cost** 14 boxes
+> **Prefix** `SEARCH-` · **Reset** none · **Cost** 15 boxes
 
 Exercise the docs search — the rail trigger and the **Cmd/Ctrl+K** shortcut,
 the shared `@tale/ui` `SearchCommand` dialog over a prebuilt MiniSearch index

@@ -50,6 +50,9 @@ function stubGateway(
     mintRefusal?: { status: number; body: string };
     /** Overrides `GET /api/governance/pricing-overrides` lists. */
     pricingOverrides?: Record<string, unknown>[];
+    /** `POST /api/providers/:p/keys` answers the stored key under this id
+     * (as the gateway does); otherwise an empty object. */
+    createdKeyId?: string;
   } = {},
 ): RecordedCall[] {
   const calls: RecordedCall[] = [];
@@ -118,6 +121,22 @@ function stubGateway(
               },
             }),
             { status: opts.writeStatus ?? 200 },
+          ),
+        );
+      }
+      if (
+        method === 'POST' &&
+        u.endsWith('/keys') &&
+        opts.createdKeyId !== undefined
+      ) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: opts.createdKeyId,
+              name: opts.keyName ?? KEY_NAME,
+              value: '<redacted>',
+            }),
+            { status: 200 },
           ),
         );
       }
@@ -806,6 +825,146 @@ describe('provisionProviders — management-plane auth', () => {
   });
 });
 
+/**
+ * A request-scoped key (one per model-endpoint request) reuses the org key
+ * this process pushed or saw listed within the last minute, under the same
+ * provision fingerprint: no keys listing in the provision, the remembered
+ * key id in the mint. A sandbox session keeps listing every time.
+ */
+describe('provisionProviders + mintVirtualKey — request-scoped reuse of the org key', () => {
+  const T0 = 1_790_000_000_000;
+  const REUSE = { reuseRecent: true } as const;
+  const MINT = {
+    budgetCents: 4,
+    allowedModels: [
+      { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+    ],
+    organizationId: ORG,
+    sessionId: 'model-api:key-1',
+  };
+  const keyListings = (calls: RecordedCall[]) =>
+    calls.filter(
+      (c) =>
+        c.method === 'GET' && c.url.endsWith('/api/providers/openrouter/keys'),
+    );
+  const mintOf = (calls: RecordedCall[]) =>
+    calls.find(
+      (c) =>
+        c.method === 'POST' && c.url.endsWith('/api/governance/virtual-keys'),
+    );
+  const pathsOf = (calls: RecordedCall[]) =>
+    calls.map((c) => `${c.method} ${new URL(c.url).pathname}`);
+
+  it('lists once, then provisions and mints within the minute on the key id it pushed', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(T0);
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+
+    // The first request of a fresh process lists, pushes (empty memo) and
+    // remembers the key; its mint binds that id without listing again.
+    expect(await mod.provisionProviders(ORG, [PROVIDER], REUSE)).toEqual([]);
+    await mod.mintVirtualKey({ ...MINT, requestId: 'req-1' }, REUSE);
+    expect(keyListings(calls)).toHaveLength(1);
+    expect(mintOf(calls)?.body?.provider_configs).toMatchObject([
+      { provider: 'openrouter', key_ids: ['kid-A'] },
+    ]);
+
+    // The next request, 59 s on: the mint is its only gateway call.
+    calls.length = 0;
+    clock.mockReturnValue(T0 + 59_000);
+    expect(await mod.provisionProviders(ORG, [PROVIDER], REUSE)).toEqual([]);
+    await mod.mintVirtualKey({ ...MINT, requestId: 'req-2' }, REUSE);
+    expect(pathsOf(calls)).toEqual(['POST /api/governance/virtual-keys']);
+    expect(mintOf(calls)?.body?.provider_configs).toMatchObject([
+      { key_ids: ['kid-A'] },
+    ]);
+  });
+
+  it('lists again once the minute is over, and the listing restarts it', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(T0);
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+
+    calls.length = 0;
+    clock.mockReturnValue(T0 + 60_000);
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+    // Verified by the listing, nothing to write.
+    expect(pathsOf(calls)).toEqual(['GET /api/providers/openrouter/keys']);
+
+    calls.length = 0;
+    clock.mockReturnValue(T0 + 60_000 + 59_000);
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+    expect(calls).toEqual([]);
+  });
+
+  it('keeps a sandbox session listing on every provision and every mint, whatever the process remembers', async () => {
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+
+    calls.length = 0;
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    await mod.mintVirtualKey({ ...MINT, sessionId: 'sess-1' });
+    expect(keyListings(calls)).toHaveLength(2);
+  });
+
+  it('pushes a changed secret at once, even within the minute', async () => {
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+
+    calls.length = 0;
+    await mod.provisionProviders(
+      ORG,
+      [{ ...PROVIDER, apiKey: 'key-B' }],
+      REUSE,
+    );
+    expect(keyListings(calls)).toHaveLength(1);
+    const w = writes(calls);
+    expect(w).toHaveLength(2);
+    expect(w[1]).toMatchObject({
+      method: 'PUT',
+      url: expect.stringContaining('/api/providers/openrouter/keys/kid-A'),
+      body: { value: 'key-B' },
+    });
+  });
+
+  it('forgets the key a failed mint bound, so the next request lists again', async () => {
+    // The gateway refuses a binding to a key id it no longer holds — a
+    // record another process recreated, a reset store.
+    const calls = stubGateway({
+      keyExists: true,
+      mintRefusal: {
+        status: 500,
+        body: 'some keys not found for provider openrouter: expected 1, found 0',
+      },
+    });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+    await expect(
+      mod.mintVirtualKey({ ...MINT, requestId: 'req-1' }, REUSE),
+    ).rejects.toThrow('llm-gateway mint key failed (500)');
+
+    calls.length = 0;
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+    expect(keyListings(calls)).toHaveLength(1);
+  });
+
+  it('remembers a created key by the id the gateway answered', async () => {
+    const calls = stubGateway({ keyExists: false, createdKeyId: 'kid-new' });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER], REUSE);
+
+    calls.length = 0;
+    await mod.mintVirtualKey({ ...MINT, requestId: 'req-1' }, REUSE);
+    expect(keyListings(calls)).toHaveLength(0);
+    expect(mintOf(calls)?.body?.provider_configs).toMatchObject([
+      { key_ids: ['kid-new'] },
+    ]);
+  });
+});
+
 describe('mintVirtualKey', () => {
   it('binds the VK to the org key id with allow_all_keys:false, scoped allowed_models (bare + full), and a dollar budget', async () => {
     const calls = stubGateway({ keyExists: true });
@@ -1024,6 +1183,82 @@ describe('mintVirtualKey', () => {
   });
 });
 
+describe('mintVirtualKey — the key name', () => {
+  const T0 = 1_790_000_000_000;
+  const MINT = {
+    budgetCents: 4,
+    allowedModels: [
+      { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+    ],
+    organizationId: ORG,
+    sessionId: 'model-api:key-1',
+  };
+  const mintNames = (calls: RecordedCall[]) =>
+    calls
+      .filter(
+        (c) =>
+          c.method === 'POST' && c.url.endsWith('/api/governance/virtual-keys'),
+      )
+      .map((c) => c.body?.name);
+
+  it('ends with the request id a request-scoped key serves', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(T0);
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+
+    await mod.mintVirtualKey({ ...MINT, requestId: 'req-1' });
+
+    expect(mintNames(calls)).toEqual([
+      `tale-${ORG}-model-api:key-1-${T0.toString(36)}-req-1`,
+    ]);
+  });
+
+  it('gives two requests of one API key minting in the same millisecond distinct names', async () => {
+    // Every request of a key mints under the key's session, and the
+    // gateway's name index is unique: without the request id the second
+    // mint would answer 409.
+    vi.spyOn(Date, 'now').mockReturnValue(T0);
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+
+    await mod.mintVirtualKey({ ...MINT, requestId: 'req-1' });
+    await mod.mintVirtualKey({ ...MINT, requestId: 'req-2' });
+
+    const names = mintNames(calls);
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(2);
+  });
+
+  it('names a session key as before: no request id, no suffix', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(T0);
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+
+    await mod.mintVirtualKey({ ...MINT, sessionId: 'sess-1' });
+
+    expect(mintNames(calls)).toEqual([`tale-${ORG}-sess-1-${T0.toString(36)}`]);
+  });
+
+  it("stays within the gateway's 255 characters, shortening the attribution and never the unique tail", async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(T0);
+    const calls = stubGateway({ keyExists: true });
+    const mod = await loadModule();
+    const requestId = '0b6f1a52-8a55-4d0e-9d3b-2f9f3c1d7e11';
+
+    await mod.mintVirtualKey({
+      ...MINT,
+      sessionId: `model-api:${'k'.repeat(300)}`,
+      requestId,
+    });
+
+    const [name] = mintNames(calls);
+    expect(name).toHaveLength(255);
+    expect(name).toMatch(
+      new RegExp(`^tale-${ORG}-model-api:k+-${T0.toString(36)}-${requestId}$`),
+    );
+  });
+});
+
 describe('revokeVirtualKey', () => {
   it('DELETEs the key and tolerates 404', async () => {
     const calls = stubGateway({});
@@ -1120,6 +1355,54 @@ describe('applyGatewayConfig', () => {
       'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set',
     );
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('applyGatewayConfig — a request-scoped key reuses a recent apply', () => {
+  const T0 = 1_790_000_000_000;
+  const configCalls = (calls: RecordedCall[]) =>
+    calls.filter((c) => c.url.endsWith('/api/config')).map((c) => c.method);
+
+  it('applies at most once per five minutes for a request-scoped key, while a sandbox session re-asserts on every create', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(T0);
+    const calls = stubGateway({ authEnabled: true });
+    const mod = await loadModule();
+
+    await mod.applyGatewayConfig({ reuseRecent: true });
+    clock.mockReturnValue(T0 + 4 * 60_000);
+    await mod.applyGatewayConfig({ reuseRecent: true });
+    expect(configCalls(calls)).toEqual(['GET', 'PUT']);
+
+    // A sandbox session create reuses nothing: GET-merge-PUT every time.
+    await mod.applyGatewayConfig();
+    await mod.applyGatewayConfig({});
+    expect(configCalls(calls)).toEqual([
+      'GET',
+      'PUT',
+      'GET',
+      'PUT',
+      'GET',
+      'PUT',
+    ]);
+
+    // Any successful apply restarts the window; past it, a request-scoped
+    // key applies again.
+    clock.mockReturnValue(T0 + 4 * 60_000 + 5 * 60_000);
+    await mod.applyGatewayConfig({ reuseRecent: true });
+    expect(configCalls(calls)).toHaveLength(8);
+  });
+
+  it('never remembers a failed apply: it throws, and the next request-scoped call applies again', async () => {
+    stubGateway({ writeStatus: 503 });
+    const mod = await loadModule();
+    await expect(mod.applyGatewayConfig({ reuseRecent: true })).rejects.toThrow(
+      'llm-gateway apply config failed (503)',
+    );
+
+    vi.unstubAllGlobals();
+    const calls = stubGateway({});
+    await mod.applyGatewayConfig({ reuseRecent: true });
+    expect(configCalls(calls)).toEqual(['GET', 'PUT']);
   });
 });
 

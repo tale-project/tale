@@ -8,7 +8,9 @@
 //     gateway,
 //   - mints a session-scoped virtual key (budget + model allowlist) at
 //     session create, returning the plaintext `sk-bf-*` (injected into the
-//     sandbox, never persisted) plus the key id,
+//     sandbox, never persisted) plus the key id — and a request-scoped one
+//     per request through the model endpoints for API keys, which reuses
+//     what this process verified moments ago (GatewayReuseOptions),
 //   - revokes the key at session destroy,
 //   - reads per-key spend for the usage ledger.
 //
@@ -65,6 +67,19 @@ function gatewayEnv(suffix: string): string | undefined {
 
 function llmGatewayUrl(): string {
   return gatewayEnv('URL') ?? 'http://sandbox-llm-gateway:8080';
+}
+
+/**
+ * Where the platform itself sends an inference request through the gateway
+ * — the model endpoints for API keys (`domains/model_api`), which relay a
+ * key holder's call with a per-request virtual key. The gateway serves
+ * inference and its management API on one port, and the platform reaches it
+ * on the internal network at the same address it manages it through; the
+ * port is never published. `route` is the gateway's own path (`/openai/v1/
+ * chat/completions`, `/anthropic/v1/messages`).
+ */
+export function gatewayInferenceUrl(route: string): string {
+  return `${llmGatewayUrl().replace(/\/+$/, '')}${route}`;
 }
 
 /** Admin username for the gateway management plane (auth_config). */
@@ -260,6 +275,23 @@ export interface AllowedModelRef {
   anthropicHarnessLane?: boolean;
 }
 
+/**
+ * What a provision may take from this process's own recent gateway calls
+ * instead of asking the gateway again. A request through the model endpoints
+ * for API keys mints a key per request, so the listings and the config round
+ * trip a sandbox session create pays once would otherwise run on every call.
+ * A sandbox session passes nothing and checks everything on every create.
+ */
+export interface GatewayReuseOptions {
+  /** Trust what this process pushed or verified moments ago: the auth
+   * posture it applied within {@link GATEWAY_CONFIG_REUSE_MS}
+   * (`applyGatewayConfig`), and an organization's upstream key for a record
+   * it pushed or saw listed within {@link RECENT_PROVIDER_KEY_TTL_MS} under
+   * an unchanged provision fingerprint (`provisionProviders`,
+   * `mintVirtualKey`). */
+  reuseRecent?: boolean;
+}
+
 export interface MintVirtualKeyArgs {
   /** Hard spend cap; the gateway rejects inference once exhausted. */
   budgetCents: number;
@@ -268,6 +300,11 @@ export interface MintVirtualKeyArgs {
   /** Attribution anchored in the key name for usage lookup + debugging. */
   organizationId: string;
   sessionId: string;
+  /** The one request a request-scoped key serves. The model endpoints mint
+   * every request of an API key under that key's session, so it ends the
+   * key's name: two requests minting in the same millisecond would
+   * otherwise collide on the gateway's unique name. */
+  requestId?: string;
 }
 
 export interface MintedVirtualKey {
@@ -275,6 +312,24 @@ export interface MintedVirtualKey {
   key: string;
   /** Stable id for revoke + spend queries. */
   keyId: string;
+}
+
+/** The gateway keeps a virtual key's name in a `varchar(255)` column under a
+ * unique index (`governance_virtual_keys.name`, Bifrost v1.6.11): a longer
+ * name fails the create on a Postgres-backed store, a repeated one answers
+ * 409. Its handler checks nothing but presence. */
+const VIRTUAL_KEY_NAME_MAX_LENGTH = 255;
+
+/** `tale-<org>-<session>-<mint time>[-<request id>]`. The tail makes the
+ * name unique, so a name past the gateway's bound gives up characters of
+ * its head (the attribution), never of the tail. */
+function virtualKeyName(args: MintVirtualKeyArgs): string {
+  const mintedAt = Date.now().toString(36);
+  const tail =
+    args.requestId !== undefined ? `${mintedAt}-${args.requestId}` : mintedAt;
+  const head = `tale-${args.organizationId}-${args.sessionId}`;
+  const room = Math.max(0, VIRTUAL_KEY_NAME_MAX_LENGTH - tail.length - 1);
+  return `${head.slice(0, room)}-${tail}`.slice(0, VIRTUAL_KEY_NAME_MAX_LENGTH);
 }
 
 /** POST /api/governance/virtual-keys — mint a session-scoped key.
@@ -286,9 +341,17 @@ export interface MintedVirtualKey {
  *     isolation).
  *   - `allowed_models` is deny-by-default (an EMPTY list denies all), so an
  *     empty resolution fails closed here — throw, never mint a deny-all key.
+ *
+ * A request-scoped mint (`options.reuseRecent`) binds the key id the
+ * provision it follows pushed or saw listed moments ago instead of listing
+ * the keys again. A failed mint forgets the records it bound, whatever the
+ * failure — a remembered id the gateway no longer holds (a record another
+ * process recreated, a reset store) is one cause — so the next provision of
+ * them lists again.
  */
 export async function mintVirtualKey(
   args: MintVirtualKeyArgs,
+  options: GatewayReuseOptions = {},
 ): Promise<MintedVirtualKey> {
   // Group the allowed models by the GATEWAY provider record they route to
   // (the shared record for standard connectors; this org's per-model records
@@ -318,6 +381,23 @@ export async function mintVirtualKey(
   if (byProvider.size === 0) {
     throw new Error('mintVirtualKey: no allowed models resolved');
   }
+  try {
+    return await postVirtualKey(args, byProvider, options);
+  } catch (error) {
+    for (const provider of byProvider.keys()) {
+      recentProviderKeys.delete(providerMemoKey(args.organizationId, provider));
+    }
+    throw error;
+  }
+}
+
+/** The mint's binding and its POST, over the allowed models grouped by the
+ * gateway record they route to. */
+async function postVirtualKey(
+  args: MintVirtualKeyArgs,
+  byProvider: ReadonlyMap<string, ReadonlySet<string>>,
+  options: GatewayReuseOptions,
+): Promise<MintedVirtualKey> {
   // Bind each provider config to THIS org's key id (resolved by stable
   // name). The key must already exist (provisionProviders ran at session
   // create); fail closed if not — an unbound or over-permissive key is
@@ -330,7 +410,12 @@ export async function mintVirtualKey(
     allowed_models: string[];
   }> = [];
   for (const [provider, allowedModels] of byProvider) {
-    const keyId = await resolveOrgProviderKeyId(provider, args.organizationId);
+    const keyId =
+      (options.reuseRecent === true
+        ? recentProviderKey(providerMemoKey(args.organizationId, provider))
+            ?.keyId
+        : undefined) ??
+      (await resolveOrgProviderKeyId(provider, args.organizationId));
     if (!keyId) {
       throw new Error(
         `mintVirtualKey: no gateway key for provider '${provider}' / org '${args.organizationId}' (provisioning did not run or failed)`,
@@ -347,7 +432,7 @@ export async function mintVirtualKey(
     // team_id/customer_id are mutually-exclusive FK references in the
     // gateway; attribution is anchored in the (required) name instead. The
     // gateway has no native TTL; session teardown revokes the key.
-    name: `tale-${args.organizationId}-${args.sessionId}-${Date.now().toString(36)}`,
+    name: virtualKeyName(args),
     provider_configs: providerConfigs,
     // `budgets` (plural, one entry per reset window) is the gateway's
     // multi-budget contract. Its JSON decoder drops unknown fields, so the
@@ -756,6 +841,45 @@ export interface ProviderProvision {
  */
 const pushedProviderFingerprints = new Map<string, string>();
 
+/** The memo key of an organization's upstream key on one gateway record. */
+function providerMemoKey(organizationId: string, provider: string): string {
+  return `${organizationId}:${provider}`;
+}
+
+/** How long a request-scoped provision trusts an organization's upstream key
+ * this process pushed or saw listed, before it lists the record's keys
+ * again. Short, because the key can change under its stable name without
+ * this process: another platform process recreating the record, a reset
+ * gateway store, an operator's edit — a mint bound to an id the gateway no
+ * longer holds is refused. */
+const RECENT_PROVIDER_KEY_TTL_MS = 60_000;
+
+interface RecentProviderKey {
+  keyId: string;
+  /** The provision fingerprint the key was pushed or verified under. */
+  fingerprint: string;
+  at: number;
+}
+
+/**
+ * An organization's upstream key per gateway record (keyed like the
+ * fingerprint memo), as this process last pushed it or found it in the
+ * gateway's listing while the memo matched. Every provision writes it; only
+ * a request-scoped one reads it (GatewayReuseOptions), to skip the listing
+ * and hand the mint its key id. A rewrite of the key, or a failed mint that
+ * bound it, drops the entry.
+ */
+const recentProviderKeys = new Map<string, RecentProviderKey>();
+
+/** The entry for a record, while it is younger than the TTL. */
+function recentProviderKey(memoKey: string): RecentProviderKey | undefined {
+  const recent = recentProviderKeys.get(memoKey);
+  return recent !== undefined &&
+    Date.now() - recent.at < RECENT_PROVIDER_KEY_TTL_MS
+    ? recent
+    : undefined;
+}
+
 function providerFingerprint(
   p: ProviderProvision,
   allowPrivateNetwork: boolean,
@@ -1025,13 +1149,16 @@ async function ensureProviderConfig(
 /**
  * POST (create) / PUT (rotate) THIS org's upstream key as a sub-resource of
  * the provider. `existing` is the already-resolved key row (or null) so the
- * caller's single GET serves both the skip check and this write.
+ * caller's single GET serves both the skip check and this write. Answers the
+ * key's id: the rotated row's own, or the one the gateway gave the created
+ * key (it answers a create with the stored key, its value redacted) — null
+ * when that answer names none.
  */
 async function writeProviderKey(
   organizationId: string,
   p: ProviderProvision,
   existing: GatewayKey | null,
-): Promise<void> {
+): Promise<string | null> {
   const keyBody = {
     name: gatewayKeyName(organizationId, p.name),
     value: p.apiKey,
@@ -1052,6 +1179,19 @@ async function writeProviderKey(
       `llm-gateway ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${sanitizeError(await res.text())}`,
     );
   }
+  if (existing) return existing.id;
+  const created: unknown = await res.json().catch((err: unknown) => {
+    console.warn(
+      `[llm-gateway] the key created for ${p.name}/org ${organizationId} came back unreadable; the next mint lists the keys:`,
+      err,
+    );
+    return null;
+  });
+  return isRecord(created) &&
+    typeof created.id === 'string' &&
+    created.id !== ''
+    ? created.id
+    : null;
 }
 
 /**
@@ -1063,10 +1203,17 @@ async function writeProviderKey(
  * one GET per provider. An empty memo (fresh process) or a missing key
  * rewrites once. GET masks the key value, so memo drift — not a value diff —
  * is the rotation signal.
+ *
+ * A request-scoped provision (`reuseRecent`) skips even the GET while this
+ * process pushed or saw the key within {@link RECENT_PROVIDER_KEY_TTL_MS}
+ * under the same fingerprint. The secret is part of the fingerprint, so a
+ * rotated credential still pushes at once; the host policy is rechecked
+ * first all the same.
  */
 async function provisionOne(
   organizationId: string,
   p: ProviderProvision,
+  reuseRecent: boolean,
 ): Promise<void> {
   // Recheck DNS and the opt-in before a cached key can authorize a session.
   const allowPrivateNetwork =
@@ -1074,19 +1221,37 @@ async function provisionOne(
       ? await privateBaseUrl(p.baseUrl)
       : false;
   const fingerprint = providerFingerprint(p, allowPrivateNetwork);
-  const memoKey = `${organizationId}:${p.name}`;
+  const memoKey = providerMemoKey(organizationId, p.name);
+  if (reuseRecent && recentProviderKey(memoKey)?.fingerprint === fingerprint) {
+    return; // pushed or verified by this process moments ago
+  }
   const existing =
     (await listProviderKeys(p.name)).find(
       (k) => k.name === gatewayKeyName(organizationId, p.name),
     ) ?? null;
   if (existing && pushedProviderFingerprints.get(memoKey) === fingerprint) {
+    recentProviderKeys.set(memoKey, {
+      keyId: existing.id,
+      fingerprint,
+      at: Date.now(),
+    });
     return; // fully provisioned by this process already
   }
+  // The key is rewritten below, or recreated under a new id: what this
+  // process remembered of it no longer holds, whether the write lands or not.
+  recentProviderKeys.delete(memoKey);
   const { recreated } = await ensureProviderConfig(p, allowPrivateNetwork);
   // A recreate (immutable base-type change) deleted the record + its keys,
   // so the previously-fetched key row is gone — POST a fresh one.
-  await writeProviderKey(organizationId, p, recreated ? null : existing);
+  const keyId = await writeProviderKey(
+    organizationId,
+    p,
+    recreated ? null : existing,
+  );
   pushedProviderFingerprints.set(memoKey, fingerprint);
+  if (keyId !== null) {
+    recentProviderKeys.set(memoKey, { keyId, fingerprint, at: Date.now() });
+  }
 }
 
 /** One provider the reconcile could not push: the gateway record name and
@@ -1098,10 +1263,12 @@ export interface ProviderProvisionFailure {
 
 /**
  * Reconcile the org's providers into the gateway: ensure each provider's
- * record config + this org's upstream key. Called once per session create —
- * this is the ONLY push (no credential-save action pushes eagerly), so a
- * fresh gateway, a rotated key, or a push that failed in an earlier process
- * (gateway down) all land here, before the first mint.
+ * record config + this org's upstream key. Called once per session create
+ * and once per model-endpoint request — this is the ONLY push (no
+ * credential-save action pushes eagerly), so a fresh gateway, a rotated key,
+ * or a push that failed in an earlier process (gateway down) all land here,
+ * before the first mint. A request-scoped call passes `reuseRecent`
+ * (GatewayReuseOptions, see provisionOne).
  *
  * Per-org keys coexist under one shared STANDARD provider record, so
  * multiple orgs holding distinct keys for the same provider never clobber
@@ -1121,12 +1288,13 @@ export interface ProviderProvisionFailure {
 export async function provisionProviders(
   organizationId: string,
   providers: ProviderProvision[],
+  options: GatewayReuseOptions = {},
 ): Promise<ProviderProvisionFailure[]> {
   const failures: ProviderProvisionFailure[] = [];
   for (const p of providers) {
     if (skipUnprovisionable(p)) continue;
     try {
-      await provisionOne(organizationId, p);
+      await provisionOne(organizationId, p, options.reuseRecent === true);
     } catch (err) {
       console.warn(
         `[llm-gateway] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
@@ -1137,6 +1305,14 @@ export async function provisionProviders(
   }
   return failures;
 }
+
+/** How long a request-scoped provision trusts the auth posture this process
+ * applied (see applyGatewayConfig). */
+const GATEWAY_CONFIG_REUSE_MS = 5 * 60_000;
+
+/** When this process last applied the auth posture successfully — for any
+ * caller; a failed apply leaves it where it was. */
+let gatewayConfigAppliedAt: number | undefined;
 
 /**
  * Harden the gateway's auth posture (idempotent; safe to call every
@@ -1155,8 +1331,29 @@ export async function provisionProviders(
  * GET-merge-PUT: `PUT /api/config` reads several client_config fields
  * directly from the payload, so the FULL current client_config is sent with
  * only the enforce flags flipped, never a partial.
+ *
+ * Only a request-scoped key reuses an apply (`options.reuseRecent`: none
+ * within {@link GATEWAY_CONFIG_REUSE_MS} of the last successful one). The
+ * posture guards the sandbox network: a sandbox session's key goes to code
+ * running there, beside the port the management plane shares, so every
+ * session create re-asserts it before that code gets a key — a posture lost
+ * to a restored store or a hand edit never outlives one create. A
+ * request-scoped key never leaves the platform process, which relays the
+ * model-endpoint request with it itself, so re-checking every few minutes
+ * spares a GET and a PUT of the whole config per request while session
+ * creates keep re-asserting it in between. A failed apply is never
+ * remembered: it throws, and the next call applies again.
  */
-export async function applyGatewayConfig(): Promise<void> {
+export async function applyGatewayConfig(
+  options: GatewayReuseOptions = {},
+): Promise<void> {
+  if (
+    options.reuseRecent === true &&
+    gatewayConfigAppliedAt !== undefined &&
+    Date.now() - gatewayConfigAppliedAt < GATEWAY_CONFIG_REUSE_MS
+  ) {
+    return;
+  }
   const getRes = await fetch(`${llmGatewayUrl()}/api/config`, {
     method: 'GET',
     headers: managementHeaders(),
@@ -1221,6 +1418,7 @@ export async function applyGatewayConfig(): Promise<void> {
   if (!putRes.ok) {
     throw new Error(`llm-gateway apply config failed (${putRes.status})`);
   }
+  gatewayConfigAppliedAt = Date.now();
 }
 
 /** sha256 hex of a minted virtual key — what gets persisted (never the

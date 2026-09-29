@@ -458,3 +458,20 @@ default means deleting the override and fixing what surfaces:
   and hand them to the same predicate), or at least reporting `truncated` when a cap stopped a
   pre-pass and the answer came back short of its limit, with a case in
   `search-chat.privacy.test.ts` where 50 unreadable body matches sit ahead of the member's own.
+- **The pinned model gateway does not notice a caller leaving** — Bifrost v1.6.11
+  (`services/sandbox-llm-gateway/Dockerfile`) keeps a whole (non-streamed) answer running at the
+  vendor after the caller hangs up, and drops the partial usage of a stream that ends early, so
+  the model endpoints for API keys (`services/platform/backend/domains/model_api/`) settle a
+  broken-off call late — after the gateway's request timeout — or at a local floor (the prompt
+  and the relayed output at the catalog price) instead of the vendor's own figure (2026-09).
+  Paying it down means moving to a Bifrost release that cancels the upstream call on a client
+  disconnect and books the partial usage of a cut stream (v2.2.0 or later), then dropping the
+  deferred settle and the floor in `metering.ts` for the gateway's figure.
+- **A turn's image spend sits beside its model allowance, not inside it** — `generate_image`
+  admits an image only when its estimate fits what the turn's allowance has left after the
+  model's live spend (`services/platform/backend/domains/sandbox/image-generation.ts`), but the
+  turn's gateway key keeps its full cap, so the model may still spend the whole allowance
+  afterwards: a turn's worst case is about two allowances, and budget caps still count both
+  (2026-09). Paying it down means lowering the key's budget by the booked image spend in the
+  settle (`core/node_only/sandbox/llm_gateway_admin.ts`), once it is verified that the pinned
+  Bifrost keeps `current_usage` across a budget update.

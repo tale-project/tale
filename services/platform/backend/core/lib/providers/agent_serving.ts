@@ -330,12 +330,13 @@ function harnessGatewayWire(harness: string): HarnessGatewayWire {
     : 'openai-chat';
 }
 
-/** The gateway serving should ride the connector's native Anthropic harness
- * endpoint (a distinct `…__anthropic` gateway record). The connector must
- * declare one; then:
+/** The gateway serving of a client speaking `wire` should ride the
+ * connector's native Anthropic harness endpoint (a distinct `…__anthropic`
+ * gateway record). The connector must declare one; then:
  *
- *  - an Anthropic-wire harness (Claude Code) rides it, so the gateway passes
- *    Anthropic through instead of down-converting it;
+ *  - an Anthropic-wire client (Claude Code, a caller of the model endpoints'
+ *    `/api/v1/anthropic` door) rides it, so the gateway passes Anthropic
+ *    through instead of down-converting it;
  *  - a Responses-wire harness (Codex) rides it when the gateway would
  *    otherwise serve the connector as a CUSTOM chat-only upstream: that
  *    Responses→Chat translation cannot round-trip a thinking model's
@@ -344,18 +345,25 @@ function harnessGatewayWire(harness: string): HarnessGatewayWire {
  *    (DeepSeek 400 "`reasoning_content` … must be passed back", 2026-09-26);
  *    Responses→Anthropic keeps the loop intact. A STANDARD gateway provider
  *    keeps its built-in implementation, which owns the Responses wire itself;
- *  - a chat-wire harness keeps the OpenAI base — its own wire IS the
+ *  - a chat-wire client keeps the OpenAI base — its own wire IS the
  *    upstream's, nothing to translate. */
-function usesAnthropicHarnessEndpoint(
-  harness: string,
+export function ridesAnthropicHarnessEndpoint(
+  wire: HarnessGatewayWire,
   connector: { name: string; harnessEndpoint?: { apiFormat: string } },
 ): boolean {
   if (connector.harnessEndpoint?.apiFormat !== 'anthropic') return false;
-  const wire = harnessGatewayWire(harness);
   if (wire === 'anthropic') return true;
   return (
     wire === 'openai-responses' && !isStandardGatewayProvider(connector.name)
   );
+}
+
+/** {@link ridesAnthropicHarnessEndpoint} for the wire a harness speaks. */
+function usesAnthropicHarnessEndpoint(
+  harness: string,
+  connector: { name: string; harnessEndpoint?: { apiFormat: string } },
+): boolean {
+  return ridesAnthropicHarnessEndpoint(harnessGatewayWire(harness), connector);
 }
 
 export async function resolvePinnedAgentServing(

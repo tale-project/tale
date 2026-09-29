@@ -148,6 +148,7 @@ describe('GET /me', () => {
         notificationExport: true,
         actAs: true,
         skillPublish: true,
+        modelApi: false,
       },
       // The key that made the request, by the id the door stashed — its
       // expiry as epoch milliseconds (the key's own cases live in

@@ -20,7 +20,7 @@ Ces guides t’aident à écrire un client, à connecter un système externe ou 
 
 ## Fiabiliser la première requête
 
-Choisis l’identifiant adapté à la surface : REST et MCP utilisent des clés API, WebDAV un mot de passe d’application et un webhook une URL secrète de déclencheur. Ces identifiants ne sont pas interchangeables.
+Choisis l’identifiant adapté à la surface : REST, MCP et les endpoints de modèles utilisent des clés API, WebDAV un mot de passe d’application et un webhook une URL secrète de déclencheur. Ces identifiants ne sont pas interchangeables.
 
 Crée une clé API distincte pour chaque intégration. Envoie-la uniquement à l’instance prévue et ne la conserve pas dans le dépôt de code. [Effectuer ta première requête API](/fr/get-started/developers) explique les URL d’instance et le contexte d’organisation. Pour une opération longue, distingue l’acceptation de la requête de son résultat : consulte la ressource ou l’exécution et traite aussi les échecs.
 

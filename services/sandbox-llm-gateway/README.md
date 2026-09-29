@@ -1,6 +1,6 @@
 # @tale/sandbox-llm-gateway
 
-The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) core). The single path from in-sandbox code to an LLM — harnesses (Claude Code / OpenClaw / OpenCode), and the `tale-vision` CLI that agent turns use for image analysis.
+The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) core). The single path from in-sandbox code to an LLM — harnesses (Claude Code / OpenClaw / OpenCode), and the `tale-vision` CLI that agent turns use for image analysis — and the serving path of the platform's model endpoints for API keys (`/api/v1/openai`, `/api/v1/anthropic`), which relay a key holder's request to the gateway's own `/openai/v1/chat/completions` and `/anthropic/v1/messages` doors with a virtual key minted for that one request (`services/platform/backend/domains/model_api/`).
 
 ## Overview
 
@@ -8,7 +8,7 @@ Raw provider API keys live ONLY here and in the platform. The sandbox holds a se
 
 Dual-homed onto two Docker networks:
 
-- `internal` — the platform provisions providers + mints session virtual keys via the management API.
+- `internal` — the platform provisions providers + mints session virtual keys via the management API, and relays model-endpoint requests to its inference doors. The port stays unpublished: API key holders reach the models through the platform, never the gateway.
 - `sandbox` — in-sandbox agents reach it at `http://sandbox-llm-gateway:8080` over the internal bridge (NOT through the tinyproxy egress).
 
 ## Interface

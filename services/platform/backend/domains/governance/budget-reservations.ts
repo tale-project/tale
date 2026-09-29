@@ -87,10 +87,15 @@ interface HoldRow {
  * What every other piece of work in flight holds, per bucket the subject is
  * measured in: the organization's, the subject's own, each of their teams'
  * (the holds of that team's CURRENT members, as the team's usage is read)
- * and the authenticating API key's. A chat turn's hold and a managed turn's
- * allowance count as one request each; an image generation in flight counts
- * one per image it may make. `exclude` leaves out the admission's own row
- * when it already exists.
+ * and the authenticating API key's — a keyed chat turn's, a keyed run's
+ * managed turn and a model-endpoint request alike, each op row carrying the
+ * key its reservation stamped. A chat turn's hold, a managed turn's
+ * allowance and a model-endpoint request count as one request each; an
+ * image generation in flight counts one per image it may make. Costs count
+ * as reserved, tokens where the work sized them (a chat turn's round, a
+ * model-endpoint request's prompt and output cap; an agent turn holds no
+ * token figure). `exclude` leaves out the admission's own row when it
+ * already exists.
  */
 export async function readInFlightReservations(
   sql: Sql | TransactionSql,
@@ -112,11 +117,12 @@ export async function readInFlightReservations(
       WHERE org_id = ${org} AND user_id IS NOT NULL
         AND thread_id <> ${exclude.threadId ?? ''}
       UNION ALL
-      -- A managed turn: its gateway allowance (a subscription turn has
-      -- none), plus the image generation it has in flight.
-      SELECT user_id, NULL,
+      -- A managed turn or a model-endpoint request: its gateway allowance
+      -- (a subscription turn has none) and the tokens its hold sized, plus
+      -- the image generation it has in flight.
+      SELECT user_id, api_key_id,
              (coalesce(budget_cents, 0) + image_hold_cents)::float8,
-             0::float8,
+             coalesce(reserved_tokens, 0)::float8,
              ((CASE WHEN budget_cents IS NULL THEN 0 ELSE 1 END)
                + image_hold_requests)::float8
       FROM app.sandbox_session_ops

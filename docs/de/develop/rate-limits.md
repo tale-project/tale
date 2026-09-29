@@ -13,7 +13,7 @@ Ein Token-Bucket füllt sich kontinuierlich bis zu seiner Burst-Kapazität auf. 
 
 | Verkehr | Dauerhafte Rate | Burst | Budget gilt für |
 | --- | --- | --- | --- |
-| Allgemeine `/api/v1`-Aufrufe einschließlich MCP | 120/Minute | 200 | Schlüsselinhaber |
+| Allgemeine `/api/v1`-Aufrufe einschließlich MCP und Modell-Endpunkten | 120/Minute | 200 | Schlüsselinhaber |
 | Laufstarts, Modellnachrichten und Aufgabenstarts | 20/Minute | 40 | Schlüsselinhaber |
 | Upload-Freigabe und Dateizuordnung im Projekt | 240/Minute | 300 | Schlüsselinhaber |
 | Fehlgeschlagene API-Schlüsselprüfung | 20/Minute | 40 | Quell-IP |
@@ -25,6 +25,8 @@ REST-Ausführungen und Uploads verbrauchen zusätzlich das allgemeine Budget. Ei
 Zur Ausführung gehören projektgebundene und globale Automatisierungsstarts, Thread-Nachrichten und ausdrückliche Aufgabenstarts. Die Aufgabenübernahme verbraucht ebenfalls Ausführungsbudget, wenn `runWorkflowSlug` gesetzt ist. Eine Arbeit-startende Anfrage wird belastet, sobald Body und Kopfzeilen die eigenen Prüfungen der Tür bestanden haben — eine `400 INVALID_BODY` oder `INVALID_HEADER` kostet nichts — und bevor irgendetwas nachgeschlagen wird, eine `404` für einen Thread, eine Aufgabe oder eine Automatisierung, die du nicht sehen kannst, kostet also ein Token, so wie eine `409`, die der Zustand antwortet. Manche Änderungen, etwa Aufgabenkommentare und Ordneränderungen, unterliegen weiteren Fachbereichslimits, die auch für die App gelten.
 
 MCP-Batches rechnen zusätzliche Werkzeugaufrufe als zusätzliche Anfragen ab. Der [MCP-Endpunkt](/de/develop/mcp-endpoint) erklärt den Unterschied zwischen HTTP `429` und einer einzelnen abgelehnten Batch-Nachricht. Webhooks haben getrennte Budgets; sowohl Absender- als auch Auslöserlimit müssen die Zustellung zulassen.
+
+Aufrufe der [Modell-Endpunkte](/de/develop/api-reference#model-endpoints) unter `/api/v1/openai` und `/api/v1/anthropic` zählen nur gegen das allgemeine Budget, jeweils als eine Anfrage, ob gestreamt oder nicht; was ein Aufruf ausgeben darf, begrenzen die Budgetregeln gesondert. Außerdem dürfen eine Person und jeder API-Schlüssel acht dieser Aufrufe gleichzeitig laufen haben: Ein neunter erhält `429` mit `code` `MODEL_API_CONCURRENCY_EXCEEDED` und `Retry-After: 2`.
 
 Das Ausführungsbudget begrenzt, wie schnell Nachrichten angenommen werden, nicht die Zahl gleichzeitig laufender Antworten. Angenommene Chatnachrichten teilen sich eine Warteschlange über alle Organisationen und Schlüssel der Instanz. Ein Worker verarbeitet pro Durchgang bis zu `WORKER_CONCURRENCY` Antwortläufe, standardmäßig 5. Sein nächster Durchgang beginnt erst, wenn der aktuelle abgeschlossen ist. Eine erfolgreich angenommene Nachricht kann deshalb hinter anderen Clients warten. Die API liefert weder Warteschlangenposition noch geschätzten Startzeitpunkt.
 
@@ -52,7 +54,7 @@ Entscheide anhand von `code`. `error` beschreibt die Wartezeit als Satz; `reques
 3. Vergrößere bei weiteren Ablehnungen den Abstand exponentiell mit einer Obergrenze und einer zufälligen Streuung. Beispielsweise kann er von einer auf sechzig Sekunden wachsen; eine längere Servervorgabe hat Vorrang.
 4. Behalte bei unterstützten Operationen den ursprünglichen Idempotenzschlüssel. Nach einem Timeout beim Laufstart kann der Lauf bereits angenommen worden sein.
 
-Auch ein Ausgabenlimit antwortet mit `429`, dann mit `code` `BUDGET_EXCEEDED`: Eine Budgetregel, die für den Schlüsselinhaber gilt – seine eigene, die eines Teams, der Organisation oder des API-Schlüssels –, ist ausgeschöpft. Kurzes Warten hilft hier nicht. `Retry-After` nennt die Zeit bis zum Zurücksetzen des Zeitraums, und `data` beschreibt die Grenze: `scope`, `period`, `limitCode`, `used`, `limit` und `resetsAt` in Epoch-Millisekunden. Es wird nichts eingereiht. Pausiere die Arbeit bis `resetsAt` oder bitte eine Person mit Administratorrechten, das Limit unter [Richtlinien & Limits](/de/platform/admin/governance/policies-and-limits) zu erhöhen.
+Auch ein Ausgabenlimit antwortet mit `429`, dann mit `code` `BUDGET_EXCEEDED`: Eine Budgetregel, die für den Schlüsselinhaber gilt – seine eigene, die eines Teams, der Organisation oder des API-Schlüssels –, ist ausgeschöpft. Kurzes Warten hilft hier nicht. `Retry-After` nennt die Zeit bis zum Zurücksetzen des Zeitraums, und `data` beschreibt die Grenze: `scope`, `period`, `limitCode`, `used`, `limit` und `resetsAt` in Epoch-Millisekunden. Es wird nichts eingereiht. Pausiere die Arbeit bis `resetsAt` oder bitte eine Person mit Administratorrechten, das Limit unter [Richtlinien & Limits](/de/platform/admin/governance/policies-and-limits) zu erhöhen. An den Modell-Endpunkten kommen beide `429` im Fehlerformat von OpenAI oder Anthropic, mit demselben `code` und `Retry-After`. Ein ausgeschöpftes Budget nennt seine Grenze dort in der Meldung statt in `data` und trägt `x-should-retry: false`, damit die SDKs der Anbieter es nicht selbst erneut versuchen.
 
 Andere `4xx`-Antworten erfordern meist korrigierte Daten, Zugangsdaten oder Berechtigungen. Behandle nicht jeden Fehler als Limitüberschreitung; nutze das [Fehlermodell](/de/develop/api-reference#fehlermodell).
 

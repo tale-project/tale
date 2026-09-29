@@ -37,8 +37,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useAbility } from '@/app/hooks/use-ability';
-import { API_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
+import { visibleApiNavItems } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
 import { METRICS_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/metrics/-nav-items';
 import { useT } from '@/lib/i18n/client';
@@ -69,6 +70,9 @@ interface RailGroup {
   labelKey: string;
   path: string;
   can?: [AppAction, AppSubject];
+  /** Shown only when true — for a group whose audience a role alone does not
+   * decide (API: a member granted the model endpoints sees it too). */
+  visible?: boolean;
   icon: LucideIcon;
   /** Sub-items shown indented under the group when the section is active. */
   children: {
@@ -93,11 +97,17 @@ interface RailSection {
  * The settings sections, with the rows the caller's role may see. One source
  * for the panel and for the page header, which names the open page.
  */
-function useSettingsSections(showAccountTab: boolean): RailSection[] {
+function useSettingsSections(
+  organizationId: string,
+  showAccountTab: boolean,
+): RailSection[] {
   const { t: tNav } = useT('navigation');
   const { t: tGov } = useT('governance');
   const { t: tMetrics } = useT('metrics');
   const ability = useAbility();
+  const apiAccess = useApiSettingsAccess(organizationId);
+  const apiDeveloper = apiAccess.developer;
+  const apiModelApi = apiAccess.modelApi;
 
   const sections = useMemo<RailSection[]>(() => {
     const personal: RailItem[] = [
@@ -209,8 +219,13 @@ function useSettingsSections(showAccountTab: boolean): RailSection[] {
         labelKey: 'api',
         icon: Braces,
         path: 'api',
-        can: ['read', 'developerSettings'],
-        children: API_NAV_ITEMS.map((item) => ({
+        // Owners, admins and developers; and a member who may call the
+        // model endpoints, for the REST and Models tabs alone.
+        visible: apiDeveloper || apiModelApi,
+        children: visibleApiNavItems({
+          developer: apiDeveloper,
+          modelApi: apiModelApi,
+        }).map((item) => ({
           slug: item.slug,
           label: tNav(item.labelKey),
         })),
@@ -237,7 +252,7 @@ function useSettingsSections(showAccountTab: boolean): RailSection[] {
       { key: 'organization', labelKey: 'organization', items: organization },
       { key: 'advanced', labelKey: 'advanced', items: advanced },
     ];
-  }, [showAccountTab, tNav, tGov, tMetrics]);
+  }, [showAccountTab, tNav, tGov, tMetrics, apiDeveloper, apiModelApi]);
 
   return useMemo(
     () =>
@@ -245,7 +260,9 @@ function useSettingsSections(showAccountTab: boolean): RailSection[] {
         .map((section) => ({
           ...section,
           items: section.items.filter(
-            (item) => !item.can || ability.can(item.can[0], item.can[1]),
+            (item) =>
+              (item.kind !== 'group' || item.visible !== false) &&
+              (!item.can || ability.can(item.can[0], item.can[1])),
           ),
         }))
         .filter((section) => section.items.length > 0),
@@ -276,7 +293,7 @@ export function useSettingsPage(
   organizationId: string,
 ): { key: string; title: string; leaf: string } | undefined {
   const { t: tNav } = useT('navigation');
-  const sections = useSettingsSections(true);
+  const sections = useSettingsSections(organizationId, true);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const base = `/dashboard/${organizationId}/settings`;
   for (const section of sections) {
@@ -320,7 +337,7 @@ export function SettingsRail({
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const sections = useSettingsSections(showAccountTab);
+  const sections = useSettingsSections(organizationId, showAccountTab);
   const base = `/dashboard/${organizationId}/settings`;
 
   // Which group disclosures are open: a group opens when the route enters it

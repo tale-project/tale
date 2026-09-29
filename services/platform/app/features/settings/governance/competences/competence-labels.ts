@@ -7,6 +7,7 @@ import type { PlatformCapability } from '@/lib/shared/competences';
  * label and description.
  */
 const CAPABILITY_MESSAGE_KEYS: Record<PlatformCapability, string> = {
+  'tale:models.api': 'modelsApi',
   'tale:notifications.export': 'notificationsExport',
   'tale:rest.act-as': 'restActAs',
   'tale:skills.publish': 'skillsPublish',

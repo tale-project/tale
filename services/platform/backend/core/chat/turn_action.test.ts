@@ -2,13 +2,9 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { readEvent, type StreamDecodeState } from './stream_decode';
 import { createStallGuard, type StallGuard } from './stream_stall';
-import {
-  chatToolContextForTurn,
-  readEvent,
-  streamSse,
-  type StreamDecodeState,
-} from './turn_action';
+import { chatToolContextForTurn, streamSse } from './turn_action';
 
 /**
  * The tools' scope boundary comes from the THREAD, never from the
@@ -162,12 +158,19 @@ describe('readEvent — the finish reason, both dialects', () => {
   it('surfaces the Anthropic message_start input count at once, cache read included', () => {
     // The prompt is billed before the first output token; a cancel that
     // aborts the fetch before the closing delta used to lose this count.
+    // Anthropic reports the prompt in parts — read fresh, read from the
+    // cache, written to it — and bills all of them: the prompt is the sum,
+    // the cache read its cached share.
     const read = readEvent(
       'anthropic',
       {
         type: 'message_start',
         message: {
-          usage: { input_tokens: 2711, cache_read_input_tokens: 512 },
+          usage: {
+            input_tokens: 2711,
+            cache_read_input_tokens: 512,
+            cache_creation_input_tokens: 100,
+          },
         },
       },
       decodeState(),
@@ -175,11 +178,32 @@ describe('readEvent — the finish reason, both dialects', () => {
     expect(read).toEqual({
       text: '',
       usage: {
-        inputTokens: 2711,
+        inputTokens: 3323,
         outputTokens: 0,
-        totalTokens: 2711,
+        totalTokens: 3323,
         cachedInputTokens: 512,
       },
+    });
+  });
+
+  it('takes the prompt from the closing Anthropic delta when a server reports it there', () => {
+    // A gateway converting another dialect's stream puts its whole usage on
+    // the closing delta; the counts there are cumulative.
+    const state = decodeState();
+    readEvent('anthropic', { type: 'message_start', message: {} }, state);
+    const read = readEvent(
+      'anthropic',
+      {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { input_tokens: 900, output_tokens: 40 },
+      },
+      state,
+    );
+    expect(read.usage).toMatchObject({
+      inputTokens: 900,
+      outputTokens: 40,
+      totalTokens: 940,
     });
   });
 });
