@@ -217,7 +217,6 @@ function StepHero() {
   const copy: Record<string, { title: string; subtitle: string }> = {
     account: { title: t('account.heading'), subtitle: t('account.why') },
     workspace: { title: t('title'), subtitle: t('subtitle') },
-    provider: { title: t('provider.heading'), subtitle: t('provider.why') },
     finish: { title: t('finish.heading'), subtitle: t('finish.subtitle') },
   };
   const { title, subtitle } = copy[activeStep?.id ?? ''] ?? {

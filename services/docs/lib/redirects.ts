@@ -10,9 +10,33 @@
  * serves as 301s and `scripts/prerender.ts` writes meta-refresh stubs for.
  * The contract (targets exist, sources don't, no chains) is guarded by
  * `tests/redirects.test.ts`.
+ *
+ * Two families of addresses people and language models guess are answered
+ * on top of that map, so a near miss lands on a page instead of a 404:
+ *
+ *  - a section folder that has no page of its own (`/platform/automations`)
+ *    redirects to the first page under it in `nav.json` order — derived from
+ *    the navigation, never hand-maintained, and `redirects.json` wins;
+ *  - the per-page Markdown export of a moved page or section folder
+ *    (`/platform/automations.md`) follows it to the target's export;
+ *  - an `/en` prefix (English lives at the root) and a locale-prefixed
+ *    `llms.txt` / `llms-full.txt` (one index covers every locale) resolve
+ *    to the unprefixed address; an `/en` page alias also pins the English
+ *    locale cookie so the reader stays on the English page.
  */
 
+import {
+  isLocaleNeutralPath,
+  stripLocalePrefix,
+} from '@tale/ui/i18n/negotiate';
+import {
+  pathnameToRouteUrl,
+  routeToMdUrl,
+} from '@tale/ui/seo/builders/md-paths';
+
 import redirectsJson from '../../../docs/redirects.json';
+import { flattenNav } from './content/nav';
+import { docPath, slugRoute } from './content/paths';
 import { BASE_LOCALES, type SupportedLocale } from './i18n/locales';
 
 /** One locale-expanded redirect: site-relative `from` → `to` URL paths. */
@@ -53,17 +77,48 @@ export function parseRedirects(value: unknown): Record<string, string> {
   return redirects as Record<string, string>;
 }
 
-/** The validated slug map, baked into the bundle at build time. */
-const DOCS_REDIRECTS: Record<string, string> = parseRedirects(redirectsJson);
-
-/** Site-relative URL for a (locale, slug) pair — mirrors `docPath` in
- *  `lib/content/paths.ts` (English at the canonical path, `de`/`fr`
- *  prefixed; a trailing `/index` collapses onto the directory URL). */
-function pathFor(locale: SupportedLocale, slug: string): string {
-  const cleaned = slug === 'index' ? '' : slug.replace(/\/index$/, '');
-  if (locale === 'en') return cleaned ? `/${cleaned}` : '/';
-  return cleaned ? `/${locale}/${cleaned}` : `/${locale}`;
+/**
+ * Section-folder redirects derived from the navigation: every folder prefix
+ * of a page slug that is neither a page nor an explicit redirect source maps
+ * to the first page under it in reading order. The targets are navigation
+ * pages, so no derived entry can chain into another redirect.
+ */
+export function deriveSectionRedirects(
+  pageSlugs: readonly string[],
+  explicit: Record<string, string>,
+): Record<string, string> {
+  const pageRoutes = new Set(pageSlugs.map(slugRoute));
+  const explicitRoutes = new Set(Object.keys(explicit).map(slugRoute));
+  const derived: Record<string, string> = {};
+  for (const slug of pageSlugs) {
+    const segments = slugRoute(slug).split('/');
+    for (let depth = 1; depth < segments.length; depth += 1) {
+      const folder = segments.slice(0, depth).join('/');
+      if (
+        pageRoutes.has(folder) ||
+        explicitRoutes.has(folder) ||
+        folder in derived
+      ) {
+        continue;
+      }
+      derived[folder] = slug;
+    }
+  }
+  return derived;
 }
+
+/** The validated slug map, baked into the bundle at build time. */
+const EXPLICIT_REDIRECTS: Record<string, string> =
+  parseRedirects(redirectsJson);
+
+/** Explicit moves plus the derived section folders (explicit entries win). */
+const DOCS_REDIRECTS: Record<string, string> = {
+  ...deriveSectionRedirects(
+    flattenNav().map(({ slug }) => slug),
+    EXPLICIT_REDIRECTS,
+  ),
+  ...EXPLICIT_REDIRECTS,
+};
 
 /** Expand every locale-less slug pair into per-locale URL path pairs. */
 export function expandRedirects(
@@ -74,8 +129,8 @@ export function expandRedirects(
     for (const locale of BASE_LOCALES) {
       out.push({
         locale,
-        from: pathFor(locale, from),
-        to: pathFor(locale, to),
+        from: docPath(locale, from),
+        to: docPath(locale, to),
       });
     }
   }
@@ -96,4 +151,65 @@ export function buildRedirectPathMap(
 export function normalizeRequestPath(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, '');
   return trimmed === '' ? '/' : trimmed;
+}
+
+/** Site-wide files served once at the root for every locale. */
+const ROOT_ONLY_FILES = new Set(['llms.txt', 'llms-full.txt']);
+
+/**
+ * The redirect target for a page path or for its per-page Markdown export
+ * (`/old/page.md` follows `/old/page` to `/new/page.md`), if any.
+ */
+function lookupRedirect(
+  path: string,
+  paths: ReadonlyMap<string, string>,
+): string | undefined {
+  const moved = paths.get(path);
+  if (moved || !path.endsWith('.md')) return moved;
+  const page = paths.get(pathnameToRouteUrl(path));
+  return page === undefined ? undefined : routeToMdUrl(page);
+}
+
+/**
+ * Where a request path should redirect, or `null` to serve it as is. The
+ * path map covers moved pages and section folders, and their `.md` exports;
+ * an `/en` prefix and a locale-prefixed `llms.txt` resolve to their
+ * unprefixed address, landing on the final page in one hop when that
+ * address is itself a redirect.
+ */
+export function resolveRedirect(
+  pathname: string,
+  paths: ReadonlyMap<string, string>,
+): string | null {
+  const path = normalizeRequestPath(pathname);
+  const moved = lookupRedirect(path, paths);
+  if (moved) return moved;
+
+  const unprefixed = stripLocalePrefix(path, ['en']);
+  if (unprefixed) {
+    return lookupRedirect(unprefixed, paths) ?? unprefixed;
+  }
+
+  const [, locale, file, ...rest] = path.split('/');
+  if (
+    rest.length === 0 &&
+    file !== undefined &&
+    ROOT_ONLY_FILES.has(file) &&
+    (BASE_LOCALES as readonly string[]).includes(locale ?? '') &&
+    locale !== 'en'
+  ) {
+    return `/${file}`;
+  }
+  return null;
+}
+
+/**
+ * Whether a request names English through the `/en` alias of a page. Its
+ * redirect should then pin the English locale cookie: the unprefixed target
+ * is otherwise re-negotiated, and a `de`/`fr` cookie or Accept-Language
+ * would send the reader on to the German or French page.
+ */
+export function isEnglishPageAlias(pathname: string): boolean {
+  const unprefixed = stripLocalePrefix(normalizeRequestPath(pathname), ['en']);
+  return unprefixed !== null && !isLocaleNeutralPath(unprefixed);
 }

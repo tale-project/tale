@@ -524,6 +524,9 @@ describe('DataTable in a collection screen on a short viewport (real layout)', (
   it('loads the next page from the page scroll, not all at once', async () => {
     await page.viewport(640, 360);
     const { pageScroller, onLoadMore } = renderScreen();
+    // A load that must not come has no event to await: the pause gives the
+    // sentinel's first report time to arrive. A runner too slow to deliver it
+    // in time can only miss a wrong load, never fail a table that waits.
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(onLoadMore).not.toHaveBeenCalled();
     pageScroller.scrollTop = pageScroller.scrollHeight;

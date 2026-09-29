@@ -546,15 +546,14 @@ async function fetchVendorContentToStorage(
 /** Queue RAG indexing for a hub document's current blob — the 0.4
  * `scheduleHubDocumentRagIndexing` gates over the pg file row. A file no
  * extractor reads is not queued: it lands on the terminal `unsupported`
- * state here instead. */
+ * state here instead. The document is read for its blob alone: every
+ * decision below is the stored file's. */
 async function scheduleDocumentRagIndexing(
   sql: Sql,
   documentId: string,
 ): Promise<boolean> {
-  const docs = await sql<
-    { fileRef: string | null; title: string | null; mimeType: string | null }[]
-  >`
-    SELECT file_ref AS "fileRef", title, mime_type AS "mimeType"
+  const docs = await sql<{ fileRef: string | null }[]>`
+    SELECT file_ref AS "fileRef"
     FROM app.documents WHERE id = ${documentId} LIMIT 1
   `;
   const doc = docs[0];
@@ -593,20 +592,20 @@ async function scheduleDocumentRagIndexing(
   ) {
     return false;
   }
-  const fileName = doc.title ?? file.fileName;
-  const contentType = resolveFileType(
-    fileName,
-    doc.mimeType ?? file.contentType,
-  );
-  if (!isRagIndexableFile(fileName, contentType)) {
+  // Both lanes judge the stored file name and type, the ones the indexer
+  // reads. The document title is renamed on its own (REST PATCH, the app's
+  // rename) and never decides: a title of "Minutes 27.09" reads as
+  // extension `09`, which sent a readable `minutes.docx` whose last run
+  // failed to the terminal lane on every rescan, where it was never queued
+  // again; a title ending in `.pdf` over a `standup.loop` queued a job the
+  // indexer only refuses.
+  const contentType = resolveFileType(file.fileName, file.contentType);
+  if (!isRagIndexableFile(file.fileName, contentType)) {
     // A file no extractor reads — a Loop page (`.loop`, served as
     // `application/octet-stream`), a legacy `.doc` — gets the terminal state
     // the indexer would give it; its empty status used to read "Not indexed"
     // with a Reindex that could never succeed. A `.log`, which a Reindex can
-    // index, keeps its empty status. Judged by the stored file name, the one
-    // the indexer reads: the document title can be renamed on its own (a
-    // title of "Minutes 27.09" reads as extension `09`), and a readable file
-    // must never be made terminal by its title.
+    // index, keeps its empty status.
     await markRagUnsupportedIfNoExtractor(sql, file.id, file.fileName);
     return false;
   }

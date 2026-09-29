@@ -7,7 +7,7 @@ description: Verfolge einen Lauf bis zur betroffenen Node, prüfe protokollierte
 
 ## Den Laufstatus lesen
 
-Der Tab **Läufe** zeigt die letzten 50 Läufe, neueste zuerst. Jede Zeile nennt Version, Zeitpunkt, Modus und Auslöser oder eine Fehler- beziehungsweise Wartebegründung. Im Detail siehst du Workflow, Node-Ergebnisse und Laufzeiten. Ein nicht abgeschlossener Lauf hat keinen Endzeitpunkt. Die Tabs bleiben beim Prüfen eines Laufs sichtbar. Mit **Läufe** kehrst du zur Liste zurück, mit **Editor** zum Bearbeiten des Workflows.
+Der Tab **Läufe** zeigt die letzten 50 Läufe, die du sehen kannst, neueste zuerst. Läufe der Organisation selbst sehen alle Mitglieder. Einen Lauf in einem Projekt und die Frage, auf die er wartet, sieht nur, wer dieses Projekt öffnen kann. Jede Zeile nennt Version, Zeitpunkt, Modus und Auslöser oder eine Fehler- beziehungsweise Wartebegründung. Im Detail siehst du Workflow, Node-Ergebnisse und Laufzeiten. Ein nicht abgeschlossener Lauf hat keinen Endzeitpunkt. Die Tabs bleiben beim Prüfen eines Laufs sichtbar. Mit **Läufe** kehrst du zur Liste zurück, mit **Editor** zum Bearbeiten des Workflows.
 
 | Status | Bedeutung | Nächster Schritt |
 | --- | --- | --- |

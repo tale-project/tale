@@ -15,7 +15,7 @@ Search by name or slug. For example, enter `Triage` to compare the shipped triag
 
 ## Choose a starting point
 
-Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it on the **Editor** tab to inspect the workflow. **General** holds its trigger and its projects: **Projects** controls which boards can use it; without project bindings, it serves the organization. The **Version** selector beside the tabs shows its saved history; **Runs** shows recent executions.
+Each row shows the automation’s name, project bindings, version count and deployed version, or **Not deployed**. Open it on the **Editor** tab to inspect the workflow. **General** holds its trigger and its projects: **Projects** controls which boards can use it; without project bindings, it serves the organization. **Projects** offers only the projects you can open, and saving keeps any binding to a project you cannot see. An automation bound only to such projects does not appear in your list. The **Version** selector beside the tabs shows its saved history; **Runs** shows recent executions.
 
 The **Create automation** menu offers two routes:
 

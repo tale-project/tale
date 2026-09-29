@@ -18,13 +18,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { answerAsk, automationTombstone, deployedVersion, versionRow } =
-  vi.hoisted(() => ({
-    answerAsk: vi.fn(),
-    automationTombstone: vi.fn(),
-    deployedVersion: vi.fn(),
-    versionRow: vi.fn(),
-  }));
+const {
+  answerAsk,
+  automationTombstone,
+  deployedVersion,
+  getAskRunId,
+  getRun,
+  versionRow,
+} = vi.hoisted(() => ({
+  answerAsk: vi.fn(),
+  automationTombstone: vi.fn(),
+  deployedVersion: vi.fn(),
+  getAskRunId: vi.fn(async () => 'run_1'),
+  getRun: vi.fn(async () => ({ id: 'run_1', projectId: null })),
+  versionRow: vi.fn(),
+}));
 
 vi.mock('./store.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./store.ts')>();
@@ -33,9 +41,21 @@ vi.mock('./store.ts', async (importOriginal) => {
     answerAsk,
     automationTombstone,
     deployedVersion,
+    getAskRunId,
+    getRun,
     versionRow,
   };
 });
+
+vi.mock('../projects/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../projects/service.ts')>()),
+  getProjectAuthContext: vi.fn(async () => ({
+    organizationId: 'o1',
+    userId: 'u1',
+    role: 'member',
+    teamIds: [],
+  })),
+}));
 
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
@@ -126,6 +146,7 @@ describe('POST /asks/:askId/answer', () => {
       askId: 'ask_1',
       answer: 'Account 4400.',
       answeredBy: 'u1',
+      runId: 'run_1',
     });
   });
 });

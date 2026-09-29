@@ -18,7 +18,7 @@ Unter den Assistentennamen können auch Hilfsaufgaben wie die Erzeugung von Chat
 
 ## Kosten zusammen mit Tokens lesen
 
-Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie Sprach- oder Bilderzeugung können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten.
+Das Dashboard verwendet erfasste Nutzungs- und Verbrauchsdaten. Eingabe- und Ausgabetokens sind getrennt. Dienste wie die Sprachausgabe können andere Abrechnungseinheiten haben. Die Tokenzahl allein erklärt deshalb nicht alle Kosten.
 
 Lies die Kosten als erfasste Anwendungsnutzung, nicht als Rechnung deines Anbieters. Preise, Abos, Guthaben und nicht erfasste Aufrufe können den Vergleich beeinflussen. Eine angezeigte Null beweist nicht, dass der Anbieter nichts berechnet hat.
 
