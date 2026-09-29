@@ -12,8 +12,10 @@ import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
+import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
+import { loadProjectOrThrow } from '../projects/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
@@ -45,6 +47,7 @@ import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
   handTaskToInProgressForKick,
+  mayWorkTask,
 } from './service.ts';
 
 /**
@@ -271,10 +274,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           projectId: string;
           assigneeType: string | null;
           assigneeId: string | null;
+          createdBy: string;
+          createdByType: string;
+          parentTaskId: string | null;
         }[]
       >`
         SELECT project_id AS "projectId", assignee_type AS "assigneeType",
-               assignee_id AS "assigneeId"
+               assignee_id AS "assigneeId", created_by AS "createdBy",
+               created_by_type AS "createdByType",
+               parent_task_id AS "parentTaskId"
         FROM app.tasks
         WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
           AND archived_at_ms IS NULL
@@ -286,6 +294,21 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       }
       if (task.assigneeType !== 'agent' || task.assigneeId === null) {
         return { started: false, reason: 'no_agent_assignee' };
+      }
+      // A run's starter may steer it on a task no longer theirs, but a new
+      // run is a change to the task: the work gate's, as at the comment.
+      const author = await authorizeActorRun(
+        sql,
+        args.organizationId,
+        args.authorId,
+        'membership',
+      ).catch((error: unknown) => {
+        console.warn('[task-agent] steer fallback author refused:', error);
+        return null;
+      });
+      const project = await loadProjectOrThrow(sql, task.projectId);
+      if (author === null || !(await mayWorkTask(sql, project, task, author))) {
+        return { started: false, reason: 'not_permitted' };
       }
       const agents = await sql<
         { harness: string; model: string; modelProvider: string | null }[]
