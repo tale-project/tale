@@ -107,6 +107,7 @@ function useSettingsSections(
   const ability = useAbility();
   const apiAccess = useApiSettingsAccess(organizationId);
   const apiDeveloper = apiAccess.developer;
+  const apiKeys = apiAccess.apiKeys;
   const apiModelApi = apiAccess.modelApi;
 
   const sections = useMemo<RailSection[]>(() => {
@@ -219,11 +220,13 @@ function useSettingsSections(
         labelKey: 'api',
         icon: Braces,
         path: 'api',
-        // Owners, admins and developers; and a member who may call the
-        // model endpoints, for the REST and Models tabs alone.
-        visible: apiDeveloper || apiModelApi,
+        // Owners, admins and developers; and a member who may create a
+        // personal API key or call the model endpoints, for the REST and
+        // Models tabs alone.
+        visible: apiDeveloper || apiKeys || apiModelApi,
         children: visibleApiNavItems({
           developer: apiDeveloper,
+          apiKeys,
           modelApi: apiModelApi,
         }).map((item) => ({
           slug: item.slug,
@@ -252,7 +255,15 @@ function useSettingsSections(
       { key: 'organization', labelKey: 'organization', items: organization },
       { key: 'advanced', labelKey: 'advanced', items: advanced },
     ];
-  }, [showAccountTab, tNav, tGov, tMetrics, apiDeveloper, apiModelApi]);
+  }, [
+    showAccountTab,
+    tNav,
+    tGov,
+    tMetrics,
+    apiDeveloper,
+    apiKeys,
+    apiModelApi,
+  ]);
 
   return useMemo(
     () =>

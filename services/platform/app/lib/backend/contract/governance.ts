@@ -701,6 +701,19 @@ export interface GovernanceContract {
       models: Array<{ id: string; label: string }>;
     };
   };
+  'governance/queries:getMyApiKeyAccess': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: {
+      /** The reader may create a personal API key: owner, admin or
+       * developer of any organization, or a live grant of a competence that
+       * is used with a key. */
+      mayCreate: boolean;
+      /** The reader holds an API key of any state — theirs to see and
+       * revoke whether or not they may create another. */
+      holdsKeys: boolean;
+    };
+  };
   'governance/queries:getOrgUsageMetrics': {
     kind: 'query';
     args: {
