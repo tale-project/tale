@@ -10,19 +10,8 @@ import type { ReactElement, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 
-import {
-  ShellMobileHeader,
-  ShellNotchSpacer,
-} from '@/app/components/layout/shell-mobile-header';
+import { ShellNotch } from '@/app/components/layout/shell-notch';
 import { STANDALONE_PAGE } from '@/app/components/layout/standalone-page';
-import {
-  AbilityContext,
-  AbilityLoadingContext,
-} from '@/app/context/ability-context';
-import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-grace-banner';
-import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
-import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/components/embedding-setup-banner';
-import { defineAbilityFor } from '@/lib/permissions/ability';
 import { render, screen } from '@/tests/utils/render';
 
 import {
@@ -33,44 +22,9 @@ import {
 import '@/app/globals.css';
 import '@/app/locals.css';
 
-/** What the dashboard's nudges read: none of them shows until a case says. */
-const nudges = vi.hoisted(() => ({
-  twoFactor: undefined as unknown,
-  embeddingConfigured: true,
-}));
-vi.mock('@/app/context/account-bootstrap-context', () => ({
-  useTwoFactorStatus: () => nudges.twoFactor,
-}));
-vi.mock('@/app/features/settings/data-residency/hooks/queries', () => ({
-  useOrgKnowledgeEmbedding: () => ({
-    data: { configured: nudges.embeddingConfigured },
-    isError: false,
-  }),
-}));
-vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
-  useProviderCredentials: () => ({ data: [{ id: 'credential-1' }] }),
-}));
-// The nudges' links lead to settings; no router is needed to lay them out.
-vi.mock('@tanstack/react-router', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
-  Link: ({
-    children,
-    className,
-  }: {
-    children: ReactNode;
-    className?: string;
-  }) => (
-    <a href="#settings" className={className}>
-      {children}
-    </a>
-  ),
-}));
-
 afterEach(() => {
   cleanup();
   document.documentElement.style.removeProperty('--safe-top');
-  nudges.twoFactor = undefined;
-  nudges.embeddingConfigured = true;
 });
 
 /** Render as the app mounts: in `#root`, which the app's stylesheets size to
@@ -152,8 +106,10 @@ function PageDialog({ open }: { open: boolean }) {
   );
 }
 
-/** A dashboard page in the shell: its alert stack, then the page under its
- * header, in a column as tall as the window. */
+/** A dashboard page in the shell: its notch strip and alert stack, then the
+ * page under its header, in a column as tall as the window. The shell's own
+ * notch rule is proven on the real one (`routes/dashboard/$id.tsx`,
+ * `dashboard-shell.browser.test.tsx`). */
 function ShellPage({
   header,
   dialog,
@@ -167,6 +123,7 @@ function ShellPage({
   return (
     <SessionLapseRecovery recovery={recovery}>
       <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
+        <ShellNotch />
         <SessionLapseNotice />
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <Header />
@@ -220,221 +177,6 @@ describe.each([
     });
   },
 );
-
-/** The notch of an installed iPhone app, as `env(safe-area-inset-top)`. */
-const NOTCH = 47;
-
-/** An admin, for whom every dashboard nudge may show. */
-const ADMIN = defineAbilityFor('admin');
-
-/** The phone shell as `$id.tsx` lays it out: the alert stack (the session
- * notice, then the dashboard's nudges), then the shell's header, or on a
- * thread page the spacer, then the page. */
-function PhoneShell({
-  recovery,
-  threadPage,
-}: {
-  recovery: typeof PAUSED;
-  threadPage: boolean;
-}) {
-  return (
-    <SessionLapseRecovery recovery={recovery}>
-      <AbilityContext.Provider value={ADMIN}>
-        <AbilityLoadingContext.Provider value={false}>
-          <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
-            <SessionLapseNotice />
-            <TwoFactorGraceBanner organizationId="org-1" />
-            <TwoFactorLowBackupCodesBanner organizationId="org-1" />
-            <EmbeddingSetupBanner organizationId="org-1" />
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-              {threadPage ? (
-                <ShellNotchSpacer />
-              ) : (
-                <ShellMobileHeader>
-                  <Row gap={2} className="min-h-12">
-                    <h1>Products</h1>
-                  </Row>
-                </ShellMobileHeader>
-              )}
-              <main className="min-h-0 flex-1">
-                <h2>Page</h2>
-              </main>
-            </div>
-          </div>
-        </AbilityLoadingContext.Provider>
-      </AbilityContext.Provider>
-    </SessionLapseRecovery>
-  );
-}
-
-// The notice pads the notch itself, and the shell's header (or a thread
-// page's spacer) padded it again right below it: a blank band as tall as
-// the notch under the notice, in the lapsed state only.
-describe('the notch of an installed app', () => {
-  async function renderPhoneShell(
-    recovery: typeof PAUSED,
-    threadPage: boolean,
-  ) {
-    await page.viewport(375, 740);
-    document.documentElement.style.setProperty('--safe-top', `${NOTCH}px`);
-    const { container } = renderApp(
-      <PhoneShell recovery={recovery} threadPage={threadPage} />,
-    );
-    // `hidden`: an open confirmation hides the page from the accessibility
-    // tree, and the page is still what is measured.
-    const main = screen.getByRole('main', { hidden: true });
-    return {
-      header: container.querySelector('header'),
-      spacer: threadPage ? (main.previousElementSibling as HTMLElement) : null,
-      page: main,
-    };
-  }
-
-  it('is cleared once, by the notice, above the shell header', async () => {
-    const { header } = await renderPhoneShell(PAUSED, false);
-    if (header === null) throw new Error('no shell header');
-    expect(noticeTitle().getBoundingClientRect().top).toBeGreaterThanOrEqual(
-      NOTCH,
-    );
-    expect(getComputedStyle(header).paddingTop).toBe('0px');
-    expect(header.getBoundingClientRect().top).toBe(
-      notice().getBoundingClientRect().bottom,
-    );
-  });
-
-  it('is cleared once, by the notice, above a thread page', async () => {
-    const { spacer, page: main } = await renderPhoneShell(PAUSED, true);
-    if (spacer === null) throw new Error('no notch spacer');
-    expect(spacer.getBoundingClientRect().height).toBe(0);
-    expect(main.getBoundingClientRect().top).toBe(
-      notice().getBoundingClientRect().bottom,
-    );
-  });
-
-  it('is cleared by the shell itself while signed in', async () => {
-    const { header } = await renderPhoneShell(SIGNED_IN, false);
-    if (header === null) throw new Error('no shell header');
-    expect(screen.queryByRole('status', { hidden: true })).toBeNull();
-    expect(getComputedStyle(header).paddingTop).toBe(`${NOTCH}px`);
-    cleanup();
-    const { spacer } = await renderPhoneShell(SIGNED_IN, true);
-    expect(spacer?.getBoundingClientRect().height).toBe(NOTCH);
-  });
-
-  it('is still cleared once, by the unseen notice, while the confirmation is open', async () => {
-    const { header } = await renderPhoneShell(ASKING, false);
-    if (header === null) throw new Error('no shell header');
-    const held = screen.getByRole('status', { hidden: true });
-    expect(getComputedStyle(held).visibility).toBe('hidden');
-    expect(getComputedStyle(header).paddingTop).toBe('0px');
-    expect(header.getBoundingClientRect().top).toBe(
-      held.getBoundingClientRect().bottom,
-    );
-  });
-
-  /** A nudge's own top padding (`py-3`); standing first, it adds the notch. */
-  const NUDGE_PAD = 12;
-  /** The dashboard's nudges, each shown the way its own read says so. */
-  const NUDGES = [
-    {
-      nudge: 'the two-factor grace banner',
-      title: /^Two-factor authentication required in 3 days$/,
-      show: () => {
-        nudges.twoFactor = {
-          authenticated: true,
-          twoFactorEnabled: false,
-          decision: 'grace',
-          graceUntil: Date.now() + 2.5 * 24 * 60 * 60 * 1000,
-          backupCodesRemaining: null,
-        };
-      },
-    },
-    {
-      nudge: 'the low backup codes banner',
-      title: /^Only 2 backup codes remaining$/,
-      show: () => {
-        nudges.twoFactor = {
-          authenticated: true,
-          twoFactorEnabled: true,
-          decision: 'allowed',
-          graceUntil: null,
-          backupCodesRemaining: 2,
-        };
-      },
-    },
-    {
-      nudge: 'the embedding setup banner',
-      title: /^Knowledge search is off$/,
-      show: () => {
-        nudges.embeddingConfigured = false;
-      },
-    },
-  ];
-
-  // With no notice above it, a nudge stood first with its words under the
-  // notch, and the shell's header still padded the notch below it: a blank
-  // band as tall as the notch between the two.
-  describe.each(NUDGES)('with $nudge and no notice', ({ title, show }) => {
-    it('is cleared once, by the nudge, above the shell header', async () => {
-      show();
-      const { header } = await renderPhoneShell(SIGNED_IN, false);
-      if (header === null) throw new Error('no shell header');
-      const nudge = screen.getByRole('status');
-      expect(
-        screen.getByText(title).getBoundingClientRect().top,
-      ).toBeGreaterThanOrEqual(NOTCH);
-      expect(getComputedStyle(nudge).paddingTop).toBe(`${NUDGE_PAD + NOTCH}px`);
-      expect(getComputedStyle(header).paddingTop).toBe('0px');
-      expect(header.getBoundingClientRect().top).toBe(
-        nudge.getBoundingClientRect().bottom,
-      );
-    });
-
-    it('is cleared once, by the nudge, above a thread page', async () => {
-      show();
-      const { spacer, page: main } = await renderPhoneShell(SIGNED_IN, true);
-      if (spacer === null) throw new Error('no notch spacer');
-      expect(
-        screen.getByText(title).getBoundingClientRect().top,
-      ).toBeGreaterThanOrEqual(NOTCH);
-      expect(spacer.getBoundingClientRect().height).toBe(0);
-      expect(main.getBoundingClientRect().top).toBe(
-        screen.getByRole('status').getBoundingClientRect().bottom,
-      );
-    });
-  });
-
-  it('is cleared once, by the first of two nudges', async () => {
-    for (const { show } of NUDGES.slice(1)) show();
-    const { header } = await renderPhoneShell(SIGNED_IN, false);
-    if (header === null) throw new Error('no shell header');
-    const [first, second, ...others] = screen.getAllByRole('status');
-    expect(others).toEqual([]);
-    expect(getComputedStyle(first).paddingTop).toBe(`${NUDGE_PAD + NOTCH}px`);
-    expect(getComputedStyle(second).paddingTop).toBe(`${NUDGE_PAD}px`);
-    expect(getComputedStyle(header).paddingTop).toBe('0px');
-    expect(header.getBoundingClientRect().top).toBe(
-      second.getBoundingClientRect().bottom,
-    );
-  });
-
-  it('is cleared once, by the notice, above a nudge', async () => {
-    NUDGES[0].show();
-    const { header } = await renderPhoneShell(PAUSED, false);
-    if (header === null) throw new Error('no shell header');
-    const [standing, nudge, ...others] = screen.getAllByRole('status');
-    expect(others).toEqual([]);
-    expect(standing).toContainElement(noticeTitle());
-    expect(noticeTitle().getBoundingClientRect().top).toBeGreaterThanOrEqual(
-      NOTCH,
-    );
-    expect(getComputedStyle(nudge).paddingTop).toBe(`${NUDGE_PAD}px`);
-    expect(getComputedStyle(header).paddingTop).toBe('0px');
-    expect(header.getBoundingClientRect().top).toBe(
-      nudge.getBoundingClientRect().bottom,
-    );
-  });
-});
 
 /** The dashboard pages outside the shell, in the frames they really use. */
 const STANDALONE_PAGES: Record<string, () => ReactNode> = {
@@ -550,6 +292,56 @@ describe.each([
           .toBeVisible();
         expect(pressable(noticeTitle())).toBe(false);
       });
+    });
+  },
+);
+
+/** The notch of an installed iPhone app, as `env(safe-area-inset-top)`. */
+const NOTCH = 47;
+
+// Outside the shell the notice stands at the top of the window, and so does
+// a notch strip of its own: the notice's words and the page start under the
+// notch, which is cleared once, as the shell clears it above its alerts.
+describe.each(Object.keys(STANDALONE_PAGES))(
+  'the notch of an installed app, above %s',
+  (name) => {
+    it('is cleared once, by the strip above the notice', async () => {
+      await page.viewport(375, 740);
+      document.documentElement.style.setProperty('--safe-top', `${NOTCH}px`);
+      const { rerender } = renderApp(
+        <StandalonePage name={name} dialog={false} />,
+      );
+      const strip = document.querySelector('[data-shell-notch]');
+      if (strip === null) throw new Error('no notch strip');
+      expect(strip.nextElementSibling).toBe(notice());
+      expect(strip.getBoundingClientRect().top).toBe(0);
+      expect(strip.getBoundingClientRect().height).toBe(NOTCH);
+      expect(getComputedStyle(strip).backgroundColor).toBe(
+        getComputedStyle(notice()).backgroundColor,
+      );
+      expect(noticeTitle().getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        NOTCH,
+      );
+      expect(getComputedStyle(notice()).paddingTop).toBe('8px');
+      // The page starts right under the notice.
+      expect(notice().nextElementSibling?.getBoundingClientRect().top).toBe(
+        notice().getBoundingClientRect().bottom,
+      );
+
+      // The confirmation hides the notice; the strip keeps its height and
+      // gives back the tint the notice no longer shows.
+      rerender(<StandalonePage name={name} dialog={false} recovery={ASKING} />);
+      const held = screen.getByRole('status', { hidden: true });
+      expect(strip.getBoundingClientRect().height).toBe(NOTCH);
+      expect(getComputedStyle(strip).backgroundColor).not.toBe(
+        getComputedStyle(held).backgroundColor,
+      );
+
+      // Signed in again, neither stands.
+      rerender(
+        <StandalonePage name={name} dialog={false} recovery={SIGNED_IN} />,
+      );
+      expect(document.querySelector('[data-shell-notch]')).toBeNull();
     });
   },
 );

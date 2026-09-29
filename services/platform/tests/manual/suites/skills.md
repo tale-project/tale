@@ -163,7 +163,7 @@ builtin skill from `configs/platform/custom/skills/`.
   and Governance → Logs carries a **Skill deleted** row
   (`settings.logs.audit.actionLabels.skill.deleted`) naming the agent. A
   skill that is merely unshared from the project's scope instead shows in
-  the dialog's skills menu as **"<slug>" (unavailable)**
+  the dialog's skills menu as **"‹slug›" (unavailable)**
   (`chat.skills.unavailableOption`), checked, so it can be unticked.
 - [ ] `SKILL-F15` · **Agent picks a skill by its description** — Create a
   skill `invoice-check` whose description reads "Use when a task asks to
@@ -182,7 +182,7 @@ builtin skill from `configs/platform/custom/skills/`.
   (`skills.attribution.builtin`) on `docx`, **Former member**
   (`skills.attribution.formerMember`) on B's skill — never a raw user id —
   and a skill a managed configuration release installed reads
-  **Configuration release · <installing member>**
+  **Configuration release · ‹installing member›**
   (`skills.attribution.releaseBy`); a zip A uploads whose `SKILL.md`
   frontmatter carries the release marker (`tale-release` under `metadata`)
   reads **Configuration release · <A's name>**,
@@ -202,9 +202,9 @@ builtin skill from `configs/platform/custom/skills/`.
   `/dashboard/{org}/projects/{projectId}/agents` → open an agent's dialog →
   open the skills menu (`chat.skills.label`), then an automation agent node's
   skills menu → Under every skill row a caption names its creator: **By
-  <name>** (`skills.attribution.byMember`), **By a former member**
+  ‹name›** (`skills.attribution.byMember`), **By a former member**
   (`skills.attribution.byFormerMember`), **Built-in** or **Configuration
-  release · <installing member>**; connector and tool rows carry no such caption; the caption is
+  release · ‹installing member›**; connector and tool rows carry no such caption; the caption is
   part of the row's accessible name and toggling a row still works by
   keyboard.
 - [ ] `SKILL-F19` · **Skill writes in the audit log** — As an admin: create a

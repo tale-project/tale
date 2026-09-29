@@ -356,6 +356,9 @@ auth:
     stayHere: Hier bleiben
     signIn: Anmelden
     checkFailed: Deine Sitzung konnte nicht geprüft werden. Bleib hier und versuche es erneut, sobald die Verbindung wiederhergestellt ist.
+  accountUnavailable:
+    description: Dein Konto konnte nicht geladen werden.
+    signInAgain: Erneut anmelden
   oauth:
     title: 'Mit Tale fortfahren'
     request: '{application} möchte dich mit Tale anmelden.'

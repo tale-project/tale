@@ -30,10 +30,8 @@ import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-p
 import { HomePanelPlaceholder } from '@/app/components/layout/home-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { MobileBottomNavPlaceholder } from '@/app/components/layout/mobile-bottom-nav-placeholder';
-import {
-  ShellMobileHeader,
-  ShellNotchSpacer,
-} from '@/app/components/layout/shell-mobile-header';
+import { ShellMobileHeader } from '@/app/components/layout/shell-mobile-header';
+import { ShellNotch } from '@/app/components/layout/shell-notch';
 import { SessionLapseNotice } from '@/app/components/session-lapse-recovery';
 import { UserButton } from '@/app/components/user-button';
 import {
@@ -317,9 +315,11 @@ function DashboardLayout() {
                     {/* Shell alerts sit above nav + main so page headers (chat toolbar,
                   AdaptiveHeader, etc.) stay flush with the rail — nesting them
                   inside #main-content pushed those headers down and looked broken.
-                  They lead the shell: whichever stands first pads the notch
-                  (`layout/shell-alert.tsx`, `layout/shell-mobile-header.tsx`). */}
+                  The notch strip heads the shell, and it alone clears the notch
+                  (`layout/shell-notch.tsx`): the alerts, the header and a thread
+                  page's own header all start under it. */}
                     <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
+                      <ShellNotch />
                       <SessionLapseNotice />
                       {hasRole && (
                         <TwoFactorGraceBanner organizationId={organizationId} />
@@ -333,12 +333,10 @@ function DashboardLayout() {
                         <EmbeddingSetupBanner organizationId={organizationId} />
                       )}
                       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-                        {/* Safe-area inset clears the notch; the inner fixed-height row
-                      vertically centers the title and profile button so neither
-                      sits high/low in the bar on notch devices. */}
-                        {threadPage ? (
-                          <ShellNotchSpacer />
-                        ) : (
+                        {/* The inner fixed-height row vertically centers the
+                      title and profile button so neither sits high/low in the
+                      bar. */}
+                        {!threadPage && (
                           <ShellMobileHeader>
                             <Row gap={2} className="min-h-12">
                               <div className="min-w-0 flex-1">

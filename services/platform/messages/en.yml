@@ -342,6 +342,9 @@ auth:
     stayHere: Stay here
     signIn: Sign in
     checkFailed: Your session could not be checked. Stay here and try again when your connection is restored.
+  accountUnavailable:
+    description: Your account could not be loaded.
+    signInAgain: Sign in again
   oauth:
     title: 'Continue with Tale'
     request: '{application} wants to sign you in with Tale.'
