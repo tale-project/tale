@@ -140,9 +140,13 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
   i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) gives `@tale/cli`'s tests the CLI install
-  pages and the three CI files `scripts/deployment-ci.test.ts` checks: the `build.yml` and
-  `cleanup-pr-images.yml` workflows and the `setup-cli` action. Its guard is
-  `tools/cli/src/lib/config/platform-docs.test.ts`.
+  pages; the three CI files `scripts/deployment-ci.test.ts` checks: the `build.yml` and
+  `cleanup-pr-images.yml` workflows and the `setup-cli` action; the files the compose parity
+  suite reads: `compose.yml`, the proxy's `Caddyfile` and entrypoint, the platform's
+  `Dockerfile`, entrypoint and `env.sh`, the db and sandbox-egress `Dockerfile`s, and the
+  `cli.yml` and `release.yml` workflows. The runtime suites prepare, read and apply the
+  release's own `compose.yml` and proxy `Caddyfile` (`REPOSITORY_RUNTIME_SOURCE` in
+  `runtime-test-helper.ts`). Its guard is `tools/cli/src/lib/config/platform-docs.test.ts`.
 
 These guards ask `turbo --dry=json` whether the files are hashed. Each also reads its
 `turbo.json` to hold the two-entry prefix, since the dry run hashes the same files with or

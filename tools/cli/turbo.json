@@ -9,7 +9,17 @@
         "$TURBO_ROOT$/docs/*/self-hosted/install/cli-install.md",
         "$TURBO_ROOT$/.github/workflows/build.yml",
         "$TURBO_ROOT$/.github/workflows/cleanup-pr-images.yml",
-        "$TURBO_ROOT$/.github/actions/setup-cli/action.yml"
+        "$TURBO_ROOT$/.github/actions/setup-cli/action.yml",
+        "$TURBO_ROOT$/.github/workflows/cli.yml",
+        "$TURBO_ROOT$/.github/workflows/release.yml",
+        "$TURBO_ROOT$/compose.yml",
+        "$TURBO_ROOT$/services/proxy/Caddyfile",
+        "$TURBO_ROOT$/services/proxy/docker-entrypoint.sh",
+        "$TURBO_ROOT$/services/platform/Dockerfile",
+        "$TURBO_ROOT$/services/platform/docker-entrypoint.sh",
+        "$TURBO_ROOT$/services/platform/env.sh",
+        "$TURBO_ROOT$/services/db/Dockerfile",
+        "$TURBO_ROOT$/services/sandbox-egress/Dockerfile"
       ]
     }
   }
