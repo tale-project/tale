@@ -1236,9 +1236,13 @@ export function DataTable<TData, TValue = unknown>({
   const shownEntityCount = infiniteScroll
     ? (infiniteScroll.displayedCount ?? data.length)
     : 0;
+  // Nothing is counted while the body is a skeleton: rows a host lists
+  // beside a first read still in flight (a documents table's folders) are
+  // not "all" of anything yet.
   const entityCountFooter = infiniteScroll &&
     infiniteScroll.entityLabel &&
-    data.length > 0 && (
+    data.length > 0 &&
+    !isSkeleton && (
       <output className="bg-background border-border text-muted-foreground sticky bottom-0 z-10 block px-3 py-3 text-left text-xs">
         {infiniteScroll.totalCount !== undefined &&
         infiniteScroll.totalCount !== shownEntityCount

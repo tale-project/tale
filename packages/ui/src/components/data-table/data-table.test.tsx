@@ -729,6 +729,24 @@ describe('DataTable after a failed request stopped the list', () => {
     expect(screen.queryByText(/scroll for more/)).not.toBeInTheDocument();
   });
 
+  it('counts nothing while its body is a skeleton, though a host already lists rows', () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={sampleRows}
+        infiniteScroll={{
+          hasMore: false,
+          isInitialLoading: true,
+          onLoadMore: vi.fn(),
+          entityLabel: { one: 'entry', other: 'entries' },
+          totalCount: 3,
+        }}
+      />,
+    );
+
+    expect(screen.queryByText(/Showing/)).not.toBeInTheDocument();
+  });
+
   // A documents table's folders stand in for a documents read that never
   // answered: nothing more is paged, and still they are not "all".
   it('never says "all" for rows a failed request left short, with nothing more to page', () => {
