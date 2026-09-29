@@ -72,6 +72,18 @@ Click **Failed** or **Not supported** to read the explanation. The next action d
 
 </Frame>
 
+## If the documents don't load
+
+Documents lists folders and documents from two separate reads. When the documents cannot be loaded, Tale doesn't pass the folders off as everything there is:
+
+- The folders stay listed, and you can still open them. A notice above the table says the documents couldn't be loaded and offers **Try again**, which repeats the read without reloading the page.
+- The count below the table says it shows only the first items and that the rest couldn't be loaded. A search covers only what is listed.
+- If documents were already listed when a refresh failed, they stay, and the notice says the list may be incomplete or out of date.
+- While you retry, the rows stay on screen, and your search, filters and any open dialog are kept.
+- If nothing at all can be loaded, the table shows the error and **Try again** instead of the empty state.
+
+A folder that really holds no documents lists its subfolders without a notice. If **Try again** keeps failing, ask an administrator to check that Tale's services are running.
+
 ## Choose who can read it
 
 Library documents default to **Organization-wide**. Use **Assign team** in the row menu to restrict a document to the chosen teams: members of any of those teams can read it, and Owners and Admins always can. Unless you are an Owner or Admin, you can only choose teams you belong to. A document inside a team folder takes the folder's teams and cannot name a team outside them, and moving a document into such a folder applies the folder's teams. These restrictions also apply to knowledge retrieval; an agent cannot make an inaccessible document visible through search.

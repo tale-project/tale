@@ -72,6 +72,18 @@ Clique sur **Échoué** ou **Non pris en charge** pour lire l’explication. La 
 
 </Frame>
 
+## Si les documents ne se chargent pas
+
+**Documents** liste les dossiers et les documents à partir de deux chargements distincts. Quand les documents ne peuvent pas être chargés, Tale ne fait pas passer les dossiers pour l’ensemble du contenu :
+
+- Les dossiers restent listés et tu peux toujours les ouvrir. Un avis au-dessus du tableau indique que les documents n’ont pas pu être chargés et propose **Réessayer**, qui relance le chargement sans que tu aies à recharger la page.
+- Le décompte sous le tableau précise que seuls les premiers éléments sont affichés et que la suite n’a pas pu être chargée. Une recherche ne porte que sur ce qui est listé.
+- Si des documents étaient déjà affichés quand une actualisation a échoué, ils restent en place, et l’avis indique que la liste est peut-être incomplète ou obsolète.
+- Pendant la nouvelle tentative, les lignes restent affichées, et ta recherche, tes filtres et une boîte de dialogue ouverte sont conservés.
+- Si rien ne peut être chargé, le tableau affiche l’erreur et **Réessayer** au lieu de l’état vide.
+
+Un dossier qui ne contient vraiment aucun document affiche ses sous-dossiers sans avis. Si **Réessayer** échoue à chaque fois, demande à un administrateur de vérifier que les services de Tale fonctionnent.
+
 ## Choisir qui peut lire le document
 
 Les documents de la bibliothèque sont accessibles à **Toute l'organisation** par défaut. Utilise **Assigner une équipe** dans le menu de la ligne pour restreindre l’accès aux équipes choisies : les membres de l’une d’elles peuvent lire le document, et les propriétaires et admins le peuvent toujours. Sauf si tu es propriétaire ou admin, tu ne peux choisir que des équipes dont tu fais partie. Un document rangé dans un dossier d’équipe reprend les équipes du dossier et ne peut pas en nommer une autre ; déplacer un document dans un tel dossier lui applique les équipes du dossier. Ces restrictions s’appliquent aussi à la recherche : un agent ne peut pas y rendre visible un document inaccessible.

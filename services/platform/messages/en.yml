@@ -2016,6 +2016,7 @@ documents:
   tableCaption: Documents and folders
   searchPlaceholder: Search documents
   refreshFailed: "Couldn't load the latest documents. What's listed may be incomplete or out of date."
+  loadFailed: "Couldn't load the documents here. Only the folders are listed until the documents load."
   record:
     badge: 'v{version} · {state}'
     state:
