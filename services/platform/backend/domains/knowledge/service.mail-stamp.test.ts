@@ -362,18 +362,22 @@ const timeline: string[] = [];
  * walks read asks — a keyset page, or the rows of given refs. A transaction
  * hands its callback a handle of its own, whose statements the timeline
  * labels `app tx …`: a read on it is the clear's backing recheck, and
- * `failRecheck` may fail the n-th of those; `failCommit` fails its COMMIT. */
+ * `failRecheck` may fail the n-th of those; `failCommit` fails its COMMIT.
+ * `hangRecheck` loses the n-th one's connection without a reset: its read
+ * never answers, and nothing after it on that connection does either — its
+ * transaction's end included. */
 function attachmentsSql(
   rows: AttachmentRow[],
   log: Query[],
   options: {
     failRecheck?: (recheck: number) => Error | undefined;
     failCommit?: Error;
+    hangRecheck?: (recheck: number) => boolean;
   } = {},
 ): Sql {
   let rechecks = 0;
   const on =
-    (side: 'app' | 'app tx') =>
+    (side: 'app' | 'app tx', connection = { gone: false }) =>
     (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('$');
       log.push({ text, values });
@@ -383,8 +387,13 @@ function attachmentsSql(
       }
       timeline.push(`${side} read`);
       if (side === 'app tx') {
-        const failure = options.failRecheck?.(rechecks);
+        const recheck = rechecks;
         rechecks += 1;
+        if (options.hangRecheck?.(recheck) === true) {
+          connection.gone = true;
+          return new Promise<never>(() => undefined);
+        }
+        const failure = options.failRecheck?.(recheck);
         if (failure !== undefined) return Promise.reject(failure);
       }
       const afterId = boundBefore(strings, values, '::text IS NULL OR fm.id');
@@ -405,14 +414,18 @@ function attachmentsSql(
   ): Promise<T> => {
     log.push({ text: 'BEGIN', values: [] });
     timeline.push('app BEGIN');
+    const connection = { gone: false };
+    const lost = new Promise<never>(() => undefined);
     let result: T;
     try {
-      result = await callback(on('app tx'));
+      result = await callback(on('app tx', connection));
     } catch (error) {
+      if (connection.gone) return lost;
       log.push({ text: 'ROLLBACK', values: [] });
       timeline.push('app ROLLBACK');
       throw error;
     }
+    if (connection.gone) return lost;
     if (options.failCommit !== undefined) {
       timeline.push('app COMMIT failed');
       throw options.failCommit;
@@ -1226,6 +1239,58 @@ describe('reconcileMailAttachmentStamps — how long a clear holds its rows', ()
         lost,
       ],
     ]);
+  });
+
+  it('rolls a clear back when its recheck never answers, and goes on with the next clear', async () => {
+    // A half-open app connection (its peer gone without a reset) never
+    // delivers the server's statement timeout. Without a bound of its own,
+    // the clear held its corpus rows until TCP gave up, minutes later, and
+    // every indexer and release on those refs waited behind them.
+    vi.useFakeTimers();
+    try {
+      const stamped = stampedRows(150);
+      const statements = corpusPool({ stamped });
+      const pass = reconcileMailAttachmentStamps(
+        attachmentsSql([], [], { hangRecheck: (recheck) => recheck === 0 }),
+        {
+          organizationId: 'org-1',
+          orgSlug: 'acme',
+          ...releaser({ keep: stamped.map((row) => row.fileId) }).releases,
+        },
+      );
+      const ends = () =>
+        statements
+          .map(firstWord)
+          .filter((word) =>
+            ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(word ?? ''),
+          );
+      // A sound connection's own timeout would have answered by now; this
+      // one still holds the rows.
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(ends()).toEqual(['BEGIN']);
+      // The bound lapses: the corpus side rolls back, its stamps still on.
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(ends()).toEqual(['BEGIN', 'ROLLBACK']);
+      // Its app transaction never ends: the pass waits for that only so
+      // long, then goes on with the next clear, and only that one counts.
+      await vi.advanceTimersByTimeAsync(15_000);
+      const result = await pass;
+      expect(ends()).toEqual(['BEGIN', 'ROLLBACK', 'BEGIN', 'COMMIT']);
+      expect(result).toEqual({ ...QUIET, stampsScanned: 150, cleared: 50 });
+      expect(
+        timeline.filter((entry) =>
+          ['app ROLLBACK', 'app COMMIT'].includes(entry),
+        ),
+      ).toEqual(['app COMMIT']);
+      expect(warn.mock.calls).toEqual([
+        [
+          '[knowledge] stale conversation stamps for acme: a clear did not finish (rows=100), the next night retries it:',
+          new Error('the recheck did not answer within 15000 ms'),
+        ],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('goes on with the next clear after one that did not finish', async () => {

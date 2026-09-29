@@ -2183,6 +2183,14 @@ async function clearUnbackedMailStamps(
  * the rows it clears stay locked until its backing recheck answers. */
 const STAMP_CLEAR_ROWS = 100;
 
+/** How long a clear waits on the app connection of its recheck — for the
+ * read, then for the transaction around it to end — before it takes that
+ * connection for gone. Above the recheck's own statement timeout (10 s),
+ * which answers first while the connection is sound: this bound is for one
+ * that no longer answers at all, a half-open socket, which the server's
+ * timeout never reaches and TCP gives up on only minutes later. */
+const STAMP_RECHECK_ANSWER_MS = 15_000;
+
 /**
  * Take the stamp off rows no attachment backs, then read their backing
  * again. The corpus lives in a database of its own, so the clear cannot be
@@ -2266,9 +2274,15 @@ interface ClearedStamps {
  * transaction. The app connection the recheck reads on is taken, and its
  * statement timeout set, before a corpus row is locked, so the rows stay
  * locked for the clear, one bounded read and the stamps put back — never for
- * a wait on the app pool. That app transaction only reads: once the corpus
- * side has committed, a failure to end it undoes nothing, and the clear
- * stands.
+ * a wait on the app pool. The read is bounded on this side too
+ * (`STAMP_RECHECK_ANSWER_MS`): a connection that no longer answers never
+ * delivers the server's timeout, and the clear rolls back without it.
+ *
+ * The clear is what its corpus transaction did. The app transaction around
+ * it only reads: once the corpus side has committed, a failure to end it
+ * undoes nothing and the clear stands. Whichever way the corpus side went,
+ * the end of the app transaction is waited for only so long
+ * (`STAMP_RECHECK_ANSWER_MS`), so the pass goes on past a dead connection.
  */
 async function clearMailStampRows(
   sql: Sql,
@@ -2276,13 +2290,15 @@ async function clearMailStampRows(
   args: { organizationId: string; orgSlug: string },
   rows: readonly StampedCorpusRow[],
 ): Promise<ClearedStamps> {
-  const corpus: { committed?: ClearedStamps } = {};
-  try {
-    return await sql.begin(async (atx) => {
-      await atx`SET LOCAL statement_timeout = '10s'`;
-      // A restored stamp must commit with the clear: another indexer must
-      // never see its temporary NULL and clone mail context into an ordinary file.
-      const committed = await pool.begin(async (tx): Promise<ClearedStamps> => {
+  const corpus = Promise.withResolvers<ClearedStamps>();
+  let corpusBegun = false;
+  const app = sql.begin(async (atx) => {
+    await atx`SET LOCAL statement_timeout = '10s'`;
+    corpusBegun = true;
+    // A restored stamp must commit with the clear: another indexer must
+    // never see its temporary NULL and clone mail context into an ordinary file.
+    pool
+      .begin(async (tx): Promise<ClearedStamps> => {
         // Only the stamp this walk read comes off; a row stamped with another
         // conversation meanwhile is left for the next night to judge.
         const cleared = await tx.unsafe<{ fileId: string }[]>(
@@ -2306,27 +2322,80 @@ async function clearMailStampRows(
         const backedAgain =
           cleared.length === 0
             ? []
-            : await readMailAttachments(atx, {
-                organizationId: args.organizationId,
-                refs: cleared.map((row) => row.fileId),
-              });
+            : await answeredWithin(
+                readMailAttachments(atx, {
+                  organizationId: args.organizationId,
+                  refs: cleared.map((row) => row.fileId),
+                }),
+                'the recheck',
+              );
         if (backedAgain.length > 0) {
           // Restore every attachment before a release can fail. Even dead mail
           // must not donate its contextual headers to an ordinary content-hash clone.
           await stampMailAttachments(tx, args.orgSlug, backedAgain);
         }
         return { cleared, backedAgain };
-      });
-      corpus.committed = committed;
-      return committed;
-    });
+      })
+      .then(corpus.resolve, corpus.reject);
+    // The app transaction ends as the corpus side did: committed with it,
+    // or rolled back.
+    return corpus.promise;
+  });
+  // Before the corpus side begins, the app transaction failing (its BEGIN,
+  // the timeout) fails the clear; from then on the corpus side decides it.
+  app.catch((error: unknown) => {
+    if (!corpusBegun) corpus.reject(error);
+  });
+  let committed: ClearedStamps;
+  try {
+    committed = await corpus.promise;
   } catch (error) {
-    if (corpus.committed === undefined) throw error;
+    // Rolled back, its stamps still on: how its app transaction ended adds
+    // nothing to that, so it is only waited for.
+    await appTransactionEnd(app);
+    throw error;
+  }
+  const failure = await appTransactionEnd(app);
+  if (failure !== null) {
     console.warn(
       `[knowledge] stale conversation stamps for ${args.orgSlug}: a clear committed (rows=${rows.length}), but its recheck's app transaction did not end cleanly:`,
-      error,
+      failure,
     );
-    return corpus.committed;
+  }
+  return committed;
+}
+
+/** `work`'s answer, or a rejection once `STAMP_RECHECK_ANSWER_MS` have
+ * passed without one. The query it stops waiting for settles on its own. */
+async function answeredWithin<T>(work: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              `${what} did not answer within ${STAMP_RECHECK_ANSWER_MS} ms`,
+            ),
+          );
+        }, STAMP_RECHECK_ANSWER_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The end of a clear's app transaction: `null` once it ended cleanly, else
+ * what failed — its own error, or the answer bound lapsing on a connection
+ * that no longer answers. */
+async function appTransactionEnd(app: Promise<unknown>): Promise<unknown> {
+  try {
+    await answeredWithin(app, "the recheck's app transaction");
+    return null;
+  } catch (error) {
+    return error;
   }
 }
 
